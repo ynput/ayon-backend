@@ -40,7 +40,4 @@ jobs:
         run: poetry run black . --check
 
       - name: Test with pytest
-        env:
-          DJANGO_SETTINGS_MODULE: project.settings
-          SECRETS_FILE: .confidential/ci.json
-        run: poetry run pytest --cov . -n 2
+        run: poetry run pytest
