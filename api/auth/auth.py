@@ -45,9 +45,7 @@ class LoginResponseModel(BaseModel):
 @router.post(
     "/login",
     response_model=LoginResponseModel,
-    responses={
-        401: ResponseFactory.error(401, "Unable to log in")
-    }
+    responses={401: ResponseFactory.error(401, "Unable to log in")},
 )
 async def login(login: LoginRequestModel):
     """Login using name/password credentials.
@@ -63,7 +61,7 @@ async def login(login: LoginRequestModel):
     return LoginResponseModel(
         detail=f"Logged in as {session.user_entity.name}",
         token=session.token,
-        user=session.user
+        user=session.user,
     )
 
 
@@ -79,9 +77,7 @@ class LogoutResponseModel(BaseModel):
 @router.post(
     "/logout",
     response_model=LogoutResponseModel,
-    responses={
-        401: ResponseFactory.error(401, "Not logged in")
-    }
+    responses={401: ResponseFactory.error(401, "Not logged in")},
 )
 async def logout(access_token: str = Depends(dep_access_token)):
     """Log out the current user."""

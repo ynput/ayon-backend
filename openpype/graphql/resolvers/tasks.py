@@ -14,28 +14,18 @@ from .common import ARGFirst, ARGAfter, ARGLast, ARGBefore, ARGIds
 async def get_tasks(
     root,
     info: Info,
-
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
     ids: ARGIds = None,
-
     task_types: Annotated[
-        list[str] | None,
-        argdesc("List of task types to filter by")
+        list[str] | None, argdesc("List of task types to filter by")
     ] = None,
-
     folder_ids: Annotated[
-        list[str] | None,
-        argdesc("List of parent folder IDs to filter by")
+        list[str] | None, argdesc("List of parent folder IDs to filter by")
     ] = None,
-
-    name: Annotated[
-        str | None,
-        argdesc("Text string to filter name by")
-    ] = None,
-
+    name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
 
@@ -87,13 +77,7 @@ async def get_tasks(
     """
 
     return await resolve(
-        TasksConnection,
-        TaskEdge,
-        TaskNode,
-        project_name,
-        query,
-        first,
-        last
+        TasksConnection, TaskEdge, TaskNode, project_name, query, first, last
     )
 
 

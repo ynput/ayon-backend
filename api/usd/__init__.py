@@ -32,10 +32,7 @@ class ResolveResponseModel(BaseModel):
 
 
 @router.post(
-    "/resolve",
-    responses={
-        401: ResponseFactory.error(401, "Unable to log in")
-    }
+    "/resolve", responses={401: ResponseFactory.error(401, "Unable to log in")}
 )
 async def resolve(request: ResolveRequestModel):
 
@@ -77,18 +74,13 @@ async def resolve(request: ResolveRequestModel):
                         representation = val
 
                 if project != current_project:
-                    await conn.execute(
-                        f"SET LOCAL search_path TO project_{project}"
-                    )
+                    await conn.execute(f"SET LOCAL search_path TO project_{project}")
                     stmt = await conn.prepare(query)
                     current_project = project
 
-                result.append(await stmt.fetchval(
-                    hpath,
-                    subset,
-                    version,
-                    representation
-                ))
+                result.append(
+                    await stmt.fetchval(hpath, subset, version, representation)
+                )
 
     elapsed = time.monotonic() - start_time
     return {"paths": result, "time": elapsed}

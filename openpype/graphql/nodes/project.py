@@ -19,7 +19,7 @@ from ..connections import (
     TasksConnection,
     SubsetsConnection,
     VersionsConnection,
-    RepresentationsConnection
+    RepresentationsConnection,
 )
 
 
@@ -53,53 +53,43 @@ class ProjectAttribType:
 class ProjectNode(BaseNode):
 
     folder: Optional[FolderNode] = strawberry.field(
-        resolver=get_folder,
-        description=get_folder.__doc__
+        resolver=get_folder, description=get_folder.__doc__
     )
 
     folders: FoldersConnection = strawberry.field(
-        resolver=get_folders,
-        description=get_folders.__doc__
+        resolver=get_folders, description=get_folders.__doc__
     )
 
     task: Optional[TaskNode] = strawberry.field(
-        resolver=get_task,
-        description=get_task.__doc__
+        resolver=get_task, description=get_task.__doc__
     )
 
     tasks: TasksConnection = strawberry.field(
-        resolver=get_tasks,
-        description=get_tasks.__doc__
+        resolver=get_tasks, description=get_tasks.__doc__
     )
 
     subset: Optional[SubsetNode] = strawberry.field(
-        resolver=get_subset,
-        description=get_subset.__doc__
+        resolver=get_subset, description=get_subset.__doc__
     )
 
     subsets: SubsetsConnection = strawberry.field(
-        resolver=get_subsets,
-        description=get_subsets.__doc__
+        resolver=get_subsets, description=get_subsets.__doc__
     )
 
     version: Optional[VersionNode] = strawberry.field(
-        resolver=get_version,
-        description=get_version.__doc__
+        resolver=get_version, description=get_version.__doc__
     )
 
     versions: VersionsConnection = strawberry.field(
-        resolver=get_versions,
-        description=get_versions.__doc__
+        resolver=get_versions, description=get_versions.__doc__
     )
 
     representation: Optional[RepresentationNode] = strawberry.field(
-        resolver=get_representation,
-        description=get_representation.__doc__
+        resolver=get_representation, description=get_representation.__doc__
     )
 
     representations: RepresentationsConnection = strawberry.field(
-        resolver=get_representations,
-        description=get_representations.__doc__
+        resolver=get_representations, description=get_representations.__doc__
     )
 
     @strawberry.field
@@ -115,8 +105,7 @@ class ProjectNode(BaseNode):
                 FROM project_{self.project_name}.task_types
             """
         return [
-            TaskType(name=row["task_type"])
-            async for row in Postgres.iterate(query)
+            TaskType(name=row["task_type"]) async for row in Postgres.iterate(query)
         ]
 
     @strawberry.field
@@ -133,25 +122,23 @@ class ProjectNode(BaseNode):
                 FROM project_{self.project_name}.folder_types
             """
         return [
-            FolderType(name=row["folder_type"])
-            async for row in Postgres.iterate(query)
+            FolderType(name=row["folder_type"]) async for row in Postgres.iterate(query)
         ]
 
     @strawberry.field
     async def subset_families(self) -> list[str]:
         return [
             row["family"]
-            async for row in Postgres.iterate(f"""
+            async for row in Postgres.iterate(
+                f"""
                 SELECT DISTINCT(family)
                 FROM project_{self.project_name}.subsets
-            """)
+            """
+            )
         ]
 
 
-def project_from_record(
-    record: dict,
-    context: dict | None = None
-) -> ProjectNode:
+def project_from_record(record: dict, context: dict | None = None) -> ProjectNode:
     """Construct a project node from a DB row."""
     return ProjectNode(
         project_name=record["name"],

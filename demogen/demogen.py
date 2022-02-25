@@ -10,7 +10,7 @@ from openpype.entities import (
     SubsetEntity,
     VersionEntity,
     RepresentationEntity,
-    TaskEntity
+    TaskEntity,
 )
 
 from openpype.exceptions import RecordNotFoundException
@@ -99,7 +99,7 @@ class DemoGen:
             project_name=self.project_name,
             parent_id=parent,
             validate=self.validate,
-            **dict_exclude(kwargs, ["_", "parentId"], mode="startswith")
+            **dict_exclude(kwargs, ["_", "parentId"], mode="startswith"),
         )
         await folder.save(conn)
         folder.parents = parents
@@ -109,31 +109,21 @@ class DemoGen:
 
         for task in kwargs.get("_tasks", []):
             if task["task_type"] == "Modeling":
-                task["assignees"] = random.choice([
-                    ["artist"],
-                    ["artist", "visitor"],
-                    [],
-                    [],
-                    []
-                ])
+                task["assignees"] = random.choice(
+                    [["artist"], ["artist", "visitor"], [], [], []]
+                )
             await self.create_task(conn, folder_id=folder.id, **task)
 
         if "_children" in kwargs:
             if type(kwargs["_children"]) == str:
                 async for child in generators[kwargs["_children"]](kwargs):
                     await self.create_folder(
-                        conn,
-                        folder.id,
-                        parents=parents+[folder.name],
-                        **child
+                        conn, folder.id, parents=parents + [folder.name], **child
                     )
             elif type(kwargs["_children"]) is list:
                 for child in kwargs["_children"]:
                     await self.create_folder(
-                        conn,
-                        folder.id,
-                        parents=parents+[folder.name],
-                        **child
+                        conn, folder.id, parents=parents + [folder.name], **child
                     )
         return folder
 
@@ -143,7 +133,7 @@ class DemoGen:
             project_name=self.project_name,
             folder_id=folder.id,
             validate=self.validate,
-            **dict_exclude(kwargs, ["_"], mode="startswith")
+            **dict_exclude(kwargs, ["_"], mode="startswith"),
         )
         await subset.save(conn)
 
@@ -158,36 +148,23 @@ class DemoGen:
                 subset_id=subset.id,
                 version=i,
                 author="admin",
-                attrib=attrib
+                attrib=attrib,
             )
             await version.save(conn)
 
             for representation in kwargs.get("_representations", []):
                 await self.create_representation(
-                    conn,
-                    folder,
-                    subset,
-                    version,
-                    **representation
+                    conn, folder, subset, version, **representation
                 )
 
     async def create_task(self, conn, **kwargs):
         self.task_count += 1
         task = TaskEntity(
-            project_name=self.project_name,
-            validate=self.validate,
-            **kwargs
+            project_name=self.project_name, validate=self.validate, **kwargs
         )
         await task.save(conn)
 
-    async def create_representation(
-        self,
-        conn,
-        folder,
-        subset,
-        version,
-        **kwargs
-    ):
+    async def create_representation(self, conn, folder, subset, version, **kwargs):
         self.representation_count += 1
 
         attrib = kwargs.get("attrib", {})
@@ -221,7 +198,7 @@ class DemoGen:
             files[fid] = {
                 "path": fpath,
                 "size": random.randint(1_000_000, 10_000_000),
-                "hash": fid
+                "hash": fid,
             }
 
         #
@@ -236,7 +213,7 @@ class DemoGen:
                 "files": files,
                 "context": context,
             },
-            **kwargs
+            **kwargs,
         )
         await representation.save(conn)
 
@@ -244,8 +221,7 @@ class DemoGen:
         # Save sync state of the files
         #
 
-        sites = ["local", "remote"] \
-            + [f"user{j:02d}" for j in range(1, 5)]
+        sites = ["local", "remote"] + [f"user{j:02d}" for j in range(1, 5)]
 
         priority = random.choice([0, 0, 0, 10, 50, 100])
         synced = random.choice([True, True, True, False])
@@ -270,5 +246,5 @@ class DemoGen:
                 site_name,
                 synced,
                 priority,
-                json_dumps(fdata)
+                json_dumps(fdata),
             )

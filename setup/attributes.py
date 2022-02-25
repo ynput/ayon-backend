@@ -17,7 +17,7 @@ def parse_example(example, atype):
         "string": str,
         "float": float,
         "boolean": lambda x: True if x.lower == "true" else False,
-        "list_of_strings": lambda x: None
+        "list_of_strings": lambda x: None,
     }[atype](example)
     if example:
         return {"example": example}
@@ -56,8 +56,19 @@ async def deploy_attributes():
             # TODO: parse columns here
             continue
 
-        name, scope, atype, title, example, \
-            gt, lt, regex, min_len, max_len, description = row
+        (
+            name,
+            scope,
+            atype,
+            title,
+            example,
+            gt,
+            lt,
+            regex,
+            min_len,
+            max_len,
+            description,
+        ) = row
 
         try:
             scope = [
@@ -68,7 +79,7 @@ async def deploy_attributes():
                     "t": "task",
                     "s": "subset",
                     "v": "version",
-                    "r": "representation"
+                    "r": "representation",
                 }[k.strip().lower()]
                 for k in scope.split(",")
             ]
@@ -102,5 +113,8 @@ async def deploy_attributes():
                 (name, scope, builtin, data)
             VALUES
                 ($1, $2, TRUE, $3)
-            """, name, scope, json_dumps(data)
+            """,
+            name,
+            scope,
+            json_dumps(data),
         )

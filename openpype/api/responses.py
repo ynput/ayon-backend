@@ -25,8 +25,6 @@ class ResponseFactory:
             "model": ErrorResponse,
             "description": detail,
             "content": {
-                "application/json": {
-                    "example": {"code": code, "detail": detail}
-                }
+                "application/json": {"example": {"code": code, "detail": detail}}
             },
         }

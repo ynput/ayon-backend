@@ -15,13 +15,11 @@ from .common import ARGFirst, ARGAfter, ARGLast, ARGBefore, ARGIds
 async def get_folders(
     root,
     info: Info,
-
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
     ids: ARGIds = None,
-
     parent_id: Annotated[
         str | None,
         argdesc(
@@ -29,38 +27,25 @@ async def get_folders(
             ID of the parent folder.
             Use 'root' to get top level folders.
             """
-        )
+        ),
     ] = None,
     folder_types: Annotated[
-        list[str] | None,
-        argdesc("List of folder types to filter by")
+        list[str] | None, argdesc("List of folder types to filter by")
     ] = None,
-    paths: Annotated[
-        list[str] | None,
-        argdesc("List of paths to filter by")
-    ] = None,
-    path_ex: Annotated[
-        str | None,
-        argdesc("Match paths by regular expression")
-    ] = None,
+    paths: Annotated[list[str] | None, argdesc("List of paths to filter by")] = None,
+    path_ex: Annotated[str | None, argdesc("Match paths by regular expression")] = None,
     name: Annotated[
-        str | None,
-        argdesc("Text string to filter names by. Use `%` as wildcard.")
+        str | None, argdesc("Text string to filter names by. Use `%` as wildcard.")
     ] = None,
     has_children: Annotated[
-        bool | None,
-        argdesc("Whether to filter by folders with children")
+        bool | None, argdesc("Whether to filter by folders with children")
     ] = None,
     has_subsets: Annotated[
-        bool | None,
-        argdesc("Whether to filter by folders with subsets")
+        bool | None, argdesc("Whether to filter by folders with subsets")
     ] = None,
     has_tasks: Annotated[
-        bool | None,
-        argdesc("Whether to filter by folders with tasks")
+        bool | None, argdesc("Whether to filter by folders with tasks")
     ] = None,
-
-
 ) -> FoldersConnection:
     """Return a list of folders."""
 
@@ -87,10 +72,11 @@ async def get_folders(
     sql_conditions = []
     sql_having = []
 
-    use_hierarchy = \
-        (paths is not None) or \
-        (path_ex is not None) or \
-        fields.has_any("path", "parents")
+    use_hierarchy = (
+        (paths is not None)
+        or (path_ex is not None)
+        or fields.has_any("path", "parents")
+    )
 
     user = info.context["user"]
     if access_conds := await folder_access_conds(user, project_name, "read"):
@@ -149,35 +135,29 @@ async def get_folders(
 
     if parent_id is not None:
         sql_conditions.append(
-            "folders.parent_id IS NULL" if parent_id == "root"
+            "folders.parent_id IS NULL"
+            if parent_id == "root"
             else f" folders.parent_id = '{EntityID.parse(parent_id)}'"
         )
 
     if folder_types is not None:
-        sql_conditions.append(
-            f"folders.folder_type in {SQLTool.array(folder_types)}"
-        )
+        sql_conditions.append(f"folders.folder_type in {SQLTool.array(folder_types)}")
 
     if name is not None:
         sql_conditions.append(f"folders.name ILIKE '{name}'")
 
     if has_subsets is not None:
         sql_having.append(
-            "COUNT(subsets.id) > 0" if has_subsets
-            else "COUNT(subsets.id) = 0"
+            "COUNT(subsets.id) > 0" if has_subsets else "COUNT(subsets.id) = 0"
         )
 
     if has_children is not None:
         sql_having.append(
-            "COUNT(children.id) > 0" if has_children
-            else "COUNT(children.id) = 0"
+            "COUNT(children.id) > 0" if has_children else "COUNT(children.id) = 0"
         )
 
     if has_tasks is not None:
-        sql_having.append(
-            "COUNT(tasks.id) > 0" if has_tasks
-            else "COUNT(tasks.id) = 0"
-        )
+        sql_having.append("COUNT(tasks.id) > 0" if has_tasks else "COUNT(tasks.id) = 0")
 
     if paths is not None:
         sql_conditions.append(f"hierarchy.path IN {SQLTool.array(paths)}")
@@ -216,13 +196,7 @@ async def get_folders(
     """
 
     return await resolve(
-        FoldersConnection,
-        FolderEdge,
-        FolderNode,
-        project_name,
-        query,
-        first,
-        last
+        FoldersConnection, FolderEdge, FolderNode, project_name, query, first, last
     )
 
 

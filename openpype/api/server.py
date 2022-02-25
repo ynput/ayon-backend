@@ -15,10 +15,7 @@ from openpype.access.roles import Roles
 
 
 app = fastapi.FastAPI(
-    docs_url=None,
-    redoc_url="/docs",
-    openapi_tags=tags_meta,
-    **app_meta
+    docs_url=None, redoc_url="/docs", openapi_tags=tags_meta, **app_meta
 )
 
 #
@@ -30,10 +27,7 @@ app = fastapi.FastAPI(
 async def pype_exception_handler(request: fastapi.Request, exc: APIException):
     return fastapi.responses.JSONResponse(
         status_code=exc.status,
-        content=ErrorResponse(
-            code=exc.status,
-            detail=exc.detail
-        ).dict()
+        content=ErrorResponse(code=exc.status, detail=exc.detail).dict(),
     )
 
 
@@ -42,10 +36,7 @@ async def all_exception_handler(request: fastapi.Request, exc: APIException):
     logging.error(f"Unhandled exception: {exc}")
     return fastapi.responses.JSONResponse(
         status_code=500,
-        content=ErrorResponse(
-            code=500,
-            detail="Interanal server error"
-        ).dict()
+        content=ErrorResponse(code=500, detail="Interanal server error").dict(),
     )
 
 
@@ -54,10 +45,7 @@ async def all_exception_handler(request: fastapi.Request, exc: APIException):
 #
 
 app.include_router(
-    graphql_router,
-    prefix="/graphql",
-    tags=["GraphQL"],
-    include_in_schema=False
+    graphql_router, prefix="/graphql", tags=["GraphQL"], include_in_schema=False
 )
 
 
@@ -80,10 +68,7 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api"):
 
     for module_name in sorted(os.listdir(plugin_dir)):
         try:
-            fp, pathname, description = imp.find_module(
-                module_name,
-                [plugin_dir]
-            )
+            fp, pathname, description = imp.find_module(module_name, [plugin_dir])
         except ImportError:
             logging.error(f"API plug-in '{module_name}' is not a valid module")
             continue

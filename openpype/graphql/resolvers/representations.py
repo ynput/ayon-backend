@@ -14,26 +14,17 @@ from .common import ARGFirst, ARGAfter, ARGLast, ARGBefore, ARGIds
 async def get_representations(
     root,
     info: Info,
-
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
     ids: ARGIds = None,
-
     local_site: str | None = None,
     remote_site: str | None = None,
-
     version_ids: Annotated[
-        list[str] | None,
-        argdesc("List of parent version IDs to filter by")
+        list[str] | None, argdesc("List of parent version IDs to filter by")
     ] = None,
-
-    name: Annotated[
-        str | None,
-        argdesc("Text string to filter name by")
-    ] = None,
-
+    name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
 ) -> RepresentationsConnection:
     """Return a list of representations."""
 
@@ -129,12 +120,13 @@ async def get_representations(
         project_name,
         query,
         first,
-        last
+        last,
     )
 
 
 async def get_representation(
-    root, info: Info,
+    root,
+    info: Info,
     id: str,
     local_site: str | None = None,
     remote_site: str | None = None,
@@ -143,11 +135,7 @@ async def get_representation(
     if not id:
         return None
     connection = await get_representations(
-        root,
-        info,
-        ids=[id],
-        local_site=local_site,
-        remote_site=remote_site
+        root, info, ids=[id], local_site=local_site, remote_site=remote_site
     )
     if not connection.edges:
         return None

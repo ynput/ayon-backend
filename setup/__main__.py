@@ -13,9 +13,7 @@ from .attributes import deploy_attributes
 # Defaults which should allow OpenPype to run out of the box
 
 DATA = {
-    "default_roles": {
-        "viewer": "all"
-    },
+    "default_roles": {"viewer": "all"},
     "users": [
         {
             "name": "admin",
@@ -23,7 +21,7 @@ DATA = {
             "fullname": "OpenPype admin",
             "roles": {
                 "admin": True,
-            }
+            },
         },
         {
             "name": "manager",
@@ -31,22 +29,15 @@ DATA = {
             "fullname": "OpenPype manager",
             "roles": {
                 "manager": True,
-            }
+            },
         },
         {
             "name": "user",
             "password": "user",
             "fullname": "OpenPype user",
-        }
+        },
     ],
-    "roles": [
-        {
-            "name": "viewer",
-            "data": {
-                "read": "all"
-            }
-        }
-    ]
+    "roles": [{"name": "viewer", "data": {"read": "all"}}],
 }
 
 

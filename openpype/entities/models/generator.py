@@ -22,7 +22,7 @@ FIELD_TYPES = {
     "list_of_strings": List[str],
     "list_of_integers": List[int],
     "list_of_any": List[Any],
-    "dict": dict
+    "dict": dict,
 }
 
 #
@@ -40,12 +40,7 @@ def current_timestamp():
     return int(time.time())
 
 
-FIELD_FACORIES = {
-    "list": list,
-    "dict": dict,
-    "now": current_timestamp,
-    "uuid": new_id
-}
+FIELD_FACORIES = {"list": list, "dict": dict, "now": current_timestamp, "uuid": new_id}
 
 #
 # Field definition
@@ -79,11 +74,8 @@ class FieldDefinition(BaseModel):
         "boolean",
         "list_of_strings",
         "list_of_any",
-        "dict"
-    ] = Field(
-        default="string",
-        title="Field data type"
-    )
+        "dict",
+    ] = Field(default="string", title="Field data type")
     submodel: Optional[Any]
 
     # Descriptive
@@ -95,7 +87,7 @@ class FieldDefinition(BaseModel):
     default: Optional[Any] = Field(title="Field default value")
     factory: Optional[Literal["list", "dict", "now", "uuid"]] = Field(
         title="Default factory",
-        description="Name of the function to be used to create default values"
+        description="Name of the function to be used to create default values",
     )
 
     # Validation
@@ -109,9 +101,7 @@ class FieldDefinition(BaseModel):
 
 
 def generate_model(
-    model_name: str,
-    field_data: List[Union[dict, FieldDefinition]],
-    config=None
+    model_name: str, field_data: List[Union[dict, FieldDefinition]], config=None
 ):
     """Create a new model from a given field set."""
     fields = {}
@@ -128,11 +118,18 @@ def generate_model(
 
         for k in [
             # Descriptive tags
-            "title", "description", "example",
+            "title",
+            "description",
+            "example",
             # Numeric validators
-            "gt", "ge", "lt", "le",
+            "gt",
+            "ge",
+            "lt",
+            "le",
             # String validators
-            "min_length", "max_length", "regex"
+            "min_length",
+            "max_length",
+            "regex",
         ]:
             if getattr(fdef, k):
                 field[k] = getattr(fdef, k)
@@ -164,8 +161,4 @@ def generate_model(
 
         fields[fdef.name] = (ftype, Field(**field))
 
-    return create_model(
-        model_name,
-        __config__=config,
-        **fields
-    )
+    return create_model(model_name, __config__=config, **fields)

@@ -14,7 +14,7 @@ from openpype.api import (
     ResponseFactory,
     APIException,
     dep_current_user,
-    dep_project_name
+    dep_project_name,
 )
 
 
@@ -25,10 +25,7 @@ from openpype.api import (
 
 router = APIRouter(
     tags=["Folders"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403)
-    }
+    responses={401: ResponseFactory.error(401), 403: ResponseFactory.error(403)},
 )
 
 
@@ -37,7 +34,7 @@ router = APIRouter(
 #
 
 
-HierarchyFolderModel = ForwardRef('HierarchyFolderModel')
+HierarchyFolderModel = ForwardRef("HierarchyFolderModel")
 
 
 class HierarchyFolderModel(BaseModel):
@@ -47,8 +44,7 @@ class HierarchyFolderModel(BaseModel):
     subsetCount: int
     parents: list[str]
     children: list[HierarchyFolderModel] = Field(
-        default_factory=list,
-        title="List of children"
+        default_factory=list, title="List of children"
     )
 
 
@@ -61,10 +57,7 @@ class HierarchyResponseModel(BaseModel):
     hierarchy: list[HierarchyFolderModel]
 
 
-@router.get(
-    "/projects/{project_name}/hierarchy",
-    response_model=HierarchyResponseModel
-)
+@router.get("/projects/{project_name}/hierarchy", response_model=HierarchyResponseModel)
 async def get_folder_hierarchy(
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
@@ -72,30 +65,26 @@ async def get_folder_hierarchy(
         "",
         title="Search query",
         description="Full-text search query used to limit the result",
-        example="forest"
+        example="forest",
     ),
     types: Optional[str] = Query(
         "",
         title="Type filter",
         description="Comma separated list of folder_types to show",
-        example="AssetBuild,Shot,Sequence"
-    )
+        example="AssetBuild,Shot,Sequence",
+    ),
 ):
     """Return a hierarchy of a project."""
 
     start_time = time.time()
 
-    type_list = [
-        t.strip() for t in types.split(",") if t.strip()
-    ]
+    type_list = [t.strip() for t in types.split(",") if t.strip()]
 
     hierarchy = HierarchyResolver()
 
     conds = []
     if type_list:
-        conds.append(
-            f"folder_type IN {SQLTool.array(type_list)}"
-        )
+        conds.append(f"folder_type IN {SQLTool.array(type_list)}")
 
     try:
         access_conds = await folder_access_conds(user, project_name, "read")
@@ -135,7 +124,7 @@ async def get_folder_hierarchy(
             "name": row["name"],
             "type": row["folder_type"],
             "parents": row["path"].split("/")[:-1],
-            "subsetCount": row["subset_count"]
+            "subsetCount": row["subset_count"],
         }
         if types:
             plain_result.append(d)
@@ -153,7 +142,7 @@ async def get_folder_hierarchy(
     return HierarchyResponseModel.construct(
         detail=f"Hierarchy loaded in {elapsed}s",
         projectName=project_name,
-        hierarchy=hresult
+        hierarchy=hresult,
     )
 
 
@@ -169,14 +158,12 @@ class HierarchyChangeModel(BaseModel):
 
 
 @router.post(
-    "/projects/{project_name}/hierarchy",
-    status_code=204,
-    response_class=Response
+    "/projects/{project_name}/hierarchy", status_code=204, response_class=Response
 )
 async def change_hierarchy(
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
-    body: HierarchyChangeModel = ...
+    body: HierarchyChangeModel = ...,
 ):
     """
     Change the hierarchy of a project.
@@ -196,13 +183,14 @@ async def change_hierarchy(
                 parent_id = $1
                 WHERE id IN {SQLTool.id_array(children)}
                 """,
-                body.id
+                body.id,
             )
 
             await conn.execute(
                 f"""
                 REFRESH MATERIALIZED VIEW CONCURRENTLY
                 project_{project_name}.hierarchy
-                """)
+                """
+            )
 
     return Response(status_code=204)

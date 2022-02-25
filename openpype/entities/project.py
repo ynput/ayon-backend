@@ -8,10 +8,7 @@ from nxtools import logging, log_traceback
 
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, dict_exclude, json_loads, json_dumps
-from openpype.exceptions import (
-    ConstraintViolationException,
-    RecordNotFoundException
-)
+from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 
 from .common import Entity, EntityType, attribute_library
 from .models import ModelSet
@@ -42,10 +39,7 @@ async def aux_table_update(conn, table, update_data):
         if name in old_data:
             if data is None:
                 # Delete
-                await conn.execute(
-                    f"DELETE FROM {table} WHERE name = $1",
-                    name
-                )
+                await conn.execute(f"DELETE FROM {table} WHERE name = $1", name)
 
             elif "name" in data:
                 # Rename
@@ -55,7 +49,7 @@ async def aux_table_update(conn, table, update_data):
                     f"UPDATE {table} SET name = $1, data = $2 WHERE name = $3",
                     new_name,
                     json_dumps(data),
-                    name
+                    name,
                 )
 
             else:
@@ -63,14 +57,14 @@ async def aux_table_update(conn, table, update_data):
                 await conn.execute(
                     f"UPDATE {table} SET data = $1 WHERE name = $2",
                     json_dumps(data),
-                    name
+                    name,
                 )
         else:
             # Insert
             await conn.execute(
                 f"INSERT INTO {table} (name, data) VALUES ($1, $2)",
                 name,
-                json_dumps(data)
+                json_dumps(data),
             )
 
         # We always get all records in the update_data (since the original)
@@ -79,10 +73,7 @@ async def aux_table_update(conn, table, update_data):
         for name in old_data:
             if name not in update_data:
                 # Delete
-                await conn.execute(
-                    f"DELETE FROM {table} WHERE name = $1",
-                    name
-                )
+                await conn.execute(f"DELETE FROM {table} WHERE name = $1", name)
 
 
 class ProjectEntity(Entity):
@@ -96,25 +87,24 @@ class ProjectEntity(Entity):
 
     @classmethod
     async def load(
-        cls,
-        project_name: str,
-        transaction=None,
-        for_update=False
-    ) -> 'ProjectEntity':
+        cls, project_name: str, transaction=None, for_update=False
+    ) -> "ProjectEntity":
         """Load a project from the database."""
 
         # TODO: maybe allow different conditions?
         # TODO: Then this code may be used in graphql as well.
 
-        if not (project_data := await Postgres.fetch(
-            f"""
+        if not (
+            project_data := await Postgres.fetch(
+                f"""
             SELECT  *
             FROM public.projects
             WHERE name = $1
             {'FOR UPDATE' if transaction and for_update else ''}
             """,
-            project_name
-        )):
+                project_name,
+            )
+        ):
             raise RecordNotFoundException()
 
         # Load folder types
@@ -144,10 +134,8 @@ class ProjectEntity(Entity):
                 project_name=project_name,
                 exists=True,
                 validate=False,
-                **dict(project_data[0]) | {
-                    "folder_types": folder_types,
-                    "task_types": task_types
-                },
+                **dict(project_data[0])
+                | {"folder_types": folder_types, "task_types": task_types},
             )
         except Exception:
             log_traceback()
@@ -163,7 +151,7 @@ class ProjectEntity(Entity):
         else:
             async with Postgres.acquire() as conn:
                 async with conn.transaction():
-                    return await(self._save(conn))
+                    return await (self._save(conn))
 
     async def _save(self, transaction) -> bool:
         if self.exists:
@@ -176,25 +164,16 @@ class ProjectEntity(Entity):
                         f"WHERE name='{self.name}'",
                         **dict_exclude(
                             self.dict(exclude_none=True),
-                            [
-                                "folder_types",
-                                "task_types",
-                                "ctime",
-                                "name"
-                            ]
-                        )
+                            ["folder_types", "task_types", "ctime", "name"],
+                        ),
                     )
                 )
 
                 await aux_table_update(
-                    transaction,
-                    f"project_{self.name}.folder_types",
-                    self.folder_types
+                    transaction, f"project_{self.name}.folder_types", self.folder_types
                 )
                 await aux_table_update(
-                    transaction,
-                    f"project_{self.name}.task_types",
-                    self.task_types
+                    transaction, f"project_{self.name}.task_types", self.task_types
                 )
             except Postgres.ForeignKeyViolationError as e:
                 raise ConstraintViolationException(e.detail)
@@ -205,30 +184,27 @@ class ProjectEntity(Entity):
             *SQLTool.insert(
                 "projects",
                 **dict_exclude(
-                    self.dict(exclude_none=True),
-                    ["folder_types", "task_types"]
-                )
+                    self.dict(exclude_none=True), ["folder_types", "task_types"]
+                ),
             )
         )
         # Create a new schema for the project tablespace
         await transaction.execute(f"CREATE SCHEMA project_{self.name}")
 
         # Create tables in the newly created schema
-        await transaction.execute(
-            f"SET LOCAL search_path TO project_{self.name}"
-        )
+        await transaction.execute(f"SET LOCAL search_path TO project_{self.name}")
 
         # TODO: Preload this to avoid blocking
-        await transaction.execute(
-            open("schemas/schema.project.sql").read()
-        )
+        await transaction.execute(open("schemas/schema.project.sql").read())
 
         for name, data in self.folder_types.items():
             await transaction.execute(
                 f"""
                 INSERT INTO project_{self.name}.folder_types
                 VALUES($1, $2)
-                """, name, json_dumps(data)
+                """,
+                name,
+                json_dumps(data),
             )
 
         for name, data in self.task_types.items():
@@ -236,7 +212,9 @@ class ProjectEntity(Entity):
                 f"""
                 INSERT INTO project_{self.name}.task_types
                 VALUES($1, $2)
-                """, name, json_dumps(data)
+                """,
+                name,
+                json_dumps(data),
             )
         return True
 
@@ -251,18 +229,15 @@ class ProjectEntity(Entity):
         else:
             async with Postgres.acquire() as conn:
                 async with conn.transaction():
-                    return await(self._delete(conn))
+                    return await (self._delete(conn))
 
     async def _delete(self, transaction) -> bool:
         if not self.name:
             raise KeyError("Unable to delete project. Not loaded")
 
+        await transaction.execute(f"DROP SCHEMA project_{self.name} CASCADE")
         await transaction.execute(
-            f"DROP SCHEMA project_{self.name} CASCADE"
-        )
-        await transaction.execute(
-            "DELETE FROM public.projects WHERE name = $1",
-            self.name
+            "DELETE FROM public.projects WHERE name = $1", self.name
         )
         # TODO: Return false if project was not found
         return True

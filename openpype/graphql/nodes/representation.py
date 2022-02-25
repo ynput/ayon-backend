@@ -21,7 +21,7 @@ class SyncStateType:
 
 
 @strawberry.type
-class FileNode():
+class FileNode:
     id: str
     path: str
     size: int
@@ -41,7 +41,6 @@ class RepresentationAttribType:
 
 @RepresentationEntity.strawberry_entity()
 class RepresentationNode(BaseNode):
-
     @strawberry.field(description="Parent version of the representation")
     async def version(self, info: Info) -> VersionNode:
         return await info.context["version_loader"].load(
@@ -57,25 +56,20 @@ class RepresentationNode(BaseNode):
     )
 
     local_state: SyncStateType | None = strawberry.field(
-        default=None,
-        description="Sync state of the representation on the local site"
+        default=None, description="Sync state of the representation on the local site"
     )
 
     remote_state: SyncStateType | None = strawberry.field(
-        default=None,
-        description="Sync state of the representation on the remote site"
+        default=None, description="Sync state of the representation on the remote site"
     )
 
     context: str | None = strawberry.field(
-        default=None,
-        description="JSON serialized context data"
+        default=None, description="JSON serialized context data"
     )
 
 
 def parse_files(
-    data: dict,
-    local_state: dict | None = None,
-    remote_state: dict | None = None
+    data: dict, local_state: dict | None = None, remote_state: dict | None = None
 ) -> list[FileNode]:
     """Parse the files from a representation."""
     files = []
@@ -86,14 +80,16 @@ def parse_files(
     for fid, fdata in data.items():
         local_file = local_files.get(fid)
         remote_file = remote_files.get(fid)
-        files.append(FileNode(
-            id=fid,
-            path=fdata.get("path"),
-            size=fdata.get("size"),
-            hash=fdata.get("hash"),
-            local_state=SyncStateType(**local_file) if local_file else None,
-            remote_state=SyncStateType(**remote_file) if remote_file else None
-        ))
+        files.append(
+            FileNode(
+                id=fid,
+                path=fdata.get("path"),
+                size=fdata.get("size"),
+                hash=fdata.get("hash"),
+                local_state=SyncStateType(**local_file) if local_file else None,
+                remote_state=SyncStateType(**remote_file) if remote_file else None,
+            )
+        )
     return files
 
 
@@ -133,9 +129,7 @@ def compute_overal_state(data: dict, state: dict):
 
 
 def representation_from_record(
-    project_name: str,
-    record: dict,
-    context: dict | None = None
+    project_name: str, record: dict, context: dict | None = None
 ) -> RepresentationNode:  # noqa # no. this line won't be shorter
     """Construct a representation node from a DB row."""
     data = json_loads(record["data"]) or {}
@@ -159,16 +153,8 @@ def representation_from_record(
         local_state=compute_overal_state(data, local_state),
         remote_state=compute_overal_state(data, remote_state),
         context=json_dumps(data.get("context")),
-        files=parse_files(
-            data.get("files", {}),
-            local_state,
-            remote_state
-        ),
+        files=parse_files(data.get("files", {}), local_state, remote_state),
     )
 
 
-setattr(
-    RepresentationNode,
-    "from_record",
-    staticmethod(representation_from_record)
-)
+setattr(RepresentationNode, "from_record", staticmethod(representation_from_record))

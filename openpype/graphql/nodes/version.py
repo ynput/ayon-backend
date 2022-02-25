@@ -10,9 +10,7 @@ from .common import BaseNode
 
 
 SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
-RepresentationsConnection = lazy_type(
-    "RepresentationsConnection", ".connections"
-)
+RepresentationsConnection = lazy_type("RepresentationsConnection", ".connections")
 
 
 @VersionEntity.strawberry_attrib()
@@ -23,8 +21,7 @@ class VersionAttribType:
 @VersionEntity.strawberry_entity()
 class VersionNode(BaseNode):
     representations: RepresentationsConnection = strawberry.field(
-        resolver=get_representations,
-        description=get_representations.__doc__
+        resolver=get_representations, description=get_representations.__doc__
     )
 
     @strawberry.field(description="Version name")
@@ -41,9 +38,7 @@ class VersionNode(BaseNode):
 
 
 def version_from_record(
-    project_name: str,
-    record: dict,
-    context: dict | None = None
+    project_name: str, record: dict, context: dict | None = None
 ) -> VersionNode:
     """Construct a version node from a DB row."""
 

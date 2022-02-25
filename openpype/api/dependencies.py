@@ -20,8 +20,7 @@ async def dep_access_token(authorization: str = Header(None)) -> str:
 
 
 async def dep_current_user(
-    x_forwarded_for: str = Header(None),
-    access_token: str = Depends(dep_access_token)
+    x_forwarded_for: str = Header(None), access_token: str = Depends(dep_access_token)
 ) -> UserEntity:
     """Return the currently logged-in user
 
@@ -46,51 +45,35 @@ async def dep_project_name(
         ...,
         title="Project ID",
         regex=r"^[0-9a-zA-Z_]*$",
-        )
+    )
 ) -> str:
     """Validate a project name specified in an endpoint path"""
     return project_name
 
 
 async def dep_folder_id(
-    folder_id: str = Path(
-        ...,
-        title="Folder ID",
-        **EntityID.META
-    )
+    folder_id: str = Path(..., title="Folder ID", **EntityID.META)
 ) -> str:
     """Validate a folder id specified in an endpoint path."""
     return folder_id
 
 
 async def dep_subset_id(
-    subset_id: str = Path(
-        ...,
-        title="Subset ID",
-        **EntityID.META
-    )
+    subset_id: str = Path(..., title="Subset ID", **EntityID.META)
 ) -> str:
     """Validate a subset id specified in an endpoint path."""
     return subset_id
 
 
 async def dep_version_id(
-    version_id: str = Path(
-        ...,
-        title="Version ID",
-        **EntityID.META
-    )
+    version_id: str = Path(..., title="Version ID", **EntityID.META)
 ) -> str:
     """Validate a version id specified in an endpoint path."""
     return version_id
 
 
 async def dep_representation_id(
-    representation_id: str = Path(
-        ...,
-        title="Version ID",
-        **EntityID.META
-    )
+    representation_id: str = Path(..., title="Version ID", **EntityID.META)
 ) -> str:
     """Validate a representation id specified in an endpoint path."""
     return representation_id

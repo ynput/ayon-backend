@@ -14,26 +14,18 @@ from .common import ARGFirst, ARGAfter, ARGLast, ARGBefore, ARGIds
 async def get_subsets(
     root,
     info: Info,
-
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
     ids: ARGIds = None,
-
     folder_ids: Annotated[
-        list[str] | None,
-        argdesc("List of parent folder IDs to filter by")
+        list[str] | None, argdesc("List of parent folder IDs to filter by")
     ] = None,
-    name: Annotated[
-        str | None,
-        argdesc("Text string to filter name by")
-    ] = None,
+    name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
     families: Annotated[
-        list[str] | None,
-        argdesc("List of families to filter by")
+        list[str] | None, argdesc("List of families to filter by")
     ] = None,
-
 ) -> SubsetsConnection:
     """Return a list of subsets."""
 
@@ -68,9 +60,7 @@ async def get_subsets(
         sql_conditions.append(f"folder_id = '{root.id}'")
 
     if families:
-        sql_conditions.append(
-            f"family IN {SQLTool.array(families)}"
-        )
+        sql_conditions.append(f"family IN {SQLTool.array(families)}")
 
     if name:
         sql_conditions.append(f"name ILIKE '{name}'")
@@ -80,17 +70,19 @@ async def get_subsets(
     #
 
     if "folder" in fields:
-        sql_columns.extend([
-            "folders.id AS _folder_id",
-            "folders.name AS _folder_name",
-            "folders.folder_type AS _folder_folder_type",
-            "folders.parent_id AS _folder_parent_id",
-            "folders.attrib AS _folder_attrib",
-            "folders.data AS _folder_data",
-            "folders.active AS _folder_active",
-            "folders.created_at AS _folder_created_at",
-            "folders.updated_at AS _folder_updated_at",
-        ])
+        sql_columns.extend(
+            [
+                "folders.id AS _folder_id",
+                "folders.name AS _folder_name",
+                "folders.folder_type AS _folder_folder_type",
+                "folders.parent_id AS _folder_parent_id",
+                "folders.attrib AS _folder_attrib",
+                "folders.data AS _folder_data",
+                "folders.active AS _folder_active",
+                "folders.created_at AS _folder_created_at",
+                "folders.updated_at AS _folder_updated_at",
+            ]
+        )
         sql_joins.append(
             f"""
             LEFT JOIN project_{project_name}.folders
@@ -116,10 +108,9 @@ async def get_subsets(
     #
 
     if "versionList" in fields:
-        sql_columns.extend([
-            "version_list.ids as version_ids",
-            "version_list.versions as version_list"
-        ])
+        sql_columns.extend(
+            ["version_list.ids as version_ids", "version_list.versions as version_list"]
+        )
         sql_joins.append(
             f"""
             LEFT JOIN
@@ -162,7 +153,7 @@ async def get_subsets(
         query,
         first,
         last,
-        context=info.context
+        context=info.context,
     )
 
 

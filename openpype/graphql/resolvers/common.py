@@ -16,33 +16,18 @@ def argdesc(description):
     return strawberry.argument(description=description)
 
 
-ARGFirst = Annotated[
-    int | None,
-    argdesc("Pagination: first")
-]
+ARGFirst = Annotated[int | None, argdesc("Pagination: first")]
 
 
-ARGAfter = Annotated[
-    str | None,
-    argdesc("Pagination: first")
-]
+ARGAfter = Annotated[str | None, argdesc("Pagination: first")]
 
 
-ARGLast = Annotated[
-    int | None,
-    argdesc("Pagination: last")
-]
+ARGLast = Annotated[int | None, argdesc("Pagination: last")]
 
 
-ARGBefore = Annotated[
-    str | None,
-    argdesc("Pagination: before")
-]
+ARGBefore = Annotated[str | None, argdesc("Pagination: before")]
 
-ARGIds = Annotated[
-    list[str] | None,
-    argdesc("List of ids to be returned")
-]
+ARGIds = Annotated[list[str] | None, argdesc("List of ids to be returned")]
 
 
 class FieldInfo:
@@ -114,19 +99,12 @@ async def resolve(
         if count and count <= len(edges):
             break
 
-        node = node_type.from_record(
-            project_name,
-            record,
-            context=context
-        )
+        node = node_type.from_record(project_name, record, context=context)
 
         # TODO: ACL goes here.
         # If user is not allowed to see this node, skip it.
 
-        edges.append(edge_type(
-            node=node,
-            cursor=EntityID.parse(record["id"])
-        ))
+        edges.append(edge_type(node=node, cursor=EntityID.parse(record["id"])))
 
     has_next_page = False
     has_previous_page = False
@@ -156,7 +134,4 @@ async def resolve(
     # elapsed = time.monotonic() - start_time
     # logging.info(f"Query {clean_query} took {elapsed:.05f} seconds.")
 
-    return connection_type(
-        edges=edges,
-        page_info=page_info
-    )
+    return connection_type(edges=edges, page_info=page_info)

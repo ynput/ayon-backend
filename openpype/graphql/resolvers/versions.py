@@ -15,25 +15,18 @@ from .common import ARGFirst, ARGAfter, ARGLast, ARGBefore, ARGIds
 async def get_versions(
     root,
     info: Info,
-
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
     ids: ARGIds = None,
-
     subset_ids: Annotated[
-        list[str] | None,
-        argdesc("List of parent subsets IDs")
+        list[str] | None, argdesc("List of parent subsets IDs")
     ] = None,
-
     authors: Annotated[
-        list[str] | None,
-        argdesc("List of version author user names to filter by.")
+        list[str] | None, argdesc("List of version author user names to filter by.")
     ] = None,
-
     version: int = None,
-
 ) -> VersionsConnection:
     """Return a list of versions."""
 
@@ -80,13 +73,7 @@ async def get_versions(
     """
 
     return await resolve(
-        VersionsConnection,
-        VersionEdge,
-        VersionNode,
-        project_name,
-        query,
-        first,
-        last
+        VersionsConnection, VersionEdge, VersionNode, project_name, query, first, last
     )
 
 

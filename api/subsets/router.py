@@ -3,8 +3,5 @@ from openpype.api import ResponseFactory
 
 router = APIRouter(
     tags=["Subsets"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403)
-    }
+    responses={401: ResponseFactory.error(401), 403: ResponseFactory.error(403)},
 )

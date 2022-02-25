@@ -26,10 +26,7 @@ project_fields = [
         "type": "dict",
         "default": {},
         "title": "Folder types",
-        "example": {
-            "AssetBuild": {"icon": "asset"},
-            "Folder": {"icon": "folder"}
-        }
+        "example": {"AssetBuild": {"icon": "asset"}, "Folder": {"icon": "folder"}},
     },
     {
         "name": "task_types",
@@ -41,12 +38,7 @@ project_fields = [
             "Animation": {},
         },
     },
-    {
-        "name": "config",
-        "type": "dict",
-        "default": {},
-        "title": "Project config"
-    },
+    {"name": "config", "type": "dict", "default": {}, "title": "Project config"},
 ]
 
 
@@ -57,14 +49,14 @@ folder_fields = [
         "required": True,
         "title": "Folder name",
         "regex": NAME_REGEX,
-        "example": "bush"
+        "example": "bush",
     },
     {
         "name": "folder_type",
         "type": "string",
         "required": False,
         "title": "Folder type",
-        "example": "AssetBuild"
+        "example": "AssetBuild",
     },
     {
         "name": "parent_id",
@@ -72,13 +64,9 @@ folder_fields = [
         "title": "Parent ID",
         "description": "Parent folder ID in the hierarchy",
         "regex": ENTITY_ID_REGEX,
-        "example": ENTITY_ID_EXAMPLE
+        "example": ENTITY_ID_EXAMPLE,
     },
-    {
-        "name": "thumbnail_id",
-        "type": "integer",
-        "title": "Thumbnail ID"
-    },
+    {"name": "thumbnail_id", "type": "integer", "title": "Thumbnail ID"},
 ]
 
 
@@ -88,26 +76,17 @@ task_fields = [
         "type": "string",
         "required": True,
         "title": "Folder ID",
-        "regex": NAME_REGEX
+        "regex": NAME_REGEX,
     },
-    {
-        "name": "task_type",
-        "type": "string",
-        "required": True,
-        "title": "Task type"
-    },
-    {
-        "name": "assignees",
-        "type": "list_of_strings",
-        "title": "Assignees"
-    },
+    {"name": "task_type", "type": "string", "required": True, "title": "Task type"},
+    {"name": "assignees", "type": "list_of_strings", "title": "Assignees"},
     {
         "name": "folder_id",
         "type": "string",
         "title": "Folder ID",
         "description": "Folder ID",
         "regex": ENTITY_ID_REGEX,
-        "example": ENTITY_ID_EXAMPLE
+        "example": ENTITY_ID_EXAMPLE,
     },
 ]
 
@@ -118,7 +97,7 @@ subset_fields = [
         "type": "string",
         "required": True,
         "description": "Name of the subset",
-        "regex": NAME_REGEX
+        "regex": NAME_REGEX,
     },
     {
         "name": "folder_id",
@@ -127,7 +106,7 @@ subset_fields = [
         "title": "Folder ID",
         "description": "ID of the parent folder",
         "regex": ENTITY_ID_REGEX,
-        "example": ENTITY_ID_EXAMPLE
+        "example": ENTITY_ID_EXAMPLE,
     },
     {
         "name": "family",
@@ -136,9 +115,8 @@ subset_fields = [
         "title": "Family",
         "description": "Subset family",
         "regex": NAME_REGEX,
-        "example": "model"
-    }
-
+        "example": "model",
+    },
 ]
 
 
@@ -157,17 +135,10 @@ version_fields = [
         "title": "Subset ID",
         "description": "ID of the parent subset",
         "regex": ENTITY_ID_REGEX,
-        "example": ENTITY_ID_EXAMPLE
+        "example": ENTITY_ID_EXAMPLE,
     },
-    {
-        "name": "thumbnail_id",
-        "type": "integer"
-    },
-    {
-        "name": "author",
-        "type": "string",
-        "regex": NAME_REGEX
-    }
+    {"name": "thumbnail_id", "type": "integer"},
+    {"name": "author", "type": "string", "regex": NAME_REGEX},
 ]
 
 
@@ -187,6 +158,6 @@ representation_fields = [
         "title": "Version ID",
         "description": "ID of the parent version",
         "regex": ENTITY_ID_REGEX,
-        "example": ENTITY_ID_EXAMPLE
-    }
+        "example": ENTITY_ID_EXAMPLE,
+    },
 ]

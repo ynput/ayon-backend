@@ -4,16 +4,13 @@ from pydantic import BaseModel
 
 from openpype.utils import EntityID
 from openpype.entities import UserEntity, SubsetEntity
-from openpype.exceptions import (
-    ConstraintViolationException,
-    RecordNotFoundException
-)
+from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.api import (
     ResponseFactory,
     APIException,
     dep_project_name,
     dep_subset_id,
-    dep_current_user
+    dep_current_user,
 )
 
 from .router import router
@@ -27,22 +24,17 @@ from .router import router
 @router.get(
     "/projects/{project_name}/subsets/{subset_id}",
     response_model=SubsetEntity.model.main_model,
-    responses={
-        404: ResponseFactory.error(404, "Subset not found")
-    }
+    responses={404: ResponseFactory.error(404, "Subset not found")},
 )
 async def get_subset(
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
-    subset_id: str = Depends(dep_subset_id)
+    subset_id: str = Depends(dep_subset_id),
 ):
     """Retrieve a subset by its ID."""
 
     try:
-        subset = await SubsetEntity.load(
-            project_name,
-            subset_id
-        )
+        subset = await SubsetEntity.load(project_name, subset_id)
     except RecordNotFoundException:
         raise APIException(404, "subset not found")
     except Exception:
@@ -56,6 +48,7 @@ async def get_subset(
 # [POST]
 #
 
+
 class PostSubsetResponseModel(BaseModel):
     subsetId: str = EntityID.field("subset")
 
@@ -66,7 +59,7 @@ class PostSubsetResponseModel(BaseModel):
     response_model=PostSubsetResponseModel,
     responses={
         409: ResponseFactory.error(409, "Coflict"),
-    }
+    },
 )
 async def create_subset(
     post_data: SubsetEntity.model.post_model,
@@ -85,6 +78,7 @@ async def create_subset(
         raise APIException(409, f"Unable to create subset. {e.detail}")
     return PostSubsetResponseModel(subsetId=subset.id)
 
+
 #
 # [PATCH]
 #
@@ -93,21 +87,18 @@ async def create_subset(
 @router.patch(
     "/projects/{project_name}/subsets/{subset_id}",
     status_code=204,
-    response_class=Response
+    response_class=Response,
 )
 async def update_subset(
     post_data: SubsetEntity.model.patch_model,  # noqa
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
-    subset_id: str = Depends(dep_subset_id)
+    subset_id: str = Depends(dep_subset_id),
 ):
     """Patch (partially update) a subset."""
 
     try:
-        subset = await SubsetEntity.load(
-            project_name,
-            subset_id
-        )
+        subset = await SubsetEntity.load(project_name, subset_id)
     except RecordNotFoundException:
         raise APIException(404, "subset not found")
 
@@ -129,20 +120,17 @@ async def update_subset(
 @router.delete(
     "/projects/{project_name}/subsets/{subset_id}",
     response_class=Response,
-    status_code=204
+    status_code=204,
 )
 async def delete_subset(
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
-    subset_id: str = Depends(dep_subset_id)
+    subset_id: str = Depends(dep_subset_id),
 ):
     """Delete a subset."""
 
     try:
-        subset = await SubsetEntity.load(
-            project_name,
-            subset_id
-        )
+        subset = await SubsetEntity.load(project_name, subset_id)
     except RecordNotFoundException:
         raise APIException(404, "Subset not found")
 

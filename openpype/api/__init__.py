@@ -9,7 +9,7 @@ __all__ = [
     "dep_subset_id",
     "dep_version_id",
     "dep_representation_id",
-    "app"
+    "app",
 ]
 
 from openpype.api.responses import ResponseFactory, JSONResponse

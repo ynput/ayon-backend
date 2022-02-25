@@ -40,8 +40,7 @@ class HierarchyResolver:
             items.append(child)
             if child[self.id_key] in parents.keys():
                 items[-1][self.branch_name] = self._build_tree(
-                    parents,
-                    child[self.id_key]
+                    parents, child[self.id_key]
                 )
         return items
 
@@ -55,10 +54,7 @@ class HierarchyResolver:
         return self.hierarchy
 
     def filtered(
-        self,
-        search: str = "",
-        types: list[int] | None = None,
-        folder=None
+        self, search: str = "", types: list[int] | None = None, folder=None
     ) -> list:
         """Return filtered hiearchy.
 
@@ -72,21 +68,13 @@ class HierarchyResolver:
             if item.get("name", "").find(search) > -1:
                 new_tree.append(item)
             elif item.get(self.branch_name):
-                if new_children := self.filtered(
-                    search,
-                    types,
-                    item[self.branch_name]
-                ):
+                if new_children := self.filtered(search, types, item[self.branch_name]):
                     new_item = item.copy()
                     new_item[self.branch_name] = new_children
                     new_tree.append(new_item)
         return new_tree
 
-    def __call__(
-        self,
-        search: str = "",
-        types: list[int] | None = None
-    ) -> list:
+    def __call__(self, search: str = "", types: list[int] | None = None) -> list:
         if types is None:
             types = []
         if not (search or types):

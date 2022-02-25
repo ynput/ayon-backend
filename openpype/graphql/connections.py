@@ -6,7 +6,7 @@ __all__ = [
     "SubsetsConnection",
     "VersionsConnection",
     "RepresentationsConnection",
-    "PageInfo"
+    "PageInfo",
 ]
 
 import strawberry
@@ -18,7 +18,7 @@ from .edges import (
     TaskEdge,
     SubsetEdge,
     VersionEdge,
-    RepresentationEdge
+    RepresentationEdge,
 )
 
 
@@ -33,8 +33,7 @@ class PageInfo:
 @strawberry.type
 class BaseConnection:
     page_info: PageInfo = strawberry.field(
-        default_factory=PageInfo,
-        description="Information to aid in pagination."
+        default_factory=PageInfo, description="Information to aid in pagination."
     )
 
 

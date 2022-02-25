@@ -14,7 +14,7 @@ common_attributes = [
         "title": "FPS",
         "description": "Frame rate",
         "example": 23.976,
-        "gt": 0
+        "gt": 0,
     },
     {
         "name": "resolutionWidth",
@@ -22,7 +22,7 @@ common_attributes = [
         "title": "Width",
         "description": "Horizontal resolution",
         "example": 1920,
-        "gt": 0
+        "gt": 0,
     },
     {
         "name": "resolutionHeight",
@@ -30,7 +30,7 @@ common_attributes = [
         "title": "Height",
         "description": "Vertical resoulution",
         "example": 1080,
-        "gt": 0
+        "gt": 0,
     },
     {
         "name": "pixelAspect",
@@ -47,26 +47,11 @@ common_attributes = [
         "type": "integer",
         "title": "Clip out",
     },
-    {
-        "name": "handles",
-        "type": "integer"
-    },
-    {
-        "name": "frameStart",
-        "type": "integer"
-    },
-    {
-        "name": "frameEnd",
-        "type": "integer"
-    },
-    {
-        "name": "handleStart",
-        "type": "integer"
-    },
-    {
-        "name": "handleEnd",
-        "type": "integer"
-    }
+    {"name": "handles", "type": "integer"},
+    {"name": "frameStart", "type": "integer"},
+    {"name": "frameEnd", "type": "integer"},
+    {"name": "handleStart", "type": "integer"},
+    {"name": "handleEnd", "type": "integer"},
 ]
 
 
@@ -86,7 +71,7 @@ user_attributes = [
     {
         "name": "avatar_url",
         "type": "string",
-    }
+    },
 ]
 
 project_attributes = common_attributes + [
@@ -111,35 +96,15 @@ subset_attributes = [
 
 
 version_attributes = common_attributes + [
-    {
-        "name": "intent"
-    },
-    {
-        "name": "source"
-    },
-    {
-        "name": "comment"
-    },
+    {"name": "intent"},
+    {"name": "source"},
+    {"name": "comment"},
     {
         "name": "machine",
     },
-    {
-        "name": "families",
-        "type": "list_of_strings"
-    },
-    {
-        "name": "colorspace",
-        "type": "string",
-        "example": "rec708"
-    }
+    {"name": "families", "type": "list_of_strings"},
+    {"name": "colorspace", "type": "string", "example": "rec708"},
 ]
 
 
-representation_attributes = [
-    {
-        "name": "path"
-    },
-    {
-        "name": "template"
-    }
-]
+representation_attributes = [{"name": "path"}, {"name": "template"}]

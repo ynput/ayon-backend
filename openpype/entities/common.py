@@ -16,10 +16,7 @@ from strawberry.experimental.pydantic import type as pydantic_type
 
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID, SQLTool, dict_exclude, json_loads
-from openpype.exceptions import (
-    RecordNotFoundException,
-    ConstraintViolationException
-)
+from openpype.exceptions import RecordNotFoundException, ConstraintViolationException
 
 
 class AttributeLibrary:
@@ -29,7 +26,7 @@ class AttributeLibrary:
     but it works. Somehow. It needs to be initialized when
     this module is loaded and it has to load the attributes
     from the database in blocking mode regardless the running
-    event loop. So it connects to the DB independently in a 
+    event loop. So it connects to the DB independently in a
     different thread and waits until it is finished.
 
     Attribute list for each entity type may be then accessed
@@ -52,10 +49,7 @@ class AttributeLibrary:
         query = "SELECT name, scope, data from public.attributes"
         await Postgres.connect()
         async for row in Postgres.iterate(query):
-            attrd = {
-                "name": row["name"],
-                **json_loads(row["data"])
-            }
+            attrd = {"name": row["name"], **json_loads(row["data"])}
             for scope in row["scope"]:
                 self.data[scope].append(attrd)
 
@@ -77,8 +71,7 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
         if isinstance(getattr(original, key), BaseModel):
             # Patch a submodel (attrib)
             ndata = apply_patch(
-                getattr(original, key),
-                getattr(original, key).__class__(**value)
+                getattr(original, key), getattr(original, key).__class__(**value)
             )
             update_data[key] = ndata
 
@@ -89,7 +82,7 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
                 for dkey, dval in value.items():
                     if dval is None:
                         if dkey in new_dict:
-                            del(new_dict[dkey])
+                            del new_dict[dkey]
                     else:
                         new_dict[dkey] = dval
                 update_data[key] = new_dict
@@ -128,7 +121,7 @@ class Entity:
         project_name: str | None = None,
         exists: bool = False,
         validate: bool = True,
-        **kwargs
+        **kwargs,
     ) -> None:
         """Return a new entity instance from given data.
 
@@ -155,13 +148,8 @@ class Entity:
         else:
             self.project_name = project_name
 
-    @ classmethod
-    def from_record(
-        cls,
-        project_name=None,
-        validate=False,
-        **kwargs
-    ) -> 'Entity':
+    @classmethod
+    def from_record(cls, project_name=None, validate=False, **kwargs) -> "Entity":
         """Return an entity instance based on a DB record.
 
         This factory method differs from the default constructor,
@@ -183,12 +171,7 @@ class Entity:
                 parsed[key] = EntityID.parse(value, allow_nulls=True)
             else:
                 parsed[key] = value
-        return cls(
-            project_name=project_name,
-            exists=True,
-            validate=validate,
-            **parsed
-        )
+        return cls(project_name=project_name, exists=True, validate=validate, **parsed)
 
     def __bool__(self) -> bool:
         return not not self._payload
@@ -203,16 +186,13 @@ class Entity:
         return self.dict().get(key, default)
 
     def dict(
-        self,
-        exclude_defaults=False,
-        exclude_unset=False,
-        exclude_none=False
+        self, exclude_defaults=False, exclude_unset=False, exclude_none=False
     ) -> dict:
         """Return the entity data as a dict."""
         return self._payload.dict(
             exclude_defaults=exclude_defaults,
             exclude_unset=exclude_unset,
-            exclude_none=exclude_none
+            exclude_none=exclude_none,
         )
 
     @property
@@ -230,15 +210,9 @@ class Entity:
     def replace(self, replace_data: BaseModel) -> None:
         """Replace entity data with given data."""
         if self.entity_type == EntityType.PROJECT:
-            self._payload = self.model()(
-                name=self.name,
-                **replace_data.dict()
-            )
+            self._payload = self.model()(name=self.name, **replace_data.dict())
         else:
-            self._payload = self.model()(
-                id=self.id,
-                **replace_data.dict()
-            )
+            self._payload = self.model()(id=self.id, **replace_data.dict())
 
     #
     # GraphQL types
@@ -258,9 +232,10 @@ class Entity:
         return pydantic_type(
             model=cls.model(),
             fields=[
-                fname for fname, field in cls.model().__fields__.items()
+                fname
+                for fname, field in cls.model().__fields__.items()
                 if field.type_ not in [dict, Optional[dict]]
-            ]
+            ],
         )
 
     #
@@ -269,12 +244,8 @@ class Entity:
 
     @classmethod
     async def load(
-        cls,
-        project_name: str,
-        entity_id: str,
-        transaction=None,
-        for_update=False
-    ) -> 'Entity':
+        cls, project_name: str, entity_id: str, transaction=None, for_update=False
+    ) -> "Entity":
         """Return an entity instance based on its ID and a project name.
 
         ProjectEntity reimplements this method to load the project based
@@ -302,11 +273,7 @@ class Entity:
         print(query)
 
         async for record in Postgres.iterate(query, entity_id):
-            return cls.from_record(
-                project_name=project_name,
-                validate=False,
-                **record
-            )
+            return cls.from_record(project_name=project_name, validate=False, **record)
         raise RecordNotFoundException("Entity not found")
 
     #
@@ -337,10 +304,7 @@ class Entity:
                 *SQLTool.update(
                     f"project_{self.project_name}.{self.entity_name}s",
                     f"WHERE id = '{self.id}'",
-                    **dict_exclude(
-                        self.dict(exclude_none=True),
-                        ["id", "ctime"]
-                    )
+                    **dict_exclude(self.dict(exclude_none=True), ["id", "ctime"]),
                 )
             )
             if commit:
@@ -352,7 +316,7 @@ class Entity:
             await transaction.execute(
                 *SQLTool.insert(
                     f"project_{self.project_name}.{self.entity_name}s",
-                    **self.dict(exclude_none=True)
+                    **self.dict(exclude_none=True),
                 )
             )
         except Postgres.ForeignKeyViolationError as e:
@@ -386,7 +350,7 @@ class Entity:
                 RETURNING *
             ) SELECT count(*) FROM deleted;
             """,
-            self.id
+            self.id,
         )[0]["count"]
 
         if commit:

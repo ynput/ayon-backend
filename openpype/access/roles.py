@@ -24,10 +24,7 @@ BUILT_IN_ROLES = [
 
 
 class Roles:
-    roles = {
-        k: True
-        for k in BUILT_IN_ROLES
-    }
+    roles = {k: True for k in BUILT_IN_ROLES}
 
     @classmethod
     async def load(cls):
@@ -36,9 +33,7 @@ class Roles:
             cls.add_role(
                 row["name"],
                 row["project_name"],
-                Permissions.from_record(
-                    json_loads(row["data"])
-                )
+                Permissions.from_record(json_loads(row["data"])),
             )
 
     @classmethod

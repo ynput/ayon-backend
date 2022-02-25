@@ -48,8 +48,7 @@ def dict_exclude(d: dict, keys: list[str], mode: str = "exact") -> dict:
         return {k: v for k, v in d.items() if k not in keys}
     if mode == "startswith":
         return {
-            k: v for k, v in d.items()
-            if not any([k.startswith(key) for key in keys])
+            k: v for k, v in d.items() if not any([k.startswith(key) for key in keys])
         }
 
 
@@ -83,7 +82,7 @@ def parse_access_token(authorization: str) -> str | None:
     return token
 
 
-class EntityID():
+class EntityID:
     META = {
         "example": "af10c8f0e9b111e9b8f90242ac130003",
         "min_length": 32,
@@ -96,11 +95,7 @@ class EntityID():
         return create_uuid()
 
     @classmethod
-    def parse(
-        cls,
-        entity_id: str | uuid.UUID | None,
-        allow_nulls: bool = False
-    ) -> str:
+    def parse(cls, entity_id: str | uuid.UUID | None, allow_nulls: bool = False) -> str:
         """Convert UUID object or its string representation to string"""
         if entity_id is None and allow_nulls:
             return None
@@ -126,15 +121,17 @@ class EntityID():
         )
 
 
-class SQLTool():
+class SQLTool:
     """SQL query construction helpers."""
 
     @staticmethod
     def array(elements: list[str | int]):
         """Return a SQL-friendly list string."""
-        return "(" + (", ".join([
-            (f"'{e}'" if type(e) == str else str(e)) for e in elements
-        ])) + ")"
+        return (
+            "("
+            + (", ".join([(f"'{e}'" if type(e) == str else str(e)) for e in elements]))
+            + ")"
+        )
 
     @staticmethod
     def id_array(ids: list[str | uuid.UUID]) -> str:
@@ -150,15 +147,16 @@ class SQLTool():
     def conditions(
         condition_list: list[str],
         operand: str | None = "AND",
-        add_where: bool | None = True
+        add_where: bool | None = True,
     ) -> str:
         """Return a SQL-friendly list of conditions.
 
         list(['a = 1', 'b = 2']) becomes str("a = 1 AND b = 2")
         """
         if condition_list:
-            return ("WHERE " if add_where else "") + \
-                (f" {operand} ".join(condition_list))
+            return ("WHERE " if add_where else "") + (
+                f" {operand} ".join(condition_list)
+            )
         return ""
 
     @staticmethod
@@ -166,7 +164,7 @@ class SQLTool():
         order: str | None = None,
         desc: bool | None = False,
         limit: int | None = None,
-        offset: int | None = None
+        offset: int | None = None,
     ) -> str:
         result = []
         if order:
@@ -182,10 +180,7 @@ class SQLTool():
         return ""
 
     @staticmethod
-    def insert(
-        table: str,
-        **kwargs
-    ):
+    def insert(table: str, **kwargs):
         """Return an SQL INSERT statement."""
         keys = list(kwargs.keys())
         command = f"""

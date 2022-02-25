@@ -4,7 +4,7 @@ from nxtools import logging
 from openpype.config import pypeconfig
 
 
-class Postgres():
+class Postgres:
     pool = None
     ForeignKeyViolationError = asyncpg.exceptions.ForeignKeyViolationError
     UniqueViolationError = asyncpg.exceptions.UniqueViolationError

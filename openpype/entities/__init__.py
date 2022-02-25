@@ -5,7 +5,7 @@ __all__ = [
     "VersionEntity",
     "RepresentationEntity",
     "TaskEntity",
-    "UserEntity"
+    "UserEntity",
 ]
 
 from .project import ProjectEntity

@@ -6,7 +6,7 @@ from .models import ModelSet
 
 class VersionEntity(Entity):
     entity_type = EntityType.VERSION
-    entity_name = 'version'
+    entity_name = "version"
     model = ModelSet("version", attribute_library["version"])
 
     @property

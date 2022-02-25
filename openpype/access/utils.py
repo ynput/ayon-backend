@@ -8,16 +8,14 @@ from openpype.lib.postgres import Postgres
 def path_to_paths(path):
     path = path.strip()
     pelms = path.split("/")
-    result = [f"\"{path}/%\""]
+    result = [f'"{path}/%"']
     for i in range(len(pelms)):
         result.append(f"\"{'/'.join(pelms[0:i+1])}\"")
     return result
 
 
 async def folder_access_conds(
-    user: UserEntity,
-    project_name: str,
-    access_type: Literal["read", "write"] = "read"
+    user: UserEntity, project_name: str, access_type: Literal["read", "write"] = "read"
 ) -> str | None:
     """Return a list of paths user has access to (as a sql condition)
 

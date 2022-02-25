@@ -25,9 +25,7 @@ async def login_callback(data: OAuth2Data) -> LoginResponseModel:
         data.user.email,
     )
     if not res:
-        raise APIException(
-            401, f"User with email {data.user.email} was not found."
-        )
+        raise APIException(401, f"User with email {data.user.email} was not found.")
 
     user = UserEntity.from_record(**dict(res[0]))
 
@@ -40,10 +38,9 @@ async def login_callback(data: OAuth2Data) -> LoginResponseModel:
 
     session = await Session.create(user)
     return LoginResponseModel(
-        detail=f"Logged in as {user.name}",
-        token=session.token,
-        user=session.user
+        detail=f"Logged in as {user.name}", token=session.token, user=session.user
     )
+
 
 #
 # Configure OAuth2 providers
@@ -59,21 +56,18 @@ if pypeconfig.discord_client_id:
     oauth2.add_provider(
         name="discord",
         client_id=pypeconfig.discord_client_id,
-        client_secret=pypeconfig.discord_client_secret
+        client_secret=pypeconfig.discord_client_secret,
     )
 
 if pypeconfig.google_client_id:
     oauth2.add_provider(
         name="google",
         client_id=pypeconfig.google_client_id,
-        client_secret=pypeconfig.google_client_secret
+        client_secret=pypeconfig.google_client_secret,
     )
 
 #
 # Create router
 #
 
-router = oauth2.create_router(
-    tags=["Authentication"],
-    prefix="/oauth2"
-)
+router = oauth2.create_router(tags=["Authentication"], prefix="/oauth2")

@@ -22,6 +22,6 @@ async def metrics():
                 requests = int(requests.decode("utf-8"))
             except ValueError:
                 requests = 0
-        result += f"openpype_user_requests{{name=\"{name}\"}} {requests}\n"
+        result += f'openpype_user_requests{{name="{name}"}} {requests}\n'
 
     return PlainTextResponse(result)

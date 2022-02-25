@@ -21,13 +21,11 @@ from .dataloaders import (
     latest_version_loader,
     subset_loader,
     version_loader,
-    user_loader
+    user_loader,
 )
 
 
-async def graphql_get_context(
-    user: UserEntity = Depends(dep_current_user)
-) -> dict:
+async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> dict:
     """Get the current request context"""
     return {
         "folder_loader": DataLoader(load_fn=folder_loader),
@@ -35,10 +33,8 @@ async def graphql_get_context(
         "version_loader": DataLoader(load_fn=version_loader),
         "latest_version_loader": DataLoader(load_fn=latest_version_loader),
         "user_loader": DataLoader(load_fn=user_loader),
-
         "folder_from_record": folder_from_record,
-
-        "user": user
+        "user": user,
     }
 
 
@@ -57,32 +53,24 @@ class Query:
     )
 
     projects: ProjectsConnection = strawberry.field(
-        description="Get a list of projects",
-        resolver=get_projects
+        description="Get a list of projects", resolver=get_projects
     )
 
     users: UsersConnection = strawberry.field(
-        description="Get a list of users",
-        resolver=get_users
+        description="Get a list of users", resolver=get_users
     )
 
     user: UserNode = strawberry.field(
-        description="Get a user by name",
-        resolver=get_user
+        description="Get a user by name", resolver=get_user
     )
 
     @strawberry.field(description="Current user")
     def me(self, info: Info) -> UserNode:
         user = info.context["user"]
-        return UserNode(
-            name=user.name,
-            attrib=UserAttribType(**user.attrib)
-        )
+        return UserNode(name=user.name, attrib=UserAttribType(**user.attrib))
 
 
 schema = strawberry.Schema(query=Query)
 router = GraphQLRouter(
-    schema=schema,
-    graphiql=False,
-    context_getter=graphql_get_context
+    schema=schema, graphiql=False, context_getter=graphql_get_context
 )

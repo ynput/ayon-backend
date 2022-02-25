@@ -18,7 +18,6 @@ class TaskAttribType:
 
 @TaskEntity.strawberry_entity()
 class TaskNode(BaseNode):
-
     @strawberry.field(description="Parent folder of the task")
     async def folder(self, info: Info) -> FolderNode:
         return await info.context["folder_loader"].load(
@@ -27,9 +26,7 @@ class TaskNode(BaseNode):
 
 
 def task_from_record(
-    project_name: str,
-    record: dict,
-    context: dict | None = None
+    project_name: str, record: dict, context: dict | None = None
 ) -> TaskNode:
     """Construct a task node from a DB row."""
     return TaskNode(

@@ -23,7 +23,6 @@ async def get_users(
             """
         ),
     ] = None,
-
     first: int | None = None,
     after: str | None = None,
     last: int | None = None,

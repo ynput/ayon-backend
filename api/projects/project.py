@@ -5,15 +5,12 @@ from nxtools import logging, log_traceback
 
 from openpype.lib.postgres import Postgres
 from openpype.entities import ProjectEntity, UserEntity
-from openpype.exceptions import (
-    ConstraintViolationException,
-    RecordNotFoundException
-)
+from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.api import (
     ResponseFactory,
     APIException,
     dep_current_user,
-    dep_project_name
+    dep_project_name,
 )
 
 from .router import router
@@ -27,13 +24,11 @@ from .router import router
 @router.get(
     "/projects/{project_name}",
     response_model=ProjectEntity.model.main_model,
-    responses={
-        404: ResponseFactory.error(404, "Project not found")
-    }
+    responses={404: ResponseFactory.error(404, "Project not found")},
 )
 async def get_project(
     user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name)
+    project_name: str = Depends(dep_project_name),
 ):
     """Retrieve a project by its name."""
 
@@ -49,6 +44,7 @@ async def get_project(
 
     return project.payload
 
+
 #
 # [GET] /stats
 #
@@ -59,18 +55,12 @@ async def get_project(
 )
 async def get_project_stats(
     user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name)
+    project_name: str = Depends(dep_project_name),
 ):
     """Retrieve a project statistics by its name."""
 
     counts = {}
-    for entity in [
-        "folders",
-        "subsets",
-        "versions",
-        "representations",
-        "tasks"
-    ]:
+    for entity in ["folders", "subsets", "versions", "representations", "tasks"]:
         res = await Postgres.fetch(
             f"""
             SELECT COUNT(id)
@@ -79,9 +69,8 @@ async def get_project_stats(
         )
         counts[entity] = res[0][0]
 
-    return {
-        "counts": counts
-    }
+    return {"counts": counts}
+
 
 #
 # [PUT]
@@ -94,13 +83,13 @@ async def get_project_stats(
     status_code=201,
     responses={
         201: {"content": "", "description": "Project created"},
-        409: ResponseFactory.error(409, "Project already exists")
-    }
+        409: ResponseFactory.error(409, "Project already exists"),
+    },
 )
 async def create_project(
     put_data: ProjectEntity.model.post_model,
     user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name)
+    project_name: str = Depends(dep_project_name),
 ):
     """Create a new project.
 
@@ -137,15 +126,12 @@ async def create_project(
 # [PATCH]
 #
 
-@router.patch(
-    "/projects/{project_name}",
-    status_code=204,
-    response_class=Response
-)
+
+@router.patch("/projects/{project_name}", status_code=204, response_class=Response)
 async def update_project(
     patch_data: ProjectEntity.model.patch_model,
     user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name)
+    project_name: str = Depends(dep_project_name),
 ):
     """Patch a project.
 
@@ -160,8 +146,7 @@ async def update_project(
 
     if not user.can("modify", project):
         raise APIException(
-            403,
-            f"You do not have permission to update project {project.name}"
+            403, f"You do not have permission to update project {project.name}"
         )
 
     project.patch(patch_data)
@@ -179,14 +164,10 @@ async def update_project(
 #
 
 
-@router.delete(
-    "/projects/{project_name}",
-    response_class=Response,
-    status_code=204
-)
+@router.delete("/projects/{project_name}", response_class=Response, status_code=204)
 async def delete_project(
     project_name: str = Depends(dep_project_name),
-    user: UserEntity = Depends(dep_current_user)
+    user: UserEntity = Depends(dep_current_user),
 ):
     """Delete a given project including all its entities."""
 
@@ -199,7 +180,7 @@ async def delete_project(
         raise APIException(
             403,
             f"You do not have permission to delete project {project.name}",
-            f"{user.name} is not allowed to delete project {project.name}"
+            f"{user.name} is not allowed to delete project {project.name}",
         )
 
     await project.delete()

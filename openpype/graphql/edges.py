@@ -18,6 +18,7 @@ RepresentationNode = lazy_type("RepresentationNode", ".nodes.representation")
 # cursor is nullable, while node is not, so constructed edge complains
 # about required field following optional one.
 
+
 @strawberry.type
 class BaseEdge:
     pass
@@ -61,7 +62,5 @@ class VersionEdge(BaseEdge):
 
 @strawberry.type
 class RepresentationEdge(BaseEdge):
-    node: RepresentationNode = strawberry.field(
-        description="Representation node"
-    )
+    node: RepresentationNode = strawberry.field(description="Representation node")
     cursor: str | None = strawberry.field(default=None)

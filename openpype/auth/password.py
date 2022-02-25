@@ -85,13 +85,10 @@ class PasswordAuth:
             raise ValueError("Password does not meet complexity requirements")
 
         result = await Postgres.fetch(
-            "SELECT data FROM public.users WHERE name = $1",
-            name
+            "SELECT data FROM public.users WHERE name = $1", name
         )
         if not result:
-            logging.error(
-                f"Unable to change password. User {name} not found"
-            )
+            logging.error(f"Unable to change password. User {name} not found")
             return
 
         user_data = json_loads(result[0][0]) or {}
@@ -99,5 +96,6 @@ class PasswordAuth:
 
         await Postgres.execute(
             "UPDATE public.users SET data = $1 WHERE name = $2",
-            json_dumps(user_data), name
+            json_dumps(user_data),
+            name,
         )

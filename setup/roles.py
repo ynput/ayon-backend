@@ -14,5 +14,5 @@ async def deploy_roles(roles: list[dict]):
             """,
             role["name"],
             role.get("project_name", "_"),
-            json_dumps(role["data"])
+            json_dumps(role["data"]),
         )

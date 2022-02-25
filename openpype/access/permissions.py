@@ -1,10 +1,7 @@
 from typing import Literal
 from pydantic import BaseModel, Field
 
-from .access import (
-    AccessToHierarchy,
-    AccessToAssigned
-)
+from .access import AccessToHierarchy, AccessToAssigned
 
 
 AccessList = list[AccessToHierarchy | AccessToAssigned] | Literal["all"]
@@ -20,27 +17,24 @@ class Permissions(BaseModel):
 
     read: AccessList = Field(
         default_factory=list,
-        description="Defines a set of folders, to which the user has read access."
+        description="Defines a set of folders, to which the user has read access.",
     )
 
     write: AccessList = Field(
         default_factory=list,
-        description="Defines a set of folders, to which the user has write access."
+        description="Defines a set of folders, to which the user has write access.",
     )
 
     attrib_read: list[str] | Literal["all"] = Field(
-        default_factory=list,
-        description="List of attributes the user can read"
+        default_factory=list, description="List of attributes the user can read"
     )
 
     attrib_write: list[str] | Literal["all"] = Field(
-        default_factory=list,
-        description="List of attributes the user can read"
+        default_factory=list, description="List of attributes the user can read"
     )
 
     endpoints: list[str] | Literal["all"] = Field(
-        default_factory=list,
-        description="List of Rest endpoint user is allowed to use"
+        default_factory=list, description="List of Rest endpoint user is allowed to use"
     )
 
     @classmethod

@@ -10,11 +10,7 @@ from openpype.api import ResponseFactory, dep_current_user
 
 
 router = APIRouter(
-    prefix="/users",
-    tags=["Users"],
-    responses={
-        401: ResponseFactory.error(401)
-    }
+    prefix="/users", tags=["Users"], responses={401: ResponseFactory.error(401)}
 )
 
 
@@ -24,9 +20,7 @@ router = APIRouter(
 
 
 @router.get("/me", response_model=UserEntity.model())
-async def get_current_user(
-    user: UserEntity = Depends(dep_current_user)
-):
+async def get_current_user(user: UserEntity = Depends(dep_current_user)):
     """
     Return the current user information (based on the Authorization header).
     This is used for a profile page as well as as an initial check to ensure
@@ -46,8 +40,8 @@ async def get_current_user(
     response_class=Response,
 )
 async def update_current_user(
-    patch_data: UserEntity.model("patch"), # noqa
-    user: UserEntity = Depends(dep_current_user)
+    patch_data: UserEntity.model("patch"),  # noqa
+    user: UserEntity = Depends(dep_current_user),
 ):
     """
     Update the current user information (based on the Authorization header).

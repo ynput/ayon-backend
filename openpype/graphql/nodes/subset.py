@@ -30,13 +30,12 @@ class SubsetAttribType:
 @SubsetEntity.strawberry_entity()
 class SubsetNode(BaseNode):
     versions: VersionsConnection = strawberry.field(
-        resolver=get_versions,
-        description=get_versions.__doc__
+        resolver=get_versions, description=get_versions.__doc__
     )
 
     version_list: list[VersionListItem] = strawberry.field(
         default_factory=list,
-        description="Simple (id /version) list of versions in the subset"
+        description="Simple (id /version) list of versions in the subset",
     )
 
     _folder: Optional[FolderNode] = None
@@ -58,9 +57,7 @@ class SubsetNode(BaseNode):
 
 
 def subset_from_record(
-    project_name: str,
-    record: dict,
-    context: dict | None = None
+    project_name: str, record: dict, context: dict | None = None
 ) -> SubsetNode:
     """Construct a subset node from a DB row."""
 
@@ -71,19 +68,17 @@ def subset_from_record(
                 key = key.removeprefix("_folder_")
                 folder_data[key] = value
 
-        folder = context["folder_from_record"](project_name, folder_data) \
-            if folder_data else None
+        folder = (
+            context["folder_from_record"](project_name, folder_data)
+            if folder_data
+            else None
+        )
     else:
         folder = None
 
     vlist = []
-    for id, vers in zip(
-        record.get("version_ids", []),
-        record.get("version_list", [])
-    ):
-        vlist.append(
-            VersionListItem(id=EntityID.parse(id), version=vers)
-        )
+    for id, vers in zip(record.get("version_ids", []), record.get("version_list", [])):
+        vlist.append(VersionListItem(id=EntityID.parse(id), version=vers))
 
     return SubsetNode(
         project_name=project_name,
@@ -95,7 +90,7 @@ def subset_from_record(
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         version_list=vlist,
-        _folder=folder
+        _folder=folder,
     )
 
 

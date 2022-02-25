@@ -15,16 +15,13 @@ class UserNode:
     pass
 
 
-def user_from_record(
-    record: dict,
-    context: dict | None = None
-) -> UserNode:
+def user_from_record(record: dict, context: dict | None = None) -> UserNode:
     return UserNode(
-        name=record['name'],
-        active=record['active'],
-        attrib=parse_json_data(UserAttribType, record['attrib']),
-        created_at=record['created_at'],
-        updated_at=record['updated_at']
+        name=record["name"],
+        active=record["active"],
+        attrib=parse_json_data(UserAttribType, record["attrib"]),
+        created_at=record["created_at"],
+        updated_at=record["updated_at"],
     )
 
 

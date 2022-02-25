@@ -31,11 +31,7 @@ class Session:
     model = SessionModel
 
     @classmethod
-    async def check(
-        cls,
-        token: str,
-        ip: str | None
-    ) -> SessionModel | None:
+    async def check(cls, token: str, ip: str | None) -> SessionModel | None:
         """Return a session corresponding to a given access token.
 
         Return None if the token is invalid.
@@ -77,7 +73,7 @@ class Session:
             token=token,
             created=time.time(),
             last_used=time.time(),
-            ip=ip
+            ip=ip,
         )
         await Redis.set(cls.ns, token, session.json())
         return session

@@ -26,13 +26,11 @@ class FolderNode(BaseNode):
     task_count: int = 0
 
     subsets: SubsetsConnection = strawberry.field(
-        resolver=get_subsets,
-        description=get_subsets.__doc__
+        resolver=get_subsets, description=get_subsets.__doc__
     )
 
     tasks: TasksConnection = strawberry.field(
-        resolver=get_tasks,
-        description=get_tasks.__doc__
+        resolver=get_tasks, description=get_tasks.__doc__
     )
 
     @strawberry.field
@@ -53,9 +51,7 @@ class FolderNode(BaseNode):
 
 
 def folder_from_record(
-    project_name: str,
-    record: dict,
-    context: dict | None = None
+    project_name: str, record: dict, context: dict | None = None
 ) -> FolderNode:
     """Construct a folder node from a DB row."""
     return FolderNode(

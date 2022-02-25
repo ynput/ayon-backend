@@ -8,9 +8,7 @@ class Redis:
     @classmethod
     async def connect(cls) -> None:
         """Create a Redis connection pool"""
-        cls.redis_pool = aioredis.from_url(
-            pypeconfig.redis_url
-        )
+        cls.redis_pool = aioredis.from_url(pypeconfig.redis_url)
 
     @classmethod
     async def get(cls, namespace: str, key: str) -> str:
@@ -26,11 +24,7 @@ class Redis:
         """
         if not cls.redis_pool:
             await cls.connect()
-        command = [
-            "set",
-            namespace + "-" + key,
-            value
-        ]
+        command = ["set", namespace + "-" + key, value]
         if ttl:
             command.extend(["ex", ttl])
 

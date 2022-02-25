@@ -15,11 +15,11 @@ from .fields import (
     task_fields,
     subset_fields,
     version_fields,
-    representation_fields
+    representation_fields,
 )
 
 
-class ModelSet():
+class ModelSet:
     """Set of models used for each entity type.
 
     Based on given fields and attibutes, generate the following models:
@@ -31,12 +31,7 @@ class ModelSet():
 
     """
 
-    def __init__(
-        self,
-        entity_name: str,
-        attributes: list = None,
-        has_id: bool = True
-    ):
+    def __init__(self, entity_name: str, attributes: list = None, has_id: bool = True):
         """Initialize the model set."""
         self.entity_name = entity_name
         self.fields = {
@@ -46,7 +41,7 @@ class ModelSet():
             "task": task_fields,
             "subset": subset_fields,
             "version": version_fields,
-            "representation": representation_fields
+            "representation": representation_fields,
         }[entity_name]
 
         self.attributes = attributes if attributes else []
@@ -57,10 +52,7 @@ class ModelSet():
         self._patch_model = None
         self._attrib_model = None
 
-    def __call__(
-        self,
-        model_type: Literal["main", "post", "patch", "attrib"] = "main"
-    ):
+    def __call__(self, model_type: Literal["main", "post", "patch", "attrib"] = "main"):
         """Return a model."""
         if model_type == "main":
             return self.main_model
@@ -113,46 +105,50 @@ class ModelSet():
                 "name": "attrib",
                 "submodel": self.attrib_model,
                 "required": False,
-                "title": f"{self.entity_name.capitalize()} attributes"
+                "title": f"{self.entity_name.capitalize()} attributes",
             },
             {
                 "name": "data",
                 "type": "dict",
-                "title": f"{self.entity_name.capitalize()} auxiliary data"
+                "title": f"{self.entity_name.capitalize()} auxiliary data",
             },
             {
                 "name": "active",
                 "type": "boolean",
                 "title": f"{self.entity_name.capitalize()} active",
                 "description": f"Whether the {self.entity_name} is active",
-                "default": True
-            }
+                "default": True,
+            },
         ]
 
     def _generate_entity_model(self) -> BaseModel:
         """Generate the entity model."""
         model_name = f"{self.entity_name.capitalize()}Model"
-        pre_fields = [
-            {
-                "name": "id",
-                "type": "string",
-                "factory": "uuid",
-                "title": f"{self.entity_name.capitalize()} ID",
-                "description": "Unique identifier of the {entity_name}",
-                "example": ENTITY_ID_EXAMPLE,
-                "regex": ENTITY_ID_REGEX,
-            }
-        ] if self.has_id else [
-            {
-                "name": "name",
-                "type": "string",
-                "required": True,
-                "title": f"{self.entity_name.capitalize()} name",
-                "description": "Name is an unique id of the {entity_name}",
-                "example": f"awesome_{self.entity_name.lower()}",
-                "regex": NAME_REGEX
-            }
-        ]
+        pre_fields = (
+            [
+                {
+                    "name": "id",
+                    "type": "string",
+                    "factory": "uuid",
+                    "title": f"{self.entity_name.capitalize()} ID",
+                    "description": "Unique identifier of the {entity_name}",
+                    "example": ENTITY_ID_EXAMPLE,
+                    "regex": ENTITY_ID_REGEX,
+                }
+            ]
+            if self.has_id
+            else [
+                {
+                    "name": "name",
+                    "type": "string",
+                    "required": True,
+                    "title": f"{self.entity_name.capitalize()} name",
+                    "description": "Name is an unique id of the {entity_name}",
+                    "example": f"awesome_{self.entity_name.lower()}",
+                    "regex": NAME_REGEX,
+                }
+            ]
+        )
 
         post_fields = [
             {
@@ -162,7 +158,7 @@ class ModelSet():
                 "title": "Created at",
                 "description": "Timestamp of creation",
                 "example": 1605849600,
-                "gt": 0
+                "gt": 0,
             },
             {
                 "name": "updated_at",
@@ -171,23 +167,21 @@ class ModelSet():
                 "title": "Updated at",
                 "description": "Timestamp of last update",
                 "example": 1605849600,
-                "gt": 0
-            }
+                "gt": 0,
+            },
         ]
 
         return generate_model(
             model_name,
             pre_fields + self.fields + self._common_fields + post_fields,
-            EntityModelConfig
+            EntityModelConfig,
         )
 
     def _generate_post_model(self) -> BaseModel:
         """Generate the post model."""
         model_name = f"{self.entity_name.capitalize()}PostModel"
         return generate_model(
-            model_name,
-            self.fields + self._common_fields,
-            EntityModelConfig
+            model_name, self.fields + self._common_fields, EntityModelConfig
         )
 
     def _generate_patch_model(self) -> BaseModel:
@@ -199,7 +193,5 @@ class ModelSet():
             field["required"] = False
             fields.append(field)
         return generate_model(
-            model_name,
-            fields + self._common_fields,
-            EntityModelConfig
+            model_name, fields + self._common_fields, EntityModelConfig
         )

@@ -28,7 +28,7 @@ async def gen_sequences(parent):
 
 async def gen_episodes(parent):
     num = parent.get("_children_count", 10)
-    for i in range(101, 101+num):
+    for i in range(101, 101 + num):
         ep_name = f"ep{i:03d}"
         yield {
             "name": ep_name,
