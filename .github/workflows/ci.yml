@@ -5,6 +5,20 @@ on: [push]
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: pypeusr
+          POSTGRES_PASSWORD: pypepass
+          POSTGRES_DB: pype
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v1
         with:
@@ -38,6 +52,9 @@ jobs:
 
       - name: Code Quality
         run: poetry run black . --check
+
+      - name: Run setup
+        run: poetry run python -m setup --with-schema
 
       - name: Test with pytest
         run: poetry run pytest

@@ -44,6 +44,13 @@ DATA = {
 async def main():
     await Postgres.connect()
 
+    if "--with-schema" in sys.argv:
+        logging.info("(re)creating public schema")
+        schema = None
+        with open("schemas/schema.public.sql", "r") as f:
+            schema = f.read()
+        await Postgres.execute(schema)
+
     if "-" in sys.argv:
         data = sys.stdin.read()
         try:
