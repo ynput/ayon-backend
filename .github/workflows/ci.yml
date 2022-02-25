@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   test:
-    runs-on: debian-latest
+    runs-on: ubuntu-latest
     container: python:3.10-bullseye
 
     services:
