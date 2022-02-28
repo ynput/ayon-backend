@@ -1,36 +1,6 @@
--- DELETE PUBLIC TABLES
-
-DROP TABLE IF EXISTS public.projects CASCADE;
-DROP TABLE IF EXISTS public.users CASCADE;
-DROP TABLE IF EXISTS public.roles CASCADE;
-DROP TABLE IF EXISTS public.attributes CASCADE;
-
--- DELETE PROJECT SCHEMAS
-
-CREATE OR REPLACE FUNCTION drop_all () 
-   RETURNS VOID  AS
-   $$
-   DECLARE rec RECORD; 
-   BEGIN
-       -- Get all the schemas
-        FOR rec IN
-        select distinct nspname
-         from pg_namespace
-         where nspname like 'project_%'  
-           LOOP
-             EXECUTE 'DROP SCHEMA ' || rec.nspname || ' CASCADE'; 
-           END LOOP; 
-           RETURN; 
-   END;
-   $$ LANGUAGE plpgsql;
-
-select drop_all();
-
-
 -- Projects
 
-
-CREATE TABLE public.projects(
+CREATE TABLE IF NOT EXISTS public.projects(
     name VARCHAR NOT NULL PRIMARY KEY,
     library BOOLEAN NOT NULL DEFAULT FALSE,
     config JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -42,11 +12,11 @@ CREATE TABLE public.projects(
     updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
 );
 
-CREATE UNIQUE INDEX projectname_idx ON public.projects (LOWER(name));
+CREATE UNIQUE INDEX IF NOT EXISTS projectname_idx ON public.projects (LOWER(name));
 
 -- Users
 
-CREATE TABLE public.users(
+CREATE TABLE IF NOT EXISTS public.users(
     name VARCHAR NOT NULL PRIMARY KEY,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -56,11 +26,11 @@ CREATE TABLE public.users(
     updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
 );
 
-CREATE UNIQUE INDEX username_idx ON public.projects (LOWER(name));
+CREATE UNIQUE INDEX IF NOT EXISTS username_idx ON public.projects (LOWER(name));
 
 -- Roles
 
-CREATE TABLE public.roles(
+CREATE TABLE IF NOT EXISTS public.roles(
     name VARCHAR NOT NULL, 
     project_name VARCHAR NOT NULL DEFAULT '_', 
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -69,7 +39,7 @@ CREATE TABLE public.roles(
 
 -- Attributes
 
-CREATE TABLE public.attributes(
+CREATE TABLE IF NOT EXISTS public.attributes(
     name VARCHAR NOT NULL PRIMARY KEY,
     scope VARCHAR[],
     builtin BOOLEAN NOT NULL DEFAULT FALSE,
