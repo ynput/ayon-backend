@@ -2,7 +2,9 @@ from typing import Annotated
 from strawberry.types import Info
 
 from openpype.utils import EntityID, SQLTool
-from openpype.access.utils import folder_access_conds
+from openpype.access.utils import folder_access_list
+from openpype.exceptions import ForbiddenException
+from openpype.api.exceptions import APIException
 
 from ..connections import FoldersConnection
 from ..nodes.folder import FolderNode
@@ -79,8 +81,15 @@ async def get_folders(
     )
 
     user = info.context["user"]
-    if access_conds := await folder_access_conds(user, project_name, "read"):
-        sql_conditions.append(access_conds)
+    try:
+        access_list = await folder_access_list(user, project_name, "read")
+    except ForbiddenException:
+        raise APIException(403)
+
+    if access_list is not None:
+        sql_conditions.append(
+            f"path like ANY ('{{ {','.join(access_list)} }}')"
+        )
         use_hierarchy = True
 
     # We need to use children-join

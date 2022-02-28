@@ -14,19 +14,14 @@ def path_to_paths(path: str) -> list[str]:
     return result
 
 
-async def folder_access_conds(
+async def folder_access_list(
     user: UserEntity, project_name: str, access_type: Literal["read", "write"] = "read"
-) -> str | None:
-    """Return a list of paths user has access to (as a sql condition)
+) -> list[str] | None:
+    """Return a list of paths user has access to
 
-    Result is either a string containing `(contditions)` or None,
+    Result is either a list of strings or None,
     if there's no access limit, so if the result is not none,
-    it can be appended to the list of existing conditions with the
-    AND operator.
 
-    ```
-    if cond := folder_access_type(...):
-        conds.append(cond)
     ```
 
     Requires folowing columns to be selected:
@@ -70,5 +65,4 @@ async def folder_access_conds(
     if not fpaths:
         raise ForbiddenException
 
-    # print("\n - ".join(list(fpaths)))
-    return f"path like ANY ('{{ {','.join(list(fpaths))} }}')"
+    return(list(fpaths))

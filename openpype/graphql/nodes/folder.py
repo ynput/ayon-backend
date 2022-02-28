@@ -20,7 +20,6 @@ class FolderAttribType:
 
 @FolderEntity.strawberry_entity()
 class FolderNode(BaseNode):
-    path: str | None = None
     children_count: int = 0
     subset_count: int = 0
     task_count: int = 0

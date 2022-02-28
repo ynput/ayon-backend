@@ -8,7 +8,7 @@ from openpype.utils import EntityID, SQLTool
 from openpype.entities import UserEntity
 from openpype.exceptions import ForbiddenException
 from openpype.hierarchy import HierarchyResolver
-from openpype.access.utils import folder_access_conds
+from openpype.access.utils import folder_access_list
 from openpype.lib.postgres import Postgres
 from openpype.api import (
     ResponseFactory,
@@ -87,12 +87,14 @@ async def get_folder_hierarchy(
         conds.append(f"folder_type IN {SQLTool.array(type_list)}")
 
     try:
-        access_conds = await folder_access_conds(user, project_name, "read")
+        access_list = await folder_access_list(user, project_name, "read")
     except ForbiddenException:
         raise APIException(403)
 
-    if access_conds:
-        conds.append(access_conds)
+    if access_list is not None:
+        conds.append(
+            f"path like ANY ('{{ {','.join(access_list)} }}')"
+        )
 
     plain_result = []
     query = f"""
