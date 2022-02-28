@@ -12,7 +12,8 @@ from pydantic import BaseModel
 from openpype.api import ResponseFactory, APIException
 from openpype.api.dependencies import dep_access_token
 from openpype.entities import UserEntity
-from openpype.auth import PasswordAuth, Session
+from openpype.auth.password import PasswordAuth
+from openpype.auth.session import Session
 
 
 #

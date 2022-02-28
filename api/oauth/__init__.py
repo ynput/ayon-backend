@@ -5,7 +5,7 @@ from nxtools import logging
 
 from openpype.lib.postgres import Postgres
 from openpype.entities import UserEntity
-from openpype.auth import Session
+from openpype.auth.session import Session
 from openpype.config import pypeconfig
 from openpype.api import APIException
 from yaoauth2 import YAOAuth2, OAuth2Data

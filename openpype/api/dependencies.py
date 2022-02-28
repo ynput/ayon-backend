@@ -3,7 +3,7 @@
 from fastapi import Header, Path, Depends
 
 from openpype.utils import parse_access_token
-from openpype.auth import Session
+from openpype.auth.session import Session
 from openpype.utils import EntityID
 from openpype.entities import UserEntity
 from openpype.lib.redis import Redis

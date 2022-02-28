@@ -1,10 +1,7 @@
-import time
 import strawberry
 from strawberry.types import Info
-
-from nxtools import logging
-
 from typing import Annotated
+
 from openpype.utils import EntityID
 from openpype.lib.postgres import Postgres
 

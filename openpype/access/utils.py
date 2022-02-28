@@ -5,7 +5,7 @@ from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
 
 
-def path_to_paths(path):
+def path_to_paths(path: str) -> list[str]:
     path = path.strip()
     pelms = path.split("/")
     result = [f'"{path}/%"']

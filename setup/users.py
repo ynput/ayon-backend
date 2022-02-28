@@ -1,7 +1,7 @@
 from nxtools import logging
 from openpype.utils import json_dumps
 from openpype.lib.postgres import Postgres
-from openpype.auth import PasswordAuth
+from openpype.auth.utils import create_password
 
 
 async def deploy_users(users: list[dict], default_roles: dict) -> None:
@@ -16,10 +16,9 @@ async def deploy_users(users: list[dict], default_roles: dict) -> None:
             if key in user:
                 attrib[key] = user[key]
 
-        # Only create password when 'password' is set as authentication method
-        if hasattr(PasswordAuth, "create_password") and "password" in user:
+        if "password" in user:
             logging.debug(f"Creating password for user {name}")
-            data["password"] = PasswordAuth.create_password(user["password"])
+            data["password"] = create_password(user["password"])
 
         data["roles"] = {**default_roles, **user.get("roles", {})}
 
