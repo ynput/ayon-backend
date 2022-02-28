@@ -270,8 +270,6 @@ class Entity:
             {'FOR UPDATE' if transaction and for_update else ''}
             """
 
-        print(query)
-
         async for record in Postgres.iterate(query, entity_id):
             return cls.from_record(project_name=project_name, validate=False, **record)
         raise RecordNotFoundException("Entity not found")
@@ -300,11 +298,17 @@ class Entity:
 
         if self.exists:
             # Update existing entity
+
+            print("IGNORING FIELDS", self.model.dynamic_fields)
+
             await transaction.execute(
                 *SQLTool.update(
                     f"project_{self.project_name}.{self.entity_name}s",
                     f"WHERE id = '{self.id}'",
-                    **dict_exclude(self.dict(exclude_none=True), ["id", "ctime"]),
+                    **dict_exclude(
+                        self.dict(exclude_none=True),
+                        ["id", "ctime"] + self.model.dynamic_fields
+                    ),
                 )
             )
             if commit:

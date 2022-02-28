@@ -99,6 +99,14 @@ class ModelSet:
     #
 
     @property
+    def dynamic_fields(self) -> list[str]:
+        """Return a list of field names, which are dynamic.
+
+        Dynamic fields cannot be used in inserts and updates.
+        """
+        return [f["name"] for f in self.fields if f.get("dynamic")]
+
+    @property
     def _common_fields(self) -> list:
         return [
             {
@@ -180,8 +188,9 @@ class ModelSet:
     def _generate_post_model(self) -> BaseModel:
         """Generate the post model."""
         model_name = f"{self.entity_name.capitalize()}PostModel"
+        fields = [f for f in self.fields if not f.get("dynamic")]
         return generate_model(
-            model_name, self.fields + self._common_fields, EntityModelConfig
+            model_name, fields + self._common_fields, EntityModelConfig
         )
 
     def _generate_patch_model(self) -> BaseModel:
@@ -189,6 +198,8 @@ class ModelSet:
         model_name = f"{self.entity_name.capitalize()}PatchModel"
         fields = []
         for original_field in self.fields:
+            if original_field.get("dynamic"):
+                continue
             field = copy.deepcopy(original_field)
             field["required"] = False
             fields.append(field)
