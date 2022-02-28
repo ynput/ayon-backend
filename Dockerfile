@@ -12,6 +12,8 @@ RUN pip install \
     asyncpg \
     email-validator \
     httpx \
-    yaoauth2
+    yaoauth2 \
+    pytest \
+    pytest-order
 
 WORKDIR /openpype
