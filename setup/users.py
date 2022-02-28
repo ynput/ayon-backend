@@ -1,7 +1,8 @@
 from nxtools import logging
-from openpype.utils import json_dumps
-from openpype.lib.postgres import Postgres
+
 from openpype.auth.utils import create_password
+from openpype.lib.postgres import Postgres
+from openpype.utils import json_dumps
 
 
 async def deploy_users(users: list[dict], default_roles: dict) -> None:

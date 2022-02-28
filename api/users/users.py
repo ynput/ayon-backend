@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Depends, Response
 
-from openpype.entities import UserEntity
 from openpype.api import ResponseFactory, dep_current_user
-
+from openpype.entities import UserEntity
 
 #
 # Router

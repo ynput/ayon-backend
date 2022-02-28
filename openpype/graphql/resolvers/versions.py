@@ -1,15 +1,14 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
-from openpype.utils import SQLTool, EntityID
 from openpype.lib.postgres import Postgres
+from openpype.utils import EntityID, SQLTool
 
-from ..nodes.version import VersionNode
 from ..connections import VersionsConnection
 from ..edges import VersionEdge
-
-from .common import argdesc, resolve
-from .common import ARGFirst, ARGAfter, ARGLast, ARGBefore, ARGIds
+from ..nodes.version import VersionNode
+from .common import ARGAfter, ARGBefore, ARGFirst, ARGIds, ARGLast, argdesc, resolve
 
 
 async def get_versions(

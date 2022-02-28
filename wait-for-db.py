@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 import asyncio
+
 import asyncpg
+from nxtools import log_traceback, logging
 
 from openpype.lib.postgres import Postgres
-from nxtools import logging, log_traceback
 
 
 async def wait_for_db() -> None:

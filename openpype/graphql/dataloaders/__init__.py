@@ -3,8 +3,8 @@ from openpype.utils import SQLTool
 
 from ..nodes.folder import FolderNode
 from ..nodes.subset import SubsetNode
-from ..nodes.version import VersionNode
 from ..nodes.user import UserNode
+from ..nodes.version import VersionNode
 
 
 async def folder_loader(keys: list[tuple[str, str]]) -> list[FolderNode]:

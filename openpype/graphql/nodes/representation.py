@@ -1,12 +1,11 @@
 import strawberry
 from strawberry.types import Info
 
-from openpype.utils import EntityID, json_loads, json_dumps
 from openpype.entities import RepresentationEntity
+from openpype.utils import EntityID, json_dumps, json_loads
 
-from .common import BaseNode
 from ..utils import lazy_type, parse_json_data
-
+from .common import BaseNode
 
 VersionNode = lazy_type("VersionNode", ".nodes.version")
 SubsetNode = lazy_type("SubsetNode", ".nodes.subset")

@@ -1,5 +1,5 @@
-from openpype.utils import create_hash, hash_data
 from openpype.config import pypeconfig
+from openpype.utils import create_hash, hash_data
 
 
 def ensure_password_complexity(password: str) -> bool:

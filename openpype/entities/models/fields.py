@@ -11,7 +11,7 @@ See .generator.FieldDefinition model for more information on specifiing
 field parameters.
 """
 
-from .constants import NAME_REGEX, ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX
+from .constants import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, NAME_REGEX
 
 project_fields = [
     # Name is not here, since it's added by ModelSet class
@@ -66,18 +66,14 @@ folder_fields = [
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
     },
-    {
-        "name": "thumbnail_id",
-        "type": "integer",
-        "title": "Thumbnail ID"
-    },
+    {"name": "thumbnail_id", "type": "integer", "title": "Thumbnail ID"},
     {
         "name": "path",
         "type": "string",
         "title": "Path",
         "example": "assets/characters/st_javelin",
-        "dynamic": True
-    }
+        "dynamic": True,
+    },
 ]
 
 

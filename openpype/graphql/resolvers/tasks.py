@@ -1,14 +1,13 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
-from openpype.utils import SQLTool, EntityID
+from openpype.utils import EntityID, SQLTool
 
 from ..connections import TasksConnection
-from ..nodes.task import TaskNode
 from ..edges import TaskEdge
-
-from .common import argdesc, resolve
-from .common import ARGFirst, ARGAfter, ARGLast, ARGBefore, ARGIds
+from ..nodes.task import TaskNode
+from .common import ARGAfter, ARGBefore, ARGFirst, ARGIds, ARGLast, argdesc, resolve
 
 
 async def get_tasks(

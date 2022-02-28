@@ -1,16 +1,16 @@
 """User entity."""
 
 from typing import Any
+
 from nxtools import log_traceback
-
-from openpype.lib.postgres import Postgres
-from openpype.exceptions import RecordNotFoundException
-
-from .common import Entity, EntityType, attribute_library
-from .models import ModelSet
 
 from openpype.access.permissions import Permissions
 from openpype.access.roles import Roles
+from openpype.exceptions import RecordNotFoundException
+from openpype.lib.postgres import Postgres
+
+from .common import Entity, EntityType, attribute_library
+from .models import ModelSet
 
 
 class UserEntity(Entity):

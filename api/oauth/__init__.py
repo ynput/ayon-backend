@@ -1,14 +1,14 @@
 __all__ = ["router"]
 
-from pydantic import BaseModel
 from nxtools import logging
+from pydantic import BaseModel
+from yaoauth2 import OAuth2Data, YAOAuth2
 
-from openpype.lib.postgres import Postgres
-from openpype.entities import UserEntity
+from openpype.api import APIException
 from openpype.auth.session import Session
 from openpype.config import pypeconfig
-from openpype.api import APIException
-from yaoauth2 import YAOAuth2, OAuth2Data
+from openpype.entities import UserEntity
+from openpype.lib.postgres import Postgres
 
 
 class LoginResponseModel(BaseModel):

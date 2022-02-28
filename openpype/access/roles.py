@@ -11,11 +11,10 @@ Can create and remove users, grants privileges, create/delete projects
 
 from nxtools import logging
 
-from openpype.utils import json_loads
 from openpype.lib.postgres import Postgres
+from openpype.utils import json_loads
 
 from .permissions import Permissions
-
 
 BUILT_IN_ROLES = [
     "admin",

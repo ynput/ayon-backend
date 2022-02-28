@@ -1,22 +1,21 @@
 """Dynamic entity models generation."""
 
 import copy
-
 from typing import Literal
+
 from pydantic import BaseModel
 
-from .generator import generate_model
 from .config import EntityModelConfig
-from .constants import NAME_REGEX, ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX
-
+from .constants import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, NAME_REGEX
 from .fields import (
-    project_fields,
     folder_fields,
-    task_fields,
-    subset_fields,
-    version_fields,
+    project_fields,
     representation_fields,
+    subset_fields,
+    task_fields,
+    version_fields,
 )
+from .generator import generate_model
 
 
 class ModelSet:

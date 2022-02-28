@@ -1,26 +1,25 @@
 from fastapi import Depends, Response
-from pydantic import BaseModel
 from nxtools import log_traceback
+from pydantic import BaseModel
 
-from openpype.utils import EntityID
 from openpype.access.utils import folder_access_list
-from openpype.entities import UserEntity, FolderEntity, ProjectEntity
-from openpype.lib.postgres import Postgres
+from openpype.api import (
+    APIException,
+    ResponseFactory,
+    dep_current_user,
+    dep_folder_id,
+    dep_project_name,
+)
+from openpype.entities import FolderEntity, ProjectEntity, UserEntity
 from openpype.exceptions import (
     ConstraintViolationException,
+    ForbiddenException,
     RecordNotFoundException,
-    ForbiddenException
 )
-from openpype.api import (
-    ResponseFactory,
-    APIException,
-    dep_project_name,
-    dep_folder_id,
-    dep_current_user,
-)
+from openpype.lib.postgres import Postgres
+from openpype.utils import EntityID
 
 from .router import router
-
 
 #
 # [GET]

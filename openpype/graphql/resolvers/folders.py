@@ -1,17 +1,25 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
-from openpype.utils import EntityID, SQLTool
 from openpype.access.utils import folder_access_list
-from openpype.exceptions import ForbiddenException
 from openpype.api.exceptions import APIException
+from openpype.exceptions import ForbiddenException
+from openpype.utils import EntityID, SQLTool
 
 from ..connections import FoldersConnection
-from ..nodes.folder import FolderNode
 from ..edges import FolderEdge
-
-from .common import argdesc, resolve, FieldInfo
-from .common import ARGFirst, ARGAfter, ARGLast, ARGBefore, ARGIds
+from ..nodes.folder import FolderNode
+from .common import (
+    ARGAfter,
+    ARGBefore,
+    ARGFirst,
+    ARGIds,
+    ARGLast,
+    FieldInfo,
+    argdesc,
+    resolve,
+)
 
 
 async def get_folders(
@@ -87,9 +95,7 @@ async def get_folders(
         raise APIException(403)
 
     if access_list is not None:
-        sql_conditions.append(
-            f"path like ANY ('{{ {','.join(access_list)} }}')"
-        )
+        sql_conditions.append(f"path like ANY ('{{ {','.join(access_list)} }}')")
         use_hierarchy = True
 
     # We need to use children-join

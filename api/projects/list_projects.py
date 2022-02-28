@@ -1,15 +1,15 @@
 """[GET] /projects (List projects)"""
 
 import time
+from typing import List, Literal, Optional
 
-from typing import Literal, Optional, List
-from pydantic import BaseModel, Field
 from fastapi import Depends, Query
+from pydantic import BaseModel, Field
 
-from openpype.utils import SQLTool
+from openpype.api import dep_current_user
 from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
-from openpype.api import dep_current_user
+from openpype.utils import SQLTool
 
 from .router import router
 

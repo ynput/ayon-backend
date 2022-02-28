@@ -1,11 +1,11 @@
-import io
 import csv
-import httpx
+import io
 
+import httpx
 from nxtools import logging
 
-from openpype.utils import json_dumps
 from openpype.lib.postgres import Postgres
+from openpype.utils import json_dumps
 
 
 def parse_example(example, atype):

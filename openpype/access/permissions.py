@@ -1,8 +1,8 @@
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
-from .access import AccessToHierarchy, AccessToAssigned
-
+from .access import AccessToAssigned, AccessToHierarchy
 
 AccessList = list[AccessToHierarchy | AccessToAssigned] | Literal["all"]
 

@@ -1,6 +1,6 @@
 import asyncpg
-
 from nxtools import logging
+
 from openpype.config import pypeconfig
 
 

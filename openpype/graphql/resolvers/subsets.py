@@ -1,14 +1,22 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
-from openpype.utils import SQLTool, EntityID
+from openpype.utils import EntityID, SQLTool
 
 from ..connections import SubsetsConnection
-from ..nodes.subset import SubsetNode
 from ..edges import SubsetEdge
-
-from .common import FieldInfo, argdesc, resolve
-from .common import ARGFirst, ARGAfter, ARGLast, ARGBefore, ARGIds
+from ..nodes.subset import SubsetNode
+from .common import (
+    ARGAfter,
+    ARGBefore,
+    ARGFirst,
+    ARGIds,
+    ARGLast,
+    FieldInfo,
+    argdesc,
+    resolve,
+)
 
 
 async def get_subsets(

@@ -1,20 +1,19 @@
 """[POST] /projects (Save project)"""
 #
 from fastapi import Depends, Response
-from nxtools import logging, log_traceback
+from nxtools import log_traceback, logging
 
-from openpype.lib.postgres import Postgres
-from openpype.entities import ProjectEntity, UserEntity
-from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.api import (
-    ResponseFactory,
     APIException,
+    ResponseFactory,
     dep_current_user,
     dep_project_name,
 )
+from openpype.entities import ProjectEntity, UserEntity
+from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
+from openpype.lib.postgres import Postgres
 
 from .router import router
-
 
 #
 # [GET]

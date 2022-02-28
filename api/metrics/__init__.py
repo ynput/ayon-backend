@@ -1,9 +1,8 @@
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
 
-from openpype.lib.redis import Redis
 from openpype.lib.postgres import Postgres
-
+from openpype.lib.redis import Redis
 
 router = APIRouter(prefix="", include_in_schema=False)
 

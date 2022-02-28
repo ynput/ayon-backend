@@ -1,18 +1,17 @@
-import os
-import imp
 import asyncio
+import imp
+import os
+
 import fastapi
+from nxtools import log_traceback, logging
 
-from nxtools import logging, log_traceback
-
-from openpype.config import pypeconfig
-from openpype.lib.postgres import Postgres
-from openpype.api.exceptions import APIException
-from openpype.api.responses import ErrorResponse
-from openpype.api.metadata import app_meta, tags_meta
-from openpype.graphql import router as graphql_router
 from openpype.access.roles import Roles
-
+from openpype.api.exceptions import APIException
+from openpype.api.metadata import app_meta, tags_meta
+from openpype.api.responses import ErrorResponse
+from openpype.config import pypeconfig
+from openpype.graphql import router as graphql_router
+from openpype.lib.postgres import Postgres
 
 app = fastapi.FastAPI(
     docs_url=None, redoc_url="/docs", openapi_tags=tags_meta, **app_meta

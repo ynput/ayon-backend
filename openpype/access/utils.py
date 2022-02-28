@@ -1,7 +1,7 @@
 from typing import Literal
 
-from openpype.exceptions import ForbiddenException
 from openpype.entities import UserEntity
+from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
 
 
@@ -65,4 +65,4 @@ async def folder_access_list(
     if not fpaths:
         raise ForbiddenException
 
-    return(list(fpaths))
+    return list(fpaths)

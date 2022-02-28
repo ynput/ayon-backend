@@ -1,22 +1,21 @@
 import time
+from typing import ForwardRef, Optional
 
-from typing import Optional, ForwardRef
-from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, Query, Response
+from pydantic import BaseModel, Field
 
-from openpype.utils import EntityID, SQLTool
-from openpype.entities import UserEntity
-from openpype.exceptions import ForbiddenException
-from openpype.hierarchy import HierarchyResolver
 from openpype.access.utils import folder_access_list
-from openpype.lib.postgres import Postgres
 from openpype.api import (
-    ResponseFactory,
     APIException,
+    ResponseFactory,
     dep_current_user,
     dep_project_name,
 )
-
+from openpype.entities import UserEntity
+from openpype.exceptions import ForbiddenException
+from openpype.hierarchy import HierarchyResolver
+from openpype.lib.postgres import Postgres
+from openpype.utils import EntityID, SQLTool
 
 #
 # Router
@@ -92,9 +91,7 @@ async def get_folder_hierarchy(
         raise APIException(403)
 
     if access_list is not None:
-        conds.append(
-            f"path like ANY ('{{ {','.join(access_list)} }}')"
-        )
+        conds.append(f"path like ANY ('{{ {','.join(access_list)} }}')")
 
     plain_result = []
     query = f"""

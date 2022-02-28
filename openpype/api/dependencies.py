@@ -1,12 +1,11 @@
 """Request dependencies."""
 
-from fastapi import Header, Path, Depends
+from fastapi import Depends, Header, Path
 
-from openpype.utils import parse_access_token
 from openpype.auth.session import Session
-from openpype.utils import EntityID
 from openpype.entities import UserEntity
 from openpype.lib.redis import Redis
+from openpype.utils import EntityID, parse_access_token
 
 from .exceptions import APIException
 

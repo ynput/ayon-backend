@@ -4,9 +4,9 @@ import time
 
 from pydantic import BaseModel
 
-from openpype.lib.redis import Redis
 from openpype.entities import UserEntity
-from openpype.utils import create_hash, json_loads, json_dumps
+from openpype.lib.redis import Redis
+from openpype.utils import create_hash, json_dumps, json_loads
 
 
 class SessionModel(BaseModel):

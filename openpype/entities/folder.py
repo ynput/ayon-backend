@@ -1,6 +1,6 @@
+from openpype.exceptions import RecordNotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
-from openpype.exceptions import RecordNotFoundException
 
 from .common import Entity, EntityType, attribute_library
 from .models import ModelSet
@@ -18,7 +18,7 @@ class FolderEntity(Entity):
         entity_id: str,
         transaction=None,
         for_update=False,
-    ) -> 'FolderEntity':
+    ) -> "FolderEntity":
         """Load a folder from the database by its project name and IDself.
 
         This is reimplemented, because we need to select dynamic

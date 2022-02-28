@@ -1,8 +1,9 @@
-import sys
-import json
 import asyncio
+import json
+import sys
 
 from nxtools import critical_error, log_traceback
+
 from .demogen import DemoGen
 
 

@@ -3,9 +3,8 @@ import time
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from openpype.lib.postgres import Postgres
 from openpype.api import ResponseFactory
-
+from openpype.lib.postgres import Postgres
 
 #
 # Router

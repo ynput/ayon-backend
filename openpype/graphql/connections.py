@@ -12,13 +12,13 @@ __all__ = [
 import strawberry
 
 from .edges import (
-    ProjectEdge,
-    UserEdge,
     FolderEdge,
-    TaskEdge,
-    SubsetEdge,
-    VersionEdge,
+    ProjectEdge,
     RepresentationEdge,
+    SubsetEdge,
+    TaskEdge,
+    UserEdge,
+    VersionEdge,
 )
 
 

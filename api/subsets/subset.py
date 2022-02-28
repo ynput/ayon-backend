@@ -2,19 +2,18 @@ from fastapi import Depends, Response
 from nxtools import log_traceback
 from pydantic import BaseModel
 
-from openpype.utils import EntityID
-from openpype.entities import UserEntity, SubsetEntity
-from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.api import (
-    ResponseFactory,
     APIException,
+    ResponseFactory,
+    dep_current_user,
     dep_project_name,
     dep_subset_id,
-    dep_current_user,
 )
+from openpype.entities import SubsetEntity, UserEntity
+from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
+from openpype.utils import EntityID
 
 from .router import router
-
 
 #
 # [GET]

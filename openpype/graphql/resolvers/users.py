@@ -1,13 +1,13 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, validate_name
 
 from ..connections import UsersConnection
-from ..nodes.user import UserNode
 from ..edges import UserEdge
-
+from ..nodes.user import UserNode
 from .common import argdesc
 
 

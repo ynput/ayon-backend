@@ -1,14 +1,14 @@
-import sys
 import asyncio
+import sys
 
-from nxtools import logging, log_traceback, critical_error
-from openpype.utils import json_loads
+from nxtools import critical_error, log_traceback, logging
+
 from openpype.lib.postgres import Postgres
+from openpype.utils import json_loads
 
-from .users import deploy_users
-from .roles import deploy_roles
 from .attributes import deploy_attributes
-
+from .roles import deploy_roles
+from .users import deploy_users
 
 # Defaults which should allow OpenPype to run out of the box
 

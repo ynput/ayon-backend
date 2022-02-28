@@ -1,15 +1,14 @@
-import strawberry
-
-from strawberry.types import Info
 from typing import Optional
 
-from openpype.utils import EntityID
-from openpype.entities import SubsetEntity
+import strawberry
+from strawberry.types import Info
 
-from .common import BaseNode
+from openpype.entities import SubsetEntity
+from openpype.utils import EntityID
+
 from ..resolvers.versions import get_versions
 from ..utils import lazy_type, parse_json_data
-
+from .common import BaseNode
 
 VersionsConnection = lazy_type("VersionsConnection", ".connections")
 FolderNode = lazy_type("FolderNode", ".nodes.folder")

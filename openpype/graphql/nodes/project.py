@@ -1,27 +1,24 @@
-import strawberry
 from typing import Optional
+
+import strawberry
 
 from openpype.entities import ProjectEntity
 from openpype.lib.postgres import Postgres
 
-from .common import BaseNode
-
-from ..utils import parse_json_data, lazy_type
-
-from ..resolvers.folders import get_folders, get_folder
-from ..resolvers.tasks import get_tasks, get_task
-from ..resolvers.subsets import get_subsets, get_subset
-from ..resolvers.versions import get_versions, get_version
-from ..resolvers.representations import get_representations, get_representation
-
 from ..connections import (
     FoldersConnection,
-    TasksConnection,
-    SubsetsConnection,
-    VersionsConnection,
     RepresentationsConnection,
+    SubsetsConnection,
+    TasksConnection,
+    VersionsConnection,
 )
-
+from ..resolvers.folders import get_folder, get_folders
+from ..resolvers.representations import get_representation, get_representations
+from ..resolvers.subsets import get_subset, get_subsets
+from ..resolvers.tasks import get_task, get_tasks
+from ..resolvers.versions import get_version, get_versions
+from ..utils import lazy_type, parse_json_data
+from .common import BaseNode
 
 FolderNode = lazy_type("FolderNode", ".nodes.folder")
 SubsetNode = lazy_type("SubsetNode", ".nodes.subset")

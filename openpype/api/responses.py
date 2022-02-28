@@ -1,6 +1,7 @@
 from http import HTTPStatus
-from pydantic import BaseModel
+
 from fastapi.responses import ORJSONResponse
+from pydantic import BaseModel
 
 
 class JSONResponse(ORJSONResponse):

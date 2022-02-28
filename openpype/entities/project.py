@@ -4,11 +4,11 @@ along with the project data, this entity also handles
 folder_types of the project and the folder hierarchy.
 """
 
-from nxtools import logging, log_traceback
+from nxtools import log_traceback, logging
 
-from openpype.lib.postgres import Postgres
-from openpype.utils import SQLTool, dict_exclude, json_loads, json_dumps
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
+from openpype.lib.postgres import Postgres
+from openpype.utils import SQLTool, dict_exclude, json_dumps, json_loads
 
 from .common import Entity, EntityType, attribute_library
 from .models import ModelSet

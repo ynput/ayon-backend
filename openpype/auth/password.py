@@ -1,11 +1,11 @@
 from nxtools import logging
 
-from openpype.utils import json_loads, json_dumps
-from openpype.lib.postgres import Postgres
 from openpype.entities import UserEntity
+from openpype.lib.postgres import Postgres
+from openpype.utils import json_dumps, json_loads
 
 from .session import Session
-from .utils import ensure_password_complexity, hash_password, create_password
+from .utils import create_password, ensure_password_complexity, hash_password
 
 
 class PasswordAuth:

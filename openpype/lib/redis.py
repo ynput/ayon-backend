@@ -1,4 +1,5 @@
 import aioredis
+
 from openpype.config import pypeconfig
 
 

@@ -1,13 +1,12 @@
 import strawberry
 
-from openpype.utils import EntityID
 from openpype.entities import FolderEntity
+from openpype.utils import EntityID
 
-from .common import BaseNode
-from ..utils import parse_json_data, lazy_type
 from ..resolvers.subsets import get_subsets
 from ..resolvers.tasks import get_tasks
-
+from ..utils import lazy_type, parse_json_data
+from .common import BaseNode
 
 SubsetsConnection = lazy_type("SubsetsConnection", "..connections")
 TasksConnection = lazy_type("TasksConnection", "..connections")

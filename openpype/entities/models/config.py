@@ -1,6 +1,6 @@
 """Entity model config."""
 
-from openpype.utils import json_loads, json_dumps
+from openpype.utils import json_dumps, json_loads
 
 
 def camelize(src: str) -> str:

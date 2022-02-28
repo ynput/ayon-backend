@@ -1,13 +1,12 @@
 import strawberry
 from strawberry.types import Info
 
-from openpype.utils import EntityID
 from openpype.entities import VersionEntity
+from openpype.utils import EntityID
 
 from ..resolvers.representations import get_representations
 from ..utils import lazy_type, parse_json_data
 from .common import BaseNode
-
 
 SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
 RepresentationsConnection = lazy_type("RepresentationsConnection", ".connections")

@@ -1,11 +1,12 @@
-import strawberry
-from strawberry.types import Info
 from typing import Annotated
 
-from openpype.utils import EntityID
-from openpype.lib.postgres import Postgres
+import strawberry
+from strawberry.types import Info
 
-from ..connections import PageInfo, BaseConnection
+from openpype.lib.postgres import Postgres
+from openpype.utils import EntityID
+
+from ..connections import BaseConnection, PageInfo
 
 
 def argdesc(description):

@@ -1,14 +1,13 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
 from openpype.utils import EntityID, SQLTool
 
-from ..nodes.representation import RepresentationNode
 from ..connections import RepresentationsConnection
 from ..edges import RepresentationEdge
-
-from .common import argdesc, resolve
-from .common import ARGFirst, ARGAfter, ARGLast, ARGBefore, ARGIds
+from ..nodes.representation import RepresentationNode
+from .common import ARGAfter, ARGBefore, ARGFirst, ARGIds, ARGLast, argdesc, resolve
 
 
 async def get_representations(

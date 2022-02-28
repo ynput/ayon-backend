@@ -1,28 +1,25 @@
 import strawberry
-
-from strawberry.types import Info
-from strawberry.fastapi import GraphQLRouter
-from strawberry.dataloader import DataLoader
-
 from fastapi import Depends
+from strawberry.dataloader import DataLoader
+from strawberry.fastapi import GraphQLRouter
+from strawberry.types import Info
 
-from openpype.entities import UserEntity
 from openpype.api.dependencies import dep_current_user
+from openpype.entities import UserEntity
 
 from .connections import ProjectsConnection, UsersConnection
-from .nodes.project import ProjectNode
-from .nodes.user import UserNode, UserAttribType
-from .nodes.folder import folder_from_record
-from .resolvers.projects import get_project, get_projects
-from .resolvers.users import get_users, get_user
-
 from .dataloaders import (
     folder_loader,
     latest_version_loader,
     subset_loader,
-    version_loader,
     user_loader,
+    version_loader,
 )
+from .nodes.folder import folder_from_record
+from .nodes.project import ProjectNode
+from .nodes.user import UserAttribType, UserNode
+from .resolvers.projects import get_project, get_projects
+from .resolvers.users import get_user, get_users
 
 
 async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> dict:
