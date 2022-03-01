@@ -9,8 +9,6 @@ manager
 Can create and remove users, grants privileges, create/delete projects
 """
 
-from nxtools import logging
-
 from openpype.lib.postgres import Postgres
 from openpype.utils import json_loads
 

@@ -3,8 +3,6 @@ from typing import Annotated
 from strawberry.types import Info
 
 from openpype.access.utils import folder_access_list
-from openpype.api.exceptions import APIException
-from openpype.exceptions import ForbiddenException
 from openpype.utils import EntityID, SQLTool
 
 from ..connections import FoldersConnection
@@ -89,10 +87,7 @@ async def get_folders(
     )
 
     user = info.context["user"]
-    try:
-        access_list = await folder_access_list(user, project_name, "read")
-    except ForbiddenException:
-        raise APIException(403)
+    access_list = await folder_access_list(user, project_name, "read")
 
     if access_list is not None:
         sql_conditions.append(f"path like ANY ('{{ {','.join(access_list)} }}')")

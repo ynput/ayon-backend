@@ -9,11 +9,12 @@ Login using Oauth2 is implemented in the oauth module.
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from openpype.api import APIException, ResponseFactory
+from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_access_token
 from openpype.auth.password import PasswordAuth
 from openpype.auth.session import Session
 from openpype.entities import UserEntity
+from openpype.exceptions import UnauthorizedException
 
 #
 # Router
@@ -56,7 +57,7 @@ async def login(login: LoginRequestModel):
 
     if not (session := await PasswordAuth.login(login.name, login.password)):
         # We don't need to be too verbose about the bad credentials
-        raise APIException(401, "Invalid login/password")
+        raise UnauthorizedException("Invalid login/password")
 
     return LoginResponseModel(
         detail=f"Logged in as {session.user_entity.name}",

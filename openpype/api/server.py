@@ -6,12 +6,12 @@ import fastapi
 from nxtools import log_traceback, logging
 
 from openpype.access.roles import Roles
-from openpype.api.exceptions import APIException
 from openpype.api.metadata import app_meta, tags_meta
 from openpype.api.responses import ErrorResponse
 from openpype.config import pypeconfig
 from openpype.graphql import router as graphql_router
 from openpype.lib.postgres import Postgres
+from openpype.exceptions import OpenPypeException
 
 app = fastapi.FastAPI(
     docs_url=None, redoc_url="/docs", openapi_tags=tags_meta, **app_meta
@@ -22,8 +22,8 @@ app = fastapi.FastAPI(
 #
 
 
-@app.exception_handler(APIException)
-async def pype_exception_handler(request: fastapi.Request, exc: APIException):
+@app.exception_handler(OpenPypeException)
+async def openpype_exception_handler(request: fastapi.Request, exc: OpenPypeException):
     return fastapi.responses.JSONResponse(
         status_code=exc.status,
         content=ErrorResponse(code=exc.status, detail=exc.detail).dict(),
@@ -31,7 +31,7 @@ async def pype_exception_handler(request: fastapi.Request, exc: APIException):
 
 
 @app.exception_handler(Exception)
-async def all_exception_handler(request: fastapi.Request, exc: APIException):
+async def all_exception_handler(request: fastapi.Request, exc: Exception):
     logging.error(f"Unhandled exception: {exc}")
     return fastapi.responses.JSONResponse(
         status_code=500,

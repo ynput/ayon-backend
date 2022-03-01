@@ -1,21 +1,15 @@
 from fastapi import Depends, Response
-from nxtools import log_traceback
 from pydantic import BaseModel
 
 from openpype.access.utils import folder_access_list
 from openpype.api import (
-    APIException,
     ResponseFactory,
     dep_current_user,
     dep_folder_id,
     dep_project_name,
 )
-from openpype.entities import FolderEntity, ProjectEntity, UserEntity
-from openpype.exceptions import (
-    ConstraintViolationException,
-    ForbiddenException,
-    RecordNotFoundException,
-)
+from openpype.entities import FolderEntity, UserEntity
+from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
 
@@ -38,22 +32,12 @@ async def get_folder(
 ):
     """Retrieve a folder by its ID."""
 
-    try:
-        folder = await FolderEntity.load(project_name, folder_id)
-    except RecordNotFoundException:
-        raise APIException(404, "Folder not found")
-    except Exception:
-        log_traceback("Unable to load folder")
-        raise APIException(500, "Unable to load folder")
-
-    try:
-        access_list = await folder_access_list(user, project_name, "read")
-    except ForbiddenException:
-        raise APIException(403)
+    folder = await FolderEntity.load(project_name, folder_id)
+    access_list = await folder_access_list(user, project_name, "read")
 
     if access_list is not None:
         if folder.path not in access_list:
-            raise APIException(403)
+            raise ForbiddenException("You don't have access to this folder")
 
     return folder.payload
 
@@ -85,15 +69,10 @@ async def create_folder(
     Use a POST request to create a new folder (with a new id).
     """
 
-    project = await ProjectEntity.load(project_name)
-    if not user.can("modify", project):
-        raise APIException(403, "You are not allowed to modify this project")
+    # TODO: Access control
 
     folder = FolderEntity(project_name=project_name, **post_data.dict())
-    try:
-        await folder.save()
-    except ConstraintViolationException as e:
-        raise APIException(409, f"Unable to create folder. {e.detail}")
+    await folder.save()
     return PostFolderResponseModel(id=folder.id)
 
 
@@ -117,28 +96,18 @@ async def update_folder(
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
-            try:
-                folder = await FolderEntity.load(
-                    project_name, folder_id, transaction=conn, for_update=True
-                )
-            except RecordNotFoundException:
-                raise APIException(404, "Folder not found")
+            folder = await FolderEntity.load(
+                project_name, folder_id, transaction=conn, for_update=True
+            )
 
-            try:
-                access_list = await folder_access_list(user, project_name, "write")
-            except ForbiddenException:
-                raise APIException(403)
+            access_list = await folder_access_list(user, project_name, "write")
 
             if access_list is not None:
                 if folder.path not in access_list:
-                    raise APIException(403)
+                    raise ForbiddenException(403)
 
             folder.patch(post_data)
-
-            try:
-                await folder.save(transaction=conn)
-            except ConstraintViolationException as e:
-                raise APIException(409, f"Unable to update folder. {e.detail}")
+            await folder.save(transaction=conn)
 
     return Response(status_code=204)
 
@@ -160,19 +129,12 @@ async def delete_folder(
 ):
     """Delete a folder."""
 
-    try:
-        folder = await FolderEntity.load(project_name, folder_id)
-    except RecordNotFoundException:
-        raise APIException(404, "Folder not found")
-
-    try:
-        access_list = await folder_access_list(user, project_name, "write")
-    except ForbiddenException:
-        raise APIException(403)
+    folder = await FolderEntity.load(project_name, folder_id)
+    access_list = await folder_access_list(user, project_name, "write")
 
     if access_list is not None:
         if folder.path not in access_list:
-            raise APIException(403)
+            raise ForbiddenException("You are not allowed to delete this folder")
 
     await folder.delete()
     return Response(status_code=204)

@@ -6,13 +6,11 @@ from pydantic import BaseModel, Field
 
 from openpype.access.utils import folder_access_list
 from openpype.api import (
-    APIException,
     ResponseFactory,
     dep_current_user,
     dep_project_name,
 )
 from openpype.entities import UserEntity
-from openpype.exceptions import ForbiddenException
 from openpype.hierarchy import HierarchyResolver
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID, SQLTool
@@ -85,10 +83,7 @@ async def get_folder_hierarchy(
     if type_list:
         conds.append(f"folder_type IN {SQLTool.array(type_list)}")
 
-    try:
-        access_list = await folder_access_list(user, project_name, "read")
-    except ForbiddenException:
-        raise APIException(403)
+    access_list = await folder_access_list(user, project_name, "read")
 
     if access_list is not None:
         conds.append(f"path like ANY ('{{ {','.join(access_list)} }}')")

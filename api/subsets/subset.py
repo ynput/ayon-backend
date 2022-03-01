@@ -1,16 +1,13 @@
 from fastapi import Depends, Response
-from nxtools import log_traceback
 from pydantic import BaseModel
 
 from openpype.api import (
-    APIException,
     ResponseFactory,
     dep_current_user,
     dep_project_name,
     dep_subset_id,
 )
 from openpype.entities import SubsetEntity, UserEntity
-from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.utils import EntityID
 
 from .router import router
@@ -32,13 +29,7 @@ async def get_subset(
 ):
     """Retrieve a subset by its ID."""
 
-    try:
-        subset = await SubsetEntity.load(project_name, subset_id)
-    except RecordNotFoundException:
-        raise APIException(404, "subset not found")
-    except Exception:
-        log_traceback("Unable to load subset")
-        raise APIException(500, "Unable to load subset")
+    subset = await SubsetEntity.load(project_name, subset_id)
 
     return subset.payload
 
@@ -71,10 +62,7 @@ async def create_subset(
     """
 
     subset = SubsetEntity(False, project_name=project_name, **post_data.dict())
-    try:
-        await subset.save()
-    except ConstraintViolationException as e:
-        raise APIException(409, f"Unable to create subset. {e.detail}")
+    await subset.save()
     return PostSubsetResponseModel(subsetId=subset.id)
 
 
@@ -96,18 +84,9 @@ async def update_subset(
 ):
     """Patch (partially update) a subset."""
 
-    try:
-        subset = await SubsetEntity.load(project_name, subset_id)
-    except RecordNotFoundException:
-        raise APIException(404, "subset not found")
-
+    subset = await SubsetEntity.load(project_name, subset_id)
     subset.patch(post_data)
-
-    try:
-        await subset.save()
-    except ConstraintViolationException as e:
-        raise APIException(409, f"Unable to update subset. {e.detail}")
-
+    await subset.save()
     return Response(status_code=204)
 
 
@@ -128,10 +107,6 @@ async def delete_subset(
 ):
     """Delete a subset."""
 
-    try:
-        subset = await SubsetEntity.load(project_name, subset_id)
-    except RecordNotFoundException:
-        raise APIException(404, "Subset not found")
-
+    subset = await SubsetEntity.load(project_name, subset_id)
     await subset.delete()
     return Response(status_code=204)

@@ -1,7 +1,6 @@
 __all__ = [
     "JSONResponse",
     "ResponseFactory",
-    "APIException",
     "dep_access_token",
     "dep_current_user",
     "dep_project_name",
@@ -21,7 +20,6 @@ from openpype.api.dependencies import (
     dep_subset_id,
     dep_version_id,
 )
-from openpype.api.exceptions import APIException
 from openpype.api.responses import JSONResponse, ResponseFactory
 
 # Import this last!

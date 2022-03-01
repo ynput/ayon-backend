@@ -1,16 +1,15 @@
 """[POST] /projects (Save project)"""
 #
 from fastapi import Depends, Response
-from nxtools import log_traceback, logging
+from nxtools import logging
 
 from openpype.api import (
-    APIException,
     ResponseFactory,
     dep_current_user,
     dep_project_name,
 )
 from openpype.entities import ProjectEntity, UserEntity
-from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
+from openpype.exceptions import RecordNotFoundException, ForbiddenException
 from openpype.lib.postgres import Postgres
 
 from .router import router
@@ -31,15 +30,8 @@ async def get_project(
 ):
     """Retrieve a project by its name."""
 
-    # TODO: ACL: assert user has access to the project
-
-    try:
-        project = await ProjectEntity.load(project_name)
-    except RecordNotFoundException:
-        raise APIException(404, "Project not found", log=False)
-    except Exception:
-        log_traceback("Unable to load project")
-        raise APIException(500, "Unable to load project")
+    project = await ProjectEntity.load(project_name)
+    # TODO: ACL
 
     return project.payload
 
@@ -101,7 +93,7 @@ async def create_project(
     """
 
     if not user.is_admin:
-        raise APIException(403, "You are not allowed to create projects")
+        raise ForbiddenException("You are not allowed to create projects")
 
     action = ""
 
@@ -138,23 +130,15 @@ async def update_project(
     For example change the name or a particular key in 'data'.
     """
 
-    try:
-        project = await ProjectEntity.load(project_name)
-    except RecordNotFoundException:
-        raise APIException(404, f"Project {project_name} does not exist.")
+    project = await ProjectEntity.load(project_name)
 
     if not user.can("modify", project):
-        raise APIException(
-            403, f"You do not have permission to update project {project.name}"
+        raise ForbiddenException(
+            f"You do not have permission to update project {project.name}"
         )
 
     project.patch(patch_data)
-
-    try:
-        await project.save()
-    except ConstraintViolationException as e:
-        raise APIException(500, f"Unable to update project. {e.detail}")
-
+    await project.save()
     return Response(status_code=204)
 
 
@@ -170,14 +154,10 @@ async def delete_project(
 ):
     """Delete a given project including all its entities."""
 
-    try:
-        project = await ProjectEntity.load(project_name)
-    except RecordNotFoundException:
-        raise APIException(404, f"Project {project_name} does not exist")
+    project = await ProjectEntity.load(project_name)
 
-    if not user.can("delete", project):
-        raise APIException(
-            403,
+    if not user.is_manager:
+        raise ForbiddenException(
             f"You do not have permission to delete project {project.name}",
             f"{user.name} is not allowed to delete project {project.name}",
         )

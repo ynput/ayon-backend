@@ -6,15 +6,14 @@ from openpype.auth.session import Session
 from openpype.entities import UserEntity
 from openpype.lib.redis import Redis
 from openpype.utils import EntityID, parse_access_token
-
-from .exceptions import APIException
+from openpype.exceptions import UnauthorizedException
 
 
 async def dep_access_token(authorization: str = Header(None)) -> str:
     """Parse and return an access token provided in the authorisation header"""
     access_token = parse_access_token(authorization)
     if not access_token:
-        raise APIException(401, "Not logged in", log=False)
+        raise UnauthorizedException(log=False)
     return access_token
 
 
@@ -32,10 +31,8 @@ async def dep_current_user(
 
     session_data = await Session.check(access_token, x_forwarded_for)
     if not session_data:
-        raise APIException(401, "Invalid token", log=False)
-
+        raise UnauthorizedException("Invalid access token", log=False)
     await Redis.incr("user-requests", session_data.user.name)
-
     return UserEntity(exists=True, **session_data.user.dict())
 
 

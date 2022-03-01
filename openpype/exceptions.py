@@ -1,9 +1,27 @@
+from nxtools import logging
+
+
 class OpenPypeException(Exception):
     """Base class for all OpenPype exceptions."""
 
-    def __init__(self, detail: str = "Server error") -> None:
-        super().__init__(detail)
-        self.detail = detail
+    detail: str = "Error"
+    status: int = 500
+
+    def __init__(
+        self,
+        detail: str | None = None,
+        log: bool | str = True,
+    ) -> None:
+
+        if detail is not None:
+            self.detail = detail
+
+        if log is True:
+            logging.error(f"EXCEPTION: {self.status} {self.detail}")
+        elif type(log) is str:
+            logging.error(f"EXCEPTION: {self.status} {log}")
+
+        super().__init__(self.detail)
 
 
 class UnauthorizedException(OpenPypeException):
@@ -12,8 +30,8 @@ class UnauthorizedException(OpenPypeException):
     And tries to access a resource without the proper credentials.
     """
 
-    def __init__(self, detail: str = "Unauthorized") -> None:
-        super().__init__(detail)
+    detail: str = "Not logged in"
+    status: int = 401
 
 
 class ForbiddenException(OpenPypeException):
@@ -23,19 +41,19 @@ class ForbiddenException(OpenPypeException):
     permissions of the authenticated account.
     """
 
-    def __init__(self, detail: str = "Forbidden") -> None:
-        super().__init__(detail)
+    detail: str = "Forbidden"
+    status: int = 403
 
 
 class RecordNotFoundException(OpenPypeException):
     """Exception raised when a resource is not found."""
 
-    def __init__(self, detail: str = "Record not found") -> None:
-        super().__init__(detail)
+    detail: str = "Not found"
+    status: int = 404
 
 
 class ConstraintViolationException(OpenPypeException):
     """Exception raised when a DB constraint is violated."""
 
-    def __init__(self, detail: str = "Constraint violation") -> None:
-        super().__init__(detail)
+    detail: str = "Constraint violation"
+    status: int = 409

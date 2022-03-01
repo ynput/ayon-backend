@@ -50,7 +50,7 @@ async def folder_access_list(
             query = f"""
                 SELECT
                     h.path
-                FROM 
+                FROM
                     project_{project_name}.hierarchy as h
                 INNER JOIN
                     project_{project_name}.tasks as t

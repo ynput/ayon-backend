@@ -4,10 +4,10 @@ from nxtools import logging
 from pydantic import BaseModel
 from yaoauth2 import OAuth2Data, YAOAuth2
 
-from openpype.api import APIException
 from openpype.auth.session import Session
 from openpype.config import pypeconfig
 from openpype.entities import UserEntity
+from openpype.exceptions import UnauthorizedException
 from openpype.lib.postgres import Postgres
 
 
@@ -25,7 +25,7 @@ async def login_callback(data: OAuth2Data) -> LoginResponseModel:
         data.user.email,
     )
     if not res:
-        raise APIException(401, f"User with email {data.user.email} was not found.")
+        raise UnauthorizedException(f"User with email {data.user.email} was not found.")
 
     user = UserEntity.from_record(**dict(res[0]))
 
