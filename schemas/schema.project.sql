@@ -191,11 +191,11 @@ CREATE INDEX representation_parent_idx ON representations(version_id);
 CREATE TABLE files (
     representation_id UUID NOT NULL REFERENCES representations(id),
     site_name VARCHAR NOT NULL,
-    synced BOOLEAN NOT NULL DEFAULT FALSE,
-    priority INTEGER NOT NULL DEFAULT 0,
+    status INTEGER NOT NULL DEFAULT -1,
+    priority INTEGER NOT NULL DEFAULT 50,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     PRIMARY KEY (representation_id, site_name)
 );
 
-CREATE INDEX file_synced_idx ON files(synced);
+CREATE INDEX file_status_idx ON files(status);
 CREATE INDEX file_priority_idx ON files(priority desc);
