@@ -71,7 +71,7 @@ async def get_site_sync_state(
     sortDesc: bool = Query(
         False,
         name="Sort descending",
-        description="Sort the result in descending order"
+        description="Sort the result in descending order",
     ),
     folderFilter: str
     | None = Query(
