@@ -62,12 +62,12 @@ class SiteSyncSummaryModel(BaseModel):
 
 
 class SiteSyncParamsModel(BaseModel):
-    totalCount: int
+    count: int
     names: list[str]
 
 
 class FileStatusModel(BaseModel):
-    file_hash: str = Field(...)
+    fileHash: str = Field(...)
     status: StatusEnum = Field(StatusEnum.NOT_AVAILABLE)
     size: int = Field(0)
     timestamp: int = Field(default_factory=time.time)

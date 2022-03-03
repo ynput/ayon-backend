@@ -1,23 +1,23 @@
-from fastapi import Depends, Response
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Response
 
-from openpype.api import (
-    ResponseFactory,
-    dep_current_user,
-    dep_project_name,
-    dep_subset_id,
-)
+from openpype.api.dependencies import dep_current_user, dep_project_name, dep_subset_id
+from openpype.api.responses import ResponseFactory, EntityIdResponse
 from openpype.entities import SubsetEntity, UserEntity
-from openpype.utils import EntityID
 
-from .router import router
+router = APIRouter(
+    tags=["Subsets"],
+    responses={
+        401: ResponseFactory.error(401),
+        403: ResponseFactory.error(403),
+    },
+)
 
 #
 # [GET]
 #
 
 
-@router.get(
+@ router.get(
     "/projects/{project_name}/subsets/{subset_id}",
     response_model=SubsetEntity.model.main_model,
     responses={404: ResponseFactory.error(404, "Subset not found")},
@@ -39,14 +39,10 @@ async def get_subset(
 #
 
 
-class PostSubsetResponseModel(BaseModel):
-    subsetId: str = EntityID.field("subset")
-
-
-@router.post(
+@ router.post(
     "/projects/{project_name}/subsets",
     status_code=201,
-    response_model=PostSubsetResponseModel,
+    response_model=EntityIdResponse,
     responses={
         409: ResponseFactory.error(409, "Coflict"),
     },
@@ -61,9 +57,11 @@ async def create_subset(
     Use a POST request to create a new subset (with a new id).
     """
 
-    subset = SubsetEntity(False, project_name=project_name, **post_data.dict())
+    print(post_data)
+
+    subset = SubsetEntity(project_name=project_name, **post_data.dict())
     await subset.save()
-    return PostSubsetResponseModel(subsetId=subset.id)
+    return EntityIdResponse(id=subset.id)
 
 
 #
@@ -71,7 +69,7 @@ async def create_subset(
 #
 
 
-@router.patch(
+@ router.patch(
     "/projects/{project_name}/subsets/{subset_id}",
     status_code=204,
     response_class=Response,
@@ -95,7 +93,7 @@ async def update_subset(
 #
 
 
-@router.delete(
+@ router.delete(
     "/projects/{project_name}/subsets/{subset_id}",
     response_class=Response,
     status_code=204,

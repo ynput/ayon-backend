@@ -1,19 +1,18 @@
-from fastapi import Depends, Response
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, Response
 
 from openpype.access.utils import folder_access_list
-from openpype.api import (
-    ResponseFactory,
-    dep_current_user,
-    dep_folder_id,
-    dep_project_name,
-)
+
+from openpype.api.dependencies import dep_current_user, dep_folder_id, dep_project_name
+from openpype.api.responses import ResponseFactory, EntityIdResponse
+
 from openpype.entities import FolderEntity, UserEntity
 from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
-from openpype.utils import EntityID
 
-from .router import router
+router = APIRouter(
+    tags=["Folders"],
+    responses={401: ResponseFactory.error(401), 403: ResponseFactory.error(403)},
+)
 
 #
 # [GET]
@@ -47,14 +46,10 @@ async def get_folder(
 #
 
 
-class PostFolderResponseModel(BaseModel):
-    id: str = EntityID.field("folder")
-
-
 @router.post(
     "/projects/{project_name}/folders",
     status_code=201,
-    response_model=PostFolderResponseModel,
+    response_model=EntityIdResponse,
     responses={
         409: ResponseFactory.error(409, "Coflict"),
     },
@@ -73,7 +68,7 @@ async def create_folder(
 
     folder = FolderEntity(project_name=project_name, **post_data.dict())
     await folder.save()
-    return PostFolderResponseModel(id=folder.id)
+    return EntityIdResponse(id=folder.id)
 
 
 #

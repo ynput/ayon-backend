@@ -84,7 +84,7 @@ CREATE UNIQUE INDEX hierarchy_id ON hierarchy (id);
 CREATE TABLE tasks(
     id UUID NOT NULL PRIMARY KEY,
     name VARCHAR NOT NULL,
-    folder_id UUID REFERENCES folders(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    folder_id UUID REFERENCES folders(id) ON DELETE CASCADE,
     task_type VARCHAR REFERENCES task_types(name) ON UPDATE CASCADE,
     assignees VARCHAR[] NOT NULL DEFAULT '{}',
 
@@ -105,7 +105,7 @@ CREATE INDEX task_type_idx ON tasks(task_type);
 CREATE TABLE subsets(
     id UUID NOT NULL PRIMARY KEY,
     name VARCHAR NOT NULL,
-    folder_id UUID NOT NULL REFERENCES folders(id),
+    folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
     family VARCHAR NOT NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -127,7 +127,7 @@ CREATE TABLE versions(
     id UUID NOT NULL PRIMARY KEY,
     version INTEGER NOT NULL,
 
-    subset_id UUID NOT NULL REFERENCES subsets(id),
+    subset_id UUID NOT NULL REFERENCES subsets(id) ON DELETE CASCADE,
     thumbnail_id INTEGER REFERENCES thumbnails(id),
     task_id UUID REFERENCES tasks(id),
     author VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
@@ -167,7 +167,7 @@ CREATE TABLE representations(
     id UUID NOT NULL PRIMARY KEY,
     name VARCHAR NOT NULL,
 
-    version_id UUID NOT NULL REFERENCES versions(id),
+    version_id UUID NOT NULL REFERENCES versions(id) ON DELETE CASCADE,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -189,7 +189,7 @@ CREATE INDEX representation_parent_idx ON representations(version_id);
 
 
 CREATE TABLE files (
-    representation_id UUID NOT NULL REFERENCES representations(id),
+    representation_id UUID NOT NULL REFERENCES representations(id) ON DELETE CASCADE,
     site_name VARCHAR NOT NULL,
     status INTEGER NOT NULL DEFAULT -1,
     priority INTEGER NOT NULL DEFAULT 50,

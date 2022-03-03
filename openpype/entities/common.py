@@ -345,7 +345,7 @@ class Entity:
 
         commit = not transaction
         transaction = transaction or Postgres
-        count = await transaction.fetch(
+        res = await transaction.fetch(
             f"""
             WITH deleted AS (
                 DELETE FROM project_{self.project_name}.{self.entity_name}s
@@ -354,7 +354,8 @@ class Entity:
             ) SELECT count(*) FROM deleted;
             """,
             self.id,
-        )[0]["count"]
+        )
+        count = res[0]["count"]
 
         if commit:
             await self.commit(transaction)

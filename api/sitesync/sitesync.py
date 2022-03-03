@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, Query, Path
+from fastapi import APIRouter, Depends, Query, Path, Response
 
-from openpype.api import dep_project_name, dep_current_user
+from openpype.api import dep_project_name, dep_current_user, dep_representation_id
 from openpype.entities.user import UserEntity
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, json_loads, EntityID
@@ -43,7 +43,7 @@ async def get_site_sync_params(
         total_count = row["total_count"]
         names.append(row["name"])
 
-    return SiteSyncParamsModel(totalCount=total_count, names=names)
+    return SiteSyncParamsModel(count=total_count, names=names)
 
 
 @router.get(
@@ -211,12 +211,45 @@ async def get_site_sync_representation_state(
     ...
 
 
-@router.post("/projects/{project_name}/sitesync/state/{representation_id}/{site_name}")
+@router.post(
+    "/projects/{project_name}/sitesync/state/{representation_id}/{site_name}",
+    response_class=Response,
+    status_code=204
+)
 async def set_site_sync_representation_state(
     post_data: list[FileStatusModel],
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
-    representation_id: str = Path(...),
-    site_name: str = Path(...),
+    representation_id: str = Depends(dep_representation_id),
+    site_name: str = Path(...),  # TODO: add regex validator/dependency here! Important!
 ) -> list[FileStatusModel]:
-    ...
+
+    async with Postgres.acquire() as conn:
+        async with conn.transction():
+            query = f"""
+                SELECT data
+                FROM project_{project_name}.files
+                WHERE
+                    representation_id = {representation_id}
+                    AND site_name = {site_name}
+                FOR UPDATE
+            """
+
+            result = await conn.fetch(query)
+            if not result:
+                files = {}
+            else:
+                files = json_loads(result["data"])["files"]
+
+            for file in post_data:
+                if file.fileHash not in files:
+                    files[file.fileHash] = {}
+                files[file.fileHash]["hash"] = file.fileHash
+                files[file.fileHash]["timestamp"] = file.timestamp
+
+                if file.message:
+                    files[file.fileHash]["message"] = file.message
+                elif "message" in files[file.fileHash]:
+                    del(files[file.fileHash]["message"])
+
+    return Response(status_code=204)
