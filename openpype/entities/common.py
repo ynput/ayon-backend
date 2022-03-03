@@ -298,8 +298,6 @@ class Entity:
         if self.exists:
             # Update existing entity
 
-            print("IGNORING FIELDS", self.model.dynamic_fields)
-
             await transaction.execute(
                 *SQLTool.update(
                     f"project_{self.project_name}.{self.entity_name}s",

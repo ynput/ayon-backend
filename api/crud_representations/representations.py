@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, Response
 
 from openpype.api.dependencies import (
-    dep_current_user, dep_project_name, dep_representation_id
+    dep_current_user,
+    dep_project_name,
+    dep_representation_id,
 )
 from openpype.api.responses import ResponseFactory, EntityIdResponse
 from openpype.entities import RepresentationEntity, UserEntity
@@ -58,9 +60,7 @@ async def create_representation(
     Use a POST request to create a new representation (with a new id).
     """
 
-    representation = RepresentationEntity(
-        project_name=project_name, **post_data.dict()
-    )
+    representation = RepresentationEntity(project_name=project_name, **post_data.dict())
     await representation.save()
     return EntityIdResponse(id=representation.id)
 
