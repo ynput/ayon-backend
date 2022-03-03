@@ -28,6 +28,22 @@ class SortByEnum(enum.Enum):
     representation: str = "representation"
 
 
+class FileStatusModel(BaseModel):
+    fileHash: str = Field(...)
+    status: StatusEnum = Field(StatusEnum.NOT_AVAILABLE)
+    size: int = Field(0)
+    timestamp: int = Field(default_factory=time.time)
+    message: str | None = Field(None)
+    retries: int = Field(0)
+
+
+class FileModel(BaseModel):
+    fileHash: str
+    size: int
+    localStatus: FileStatusModel
+    remoteStatus: FileStatusModel
+
+
 class SiteSyncSummaryItem(BaseModel):
     folder: str = Field(...)
     subset: str = Field(...)
@@ -56,6 +72,11 @@ class SiteSyncSummaryItem(BaseModel):
     localStatus: StatusEnum = Field(StatusEnum.NOT_AVAILABLE)
     remoteStatus: StatusEnum = Field(StatusEnum.NOT_AVAILABLE)
 
+    files: list[FileModel] | None = Field(
+        None,
+        description="List of individual files. Available in single-representation mode",
+    )
+
 
 class SiteSyncSummaryModel(BaseModel):
     representations: list[SiteSyncSummaryItem] = Field(...)
@@ -66,18 +87,6 @@ class SiteSyncParamsModel(BaseModel):
     names: list[str]
 
 
-class FileStatusModel(BaseModel):
-    fileHash: str = Field(...)
-    status: StatusEnum = Field(StatusEnum.NOT_AVAILABLE)
-    size: int = Field(0)
-    timestamp: int = Field(default_factory=time.time)
-    message: str | None = Field(None)
-    retries: int = Field(0)
-
-
-class GetRepresentationStateResponseModel(BaseModel):
+class RepresentationStateModel(BaseModel):
     files: list[FileStatusModel]
-
-
-class SetRepresentationStateRequestModel(BaseModel):
-    files: list[FileStatusModel]
+    priority: int | None = Field(None)

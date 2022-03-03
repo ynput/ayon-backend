@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, Query, Path, Response
 
 from openpype.api import dep_project_name, dep_current_user, dep_representation_id
 from openpype.entities.user import UserEntity
+from openpype.entities.representation import RepresentationEntity
 from openpype.lib.postgres import Postgres
-from openpype.utils import SQLTool, json_loads, EntityID
+from openpype.utils import SQLTool, json_loads, json_dumps, EntityID
 
 from .models import (
     StatusEnum,
@@ -11,12 +12,34 @@ from .models import (
     SiteSyncParamsModel,
     SiteSyncSummaryItem,
     SiteSyncSummaryModel,
+    RepresentationStateModel,
+    FileModel,
     FileStatusModel,
 )
 
-router = APIRouter(
-    tags=["Site sync"],
-)
+router = APIRouter(tags=["Site sync"])
+
+
+def get_overal_status(files: dict) -> StatusEnum:
+    all_states = [v.get("status", StatusEnum.NOT_AVAILABLE) for v in files.values()]
+    if all(stat == StatusEnum.NOT_AVAILABLE for stat in all_states):
+        return StatusEnum.NOT_AVAILABLE
+    elif all(stat == StatusEnum.SYNCED for stat in all_states):
+        return StatusEnum.SYNCED
+    elif any(stat == StatusEnum.FAILED for stat in all_states):
+        return StatusEnum.FAILED
+    elif any(stat == StatusEnum.IN_PROGRESS for stat in all_states):
+        return StatusEnum.IN_PROGRESS
+    elif any(stat == StatusEnum.PAUSED for stat in all_states):
+        return StatusEnum.PAUSED
+    elif all(stat == StatusEnum.QUEUED for stat in all_states):
+        return StatusEnum.QUEUED
+    return StatusEnum.NOT_AVAILABLE
+
+
+#
+# GET SITE SYNC PARAMS
+#
 
 
 @router.get(
@@ -44,6 +67,11 @@ async def get_site_sync_params(
         names.append(row["name"])
 
     return SiteSyncParamsModel(count=total_count, names=names)
+
+
+#
+# GET SITE SYNC OVERAL STATE
+#
 
 
 @router.get(
@@ -91,27 +119,41 @@ async def get_site_sync_state(
         description=f"List of states to show. Available options: {StatusEnum.__doc__}",
         example=[StatusEnum.QUEUED, StatusEnum.IN_PROGRESS],
     ),
+    representationId: str
+    | None = Query(None, description="Select only the given representation."),
     # Pagination
     page: int = Query(1, ge=1),
     pageLength: int = Query(50, ge=1),
 ) -> SiteSyncSummaryModel:
+    """Return a site sync state.
+
+    When a representationId is provided,
+    the result will contain only one representation,
+    along with the information on individual files.
+    """
 
     conditions = []
 
-    if folderFilter:
-        conditions.append(f"f.name ILIKE '{folderFilter}%'")
+    if representationId is not None:
+        conditions.append(f"r.id = '{representationId}'")
 
-    if subsetFilter:
-        conditions.append(f"s.name ILIKE '{subsetFilter}%'")
+    else:
+        # When a single representation is requested
+        # We ignore the rest of the filter
+        if folderFilter:
+            conditions.append(f"f.name ILIKE '{folderFilter}%'")
 
-    if statusFilter:
-        statusFilter = [str(s.value) for s in statusFilter]
-        conditions.append(
-            f"""
-                local.status IN ({','.join(statusFilter)})
-             OR remote.status IN ({','.join(statusFilter)})
-            """
-        )
+        if subsetFilter:
+            conditions.append(f"s.name ILIKE '{subsetFilter}%'")
+
+        if statusFilter:
+            statusFilter = [str(s.value) for s in statusFilter]
+            conditions.append(
+                f"""
+                    local.status IN ({','.join(statusFilter)})
+                 OR remote.status IN ({','.join(statusFilter)})
+                """
+            )
 
     # TODO: add folder_access conditions
 
@@ -174,6 +216,48 @@ async def get_site_sync_state(
         rsize = sum([f.get("size") for f in rfiles.values()] or [0])
         rtime = max([f.get("timestamp") for f in rfiles.values()] or [0])
 
+        local_status = (
+            StatusEnum.NOT_AVAILABLE
+            if row["local_status"] is None
+            else row["local_status"]
+        )
+        remote_status = (
+            StatusEnum.NOT_AVAILABLE
+            if row["remote_status"] is None
+            else row["remote_status"]
+        )
+
+        file_list = None
+        if representationId:
+            file_list = []
+            for file_hash, file in files.items():
+
+                local_file = lfiles.get(file_hash, {})
+                remote_file = rfiles.get(file_hash, {})
+
+                file_list.append(
+                    FileModel(
+                        fileHash=file_hash,
+                        size=file["size"],
+                        localStatus=FileStatusModel(
+                            fileHash=file_hash,
+                            status=local_file.get("status", StatusEnum.NOT_AVAILABLE),
+                            size=local_file.get("size", 0),
+                            timestamp=local_file.get("timestamp", 0),
+                            message=local_file.get("message", None),
+                            retries=local_file.get("retries", 0),
+                        ),
+                        remoteStatus=FileStatusModel(
+                            fileHash=file_hash,
+                            status=remote_file.get("status", StatusEnum.NOT_AVAILABLE),
+                            size=remote_file.get("size", 0),
+                            timestamp=remote_file.get("timestamp", 0),
+                            message=remote_file.get("message", None),
+                            retries=remote_file.get("retries", 0),
+                        ),
+                    )
+                )
+
         repres.append(
             SiteSyncSummaryItem.construct(
                 folder=row["folder"],
@@ -187,69 +271,112 @@ async def get_site_sync_state(
                 remoteSize=rsize,
                 localTime=ltime,
                 remoteTime=rtime,
-                localStatus=row["local_status"] or StatusEnum.NOT_AVAILABLE,
-                remoteStatus=row["remote_status"] or StatusEnum.NOT_AVAILABLE,
+                localStatus=local_status,
+                remoteStatus=remote_status,
+                files=file_list,
             )
         )
 
-    return SiteSyncSummaryModel(
-        representations=repres,
-    )
+    return SiteSyncSummaryModel(representations=repres)
 
 
-@router.get(
-    "/projects/{project_name}/sitesync/state/{representation_id}",
-    response_model=list[FileStatusModel],
-)
-async def get_site_sync_representation_state(
-    project_name: str = Depends(dep_project_name),
-    user: UserEntity = Depends(dep_current_user),
-    representation_id: str = Path(...),
-    localSite: str = Query(..., description="Name of the local site"),
-    remoteSite: str = Query(..., description="Name of the remote site"),
-):
-    ...
+#
+# SET REPRESENTATION SYNC STATE
+#
 
 
 @router.post(
     "/projects/{project_name}/sitesync/state/{representation_id}/{site_name}",
     response_class=Response,
-    status_code=204
+    status_code=204,
 )
 async def set_site_sync_representation_state(
-    post_data: list[FileStatusModel],
+    post_data: RepresentationStateModel,
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
     representation_id: str = Depends(dep_representation_id),
     site_name: str = Path(...),  # TODO: add regex validator/dependency here! Important!
-) -> list[FileStatusModel]:
+) -> Response:
+
+    priority = post_data.priority
 
     async with Postgres.acquire() as conn:
-        async with conn.transction():
-            query = f"""
-                SELECT data
+        async with conn.transaction():
+            query = (
+                f"""
+                SELECT priority, data
                 FROM project_{project_name}.files
-                WHERE
-                    representation_id = {representation_id}
-                    AND site_name = {site_name}
+                WHERE representation_id = $1 AND site_name = $2
                 FOR UPDATE
-            """
+                """,
+                representation_id,
+                site_name,
+            )
 
-            result = await conn.fetch(query)
+            result = await conn.fetch(*query)
+            do_insert = False
             if not result:
+                do_insert = True
+                repre = await RepresentationEntity.load(
+                    project_name, representation_id, transaction=conn
+                )
                 files = {}
+                for fhash, file in repre.data.get("files", {}).items():
+                    files[fhash] = {
+                        "hash": fhash,
+                        "status": StatusEnum.NOT_AVAILABLE,
+                        "size": 0,
+                        "timestamp": 0,
+                    }
             else:
-                files = json_loads(result["data"])["files"]
+                files = json_loads(result[0]["data"]).get("files")
+                if priority is None:
+                    priority = result[0]["priority"]
 
-            for file in post_data:
+            for file in post_data.files:
                 if file.fileHash not in files:
-                    files[file.fileHash] = {}
-                files[file.fileHash]["hash"] = file.fileHash
+                    continue
                 files[file.fileHash]["timestamp"] = file.timestamp
+                files[file.fileHash]["status"] = file.status
+                files[file.fileHash]["size"] = file.size
 
                 if file.message:
                     files[file.fileHash]["message"] = file.message
                 elif "message" in files[file.fileHash]:
-                    del(files[file.fileHash]["message"])
+                    del files[file.fileHash]["message"]
+
+                if file.retries:
+                    files[file.fileHash]["retries"] = file.retries
+                elif "retries" in files[file.fileHash]:
+                    del files[file.fileHash]["retries"]
+
+            status = get_overal_status(files)
+
+            if do_insert:
+                await conn.execute(
+                    f"""
+                    INSERT INTO project_{project_name}.files
+                    (representation_id, site_name, status, priority, data)
+                    VALUES ($1, $2, $3, $4, $5)
+                    """,
+                    representation_id,
+                    site_name,
+                    status,
+                    post_data.priority if post_data.priority is not None else 50,
+                    json_dumps({"files": files}),
+                )
+            else:
+                await conn.execute(
+                    f"""
+                    UPDATE project_{project_name}.files
+                    SET status = $1, data = $2, priority = $3
+                    WHERE representation_id = $4 AND site_name = $5
+                    """,
+                    status,
+                    json_dumps({"files": files}),
+                    priority,
+                    representation_id,
+                    site_name,
+                )
 
     return Response(status_code=204)
