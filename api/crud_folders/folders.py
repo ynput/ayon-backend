@@ -1,10 +1,8 @@
 from fastapi import APIRouter, Depends, Response
 
 from openpype.access.utils import folder_access_list
-
 from openpype.api.dependencies import dep_current_user, dep_folder_id, dep_project_name
 from openpype.api.responses import ResponseFactory, EntityIdResponse
-
 from openpype.entities import FolderEntity, UserEntity
 from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres

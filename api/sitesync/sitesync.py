@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Query, Path, Response
 
+from openpype.access.utils import folder_access_list
 from openpype.api import dep_project_name, dep_current_user, dep_representation_id
 from openpype.entities.user import UserEntity
 from openpype.entities.representation import RepresentationEntity
@@ -51,13 +52,23 @@ async def get_site_sync_params(
     user: UserEntity = Depends(dep_current_user),
 ) -> SiteSyncParamsModel:
 
-    # TODO: add folder_access conditions
+    access_list = await folder_access_list(user, project_name, "read")
+    conditions = []
+    if access_list is not None:
+        conditions.append(f"h.path like ANY ('{{ {','.join(access_list)} }}')")
 
     query = f"""
         SELECT
-            DISTINCT(name) as name,
+            DISTINCT(r.name) as name,
             COUNT (*) OVER () as total_count
-        FROM project_{project_name}.representations
+        FROM project_{project_name}.representations as r
+        INNER JOIN project_{project_name}.versions as v
+            ON r.version_id = v.id
+        INNER JOIN project_{project_name}.subsets as s
+            ON v.subset_id = s.id
+        INNER JOIN project_{project_name}.hierarchy as h
+            ON s.folder_id = h.id
+        {SQLTool.conditions(conditions)}
     """
 
     total_count = None
@@ -113,12 +124,19 @@ async def get_site_sync_state(
         description="Filter subsets by name",
         example="animation",
     ),
-    statusFilter: list[StatusEnum]
+    localStatusFilter: list[StatusEnum]
     | None = Query(
         None,
         description=f"List of states to show. Available options: {StatusEnum.__doc__}",
         example=[StatusEnum.QUEUED, StatusEnum.IN_PROGRESS],
     ),
+    remoteStatusFilter: list[StatusEnum]
+    | None = Query(
+        None,
+        description=f"List of states to show. Available options: {StatusEnum.__doc__}",
+        example=[StatusEnum.QUEUED, StatusEnum.IN_PROGRESS],
+    ),
+    nameFilter: list[str] | None = Query(None),
     representationId: str
     | None = Query(None, description="Select only the given representation."),
     # Pagination
@@ -141,21 +159,25 @@ async def get_site_sync_state(
         # When a single representation is requested
         # We ignore the rest of the filter
         if folderFilter:
-            conditions.append(f"f.name ILIKE '{folderFilter}%'")
+            conditions.append(f"f.name ILIKE '%{folderFilter}%'")
 
         if subsetFilter:
-            conditions.append(f"s.name ILIKE '{subsetFilter}%'")
+            conditions.append(f"s.name ILIKE '%{subsetFilter}%'")
 
-        if statusFilter:
-            statusFilter = [str(s.value) for s in statusFilter]
-            conditions.append(
-                f"""
-                    local.status IN ({','.join(statusFilter)})
-                 OR remote.status IN ({','.join(statusFilter)})
-                """
-            )
+        if localStatusFilter:
+            statusFilter = [str(s.value) for s in localStatusFilter]
+            conditions.append(f"local.status IN ({','.join(statusFilter)})")
 
-    # TODO: add folder_access conditions
+        if remoteStatusFilter:
+            statusFilter = [str(s.value) for s in remoteStatusFilter]
+            conditions.append(f"remote.status IN ({','.join(statusFilter)})")
+
+        if nameFilter:
+            conditions.append(f"r.name IN {SQLTool.array(nameFilter)}")
+
+    access_list = await folder_access_list(user, project_name, "read")
+    if access_list is not None:
+        conditions.append(f"path like ANY ('{{ {','.join(access_list)} }}')")
 
     query = f"""
         SELECT
@@ -163,14 +185,14 @@ async def get_site_sync_state(
             s.name as subset,
             v.version as version,
             r.name as representation,
+            h.path as path,
 
             r.id as representation_id,
             r.data as represenation_data,
             local.data as local_data,
             remote.data as remote_data,
-            local.status as local_status,
-            remote.status as remote_status
-
+            local.status as localStatus,
+            remote.status as remoteStatus
         FROM
             project_{project_name}.folders as f
         INNER JOIN
@@ -182,6 +204,9 @@ async def get_site_sync_state(
         INNER JOIN
             project_{project_name}.representations as r
             ON r.version_id = v.id
+        INNER JOIN
+            project_{project_name}.hierarchy as h
+            ON f.id = h.id
         LEFT JOIN
             project_{project_name}.files as local
             ON local.representation_id = r.id
@@ -218,13 +243,13 @@ async def get_site_sync_state(
 
         local_status = (
             StatusEnum.NOT_AVAILABLE
-            if row["local_status"] is None
-            else row["local_status"]
+            if row["localstatus"] is None
+            else row["localstatus"]
         )
         remote_status = (
             StatusEnum.NOT_AVAILABLE
-            if row["remote_status"] is None
-            else row["remote_status"]
+            if row["remotestatus"] is None
+            else row["remotestatus"]
         )
 
         file_list = None

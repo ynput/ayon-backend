@@ -26,6 +26,8 @@ class SortByEnum(enum.Enum):
     subset: str = "subset"
     version: str = "version"
     representation: str = "representation"
+    localStatus: str = "localStatus"
+    remoteStatus: str = "remoteStatus"
 
 
 class FileStatusModel(BaseModel):
