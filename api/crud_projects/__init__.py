@@ -1,4 +1,4 @@
 __all__ = ["router"]
 
-from . import list_projects, project  # noqa
+from . import list_projects, projects  # noqa
 from .router import router
