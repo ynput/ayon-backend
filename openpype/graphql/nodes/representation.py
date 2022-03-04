@@ -17,14 +17,16 @@ class SyncStateType:
     status: str = "offline"
     size: int = 0
     timestamp: int = 0
+    message: str = ""
+    retries: int = 0
 
 
 @strawberry.type
 class FileNode:
     id: str
     path: str
-    size: int
     hash: str
+    size: int
     local_state: SyncStateType | None
     remote_state: SyncStateType | None
 
@@ -136,10 +138,10 @@ def representation_from_record(
     local_state = remote_state = {}
 
     if "local_state" in record:
-        local_state = json_loads(record["local_state"]) or {}
+        local_state = json_loads(record["local_state"] or "{}")
 
     if "remote_state" in record:
-        remote_state = json_loads(record["remote_state"]) or {}
+        remote_state = json_loads(record["remote_state"] or "{}")
 
     return RepresentationNode(
         project_name=project_name,

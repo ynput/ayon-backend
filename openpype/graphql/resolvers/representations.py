@@ -71,20 +71,20 @@ async def get_representations(
             f"""
             LEFT JOIN project_{project_name}.files as local_files
                 ON local_files.representation_id = id
+                AND local_files.site_name = '{local_site}'
             """
         )
         sql_columns.append("local_files.data AS local_state")
-        sql_conditions.append(f"local_files.site_name = '{local_site}'")
 
     if remote_site is not None:
         sql_joins.append(
             f"""
             LEFT JOIN project_{project_name}.files as remote_files
                 ON remote_files.representation_id = id
+                AND remote_files.site_name = '{remote_site}'
             """
         )
         sql_columns.append("remote_files.data AS remote_state")
-        sql_conditions.append(f"remote_files.site_name = '{remote_site}'")
 
     #
     # Pagination
