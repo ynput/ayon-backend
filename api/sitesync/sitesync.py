@@ -71,10 +71,10 @@ async def get_site_sync_params(
         {SQLTool.conditions(conditions)}
     """
 
-    total_count = None
+    total_count = 0
     names = []
     async for row in Postgres.iterate(query):
-        total_count = row["total_count"]
+        total_count = row["total_count"] or 0
         names.append(row["name"])
 
     return SiteSyncParamsModel(count=total_count, names=names)

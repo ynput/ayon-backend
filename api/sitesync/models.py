@@ -86,7 +86,7 @@ class SiteSyncSummaryModel(BaseModel):
 
 class SiteSyncParamsModel(BaseModel):
     count: int
-    names: list[str]
+    names: list[str] = Field(default_factory=list)
 
 
 class RepresentationStateModel(BaseModel):
