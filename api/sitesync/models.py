@@ -42,6 +42,8 @@ class FileStatusModel(BaseModel):
 class FileModel(BaseModel):
     fileHash: str
     size: int
+    path: str
+    baseName: str
     localStatus: FileStatusModel
     remoteStatus: FileStatusModel
 

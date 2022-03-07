@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, Query, Path, Response
 
 from openpype.access.utils import folder_access_list
@@ -264,6 +266,8 @@ async def get_site_sync_state(
                     FileModel(
                         fileHash=file_hash,
                         size=file["size"],
+                        path=file["path"],
+                        baseName=os.path.split(file["path"])[1],
                         localStatus=FileStatusModel(
                             fileHash=file_hash,
                             status=local_file.get("status", StatusEnum.NOT_AVAILABLE),
