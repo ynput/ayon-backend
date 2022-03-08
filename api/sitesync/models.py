@@ -30,10 +30,10 @@ class SortByEnum(enum.Enum):
     remoteStatus: str = "remoteStatus"
 
 
-class FileStatusModel(BaseModel):
-    fileHash: str = Field(...)
+class SyncStatusModel(BaseModel):
     status: StatusEnum = Field(StatusEnum.NOT_AVAILABLE)
     size: int = Field(0)
+    totalSize: int = Field(0)
     timestamp: int = Field(default_factory=time.time)
     message: str | None = Field(None)
     retries: int = Field(0)
@@ -44,8 +44,8 @@ class FileModel(BaseModel):
     size: int
     path: str
     baseName: str
-    localStatus: FileStatusModel
-    remoteStatus: FileStatusModel
+    localStatus: SyncStatusModel
+    remoteStatus: SyncStatusModel
 
 
 class SiteSyncSummaryItem(BaseModel):
@@ -56,25 +56,8 @@ class SiteSyncSummaryItem(BaseModel):
     representationId: str = Field(...)
     fileCount: int = Field(...)
     size: int = Field(..., description="Total size of all files")
-
-    localSize: int = Field(
-        ..., description="Total size of files synced to the local site"
-    )
-
-    remoteSize: int = Field(
-        ..., description="Total size of files synced to the local site"
-    )
-
-    localTime: int = Field(
-        ..., description="Timestamp of last modification of the local site"
-    )
-
-    remoteTime: int = Field(
-        ..., description="Timestamp of last modification of the local site"
-    )
-
-    localStatus: StatusEnum = Field(StatusEnum.NOT_AVAILABLE)
-    remoteStatus: StatusEnum = Field(StatusEnum.NOT_AVAILABLE)
+    localStatus: SyncStatusModel
+    remoteStatus: SyncStatusModel
 
     files: list[FileModel] | None = Field(
         None,
@@ -92,5 +75,5 @@ class SiteSyncParamsModel(BaseModel):
 
 
 class RepresentationStateModel(BaseModel):
-    files: list[FileStatusModel]
+    files: list[SyncStatusModel]
     priority: int | None = Field(None)

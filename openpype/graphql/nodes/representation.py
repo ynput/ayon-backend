@@ -87,16 +87,17 @@ def parse_files(
     result = []
 
     for fid, fdata in files.items():
+        file_size = fdata.get("size")
         local_file = local_files.get(fid)
         remote_file = remote_files.get(fid)
 
         if local_file:
-            local_status = SyncStatusType(**local_file)
+            local_status = SyncStatusType(**local_file, total_size=file_size)
         else:
             local_status = SyncStatusType(status=StatusEnum.NOT_AVAILABLE)
 
         if remote_file:
-            remote_status = SyncStatusType(**remote_file)
+            remote_status = SyncStatusType(**remote_file, total_size=file_size)
         else:
             remote_status = SyncStatusType(status=StatusEnum.NOT_AVAILABLE)
 
@@ -165,8 +166,9 @@ def representation_from_record(
         context=json_dumps(data.get("context")),
         files=parse_files(files, local_files, remote_files),
         local_status=get_overal_status(record.get("local_status"), files, local_files),
-        remote_status=get_overal_status(record.get(
-            "remote_status"), files, remote_files),
+        remote_status=get_overal_status(
+            record.get("remote_status"), files, remote_files
+        ),
     )
 
 

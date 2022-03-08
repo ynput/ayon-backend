@@ -17,7 +17,7 @@ from .models import (
     SiteSyncSummaryModel,
     RepresentationStateModel,
     FileModel,
-    FileStatusModel,
+    SyncStatusModel,
 )
 
 router = APIRouter(tags=["Site sync"])
@@ -243,15 +243,21 @@ async def get_site_sync_state(
         rsize = sum([f.get("size") for f in rfiles.values()] or [0])
         rtime = max([f.get("timestamp") for f in rfiles.values()] or [0])
 
-        local_status = (
-            StatusEnum.NOT_AVAILABLE
+        local_status = SyncStatusModel(
+            status=StatusEnum.NOT_AVAILABLE
             if row["localstatus"] is None
-            else row["localstatus"]
+            else row["localstatus"],
+            totalSize=total_size,
+            size=lsize,
+            timestamp=ltime,
         )
-        remote_status = (
-            StatusEnum.NOT_AVAILABLE
+        remote_status = SyncStatusModel(
+            status=StatusEnum.NOT_AVAILABLE
             if row["remotestatus"] is None
-            else row["remotestatus"]
+            else row["remotestatus"],
+            totalSize=total_size,
+            size=rsize,
+            timestamp=rtime,
         )
 
         file_list = None
@@ -268,18 +274,18 @@ async def get_site_sync_state(
                         size=file["size"],
                         path=file["path"],
                         baseName=os.path.split(file["path"])[1],
-                        localStatus=FileStatusModel(
-                            fileHash=file_hash,
+                        localStatus=SyncStatusModel(
                             status=local_file.get("status", StatusEnum.NOT_AVAILABLE),
                             size=local_file.get("size", 0),
+                            totalSize=file["size"],
                             timestamp=local_file.get("timestamp", 0),
                             message=local_file.get("message", None),
                             retries=local_file.get("retries", 0),
                         ),
-                        remoteStatus=FileStatusModel(
-                            fileHash=file_hash,
+                        remoteStatus=SyncStatusModel(
                             status=remote_file.get("status", StatusEnum.NOT_AVAILABLE),
                             size=remote_file.get("size", 0),
+                            totalSize=file["size"],
                             timestamp=remote_file.get("timestamp", 0),
                             message=remote_file.get("message", None),
                             retries=remote_file.get("retries", 0),
@@ -296,10 +302,6 @@ async def get_site_sync_state(
                 representationId=EntityID.parse(row["representation_id"]),
                 fileCount=file_count,
                 size=total_size,
-                localSize=lsize,
-                remoteSize=rsize,
-                localTime=ltime,
-                remoteTime=rtime,
                 localStatus=local_status,
                 remoteStatus=remote_status,
                 files=file_list,
