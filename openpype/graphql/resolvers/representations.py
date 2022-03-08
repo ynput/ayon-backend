@@ -74,7 +74,8 @@ async def get_representations(
                 AND local_files.site_name = '{local_site}'
             """
         )
-        sql_columns.append("local_files.data AS local_state")
+        sql_columns.append("local_files.data AS local_data")
+        sql_columns.append("local_files.status AS local_status")
 
     if remote_site is not None:
         sql_joins.append(
@@ -84,7 +85,8 @@ async def get_representations(
                 AND remote_files.site_name = '{remote_site}'
             """
         )
-        sql_columns.append("remote_files.data AS remote_state")
+        sql_columns.append("remote_files.data AS remote_data")
+        sql_columns.append("remote_files.status AS remote_status")
 
     #
     # Pagination

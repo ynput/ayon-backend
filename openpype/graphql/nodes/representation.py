@@ -1,3 +1,4 @@
+import enum
 import strawberry
 from strawberry.types import Info
 
@@ -12,10 +13,20 @@ SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
 FolderNode = lazy_type("FolderNode", ".nodes.folder")
 
 
+class StatusEnum(enum.IntEnum):
+    NOT_AVAILABLE = -1
+    IN_PROGRESS = 0
+    QUEUED = 1
+    FAILED = 2
+    PAUSED = 3
+    SYNCED = 4
+
+
 @strawberry.type
-class SyncStateType:
-    status: str = "offline"
+class SyncStatusType:
+    status: int
     size: int = 0
+    total_size: int = 0
     timestamp: int = 0
     message: str = ""
     retries: int = 0
@@ -27,8 +38,8 @@ class FileNode:
     path: str
     hash: str
     size: int
-    local_state: SyncStateType | None
-    remote_state: SyncStateType | None
+    local_status: SyncStatusType | None
+    remote_status: SyncStatusType | None
 
     @strawberry.field
     def base_name(self) -> str:
@@ -56,12 +67,12 @@ class RepresentationNode(BaseNode):
         description="Files in the representation",
     )
 
-    local_state: SyncStateType | None = strawberry.field(
-        default=None, description="Sync state of the representation on the local site"
+    local_status: SyncStatusType | None = strawberry.field(
+        default=None, description="Sync status of the representation on the local site"
     )
 
-    remote_state: SyncStateType | None = strawberry.field(
-        default=None, description="Sync state of the representation on the remote site"
+    remote_status: SyncStatusType | None = strawberry.field(
+        default=None, description="Sync status of the representation on the remote site"
     )
 
     context: str | None = strawberry.field(
@@ -70,78 +81,78 @@ class RepresentationNode(BaseNode):
 
 
 def parse_files(
-    data: dict, local_state: dict | None = None, remote_state: dict | None = None
+    files: dict, local_files: dict | None = None, remote_files: dict | None = None
 ) -> list[FileNode]:
     """Parse the files from a representation."""
-    files = []
+    result = []
 
-    local_files = local_state.get("files", {})
-    remote_files = remote_state.get("files", {})
-
-    for fid, fdata in data.items():
+    for fid, fdata in files.items():
         local_file = local_files.get(fid)
         remote_file = remote_files.get(fid)
-        files.append(
+
+        if local_file:
+            local_status = SyncStatusType(**local_file)
+        else:
+            local_status = SyncStatusType(status=StatusEnum.NOT_AVAILABLE)
+
+        if remote_file:
+            remote_status = SyncStatusType(**remote_file)
+        else:
+            remote_status = SyncStatusType(status=StatusEnum.NOT_AVAILABLE)
+
+        result.append(
             FileNode(
                 id=fid,
                 path=fdata.get("path"),
                 size=fdata.get("size"),
                 hash=fdata.get("hash"),
-                local_state=SyncStateType(**local_file) if local_file else None,
-                remote_state=SyncStateType(**remote_file) if remote_file else None,
+                local_status=local_status,
+                remote_status=remote_status,
             )
         )
-    return files
+    return result
 
 
-def compute_overal_state(data: dict, state: dict):
+def get_overal_status(status, files, site_files):
+    size = 0
     total_size = 0
-    transferred = 0
-    last_time = 0
-    states = []
-    for _, fdata in data.get("files", {}).items():
-        total_size += fdata.get("size")
+    timestamp = 0
+    for f in files.values():
+        total_size += f["size"]
+    for f in site_files.values():
+        size += f["size"]
+        timestamp = max(timestamp, f["timestamp"])
 
-    for _, fdata in state.get("files", {}).items():
-        transferred += fdata.get("size")
-        last_time = max(last_time, fdata.get("timestamp"))
-        states.append(fdata.get("status"))
-
-    if not states:
-        return SyncStateType(status="offline")
-    elif not transferred:
-
-        return SyncStateType(
-            status="pending",
-            size=total_size,
-        )
-    elif transferred == total_size:
-        return SyncStateType(
-            status="online",
-            size=total_size,
-            timestamp=last_time,
-        )
-    else:
-        return SyncStateType(
-            status="in_progress",
-            size=transferred,
-            timestamp=last_time,
-        )
+    return SyncStatusType(
+        status=status if status is not None else StatusEnum.NOT_AVAILABLE,
+        size=size,
+        total_size=total_size,
+        timestamp=timestamp
+        # message ?
+        # retries ?
+    )
 
 
 def representation_from_record(
     project_name: str, record: dict, context: dict | None = None
 ) -> RepresentationNode:  # noqa # no. this line won't be shorter
     """Construct a representation node from a DB row."""
+
     data = json_loads(record["data"]) or {}
+    files = data.get("files", {})
 
-    local_state = remote_state = {}
+    local_data = {}
+    remote_data = {}
+    local_files = {}
+    remote_files = {}
 
-    if "local_state" in record:
-        local_state = json_loads(record["local_state"] or "{}")
+    if "local_data" in record:
+        local_data = json_loads(record["local_data"] or "{}")
+        local_files = local_data.get("files", {})
 
-    if "remote_state" in record:
-        remote_state = json_loads(record["remote_state"] or "{}")
+    if "remote_data" in record:
+        remote_data = json_loads(record["remote_data"] or "{}")
+        remote_files = remote_data.get("files", {})
 
     return RepresentationNode(
         project_name=project_name,
@@ -151,10 +162,11 @@ def representation_from_record(
         attrib=parse_json_data(RepresentationAttribType, record["attrib"]),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
-        local_state=compute_overal_state(data, local_state),
-        remote_state=compute_overal_state(data, remote_state),
         context=json_dumps(data.get("context")),
-        files=parse_files(data.get("files", {}), local_state, remote_state),
+        files=parse_files(files, local_files, remote_files),
+        local_status=get_overal_status(record.get("local_status"), files, local_files),
+        remote_status=get_overal_status(record.get(
+            "remote_status"), files, remote_files),
     )
 
 
