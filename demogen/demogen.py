@@ -159,7 +159,9 @@ class DemoGen:
             self.version_count += 1
             attrib = {"families": [kwargs["family"]]}
             for key in [r["name"] for r in common_attributes]:
-                attrib[key] = folder.attrib[key]
+                val = folder.attrib.get(key)
+                if val is not None:
+                    attrib[key] = val
             version = VersionEntity(
                 validate=self.validate,
                 project_name=self.project_name,

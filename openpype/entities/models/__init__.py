@@ -18,6 +18,17 @@ from .fields import (
 from .generator import generate_model
 
 
+FIELD_LISTS: dict[str, list[Any]] = {
+    "project": project_fields,
+    "user": [],
+    "folder": folder_fields,
+    "task": task_fields,
+    "subset": subset_fields,
+    "version": version_fields,
+    "representation": representation_fields,
+}
+
+
 class ModelSet:
     """Set of models used for each entity type.
 
@@ -33,15 +44,7 @@ class ModelSet:
     def __init__(self, entity_name: str, attributes: list = None, has_id: bool = True):
         """Initialize the model set."""
         self.entity_name = entity_name
-        self.fields: list[Any] = {
-            "project": project_fields,
-            "user": [],
-            "folder": folder_fields,
-            "task": task_fields,
-            "subset": subset_fields,
-            "version": version_fields,
-            "representation": representation_fields,
-        }[entity_name]
+        self.fields: list[Any] = FIELD_LISTS[entity_name]
 
         self.attributes = attributes if attributes else []
         self.has_id = has_id
@@ -50,17 +53,6 @@ class ModelSet:
         self._post_model = None
         self._patch_model = None
         self._attrib_model = None
-
-    def __call__(self, model_type: Literal["main", "post", "patch", "attrib"] = "main"):
-        """Return a model."""
-        if model_type == "main":
-            return self.main_model
-        elif model_type == "post":
-            return self.post_model
-        elif model_type == "patch":
-            return self.patch_model
-        elif model_type == "attrib":
-            return self.attrib_model
 
     @property
     def attrib_model(self) -> BaseModel:
@@ -73,21 +65,21 @@ class ModelSet:
         return self._attrib_model
 
     @property
-    def main_model(self):
+    def main_model(self) -> BaseModel:
         """Return the entity model."""
         if self._model is None:
             self._model = self._generate_entity_model()
         return self._model
 
     @property
-    def post_model(self):
+    def post_model(self) -> BaseModel:
         """Return the post model."""
         if self._post_model is None:
             self._post_model = self._generate_post_model()
         return self._post_model
 
     @property
-    def patch_model(self):
+    def patch_model(self) -> BaseModel:
         """Return the patch model."""
         if self._patch_model is None:
             self._patch_model = self._generate_patch_model()

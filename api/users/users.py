@@ -18,7 +18,7 @@ router = APIRouter(
 #
 
 
-@router.get("/me", response_model=UserEntity.model())
+@router.get("/me", response_model=UserEntity.model.main_model)
 async def get_current_user(user: UserEntity = Depends(dep_current_user)):
     """
     Return the current user information (based on the Authorization header).
@@ -39,7 +39,7 @@ async def get_current_user(user: UserEntity = Depends(dep_current_user)):
     response_class=Response,
 )
 async def update_current_user(
-    patch_data: UserEntity.model("patch"),  # noqa
+    patch_data: UserEntity.model.patch_model,
     user: UserEntity = Depends(dep_current_user),
 ):
     """

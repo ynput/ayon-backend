@@ -7,9 +7,9 @@ from .models import ModelSet
 
 
 class FolderEntity(Entity):
-    entity_type = EntityType.FOLDER
-    entity_name = "folder"
-    model = ModelSet("folder", attribute_library["folder"])
+    entity_type: EntityType = EntityType.FOLDER
+    entity_name: str = "folder"
+    model: ModelSet = ModelSet("folder", attribute_library["folder"])
 
     @classmethod
     async def load(

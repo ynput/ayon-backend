@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS public.roles(
 
 CREATE TABLE IF NOT EXISTS public.attributes(
     name VARCHAR NOT NULL PRIMARY KEY,
+    position INTEGER,
     scope VARCHAR[],
     builtin BOOLEAN NOT NULL DEFAULT FALSE,
     data JSONB NOT NULL DEFAULT '{}':: JSONB

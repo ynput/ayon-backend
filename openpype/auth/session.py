@@ -10,7 +10,7 @@ from openpype.utils import create_hash, json_dumps, json_loads
 
 
 class SessionModel(BaseModel):
-    user: UserEntity.model()
+    user: UserEntity.model.main_model
     token: str
     created: float
     last_used: float

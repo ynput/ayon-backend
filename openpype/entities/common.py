@@ -137,9 +137,9 @@ class Entity:
 
         self.exists = exists
         if validate:
-            self._payload = self.model("main")(**kwargs)
+            self._payload = self.model.main_model(**kwargs)
         else:
-            self._payload = self.model("main").construct(**kwargs)
+            self._payload = self.model.main_model.construct(**kwargs)
 
         if self.entity_type == EntityType.PROJECT:
             self.project_name = self.name or project_name
@@ -161,7 +161,7 @@ class Entity:
         """
         project_name = project_name.lower() if project_name else None
         parsed = {}
-        for key in cls.model().__fields__:
+        for key in cls.model.main_model.__fields__:
             if key not in kwargs:
                 continue  # there are optional keys too
             value = kwargs[key]
@@ -210,9 +210,9 @@ class Entity:
     def replace(self, replace_data: BaseModel) -> None:
         """Replace entity data with given data."""
         if self.entity_type == EntityType.PROJECT:
-            self._payload = self.model()(name=self.name, **replace_data.dict())
+            self._payload = self.model.main_model(name=self.name, **replace_data.dict())
         else:
-            self._payload = self.model()(id=self.id, **replace_data.dict())
+            self._payload = self.model.main_model(id=self.id, **replace_data.dict())
 
     #
     # GraphQL types
@@ -220,8 +220,8 @@ class Entity:
 
     @classmethod
     def strawberry_attrib(cls):
-        fields = list(cls.model("attrib").__fields__.keys())
-        return pydantic_type(model=cls.model("attrib"), fields=fields)
+        fields = list(cls.model.attrib_model.__fields__.keys())
+        return pydantic_type(model=cls.model.attrib_model, fields=fields)
 
     @classmethod
     def strawberry_entity(cls):
@@ -230,10 +230,10 @@ class Entity:
         Automatically exclude dict attributes.
         """
         return pydantic_type(
-            model=cls.model(),
+            model=cls.model.main_model,
             fields=[
                 fname
-                for fname, field in cls.model().__fields__.items()
+                for fname, field in cls.model.main_model.__fields__.items()
                 if field.type_ not in [dict, Optional[dict]]
             ],
         )

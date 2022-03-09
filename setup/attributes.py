@@ -51,6 +51,7 @@ async def deploy_attributes():
 
     await Postgres.execute("DELETE FROM public.attributes")
 
+    position = 0
     for i, row in enumerate(adata):
         if i == 0:
             # TODO: parse columns here
@@ -110,11 +111,13 @@ async def deploy_attributes():
         await Postgres.execute(
             """
             INSERT INTO public.attributes
-                (name, scope, builtin, data)
+                (name, position, scope, builtin, data)
             VALUES
-                ($1, $2, TRUE, $3)
+                ($1, $2, $3, TRUE, $4)
             """,
             name,
+            position,
             scope,
             json_dumps(data),
         )
+        position += 1
