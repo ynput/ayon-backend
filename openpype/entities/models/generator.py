@@ -100,16 +100,12 @@ class FieldDefinition(BaseModel):
     regex: Optional[str] = Field(title="Field regex")
 
 
-def generate_model(
-    model_name: str, field_data: List[Union[dict, FieldDefinition]], config=None
-):
+def generate_model(model_name: str, field_data: list[dict[str, Any]], config=None):
     """Create a new model from a given field set."""
     fields = {}
 
-    for fdef in field_data:
-        if type(fdef) == dict:
-            fdef = FieldDefinition(**fdef)
-
+    for fdef_data in field_data:
+        fdef = FieldDefinition(**fdef_data)
         field = {}
 
         #

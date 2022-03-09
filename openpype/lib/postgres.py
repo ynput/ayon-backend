@@ -10,10 +10,15 @@ class Postgres:
     UniqueViolationError = asyncpg.exceptions.UniqueViolationError
 
     @classmethod
+    @property
+    def acquire(cls):
+        return cls.pool.acquire
+
+    @classmethod
     async def connect(cls):
         logging.info("Connecting to PostgreSQL")
         cls.pool = await asyncpg.create_pool(pypeconfig.postgres_url)
-        cls.acquire = cls.pool.acquire
+        # cls.acquire = cls.pool.acquire
 
     @classmethod
     async def execute(cls, query, *args):

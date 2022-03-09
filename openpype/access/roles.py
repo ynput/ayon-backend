@@ -9,6 +9,8 @@ manager
 Can create and remove users, grants privileges, create/delete projects
 """
 
+from typing import Any
+
 from openpype.lib.postgres import Postgres
 from openpype.utils import json_loads
 
@@ -21,11 +23,11 @@ BUILT_IN_ROLES = [
 
 
 class Roles:
-    roles = {k: True for k in BUILT_IN_ROLES}
+    roles: dict[tuple[str, str], Permissions] = {}
 
     @classmethod
     async def load(cls):
-        cls.roles = {k: True for k in BUILT_IN_ROLES}
+        cls.roles = {}
         async for row in Postgres.iterate("SELECT * FROM public.roles"):
             cls.add_role(
                 row["name"],
@@ -38,7 +40,7 @@ class Roles:
         cls.roles[(name, project_name)] = permissions
 
     @classmethod
-    def combine(cls, role_names: list[str], project_name: str = "_"):
+    def combine(cls, role_names: list[str], project_name: str = "_") -> Permissions:
         """Create aggregated permissions object for a given list of roles.
 
         If a project name is specified and there is a project-level override
@@ -46,7 +48,7 @@ class Roles:
         be used.
         """
 
-        result = {}
+        result: dict[str, Any] = {}
 
         for role_name in role_names:
             if (role_name, project_name) in cls.roles:

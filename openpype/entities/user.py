@@ -1,9 +1,5 @@
 """User entity."""
 
-from typing import Any
-
-from nxtools import log_traceback
-
 from openpype.access.permissions import Permissions
 from openpype.access.roles import Roles
 from openpype.exceptions import RecordNotFoundException
@@ -27,16 +23,12 @@ class UserEntity(Entity):
         """Load a user from the database."""
 
         if not (
-            project_data := await Postgres.fetch(
+            user_data := await Postgres.fetch(
                 "SELECT * FROM public.users WHERE name = $1", name
             )
         ):
             raise RecordNotFoundException()
-
-        try:
-            return cls.from_record(exists=True, validate=False, **dict(project_data[0]))
-        except Exception:
-            log_traceback()
+        return cls.from_record(exists=True, validate=False, **dict(user_data[0]))
 
     #
     # Save
@@ -57,16 +49,6 @@ class UserEntity(Entity):
     #
     # Authorization helpers
     #
-
-    def can(self, permission: str, entity: Any = None) -> bool:
-        """Check if the user has the given permission.
-
-        Probably deprecated.
-        """
-
-        if permission in ["delete", "modify", "create"]:
-            return self.name == "admin"
-        return True
 
     @property
     def is_admin(self) -> bool:

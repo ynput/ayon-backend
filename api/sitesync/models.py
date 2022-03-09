@@ -39,6 +39,10 @@ class SyncStatusModel(BaseModel):
     retries: int = Field(0)
 
 
+class SyncStatusPostModel(SyncStatusModel):
+    fileHash: str
+
+
 class FileModel(BaseModel):
     fileHash: str
     size: int
@@ -75,5 +79,5 @@ class SiteSyncParamsModel(BaseModel):
 
 
 class RepresentationStateModel(BaseModel):
-    files: list[SyncStatusModel]
+    files: list[SyncStatusPostModel]
     priority: int | None = Field(None)

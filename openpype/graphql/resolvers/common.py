@@ -5,8 +5,7 @@ from strawberry.types import Info
 
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
-
-from ..connections import BaseConnection, PageInfo
+from openpype.graphql.connections import BaseConnection, PageInfo
 
 
 def argdesc(description):
@@ -15,16 +14,9 @@ def argdesc(description):
 
 
 ARGFirst = Annotated[int | None, argdesc("Pagination: first")]
-
-
 ARGAfter = Annotated[str | None, argdesc("Pagination: first")]
-
-
 ARGLast = Annotated[int | None, argdesc("Pagination: last")]
-
-
 ARGBefore = Annotated[str | None, argdesc("Pagination: before")]
-
 ARGIds = Annotated[list[str] | None, argdesc("List of ids to be returned")]
 
 
@@ -88,8 +80,6 @@ async def resolve(
 ) -> BaseConnection:
     """Return a connection object from a query."""
 
-    # start_time = time.monotonic()
-
     edges = []
     count = first or last
 
@@ -98,10 +88,6 @@ async def resolve(
             break
 
         node = node_type.from_record(project_name, record, context=context)
-
-        # TODO: ACL goes here.
-        # If user is not allowed to see this node, skip it.
-
         edges.append(edge_type(node=node, cursor=EntityID.parse(record["id"])))
 
     has_next_page = False
@@ -127,9 +113,5 @@ async def resolve(
         start_cursor=start_cursor,
         end_cursor=end_cursor,
     )
-
-    # clean_query = ' '.join(query.split())
-    # elapsed = time.monotonic() - start_time
-    # logging.info(f"Query {clean_query} took {elapsed:.05f} seconds.")
 
     return connection_type(edges=edges, page_info=page_info)

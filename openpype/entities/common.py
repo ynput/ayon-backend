@@ -16,6 +16,7 @@ from strawberry.experimental.pydantic import type as pydantic_type
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID, SQLTool, dict_exclude, json_loads
+from openpype.entities.models import ModelSet
 
 
 class AttributeLibrary:
@@ -112,8 +113,8 @@ class EntityType(enum.IntEnum):
 
 class Entity:
     entity_type = EntityType.UNDEFINED
-    entity_name = None
-    model = None
+    entity_name: str
+    model: ModelSet
 
     def __init__(
         self,
@@ -148,7 +149,7 @@ class Entity:
             self.project_name = project_name
 
     @classmethod
-    def from_record(cls, project_name=None, validate=False, **kwargs) -> "Entity":
+    def from_record(cls, project_name=None, validate=False, **kwargs):
         """Return an entity instance based on a DB record.
 
         This factory method differs from the default constructor,
@@ -243,8 +244,12 @@ class Entity:
 
     @classmethod
     async def load(
-        cls, project_name: str, entity_id: str, transaction=None, for_update=False
-    ) -> "Entity":
+        cls,
+        project_name: str,
+        entity_id: str,
+        transaction=None,
+        for_update=False,
+    ):
         """Return an entity instance based on its ID and a project name.
 
         ProjectEntity reimplements this method to load the project based
@@ -259,9 +264,6 @@ class Entity:
 
         project_name = project_name.lower()
 
-        if not (entity_id := EntityID.parse(entity_id)):
-            raise ValueError(f"Invalid {cls.entity_name} ID specified")
-
         query = f"""
             SELECT  *
             FROM project_{project_name}.{cls.entity_name}s
@@ -269,7 +271,7 @@ class Entity:
             {'FOR UPDATE' if transaction and for_update else ''}
             """
 
-        async for record in Postgres.iterate(query, entity_id):
+        async for record in Postgres.iterate(query, EntityID.parse(entity_id)):
             return cls.from_record(project_name=project_name, validate=False, **record)
         raise RecordNotFoundException("Entity not found")
 

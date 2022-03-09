@@ -1,7 +1,7 @@
 """Dynamic entity models generation."""
 
 import copy
-from typing import Literal
+from typing import Literal, Any
 
 from pydantic import BaseModel
 
@@ -33,7 +33,7 @@ class ModelSet:
     def __init__(self, entity_name: str, attributes: list = None, has_id: bool = True):
         """Initialize the model set."""
         self.entity_name = entity_name
-        self.fields = {
+        self.fields: list[Any] = {
             "project": project_fields,
             "user": [],
             "folder": folder_fields,
@@ -80,14 +80,14 @@ class ModelSet:
         return self._model
 
     @property
-    def post_model(self) -> BaseModel:
+    def post_model(self):
         """Return the post model."""
         if self._post_model is None:
             self._post_model = self._generate_post_model()
         return self._post_model
 
     @property
-    def patch_model(self) -> BaseModel:
+    def patch_model(self):
         """Return the patch model."""
         if self._patch_model is None:
             self._patch_model = self._generate_patch_model()
@@ -131,7 +131,7 @@ class ModelSet:
     def _generate_entity_model(self) -> BaseModel:
         """Generate the entity model."""
         model_name = f"{self.entity_name.capitalize()}Model"
-        pre_fields = (
+        pre_fields: list[dict[str, Any]] = (
             [
                 {
                     "name": "id",
@@ -157,7 +157,7 @@ class ModelSet:
             ]
         )
 
-        post_fields = [
+        post_fields: list[dict[str, Any]] = [
             {
                 "name": "created_at",
                 "type": "integer",

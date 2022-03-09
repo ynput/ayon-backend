@@ -4,13 +4,13 @@ from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
 from openpype.utils import json_dumps, json_loads
 
-from .session import Session
+from .session import Session, SessionModel
 from .utils import create_password, ensure_password_complexity, hash_password
 
 
 class PasswordAuth:
     @classmethod
-    async def login(cls, name: str, password: str) -> Session.model:
+    async def login(cls, name: str, password: str) -> SessionModel | None:
         """Login using username/password credentials.
 
         Return a SessionModel object if the credentials are valid.

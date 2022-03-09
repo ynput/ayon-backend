@@ -20,8 +20,6 @@ class EntityIdResponse(BaseModel):
 
 
 class ResponseFactory:
-    models = {}
-
     @classmethod
     def error(cls, code: int = 500, detail: str = None):
         detail = detail or {401: "Not logged in", 403: "Access denied"}.get(

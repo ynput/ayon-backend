@@ -1,3 +1,4 @@
+from typing import Any
 from nxtools import logging
 
 from openpype.auth.utils import create_password
@@ -5,13 +6,15 @@ from openpype.lib.postgres import Postgres
 from openpype.utils import json_dumps
 
 
-async def deploy_users(users: list[dict], default_roles: dict) -> None:
+async def deploy_users(
+    users: list[dict[str, Any]], default_roles: dict[str, Any]
+) -> None:
     """Create users in the database."""
     for user in users:
 
         name = user["name"]
         attrib = {}
-        data = {}
+        data: dict[str, Any] = {}
 
         for key in ["fullname", "email"]:
             if key in user:

@@ -172,7 +172,7 @@ async def get_site_sync_state(
 
         if remoteStatusFilter:
             statusFilter = [str(s.value) for s in remoteStatusFilter]
-            conditions.append(f"remote.status IN ({','.join(statusFilter)})")
+            conditions.append(f"remote.status IN {SQLTool.array(statusFilter)}")
 
         if nameFilter:
             conditions.append(f"r.name IN {SQLTool.array(nameFilter)}")

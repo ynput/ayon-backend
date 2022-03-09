@@ -132,7 +132,7 @@ async def update_project(
 
     project = await ProjectEntity.load(project_name)
 
-    if not user.can("modify", project):
+    if not user.is_manager:
         raise ForbiddenException(
             f"You do not have permission to update project {project.name}"
         )

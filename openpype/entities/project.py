@@ -77,9 +77,9 @@ async def aux_table_update(conn, table, update_data):
 
 
 class ProjectEntity(Entity):
-    entity_type = EntityType.PROJECT
-    entity_name = "project"
-    model = ModelSet("project", attribute_library["project"], False)
+    entity_type: EntityType = EntityType.PROJECT
+    entity_name: str = "project"
+    model: ModelSet = ModelSet("project", attribute_library["project"], False)
 
     #
     # Load

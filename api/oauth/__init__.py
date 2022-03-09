@@ -14,7 +14,7 @@ from openpype.lib.postgres import Postgres
 class LoginResponseModel(BaseModel):
     detail: str = "Logged in as NAME"
     token: str = "ACCESS_TOKEN"
-    user: UserEntity.model()
+    user: UserEntity.model.main_model
 
 
 async def login_callback(data: OAuth2Data) -> LoginResponseModel:

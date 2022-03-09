@@ -20,15 +20,10 @@ class SessionModel(BaseModel):
         json_loads = json_loads
         json_dumps = json_dumps
 
-    @property
-    def user_entity(self):
-        return UserEntity(exists=True, **self.user.dict())
-
 
 class Session:
     ttl = 24 * 3600
     ns = "session"
-    model = SessionModel
 
     @classmethod
     async def check(cls, token: str, ip: str | None) -> SessionModel | None:

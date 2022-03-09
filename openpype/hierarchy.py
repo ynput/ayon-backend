@@ -1,3 +1,4 @@
+from typing import Any, DefaultDict
 from collections import defaultdict
 
 
@@ -15,8 +16,8 @@ class HierarchyResolver:
         """
         if source is None:
             source = []
-        self._parents = defaultdict(list)
-        self._hierarchy = []
+        self._parents: DefaultDict[str, list[Any]] = defaultdict(list[Any])
+        self._hierarchy: list[Any] = []
         self.count = 0
         if not source:
             return
@@ -24,7 +25,7 @@ class HierarchyResolver:
             self.append(item)
         self.commit()
 
-    def append(self, item: dict) -> None:
+    def append(self, item: dict[str, Any]) -> None:
         parent_id = item[self.parent_key]
         self._parents[parent_id].append(item)
         self.count += 1

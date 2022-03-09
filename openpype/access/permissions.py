@@ -38,7 +38,7 @@ class Permissions(BaseModel):
     )
 
     @classmethod
-    def from_record(cls, perm_dict: dict, validate: bool = True):
+    def from_record(cls, perm_dict: dict, validate: bool = True) -> "Permissions":
         """Recreate a permission object from a JSON object."""
         permissions = {}
         for key, value in perm_dict.items():

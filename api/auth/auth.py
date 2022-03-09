@@ -40,7 +40,7 @@ class LoginRequestModel(BaseModel):
 class LoginResponseModel(BaseModel):
     detail: str = "Logged in as NAME"
     token: str = "ACCESS_TOKEN"
-    user: UserEntity.model()
+    user: UserEntity.model.main_model
 
 
 @router.post(
@@ -60,7 +60,7 @@ async def login(login: LoginRequestModel):
         raise UnauthorizedException("Invalid login/password")
 
     return LoginResponseModel(
-        detail=f"Logged in as {session.user_entity.name}",
+        detail=f"Logged in as {session.user.name}",
         token=session.token,
         user=session.user,
     )

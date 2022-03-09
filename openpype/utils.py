@@ -5,11 +5,7 @@ import random
 import re
 import time
 import uuid
-
-try:
-    import orjson as json
-except ModuleNotFoundError:
-    import json
+import orjson
 
 from typing import Any
 
@@ -18,12 +14,12 @@ from pydantic import Field
 
 def json_loads(data: str) -> Any:
     """Load JSON data."""
-    return json.loads(data)
+    return orjson.loads(data)
 
 
 def json_dumps(data: Any, *, default=None) -> str:
     """Dump JSON data."""
-    return json.dumps(data, default=default).decode()
+    return orjson.dumps(data, default=default).decode()
 
 
 def hash_data(data: Any) -> str:
@@ -43,14 +39,21 @@ def create_uuid() -> str:
     return uuid.uuid1().hex
 
 
-def dict_exclude(d: dict, keys: list[str], mode: str = "exact") -> dict:
+def dict_exclude(
+    data: dict[Any, Any],
+    keys: list[str],
+    mode: str = "exact",
+) -> dict[Any, Any]:
     """Return a copy of the dictionary with the specified keys removed."""
     if mode == "exact":
-        return {k: v for k, v in d.items() if k not in keys}
-    if mode == "startswith":
+        return {k: v for k, v in data.items() if k not in keys}
+    elif mode == "startswith":
         return {
-            k: v for k, v in d.items() if not any([k.startswith(key) for key in keys])
+            k: v
+            for k, v in data.items()
+            if not any([k.startswith(key) for key in keys])
         }
+    return data
 
 
 def validate_name(name: str) -> bool:
@@ -96,7 +99,9 @@ class EntityID:
         return create_uuid()
 
     @classmethod
-    def parse(cls, entity_id: str | uuid.UUID | None, allow_nulls: bool = False) -> str:
+    def parse(
+        cls, entity_id: str | uuid.UUID | None, allow_nulls: bool = False
+    ) -> str | None:
         """Convert UUID object or its string representation to string"""
         if entity_id is None and allow_nulls:
             return None
@@ -106,6 +111,7 @@ class EntityID:
             entity_id = entity_id.replace("-", "")
             if len(entity_id) == 32:
                 return entity_id
+        # TODO: Raise OpenPypeException, not Value error
         raise ValueError("Invalid entity ID")
 
     @classmethod
@@ -126,7 +132,7 @@ class SQLTool:
     """SQL query construction helpers."""
 
     @staticmethod
-    def array(elements: list[str | int]):
+    def array(elements: list[str] | list[int]):
         """Return a SQL-friendly list string."""
         return (
             "("
@@ -135,7 +141,7 @@ class SQLTool:
         )
 
     @staticmethod
-    def id_array(ids: list[str | uuid.UUID]) -> str:
+    def id_array(ids: list[str] | list[uuid.UUID]) -> str:
         """Return a SQL-friendly list of IDs.
 
         list(['a', 'b', 'c']) becomes str("('a', 'b', 'c')")
