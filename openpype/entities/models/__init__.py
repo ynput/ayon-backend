@@ -1,7 +1,7 @@
 """Dynamic entity models generation."""
 
 import copy
-from typing import Literal, Any
+from typing import Any
 
 from pydantic import BaseModel
 

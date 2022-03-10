@@ -21,8 +21,7 @@ class AttributeModel(BaseModel):
 
 class SettingsResponseModel(BaseModel):
     attributes: list[AttributeModel] = Field(
-        default_factory=list,
-        description="List of attributes user has access to"
+        default_factory=list, description="List of attributes user has access to"
     )
 
 
@@ -47,10 +46,8 @@ async def get_settings():
                 scope=row["scope"],
                 attribType=data.get("type", "string"),
                 builtIn=row["builtin"],
-                writable=True
+                writable=True,
             )
         )
 
-    return SettingsResponseModel(
-        attributes=attributes
-    )
+    return SettingsResponseModel(attributes=attributes)

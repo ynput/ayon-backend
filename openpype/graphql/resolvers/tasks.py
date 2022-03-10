@@ -30,7 +30,7 @@ async def get_tasks(
 
     project_name = root.project_name
 
-    if folder_ids == ['root']:
+    if folder_ids == ["root"]:
         # this is a workaround to allow selecting tasks along with children folders
         # in a single query of the manager page.
         # (assuming the root element of the project cannot have tasks :) )

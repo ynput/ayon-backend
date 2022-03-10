@@ -1,5 +1,8 @@
+from typing import NewType
+
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool
+from openpype.exceptions import OpenPypeException
 
 from ..nodes.folder import FolderNode
 from ..nodes.subset import SubsetNode
@@ -7,7 +10,17 @@ from ..nodes.user import UserNode
 from ..nodes.version import VersionNode
 
 
-async def folder_loader(keys: list[tuple[str, str]]) -> list[FolderNode]:
+KeysType = NewType("KeysType", list[tuple[str, str]])
+
+
+def get_project_name(keys: KeysType) -> str:
+    project_names = set(k[0] for k in keys)
+    if len(project_names) != 1:
+        raise OpenPypeException("Data loaders cannot perform cross-project requests")
+    return project_names.pop()
+
+
+async def folder_loader(keys: KeysType) -> list[FolderNode | None]:
     """Load a list of folders by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, folder_id) and project_name
     values must be the same!
@@ -16,8 +29,8 @@ async def folder_loader(keys: list[tuple[str, str]]) -> list[FolderNode]:
     # create a dict of (project_name, folder_id) -> None
     # bc we need to return folders in the same order as the keys
     result_dict = {k: None for k in keys}
+    project_name = get_project_name(keys)
 
-    project_name = keys[0][0]
     query = f"""
         SELECT
             folders.id AS id,
@@ -49,7 +62,7 @@ async def folder_loader(keys: list[tuple[str, str]]) -> list[FolderNode]:
     return [result_dict[k] for k in keys]
 
 
-async def folder_loader2(keys: list[tuple[str, str]]) -> list[FolderNode]:
+async def folder_loader2(keys: KeysType) -> list[FolderNode | None]:
     """Load a list of folders by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, folder_id) and project_name
     values must be the same!
@@ -61,8 +74,8 @@ async def folder_loader2(keys: list[tuple[str, str]]) -> list[FolderNode]:
     # create a dict of (project_name, folder_id) -> None
     # bc we need to return folders in the same order as the keys
     result_dict = {k: None for k in keys}
+    project_name = get_project_name(keys)
 
-    project_name = keys[0][0]
     query = f"""
         SELECT
             folders.id AS id,
@@ -104,7 +117,7 @@ async def folder_loader2(keys: list[tuple[str, str]]) -> list[FolderNode]:
     return [result_dict[k] for k in keys]
 
 
-async def subset_loader(keys: list[tuple[str, str]]) -> list[SubsetNode]:
+async def subset_loader(keys: KeysType) -> list[SubsetNode]:
     """Load a list of subsets by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, folder_id) and project_name
     values must be the same!
@@ -113,8 +126,8 @@ async def subset_loader(keys: list[tuple[str, str]]) -> list[SubsetNode]:
     # create a dict of (project_name, subset_id) -> None
     # bc we need to return folders in the same order as the keys
     result_dict = {k: None for k in keys}
+    project_name = get_project_name(keys)
 
-    project_name = keys[0][0]
     query = f"""
         SELECT * FROM project_{project_name}.subsets
         WHERE id IN {SQLTool.id_array([k[1] for k in keys])}
@@ -127,7 +140,7 @@ async def subset_loader(keys: list[tuple[str, str]]) -> list[SubsetNode]:
     return [result_dict[k] for k in keys]
 
 
-async def version_loader(keys: list[tuple[str, str]]) -> list[VersionNode]:
+async def version_loader(keys: KeysType) -> list[VersionNode | None]:
     """Load a list of versions by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, subset_id) and project_name
     values must be the same!
@@ -136,8 +149,8 @@ async def version_loader(keys: list[tuple[str, str]]) -> list[VersionNode]:
     # create a dict of (project_name, subset_id) -> None
     # bc we need to return folders in the same order as the keys
     result_dict = {k: None for k in keys}
+    project_name = get_project_name(keys)
 
-    project_name = keys[0][0]
     query = f"""
         SELECT * FROM project_{project_name}.versions
         WHERE id IN {SQLTool.id_array([k[1] for k in keys])}
@@ -150,12 +163,12 @@ async def version_loader(keys: list[tuple[str, str]]) -> list[VersionNode]:
     return [result_dict[k] for k in keys]
 
 
-async def latest_version_loader(keys: list[tuple[str, str]]) -> list[VersionNode]:
+async def latest_version_loader(keys: KeysType) -> list[VersionNode | None]:
     """Load a list of latest versions of given subsets"""
 
     # start_time = time.time()
     result_dict = {k: None for k in keys}
-    project_name = keys[0][0]
+    project_name = get_project_name(keys)
 
     query = f"""
         SELECT
@@ -187,7 +200,7 @@ async def latest_version_loader(keys: list[tuple[str, str]]) -> list[VersionNode
     return [result_dict[k] for k in keys]
 
 
-async def user_loader(keys: list[str]) -> list[UserNode]:
+async def user_loader(keys: list[str]) -> list[UserNode | None]:
     """Load a list of users by their names (used as a dataloader)."""
 
     result_dict = {k: None for k in keys}

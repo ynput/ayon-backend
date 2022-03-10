@@ -77,7 +77,7 @@ async def resolve(
     first: int = 0,
     last: int = 0,
     context: dict = None,
-    order_by: str = "id"
+    order_by: str = "id",
 ) -> BaseConnection:
     """Return a connection object from a query."""
 
