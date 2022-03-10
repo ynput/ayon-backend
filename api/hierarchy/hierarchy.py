@@ -37,8 +37,9 @@ HierarchyFolderModel = ForwardRef("HierarchyFolderModel")
 class HierarchyFolderModel(BaseModel):
     id: str = EntityID.field("folder")
     name: str = Field(..., example="Tree", title="Folder name")
-    type: str | None = Field(example="AssetBuild", title="Folder type")
-    subsetCount: int
+    folderType: str | None = Field(example="AssetBuild", title="Folder type")
+    hasSubsets: bool
+    hasTasks: bool
     parents: list[str]
     children: list[HierarchyFolderModel] = Field(
         default_factory=list, title="List of children"
@@ -96,7 +97,8 @@ async def get_folder_hierarchy(
             folders.folder_type,
             folders.name,
             hierarchy.path as path,
-            COUNT (subsets.id) AS subset_count
+            COUNT (subsets.id) AS subset_count,
+            COUNT (tasks.id) AS task_count
         FROM
             project_{project_name}.folders AS folders
         INNER JOIN
@@ -107,6 +109,10 @@ async def get_folder_hierarchy(
             project_{project_name}.subsets AS subsets
         ON
             subsets.folder_id = folders.id
+        LEFT JOIN
+            project_{project_name}.tasks AS tasks
+        ON
+            tasks.folder_id = folders.id
         {SQLTool.conditions(conds)}
         GROUP BY folders.id, hierarchy.path
         ORDER BY folders.name ASC
@@ -116,9 +122,10 @@ async def get_folder_hierarchy(
             "id": EntityID.parse(row["id"]),
             "parentId": EntityID.parse(row["parent_id"], allow_nulls=True),
             "name": row["name"],
-            "type": row["folder_type"],
+            "folderType": row["folder_type"],
             "parents": row["path"].split("/")[:-1],
-            "subsetCount": row["subset_count"],
+            "hasSubsets": not not row["subset_count"],
+            "hasTasks": not not row["task_count"],
         }
         if types:
             plain_result.append(d)
