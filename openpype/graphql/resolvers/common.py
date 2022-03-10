@@ -77,6 +77,7 @@ async def resolve(
     first: int = 0,
     last: int = 0,
     context: dict = None,
+    order_by: str = "id"
 ) -> BaseConnection:
     """Return a connection object from a query."""
 
@@ -88,7 +89,10 @@ async def resolve(
             break
 
         node = node_type.from_record(project_name, record, context=context)
-        edges.append(edge_type(node=node, cursor=EntityID.parse(record["id"])))
+        cursor = record[order_by]
+        if order_by.endswith("id"):
+            cursor = EntityID.parse(cursor)
+        edges.append(edge_type(node=node, cursor=cursor))
 
     has_next_page = False
     has_previous_page = False

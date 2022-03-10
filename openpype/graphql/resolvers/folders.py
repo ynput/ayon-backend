@@ -23,9 +23,9 @@ from .common import (
 async def get_folders(
     root,
     info: Info,
-    first: ARGFirst = None,
+    first: ARGFirst = 100,
     after: ARGAfter = None,
-    last: ARGLast = None,
+    last: ARGLast = 100,
     before: ARGBefore = None,
     ids: ARGIds = None,
     parent_id: Annotated[
@@ -94,7 +94,7 @@ async def get_folders(
         use_hierarchy = True
 
     # We need to use children-join
-    if (has_children is not None) or ("childrenCount" in fields):
+    if (has_children is not None) or fields.has_any("childrenCount", "hasChildren"):
         sql_columns.append("COUNT(children.id) AS children_count")
         sql_joins.append(
             f"""
@@ -104,7 +104,7 @@ async def get_folders(
             """
         )
 
-    if (has_subsets is not None) or ("subsetsCount" in fields):
+    if (has_subsets is not None) or fields.has_any("subsetsCount", "hasSubsets"):
         sql_columns.append("COUNT(subsets.id) AS subset_count")
         sql_joins.append(
             f"""
@@ -114,7 +114,7 @@ async def get_folders(
             """
         )
 
-    if (has_tasks is not None) or ("tasksCount" in fields):
+    if (has_tasks is not None) or fields.has_any("tasksCount", "hasTasks"):
         sql_columns.append("COUNT(tasks.id) AS task_count")
         sql_joins.append(
             f"""
@@ -180,14 +180,15 @@ async def get_folders(
     #
 
     pagination = ""
+    order_by = "name"
     if first:
-        pagination += f"ORDER BY folders.id ASC LIMIT {first}"
+        pagination += f"ORDER BY folders.{order_by} ASC LIMIT {first}"
         if after:
-            sql_conditions.append(f"folders.id > '{EntityID.parse(after)}'")
+            sql_conditions.append(f"folders.{order_by} > '{after}'")
     elif last:
-        pagination += f"ORDER BY folders.id DESC LIMIT {first}"
+        pagination += f"ORDER BY folders.{order_by} DESC LIMIT {first}"
         if before:
-            sql_conditions.append(f"folders.id < '{EntityID.parse(before)}'")
+            sql_conditions.append(f"folders.{order_by} < '{before}'")
 
     #
     # Query
