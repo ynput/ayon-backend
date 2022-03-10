@@ -4,6 +4,7 @@ from strawberry.types import Info
 
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, validate_name
+from openpype.exceptions import ForbiddenException
 
 from ..connections import UsersConnection
 from ..edges import UserEdge
@@ -29,6 +30,10 @@ async def get_users(
     before: str | None = None,
 ) -> UsersConnection:
     """Return a list of users."""
+
+    user = info.context["user"]
+    if not user.is_manager:
+        return ForbiddenException("Only managers and administrators can view users")
 
     conditions = []
     if name is not None:
