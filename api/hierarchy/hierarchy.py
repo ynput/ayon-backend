@@ -59,13 +59,13 @@ class HierarchyResponseModel(BaseModel):
 async def get_folder_hierarchy(
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
-    search: Optional[str] = Query(
+    search: str = Query(
         "",
         title="Search query",
         description="Full-text search query used to limit the result",
         example="forest",
     ),
-    types: Optional[str] = Query(
+    types: str = Query(
         "",
         title="Type filter",
         description="Comma separated list of folder_types to show",
@@ -162,9 +162,9 @@ class HierarchyChangeModel(BaseModel):
     "/projects/{project_name}/hierarchy", status_code=204, response_class=Response
 )
 async def change_hierarchy(
+    body: HierarchyChangeModel,
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
-    body: HierarchyChangeModel = ...,
 ):
     """
     Change the hierarchy of a project.
