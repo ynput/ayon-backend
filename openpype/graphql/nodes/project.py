@@ -17,7 +17,7 @@ from ..resolvers.representations import get_representation, get_representations
 from ..resolvers.subsets import get_subset, get_subsets
 from ..resolvers.tasks import get_task, get_tasks
 from ..resolvers.versions import get_version, get_versions
-from ..utils import lazy_type, parse_json_data
+from ..utils import lazy_type, parse_attrib_data
 from .common import BaseNode
 
 FolderNode = lazy_type("FolderNode", ".nodes.folder")
@@ -135,14 +135,19 @@ class ProjectNode(BaseNode):
         ]
 
 
-def project_from_record(record: dict, context: dict | None = None) -> ProjectNode:
+def project_from_record(record: dict, context: dict) -> ProjectNode:
     """Construct a project node from a DB row."""
     return ProjectNode(
         project_name=record["name"],
         name=record["name"],
         active=record["active"],
         library=record["library"],
-        attrib=parse_json_data(ProjectAttribType, record["attrib"]),
+        attrib=parse_attrib_data(
+            ProjectAttribType,
+            record["attrib"],
+            user=context["user"],
+            project_name=record["name"],
+        ),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

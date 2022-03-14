@@ -82,7 +82,14 @@ async def get_tasks(
     """
 
     return await resolve(
-        TasksConnection, TaskEdge, TaskNode, project_name, query, first, last
+        TasksConnection,
+        TaskEdge,
+        TaskNode,
+        project_name,
+        query,
+        first,
+        last,
+        context=info.context,
     )
 
 

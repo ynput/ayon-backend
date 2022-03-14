@@ -72,7 +72,7 @@ async def resolve(
     connection_type,
     edge_type,
     node_type,
-    project_name: str,
+    project_name: str | None,
     query: str,
     first: int = 0,
     last: int = 0,
@@ -88,7 +88,10 @@ async def resolve(
         if count and count <= len(edges):
             break
 
-        node = node_type.from_record(project_name, record, context=context)
+        if project_name:
+            node = node_type.from_record(project_name, record, context=context)
+        else:
+            node = node_type.from_record(record, context=context)
         cursor = record[order_by]
         if order_by.endswith("id"):
             cursor = EntityID.parse(cursor)

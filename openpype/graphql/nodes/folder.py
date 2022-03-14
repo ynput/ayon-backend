@@ -5,7 +5,7 @@ from openpype.utils import EntityID
 
 from ..resolvers.subsets import get_subsets
 from ..resolvers.tasks import get_tasks
-from ..utils import lazy_type, parse_json_data
+from ..utils import lazy_type, parse_attrib_data
 from .common import BaseNode
 
 SubsetsConnection = lazy_type("SubsetsConnection", "..connections")
@@ -48,9 +48,7 @@ class FolderNode(BaseNode):
         return self.path.split("/")[:-1] if self.path else None
 
 
-def folder_from_record(
-    project_name: str, record: dict, context: dict | None = None
-) -> FolderNode:
+def folder_from_record(project_name: str, record: dict, context: dict) -> FolderNode:
     """Construct a folder node from a DB row."""
     return FolderNode(
         project_name=project_name,
@@ -59,7 +57,9 @@ def folder_from_record(
         active=record["active"],
         folder_type=record["folder_type"],
         parent_id=EntityID.parse(record["parent_id"], allow_nulls=True),
-        attrib=parse_json_data(FolderAttribType, record["attrib"]),
+        attrib=parse_attrib_data(
+            FolderAttribType, record["attrib"], context["user"], project_name
+        ),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         children_count=record.get("children_count", 0),

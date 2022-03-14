@@ -16,8 +16,12 @@ from .dataloaders import (
     version_loader,
 )
 from .nodes.folder import folder_from_record
-from .nodes.project import ProjectNode
-from .nodes.user import UserAttribType, UserNode
+from .nodes.subset import subset_from_record
+from .nodes.version import version_from_record
+from .nodes.representation import representation_from_record
+from .nodes.task import task_from_record
+from .nodes.project import ProjectNode, project_from_record
+from .nodes.user import UserAttribType, UserNode, user_from_record
 from .resolvers.projects import get_project, get_projects
 from .resolvers.users import get_user, get_users
 
@@ -25,13 +29,22 @@ from .resolvers.users import get_user, get_users
 async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> dict:
     """Get the current request context"""
     return {
+        # Auth
+        "user": user,
+        # Record parsing
+        "folder_from_record": folder_from_record,
+        "subset_from_record": subset_from_record,
+        "version_from_record": version_from_record,
+        "representation_from_record": representation_from_record,
+        "task_from_record": task_from_record,
+        "user_from_record": user_from_record,
+        "project_from_record": project_from_record,
+        # Data loaders
         "folder_loader": DataLoader(load_fn=folder_loader),
         "subset_loader": DataLoader(load_fn=subset_loader),
         "version_loader": DataLoader(load_fn=version_loader),
         "latest_version_loader": DataLoader(load_fn=latest_version_loader),
         "user_loader": DataLoader(load_fn=user_loader),
-        "folder_from_record": folder_from_record,
-        "user": user,
     }
 
 

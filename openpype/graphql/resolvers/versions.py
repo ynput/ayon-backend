@@ -72,7 +72,14 @@ async def get_versions(
     """
 
     return await resolve(
-        VersionsConnection, VersionEdge, VersionNode, project_name, query, first, last
+        VersionsConnection,
+        VersionEdge,
+        VersionNode,
+        project_name,
+        query,
+        first,
+        last,
+        context=info.context,
     )
 
 

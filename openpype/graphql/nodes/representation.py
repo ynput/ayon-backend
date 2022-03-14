@@ -5,7 +5,7 @@ from strawberry.types import Info
 from openpype.entities import RepresentationEntity
 from openpype.utils import EntityID, json_dumps, json_loads
 
-from ..utils import lazy_type, parse_json_data
+from ..utils import lazy_type, parse_attrib_data
 from .common import BaseNode
 
 VersionNode = lazy_type("VersionNode", ".nodes.version")
@@ -55,8 +55,11 @@ class RepresentationAttribType:
 class RepresentationNode(BaseNode):
     @strawberry.field(description="Parent version of the representation")
     async def version(self, info: Info) -> VersionNode:
-        return await info.context["version_loader"].load(
+        record = await info.context["version_loader"].load(
             (self.project_name, self.version_id)
+        )
+        return info.context["version_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field(description="Number of files of the representation")
@@ -135,7 +138,7 @@ def get_overal_status(status, files, site_files):
 
 
 def representation_from_record(
-    project_name: str, record: dict, context: dict | None = None
+    project_name: str, record: dict, context: dict
 ) -> RepresentationNode:  # noqa # no. this line won't be shorter
     """Construct a representation node from a DB row."""
 
@@ -160,7 +163,12 @@ def representation_from_record(
         id=EntityID.parse(record["id"]),
         name=record["name"],
         version_id=EntityID.parse(record["version_id"]),
-        attrib=parse_json_data(RepresentationAttribType, record["attrib"]),
+        attrib=parse_attrib_data(
+            RepresentationAttribType,
+            record["attrib"],
+            user=context["user"],
+            project_name=project_name,
+        ),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         context=json_dumps(data.get("context")),

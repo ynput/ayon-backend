@@ -122,6 +122,7 @@ async def get_representations(
         query,
         first,
         last,
+        context=info.context,
     )
 
 

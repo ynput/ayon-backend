@@ -1,13 +1,15 @@
+"""
+Dataloaders return a list of database rows, not the entities,
+because they don't have access to the context object, which we
+need for access control.
+"""
+
+
 from typing import NewType
 
 from openpype.lib.postgres import Postgres
-from openpype.utils import SQLTool
+from openpype.utils import SQLTool, EntityID
 from openpype.exceptions import OpenPypeException
-
-from ..nodes.folder import FolderNode
-from ..nodes.subset import SubsetNode
-from ..nodes.user import UserNode
-from ..nodes.version import VersionNode
 
 
 KeysType = NewType("KeysType", list[tuple[str, str]])
@@ -20,14 +22,12 @@ def get_project_name(keys: KeysType) -> str:
     return project_names.pop()
 
 
-async def folder_loader(keys: KeysType) -> list[FolderNode | None]:
+async def folder_loader(keys: KeysType) -> list[dict | None]:
     """Load a list of folders by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, folder_id) and project_name
     values must be the same!
     """
 
-    # create a dict of (project_name, folder_id) -> None
-    # bc we need to return folders in the same order as the keys
     result_dict = {k: None for k in keys}
     project_name = get_project_name(keys)
 
@@ -56,13 +56,12 @@ async def folder_loader(keys: KeysType) -> list[FolderNode | None]:
     """
 
     async for record in Postgres.iterate(query):
-        folder = FolderNode.from_record(project_name, record)
-        result_dict[(project_name, folder.id)] = folder
-
+        rid = EntityID.parse(record["id"])
+        result_dict[(project_name, rid)] = record
     return [result_dict[k] for k in keys]
 
 
-async def folder_loader2(keys: KeysType) -> list[FolderNode | None]:
+async def folder_loader2(keys: KeysType) -> list[dict | None]:
     """Load a list of folders by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, folder_id) and project_name
     values must be the same!
@@ -71,8 +70,6 @@ async def folder_loader2(keys: KeysType) -> list[FolderNode | None]:
     and children_counts.  which we probably do not need
     """
 
-    # create a dict of (project_name, folder_id) -> None
-    # bc we need to return folders in the same order as the keys
     result_dict = {k: None for k in keys}
     project_name = get_project_name(keys)
 
@@ -111,20 +108,17 @@ async def folder_loader2(keys: KeysType) -> list[FolderNode | None]:
     """
 
     async for record in Postgres.iterate(query):
-        folder = FolderNode.from_record(project_name, record)
-        result_dict[(project_name, folder.id)] = folder
-
+        rid = EntityID.parse(record["id"])
+        result_dict[(project_name, rid)] = record
     return [result_dict[k] for k in keys]
 
 
-async def subset_loader(keys: KeysType) -> list[SubsetNode]:
+async def subset_loader(keys: KeysType) -> list[dict | None]:
     """Load a list of subsets by their ids (used as a dataloader).
-    keys must be a list of tuples (project_name, folder_id) and project_name
+    keys must be a list of tuples (project_name, subset_id) and project_name
     values must be the same!
     """
 
-    # create a dict of (project_name, subset_id) -> None
-    # bc we need to return folders in the same order as the keys
     result_dict = {k: None for k in keys}
     project_name = get_project_name(keys)
 
@@ -134,20 +128,17 @@ async def subset_loader(keys: KeysType) -> list[SubsetNode]:
         """
 
     async for record in Postgres.iterate(query):
-        folder = SubsetNode.from_record(project_name, record)
-        result_dict[(project_name, folder.id)] = folder
-
+        rid = EntityID.parse(record["id"])
+        result_dict[(project_name, rid)] = record
     return [result_dict[k] for k in keys]
 
 
-async def version_loader(keys: KeysType) -> list[VersionNode | None]:
+async def version_loader(keys: KeysType) -> list[dict | None]:
     """Load a list of versions by their ids (used as a dataloader).
-    keys must be a list of tuples (project_name, subset_id) and project_name
+    keys must be a list of tuples (project_name, version_id) and project_name
     values must be the same!
     """
 
-    # create a dict of (project_name, subset_id) -> None
-    # bc we need to return folders in the same order as the keys
     result_dict = {k: None for k in keys}
     project_name = get_project_name(keys)
 
@@ -157,16 +148,14 @@ async def version_loader(keys: KeysType) -> list[VersionNode | None]:
         """
 
     async for record in Postgres.iterate(query):
-        folder = VersionNode.from_record(project_name, record)
-        result_dict[(project_name, folder.id)] = folder
-
+        rid = EntityID.parse(record["id"])
+        result_dict[(project_name, rid)] = record
     return [result_dict[k] for k in keys]
 
 
-async def latest_version_loader(keys: KeysType) -> list[VersionNode | None]:
+async def latest_version_loader(keys: KeysType) -> list[dict | None]:
     """Load a list of latest versions of given subsets"""
 
-    # start_time = time.time()
     result_dict = {k: None for k in keys}
     project_name = get_project_name(keys)
 
@@ -193,14 +182,12 @@ async def latest_version_loader(keys: KeysType) -> list[VersionNode | None]:
         """
 
     async for record in Postgres.iterate(query):
-        version = VersionNode.from_record(project_name, record)
-        result_dict[(project_name, version.subset_id)] = version
-
-    # logging.info(f"latest_version_loader took {time.time() - start_time} seconds")
+        rid = EntityID.parse(record["subset_id"])
+        result_dict[(project_name, rid)] = record
     return [result_dict[k] for k in keys]
 
 
-async def user_loader(keys: list[str]) -> list[UserNode | None]:
+async def user_loader(keys: list[str]) -> list[dict | None]:
     """Load a list of users by their names (used as a dataloader)."""
 
     result_dict = {k: None for k in keys}
@@ -211,7 +198,6 @@ async def user_loader(keys: list[str]) -> list[UserNode | None]:
         """
 
     async for record in Postgres.iterate(query):
-        user = UserNode.from_record(record)
-        result_dict[record["name"]] = user
+        result_dict[record["name"]] = record
 
     return [result_dict[k] for k in keys]

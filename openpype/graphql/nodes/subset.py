@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 
 import strawberry
 from strawberry.types import Info
@@ -7,7 +7,7 @@ from openpype.entities import SubsetEntity
 from openpype.utils import EntityID
 
 from ..resolvers.versions import get_versions
-from ..utils import lazy_type, parse_json_data
+from ..utils import lazy_type, parse_attrib_data
 from .common import BaseNode
 
 VersionsConnection = lazy_type("VersionsConnection", ".connections")
@@ -44,19 +44,27 @@ class SubsetNode(BaseNode):
         # Skip dataloader if already loaded by the subset resolver
         if self._folder:
             return self._folder
-        return await info.context["folder_loader"].load(
+        record = await info.context["folder_loader"].load(
             (self.project_name, self.folder_id)
+        )
+        return info.context["folder_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field(description="Last version of the subset")
     async def latest_version(self, info: Info) -> Optional[VersionNode]:
-        return await info.context["latest_version_loader"].load(
+        record = await info.context["latest_version_loader"].load(
             (self.project_name, self.id)
+        )
+        return (
+            info.context["version_from_record"](self.project_name, record, info.context)
+            if record
+            else None
         )
 
 
 def subset_from_record(
-    project_name: str, record: dict, context: dict | None = None
+    project_name: str, record: dict, context: dict[str:Any]
 ) -> SubsetNode:
     """Construct a subset node from a DB row."""
 
@@ -68,7 +76,7 @@ def subset_from_record(
                 folder_data[key] = value
 
         folder = (
-            context["folder_from_record"](project_name, folder_data)
+            context["folder_from_record"](project_name, folder_data, context=context)
             if folder_data
             else None
         )
@@ -85,7 +93,12 @@ def subset_from_record(
         name=record["name"],
         folder_id=EntityID.parse(record["folder_id"]),
         family=record["family"],
-        attrib=parse_json_data(SubsetAttribType, record["attrib"]),
+        attrib=parse_attrib_data(
+            SubsetAttribType,
+            record["attrib"],
+            user=context["user"],
+            project_name=project_name,
+        ),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         version_list=vlist,

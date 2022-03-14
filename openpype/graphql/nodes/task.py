@@ -4,7 +4,7 @@ from strawberry.types import Info
 from openpype.entities import TaskEntity
 from openpype.utils import EntityID
 
-from ..utils import lazy_type, parse_json_data
+from ..utils import lazy_type, parse_attrib_data
 from .common import BaseNode
 
 FolderNode = lazy_type("FolderNode", ".nodes.folder")
@@ -24,9 +24,7 @@ class TaskNode(BaseNode):
         )
 
 
-def task_from_record(
-    project_name: str, record: dict, context: dict | None = None
-) -> TaskNode:
+def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode:
     """Construct a task node from a DB row."""
     return TaskNode(
         project_name=project_name,
@@ -35,7 +33,12 @@ def task_from_record(
         task_type=record["task_type"],
         assignees=record["assignees"],
         folder_id=EntityID.parse(record["folder_id"]),
-        attrib=parse_json_data(TaskAttribType, record["attrib"]),
+        attrib=parse_attrib_data(
+            TaskAttribType,
+            record["attrib"],
+            user=context["user"],
+            project_name=project_name,
+        ),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

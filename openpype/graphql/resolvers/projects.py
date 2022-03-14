@@ -8,7 +8,7 @@ from openpype.utils import SQLTool, validate_name
 from ..connections import ProjectsConnection
 from ..edges import ProjectEdge
 from ..nodes.project import ProjectNode
-from .common import argdesc
+from .common import argdesc, resolve
 
 
 async def get_projects(
@@ -38,16 +38,22 @@ async def get_projects(
             raise ValueError("Invalid project name specified")
         conditions.append(f"projects.name ILIKE '{name}'")
 
-    return ProjectsConnection(
-        edges=[
-            ProjectEdge(node=ProjectNode.from_record(record))
-            async for record in Postgres.iterate(
-                f"""
-                SELECT * FROM projects
-                {SQLTool.conditions(conditions)}
-                """
-            )
-        ]
+    query = f"""
+        SELECT * FROM projects
+        {SQLTool.conditions(conditions)}
+        ORDER BY name
+    """
+
+    return await resolve(
+        ProjectsConnection,
+        ProjectEdge,
+        ProjectNode,
+        None,
+        query,
+        first,
+        last,
+        context=info.context,
+        order_by="name"
     )
 
 

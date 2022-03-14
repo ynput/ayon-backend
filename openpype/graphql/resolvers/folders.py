@@ -207,7 +207,14 @@ async def get_folders(
     """
 
     return await resolve(
-        FoldersConnection, FolderEdge, FolderNode, project_name, query, first, last
+        FoldersConnection,
+        FolderEdge,
+        FolderNode,
+        project_name,
+        query,
+        first,
+        last,
+        context=info.context,
     )
 
 
