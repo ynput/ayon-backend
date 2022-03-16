@@ -2,7 +2,6 @@ from typing import Annotated
 
 from strawberry.types import Info
 
-from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, validate_name
 
 from ..connections import ProjectsConnection
@@ -53,7 +52,7 @@ async def get_projects(
         first,
         last,
         context=info.context,
-        order_by="name"
+        order_by="name",
     )
 
 

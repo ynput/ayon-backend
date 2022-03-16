@@ -61,15 +61,19 @@ async def get_tasks(
     # Pagination
     #
 
+    if not (last or first):
+        first = 100
+
     pagination = ""
+    order_by = "name"
     if first:
-        pagination += f"ORDER BY id ASC LIMIT {first}"
+        pagination += f"ORDER BY {order_by} ASC LIMIT {first}"
         if after:
-            conditions.append(f"id > '{EntityID.parse(after)}'")
+            conditions.append(f"{order_by} > '{EntityID.parse(after)}'")
     elif last:
-        pagination += f"ORDER BY id DESC LIMIT {first}"
+        pagination += f"ORDER BY {order_by} DESC LIMIT {first}"
         if before:
-            conditions.append(f"id < '{EntityID.parse(before)}'")
+            conditions.append(f"{order_by} < '{EntityID.parse(before)}'")
 
     #
     # Query
@@ -79,6 +83,7 @@ async def get_tasks(
         SELECT *
         FROM project_{project_name}.tasks
         {SQLTool.conditions(conditions)}
+        {pagination}
     """
 
     return await resolve(
@@ -90,6 +95,7 @@ async def get_tasks(
         first,
         last,
         context=info.context,
+        order_by=order_by,
     )
 
 

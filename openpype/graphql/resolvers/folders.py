@@ -23,9 +23,9 @@ from .common import (
 async def get_folders(
     root,
     info: Info,
-    first: ARGFirst = 100,
+    first: ARGFirst = None,
     after: ARGAfter = None,
-    last: ARGLast = 100,
+    last: ARGLast = None,
     before: ARGBefore = None,
     ids: ARGIds = None,
     parent_id: Annotated[
@@ -179,6 +179,9 @@ async def get_folders(
     # Pagination
     #
 
+    if not (last or first):
+        first = 100
+
     pagination = ""
     order_by = "name"
     if first:
@@ -215,6 +218,7 @@ async def get_folders(
         first,
         last,
         context=info.context,
+        order_by=order_by,
     )
 
 
