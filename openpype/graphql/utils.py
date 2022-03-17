@@ -1,5 +1,6 @@
 import strawberry
 
+from typing import Literal
 from openpype.utils import json_loads
 from openpype.entities.user import UserEntity
 
@@ -22,6 +23,8 @@ def parse_attrib_data(
     project_name: str = None,
 ):
     """ACL agnostic attribute list parser"""
+
+    attr_limit: list[str] | Literal["all"] = []
 
     if user.is_manager:
         attr_limit = "all"

@@ -7,7 +7,7 @@ import copy
 import enum
 import threading
 import time
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 
 from nxtools import logging
 from pydantic import BaseModel
@@ -364,3 +364,39 @@ class Entity:
     async def commit(self, transaction=False):
         """Post-update commit."""
         pass
+
+    #
+    # Common properties
+    #
+
+    @property
+    def active(self) -> bool:
+        return self._payload.active
+
+    @active.setter
+    def active(self, value) -> None:
+        self._payload.active = value
+
+    @property
+    def data(self) -> Dict[str, Any]:
+        return self._payload.data
+
+    @data.setter
+    def data(self, value: Dict[str, Any]) -> None:
+        self._payload.data = value
+
+    @property
+    def created_at(self) -> float:
+        return self._payload.created_at
+
+    @created_at.setter
+    def created_at(self, value: float) -> None:
+        self._payload.created_at = value
+
+    @property
+    def updated_at(self) -> float:
+        return self._payload.updated_at
+
+    @updated_at.setter
+    def updated_at(self, value: float) -> None:
+        self._payload.updated_at = value

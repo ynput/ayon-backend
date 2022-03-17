@@ -45,7 +45,7 @@ CREATE INDEX folder_parent_idx ON folders(parent_id);
 
 -- Two partial indices are used as a workaround for root folders (which have parent_id NULL)
 
-CREATE UNIQUE INDEX folder_unique_name_parent ON folders (parent_id , name) 
+CREATE UNIQUE INDEX folder_unique_name_parent ON folders (parent_id, name) 
     WHERE (active IS TRUE AND parent_id IS NOT NULL);
 
 CREATE UNIQUE INDEX folder_root_unique_name ON folders (name) 
@@ -84,7 +84,7 @@ CREATE UNIQUE INDEX hierarchy_id ON hierarchy (id);
 CREATE TABLE tasks(
     id UUID NOT NULL PRIMARY KEY,
     name VARCHAR NOT NULL,
-    folder_id UUID REFERENCES folders(id) ON DELETE CASCADE,
+    folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
     task_type VARCHAR REFERENCES task_types(name) ON UPDATE CASCADE,
     assignees VARCHAR[] NOT NULL DEFAULT '{}',
 
@@ -97,6 +97,7 @@ CREATE TABLE tasks(
 
 CREATE INDEX task_parent_idx ON tasks(folder_id);
 CREATE INDEX task_type_idx ON tasks(task_type);
+CREATE UNIQUE INDEX task_unique_name ON tasks(folder_id, name);
 
 -------------
 -- SUBSETS --
