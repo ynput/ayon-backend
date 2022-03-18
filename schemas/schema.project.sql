@@ -3,9 +3,13 @@
 ----------------
 
 CREATE TABLE thumbnails(
-    id SERIAL NOT NULL PRIMARY KEY
-    --TODO: payload blob
+    id SERIAL NOT NULL PRIMARY KEY,
+    mime VARCHAR NOT NULL,
+    data bytea NOT NULL
 );
+ 
+ALTER TABLE thumbnails ALTER COLUMN data SET STORAGE EXTERNAL;
+
 
 CREATE TABLE task_types(
     name VARCHAR NOT NULL PRIMARY KEY,
