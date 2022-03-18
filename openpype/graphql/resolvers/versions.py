@@ -22,6 +22,7 @@ async def get_versions(
     subset_ids: Annotated[
         list[str] | None, argdesc("List of parent subsets IDs")
     ] = None,
+    task_ids: Annotated[list[str] | None, argdesc("List of parent task IDs")] = None,
     authors: Annotated[
         list[str] | None, argdesc("List of version author user names to filter by.")
     ] = None,
@@ -42,10 +43,15 @@ async def get_versions(
         conditions.append(f"version = {version}")
     if authors:
         conditions.append(f"author IN {SQLTool.id_array(authors)}")
+
     if subset_ids:
         conditions.append(f"subset_id IN {SQLTool.id_array(subset_ids)}")
     elif root.__class__.__name__ == "SubsetNode":
         conditions.append(f"subset_id = '{root.id}'")
+    if task_ids:
+        conditions.append(f"task_id IN {SQLTool.id_array(task_ids)}")
+    elif root.__class__.__name__ == "TaskNode":
+        conditions.append(f"task_id = '{root.id}'")
 
     #
     # Pagination

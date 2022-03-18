@@ -1,3 +1,4 @@
+from typing import Optional
 import strawberry
 from strawberry.types import Info
 
@@ -9,6 +10,7 @@ from ..utils import lazy_type, parse_attrib_data
 from .common import BaseNode
 
 SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
+TaskNode = lazy_type("TaskNode", ".nodes.task")
 RepresentationsConnection = lazy_type("RepresentationsConnection", ".connections")
 
 
@@ -38,6 +40,16 @@ class VersionNode(BaseNode):
             self.project_name, record, info.context
         )
 
+    @strawberry.field(description="Task")
+    async def task(self, info: Info) -> Optional[TaskNode]:
+        if self.task_id is None:
+            print(self, "does not have task id")
+            return None
+        record = await info.context["task_loader"].load(
+            (self.project_name, self.task_id)
+        )
+        return info.context["task_from_record"](self.project_name, record, info.context)
+
 
 def version_from_record(project_name: str, record: dict, context: dict) -> VersionNode:
     """Construct a version node from a DB row."""
@@ -48,6 +60,7 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
         version=record["version"],
         active=record["active"],
         subset_id=EntityID.parse(record["subset_id"]),
+        task_id=EntityID.parse(record["task_id"]),
         thumbnail_id=record["thumbnail_id"],
         author=record["author"],
         attrib=parse_attrib_data(

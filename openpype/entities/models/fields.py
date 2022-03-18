@@ -144,6 +144,15 @@ version_fields = [
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
     },
+    {
+        "name": "task_id",
+        "type": "string",
+        "required": False,
+        "title": "Task ID",
+        "description": "",
+        "regex": ENTITY_ID_REGEX,
+        "example": ENTITY_ID_EXAMPLE,
+    },
     {"name": "thumbnail_id", "type": "integer"},
     {"name": "author", "type": "string", "regex": NAME_REGEX},
 ]

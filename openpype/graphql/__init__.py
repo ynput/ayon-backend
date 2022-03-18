@@ -12,6 +12,7 @@ from .dataloaders import (
     folder_loader,
     latest_version_loader,
     subset_loader,
+    task_loader,
     user_loader,
     version_loader,
 )
@@ -42,6 +43,7 @@ async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> d
         # Data loaders
         "folder_loader": DataLoader(load_fn=folder_loader),
         "subset_loader": DataLoader(load_fn=subset_loader),
+        "task_loader": DataLoader(load_fn=task_loader),
         "version_loader": DataLoader(load_fn=version_loader),
         "latest_version_loader": DataLoader(load_fn=latest_version_loader),
         "user_loader": DataLoader(load_fn=user_loader),

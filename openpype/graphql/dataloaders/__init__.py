@@ -133,6 +133,26 @@ async def subset_loader(keys: KeysType) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
+async def task_loader(keys: KeysType) -> list[dict | None]:
+    """Load a list of tasks by their ids (used as a dataloader).
+    keys must be a list of tuples (project_name, task_id) and project_name
+    values must be the same!
+    """
+
+    result_dict = {k: None for k in keys}
+    project_name = get_project_name(keys)
+
+    query = f"""
+        SELECT * FROM project_{project_name}.tasks
+        WHERE id IN {SQLTool.id_array([k[1] for k in keys])}
+        """
+
+    async for record in Postgres.iterate(query):
+        rid = EntityID.parse(record["id"])
+        result_dict[(project_name, rid)] = record
+    return [result_dict[k] for k in keys]
+
+
 async def version_loader(keys: KeysType) -> list[dict | None]:
     """Load a list of versions by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, version_id) and project_name

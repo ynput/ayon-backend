@@ -5,9 +5,11 @@ from openpype.entities import TaskEntity
 from openpype.utils import EntityID
 
 from ..utils import lazy_type, parse_attrib_data
+from ..resolvers.versions import get_versions
 from .common import BaseNode
 
 FolderNode = lazy_type("FolderNode", ".nodes.folder")
+VersionsConnection = lazy_type("VersionsConnection", "..connections")
 
 
 @TaskEntity.strawberry_attrib()
@@ -17,6 +19,10 @@ class TaskAttribType:
 
 @TaskEntity.strawberry_entity()
 class TaskNode(BaseNode):
+    versions: VersionsConnection = strawberry.field(
+        resolver=get_versions, description=get_versions.__doc__
+    )
+
     @strawberry.field(description="Parent folder of the task")
     async def folder(self, info: Info) -> FolderNode:
         return await info.context["folder_loader"].load(

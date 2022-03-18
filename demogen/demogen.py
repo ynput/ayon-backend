@@ -122,15 +122,18 @@ class DemoGen:
         await folder.save(conn)
         folder.parents = parents
 
-        for subset in kwargs.get("_subsets", []):
-            await self.create_subset(conn, folder, **subset)
+        tasks = {}
 
         for task in kwargs.get("_tasks", []):
             if task["task_type"] == "Modeling":
                 task["assignees"] = random.choice(
                     [["artist"], ["artist", "visitor"], [], [], []]
                 )
-            await self.create_task(conn, folder_id=folder.id, **task)
+            tname, tid = await self.create_task(conn, folder_id=folder.id, **task)
+            tasks[tname] = tid
+
+        for subset in kwargs.get("_subsets", []):
+            await self.create_subset(conn, folder, tasks=tasks, **subset)
 
         if "_children" in kwargs:
             if type(kwargs["_children"]) == str:
@@ -145,8 +148,14 @@ class DemoGen:
                     )
         return folder
 
-    async def create_subset(self, conn, folder, **kwargs):
+    async def create_subset(self, conn, folder, tasks, **kwargs):
         self.subset_count += 1
+        if task_name := kwargs.get("_task_link"):
+            task_id = tasks.get(task_name)
+            # print(f"subset {kwargs['name']} linked to task_id {task_id}")
+        else:
+            task_id = None
+
         subset = SubsetEntity(
             project_name=self.project_name,
             folder_id=folder.id,
@@ -166,6 +175,7 @@ class DemoGen:
                 validate=self.validate,
                 project_name=self.project_name,
                 subset_id=subset.id,
+                task_id=task_id,
                 version=i,
                 author="admin",
                 attrib=attrib,
@@ -183,6 +193,7 @@ class DemoGen:
             project_name=self.project_name, validate=self.validate, **kwargs
         )
         await task.save(conn)
+        return task.name, task.id
 
     async def create_representation(self, conn, folder, subset, version, **kwargs):
         self.representation_count += 1

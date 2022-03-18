@@ -1,6 +1,5 @@
-import httpx
-
-from openpype.lib.postgres import Postgres
+# import httpx
+# from openpype.lib.postgres import Postgres
 
 
 class Thumbnail:

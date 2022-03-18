@@ -133,8 +133,8 @@ CREATE TABLE versions(
     version INTEGER NOT NULL,
 
     subset_id UUID NOT NULL REFERENCES subsets(id) ON DELETE CASCADE,
+    task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
     thumbnail_id INTEGER REFERENCES thumbnails(id),
-    task_id UUID REFERENCES tasks(id),
     author VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
