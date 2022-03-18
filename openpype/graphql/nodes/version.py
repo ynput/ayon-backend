@@ -28,6 +28,8 @@ class VersionNode(BaseNode):
     @strawberry.field(description="Version name")
     def name(self) -> str:
         """Return a version name based on the version number."""
+        if self.version < 0:
+            return "HERO"
         # TODO: configurable zero pad / format?
         return f"v{self.version:03d}"
 
@@ -60,7 +62,7 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
         version=record["version"],
         active=record["active"],
         subset_id=EntityID.parse(record["subset_id"]),
-        task_id=EntityID.parse(record["task_id"]),
+        task_id=EntityID.parse(record["task_id"], allow_nulls=True),
         thumbnail_id=record["thumbnail_id"],
         author=record["author"],
         attrib=parse_attrib_data(
