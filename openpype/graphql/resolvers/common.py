@@ -1,10 +1,10 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 import strawberry
 from strawberry.types import Info
 
 from openpype.lib.postgres import Postgres
-from openpype.utils import EntityID
+from openpype.utils import EntityID, validate_name
 from openpype.graphql.connections import BaseConnection, PageInfo
 
 
@@ -66,6 +66,46 @@ class FieldInfo:
             if field in self.fields:
                 return True
         return False
+
+
+def create_pagination(
+    order_by: str,
+    first: int | None = None,
+    after: Any = None,
+    last: int | None = None,
+    before: Any = None,
+) -> tuple[str, list[str]]:
+    pagination = ""
+    sql_conditions = []
+
+    if not (last or first):
+        first = 100
+
+    if order_by.endswith("id"):
+        # should raise value error in case of invalid cursor
+        if after:
+            after = f"'{EntityID.parse(after)}'"
+        elif before:
+            before = f"'{EntityID.parse(after)}'"
+    elif order_by == "name":
+        if after:
+            if not validate_name(after):
+                raise ValueError("Wrong name")
+            after = f"'{after}'"
+        elif before:
+            if not validate_name(before):
+                raise ValueError("Wrong name")
+            before = f"'{before}'"
+
+    if first:
+        pagination += f"ORDER BY {order_by} ASC LIMIT {first}"
+        if after:
+            sql_conditions.append(f"{order_by} > {after}")
+    elif last:
+        pagination += f"ORDER BY {order_by} DESC LIMIT {first}"
+        if before:
+            sql_conditions.append(f"{order_by} < '{EntityID.parse(before)}'")
+    return pagination, sql_conditions
 
 
 async def resolve(

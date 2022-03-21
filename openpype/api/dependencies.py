@@ -18,7 +18,8 @@ async def dep_access_token(authorization: str = Header(None)) -> str:
 
 
 async def dep_current_user(
-    x_forwarded_for: str = Header(None), access_token: str = Depends(dep_access_token)
+    x_forwarded_for: str = Header(None, include_in_schema=False),
+    access_token: str = Depends(dep_access_token),
 ) -> UserEntity:
     """Return the currently logged-in user
 

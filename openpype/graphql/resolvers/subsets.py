@@ -2,7 +2,8 @@ from typing import Annotated
 
 from strawberry.types import Info
 
-from openpype.utils import EntityID, SQLTool
+from openpype.utils import SQLTool
+from openpype.access.utils import folder_access_list
 
 from ..connections import SubsetsConnection
 from ..edges import SubsetEdge
@@ -16,6 +17,7 @@ from .common import (
     FieldInfo,
     argdesc,
     resolve,
+    create_pagination,
 )
 
 
@@ -73,11 +75,22 @@ async def get_subsets(
     if name:
         sql_conditions.append(f"name ILIKE '{name}'")
 
+    access_list = None
+    if root.__class__.__name__ == "ProjectNode":
+        # Selecting subsets directly from the project node,
+        # so we need to check access rights
+        user = info.context["user"]
+        access_list = await folder_access_list(user, project_name, "read")
+        if access_list is not None:
+            sql_conditions.append(
+                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+            )
+
     #
     # Join with folders if parent folder is requested
     #
 
-    if "folder" in fields:
+    if "folder" in fields or (access_list is not None):
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
@@ -101,7 +114,7 @@ async def get_subsets(
         if any(
             field.endswith("folder.path") or field.endswith("folder.parents")
             for field in fields
-        ):
+        ) or (access_list is not None):
             sql_columns.append("hierarchy.path AS _folder_path")
             sql_joins.append(
                 f"""
@@ -131,15 +144,9 @@ async def get_subsets(
     # Pagination
     #
 
-    pagination = ""
-    if first:
-        pagination += f"ORDER BY subsets.id ASC LIMIT {first}"
-        if after:
-            sql_conditions.append(f"subsets.id > '{EntityID.parse(after)}'")
-    elif last:
-        pagination += f"ORDER BY subsets.id DESC LIMIT {first}"
-        if before:
-            sql_conditions.append(f"subsets.id < '{EntityID.parse(before)}'")
+    order_by = "id"
+    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    sql_conditions.extend(paging_conds)
 
     #
     # Query
@@ -162,6 +169,7 @@ async def get_subsets(
         first,
         last,
         context=info.context,
+        order_by=order_by,
     )
 
 

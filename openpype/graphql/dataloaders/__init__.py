@@ -5,14 +5,14 @@ need for access control.
 """
 
 
-from typing import NewType
+from typing import NewType, Any
 
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, EntityID
 from openpype.exceptions import OpenPypeException
 
-
-KeysType = NewType("KeysType", list[tuple[str, str]])
+KeyType = NewType("KeyType", tuple[str, str])
+KeysType = NewType("KeysType", list[KeyType])
 
 
 def get_project_name(keys: KeysType) -> str:
@@ -28,7 +28,7 @@ async def folder_loader(keys: KeysType) -> list[dict | None]:
     values must be the same!
     """
 
-    result_dict = {k: None for k in keys}
+    result_dict: dict[KeyType, Any] = {k: None for k in keys}
     project_name = get_project_name(keys)
 
     query = f"""

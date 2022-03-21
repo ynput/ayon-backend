@@ -16,6 +16,7 @@ from .common import (
     ARGLast,
     FieldInfo,
     argdesc,
+    create_pagination,
     resolve,
 )
 
@@ -179,19 +180,9 @@ async def get_folders(
     # Pagination
     #
 
-    if not (last or first):
-        first = 100
-
-    pagination = ""
-    order_by = "name"
-    if first:
-        pagination += f"ORDER BY folders.{order_by} ASC LIMIT {first}"
-        if after:
-            sql_conditions.append(f"folders.{order_by} > '{after}'")
-    elif last:
-        pagination += f"ORDER BY folders.{order_by} DESC LIMIT {first}"
-        if before:
-            sql_conditions.append(f"folders.{order_by} < '{before}'")
+    order_by = "id"
+    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    sql_conditions.extend(paging_conds)
 
     #
     # Query

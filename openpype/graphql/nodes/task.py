@@ -1,5 +1,6 @@
 import strawberry
 from strawberry.types import Info
+from typing import Optional
 
 from openpype.entities import TaskEntity
 from openpype.utils import EntityID
@@ -23,15 +24,37 @@ class TaskNode(BaseNode):
         resolver=get_versions, description=get_versions.__doc__
     )
 
+    _folder: Optional[FolderNode] = None
+
     @strawberry.field(description="Parent folder of the task")
     async def folder(self, info: Info) -> FolderNode:
-        return await info.context["folder_loader"].load(
+        if self._folder:
+            return self._folder
+        record = await info.context["folder_loader"].load(
             (self.project_name, self.folder_id)
+        )
+        return info.context["folder_from_record"](
+            self.project_name, record, info.context
         )
 
 
 def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode:
     """Construct a task node from a DB row."""
+    if context:
+        folder_data = {}
+        for key, value in record.items():
+            if key.startswith("_folder_"):
+                key = key.removeprefix("_folder_")
+                folder_data[key] = value
+
+        folder = (
+            context["folder_from_record"](project_name, folder_data, context=context)
+            if folder_data
+            else None
+        )
+    else:
+        folder = None
+
     return TaskNode(
         project_name=project_name,
         id=EntityID.parse(record["id"]),
@@ -47,6 +70,7 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
         ),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        _folder=folder,
     )
 
 

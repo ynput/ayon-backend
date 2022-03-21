@@ -45,7 +45,6 @@ class VersionNode(BaseNode):
     @strawberry.field(description="Task")
     async def task(self, info: Info) -> Optional[TaskNode]:
         if self.task_id is None:
-            print(self, "does not have task id")
             return None
         record = await info.context["task_loader"].load(
             (self.project_name, self.task_id)

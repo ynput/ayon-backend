@@ -27,12 +27,11 @@ async def get_versions(
         list[str] | None, argdesc("List of version author user names to filter by.")
     ] = None,
     version: int = None,
-
     latestOnly: Annotated[bool, argdesc("List only latest versions")] = False,
     heroOnly: Annotated[bool, argdesc("List only hero versions")] = False,
-    heroOrLatestOnly: Annotated[bool, argdesc(
-        "List hero versions. If hero does not exist, list latest")] = False
-
+    heroOrLatestOnly: Annotated[
+        bool, argdesc("List hero versions. If hero does not exist, list latest")
+    ] = False,
 ) -> VersionsConnection:
     """Return a list of versions."""
 
@@ -136,7 +135,7 @@ async def get_versions(
         first,
         last,
         context=info.context,
-        order_by=order_by
+        order_by=order_by,
     )
 
 
