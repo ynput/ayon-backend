@@ -3,7 +3,6 @@ from typing import Annotated
 from strawberry.types import Info
 
 from openpype.utils import SQLTool
-from openpype.access.utils import folder_access_list
 
 from ..connections import TasksConnection
 from ..edges import TaskEdge
@@ -16,6 +15,7 @@ from .common import (
     ARGLast,
     argdesc,
     resolve,
+    create_folder_access_list,
     create_pagination,
     FieldInfo,
 )
@@ -82,16 +82,11 @@ async def get_tasks(
     if task_types:
         sql_conditions.append(f"task_type IN {SQLTool.array(task_types)}")
 
-    access_list = None
-    if root.__class__.__name__ == "ProjectNode":
-        # Selecting tasks directly from the project node,
-        # so we need to check access rights
-        user = info.context["user"]
-        access_list = await folder_access_list(user, project_name, "read")
-        if access_list is not None:
-            sql_conditions.append(
-                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
-            )
+    access_list = await create_folder_access_list(root, info)
+    if access_list is not None:
+        sql_conditions.append(
+            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+        )
 
     #
     # Joins
@@ -113,8 +108,8 @@ async def get_tasks(
         )
         sql_joins.append(
             f"""
-            LEFT JOIN project_{project_name}.folders
-                ON folders.id = tasks.folder_id
+            INNER JOIN project_{project_name}.folders
+            ON folders.id = tasks.folder_id
             """
         )
 
@@ -125,9 +120,8 @@ async def get_tasks(
             sql_columns.append("hierarchy.path AS _folder_path")
             sql_joins.append(
                 f"""
-                LEFT JOIN
-                    project_{project_name}.hierarchy AS hierarchy
-                    ON folders.id = hierarchy.id
+                LEFT JOIN project_{project_name}.hierarchy AS hierarchy
+                ON folders.id = hierarchy.id
                 """
             )
 
@@ -149,7 +143,7 @@ async def get_tasks(
 
     query = f"""
         SELECT {", ".join(sql_columns)}
-        FROM project_{project_name}.tasks
+        FROM project_{project_name}.tasks AS tasks
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {pagination}

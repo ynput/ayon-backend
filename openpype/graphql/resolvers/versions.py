@@ -2,13 +2,22 @@ from typing import Annotated
 
 from strawberry.types import Info
 
-from openpype.lib.postgres import Postgres
-from openpype.utils import EntityID, SQLTool
+from openpype.utils import SQLTool
 
 from ..connections import VersionsConnection
 from ..edges import VersionEdge
 from ..nodes.version import VersionNode
-from .common import ARGAfter, ARGBefore, ARGFirst, ARGIds, ARGLast, argdesc, resolve
+from .common import (
+    ARGAfter,
+    ARGBefore,
+    ARGFirst,
+    ARGIds,
+    ARGLast,
+    argdesc,
+    resolve,
+    create_folder_access_list,
+    create_pagination,
+)
 
 
 async def get_versions(
@@ -57,6 +66,7 @@ async def get_versions(
 
     # sql_joins = []
     sql_conditions = []
+    sql_joins = []
 
     if ids:
         sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
@@ -85,6 +95,7 @@ async def get_versions(
         )
     elif heroOnly:
         sql_conditions.append("versions.version < 0")
+
     elif heroOrLatestOnly:
         sql_conditions.append(
             f"""
@@ -98,30 +109,42 @@ async def get_versions(
             """
         )
 
+    access_list = await create_folder_access_list(root, info)
+    if access_list is not None:
+        sql_conditions.append(
+            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+        )
+
+        sql_joins.extend(
+            [
+                f"""
+            INNER JOIN project_{project_name}.subsets AS subsets
+            ON subsets.id = versions.subset_id
+            """,
+                f"""
+            INNER JOIN project_{project_name}.hierarchy AS hierarchy
+            ON hierarchy.id = subsets.folder_id
+            """,
+            ]
+        )
+
     #
     # Pagination
     #
 
     pagination = ""
     order_by = "id"
-    if first:
-        pagination += f"ORDER BY versions.{order_by} ASC LIMIT {first}"
-        if after:
-            sql_conditions.append(f"versions.{order_by} > '{EntityID.parse(after)}'")
-    elif last:
-        pagination += f"ORDER BY versions.{order_by} DESC LIMIT {first}"
-        if before:
-            sql_conditions.append(f"versions.{order_by} < '{EntityID.parse(before)}'")
+    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    sql_conditions.extend(paging_conds)
 
     #
     # Query
     #
 
     query = f"""
-        SELECT
-            {", ".join(sql_columns)}
-        FROM
-            project_{project_name}.versions AS versions
+        SELECT {", ".join(sql_columns)}
+        FROM project_{project_name}.versions AS versions
+        {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {pagination}
     """
@@ -137,24 +160,6 @@ async def get_versions(
         context=info.context,
         order_by=order_by,
     )
-
-
-async def get_latest_version(root):
-    """Return the latest version of the subset.
-
-    This is not used since it is replaced with latest_version_loader
-    """
-
-    async for record in Postgres.iterate(
-        f"""
-        SELECT *
-        FROM project_{root.project_name}.versions
-        WHERE subset_id = '{root.id}'
-        ORDER BY version DESC
-        """
-    ):
-        return VersionNode.from_record(root.project_name, record)
-    return None
 
 
 async def get_version(root, info: Info, id: str) -> VersionNode | None:

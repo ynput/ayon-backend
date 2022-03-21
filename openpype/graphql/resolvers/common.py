@@ -5,6 +5,7 @@ from strawberry.types import Info
 
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID, validate_name
+from openpype.access.utils import folder_access_list
 from openpype.graphql.connections import BaseConnection, PageInfo
 
 
@@ -66,6 +67,14 @@ class FieldInfo:
             if field in self.fields:
                 return True
         return False
+
+
+async def create_folder_access_list(root, info):
+    user = info.context["user"]
+    project_name = root.project_name
+    if root.__class__.__name__ != "ProjectNode":
+        return None
+    return await folder_access_list(user, project_name, "read")
 
 
 def create_pagination(

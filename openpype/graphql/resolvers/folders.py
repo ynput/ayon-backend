@@ -2,7 +2,6 @@ from typing import Annotated
 
 from strawberry.types import Info
 
-from openpype.access.utils import folder_access_list
 from openpype.utils import EntityID, SQLTool
 
 from ..connections import FoldersConnection
@@ -16,6 +15,7 @@ from .common import (
     ARGLast,
     FieldInfo,
     argdesc,
+    create_folder_access_list,
     create_pagination,
     resolve,
 )
@@ -87,8 +87,7 @@ async def get_folders(
         or fields.has_any("path", "parents")
     )
 
-    user = info.context["user"]
-    access_list = await folder_access_list(user, project_name, "read")
+    access_list = await create_folder_access_list(root, info)
 
     if access_list is not None:
         sql_conditions.append(f"path like ANY ('{{ {','.join(access_list)} }}')")
@@ -99,9 +98,8 @@ async def get_folders(
         sql_columns.append("COUNT(children.id) AS children_count")
         sql_joins.append(
             f"""
-            LEFT JOIN
-                project_{project_name}.folders AS children
-                ON folders.id = children.parent_id
+            LEFT JOIN project_{project_name}.folders AS children
+            ON folders.id = children.parent_id
             """
         )
 
@@ -109,9 +107,8 @@ async def get_folders(
         sql_columns.append("COUNT(subsets.id) AS subset_count")
         sql_joins.append(
             f"""
-            LEFT JOIN
-                project_{project_name}.subsets AS subsets
-                ON folders.id = subsets.folder_id
+            LEFT JOIN project_{project_name}.subsets AS subsets
+            ON folders.id = subsets.folder_id
             """
         )
 
@@ -119,9 +116,8 @@ async def get_folders(
         sql_columns.append("COUNT(tasks.id) AS task_count")
         sql_joins.append(
             f"""
-            LEFT JOIN
-                project_{project_name}.tasks AS tasks
-                ON folders.id = tasks.folder_id
+            LEFT JOIN project_{project_name}.tasks AS tasks
+            ON folders.id = tasks.folder_id
             """
         )
 
@@ -131,9 +127,8 @@ async def get_folders(
         sql_group_by.append("path")
         sql_joins.append(
             f"""
-            LEFT JOIN
-                project_{project_name}.hierarchy AS hierarchy
-                ON folders.id = hierarchy.id
+            INNER JOIN project_{project_name}.hierarchy AS hierarchy
+            ON folders.id = hierarchy.id
             """
         )
 
@@ -189,10 +184,8 @@ async def get_folders(
     #
 
     query = f"""
-        SELECT
-            {", ".join(sql_columns)}
-        FROM
-            project_{project_name}.folders AS folders
+        SELECT {", ".join(sql_columns)}
+        FROM project_{project_name}.folders AS folders
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         GROUP BY {",".join(sql_group_by)}

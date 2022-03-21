@@ -106,8 +106,8 @@ async def get_subsets(
         )
         sql_joins.append(
             f"""
-            LEFT JOIN project_{project_name}.folders
-                ON folders.id = subsets.folder_id
+            INNER JOIN project_{project_name}.folders
+            ON folders.id = subsets.folder_id
             """
         )
 
@@ -118,9 +118,8 @@ async def get_subsets(
             sql_columns.append("hierarchy.path AS _folder_path")
             sql_joins.append(
                 f"""
-                LEFT JOIN
-                    project_{project_name}.hierarchy AS hierarchy
-                    ON folders.id = hierarchy.id
+                INNER JOIN project_{project_name}.hierarchy AS hierarchy
+                ON folders.id = hierarchy.id
                 """
             )
 
