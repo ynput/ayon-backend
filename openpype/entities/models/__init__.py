@@ -17,7 +17,6 @@ from .fields import (
 )
 from .generator import generate_model
 
-
 FIELD_LISTS: dict[str, list[Any]] = {
     "project": project_fields,
     "user": [],

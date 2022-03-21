@@ -14,9 +14,9 @@ from .common import (
     ARGIds,
     ARGLast,
     argdesc,
-    resolve,
     create_folder_access_list,
     create_pagination,
+    resolve,
 )
 
 
@@ -118,13 +118,13 @@ async def get_versions(
         sql_joins.extend(
             [
                 f"""
-            INNER JOIN project_{project_name}.subsets AS subsets
-            ON subsets.id = versions.subset_id
-            """,
+                INNER JOIN project_{project_name}.subsets AS subsets
+                ON subsets.id = versions.subset_id
+                """,
                 f"""
-            INNER JOIN project_{project_name}.hierarchy AS hierarchy
-            ON hierarchy.id = subsets.folder_id
-            """,
+                INNER JOIN project_{project_name}.hierarchy AS hierarchy
+                ON hierarchy.id = subsets.folder_id
+                """,
             ]
         )
 

@@ -1,8 +1,9 @@
+from typing import Literal
+
 import strawberry
 
-from typing import Literal
-from openpype.utils import json_loads
 from openpype.entities.user import UserEntity
+from openpype.utils import json_loads
 
 
 def parse_json_data(target_type, json_string):

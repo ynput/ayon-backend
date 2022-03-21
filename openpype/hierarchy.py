@@ -1,5 +1,5 @@
-from typing import Any, DefaultDict
 from collections import defaultdict
+from typing import Any, DefaultDict
 
 
 class HierarchyResolver:

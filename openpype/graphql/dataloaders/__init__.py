@@ -5,11 +5,11 @@ need for access control.
 """
 
 
-from typing import NewType, Any
+from typing import Any, NewType
 
-from openpype.lib.postgres import Postgres
-from openpype.utils import SQLTool, EntityID
 from openpype.exceptions import OpenPypeException
+from openpype.lib.postgres import Postgres
+from openpype.utils import EntityID, SQLTool
 
 KeyType = NewType("KeyType", tuple[str, str])
 KeysType = NewType("KeysType", list[KeyType])

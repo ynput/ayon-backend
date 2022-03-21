@@ -5,7 +5,7 @@ from openpype.api.dependencies import (
     dep_project_name,
     dep_representation_id,
 )
-from openpype.api.responses import ResponseFactory, EntityIdResponse
+from openpype.api.responses import EntityIdResponse, ResponseFactory
 from openpype.entities import RepresentationEntity, UserEntity
 
 router = APIRouter(

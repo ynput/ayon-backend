@@ -3,10 +3,10 @@ from typing import Annotated, Any
 import strawberry
 from strawberry.types import Info
 
-from openpype.lib.postgres import Postgres
-from openpype.utils import EntityID, validate_name
 from openpype.access.utils import folder_access_list
 from openpype.graphql.connections import BaseConnection, PageInfo
+from openpype.lib.postgres import Postgres
+from openpype.utils import EntityID, validate_name
 
 
 def argdesc(description):

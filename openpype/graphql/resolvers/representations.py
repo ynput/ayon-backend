@@ -2,12 +2,22 @@ from typing import Annotated
 
 from strawberry.types import Info
 
-from openpype.utils import EntityID, SQLTool
+from openpype.utils import SQLTool
 
 from ..connections import RepresentationsConnection
 from ..edges import RepresentationEdge
 from ..nodes.representation import RepresentationNode
-from .common import ARGAfter, ARGBefore, ARGFirst, ARGIds, ARGLast, argdesc, resolve
+from .common import (
+    ARGAfter,
+    ARGBefore,
+    ARGFirst,
+    ARGIds,
+    ARGLast,
+    argdesc,
+    create_folder_access_list,
+    create_pagination,
+    resolve,
+)
 
 
 async def get_representations(
@@ -63,6 +73,33 @@ async def get_representations(
         sql_conditions.append(f"name ILIKE '{name}'")
 
     #
+    # ACL
+    #
+
+    access_list = await create_folder_access_list(root, info)
+    if access_list is not None:
+        sql_conditions.append(
+            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+        )
+
+        sql_joins.extend(
+            [
+                f"""
+                INNER JOIN project_{project_name}.versions AS versions
+                ON versions.id = representations.version_id
+                """,
+                f"""
+                INNER JOIN project_{project_name}.subsets AS subsets
+                ON subsets.id = versions.subset_id
+                """,
+                f"""
+                INNER JOIN project_{project_name}.hierarchy AS hierarchy
+                ON hierarchy.id = subsets.folder_id
+                """,
+            ]
+        )
+
+    #
     # Files
     #
 
@@ -70,8 +107,8 @@ async def get_representations(
         sql_joins.append(
             f"""
             LEFT JOIN project_{project_name}.files as local_files
-                ON local_files.representation_id = id
-                AND local_files.site_name = '{local_site}'
+            ON local_files.representation_id = id
+            AND local_files.site_name = '{local_site}'
             """
         )
         sql_columns.append("local_files.data AS local_data")
@@ -81,8 +118,8 @@ async def get_representations(
         sql_joins.append(
             f"""
             LEFT JOIN project_{project_name}.files as remote_files
-                ON remote_files.representation_id = id
-                AND remote_files.site_name = '{remote_site}'
+            ON remote_files.representation_id = id
+            AND remote_files.site_name = '{remote_site}'
             """
         )
         sql_columns.append("remote_files.data AS remote_data")
@@ -93,14 +130,9 @@ async def get_representations(
     #
 
     pagination = ""
-    if first:
-        pagination += "ORDER BY id ASC"
-        if after:
-            sql_conditions.append(f"id > '{EntityID.parse(after)}'")
-    elif last:
-        pagination += "ORDER BY id DESC"
-        if before:
-            sql_conditions.append(f"id < '{EntityID.parse(before)}'")
+    order_by = "id"
+    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    sql_conditions.extend(paging_conds)
 
     #
     # Query

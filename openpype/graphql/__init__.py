@@ -17,12 +17,12 @@ from .dataloaders import (
     version_loader,
 )
 from .nodes.folder import folder_from_record
-from .nodes.subset import subset_from_record
-from .nodes.version import version_from_record
-from .nodes.representation import representation_from_record
-from .nodes.task import task_from_record
 from .nodes.project import ProjectNode, project_from_record
+from .nodes.representation import representation_from_record
+from .nodes.subset import subset_from_record
+from .nodes.task import task_from_record
 from .nodes.user import UserAttribType, UserNode, user_from_record
+from .nodes.version import version_from_record
 from .resolvers.projects import get_project, get_projects
 from .resolvers.users import get_user, get_users
 

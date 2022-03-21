@@ -2,9 +2,9 @@ from typing import Annotated
 
 from strawberry.types import Info
 
+from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, validate_name
-from openpype.exceptions import ForbiddenException
 
 from ..connections import UsersConnection
 from ..edges import UserEdge

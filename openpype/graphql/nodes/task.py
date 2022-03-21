@@ -1,12 +1,13 @@
+from typing import Optional
+
 import strawberry
 from strawberry.types import Info
-from typing import Optional
 
 from openpype.entities import TaskEntity
 from openpype.utils import EntityID
 
-from ..utils import lazy_type, parse_attrib_data
 from ..resolvers.versions import get_versions
+from ..utils import lazy_type, parse_attrib_data
 from .common import BaseNode
 
 FolderNode = lazy_type("FolderNode", ".nodes.folder")

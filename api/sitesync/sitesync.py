@@ -1,22 +1,22 @@
 import os
 
-from fastapi import APIRouter, Depends, Query, Path, Response
+from fastapi import APIRouter, Depends, Path, Query, Response
 
 from openpype.access.utils import folder_access_list
-from openpype.api import dep_project_name, dep_current_user, dep_representation_id
-from openpype.entities.user import UserEntity
+from openpype.api import dep_current_user, dep_project_name, dep_representation_id
 from openpype.entities.representation import RepresentationEntity
+from openpype.entities.user import UserEntity
 from openpype.lib.postgres import Postgres
-from openpype.utils import SQLTool, json_loads, json_dumps, EntityID
+from openpype.utils import EntityID, SQLTool, json_dumps, json_loads
 
 from .models import (
-    StatusEnum,
-    SortByEnum,
+    FileModel,
+    RepresentationStateModel,
     SiteSyncParamsModel,
     SiteSyncSummaryItem,
     SiteSyncSummaryModel,
-    RepresentationStateModel,
-    FileModel,
+    SortByEnum,
+    StatusEnum,
     SyncStatusModel,
 )
 

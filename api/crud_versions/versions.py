@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Response
 
 from openpype.api.dependencies import dep_current_user, dep_project_name, dep_version_id
-from openpype.api.responses import ResponseFactory, EntityIdResponse
-from openpype.entities import VersionEntity, UserEntity
+from openpype.api.responses import EntityIdResponse, ResponseFactory
+from openpype.entities import UserEntity, VersionEntity
 
 router = APIRouter(
     tags=["Versions"],

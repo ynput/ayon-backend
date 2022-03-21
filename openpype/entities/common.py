@@ -7,16 +7,16 @@ import copy
 import enum
 import threading
 import time
-from typing import Any, Optional, Dict
+from typing import Any, Dict, Optional
 
 from nxtools import logging
 from pydantic import BaseModel
 from strawberry.experimental.pydantic import type as pydantic_type
 
+from openpype.entities.models import ModelSet
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID, SQLTool, dict_exclude, json_loads
-from openpype.entities.models import ModelSet
 
 
 class AttributeLibrary:

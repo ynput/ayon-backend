@@ -1,9 +1,10 @@
 from typing import Any
+
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from openpype.utils import json_loads
 from openpype.lib.postgres import Postgres
+from openpype.utils import json_loads
 
 router = APIRouter(prefix="", include_in_schema=False)
 

@@ -3,13 +3,9 @@
 from fastapi import Depends, Response
 from nxtools import logging
 
-from openpype.api import (
-    ResponseFactory,
-    dep_current_user,
-    dep_project_name,
-)
+from openpype.api import ResponseFactory, dep_current_user, dep_project_name
 from openpype.entities import ProjectEntity, UserEntity
-from openpype.exceptions import RecordNotFoundException, ForbiddenException
+from openpype.exceptions import ForbiddenException, RecordNotFoundException
 from openpype.lib.postgres import Postgres
 
 from .router import router

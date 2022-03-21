@@ -4,9 +4,9 @@ from fastapi import Depends, Header, Path
 
 from openpype.auth.session import Session
 from openpype.entities import UserEntity
+from openpype.exceptions import UnauthorizedException
 from openpype.lib.redis import Redis
 from openpype.utils import EntityID, parse_access_token
-from openpype.exceptions import UnauthorizedException
 
 
 async def dep_access_token(authorization: str = Header(None)) -> str:

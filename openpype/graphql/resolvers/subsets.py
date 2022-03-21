@@ -2,8 +2,8 @@ from typing import Annotated
 
 from strawberry.types import Info
 
-from openpype.utils import SQLTool
 from openpype.access.utils import folder_access_list
+from openpype.utils import SQLTool
 
 from ..connections import SubsetsConnection
 from ..edges import SubsetEdge
@@ -16,8 +16,8 @@ from .common import (
     ARGLast,
     FieldInfo,
     argdesc,
-    resolve,
     create_pagination,
+    resolve,
 )
 
 

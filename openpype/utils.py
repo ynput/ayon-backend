@@ -5,10 +5,9 @@ import random
 import re
 import time
 import uuid
-import orjson
-
 from typing import Any
 
+import orjson
 from pydantic import Field
 
 
