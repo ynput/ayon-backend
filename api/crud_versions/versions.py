@@ -30,7 +30,7 @@ async def get_version(
     """Retrieve a version by its ID."""
 
     version = await VersionEntity.load(project_name, version_id)
-    return version.payload
+    return version.as_user(user)
 
 
 #

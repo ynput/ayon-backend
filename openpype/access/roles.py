@@ -10,6 +10,8 @@ Can create and remove users, grants privileges, create/delete projects
 """
 
 from typing import Any
+from nxtools import logging
+
 
 from openpype.lib.postgres import Postgres
 from openpype.utils import json_loads
@@ -37,6 +39,7 @@ class Roles:
 
     @classmethod
     def add_role(cls, name: str, project_name: str, permissions: Permissions):
+        logging.debug("Adding role", name)
         cls.roles[(name, project_name)] = permissions
 
     @classmethod

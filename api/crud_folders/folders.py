@@ -20,6 +20,7 @@ router = APIRouter(
 @router.get(
     "/projects/{project_name}/folders/{folder_id}",
     response_model=FolderEntity.model.main_model,
+    response_model_exclude_none=True,
     responses={404: ResponseFactory.error(404, "Project not found")},
 )
 async def get_folder(
@@ -30,13 +31,8 @@ async def get_folder(
     """Retrieve a folder by its ID."""
 
     folder = await FolderEntity.load(project_name, folder_id)
-    access_list = await folder_access_list(user, project_name, "read")
-
-    if access_list is not None:
-        if folder.path not in access_list:
-            raise ForbiddenException("You don't have access to this folder")
-
-    return folder.payload
+    await folder.ensure_read_access(user)
+    return folder.as_user(user)
 
 
 #

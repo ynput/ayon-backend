@@ -34,7 +34,8 @@ async def get_representation(
     """Retrieve a representation by its ID."""
 
     representation = await RepresentationEntity.load(project_name, representation_id)
-    return representation.payload
+    await representation.ensure_read_access(user)
+    return representation.as_user(user)
 
 
 #

@@ -17,6 +17,7 @@ from openpype.entities.models import ModelSet
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID, SQLTool, dict_exclude, json_loads
+from openpype.access.utils import ensure_entity_access
 
 
 class AttributeLibrary:
@@ -198,6 +199,47 @@ class Entity:
     @property
     def payload(self):
         return self._payload
+
+    def as_user(self, user):
+        kw = {"deep": True, "exclude": {}}
+
+        # TODO: Clean-up. use model.attrb_model.__fields__ to create blacklist
+        if isinstance(self._payload.attrib, dict):
+            attrib = self._payload.attrib
+        else:
+            attrib = self._payload.attrib.dict()
+        if not user.is_manager:
+            kw["exclude"]["data"] = True
+
+            attr_perm = user.permissions(self.project_name).attrib_read
+            if attr_perm != "all":
+                exattr = set()
+                for key in [*attrib.keys()]:
+                    if key not in attr_perm:
+                        exattr.add(key)
+                if exattr:
+                    kw["exclude"]["attrib"] = exattr
+
+        result = self._payload.copy(**kw)
+        return result
+
+    async def ensure_read_access(self, user):
+        return await ensure_entity_access(
+            user,
+            self.project_name,
+            self.entity_name,
+            self.id,
+            "read"
+        )
+
+    async def ensure_write_access(self, user):
+        return await ensure_entity_access(
+            user,
+            self.project_name,
+            self.entity_name,
+            self.id,
+            "write"
+        )
 
     #
     # Modification

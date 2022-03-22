@@ -30,8 +30,8 @@ async def get_subset(
     """Retrieve a subset by its ID."""
 
     subset = await SubsetEntity.load(project_name, subset_id)
-
-    return subset.payload
+    await subset.ensure_read_access(user)
+    return subset.as_user(user)
 
 
 #

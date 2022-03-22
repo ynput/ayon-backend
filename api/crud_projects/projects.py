@@ -27,9 +27,7 @@ async def get_project(
     """Retrieve a project by its name."""
 
     project = await ProjectEntity.load(project_name)
-    # TODO: ACL
-
-    return project.payload
+    return project.as_user(user)
 
 
 #

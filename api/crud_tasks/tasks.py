@@ -30,7 +30,8 @@ async def get_task(
     """Retrieve a task by its ID."""
 
     task = await TaskEntity.load(project_name, task_id)
-    return task.payload
+    await task.ensure_read_access(user)
+    return task.as_user(user)
 
 
 #
