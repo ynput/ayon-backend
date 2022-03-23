@@ -18,6 +18,7 @@ from .router import router
 @router.get(
     "/projects/{project_name}",
     response_model=ProjectEntity.model.main_model,
+    response_model_exclude_none=True,
     responses={404: ResponseFactory.error(404, "Project not found")},
 )
 async def get_project(

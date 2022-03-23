@@ -24,6 +24,7 @@ router = APIRouter(
 @router.get(
     "/projects/{project_name}/representations/{representation_id}",
     response_model=RepresentationEntity.model.main_model,
+    response_model_exclude_none=True,
     responses={404: ResponseFactory.error(404, "Representations not found")},
 )
 async def get_representation(

@@ -20,6 +20,7 @@ router = APIRouter(
 @router.get(
     "/projects/{project_name}/tasks/{task_id}",
     response_model=TaskEntity.model.main_model,
+    response_model_exclude_none=True,
     responses={404: ResponseFactory.error(404, "Tasks not found")},
 )
 async def get_task(

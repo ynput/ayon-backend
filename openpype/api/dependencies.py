@@ -40,12 +40,23 @@ async def dep_current_user(
 async def dep_project_name(
     project_name: str = Path(
         ...,
-        title="Project ID",
+        title="User name",
         regex=r"^[0-9a-zA-Z_]*$",
     )
 ) -> str:
     """Validate a project name specified in an endpoint path"""
     return project_name
+
+
+async def dep_user_name(
+    user_name: str = Path(
+        ...,
+        title="User name",
+        regex=r"^[0-9a-zA-Z_]*$",
+    )
+) -> str:
+    """Validate a user name specified in an endpoint path"""
+    return user_name
 
 
 async def dep_folder_id(

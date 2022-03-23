@@ -20,6 +20,7 @@ router = APIRouter(
 @router.get(
     "/projects/{project_name}/subsets/{subset_id}",
     response_model=SubsetEntity.model.main_model,
+    response_model_exclude_none=True,
     responses={404: ResponseFactory.error(404, "Subset not found")},
 )
 async def get_subset(

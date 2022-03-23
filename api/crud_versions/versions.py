@@ -20,6 +20,7 @@ router = APIRouter(
 @router.get(
     "/projects/{project_name}/versions/{version_id}",
     response_model=VersionEntity.model.main_model,
+    response_model_exclude_none=True,
     responses={404: ResponseFactory.error(404, "Versions not found")},
 )
 async def get_version(
