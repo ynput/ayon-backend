@@ -1,4 +1,4 @@
-from typing import Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
@@ -18,9 +18,9 @@ def path_to_paths(path: str) -> list[str]:
 
 
 async def folder_access_list(
-    user: 'UserEntity',
+    user: "UserEntity",
     project_name: str,
-    access_type: Literal["read", "write"] = "read"
+    access_type: Literal["read", "write"] = "read",
 ) -> list[str] | None:
     """Return a list of paths user has access to
 
@@ -74,11 +74,11 @@ async def folder_access_list(
 
 
 async def ensure_entity_access(
-    user: 'UserEntity',
+    user: "UserEntity",
     project_name: str,
     entity_type: Literal["folder", "subset", "task", "version", "representation"],
     entity_id: str,
-    access_type: Literal["read", "write"] = "read"
+    access_type: Literal["read", "write"] = "read",
 ):
     """Check whether the user has access to a given entity.
 
@@ -89,7 +89,7 @@ async def ensure_entity_access(
     if access_list is None:
         return True
 
-    conditions = [f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"]
+    conditions = [f"hierarchy.path like ANY ('{{{', '.join(access_list)}}}')"]
     joins = []
 
     if entity_type in ["subset", "version", "representation"]:
@@ -110,7 +110,7 @@ async def ensure_entity_access(
                 joins.append(
                     f"""
                     INNER JOIN project_{project_name}.representations
-                    ON representations.version_id = version.id"
+                    ON representations.version_id = versions.id
                     """
                 )
 

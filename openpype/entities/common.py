@@ -13,11 +13,11 @@ from nxtools import logging
 from pydantic import BaseModel
 from strawberry.experimental.pydantic import type as pydantic_type
 
+from openpype.access.utils import ensure_entity_access
 from openpype.entities.models import ModelSet
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID, SQLTool, dict_exclude, json_loads
-from openpype.access.utils import ensure_entity_access
 
 
 class AttributeLibrary:
@@ -225,20 +225,12 @@ class Entity:
 
     async def ensure_read_access(self, user):
         return await ensure_entity_access(
-            user,
-            self.project_name,
-            self.entity_name,
-            self.id,
-            "read"
+            user, self.project_name, self.entity_name, self.id, "read"
         )
 
     async def ensure_write_access(self, user):
         return await ensure_entity_access(
-            user,
-            self.project_name,
-            self.entity_name,
-            self.id,
-            "write"
+            user, self.project_name, self.entity_name, self.id, "write"
         )
 
     #

@@ -10,8 +10,8 @@ Can create and remove users, grants privileges, create/delete projects
 """
 
 from typing import Any
-from nxtools import logging
 
+from nxtools import logging
 
 from openpype.lib.postgres import Postgres
 from openpype.utils import json_loads

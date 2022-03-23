@@ -21,9 +21,7 @@ router = APIRouter(
 
 
 @router.get(
-    "/me",
-    response_model=UserEntity.model.main_model,
-    response_model_exclude_none=True
+    "/me", response_model=UserEntity.model.main_model, response_model_exclude_none=True
 )
 async def get_current_user(user: UserEntity = Depends(dep_current_user)):
     """
@@ -33,6 +31,7 @@ async def get_current_user(user: UserEntity = Depends(dep_current_user)):
     """
     return user.payload
 
+
 #
 # [GET] /api/users/{username}
 #
@@ -41,11 +40,11 @@ async def get_current_user(user: UserEntity = Depends(dep_current_user)):
 @router.get(
     "/{user_name}",
     response_model=UserEntity.model.main_model,
-    response_model_exclude_none=True
+    response_model_exclude_none=True,
 )
 async def get_user(
     user: UserEntity = Depends(dep_current_user),
-    user_name: str = Depends(dep_user_name)
+    user_name: str = Depends(dep_user_name),
 ):
     """
     Return the current user information (based on the Authorization header).
@@ -93,6 +92,7 @@ async def create_user(
 
     await nuser.save()
     return Response(status_code=201)
+
 
 #
 # [PATCH] /api/users/me

@@ -35,7 +35,7 @@ async def all_exception_handler(request: fastapi.Request, exc: Exception):
     logging.error(f"Unhandled exception: {exc}")
     return fastapi.responses.JSONResponse(
         status_code=500,
-        content=ErrorResponse(code=500, detail="Interanal server error").dict(),
+        content=ErrorResponse(code=500, detail="Internal server error").dict(),
     )
 
 
