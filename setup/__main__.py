@@ -44,8 +44,19 @@ DATA = {
 async def main():
     await Postgres.connect()
 
-    if "--with-schema" in sys.argv:
-        logging.info("(re)creating public schema")
+    try:
+        await Postgres.fetch("SELECT * FROM projects")
+    except Exception:
+        has_schema = False
+        force_install = True
+    else:
+        # DB is okay, if we just checking the state,
+        # do not force the setup
+        has_schema = True
+        force_install = "--ensure-installed" not in sys.argv
+
+    if ("--with-schema" in sys.argv) or (not has_schema):
+        logging.info("(re)creating database schema")
         schema = None
 
         with open("schemas/schema.drop.sql", "r") as f:
@@ -56,21 +67,24 @@ async def main():
             schema = f.read()
         await Postgres.execute(schema)
 
-    if "-" in sys.argv:
-        data = sys.stdin.read()
-        try:
-            data = json_loads(data)
-        except Exception:
-            log_traceback()
-            critical_error("Invalid setup fileprovided")
-
-        DATA.update(data)
-    else:
-        logging.warning("No setup file provided. Using defaults")
-
-    await deploy_users(DATA["users"], DATA["default_roles"])
+    # This is something we can do every time.
     await deploy_attributes()
-    await deploy_roles(DATA.get("roles", {}))
+
+    if force_install:
+        if "-" in sys.argv:
+            data = sys.stdin.read()
+            try:
+                data = json_loads(data)
+            except Exception:
+                log_traceback()
+                critical_error("Invalid setup fileprovided")
+
+            DATA.update(data)
+        else:
+            logging.warning("No setup file provided. Using defaults")
+
+        await deploy_users(DATA["users"], DATA["default_roles"])
+        await deploy_roles(DATA.get("roles", {}))
 
     logging.goodnews("Setup is finished")
 
