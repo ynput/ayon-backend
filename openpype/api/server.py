@@ -1,6 +1,7 @@
 import asyncio
-import imp
+import importlib
 import os
+import sys
 
 import fastapi
 from nxtools import log_traceback, logging
@@ -65,25 +66,17 @@ def explorer():
 def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api"):
     """Register API modules to the server"""
 
+    sys.path.insert(0, plugin_dir)
     for module_name in sorted(os.listdir(plugin_dir)):
         try:
-            fp, pathname, description = imp.find_module(module_name, [plugin_dir])
+            module = importlib.import_module(module_name)
         except ImportError:
-            logging.error(f"API plug-in '{module_name}' is not a valid module")
-            continue
+            log_traceback(f"Unable to initialize {module_name}")
 
-        try:
-            module = imp.load_module(module_name, fp, pathname, description)
-        except Exception:
-            log_traceback(f"Unable to load API plug-in '{module_name}'")
-            continue
-
-        # Ensure the module has a router
         if not hasattr(module, "router"):
             logging.error(f"API plug-in '{module_name}' has no router")
             continue
 
-        # And include it in the app
         target_app.include_router(module.router, prefix="/api")
 
 
