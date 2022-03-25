@@ -178,7 +178,9 @@ class Entity:
         return not not self._payload
 
     def __getattr__(self, key) -> Any:
-        return getattr(self._payload, key)
+        if key in self.dict():
+            return self.dict()[key]
+        raise AttributeError(f"{key} not found in {self.entity_name}")
 
     def get(self, key, default=None) -> Any:
         return self.dict().get(key, default)

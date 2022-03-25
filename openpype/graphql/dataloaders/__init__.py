@@ -184,7 +184,6 @@ async def latest_version_loader(keys: KeysType) -> list[dict | None]:
             v.id AS id,
             v.version AS version,
             v.subset_id AS subset_id,
-            v.thumbnail_id AS thumbnail_id,
             v.task_id AS task_id,
             v.author AS author,
             v.attrib AS attrib,

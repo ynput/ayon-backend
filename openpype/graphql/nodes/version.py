@@ -63,7 +63,6 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
         active=record["active"],
         subset_id=EntityID.parse(record["subset_id"]),
         task_id=EntityID.parse(record["task_id"], allow_nulls=True),
-        thumbnail_id=record["thumbnail_id"],
         author=record["author"],
         attrib=parse_attrib_data(
             VersionAttribType,
