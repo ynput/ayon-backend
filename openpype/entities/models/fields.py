@@ -66,7 +66,7 @@ folder_fields = [
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
     },
-    {"name": "thumbnail_id", "type": "integer", "title": "Thumbnail ID"},
+    #    {"name": "thumbnail_id", "type": "integer", "title": "Thumbnail ID"},
     {
         "name": "path",
         "type": "string",
@@ -153,7 +153,7 @@ version_fields = [
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
     },
-    {"name": "thumbnail_id", "type": "integer"},
+    # {"name": "thumbnail_id", "type": "integer"},
     {"name": "author", "type": "string", "regex": NAME_REGEX},
 ]
 

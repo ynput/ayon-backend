@@ -35,7 +35,6 @@ class FolderEntity(Entity):
                 f.name as name,
                 f.folder_type as folder_type,
                 f.parent_id as parent_id,
-                f.thumbnail_id as thumbnail_id,
                 f.attrib as attrib,
                 f.data as data,
                 f.active as active,
@@ -64,7 +63,14 @@ class FolderEntity(Entity):
         """Refresh hierarchy materialized view on folder save."""
 
         db = db or Postgres
-        await Postgres.execute(
+        await db.execute(
+            f"""
+            DELETE FROM project_{self.project_name}.thumbnails
+            WHERE id = $1
+            """,
+            self.id,
+        )
+        await db.execute(
             f"""
             REFRESH MATERIALIZED VIEW CONCURRENTLY
             project_{self.project_name}.hierarchy

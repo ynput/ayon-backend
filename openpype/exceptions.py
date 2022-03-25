@@ -57,3 +57,10 @@ class ConstraintViolationException(OpenPypeException):
 
     detail: str = "Constraint violation"
     status: int = 409
+
+
+class UnsupportedMediaException(OpenPypeException):
+    """Exception raised when a provided media is not supported."""
+
+    detail: str = "Unsupported media"
+    status: int = 415

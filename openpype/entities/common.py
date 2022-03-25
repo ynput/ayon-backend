@@ -178,10 +178,7 @@ class Entity:
         return not not self._payload
 
     def __getattr__(self, key) -> Any:
-        """Return the value of an attribute."""
-        if key in self.dict():
-            return self.dict()[key]
-        raise AttributeError(f"{key} not found in {self.entity_name}")
+        return getattr(self._payload, key)
 
     def get(self, key, default=None) -> Any:
         return self.dict().get(key, default)
