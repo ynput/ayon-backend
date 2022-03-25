@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, Header, Request, Response
-from pydantic import BaseModel, Field
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user, dep_folder_id, dep_project_name
@@ -7,6 +6,7 @@ from openpype.entities.folder import FolderEntity
 from openpype.entities.user import UserEntity
 from openpype.exceptions import RecordNotFoundException, UnsupportedMediaException
 from openpype.lib.postgres import Postgres
+
 
 #
 # Router
@@ -17,14 +17,10 @@ router = APIRouter(
 )
 
 
-class ThumbnailIdResponse(BaseModel):
-    id: str = Field(...)
-
-
 @router.post(
     "/projects/{project_name}/folders/{folder_id}/thumbnail",
     status_code=201,
-    response_model=ThumbnailIdResponse,
+    response_class=Response,
     responses={
         401: ResponseFactory.error(401),
         403: ResponseFactory.error(403),
@@ -51,7 +47,7 @@ async def create_folder_thumbnail(
         DO UPDATE SET data = EXCLUDED.data
     """
     await Postgres.execute(query, folder.id, content_type, payload)
-    return ThumbnailIdResponse(id=folder_id)
+    return Response(status_code=201)
 
 
 @router.get(
