@@ -4,7 +4,7 @@ from fastapi import Depends, Header, Path
 
 from openpype.auth.session import Session
 from openpype.entities import UserEntity
-from openpype.exceptions import UnauthorizedException
+from openpype.exceptions import UnauthorizedException, UnsupportedMediaException
 from openpype.lib.redis import Redis
 from openpype.utils import EntityID, parse_access_token
 
@@ -15,6 +15,13 @@ async def dep_access_token(authorization: str = Header(None)) -> str:
     if not access_token:
         raise UnauthorizedException(log=False)
     return access_token
+
+
+async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
+    content_type = content_type.lower()
+    if content_type not in ["image/png", "image/jpeg"]:
+        raise UnsupportedMediaException("Thumbnail must be in png or jpeg format")
+    return content_type
 
 
 async def dep_current_user(
