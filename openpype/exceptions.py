@@ -64,3 +64,10 @@ class UnsupportedMediaException(OpenPypeException):
 
     detail: str = "Unsupported media"
     status: int = 415
+
+
+class LowPasswordComplexityException(OpenPypeException):
+    """Exception raised when a new password doesn't meet the required complexity."""
+
+    detail: str = "Password is not seure enough"
+    status: int = 400

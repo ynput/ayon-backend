@@ -1,9 +1,16 @@
 from fastapi import APIRouter, Depends, Response
+from pydantic import BaseModel, Field
+from nxtools import logging
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user, dep_user_name
 from openpype.entities import UserEntity
-from openpype.exceptions import ForbiddenException, RecordNotFoundException
+from openpype.exceptions import (
+    ForbiddenException,
+    RecordNotFoundException,
+    LowPasswordComplexityException,
+)
+from openpype.auth.utils import create_password, ensure_password_complexity
 
 #
 # Router
@@ -65,7 +72,7 @@ async def get_user(
 
 
 @router.put(
-    "/users/{user_name}",
+    "/{user_name}",
     response_class=Response,
     status_code=201,
     responses={
@@ -91,6 +98,54 @@ async def create_user(
         return Response(status_code=409)
 
     await nuser.save()
+    return Response(status_code=201)
+
+
+@router.delete("/{user_name}", response_class=Response, status_code=204)
+async def delete_user(
+    user: UserEntity = Depends(dep_current_user),
+    user_name: str = Depends(dep_user_name),
+):
+    logging.info(f"[DELETE] /users/{user_name}")
+    if not user.is_manager:
+        raise ForbiddenException("You are not allowed to create users")
+
+    target_user = await UserEntity.load(user_name)
+    await target_user.delete()
+
+    return Response(status_code=204)
+
+
+#
+# Change password
+#
+
+
+class ChangePasswordRequestModel(BaseModel):
+    password: str = Field(
+        ...,
+        description="New password",
+        example="5up3r5ecr3t_p455W0rd.123",
+    )
+
+
+@router.post("/{user_name}/password", status_code=204, response_class=Response)
+async def change_password(
+    patch_data: ChangePasswordRequestModel,
+    user: UserEntity = Depends(dep_current_user),
+    user_name: str = Depends(dep_user_name),
+):
+    if (user_name != user.name) and not (user.is_manager):
+        raise ForbiddenException("Unable to change password")
+
+    target_user = await UserEntity.load(user_name)
+
+    if not ensure_password_complexity(patch_data.password):
+        raise LowPasswordComplexityException()
+
+    hashed_password = create_password(patch_data.password)
+    target_user._payload.data["password"] = hashed_password
+    await target_user.save()
     return Response(status_code=201)
 
 
