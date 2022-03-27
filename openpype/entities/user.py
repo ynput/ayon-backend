@@ -61,7 +61,7 @@ class UserEntity(Entity):
 
     async def delete(self, transaction=None) -> bool:
         """Delete existing user."""
-        logging.info(f"Deleting user {self.user}")
+        logging.info(f"Deleting user {self.name}")
         if not self.name:
             raise RecordNotFoundException(
                 f"Unable to delete unloaded {self.entity_name}."
