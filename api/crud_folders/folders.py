@@ -93,7 +93,7 @@ async def update_folder(
 
             if access_list is not None:
                 if folder.path not in access_list:
-                    raise ForbiddenException(403)
+                    raise ForbiddenException
 
             folder.patch(post_data)
             await folder.save(transaction=conn)
