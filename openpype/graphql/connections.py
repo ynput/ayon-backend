@@ -33,7 +33,7 @@ class PageInfo:
 @strawberry.type
 class BaseConnection:
     page_info: PageInfo = strawberry.field(
-        default_factory=PageInfo, description="Information to aid in pagination."
+        default_factory=PageInfo, description="Pagination information"
     )
 
 

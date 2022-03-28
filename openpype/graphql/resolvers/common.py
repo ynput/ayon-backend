@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated
 
 import strawberry
 from strawberry.types import Info
@@ -7,6 +7,8 @@ from openpype.access.utils import folder_access_list
 from openpype.graphql.connections import BaseConnection, PageInfo
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID, validate_name
+
+DEFAULT_PAGE_SIZE = 100
 
 
 def argdesc(description):
@@ -80,9 +82,9 @@ async def create_folder_access_list(root, info):
 def create_pagination(
     order_by: str,
     first: int | None = None,
-    after: Any = None,
+    after: str | None = None,
     last: int | None = None,
-    before: Any = None,
+    before: str | None = None,
 ) -> tuple[str, list[str]]:
     pagination = ""
     sql_conditions = []
@@ -123,16 +125,19 @@ async def resolve(
     node_type,
     project_name: str | None,
     query: str,
-    first: int = 0,
-    last: int = 0,
+    first: int | None = None,
+    last: int | None = None,
     context: dict = None,
     order_by: str = "id",
 ) -> BaseConnection:
     """Return a connection object from a query."""
 
-    edges = []
-    count = first or last
+    if not (first or last):
+        count = first = DEFAULT_PAGE_SIZE
+    else:
+        count = first or last
 
+    edges = []
     async for record in Postgres.iterate(query):
         if count and count <= len(edges):
             break

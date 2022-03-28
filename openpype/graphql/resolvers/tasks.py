@@ -133,7 +133,7 @@ async def get_tasks(
     # is not the best idea ever. It skips duplicate names, so it only makes sense
     # for querying tasks of one folder
 
-    order_by = "name"
+    order_by = "id"
     pagination, paging_conds = create_pagination(order_by, first, after, last, before)
     sql_conditions.extend(paging_conds)
 

@@ -43,15 +43,11 @@ async def get_representations(
     # Conditions
     #
 
-    # TODO: Query data only when needed
-    # that means when user wants context or files data
-
     sql_columns = [
         "representations.id AS id",
         "representations.name AS name",
         "representations.version_id AS version_id",
         "representations.attrib AS attrib",
-        "representations.data AS data",
         "representations.active AS active",
         "representations.created_at AS created_at",
         "representations.updated_at AS updated_at",
@@ -59,6 +55,9 @@ async def get_representations(
 
     sql_joins = []
     sql_conditions = []
+
+    if local_site or remote_site:
+        sql_columns.append("representations.data AS data")
 
     if ids:
         sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")

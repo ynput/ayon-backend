@@ -7,7 +7,15 @@ from openpype.utils import SQLTool, validate_name
 from ..connections import ProjectsConnection
 from ..edges import ProjectEdge
 from ..nodes.project import ProjectNode
-from .common import argdesc, resolve
+from .common import (
+    ARGAfter,
+    ARGBefore,
+    ARGFirst,
+    ARGLast,
+    argdesc,
+    create_pagination,
+    resolve,
+)
 
 
 async def get_projects(
@@ -22,24 +30,36 @@ async def get_projects(
             """
         ),
     ] = None,
-    first: int | None = None,
-    after: str | None = None,
-    last: int | None = None,
-    before: str | None = None,
+    first: ARGFirst = None,
+    after: ARGAfter = None,
+    last: ARGLast = None,
+    before: ARGBefore = None,
 ) -> ProjectsConnection:
     """Return a list of projects."""
 
-    conditions = []
+    sql_conditions = []
     if name is not None:
         # if name is valid, it is also safe to use it in a query
         # without worrying about SQL injection
         if not validate_name(name):
             raise ValueError("Invalid project name specified")
-        conditions.append(f"projects.name ILIKE '{name}'")
+        sql_conditions.append(f"projects.name ILIKE '{name}'")
+
+    #
+    # Pagination
+    #
+
+    order_by = "name"
+    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    sql_conditions.extend(paging_conds)
+
+    #
+    #
+    #
 
     query = f"""
         SELECT * FROM projects
-        {SQLTool.conditions(conditions)}
+        {SQLTool.conditions(sql_conditions)}
         ORDER BY name
     """
 
