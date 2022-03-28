@@ -3,13 +3,12 @@ from typing import Annotated
 from strawberry.types import Info
 
 from openpype.exceptions import ForbiddenException
-from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, validate_name
 
 from ..connections import UsersConnection
 from ..edges import UserEdge
 from ..nodes.user import UserNode
-from .common import argdesc
+from .common import argdesc, resolve
 
 
 async def get_users(
@@ -43,16 +42,18 @@ async def get_users(
             raise ValueError("Invalid user name specified")
         conditions.append(f"users.name ILIKE '{name}'")
 
-    return UsersConnection(
-        edges=[
-            UserEdge(node=UserNode.from_record(record))
-            async for record in Postgres.iterate(
-                f"""
-                SELECT * FROM users
-                {SQLTool.conditions(conditions)}
-                """
-            )
-        ]
+    query = f"SELECT * FROM USERS {SQLTool.conditions(conditions)}"
+
+    return await resolve(
+        UsersConnection,
+        UserEdge,
+        UserNode,
+        None,
+        query,
+        first,
+        last,
+        context=info.context,
+        order_by="name",
     )
 
 
