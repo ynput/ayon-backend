@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from openpype.api import dep_current_user
 from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
-from openpype.utils import SQLTool
+from openpype.utils import SQLTool, validate_name
 
 from .router import router
 
@@ -86,8 +86,7 @@ async def list_projects(
     if active is not None:
         conditions.append("archived IS " + "TRUE" if active else "FALSE")
 
-    if name:
-        # TODO: sanitize SQL injection
+    if name and validate_name(name):
         conditions.append(f"name ILIKE '{name}'")
 
     for row in await Postgres.fetch(
