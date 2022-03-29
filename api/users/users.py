@@ -1,16 +1,16 @@
 from fastapi import APIRouter, Depends, Response
-from pydantic import BaseModel, Field
 from nxtools import logging
+from pydantic import BaseModel, Field
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user, dep_user_name
+from openpype.auth.utils import create_password, ensure_password_complexity
 from openpype.entities import UserEntity
 from openpype.exceptions import (
     ForbiddenException,
-    RecordNotFoundException,
     LowPasswordComplexityException,
+    RecordNotFoundException,
 )
-from openpype.auth.utils import create_password, ensure_password_complexity
 
 #
 # Router

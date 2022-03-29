@@ -1,6 +1,7 @@
 import asyncio
 import sys
 
+import asyncpg
 from nxtools import critical_error, log_traceback, logging
 
 from openpype.lib.postgres import Postgres
@@ -42,7 +43,18 @@ DATA = {
 
 
 async def main():
-    await Postgres.connect()
+    while 1:
+        try:
+            await Postgres.connect()
+        except ConnectionRefusedError:
+            logging.info("Waiting for PostgreSQL")
+        except asyncpg.exceptions.CannotConnectNowError:
+            logging.info("PostgreSQL is starting")
+        except Exception:
+            log_traceback()
+        else:
+            break
+        await asyncio.sleep(1)
 
     try:
         await Postgres.fetch("SELECT * FROM projects")

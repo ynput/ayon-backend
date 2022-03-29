@@ -64,7 +64,7 @@ class UserEntity(Entity):
         logging.info(f"Deleting user {self.name}")
         if not self.name:
             raise RecordNotFoundException(
-                f"Unable to delete unloaded {self.entity_name}."
+                f"Unable to delete user {self.name}. Not loaded."
             )
 
         commit = not transaction
@@ -95,18 +95,22 @@ class UserEntity(Entity):
 
     @property
     def is_admin(self) -> bool:
-        return self._payload.data.get("roles", {}).get("admin", False)
+        if not (roles := self._payload.data.get("roles")):
+            return False
+        return roles.get("admin", False)
 
     @property
     def is_manager(self) -> bool:
-        return self._payload.data.get("roles", {}).get(
-            "manager", False
-        ) or self._payload.data.get("roles", {}).get("admin", False)
+        if not (roles := self._payload.data.get("roles")):
+            return False
+        return roles.get("manager", False) or roles.get("admin", False)
 
-    def permissions(self, project_name: str) -> Permissions:
-        """Return user permissions on a given project."""
+    def permissions(self, project_name: str | None = None) -> Permissions:
+        """Return user permissions on a given project.
 
-        # TODO: consider caching this
+        When a project is not specified, only return permissions the user
+        has on all projects.
+        """
 
         active_roles = []
         for role_name, projects in self._payload.data.get("roles", {}).items():

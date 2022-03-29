@@ -1,5 +1,4 @@
 import strawberry
-
 from fastapi import Depends
 from strawberry.dataloader import DataLoader
 from strawberry.fastapi import GraphQLRouter
