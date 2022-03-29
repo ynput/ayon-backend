@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Response
 from nxtools import logging
 from pydantic import BaseModel, Field
+from typing import Literal
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user, dep_user_name
@@ -129,7 +130,7 @@ class ChangePasswordRequestModel(BaseModel):
     )
 
 
-@router.post("/{user_name}/password", status_code=204, response_class=Response)
+@router.patch("/{user_name}/password", status_code=204, response_class=Response)
 async def change_password(
     patch_data: ChangePasswordRequestModel,
     user: UserEntity = Depends(dep_current_user),
@@ -146,7 +147,60 @@ async def change_password(
     hashed_password = create_password(patch_data.password)
     target_user._payload.data["password"] = hashed_password
     await target_user.save()
-    return Response(status_code=201)
+    return Response(status_code=204)
+
+
+#
+# Assign roles
+#
+
+
+class RoleOnProjects(BaseModel):
+    role: str = Field(..., description="Role name")
+    projects: list[str] | Literal["all"] | None = Field(
+        ..., description="List of project user has the role on"
+    )
+
+
+class AssignRolesRequestModel(BaseModel):
+    roles: list[RoleOnProjects] = Field(default_factory=list)
+
+
+@router.patch("/{user_name}/roles", status_code=204, response_class=Response)
+async def assign_roles(
+    patch_data: AssignRolesRequestModel,
+    user: UserEntity = Depends(dep_current_user),
+    user_name: str = Depends(dep_user_name),
+):
+    if not user.is_manager:
+        raise ForbiddenException("You are not permitted to assign user roles")
+
+    target_user = await UserEntity.load(user_name)
+
+    roles = {**target_user.data.get("roles", {})}
+    messages = []
+    for role in patch_data.roles:
+        if (role.projects is None) and (role.role in roles):
+            logging.info(f"Removing user {user_name} role {role.role}")
+            del roles[role.role]
+            continue
+        messages.append(
+            f"{user.name} assigned '{role.role}' role to {user_name} on projects: "
+            + ", ".join(role.projects)
+            if type(role.projects) == list
+            else "all"
+        )
+        roles[role.role] = role.projects
+
+    # TODO: do not access _payload, use transaction
+
+    target_user._payload.data["roles"] = roles
+    await target_user.save()
+
+    for message in messages:
+        logging.info(message)
+
+    return Response(status_code=204)
 
 
 #
