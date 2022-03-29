@@ -4,7 +4,6 @@ import strawberry
 from strawberry.types import Info
 
 from openpype.entities import TaskEntity
-from openpype.utils import EntityID
 
 from ..resolvers.versions import get_versions
 from ..utils import lazy_type, parse_attrib_data
@@ -58,11 +57,11 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
 
     return TaskNode(
         project_name=project_name,
-        id=EntityID.parse(record["id"]),
+        id=record["id"],
         name=record["name"],
         task_type=record["task_type"],
         assignees=record["assignees"],
-        folder_id=EntityID.parse(record["folder_id"]),
+        folder_id=record["folder_id"],
         attrib=parse_attrib_data(
             TaskAttribType,
             record["attrib"],

@@ -2,6 +2,7 @@ import asyncpg
 import asyncpg.pool
 
 from openpype.config import pypeconfig
+from openpype.utils import json_loads, json_dumps, EntityID
 
 
 class Postgres:
@@ -15,9 +16,26 @@ class Postgres:
         return cls.pool.acquire
 
     @classmethod
+    async def init_connection(self, conn):
+        await conn.set_type_codec(
+            "jsonb",
+            encoder=json_dumps,
+            decoder=json_loads,
+            schema="pg_catalog",
+        )
+        await conn.set_type_codec(
+            "uuid",
+            encoder=lambda x: EntityID.parse(x, True),
+            decoder=lambda x: EntityID.parse(x, True),
+            schema="pg_catalog",
+        )
+
+    @classmethod
     async def connect(cls):
         """Create a PostgreSQL connection pool."""
-        cls.pool = await asyncpg.create_pool(pypeconfig.postgres_url)
+        cls.pool = await asyncpg.create_pool(
+            pypeconfig.postgres_url, init=cls.init_connection
+        )
 
     @classmethod
     async def execute(cls, query, *args):

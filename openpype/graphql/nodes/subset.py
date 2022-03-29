@@ -4,7 +4,6 @@ import strawberry
 from strawberry.types import Info
 
 from openpype.entities import SubsetEntity
-from openpype.utils import EntityID
 
 from ..resolvers.versions import get_versions
 from ..utils import lazy_type, parse_attrib_data
@@ -85,13 +84,13 @@ def subset_from_record(
 
     vlist = []
     for id, vers in zip(record.get("version_ids", []), record.get("version_list", [])):
-        vlist.append(VersionListItem(id=EntityID.parse(id), version=vers))
+        vlist.append(VersionListItem(id=id, version=vers))
 
     return SubsetNode(
         project_name=project_name,
-        id=EntityID.parse(record["id"]),
+        id=record["id"],
         name=record["name"],
-        folder_id=EntityID.parse(record["folder_id"]),
+        folder_id=record["folder_id"],
         family=record["family"],
         attrib=parse_attrib_data(
             SubsetAttribType,

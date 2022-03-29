@@ -14,7 +14,6 @@ from typing import Any
 from nxtools import logging
 
 from openpype.lib.postgres import Postgres
-from openpype.utils import json_loads
 
 from .permissions import Permissions
 
@@ -34,7 +33,7 @@ class Roles:
             cls.add_role(
                 row["name"],
                 row["project_name"],
-                Permissions.from_record(json_loads(row["data"])),
+                Permissions.from_record(row["data"]),
             )
 
     @classmethod

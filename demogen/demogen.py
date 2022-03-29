@@ -16,7 +16,7 @@ from openpype.entities import (
 from openpype.entities.models.attributes import common_attributes
 from openpype.exceptions import RecordNotFoundException
 from openpype.lib.postgres import Postgres
-from openpype.utils import create_uuid, dict_exclude, json_dumps
+from openpype.utils import create_uuid, dict_exclude
 
 from .generators import generators
 
@@ -319,5 +319,5 @@ class DemoGen:
                 site_name,
                 status,
                 priority,
-                json_dumps(fdata),
+                fdata,
             )

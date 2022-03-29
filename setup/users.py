@@ -4,7 +4,6 @@ from nxtools import logging
 
 from openpype.auth.utils import create_password
 from openpype.lib.postgres import Postgres
-from openpype.utils import json_dumps
 
 
 async def deploy_users(
@@ -32,8 +31,8 @@ async def deploy_users(
             logging.info(f"Updating user {user['name']}")
             await Postgres.execute(
                 "UPDATE users SET data = $1, attrib = $2 WHERE name = $3",
-                json_dumps(data),
-                json_dumps(attrib),
+                data,
+                attrib,
                 name,
             )
 
@@ -46,6 +45,6 @@ async def deploy_users(
                 VALUES ($1, TRUE,  $2, $3)
                 """,
                 name,
-                json_dumps(attrib),
-                json_dumps(data),
+                attrib,
+                data,
             )

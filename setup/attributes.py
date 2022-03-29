@@ -5,7 +5,6 @@ import httpx
 from nxtools import logging
 
 from openpype.lib.postgres import Postgres
-from openpype.utils import json_dumps
 
 
 def parse_example(example, atype):
@@ -118,6 +117,6 @@ async def deploy_attributes():
             name,
             position,
             scope,
-            json_dumps(data),
+            data,
         )
         position += 1

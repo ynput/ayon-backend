@@ -4,7 +4,7 @@ import strawberry
 from strawberry.types import Info
 
 from openpype.entities import RepresentationEntity
-from openpype.utils import EntityID, json_dumps, json_loads
+from openpype.utils import EntityID, json_dumps
 
 from ..utils import lazy_type, parse_attrib_data
 from .common import BaseNode
@@ -143,7 +143,7 @@ def representation_from_record(
 ) -> RepresentationNode:  # noqa # no. this line won't be shorter
     """Construct a representation node from a DB row."""
 
-    data = json_loads(record["data"]) or {}
+    data = record.get("data") or {}
     files = data.get("files", {})
 
     local_data = {}
@@ -152,11 +152,11 @@ def representation_from_record(
     remote_files = {}
 
     if "local_data" in record:
-        local_data = json_loads(record["local_data"] or "{}")
+        local_data = record["local_data"] or {}
         local_files = local_data.get("files", {})
 
     if "remote_data" in record:
-        remote_data = json_loads(record["remote_data"] or "{}")
+        remote_data = record["remote_data"] or {}
         remote_files = remote_data.get("files", {})
 
     return RepresentationNode(

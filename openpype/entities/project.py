@@ -8,7 +8,7 @@ from nxtools import log_traceback, logging
 
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.lib.postgres import Postgres
-from openpype.utils import SQLTool, dict_exclude, json_dumps, json_loads
+from openpype.utils import SQLTool, dict_exclude
 
 from .common import Entity, EntityType, attribute_library
 from .models import ModelSet
@@ -33,7 +33,7 @@ async def aux_table_update(conn, table, update_data):
     # Fetch the current data first
     old_data = {}
     for row in await conn.fetch(f"SELECT name, data FROM {table}"):
-        old_data[row["name"]] = json_loads(row["data"])
+        old_data[row["name"]] = row["data"]
 
     for name, data in update_data.items():
         if name in old_data:
@@ -48,7 +48,7 @@ async def aux_table_update(conn, table, update_data):
                 await conn.execute(
                     f"UPDATE {table} SET name = $1, data = $2 WHERE name = $3",
                     new_name,
-                    json_dumps(data),
+                    data,
                     name,
                 )
 
@@ -56,7 +56,7 @@ async def aux_table_update(conn, table, update_data):
                 # Update
                 await conn.execute(
                     f"UPDATE {table} SET data = $1 WHERE name = $2",
-                    json_dumps(data),
+                    data,
                     name,
                 )
         else:
@@ -64,7 +64,7 @@ async def aux_table_update(conn, table, update_data):
             await conn.execute(
                 f"INSERT INTO {table} (name, data) VALUES ($1, $2)",
                 name,
-                json_dumps(data),
+                data,
             )
 
         # We always get all records in the update_data (since the original)
@@ -116,7 +116,7 @@ class ProjectEntity(Entity):
             {'FOR UPDATE' if transaction and for_update else ''}
             """
         ):
-            folder_types[name] = json_loads(data)
+            folder_types[name] = data
 
         # Load task types
         task_types = {}
@@ -127,7 +127,7 @@ class ProjectEntity(Entity):
             {'FOR UPDATE' if transaction and for_update else ''}
             """
         ):
-            task_types[name] = json_loads(data)
+            task_types[name] = data
 
         try:
             return cls.from_record(
@@ -204,7 +204,7 @@ class ProjectEntity(Entity):
                 VALUES($1, $2)
                 """,
                 name,
-                json_dumps(data),
+                data,
             )
 
         for name, data in self.task_types.items():
@@ -214,7 +214,7 @@ class ProjectEntity(Entity):
                 VALUES($1, $2)
                 """,
                 name,
-                json_dumps(data),
+                data,
             )
         return True
 

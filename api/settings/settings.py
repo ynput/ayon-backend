@@ -4,7 +4,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from openpype.lib.postgres import Postgres
-from openpype.utils import json_loads
 
 router = APIRouter(prefix="", include_in_schema=False)
 
@@ -33,7 +32,7 @@ async def get_settings():
 
     attributes: list[AttributeModel] = []
     async for row in Postgres.iterate(query):
-        data: dict[str, Any] = json_loads(row["data"])
+        data: dict[str, Any] = row["data"]
 
         # TODO: skip attributes user does not have read access to
         # TODO: set writable flag according to user rights

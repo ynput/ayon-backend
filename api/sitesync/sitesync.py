@@ -7,7 +7,7 @@ from openpype.api import dep_current_user, dep_project_name, dep_representation_
 from openpype.entities.representation import RepresentationEntity
 from openpype.entities.user import UserEntity
 from openpype.lib.postgres import Postgres
-from openpype.utils import EntityID, SQLTool, json_dumps, json_loads
+from openpype.utils import SQLTool
 
 from .models import (
     FileModel,
@@ -228,17 +228,17 @@ async def get_site_sync_state(
     repres = []
 
     async for row in Postgres.iterate(query):
-        rdata = json_loads(row["represenation_data"])
+        rdata = row["represenation_data"]
         files = rdata.get("files", {})
         file_count = len(files)
         total_size = sum([f.get("size") for f in files.values()])
 
-        ldata = json_loads(row["local_data"] or "{}")
+        ldata = row["local_data"] or {}
         lfiles = ldata.get("files", {})
         lsize = sum([f.get("size") for f in lfiles.values()] or [0])
         ltime = max([f.get("timestamp") for f in lfiles.values()] or [0])
 
-        rdata = json_loads(row["remote_data"] or "{}")
+        rdata = row["remote_data"] or {}
         rfiles = ldata.get("files", {})
         rsize = sum([f.get("size") for f in rfiles.values()] or [0])
         rtime = max([f.get("timestamp") for f in rfiles.values()] or [0])
@@ -299,7 +299,7 @@ async def get_site_sync_state(
                 subset=row["subset"],
                 version=row["version"],
                 representation=row["representation"],
-                representationId=EntityID.parse(row["representation_id"]),
+                representationId=row["representation_id"],
                 fileCount=file_count,
                 size=total_size,
                 localStatus=local_status,
@@ -360,7 +360,7 @@ async def set_site_sync_representation_state(
                         "timestamp": 0,
                     }
             else:
-                files = json_loads(result[0]["data"]).get("files")
+                files = result[0]["data"].get("files")
                 if priority is None:
                     priority = result[0]["priority"]
 
@@ -394,7 +394,7 @@ async def set_site_sync_representation_state(
                     site_name,
                     status,
                     post_data.priority if post_data.priority is not None else 50,
-                    json_dumps({"files": files}),
+                    {"files": files},
                 )
             else:
                 await conn.execute(
@@ -404,7 +404,7 @@ async def set_site_sync_representation_state(
                     WHERE representation_id = $4 AND site_name = $5
                     """,
                     status,
-                    json_dumps({"files": files}),
+                    {"files": files},
                     priority,
                     representation_id,
                     site_name,

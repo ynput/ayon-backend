@@ -191,20 +191,13 @@ class SQLTool:
         keys = list(kwargs.keys())
         command = f"""
             INSERT INTO {table}
-            ({
-                ', '.join(keys)
-            })
+            ({', '.join(keys)})
             VALUES
-            ({
-                ', '.join([f'${i+1}' for i, _ in enumerate(keys)])
-            })
+            ({ ', '.join([f'${i+1}' for i, _ in enumerate(keys)]) })
             """
         result = [command]
         for key in keys:
-            if type(kwargs[key]) == dict:
-                result.append(json_dumps(kwargs[key]))
-            else:
-                result.append(kwargs[key])
+            result.append(kwargs[key])
         return result
 
     @staticmethod
@@ -234,8 +227,5 @@ class SQLTool:
 
         result = [command]
         for key in keys:
-            if type(kwargs[key]) == dict:
-                result.append(json_dumps(kwargs[key]))
-            else:
-                result.append(kwargs[key])
+            result.append(kwargs[key])
         return result

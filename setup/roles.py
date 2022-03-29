@@ -1,5 +1,4 @@
 from openpype.lib.postgres import Postgres
-from openpype.utils import json_dumps
 
 
 async def deploy_roles(roles: list[dict]):
@@ -14,5 +13,5 @@ async def deploy_roles(roles: list[dict]):
             """,
             role["name"],
             role.get("project_name", "_"),
-            json_dumps(role["data"]),
+            role["data"],
         )

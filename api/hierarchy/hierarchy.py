@@ -115,8 +115,8 @@ async def get_folder_hierarchy(
     """
     async for row in Postgres.iterate(query):
         d = {
-            "id": EntityID.parse(row["id"]),
-            "parentId": EntityID.parse(row["parent_id"], allow_nulls=True),
+            "id": row["id"],
+            "parentId": row["parent_id"],
             "name": row["name"],
             "folderType": row["folder_type"],
             "parents": row["path"].split("/")[:-1],

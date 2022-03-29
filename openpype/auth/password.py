@@ -2,7 +2,6 @@ from nxtools import logging
 
 from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
-from openpype.utils import json_dumps, json_loads
 
 from .session import Session, SessionModel
 from .utils import create_password, ensure_password_complexity, hash_password
@@ -59,11 +58,11 @@ class PasswordAuth:
             logging.error(f"Unable to change password. User {name} not found")
             return
 
-        user_data = json_loads(result[0][0]) or {}
+        user_data = result[0][0] or {}
         user_data["password"] = create_password(password)
 
         await Postgres.execute(
             "UPDATE public.users SET data = $1 WHERE name = $2",
-            json_dumps(user_data),
+            user_data,
             name,
         )

@@ -1,7 +1,6 @@
 import strawberry
 
 from openpype.entities import FolderEntity
-from openpype.utils import EntityID
 
 from ..resolvers.subsets import get_subsets
 from ..resolvers.tasks import get_tasks
@@ -52,11 +51,11 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
     """Construct a folder node from a DB row."""
     return FolderNode(
         project_name=project_name,
-        id=EntityID.parse(record["id"]),
+        id=record["id"],
         name=record["name"],
         active=record["active"],
         folder_type=record["folder_type"],
-        parent_id=EntityID.parse(record["parent_id"], allow_nulls=True),
+        parent_id=record["parent_id"],
         attrib=parse_attrib_data(
             FolderAttribType, record["attrib"], context["user"], project_name
         ),

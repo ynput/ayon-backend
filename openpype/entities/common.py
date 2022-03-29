@@ -17,7 +17,7 @@ from openpype.access.utils import ensure_entity_access
 from openpype.entities.models import ModelSet
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.lib.postgres import Postgres
-from openpype.utils import EntityID, SQLTool, dict_exclude, json_loads
+from openpype.utils import SQLTool, dict_exclude
 
 
 class AttributeLibrary:
@@ -50,7 +50,7 @@ class AttributeLibrary:
         query = "SELECT name, scope, data from public.attributes"
         await Postgres.connect()
         async for row in Postgres.iterate(query):
-            attrd = {"name": row["name"], **json_loads(row["data"])}
+            attrd = {"name": row["name"], **row["data"]}
             for scope in row["scope"]:
                 self.data[scope].append(attrd)
 
@@ -165,13 +165,7 @@ class Entity:
         for key in cls.model.main_model.__fields__:
             if key not in kwargs:
                 continue  # there are optional keys too
-            value = kwargs[key]
-            if key in ["data", "attrib", "config"]:
-                parsed[key] = json_loads(kwargs[key])
-            elif key == "id" or key.endswith("_id"):
-                parsed[key] = EntityID.parse(value, allow_nulls=True)
-            else:
-                parsed[key] = value
+            parsed[key] = kwargs[key]
         return cls(project_name=project_name, exists=True, validate=validate, **parsed)
 
     def __bool__(self) -> bool:
@@ -304,7 +298,7 @@ class Entity:
             {'FOR UPDATE' if transaction and for_update else ''}
             """
 
-        async for record in Postgres.iterate(query, EntityID.parse(entity_id)):
+        async for record in Postgres.iterate(query, entity_id):
             return cls.from_record(project_name=project_name, validate=False, **record)
         raise RecordNotFoundException("Entity not found")
 
