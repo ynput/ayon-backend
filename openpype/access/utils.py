@@ -1,26 +1,34 @@
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool
+from openpype.access.common import AccessType, EntityType
 
 if TYPE_CHECKING:
     from openpype.entities import UserEntity
 
 
-def path_to_paths(path: str) -> list[str]:
-    path = path.strip()
+def path_to_paths(
+    path: str,
+    include_parents: bool = False,
+    include_self: bool = True,
+) -> list[str]:
+    path = path.strip().strip("/")
     pelms = path.split("/")
     result = [f'"{path}/%"']
-    for i in range(len(pelms)):
-        result.append(f"\"{'/'.join(pelms[0:i+1])}\"")
+    if include_parents:
+        for i in range(len(pelms)):
+            result.append(f"\"{'/'.join(pelms[0:i+1])}\"")
+    elif include_self:
+        result.append("/".join(pelms))
     return result
 
 
 async def folder_access_list(
     user: "UserEntity",
     project_name: str,
-    access_type: Literal["read", "write"] = "read",
+    access_type: AccessType = "read",
 ) -> list[str] | None:
     """Return a list of paths user has access to
 
@@ -48,7 +56,19 @@ async def folder_access_list(
 
     for perm in perms.__getattribute__(access_type):
         if perm.access_type == "hierarchy":
-            for path in path_to_paths(perm.path):
+            for path in path_to_paths(
+                perm.path,
+                # Read access implies reading parent folders
+                include_parents=access_type == "read",
+            ):
+                fpaths.add(path)
+
+        elif perm.access_type == "children":
+            for path in path_to_paths(
+                perm.path,
+                include_parents=access_type == "read",
+                include_self=False,
+            ):
                 fpaths.add(path)
 
         elif perm.access_type == "assigned":
@@ -64,7 +84,11 @@ async def folder_access_list(
                     '{user.name}' = ANY (t.assignees)
                 """
             async for record in Postgres.iterate(query):
-                for path in path_to_paths(record["path"]):
+                for path in path_to_paths(
+                    record["path"],
+                    include_parents=access_type == "read",
+                    include_self=True,
+                ):
                     fpaths.add(path)
 
     if not fpaths:
@@ -76,9 +100,9 @@ async def folder_access_list(
 async def ensure_entity_access(
     user: "UserEntity",
     project_name: str,
-    entity_type: Literal["folder", "subset", "task", "version", "representation"],
+    entity_type: EntityType,
     entity_id: str,
-    access_type: Literal["read", "write"] = "read",
+    access_type: AccessType = "read",
 ):
     """Check whether the user has access to a given entity.
 

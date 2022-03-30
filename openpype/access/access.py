@@ -10,10 +10,13 @@ class FolderAccess(BaseModel):
         return hash(json.dumps(self.dict()))
 
 
-class AccessToHierarchy(FolderAccess):
+class AccessHierarchy(FolderAccess):
     access_type: str = "hierarchy"
     path: str
 
+class AccessChildren(FolderAccess):
+    access_type: str = "children"
+    path: str
 
-class AccessToAssigned(FolderAccess):
+class AccessAssigned(FolderAccess):
     access_type: str = "assigned"

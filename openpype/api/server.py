@@ -25,6 +25,7 @@ app = fastapi.FastAPI(
 
 @app.exception_handler(OpenPypeException)
 async def openpype_exception_handler(request: fastapi.Request, exc: OpenPypeException):
+    print(request.url)
     return fastapi.responses.JSONResponse(
         status_code=exc.status,
         content=ErrorResponse(code=exc.status, detail=exc.detail).dict(),

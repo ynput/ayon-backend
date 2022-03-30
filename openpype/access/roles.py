@@ -1,26 +1,8 @@
-"""
-
-Built-in roles
-
-admin
-Can modify system settings, implies user_admin and project_admin
-
-manager
-Can create and remove users, grants privileges, create/delete projects
-"""
-
 from typing import Any
-
 from nxtools import logging
 
 from openpype.lib.postgres import Postgres
-
-from .permissions import Permissions
-
-BUILT_IN_ROLES = [
-    "admin",
-    "manager",
-]
+from openpype.access.permissions import Permissions
 
 
 class Roles:

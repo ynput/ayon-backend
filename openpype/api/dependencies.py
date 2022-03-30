@@ -66,6 +66,17 @@ async def dep_user_name(
     return user_name
 
 
+async def dep_role_name(
+    role_name: str = Path(
+        ...,
+        title="Role name",
+        regex=r"^[0-9a-zA-Z_]*$",
+    )
+) -> str:
+    """Validate a role name specified in an endpoint path"""
+    return role_name
+
+
 async def dep_folder_id(
     folder_id: str = Path(..., title="Folder ID", **EntityID.META)
 ) -> str:

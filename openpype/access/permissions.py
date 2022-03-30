@@ -1,10 +1,9 @@
 from typing import Literal
-
 from pydantic import BaseModel, Field
 
-from .access import AccessToAssigned, AccessToHierarchy
+from openpype.access.access import AccessAssigned, AccessHierarchy, AccessChildren
 
-AccessList = list[AccessToHierarchy | AccessToAssigned] | Literal["all"]
+AccessList = list[AccessHierarchy | AccessAssigned | AccessChildren] | Literal["all"]
 
 
 class Permissions(BaseModel):
@@ -15,14 +14,24 @@ class Permissions(BaseModel):
     value.
     """
 
+    create: AccessList = Field(
+        default_factory=list,
+        description="Defines a set of folders, in which the use can create children",
+    )
+
     read: AccessList = Field(
         default_factory=list,
         description="Defines a set of folders, to which the user has read access.",
     )
 
-    write: AccessList = Field(
+    update: AccessList = Field(
         default_factory=list,
         description="Defines a set of folders, to which the user has write access.",
+    )
+
+    delete: AccessList = Field(
+        default_factory=list,
+        description="Defines a set of folders, which user can delete",
     )
 
     attrib_read: list[str] | Literal["all"] = Field(
@@ -46,9 +55,11 @@ class Permissions(BaseModel):
                 access_list = []
                 for access in value:
                     if access["access_type"] == "hierarchy":
-                        access_list.append(AccessToHierarchy(path=access["path"]))
+                        access_list.append(AccessHierarchy(path=access["path"]))
+                    elif access["access_type"] == "children":
+                        access_list.append(AccessChildren(path=access["path"]))
                     elif access["access_type"] == "assigned":
-                        access_list.append(AccessToAssigned())
+                        access_list.append(AccessAssigned())
                 permissions[key] = access_list
             else:
                 permissions[key] = value
