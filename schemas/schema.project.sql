@@ -204,3 +204,30 @@ CREATE TABLE files (
 
 CREATE INDEX file_status_idx ON files(status);
 CREATE INDEX file_priority_idx ON files(priority desc);
+
+-----------
+-- LINKS --
+-----------
+
+CREATE TABLE link_types(
+    name varchar NOT NULL PRIMARY KEY,
+    input_type VARCHAR NOT NULL,
+    output_type VARCHAR NOT NULL,
+    link_type VARCHAR NOT NULL,
+    data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+CREATE UNIQUE INDEX link_type_unique_idx ON link_types(input_type, output_type, link_type);
+
+CREATE TABLE links (
+    id UUID NOT NULL PRIMARY KEY,
+    input_id UUID NOT NULL,
+    output_id UUID NOT NULL,
+    link_name VARCHAR NOT NULL REFERENCES link_types(name) ON DELETE CASCADE,
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+);
+
+CREATE INDEX link_input_idx ON links(input_id);
+CREATE INDEX link_output_idx ON links(output_id);
+CREATE UNIQUE INDEX link_unique_idx ON links(input_id, output_id, link_name);

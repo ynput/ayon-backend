@@ -149,6 +149,9 @@ class Entity:
         else:
             self.project_name = project_name
 
+    def __repr__(self):
+        return f"<{self.entity_name} {self.name}>"
+
     @classmethod
     def from_record(cls, project_name=None, validate=False, **kwargs):
         """Return an entity instance based on a DB record.

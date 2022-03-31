@@ -11,6 +11,8 @@ class LinkEdge(BaseEdge):
     entity_id: str = strawberry.field()
     link_type: str = strawberry.field(default="something")
     direction: str = strawberry.field(default="in")
+    description: str = strawberry.field(default="")
+    author: str | None = strawberry.field(default=None)
     cursor: str | None = strawberry.field(default=None)
 
     @strawberry.field(description="Linked node")
@@ -21,6 +23,9 @@ class LinkEdge(BaseEdge):
         elif self.entity_type == "version":
             loader = info.context["version_loader"]
             parser = info.context["version_from_record"]
+        elif self.entity_type == "subset":
+            loader = info.context["subset_loader"]
+            parser = info.context["subset_from_record"]
         else:
             raise ValueError
         record = await loader.load((self.project_name, self.entity_id))
@@ -44,6 +49,20 @@ class BaseNode:
     updated_at: int = strawberry.field()
 
     @strawberry.field
-    async def links(self, info: Info) -> LinksConnection:
+    async def links(
+        self,
+        info: Info,
+        direction: str | None = None,
+        link_type: str | None = None,
+        first: int = 100,
+        after: str = None
+    ) -> LinksConnection:
         resolver = info.context["links_resolver"]
-        return await resolver(self, info)
+        return await resolver(
+            root=self,
+            info=info,
+            direction=direction,
+            link_type=link_type,
+            first=first,
+            after=after
+        )
