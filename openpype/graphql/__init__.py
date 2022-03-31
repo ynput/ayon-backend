@@ -6,9 +6,8 @@ from strawberry.types import Info
 
 from openpype.api.dependencies import dep_current_user
 from openpype.entities import UserEntity
-
-from .connections import ProjectsConnection, UsersConnection
-from .dataloaders import (
+from openpype.graphql.connections import ProjectsConnection, UsersConnection
+from openpype.graphql.dataloaders import (
     folder_loader,
     latest_version_loader,
     subset_loader,
@@ -16,15 +15,16 @@ from .dataloaders import (
     user_loader,
     version_loader,
 )
-from .nodes.folder import folder_from_record
-from .nodes.project import ProjectNode, project_from_record
-from .nodes.representation import representation_from_record
-from .nodes.subset import subset_from_record
-from .nodes.task import task_from_record
-from .nodes.user import UserAttribType, UserNode, user_from_record
-from .nodes.version import version_from_record
-from .resolvers.projects import get_project, get_projects
-from .resolvers.users import get_user, get_users
+from openpype.graphql.nodes.folder import folder_from_record
+from openpype.graphql.nodes.project import ProjectNode, project_from_record
+from openpype.graphql.nodes.representation import representation_from_record
+from openpype.graphql.nodes.subset import subset_from_record
+from openpype.graphql.nodes.task import task_from_record
+from openpype.graphql.nodes.user import UserAttribType, UserNode, user_from_record
+from openpype.graphql.nodes.version import version_from_record
+from openpype.graphql.resolvers.links import get_links
+from openpype.graphql.resolvers.projects import get_project, get_projects
+from openpype.graphql.resolvers.users import get_user, get_users
 
 
 async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> dict:
@@ -47,6 +47,8 @@ async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> d
         "version_loader": DataLoader(load_fn=version_loader),
         "latest_version_loader": DataLoader(load_fn=latest_version_loader),
         "user_loader": DataLoader(load_fn=user_loader),
+        # Other
+        "links_resolver": get_links,
     }
 
 
@@ -65,24 +67,35 @@ class Query:
     )
 
     projects: ProjectsConnection = strawberry.field(
-        description="Get a list of projects", resolver=get_projects
+        description="Get a list of projects",
+        resolver=get_projects,
     )
 
     users: UsersConnection = strawberry.field(
-        description="Get a list of users", resolver=get_users
+        description="Get a list of users",
+        resolver=get_users,
     )
 
     user: UserNode = strawberry.field(
-        description="Get a user by name", resolver=get_user
+        description="Get a user by name",
+        resolver=get_user,
     )
 
     @strawberry.field(description="Current user")
     def me(self, info: Info) -> UserNode:
         user = info.context["user"]
-        return UserNode(name=user.name, attrib=UserAttribType(**user.attrib))
+        return UserNode(
+            name=user.name,
+            active=user.active,
+            updated_at=user.updated_at,
+            created_at=user.created_at,
+            attrib=UserAttribType(**user.attrib),
+        )
 
 
 schema = strawberry.Schema(query=Query)
 router = GraphQLRouter(
-    schema=schema, graphiql=False, context_getter=graphql_get_context
+    schema=schema,
+    graphiql=False,
+    context_getter=graphql_get_context,
 )

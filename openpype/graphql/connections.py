@@ -1,17 +1,6 @@
-__all__ = [
-    "ProjectsConnection",
-    "UsersConnection",
-    "FoldersConnection",
-    "TasksConnection",
-    "SubsetsConnection",
-    "VersionsConnection",
-    "RepresentationsConnection",
-    "PageInfo",
-]
-
 import strawberry
 
-from .edges import (
+from openpype.graphql.edges import (
     FolderEdge,
     ProjectEdge,
     RepresentationEdge,
@@ -20,21 +9,7 @@ from .edges import (
     UserEdge,
     VersionEdge,
 )
-
-
-@strawberry.type
-class PageInfo:
-    has_next_page: bool = False
-    has_previous_page: bool = False
-    start_cursor: str | None = None
-    end_cursor: str | None = None
-
-
-@strawberry.type
-class BaseConnection:
-    page_info: PageInfo = strawberry.field(
-        default_factory=PageInfo, description="Pagination information"
-    )
+from openpype.graphql.types import BaseConnection
 
 
 @strawberry.type

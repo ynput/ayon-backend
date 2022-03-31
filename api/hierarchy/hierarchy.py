@@ -38,7 +38,8 @@ class HierarchyFolderModel(BaseModel):
     hasTasks: bool
     parents: list[str]
     children: list[HierarchyFolderModel] = Field(
-        default_factory=list, title="List of children"
+        default_factory=list,
+        title="List of children",
     )
 
 

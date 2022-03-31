@@ -40,7 +40,7 @@ async def get_users(
 
     user = info.context["user"]
     if not user.is_manager:
-        return ForbiddenException("Only managers and administrators can view users")
+        raise ForbiddenException("Only managers and administrators can view users")
 
     sql_conditions = []
     if name is not None:

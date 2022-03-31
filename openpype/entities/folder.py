@@ -26,7 +26,7 @@ class FolderEntity(Entity):
         """
         project_name = project_name.lower()
 
-        if not (entity_id := EntityID.parse(entity_id)):
+        if EntityID.parse(entity_id) is None:
             raise ValueError(f"Invalid {cls.entity_name} ID specified")
 
         query = f"""

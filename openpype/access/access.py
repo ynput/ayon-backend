@@ -14,9 +14,11 @@ class AccessHierarchy(FolderAccess):
     access_type: str = "hierarchy"
     path: str
 
+
 class AccessChildren(FolderAccess):
     access_type: str = "children"
     path: str
+
 
 class AccessAssigned(FolderAccess):
     access_type: str = "assigned"

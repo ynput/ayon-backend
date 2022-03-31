@@ -48,4 +48,4 @@ def lazy_type(name: str, module: str) -> strawberry.LazyType:
     to THIS file (root of the graphql module)
     e.g. `.nodes.node` or `.connection`
     """
-    return strawberry.LazyType[name, module]
+    return strawberry.LazyType[name, module]  # type: ignore

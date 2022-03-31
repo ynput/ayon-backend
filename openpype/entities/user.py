@@ -54,6 +54,7 @@ class UserEntity(Entity):
             return True
 
         await conn.execute(*SQLTool.insert("users", **self.dict(exclude_none=True)))
+        return True
 
     #
     # Delete

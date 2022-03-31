@@ -1,7 +1,8 @@
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
-from openpype.access.access import AccessAssigned, AccessHierarchy, AccessChildren
+from openpype.access.access import AccessAssigned, AccessChildren, AccessHierarchy
 
 AccessList = list[AccessHierarchy | AccessAssigned | AccessChildren] | Literal["all"]
 

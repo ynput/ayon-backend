@@ -1,30 +1,32 @@
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import strawberry
 
 from openpype.entities import ProjectEntity
+from openpype.graphql.resolvers.folders import get_folder, get_folders
+from openpype.graphql.resolvers.representations import (
+    get_representation,
+    get_representations,
+)
+from openpype.graphql.resolvers.subsets import get_subset, get_subsets
+from openpype.graphql.resolvers.tasks import get_task, get_tasks
+from openpype.graphql.resolvers.versions import get_version, get_versions
+from openpype.graphql.utils import parse_attrib_data
 from openpype.lib.postgres import Postgres
 
-from ..connections import (
-    FoldersConnection,
-    RepresentationsConnection,
-    SubsetsConnection,
-    TasksConnection,
-    VersionsConnection,
-)
-from ..resolvers.folders import get_folder, get_folders
-from ..resolvers.representations import get_representation, get_representations
-from ..resolvers.subsets import get_subset, get_subsets
-from ..resolvers.tasks import get_task, get_tasks
-from ..resolvers.versions import get_version, get_versions
-from ..utils import lazy_type, parse_attrib_data
-from .common import BaseNode
-
-FolderNode = lazy_type("FolderNode", ".nodes.folder")
-SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
-TaskNode = lazy_type("TaskNode", ".nodes.task")
-VersionNode = lazy_type("VersionNode", ".nodes.version")
-RepresentationNode = lazy_type("RepresentationNode", ".nodes.representation")
+if TYPE_CHECKING:
+    from openpype.graphql.connections import (
+        FoldersConnection,
+        RepresentationsConnection,
+        SubsetsConnection,
+        TasksConnection,
+        VersionsConnection,
+    )
+    from openpype.graphql.nodes.folder import FolderNode
+    from openpype.graphql.nodes.representation import RepresentationNode
+    from openpype.graphql.nodes.subset import SubsetNode
+    from openpype.graphql.nodes.task import TaskNode
+    from openpype.graphql.nodes.version import VersionNode
 
 
 @strawberry.type
@@ -46,47 +48,64 @@ class ProjectAttribType:
     pass
 
 
-@ProjectEntity.strawberry_entity()
-class ProjectNode(BaseNode):
+@strawberry.type
+class ProjectNode:
+    name: str = strawberry.field()
+    project_name: str = strawberry.field()
+    attrib: ProjectAttribType
+    active: bool
+    library: bool
+    created_at: int
+    updated_at: int
 
-    folder: Optional[FolderNode] = strawberry.field(
-        resolver=get_folder, description=get_folder.__doc__
+    folder: "FolderNode" = strawberry.field(
+        resolver=get_folder,
+        description=get_folder.__doc__,
     )
 
-    folders: FoldersConnection = strawberry.field(
-        resolver=get_folders, description=get_folders.__doc__
+    folders: "FoldersConnection" = strawberry.field(
+        resolver=get_folders,
+        description=get_folders.__doc__,
     )
 
-    task: Optional[TaskNode] = strawberry.field(
-        resolver=get_task, description=get_task.__doc__
+    task: "TaskNode" = strawberry.field(
+        resolver=get_task,
+        description=get_task.__doc__,
     )
 
-    tasks: TasksConnection = strawberry.field(
-        resolver=get_tasks, description=get_tasks.__doc__
+    tasks: "TasksConnection" = strawberry.field(
+        resolver=get_tasks,
+        description=get_tasks.__doc__,
     )
 
-    subset: Optional[SubsetNode] = strawberry.field(
-        resolver=get_subset, description=get_subset.__doc__
+    subset: "SubsetNode" = strawberry.field(
+        resolver=get_subset,
+        description=get_subset.__doc__,
     )
 
-    subsets: SubsetsConnection = strawberry.field(
-        resolver=get_subsets, description=get_subsets.__doc__
+    subsets: "SubsetsConnection" = strawberry.field(
+        resolver=get_subsets,
+        description=get_subsets.__doc__,
     )
 
-    version: Optional[VersionNode] = strawberry.field(
-        resolver=get_version, description=get_version.__doc__
+    version: "VersionNode" = strawberry.field(
+        resolver=get_version,
+        description=get_version.__doc__,
     )
 
-    versions: VersionsConnection = strawberry.field(
-        resolver=get_versions, description=get_versions.__doc__
+    versions: "VersionsConnection" = strawberry.field(
+        resolver=get_versions,
+        description=get_versions.__doc__,
     )
 
-    representation: Optional[RepresentationNode] = strawberry.field(
-        resolver=get_representation, description=get_representation.__doc__
+    representation: "RepresentationNode" = strawberry.field(
+        resolver=get_representation,
+        description=get_representation.__doc__,
     )
 
-    representations: RepresentationsConnection = strawberry.field(
-        resolver=get_representations, description=get_representations.__doc__
+    representations: "RepresentationsConnection" = strawberry.field(
+        resolver=get_representations,
+        description=get_representations.__doc__,
     )
 
     @strawberry.field
@@ -138,8 +157,8 @@ class ProjectNode(BaseNode):
 def project_from_record(record: dict, context: dict) -> ProjectNode:
     """Construct a project node from a DB row."""
     return ProjectNode(
-        project_name=record["name"],
         name=record["name"],
+        project_name=record["name"],
         active=record["active"],
         library=record["library"],
         attrib=parse_attrib_data(

@@ -1,16 +1,18 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import strawberry
 from strawberry.types import Info
 
 from openpype.entities import TaskEntity
+from openpype.graphql.nodes.common import BaseNode
+from openpype.graphql.resolvers.versions import get_versions
+from openpype.graphql.utils import lazy_type, parse_attrib_data
 
-from ..resolvers.versions import get_versions
-from ..utils import lazy_type, parse_attrib_data
-from .common import BaseNode
+if TYPE_CHECKING:
+    from openpype.graphql.connections import VersionsConnection
+
 
 FolderNode = lazy_type("FolderNode", ".nodes.folder")
-VersionsConnection = lazy_type("VersionsConnection", "..connections")
 
 
 @TaskEntity.strawberry_attrib()
@@ -18,10 +20,18 @@ class TaskAttribType:
     pass
 
 
-@TaskEntity.strawberry_entity()
+@strawberry.type
 class TaskNode(BaseNode):
-    versions: VersionsConnection = strawberry.field(
-        resolver=get_versions, description=get_versions.__doc__
+    task_type: str
+    assignees: list[str]
+    folder_id: str
+    attrib: TaskAttribType
+
+    # GraphQL specifics
+
+    versions: "VersionsConnection" = strawberry.field(
+        resolver=get_versions,
+        description=get_versions.__doc__,
     )
 
     _folder: Optional[FolderNode] = None
@@ -68,6 +78,7 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
             user=context["user"],
             project_name=project_name,
         ),
+        active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         _folder=folder,

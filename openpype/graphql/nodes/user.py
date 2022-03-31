@@ -1,6 +1,7 @@
-from openpype.entities import UserEntity
+import strawberry
 
-from ..utils import parse_attrib_data
+from openpype.entities import UserEntity
+from openpype.graphql.utils import parse_attrib_data
 
 
 @UserEntity.strawberry_attrib()
@@ -8,11 +9,13 @@ class UserAttribType:
     pass
 
 
-# Do not inherit from BaseNode, because we don't want to expose the
-# project_name field.
-@UserEntity.strawberry_entity()
+@strawberry.type
 class UserNode:
-    pass
+    name: str
+    active: bool
+    created_at: int
+    updated_at: int
+    attrib: UserAttribType
 
 
 def user_from_record(record: dict, context: dict) -> UserNode:

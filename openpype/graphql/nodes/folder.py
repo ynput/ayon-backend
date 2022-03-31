@@ -1,14 +1,15 @@
+from typing import TYPE_CHECKING
+
 import strawberry
 
 from openpype.entities import FolderEntity
+from openpype.graphql.nodes.common import BaseNode
+from openpype.graphql.resolvers.subsets import get_subsets
+from openpype.graphql.resolvers.tasks import get_tasks
+from openpype.graphql.utils import parse_attrib_data
 
-from ..resolvers.subsets import get_subsets
-from ..resolvers.tasks import get_tasks
-from ..utils import lazy_type, parse_attrib_data
-from .common import BaseNode
-
-SubsetsConnection = lazy_type("SubsetsConnection", "..connections")
-TasksConnection = lazy_type("TasksConnection", "..connections")
+if TYPE_CHECKING:
+    from openpype.graphql.connections import SubsetsConnection, TasksConnection
 
 
 @FolderEntity.strawberry_attrib()
@@ -16,18 +17,27 @@ class FolderAttribType:
     pass
 
 
-@FolderEntity.strawberry_entity()
+@strawberry.type
 class FolderNode(BaseNode):
-    children_count: int = 0
-    subset_count: int = 0
-    task_count: int = 0
+    folder_type: str | None
+    parent_id: str
+    path: str
+    attrib: FolderAttribType
 
-    subsets: SubsetsConnection = strawberry.field(
-        resolver=get_subsets, description=get_subsets.__doc__
+    # GraphQL specifics
+
+    children_count: int = strawberry.field(default=0)
+    subset_count: int = strawberry.field(default=0)
+    task_count: int = strawberry.field(default=0)
+
+    subsets: "SubsetsConnection" = strawberry.field(
+        resolver=get_subsets,
+        description=get_subsets.__doc__,
     )
 
-    tasks: TasksConnection = strawberry.field(
-        resolver=get_tasks, description=get_tasks.__doc__
+    tasks: "TasksConnection" = strawberry.field(
+        resolver=get_tasks,
+        description=get_tasks.__doc__,
     )
 
     @strawberry.field
@@ -44,7 +54,12 @@ class FolderNode(BaseNode):
 
     @strawberry.field()
     def parents(self) -> list[str]:
-        return self.path.split("/")[:-1] if self.path else None
+        return self.path.split("/")[:-1] if self.path else []
+
+
+#
+# Entity loader
+#
 
 
 def folder_from_record(project_name: str, record: dict, context: dict) -> FolderNode:
@@ -57,7 +72,10 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         folder_type=record["folder_type"],
         parent_id=record["parent_id"],
         attrib=parse_attrib_data(
-            FolderAttribType, record["attrib"], context["user"], project_name
+            FolderAttribType,
+            record["attrib"],
+            context["user"],
+            project_name,
         ),
         created_at=record["created_at"],
         updated_at=record["updated_at"],

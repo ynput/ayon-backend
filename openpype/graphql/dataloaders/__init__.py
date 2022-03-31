@@ -9,7 +9,7 @@ from typing import Any, NewType
 
 from openpype.exceptions import OpenPypeException
 from openpype.lib.postgres import Postgres
-from openpype.utils import EntityID, SQLTool
+from openpype.utils import SQLTool
 
 KeyType = NewType("KeyType", tuple[str, str])
 KeysType = NewType("KeysType", list[KeyType])
@@ -56,8 +56,8 @@ async def folder_loader(keys: KeysType) -> list[dict | None]:
     """
 
     async for record in Postgres.iterate(query):
-        rid = EntityID.parse(record["id"])
-        result_dict[(project_name, rid)] = record
+        key: KeyType = KeyType((project_name, str(record["id"])))
+        result_dict[key] = record
     return [result_dict[k] for k in keys]
 
 
@@ -108,8 +108,8 @@ async def folder_loader2(keys: KeysType) -> list[dict | None]:
     """
 
     async for record in Postgres.iterate(query):
-        rid = EntityID.parse(record["id"])
-        result_dict[(project_name, rid)] = record
+        key: KeyType = KeyType((project_name, str(record["id"])))
+        result_dict[key] = record
     return [result_dict[k] for k in keys]
 
 
@@ -128,8 +128,8 @@ async def subset_loader(keys: KeysType) -> list[dict | None]:
         """
 
     async for record in Postgres.iterate(query):
-        rid = EntityID.parse(record["id"])
-        result_dict[(project_name, rid)] = record
+        key: KeyType = KeyType((project_name, str(record["id"])))
+        result_dict[key] = record
     return [result_dict[k] for k in keys]
 
 
@@ -148,8 +148,8 @@ async def task_loader(keys: KeysType) -> list[dict | None]:
         """
 
     async for record in Postgres.iterate(query):
-        rid = EntityID.parse(record["id"])
-        result_dict[(project_name, rid)] = record
+        key: KeyType = KeyType((project_name, str(record["id"])))
+        result_dict[key] = record
     return [result_dict[k] for k in keys]
 
 
@@ -168,8 +168,8 @@ async def version_loader(keys: KeysType) -> list[dict | None]:
         """
 
     async for record in Postgres.iterate(query):
-        rid = EntityID.parse(record["id"])
-        result_dict[(project_name, rid)] = record
+        key: KeyType = KeyType((project_name, str(record["id"])))
+        result_dict[key] = record
     return [result_dict[k] for k in keys]
 
 
@@ -201,8 +201,8 @@ async def latest_version_loader(keys: KeysType) -> list[dict | None]:
         """
 
     async for record in Postgres.iterate(query):
-        rid = EntityID.parse(record["subset_id"])
-        result_dict[(project_name, rid)] = record
+        key: KeyType = KeyType((project_name, str(record["id"])))
+        result_dict[key] = record
     return [result_dict[k] for k in keys]
 
 

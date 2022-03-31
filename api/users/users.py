@@ -1,7 +1,8 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Response
 from nxtools import logging
 from pydantic import BaseModel, Field
-from typing import Literal
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user, dep_user_name

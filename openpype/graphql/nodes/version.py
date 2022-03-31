@@ -1,18 +1,19 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import strawberry
 from strawberry.types import Info
 
 from openpype.entities import VersionEntity
-from openpype.utils import EntityID
+from openpype.graphql.nodes.common import BaseNode
+from openpype.graphql.resolvers.representations import get_representations
+from openpype.graphql.utils import lazy_type, parse_attrib_data
 
-from ..resolvers.representations import get_representations
-from ..utils import lazy_type, parse_attrib_data
-from .common import BaseNode
+if TYPE_CHECKING:
+    from openpype.graphql.connections import RepresentationsConnection
+
 
 SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
 TaskNode = lazy_type("TaskNode", ".nodes.task")
-RepresentationsConnection = lazy_type("RepresentationsConnection", ".connections")
 
 
 @VersionEntity.strawberry_attrib()
@@ -20,10 +21,19 @@ class VersionAttribType:
     pass
 
 
-@VersionEntity.strawberry_entity()
+@strawberry.type
 class VersionNode(BaseNode):
-    representations: RepresentationsConnection = strawberry.field(
-        resolver=get_representations, description=get_representations.__doc__
+    version: int
+    subset_id: str
+    task_id: str | None
+    author: str
+    attrib: VersionAttribType
+
+    # GraphQL specifics
+
+    representations: "RepresentationsConnection" = strawberry.field(
+        resolver=get_representations,
+        description=get_representations.__doc__,
     )
 
     @strawberry.field(description="Version name")
@@ -53,16 +63,21 @@ class VersionNode(BaseNode):
         return info.context["task_from_record"](self.project_name, record, info.context)
 
 
+#
+# Entity loader
+#
+
+
 def version_from_record(project_name: str, record: dict, context: dict) -> VersionNode:
     """Construct a version node from a DB row."""
 
-    return VersionNode(
+    return VersionNode(  # type: ignore
         project_name=project_name,
-        id=EntityID.parse(record["id"]),
+        id=record["id"],
         version=record["version"],
         active=record["active"],
-        subset_id=EntityID.parse(record["subset_id"]),
-        task_id=EntityID.parse(record["task_id"], allow_nulls=True),
+        subset_id=record["subset_id"],
+        task_id=record["task_id"],
         author=record["author"],
         attrib=parse_attrib_data(
             VersionAttribType,

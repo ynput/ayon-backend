@@ -2,7 +2,7 @@ import asyncpg
 import asyncpg.pool
 
 from openpype.config import pypeconfig
-from openpype.utils import json_loads, json_dumps, EntityID
+from openpype.utils import EntityID, json_dumps, json_loads
 
 
 class Postgres:

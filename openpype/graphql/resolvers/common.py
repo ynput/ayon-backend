@@ -1,10 +1,10 @@
-from typing import Annotated
+from typing import Annotated, Any, Callable, TypeVar
 
 import strawberry
 from strawberry.types import Info
 
 from openpype.access.utils import folder_access_list
-from openpype.graphql.connections import BaseConnection, PageInfo
+from openpype.graphql.types import PageInfo
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID, validate_name
 
@@ -44,11 +44,13 @@ class FieldInfo:
 
         def parse_fields(fields, name=None):
             for field in fields:
+                if not hasattr(field, "name"):
+                    continue
                 fname = name + "." + field.name if name else field.name
                 yield fname
                 yield from parse_fields(field.selections, fname)
 
-        self.fields = []
+        self.fields: list[str] = []
         for field in parse_fields(info.selected_fields):
             for root in self.roots:
                 if field.startswith(root + "."):
@@ -119,8 +121,11 @@ def create_pagination(
     return pagination, sql_conditions
 
 
+R = TypeVar("R")
+
+
 async def resolve(
-    connection_type,
+    connection_type: Callable[Any, R],
     edge_type,
     node_type,
     project_name: str | None,
@@ -129,7 +134,7 @@ async def resolve(
     last: int | None = None,
     context: dict = None,
     order_by: str = "id",
-) -> BaseConnection:
+) -> R:
     """Return a connection object from a query."""
 
     if not (first or last):

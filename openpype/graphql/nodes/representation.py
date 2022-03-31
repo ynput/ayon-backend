@@ -1,17 +1,15 @@
 import enum
+from typing import Any
 
 import strawberry
 from strawberry.types import Info
 
 from openpype.entities import RepresentationEntity
-from openpype.utils import EntityID, json_dumps
-
-from ..utils import lazy_type, parse_attrib_data
-from .common import BaseNode
+from openpype.graphql.nodes.common import BaseNode
+from openpype.graphql.utils import lazy_type, parse_attrib_data
+from openpype.utils import json_dumps
 
 VersionNode = lazy_type("VersionNode", ".nodes.version")
-SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
-FolderNode = lazy_type("FolderNode", ".nodes.folder")
 
 
 class StatusEnum(enum.IntEnum):
@@ -52,8 +50,13 @@ class RepresentationAttribType:
     pass
 
 
-@RepresentationEntity.strawberry_entity()
+@strawberry.type
 class RepresentationNode(BaseNode):
+    version_id: str
+    attrib: RepresentationAttribType
+
+    # GraphQL specifics
+
     @strawberry.field(description="Parent version of the representation")
     async def version(self, info: Info) -> VersionNode:
         record = await info.context["version_loader"].load(
@@ -72,20 +75,25 @@ class RepresentationNode(BaseNode):
     )
 
     local_status: SyncStatusType | None = strawberry.field(
-        default=None, description="Sync status of the representation on the local site"
+        default=None,
+        description="Sync status of the representation on the local site",
     )
 
     remote_status: SyncStatusType | None = strawberry.field(
-        default=None, description="Sync status of the representation on the remote site"
+        default=None,
+        description="Sync status of the representation on the remote site",
     )
 
     context: str | None = strawberry.field(
-        default=None, description="JSON serialized context data"
+        default=None,
+        description="JSON serialized context data",
     )
 
 
 def parse_files(
-    files: dict, local_files: dict | None = None, remote_files: dict | None = None
+    files: dict,
+    local_files: dict[str, Any],
+    remote_files: dict[str, Any],
 ) -> list[FileNode]:
     """Parse the files from a representation."""
     result = []
@@ -146,8 +154,8 @@ def representation_from_record(
     data = record.get("data") or {}
     files = data.get("files", {})
 
-    local_data = {}
-    remote_data = {}
+    local_data: dict[str, Any] = {}
+    remote_data: dict[str, Any] = {}
     local_files = {}
     remote_files = {}
 
@@ -161,15 +169,16 @@ def representation_from_record(
 
     return RepresentationNode(
         project_name=project_name,
-        id=EntityID.parse(record["id"]),
+        id=record["id"],
         name=record["name"],
-        version_id=EntityID.parse(record["version_id"]),
+        version_id=record["version_id"],
         attrib=parse_attrib_data(
             RepresentationAttribType,
             record["attrib"],
             user=context["user"],
             project_name=project_name,
         ),
+        active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         context=json_dumps(data.get("context")),

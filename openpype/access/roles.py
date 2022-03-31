@@ -1,8 +1,9 @@
 from typing import Any
+
 from nxtools import logging
 
-from openpype.lib.postgres import Postgres
 from openpype.access.permissions import Permissions
+from openpype.lib.postgres import Postgres
 
 
 class Roles:

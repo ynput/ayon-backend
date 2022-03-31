@@ -2,12 +2,10 @@ from typing import Annotated
 
 from strawberry.types import Info
 
-from openpype.utils import SQLTool
-
-from ..connections import VersionsConnection
-from ..edges import VersionEdge
-from ..nodes.version import VersionNode
-from .common import (
+from openpype.graphql.connections import VersionsConnection
+from openpype.graphql.edges import VersionEdge
+from openpype.graphql.nodes.version import VersionNode
+from openpype.graphql.resolvers.common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,
@@ -18,6 +16,7 @@ from .common import (
     create_pagination,
     resolve,
 )
+from openpype.utils import SQLTool
 
 
 async def get_versions(
@@ -28,18 +27,30 @@ async def get_versions(
     last: ARGLast = None,
     before: ARGBefore = None,
     ids: ARGIds = None,
-    subset_ids: Annotated[
-        list[str] | None, argdesc("List of parent subsets IDs")
-    ] = None,
-    task_ids: Annotated[list[str] | None, argdesc("List of parent task IDs")] = None,
-    authors: Annotated[
-        list[str] | None, argdesc("List of version author user names to filter by.")
-    ] = None,
     version: int = None,
-    latestOnly: Annotated[bool, argdesc("List only latest versions")] = False,
-    heroOnly: Annotated[bool, argdesc("List only hero versions")] = False,
+    subset_ids: Annotated[
+        list[str] | None,
+        argdesc("List of parent subsets IDs"),
+    ] = None,
+    task_ids: Annotated[
+        list[str] | None,
+        argdesc("List of parent task IDs"),
+    ] = None,
+    authors: Annotated[
+        list[str] | None,
+        argdesc("List of version author user names to filter by."),
+    ] = None,
+    latestOnly: Annotated[
+        bool,
+        argdesc("List only latest versions"),
+    ] = False,
+    heroOnly: Annotated[
+        bool,
+        argdesc("List only hero versions"),
+    ] = False,
     heroOrLatestOnly: Annotated[
-        bool, argdesc("List hero versions. If hero does not exist, list latest")
+        bool,
+        argdesc("List hero versions. If hero does not exist, list latest"),
     ] = False,
 ) -> VersionsConnection:
     """Return a list of versions."""

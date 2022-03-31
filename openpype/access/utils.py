@@ -1,9 +1,9 @@
 from typing import TYPE_CHECKING
 
+from openpype.access.common import AccessType, EntityType
 from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool
-from openpype.access.common import AccessType, EntityType
 
 if TYPE_CHECKING:
     from openpype.entities import UserEntity

@@ -1,15 +1,15 @@
-from fastapi import APIRouter, Depends, Response, Body
+from fastapi import APIRouter, Body, Depends, Response
 from nxtools import log_traceback
 
 from openpype.access.permissions import Permissions
 from openpype.access.roles import Roles
 from openpype.api import ResponseFactory
-from openpype.api.dependencies import dep_current_user, dep_role_name, dep_project_name
+from openpype.api.dependencies import dep_current_user, dep_project_name, dep_role_name
 from openpype.entities import UserEntity
 from openpype.exceptions import (
+    ConstraintViolationException,
     ForbiddenException,
     RecordNotFoundException,
-    ConstraintViolationException,
 )
 from openpype.lib.postgres import Postgres
 
