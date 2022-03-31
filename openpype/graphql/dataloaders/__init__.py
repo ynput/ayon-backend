@@ -201,7 +201,7 @@ async def latest_version_loader(keys: KeysType) -> list[dict | None]:
         """
 
     async for record in Postgres.iterate(query):
-        key: KeyType = KeyType((project_name, str(record["id"])))
+        key: KeyType = KeyType((project_name, str(record["subset_id"])))
         result_dict[key] = record
     return [result_dict[k] for k in keys]
 
