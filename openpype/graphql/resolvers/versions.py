@@ -27,7 +27,7 @@ async def get_versions(
     last: ARGLast = None,
     before: ARGBefore = None,
     ids: ARGIds = None,
-    version: int = None,
+    version: int | None = None,
     subset_ids: Annotated[
         list[str] | None,
         argdesc("List of parent subsets IDs"),
