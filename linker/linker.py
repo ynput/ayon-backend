@@ -1,8 +1,8 @@
 from nxtools import logging
 
-from openpype.lib.postgres import Postgres
-from openpype.entities.common import Entity
 from openpype.entities import FolderEntity, SubsetEntity, VersionEntity
+from openpype.entities.common import Entity
+from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
 
 

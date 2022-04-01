@@ -66,6 +66,7 @@ async def get_versions(
         "versions.version AS version",
         "versions.subset_id AS subset_id",
         "versions.task_id AS task_id",
+        "versions.thumbnail_id AS thumbnail_id",
         "versions.author AS author",
         "versions.attrib AS attrib",
         "versions.data AS data",

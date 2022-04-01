@@ -13,6 +13,7 @@ from openpype.entities.user import UserEntity
 from openpype.entities.version import VersionEntity
 from openpype.exceptions import RecordNotFoundException
 from openpype.lib.postgres import Postgres
+from openpype.utils import EntityID
 
 #
 # Router
@@ -33,19 +34,25 @@ responses = {
 }
 
 
-async def store_thumbnail(project_name: str, entity_id: str, mime: str, payload: bytes):
+async def store_thumbnail(
+    project_name: str,
+    thumbnail_id: str,
+    mime: str,
+    payload: bytes,
+):
     query = f"""
         INSERT INTO project_{project_name}.thumbnails (id, mime, data)
         VALUES ($1, $2, $3)
         ON CONFLICT (id)
         DO UPDATE SET data = EXCLUDED.data
+        RETURNING id
     """
-    await Postgres.execute(query, entity_id, mime, payload)
+    await Postgres.execute(query, thumbnail_id, mime, payload)
 
 
-async def retrieve_thumbnail(project_name: str, entity_id: str) -> Response:
+async def retrieve_thumbnail(project_name: str, thumbnail_id: str) -> Response:
     query = f"SELECT mime, data FROM project_{project_name}.thumbnails WHERE id = $1"
-    async for record in Postgres.iterate(query, entity_id):
+    async for record in Postgres.iterate(query, thumbnail_id):
         return Response(
             media_type=record["mime"], status_code=200, content=record["data"]
         )
@@ -70,16 +77,24 @@ async def create_folder_thumbnail(
     folder_id: str = Depends(dep_folder_id),
     content_type: str = Depends(dep_thumbnail_content_type),
 ):
+    """Create a new thumbnail for a folder.
+
+    Returns a thumbnail ID, which is also saved into the entity
+    database record.
+    """
     payload = await request.body()
     folder = await FolderEntity.load(project_name, folder_id)
     await folder.ensure_write_access(user)
 
+    thumbnail_id = EntityID.create()
     await store_thumbnail(
         project_name=project_name,
-        entity_id=folder_id,
+        thumbnail_id=thumbnail_id,
         mime=content_type,
         payload=payload,
     )
+    folder._payload.thumbnail_id = thumbnail_id
+    await folder.save()
     return Response(status_code=201)
 
 
@@ -95,7 +110,7 @@ async def get_folder_thumbnail(
 ):
     folder = await FolderEntity.load(project_name, folder_id)
     await folder.ensure_read_access(user)
-    return await retrieve_thumbnail(project_name, folder_id)
+    return await retrieve_thumbnail(project_name, folder.thumbnail_id)
 
 
 #
@@ -117,15 +132,18 @@ async def create_version_thumbnail(
     content_type: str = Depends(dep_thumbnail_content_type),
 ):
     payload = await request.body()
-    folder = await VersionEntity.load(project_name, version_id)
-    await folder.ensure_write_access(user)
+    version = await VersionEntity.load(project_name, version_id)
+    await version.ensure_write_access(user)
 
+    thumbnail_id = EntityID.create()
     await store_thumbnail(
         project_name=project_name,
-        entity_id=version_id,
+        thumbnail_id=thumbnail_id,
         mime=content_type,
         payload=payload,
     )
+    version._payload.thumbnail_id = thumbnail_id
+    await version.save()
     return Response(status_code=201)
 
 
@@ -141,4 +159,4 @@ async def get_version_thumbnail(
 ):
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_read_access(user)
-    return await retrieve_thumbnail(project_name, version_id)
+    return await retrieve_thumbnail(project_name, version.thumbnail_id)

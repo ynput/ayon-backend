@@ -36,7 +36,7 @@ CREATE TABLE folders(
 
     folder_type VARCHAR REFERENCES folder_types(name) ON UPDATE CASCADE ON DELETE SET NULL,
     parent_id UUID REFERENCES folders(id),
---    thumbnail_id INTEGER REFERENCES thumbnails(id),
+    thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -134,7 +134,7 @@ CREATE TABLE versions(
 
     subset_id UUID NOT NULL REFERENCES subsets(id) ON DELETE CASCADE,
     task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
- --   thumbnail_id INTEGER REFERENCES thumbnails(id),
+    thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
     author VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,

@@ -161,7 +161,8 @@ async def change_password(
 class RoleOnProjects(BaseModel):
     role: str = Field(..., description="Role name")
     projects: list[str] | Literal["all"] | None = Field(
-        ..., description="List of project user has the role on",
+        ...,
+        description="List of project user has the role on",
     )
 
 

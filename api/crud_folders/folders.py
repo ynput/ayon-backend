@@ -9,7 +9,10 @@ from openpype.lib.postgres import Postgres
 
 router = APIRouter(
     tags=["Folders"],
-    responses={401: ResponseFactory.error(401), 403: ResponseFactory.error(403)},
+    responses={
+        401: ResponseFactory.error(401),
+        403: ResponseFactory.error(403),
+    },
 )
 
 #
@@ -21,7 +24,9 @@ router = APIRouter(
     "/projects/{project_name}/folders/{folder_id}",
     response_model=FolderEntity.model.main_model,
     response_model_exclude_none=True,
-    responses={404: ResponseFactory.error(404, "Project not found")},
+    responses={
+        404: ResponseFactory.error(404, "Project not found"),
+    },
 )
 async def get_folder(
     user: UserEntity = Depends(dep_current_user),
@@ -44,9 +49,6 @@ async def get_folder(
     "/projects/{project_name}/folders",
     status_code=201,
     response_model=EntityIdResponse,
-    responses={
-        409: ResponseFactory.error(409, "Coflict"),
-    },
 )
 async def create_folder(
     post_data: FolderEntity.model.post_model,

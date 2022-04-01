@@ -26,6 +26,7 @@ class VersionNode(BaseNode):
     version: int
     subset_id: str
     task_id: str | None
+    thumbnail_id: str | None
     author: str
     attrib: VersionAttribType
 
@@ -78,6 +79,7 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
         active=record["active"],
         subset_id=record["subset_id"],
         task_id=record["task_id"],
+        thumbnail_id=record["thumbnail_id"],
         author=record["author"],
         attrib=parse_attrib_data(
             VersionAttribType,

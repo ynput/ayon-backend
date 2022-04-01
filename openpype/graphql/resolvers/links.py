@@ -1,4 +1,5 @@
 from typing import Literal
+
 from nxtools import logging
 from strawberry.types import Info
 
@@ -31,7 +32,6 @@ async def get_links(
 
     if after is not None:
         sql_conditions.append("id > '{after}'")
-
 
     query = f"""
         SELECT id, input_id, output_id, link_name, data, created_at

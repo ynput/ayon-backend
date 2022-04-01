@@ -71,6 +71,7 @@ async def get_folders(
         "folders.active AS active",
         "folders.folder_type AS folder_type",
         "folders.parent_id AS parent_id",
+        "folders.thumbnail_id AS thumbnail_id",
         "folders.attrib AS attrib",
         "folders.created_at AS created_at",
         "folders.updated_at AS updated_at",

@@ -21,6 +21,7 @@ class FolderAttribType:
 class FolderNode(BaseNode):
     folder_type: str | None
     parent_id: str
+    thumbnail_id: str | None
     path: str
     attrib: FolderAttribType
 
@@ -71,6 +72,7 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         active=record["active"],
         folder_type=record["folder_type"],
         parent_id=record["parent_id"],
+        thumbnail_id=record["thumbnail_id"],
         attrib=parse_attrib_data(
             FolderAttribType,
             record["attrib"],

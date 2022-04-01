@@ -35,6 +35,7 @@ class FolderEntity(Entity):
                 f.name as name,
                 f.folder_type as folder_type,
                 f.parent_id as parent_id,
+                f.thumbnail_id as thumbnail_id,
                 f.attrib as attrib,
                 f.data as data,
                 f.active as active,

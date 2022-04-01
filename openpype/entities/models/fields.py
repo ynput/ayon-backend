@@ -26,7 +26,10 @@ project_fields = [
         "type": "dict",
         "default": {},
         "title": "Folder types",
-        "example": {"AssetBuild": {"icon": "asset"}, "Folder": {"icon": "folder"}},
+        "example": {
+            "AssetBuild": {"icon": "asset"},
+            "Folder": {"icon": "folder"},
+        },
     },
     {
         "name": "task_types",
@@ -38,7 +41,12 @@ project_fields = [
             "Animation": {},
         },
     },
-    {"name": "config", "type": "dict", "default": {}, "title": "Project config"},
+    {
+        "name": "config",
+        "type": "dict",
+        "default": {},
+        "title": "Project config",
+    },
 ]
 
 
@@ -66,7 +74,14 @@ folder_fields = [
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
     },
-    #    {"name": "thumbnail_id", "type": "integer", "title": "Thumbnail ID"},
+    {
+        "name": "thumbnail_id",
+        "type": "string",
+        "title": "Thumbnail ID",
+        "required": False,
+        "regex": ENTITY_ID_REGEX,
+        "example": ENTITY_ID_EXAMPLE,
+    },
     {
         "name": "path",
         "type": "string",
@@ -85,8 +100,17 @@ task_fields = [
         "title": "Folder ID",
         "regex": NAME_REGEX,
     },
-    {"name": "task_type", "type": "string", "required": True, "title": "Task type"},
-    {"name": "assignees", "type": "list_of_strings", "title": "Assignees"},
+    {
+        "name": "task_type",
+        "type": "string",
+        "required": True,
+        "title": "Task type",
+    },
+    {
+        "name": "assignees",
+        "type": "list_of_strings",
+        "title": "Assignees",
+    },
     {
         "name": "folder_id",
         "type": "string",
@@ -153,8 +177,19 @@ version_fields = [
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
     },
-    # {"name": "thumbnail_id", "type": "integer"},
-    {"name": "author", "type": "string", "regex": NAME_REGEX},
+    {
+        "name": "thumbnail_id",
+        "type": "string",
+        "title": "Thumbnail ID",
+        "required": False,
+        "regex": ENTITY_ID_REGEX,
+        "example": ENTITY_ID_EXAMPLE,
+    },
+    {
+        "name": "author",
+        "type": "string",
+        "regex": NAME_REGEX,
+    },
 ]
 
 
