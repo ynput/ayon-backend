@@ -90,7 +90,7 @@ async def create_user(
     """Create a new user."""
 
     if not user.is_manager:
-        raise ForbiddenException("You are not allowed to create users")
+        raise ForbiddenException
 
     try:
         nuser = await UserEntity.load(user_name)
@@ -110,7 +110,7 @@ async def delete_user(
 ):
     logging.info(f"[DELETE] /users/{user_name}")
     if not user.is_manager:
-        raise ForbiddenException("You are not allowed to create users")
+        raise ForbiddenException
 
     target_user = await UserEntity.load(user_name)
     await target_user.delete()
@@ -138,12 +138,14 @@ async def change_password(
     user_name: str = Depends(dep_user_name),
 ):
     if (user_name != user.name) and not (user.is_manager):
-        raise ForbiddenException("Unable to change password")
+        # Users can only change their own password
+        # Managers can change any password
+        raise ForbiddenException
 
     target_user = await UserEntity.load(user_name)
 
     if not ensure_password_complexity(patch_data.password):
-        raise LowPasswordComplexityException()
+        raise LowPasswordComplexityException
 
     hashed_password = create_password(patch_data.password)
     target_user._payload.data["password"] = hashed_password
@@ -159,7 +161,7 @@ async def change_password(
 class RoleOnProjects(BaseModel):
     role: str = Field(..., description="Role name")
     projects: list[str] | Literal["all"] | None = Field(
-        ..., description="List of project user has the role on"
+        ..., description="List of project user has the role on",
     )
 
 
@@ -182,11 +184,11 @@ async def assign_roles(
     messages = []
     for role in patch_data.roles:
         if (role.projects is None) and (role.role in roles):
-            logging.info(f"Removing user {user_name} role {role.role}")
+            messages.append(f"Removed user {user_name} role {role.role}")
             del roles[role.role]
             continue
         messages.append(
-            f"{user.name} assigned '{role.role}' role to {user_name} on projects: "
+            f"Assigned '{role.role}' role to {user_name} on projects: "
             + ", ".join(role.projects)
             if type(role.projects) == list
             else "all"
@@ -199,28 +201,6 @@ async def assign_roles(
     await target_user.save()
 
     for message in messages:
-        logging.info(message)
+        logging.info(message, user=user.name)
 
-    return Response(status_code=204)
-
-
-#
-# [PATCH] /api/users/me
-#
-
-
-@router.patch(
-    "/me",
-    status_code=204,
-    response_class=Response,
-)
-async def update_current_user(
-    patch_data: UserEntity.model.patch_model,
-    user: UserEntity = Depends(dep_current_user),
-):
-    """
-    Update the current user information (based on the Authorization header).
-    This is used for "my profile" page.
-    """
-    # TODO: limit the fields that can be updated
     return Response(status_code=204)

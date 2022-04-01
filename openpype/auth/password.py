@@ -34,13 +34,12 @@ class PasswordAuth:
             return None
 
         if "password" not in user.data:
-            logging.error(f"User {name} has no password")
+            logging.error("Log-in using password is not available", user=name)
             return None
 
         pass_hash, pass_salt = user.data["password"].split(":")
 
         if pass_hash != hash_password(password, pass_salt):
-            logging.error(f"User {user.name} has wrong password")
             return None
 
         return await Session.create(user)

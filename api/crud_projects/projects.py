@@ -87,8 +87,8 @@ async def create_project(
     requests to create new entities with a unique ID.
     """
 
-    if not user.is_admin:
-        raise ForbiddenException("You are not allowed to create projects")
+    if not user.is_manager:
+        raise ForbiddenException
 
     action = ""
 
@@ -98,13 +98,13 @@ async def create_project(
         # action = "Replaced"
     except RecordNotFoundException:
         project = ProjectEntity(name=project_name, **put_data.dict())
-        action = "Created new"
+        action = "Created"
     else:
         return Response(status_code=409)
 
     await project.save()
 
-    logging.info(f"[PUT] {action} project {project.name}")
+    logging.info(f"[PUT] {action} project {project.name}", user=user.name)
     return Response(status_code=201)
 
 
@@ -128,12 +128,11 @@ async def update_project(
     project = await ProjectEntity.load(project_name)
 
     if not user.is_manager:
-        raise ForbiddenException(
-            f"You do not have permission to update project {project.name}"
-        )
+        raise ForbiddenException
 
     project.patch(patch_data)
     await project.save()
+    logging.info(f"[PATCH] Updated project {project.name}", user=user.name)
     return Response(status_code=204)
 
 
@@ -152,11 +151,8 @@ async def delete_project(
     project = await ProjectEntity.load(project_name)
 
     if not user.is_manager:
-        raise ForbiddenException(
-            f"You do not have permission to delete project {project.name}",
-            f"{user.name} is not allowed to delete project {project.name}",
-        )
+        raise ForbiddenException
 
     await project.delete()
-    logging.info(f"[DELETE] Deleted project {project.name}")
+    logging.info(f"[DELETE] Deleted project {project.name}", user=user.name)
     return Response(status_code=204)

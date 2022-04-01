@@ -123,7 +123,7 @@ async def delete_folder(
 
     if access_list is not None:
         if folder.path not in access_list:
-            raise ForbiddenException("You are not allowed to delete this folder")
+            raise ForbiddenException
 
     await folder.delete()
     return Response(status_code=204)

@@ -1,7 +1,5 @@
 """User entity."""
 
-from nxtools import logging
-
 from openpype.access.permissions import Permissions
 from openpype.access.roles import Roles
 from openpype.exceptions import RecordNotFoundException
@@ -62,7 +60,6 @@ class UserEntity(Entity):
 
     async def delete(self, transaction=None) -> bool:
         """Delete existing user."""
-        logging.info(f"Deleting user {self.name}")
         if not self.name:
             raise RecordNotFoundException(
                 f"Unable to delete user {self.name}. Not loaded."
@@ -84,10 +81,6 @@ class UserEntity(Entity):
 
         if commit:
             await self.commit(transaction)
-        if count:
-            logging.info(f"Deleted user {self.name}")
-        else:
-            logging.error(f"Unable to delete user {self.name}")
         return not not count
 
     #

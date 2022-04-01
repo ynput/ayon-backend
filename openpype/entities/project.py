@@ -4,8 +4,6 @@ along with the project data, this entity also handles
 folder_types of the project and the folder hierarchy.
 """
 
-from nxtools import log_traceback, logging
-
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, dict_exclude
@@ -129,16 +127,13 @@ class ProjectEntity(Entity):
         ):
             task_types[name] = data
 
-        try:
-            return cls.from_record(
-                project_name=project_name,
-                exists=True,
-                validate=False,
-                **dict(project_data[0])
-                | {"folder_types": folder_types, "task_types": task_types},
-            )
-        except Exception:
-            log_traceback()
+        return cls.from_record(
+            project_name=project_name,
+            exists=True,
+            validate=False,
+            **dict(project_data[0])
+            | {"folder_types": folder_types, "task_types": task_types},
+        )
 
     #
     # Save
@@ -155,8 +150,6 @@ class ProjectEntity(Entity):
 
     async def _save(self, transaction) -> bool:
         if self.exists:
-            logging.debug(f"Updating project {self.name}")
-            # Update a project
             try:
                 await transaction.execute(
                     *SQLTool.update(

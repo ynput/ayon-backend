@@ -1,4 +1,4 @@
-from nxtools import logging
+# from nxtools import logging
 
 
 class OpenPypeException(Exception):
@@ -16,10 +16,10 @@ class OpenPypeException(Exception):
         if detail is not None:
             self.detail = detail
 
-        if log is True:
-            logging.error(f"EXCEPTION: {self.status} {self.detail}")
-        elif type(log) is str:
-            logging.error(f"EXCEPTION: {self.status} {log}")
+        # if log is True:
+        #    logging.error(f"EXCEPTION: {self.status} {self.detail}")
+        # elif type(log) is str:
+        #    logging.error(f"EXCEPTION: {self.status} {log}")
 
         super().__init__(self.detail)
 

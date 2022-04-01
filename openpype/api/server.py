@@ -14,6 +14,9 @@ from openpype.exceptions import OpenPypeException
 from openpype.graphql import router as graphql_router
 from openpype.lib.postgres import Postgres
 
+from openpype.utils import parse_access_token
+from openpype.auth.session import Session
+
 app = fastapi.FastAPI(
     docs_url=None, redoc_url="/docs", openapi_tags=tags_meta, **app_meta
 )
@@ -22,10 +25,32 @@ app = fastapi.FastAPI(
 # Error handling
 #
 
+logging.user = "server"
+
+async def user_name_from_request(request: fastapi.Request) -> str:
+    """Get user from request"""
+
+    access_token = parse_access_token(request.headers.get("Authorization"))
+    if not access_token:
+        return "anonymous"
+    try:
+        session_data = await Session.check(access_token, None)
+    except OpenPypeException:
+        return "anonymous"
+    if not session_data:
+        return "anonymous"
+    return session_data.user.name
+
 
 @app.exception_handler(OpenPypeException)
 async def openpype_exception_handler(request: fastapi.Request, exc: OpenPypeException):
-    print(request.url)
+    user_name = await user_name_from_request(request)
+
+    path = f"[{request.method.upper()}]"
+    path += f" {request.url.path.removeprefix('/api')}"
+
+    logging.error(f"{path}: {exc}", user=user_name)
+
     return fastapi.responses.JSONResponse(
         status_code=exc.status,
         content=ErrorResponse(code=exc.status, detail=exc.detail).dict(),
