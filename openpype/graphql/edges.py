@@ -1,30 +1,27 @@
 import strawberry
 
+from typing import TYPE_CHECKING
 from openpype.graphql.types import BaseEdge
 from openpype.graphql.utils import lazy_type
 
-# rom openpype.graphql.utils import lazy_type
 
-# Use lazy typing to prevent circular imports
-# We don't need actual types here, just the names
-ProjectNode = lazy_type("ProjectNode", ".nodes.project")
-UserNode = lazy_type("UserNode", ".nodes.user")
-FolderNode = lazy_type("FolderNode", ".nodes.folder")
-TaskNode = lazy_type("TaskNode", ".nodes.task")
-SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
-VersionNode = lazy_type("VersionNode", ".nodes.version")
-RepresentationNode = lazy_type("RepresentationNode", ".nodes.representation")
-BaseNode = lazy_type("BaseNode", ".nodes.common")
-
-# THIS DOES NOT WORK! Keep lazy types here
-# if TYPE_CHECKING:
-#    from openpype.graphql.nodes.project import ProjectNode
-#    from openpype.graphql.nodes.user import UserNode
-#    from openpype.graphql.nodes.folder import FolderNode
-#    from openpype.graphql.nodes.task import TaskNode
-#    from openpype.graphql.nodes.subset import SubsetNode
-#    from openpype.graphql.nodes.version import VersionNode
-#    from openpype.graphql.nodes.representation import RepresentationNode
+if TYPE_CHECKING:
+    from openpype.graphql.nodes.project import ProjectNode
+    from openpype.graphql.nodes.user import UserNode
+    from openpype.graphql.nodes.folder import FolderNode
+    from openpype.graphql.nodes.task import TaskNode
+    from openpype.graphql.nodes.subset import SubsetNode
+    from openpype.graphql.nodes.version import VersionNode
+    from openpype.graphql.nodes.representation import RepresentationNode
+else:
+    ProjectNode = lazy_type("ProjectNode", ".nodes.project")
+    UserNode = lazy_type("UserNode", ".nodes.user")
+    FolderNode = lazy_type("FolderNode", ".nodes.folder")
+    TaskNode = lazy_type("TaskNode", ".nodes.task")
+    SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
+    VersionNode = lazy_type("VersionNode", ".nodes.version")
+    RepresentationNode = lazy_type("RepresentationNode", ".nodes.representation")
+    BaseNode = lazy_type("BaseNode", ".nodes.common")
 
 
 @strawberry.type

@@ -64,7 +64,7 @@ async def get_user(
     if user_name == user.name:
         return user.payload.as_user(user)
 
-    result = UserEntity.load(user_name)
+    result = await UserEntity.load(user_name)
 
     if user.is_manager:
         return result.payload

@@ -125,7 +125,7 @@ R = TypeVar("R")
 
 
 async def resolve(
-    connection_type: Callable[Any, R],
+    connection_type: Callable[..., R],
     edge_type,
     node_type,
     project_name: str | None,
@@ -137,12 +137,16 @@ async def resolve(
 ) -> R:
     """Return a connection object from a query."""
 
-    if not (first or last):
-        count = first = DEFAULT_PAGE_SIZE
-    else:
-        count = first or last
 
-    edges = []
+    if first is not None:
+        count = first
+    elif last is not None:
+        count = last
+    else:
+        count = DEFAULT_PAGE_SIZE
+
+
+    edges: list[Any] = []
     async for record in Postgres.iterate(query):
         if count and count <= len(edges):
             break

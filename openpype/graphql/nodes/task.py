@@ -10,9 +10,9 @@ from openpype.graphql.utils import lazy_type, parse_attrib_data
 
 if TYPE_CHECKING:
     from openpype.graphql.connections import VersionsConnection
-
-
-FolderNode = lazy_type("FolderNode", ".nodes.folder")
+    from openpype.graphql.nodes.folder import FolderNode
+else:
+    FolderNode = lazy_type("FolderNode", ".nodes.folder")
 
 
 @TaskEntity.strawberry_attrib()

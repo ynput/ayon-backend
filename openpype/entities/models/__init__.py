@@ -1,13 +1,17 @@
 """Dynamic entity models generation."""
 
 import copy
-from typing import Any
 
+from typing import Any, Type
 from pydantic import BaseModel
 
-from .config import EntityModelConfig
-from .constants import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, NAME_REGEX
-from .fields import (
+from openpype.entities.models.config import EntityModelConfig
+from openpype.entities.models.constants import (
+    ENTITY_ID_EXAMPLE,
+    ENTITY_ID_REGEX,
+    NAME_REGEX,
+)
+from openpype.entities.models.fields import (
     folder_fields,
     project_fields,
     representation_fields,
@@ -15,7 +19,8 @@ from .fields import (
     task_fields,
     version_fields,
 )
-from .generator import generate_model
+from openpype.entities.models.generator import generate_model
+
 
 FIELD_LISTS: dict[str, list[Any]] = {
     "project": project_fields,
@@ -48,40 +53,44 @@ class ModelSet:
         self.attributes = attributes if attributes else []
         self.has_id = has_id
 
-        self._model = None
-        self._post_model = None
-        self._patch_model = None
-        self._attrib_model = None
+        self._model: Type[BaseModel] | None = None
+        self._post_model: Type[BaseModel] | None = None
+        self._patch_model: Type[BaseModel] | None = None
+        self._attrib_model: Type[BaseModel] | None = None
 
     @property
-    def attrib_model(self) -> BaseModel:
+    def attrib_model(self) -> Type[BaseModel]:
         """Return the attribute model."""
-        if not self._attrib_model:
+        if self._attrib_model is None:
             self._attrib_model = generate_model(
                 f"{self.entity_name.capitalize()}AttribModel",
                 self.attributes,
             )
+        assert self._attrib_model is not None
         return self._attrib_model
 
     @property
-    def main_model(self) -> BaseModel:
+    def main_model(self) -> Type[BaseModel]:
         """Return the entity model."""
         if self._model is None:
             self._model = self._generate_entity_model()
+        assert self._model is not None
         return self._model
 
     @property
-    def post_model(self) -> BaseModel:
+    def post_model(self) -> Type[BaseModel]:
         """Return the post model."""
         if self._post_model is None:
             self._post_model = self._generate_post_model()
+        assert self._post_model is not None
         return self._post_model
 
     @property
-    def patch_model(self) -> BaseModel:
+    def patch_model(self) -> Type[BaseModel]:
         """Return the patch model."""
         if self._patch_model is None:
             self._patch_model = self._generate_patch_model()
+        assert self._patch_model is not None
         return self._patch_model
 
     #
@@ -119,7 +128,7 @@ class ModelSet:
             },
         ]
 
-    def _generate_entity_model(self) -> BaseModel:
+    def _generate_entity_model(self) -> Type[BaseModel]:
         """Generate the entity model."""
         model_name = f"{self.entity_name.capitalize()}Model"
         pre_fields: list[dict[str, Any]] = (
@@ -175,7 +184,7 @@ class ModelSet:
             EntityModelConfig,
         )
 
-    def _generate_post_model(self) -> BaseModel:
+    def _generate_post_model(self) -> Type[BaseModel]:
         """Generate the post model."""
         model_name = f"{self.entity_name.capitalize()}PostModel"
         fields = [f for f in self.fields if not f.get("dynamic")]
@@ -183,7 +192,7 @@ class ModelSet:
             model_name, fields + self._common_fields, EntityModelConfig
         )
 
-    def _generate_patch_model(self) -> BaseModel:
+    def _generate_patch_model(self) -> Type[BaseModel]:
         """Generate the patch model."""
         model_name = f"{self.entity_name.capitalize()}PatchModel"
         fields = []

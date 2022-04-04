@@ -6,8 +6,8 @@ since Python 3.10 syntax does not work with Strawberry yet.
 
 import time
 import uuid
-from typing import Any, List, Literal, Optional, Union
 
+from typing import Any, List, Literal, Optional, Union, Type
 from pydantic import BaseModel, Field, create_model
 
 #
@@ -100,7 +100,11 @@ class FieldDefinition(BaseModel):
     regex: Optional[str] = Field(title="Field regex")
 
 
-def generate_model(model_name: str, field_data: list[dict[str, Any]], config=None):
+def generate_model(
+    model_name: str,
+    field_data: list[dict[str, Any]],
+    config=None,
+) -> Type[BaseModel]:
     """Create a new model from a given field set."""
     fields = {}
 

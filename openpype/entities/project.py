@@ -7,9 +7,8 @@ folder_types of the project and the folder hierarchy.
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, dict_exclude
-
-from .common import Entity, EntityType, attribute_library
-from .models import ModelSet
+from openpype.entities.common import Entity, EntityType, attribute_library
+from openpype.entities.models import ModelSet
 
 
 async def aux_table_update(conn, table, update_data):

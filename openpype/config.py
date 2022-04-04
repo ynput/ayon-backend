@@ -9,7 +9,8 @@ class PypeConfig(BaseModel):
     """Server configuration"""
 
     api_modules_dir: str = Field(
-        default="api", description="Path to the directory containing the API modules."
+        default="api",
+        description="Path to the directory containing the API modules.",
     )
 
     auth_pass_pepper: str = Field(
@@ -17,33 +18,50 @@ class PypeConfig(BaseModel):
         description="A secret string used to salt the password hash.",
     )
 
-    auth_pass_min_length: int = Field(default=8, description="Minimum password length.")
+    auth_pass_min_length: int = Field(
+        default=8,
+        description="Minimum password length.",
+    )
 
     auth_pass_complex: str = Field(
-        default=True, description="Force using a complex password."
+        default=True,
+        description="Enforce using a complex password.",
     )
 
     redis_url: str = Field(
-        default="redis://redis/", description="Connection string for Redis."
+        default="redis://redis/",
+        description="Connection string for Redis.",
+        example="redis://studio:password123@redis.example.com:6379",
     )
 
     postgres_url: str = Field(
         default="postgres://pypeusr:pypepass@postgres/pype",
         description="Connection string for Postgres.",
+        example="redis://studio:password123@postgres.example.com:5432/openpype",
     )
 
     discord_client_id: str | None = Field(
-        default=None, description="Discord client ID."
+        default=None,
+        description="Discord client ID (for OAuth)",
+        example="123456789012345678",
     )
 
     discord_client_secret: str | None = Field(
-        default=None, description="Discord client secret."
+        default=None,
+        description="Discord client secret (for OAuth)",
+        example="123456789012345678",
     )
 
-    google_client_id: str | None = Field(default=None, description="Google client ID.")
+    google_client_id: str | None = Field(
+        default=None,
+        description="Google client ID (for OAuth).",
+        example="123456789012345678",
+    )
 
     google_client_secret: str | None = Field(
-        default=None, description="Google client secret."
+        default=None,
+        description="Google client secret (for OAuth)",
+        example="123456789012345678",
     )
 
 

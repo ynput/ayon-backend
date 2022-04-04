@@ -91,7 +91,7 @@ async def update_folder(
                 project_name, folder_id, transaction=conn, for_update=True
             )
 
-            access_list = await folder_access_list(user, project_name, "write")
+            access_list = await folder_access_list(user, project_name, "update")
 
             if access_list is not None:
                 if folder.path not in access_list:
@@ -121,7 +121,7 @@ async def delete_folder(
     """Delete a folder."""
 
     folder = await FolderEntity.load(project_name, folder_id)
-    access_list = await folder_access_list(user, project_name, "write")
+    access_list = await folder_access_list(user, project_name, "update")
 
     if access_list is not None:
         if folder.path not in access_list:

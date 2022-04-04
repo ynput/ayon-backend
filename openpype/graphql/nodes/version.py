@@ -10,10 +10,11 @@ from openpype.graphql.utils import lazy_type, parse_attrib_data
 
 if TYPE_CHECKING:
     from openpype.graphql.connections import RepresentationsConnection
-
-
-SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
-TaskNode = lazy_type("TaskNode", ".nodes.task")
+    from openpype.graphql.nodes.subset import SubsetNode
+    from openpype.graphql.nodes.task import TaskNode
+else:
+    SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
+    TaskNode = lazy_type("TaskNode", ".nodes.task")
 
 
 @VersionEntity.strawberry_attrib()

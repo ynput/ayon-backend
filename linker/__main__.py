@@ -16,7 +16,7 @@ async def create_link_type(
     link_type: str,
     input_type: str,
     output_type: str,
-) -> str:
+) -> None:
 
     link_type_name = f"{link_type}|{input_type}|{output_type}"
 

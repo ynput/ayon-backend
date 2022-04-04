@@ -14,7 +14,7 @@ def entity_from_record(entity_type, project_name, record):
 
 async def create_link(
     input_entity: Entity, output_entity: Entity, link_type: str, **kwargs
-) -> str:
+) -> None:
     assert input_entity.project_name == output_entity.project_name
     project_name = input_entity.project_name
 

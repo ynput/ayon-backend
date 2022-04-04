@@ -1,5 +1,5 @@
 import enum
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import strawberry
 from strawberry.types import Info
@@ -9,7 +9,11 @@ from openpype.graphql.nodes.common import BaseNode
 from openpype.graphql.utils import lazy_type, parse_attrib_data
 from openpype.utils import json_dumps
 
-VersionNode = lazy_type("VersionNode", ".nodes.version")
+
+if TYPE_CHECKING:
+    from openpype.graphql.nodes.version import VersionNode
+else:
+    VersionNode = lazy_type("VersionNode", ".nodes.version")
 
 
 class StatusEnum(enum.IntEnum):

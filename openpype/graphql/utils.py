@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Type
 
 import strawberry
 
@@ -41,7 +41,7 @@ def parse_attrib_data(
     return target_type(**result)
 
 
-def lazy_type(name: str, module: str) -> strawberry.LazyType:
+def lazy_type(name: str, module: str) -> Type[strawberry.LazyType]:
     """Create a lazy type for the given module and name.
 
     When used, module path must be relative

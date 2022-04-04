@@ -15,14 +15,14 @@ KeyType = NewType("KeyType", tuple[str, str])
 KeysType = NewType("KeysType", list[KeyType])
 
 
-def get_project_name(keys: KeysType) -> str:
+def get_project_name(keys: list[KeyType]) -> str:
     project_names = set(k[0] for k in keys)
     if len(project_names) != 1:
         raise OpenPypeException("Data loaders cannot perform cross-project requests")
     return project_names.pop()
 
 
-async def folder_loader(keys: KeysType) -> list[dict | None]:
+async def folder_loader(keys: list[KeyType]) -> list[dict | None]:
     """Load a list of folders by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, folder_id) and project_name
     values must be the same!
@@ -62,7 +62,7 @@ async def folder_loader(keys: KeysType) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def folder_loader2(keys: KeysType) -> list[dict | None]:
+async def folder_loader2(keys: list[KeyType]) -> list[dict | None]:
     """Load a list of folders by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, folder_id) and project_name
     values must be the same!
@@ -114,7 +114,7 @@ async def folder_loader2(keys: KeysType) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def subset_loader(keys: KeysType) -> list[dict | None]:
+async def subset_loader(keys: list[KeyType]) -> list[dict | None]:
     """Load a list of subsets by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, subset_id) and project_name
     values must be the same!
@@ -134,7 +134,7 @@ async def subset_loader(keys: KeysType) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def task_loader(keys: KeysType) -> list[dict | None]:
+async def task_loader(keys: list[KeyType]) -> list[dict | None]:
     """Load a list of tasks by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, task_id) and project_name
     values must be the same!
@@ -154,7 +154,7 @@ async def task_loader(keys: KeysType) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def version_loader(keys: KeysType) -> list[dict | None]:
+async def version_loader(keys: list[KeyType]) -> list[dict | None]:
     """Load a list of versions by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, version_id) and project_name
     values must be the same!
@@ -174,7 +174,7 @@ async def version_loader(keys: KeysType) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def latest_version_loader(keys: KeysType) -> list[dict | None]:
+async def latest_version_loader(keys: list[KeyType]) -> list[dict | None]:
     """Load a list of latest versions of given subsets"""
 
     result_dict = {k: None for k in keys}
