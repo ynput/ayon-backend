@@ -4,11 +4,11 @@ along with the project data, this entity also handles
 folder_types of the project and the folder hierarchy.
 """
 
+from openpype.entities.core import TopLevelEntity, attribute_library
+from openpype.entities.models import ModelSet
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, dict_exclude
-from openpype.entities.common import Entity, EntityType, attribute_library
-from openpype.entities.models import ModelSet
 
 
 async def aux_table_update(conn, table, update_data):
@@ -73,9 +73,8 @@ async def aux_table_update(conn, table, update_data):
                 await conn.execute(f"DELETE FROM {table} WHERE name = $1", name)
 
 
-class ProjectEntity(Entity):
-    entity_type: EntityType = EntityType.PROJECT
-    entity_name: str = "project"
+class ProjectEntity(TopLevelEntity):
+    entity_type: str = "project"
     model: ModelSet = ModelSet("project", attribute_library["project"], False)
 
     #
@@ -84,22 +83,24 @@ class ProjectEntity(Entity):
 
     @classmethod
     async def load(
-        cls, project_name: str, transaction=None, for_update=False
+        cls,
+        name: str,
+        transaction=None,
+        for_update=False,
     ) -> "ProjectEntity":
         """Load a project from the database."""
 
-        # TODO: maybe allow different conditions?
-        # TODO: Then this code may be used in graphql as well.
+        project_name = name.lower()
 
         if not (
             project_data := await Postgres.fetch(
                 f"""
             SELECT  *
             FROM public.projects
-            WHERE name = $1
+            WHERE name ILIKE $1
             {'FOR UPDATE' if transaction and for_update else ''}
             """,
-                project_name,
+                name,
             )
         ):
             raise RecordNotFoundException()
@@ -126,12 +127,13 @@ class ProjectEntity(Entity):
         ):
             task_types[name] = data
 
+        payload = dict(project_data[0]) | {
+            "folder_types": folder_types,
+            "task_types": task_types,
+        }
         return cls.from_record(
-            project_name=project_name,
-            exists=True,
+            payload=payload,
             validate=False,
-            **dict(project_data[0])
-            | {"folder_types": folder_types, "task_types": task_types},
         )
 
     #
@@ -148,12 +150,13 @@ class ProjectEntity(Entity):
                     return await (self._save(conn))
 
     async def _save(self, transaction) -> bool:
+        project_name = self.name.lower()
         if self.exists:
             try:
                 await transaction.execute(
                     *SQLTool.update(
                         "public.projects",
-                        f"WHERE name='{self.name}'",
+                        f"WHERE name='{project_name}'",
                         **dict_exclude(
                             self.dict(exclude_none=True),
                             ["folder_types", "task_types", "ctime", "name"],
@@ -162,29 +165,34 @@ class ProjectEntity(Entity):
                 )
 
                 await aux_table_update(
-                    transaction, f"project_{self.name}.folder_types", self.folder_types
+                    transaction,
+                    f"project_{project_name}.folder_types",
+                    self.folder_types,
                 )
                 await aux_table_update(
-                    transaction, f"project_{self.name}.task_types", self.task_types
+                    transaction, f"project_{project_name}.task_types", self.task_types
                 )
             except Postgres.ForeignKeyViolationError as e:
                 raise ConstraintViolationException(e.detail)
             return True
 
         # Create a project record
-        await transaction.execute(
-            *SQLTool.insert(
-                "projects",
-                **dict_exclude(
-                    self.dict(exclude_none=True), ["folder_types", "task_types"]
-                ),
+        try:
+            await transaction.execute(
+                *SQLTool.insert(
+                    "projects",
+                    **dict_exclude(
+                        self.dict(exclude_none=True), ["folder_types", "task_types"]
+                    ),
+                )
             )
-        )
+        except Postgres.UniqueViolationError:
+            raise ConstraintViolationException(f"{self.name} already exists")
         # Create a new schema for the project tablespace
-        await transaction.execute(f"CREATE SCHEMA project_{self.name}")
+        await transaction.execute(f"CREATE SCHEMA project_{project_name}")
 
         # Create tables in the newly created schema
-        await transaction.execute(f"SET LOCAL search_path TO project_{self.name}")
+        await transaction.execute(f"SET LOCAL search_path TO project_{project_name}")
 
         # TODO: Preload this to avoid blocking
         await transaction.execute(open("schemas/schema.project.sql").read())
@@ -192,7 +200,7 @@ class ProjectEntity(Entity):
         for name, data in self.folder_types.items():
             await transaction.execute(
                 f"""
-                INSERT INTO project_{self.name}.folder_types
+                INSERT INTO project_{project_name}.folder_types
                 VALUES($1, $2)
                 """,
                 name,
@@ -202,7 +210,7 @@ class ProjectEntity(Entity):
         for name, data in self.task_types.items():
             await transaction.execute(
                 f"""
-                INSERT INTO project_{self.name}.task_types
+                INSERT INTO project_{project_name}.task_types
                 VALUES($1, $2)
                 """,
                 name,

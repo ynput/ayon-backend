@@ -6,8 +6,8 @@ since Python 3.10 syntax does not work with Strawberry yet.
 
 import time
 import uuid
+from typing import Any, List, Literal, Optional, Type, Union
 
-from typing import Any, List, Literal, Optional, Union, Type
 from pydantic import BaseModel, Field, create_model
 
 #

@@ -40,7 +40,7 @@ class LoginRequestModel(BaseModel):
 class LoginResponseModel(BaseModel):
     detail: str = "Logged in as NAME"
     token: str = "ACCESS_TOKEN"
-    user: UserEntity.model.main_model
+    user: UserEntity.model.main_model  # type: ignore
 
 
 @router.post(

@@ -41,7 +41,7 @@ async def dep_current_user(
     if not session_data:
         raise UnauthorizedException("Invalid access token", log=False)
     await Redis.incr("user-requests", session_data.user.name)
-    return UserEntity(exists=True, **session_data.user.dict())
+    return UserEntity.from_record(session_data.user.dict())
 
 
 async def dep_project_name(
@@ -52,7 +52,7 @@ async def dep_project_name(
     )
 ) -> str:
     """Validate a project name specified in an endpoint path"""
-    return project_name
+    return project_name.lower()
 
 
 async def dep_user_name(

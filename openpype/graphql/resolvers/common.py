@@ -137,14 +137,12 @@ async def resolve(
 ) -> R:
     """Return a connection object from a query."""
 
-
     if first is not None:
         count = first
     elif last is not None:
         count = last
     else:
         count = DEFAULT_PAGE_SIZE
-
 
     edges: list[Any] = []
     async for record in Postgres.iterate(query):

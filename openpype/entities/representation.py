@@ -1,8 +1,7 @@
-from .common import Entity, EntityType, attribute_library
-from .models import ModelSet
+from openpype.entities.core import ProjectLevelEntity, attribute_library
+from openpype.entities.models import ModelSet
 
 
-class RepresentationEntity(Entity):
-    entity_type = EntityType.REPRESENTATION
-    entity_name = "representation"
+class RepresentationEntity(ProjectLevelEntity):
+    entity_type: str = "representation"
     model = ModelSet("representation", attribute_library["representation"])

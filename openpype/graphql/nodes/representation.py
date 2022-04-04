@@ -1,5 +1,5 @@
 import enum
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import strawberry
 from strawberry.types import Info
@@ -8,7 +8,6 @@ from openpype.entities import RepresentationEntity
 from openpype.graphql.nodes.common import BaseNode
 from openpype.graphql.utils import lazy_type, parse_attrib_data
 from openpype.utils import json_dumps
-
 
 if TYPE_CHECKING:
     from openpype.graphql.nodes.version import VersionNode

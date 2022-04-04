@@ -1,12 +1,10 @@
+from openpype.entities.core import ProjectLevelEntity, attribute_library
+from openpype.entities.models import ModelSet
 from openpype.lib.postgres import Postgres
 
-from .common import Entity, EntityType, attribute_library
-from .models import ModelSet
 
-
-class VersionEntity(Entity):
-    entity_type = EntityType.VERSION
-    entity_name = "version"
+class VersionEntity(ProjectLevelEntity):
+    entity_type: str = "version"
     model = ModelSet("version", attribute_library["version"])
 
     @property

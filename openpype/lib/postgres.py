@@ -6,6 +6,11 @@ from openpype.utils import EntityID, json_dumps, json_loads
 
 
 class Postgres:
+    """Postgres database connection.
+
+    Provides an interface for interacting with a Postgres database.
+    """
+
     pool: asyncpg.pool.Pool | None = None
     ForeignKeyViolationError = asyncpg.exceptions.ForeignKeyViolationError
     UniqueViolationError = asyncpg.exceptions.UniqueViolationError
@@ -13,10 +18,12 @@ class Postgres:
     @classmethod
     @property
     def acquire(cls):
+        """Acquire a connection from the pool."""
         return cls.pool.acquire
 
     @classmethod
     async def init_connection(self, conn):
+        """Set up the connection pool"""
         await conn.set_type_codec(
             "jsonb",
             encoder=json_dumps,

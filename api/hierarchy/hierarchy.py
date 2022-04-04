@@ -1,5 +1,5 @@
 import time
-from typing import ForwardRef, Optional
+from typing import TYPE_CHECKING, ForwardRef, Optional
 
 from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel, Field
@@ -27,7 +27,8 @@ router = APIRouter(
 #
 
 
-HierarchyFolderModel = ForwardRef("HierarchyFolderModel")
+if not TYPE_CHECKING:
+    HierarchyFolderModel = ForwardRef("HierarchyFolderModel")
 
 
 class HierarchyFolderModel(BaseModel):

@@ -49,7 +49,7 @@ async def get_version(
     },
 )
 async def create_version(
-    post_data: VersionEntity.model.post_model,
+    post_data: VersionEntity.model.post_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
@@ -58,7 +58,7 @@ async def create_version(
     Use a POST request to create a new version (with a new id).
     """
 
-    version = VersionEntity(project_name=project_name, **post_data.dict())
+    version = VersionEntity(project_name=project_name, payload=post_data.dict())
     await version.save()
     return EntityIdResponse(id=version.id)
 
@@ -74,7 +74,7 @@ async def create_version(
     response_class=Response,
 )
 async def update_version(
-    post_data: VersionEntity.model.patch_model,  # noqa
+    post_data: VersionEntity.model.patch_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     version_id: str = Depends(dep_version_id),

@@ -59,7 +59,11 @@ async def openpype_exception_handler(request: fastapi.Request, exc: OpenPypeExce
 
 @app.exception_handler(Exception)
 async def all_exception_handler(request: fastapi.Request, exc: Exception):
-    logging.error(f"Unhandled exception: {exc}")
+    user_name = await user_name_from_request(request)
+    path = f"[{request.method.upper()}]"
+    path += f" {request.url.path.removeprefix('/api')}"
+    logging.error(f"{path}: UNHANDLED EXCEPTION", user=user_name)
+    logging.error(exc)
     return fastapi.responses.JSONResponse(
         status_code=500,
         content=ErrorResponse(code=500, detail="Internal server error").dict(),

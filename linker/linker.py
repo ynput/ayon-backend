@@ -1,7 +1,7 @@
 from nxtools import logging
 
 from openpype.entities import FolderEntity, SubsetEntity, VersionEntity
-from openpype.entities.common import Entity
+from openpype.entities.core import ProjectLevelEntity
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
 
@@ -9,18 +9,21 @@ from openpype.utils import EntityID
 def entity_from_record(entity_type, project_name, record):
     return {"folder": FolderEntity, "subset": SubsetEntity, "version": VersionEntity}[
         entity_type
-    ].from_record(project_name, **record)
+    ].from_record(project_name, record)
 
 
 async def create_link(
-    input_entity: Entity, output_entity: Entity, link_type: str, **kwargs
+    input_entity: ProjectLevelEntity,
+    output_entity: ProjectLevelEntity,
+    link_type: str,
+    **kwargs,
 ) -> None:
     assert input_entity.project_name == output_entity.project_name
     project_name = input_entity.project_name
 
     link_id = EntityID.create()
     link_type_name = (
-        f"{link_type}|{input_entity.entity_name}|{output_entity.entity_name}"
+        f"{link_type}|{input_entity.entity_type}|{output_entity.entity_type}"
     )
 
     logging.info(

@@ -73,7 +73,7 @@ async def get_project_stats(
     },
 )
 async def create_project(
-    put_data: ProjectEntity.model.post_model,
+    put_data: ProjectEntity.model.post_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
@@ -97,7 +97,7 @@ async def create_project(
         # project.replace(put_data)
         # action = "Replaced"
     except RecordNotFoundException:
-        project = ProjectEntity(name=project_name, **put_data.dict())
+        project = ProjectEntity(payload=put_data.dict() | {"name": project_name})
         action = "Created"
     else:
         return Response(status_code=409)
@@ -115,7 +115,7 @@ async def create_project(
 
 @router.patch("/projects/{project_name}", status_code=204, response_class=Response)
 async def update_project(
-    patch_data: ProjectEntity.model.patch_model,
+    patch_data: ProjectEntity.model.patch_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):

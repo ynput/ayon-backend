@@ -14,7 +14,7 @@ from openpype.lib.postgres import Postgres
 class LoginResponseModel(BaseModel):
     detail: str = "Logged in as NAME"
     token: str = "ACCESS_TOKEN"
-    user: UserEntity.model.main_model
+    user: UserEntity.model.main_model  # type: ignore
 
 
 async def login_callback(data: OAuth2Data) -> LoginResponseModel:
@@ -27,7 +27,7 @@ async def login_callback(data: OAuth2Data) -> LoginResponseModel:
     if not res:
         raise UnauthorizedException(f"User with email {data.user.email} was not found.")
 
-    user = UserEntity.from_record(**dict(res[0]))
+    user = UserEntity.from_record(res[0])
 
     # User is authorized, so we may revoke the token again
     # In the future, we may want to store the token in the session

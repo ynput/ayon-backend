@@ -19,7 +19,7 @@ def parse_attrib_data(
     target_type,
     data: dict,
     user: UserEntity,
-    project_name: str = None,
+    project_name: str | None = None,
 ):
     """ACL agnostic attribute list parser"""
 
@@ -27,9 +27,11 @@ def parse_attrib_data(
 
     if user.is_manager:
         attr_limit = "all"
-    else:
+    elif project_name is not None:
         perms = user.permissions(project_name)
         attr_limit = perms.attrib_read
+    else:
+        attr_limit = "all"  # TODO
 
     if not data:
         return target_type()

@@ -1,8 +1,7 @@
-from .common import Entity, EntityType, attribute_library
-from .models import ModelSet
+from openpype.entities.core import ProjectLevelEntity, attribute_library
+from openpype.entities.models import ModelSet
 
 
-class TaskEntity(Entity):
-    entity_type = EntityType.TASK
-    entity_name = "task"
+class TaskEntity(ProjectLevelEntity):
+    entity_type: str = "task"
     model = ModelSet("task", attribute_library["task"])

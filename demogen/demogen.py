@@ -57,7 +57,7 @@ class DemoGen:
 
         await self.delete_project()
 
-        self.project = ProjectEntity(**kwargs)
+        self.project = ProjectEntity(payload=kwargs)
         await self.project.save()
 
         tasks = []
@@ -113,11 +113,14 @@ class DemoGen:
             attrib[key] = value
         kwargs["attrib"] = attrib
 
+        payload = {
+            "parent_id": parent,
+            **dict_exclude(kwargs, ["_", "parentId"], mode="startswith"),
+        }
         folder = FolderEntity(
             project_name=self.project_name,
-            parent_id=parent,
+            payload=payload,
             validate=self.validate,
-            **dict_exclude(kwargs, ["_", "parentId"], mode="startswith"),
         )
         await folder.save(conn)
         folder.parents = parents
@@ -156,11 +159,14 @@ class DemoGen:
         else:
             task_id = None
 
+        payload = {
+            "folder_id": folder.id,
+            **dict_exclude(kwargs, ["_"], mode="startswith"),
+        }
         subset = SubsetEntity(
             project_name=self.project_name,
-            folder_id=folder.id,
+            payload=payload,
             validate=self.validate,
-            **dict_exclude(kwargs, ["_"], mode="startswith"),
         )
         await subset.save(conn)
 
@@ -172,13 +178,15 @@ class DemoGen:
                 if val is not None:
                     attrib[key] = val
             version = VersionEntity(
-                validate=self.validate,
                 project_name=self.project_name,
-                subset_id=subset.id,
-                task_id=task_id,
-                version=i,
-                author="admin",
-                attrib=attrib,
+                payload={
+                    "subset_id": subset.id,
+                    "task_id": task_id,
+                    "version": i,
+                    "author": "admin",
+                    "attrib": attrib,
+                },
+                validate=self.validate,
             )
             await version.save(conn)
 
@@ -190,7 +198,7 @@ class DemoGen:
     async def create_task(self, conn, **kwargs):
         self.task_count += 1
         task = TaskEntity(
-            project_name=self.project_name, validate=self.validate, **kwargs
+            project_name=self.project_name, payload=kwargs, validate=self.validate
         )
         await task.save(conn)
         return task.name, task.id
@@ -238,13 +246,15 @@ class DemoGen:
 
         representation = RepresentationEntity(
             project_name=self.project_name,
-            validate=self.validate,
-            version_id=version.id,
-            data={
-                "files": files,
-                "context": context,
+            payload={
+                "version_id": version.id,
+                "data": {
+                    "files": files,
+                    "context": context,
+                },
+                **kwargs,
             },
-            **kwargs,
+            validate=self.validate,
         )
         await representation.save(conn)
 

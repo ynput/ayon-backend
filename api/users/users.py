@@ -83,7 +83,7 @@ async def get_user(
     },
 )
 async def create_user(
-    put_data: UserEntity.model.post_model,
+    put_data: UserEntity.model.post_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
 ):
@@ -95,7 +95,7 @@ async def create_user(
     try:
         nuser = await UserEntity.load(user_name)
     except RecordNotFoundException:
-        nuser = UserEntity(name=user_name, **put_data.dict())
+        nuser = UserEntity(put_data.dict() | {"name": user_name})
     else:
         return Response(status_code=409)
 

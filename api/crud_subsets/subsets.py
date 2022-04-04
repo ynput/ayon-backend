@@ -49,7 +49,7 @@ async def get_subset(
     },
 )
 async def create_subset(
-    post_data: SubsetEntity.model.post_model,
+    post_data: SubsetEntity.model.post_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
@@ -58,7 +58,7 @@ async def create_subset(
     Use a POST request to create a new subset (with a new id).
     """
 
-    subset = SubsetEntity(project_name=project_name, **post_data.dict())
+    subset = SubsetEntity(project_name=project_name, payload=post_data.dict())
     await subset.save()
     return EntityIdResponse(id=subset.id)
 
@@ -74,7 +74,7 @@ async def create_subset(
     response_class=Response,
 )
 async def update_subset(
-    post_data: SubsetEntity.model.patch_model,  # noqa
+    post_data: SubsetEntity.model.patch_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     subset_id: str = Depends(dep_subset_id),

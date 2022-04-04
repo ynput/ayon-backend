@@ -27,7 +27,7 @@ class PasswordAuth:
             logging.error(f"User {name} not found")
             return None
 
-        user = UserEntity.from_record(**dict(result[0]))
+        user = UserEntity.from_record(result[0])
 
         if not user.active:
             logging.error(f"User {name} is not active")

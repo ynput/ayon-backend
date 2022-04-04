@@ -51,7 +51,7 @@ async def get_folder(
     response_model=EntityIdResponse,
 )
 async def create_folder(
-    post_data: FolderEntity.model.post_model,
+    post_data: FolderEntity.model.post_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
@@ -62,7 +62,7 @@ async def create_folder(
 
     # TODO: Access control
 
-    folder = FolderEntity(project_name=project_name, **post_data.dict())
+    folder = FolderEntity(project_name=project_name, payload=post_data.dict())
     await folder.save()
     return EntityIdResponse(id=folder.id)
 
@@ -78,7 +78,7 @@ async def create_folder(
     response_class=Response,
 )
 async def update_folder(
-    post_data: FolderEntity.model.patch_model,
+    post_data: FolderEntity.model.patch_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     folder_id: str = Depends(dep_folder_id),

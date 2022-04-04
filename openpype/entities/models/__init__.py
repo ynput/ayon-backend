@@ -1,8 +1,8 @@
 """Dynamic entity models generation."""
 
 import copy
-
 from typing import Any, Type
+
 from pydantic import BaseModel
 
 from openpype.entities.models.config import EntityModelConfig
@@ -20,7 +20,6 @@ from openpype.entities.models.fields import (
     version_fields,
 )
 from openpype.entities.models.generator import generate_model
-
 
 FIELD_LISTS: dict[str, list[Any]] = {
     "project": project_fields,

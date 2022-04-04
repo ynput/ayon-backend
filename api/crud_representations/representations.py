@@ -53,7 +53,7 @@ async def get_representation(
     },
 )
 async def create_representation(
-    post_data: RepresentationEntity.model.post_model,
+    post_data: RepresentationEntity.model.post_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
@@ -62,7 +62,9 @@ async def create_representation(
     Use a POST request to create a new representation (with a new id).
     """
 
-    representation = RepresentationEntity(project_name=project_name, **post_data.dict())
+    representation = RepresentationEntity(
+        project_name=project_name, payload=post_data.dict()
+    )
     await representation.save()
     return EntityIdResponse(id=representation.id)
 
@@ -78,7 +80,7 @@ async def create_representation(
     response_class=Response,
 )
 async def update_representation(
-    post_data: RepresentationEntity.model.patch_model,  # noqa
+    post_data: RepresentationEntity.model.patch_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     representation_id: str = Depends(dep_representation_id),

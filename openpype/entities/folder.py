@@ -1,14 +1,12 @@
+from openpype.entities.core import ProjectLevelEntity, attribute_library
+from openpype.entities.models import ModelSet
 from openpype.exceptions import RecordNotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
 
-from .common import Entity, EntityType, attribute_library
-from .models import ModelSet
 
-
-class FolderEntity(Entity):
-    entity_type: EntityType = EntityType.FOLDER
-    entity_name: str = "folder"
+class FolderEntity(ProjectLevelEntity):
+    entity_type: str = "folder"
     model: ModelSet = ModelSet("folder", attribute_library["folder"])
 
     @classmethod
@@ -27,7 +25,7 @@ class FolderEntity(Entity):
         project_name = project_name.lower()
 
         if EntityID.parse(entity_id) is None:
-            raise ValueError(f"Invalid {cls.entity_name} ID specified")
+            raise ValueError(f"Invalid {cls.entity_type} ID specified")
 
         query = f"""
             SELECT
@@ -55,8 +53,8 @@ class FolderEntity(Entity):
         async for record in Postgres.iterate(query, entity_id):
             return cls.from_record(
                 project_name=project_name,
+                payload=record,
                 validate=False,
-                **record,
             )
         raise RecordNotFoundException("Entity not found")
 

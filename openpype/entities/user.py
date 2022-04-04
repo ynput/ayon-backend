@@ -2,17 +2,15 @@
 
 from openpype.access.permissions import Permissions
 from openpype.access.roles import Roles
+from openpype.entities.core import TopLevelEntity, attribute_library
+from openpype.entities.models import ModelSet
 from openpype.exceptions import RecordNotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, dict_exclude
 
-from .common import Entity, EntityType, attribute_library
-from .models import ModelSet
 
-
-class UserEntity(Entity):
-    entity_type = EntityType.USER
-    entity_name = "user"
+class UserEntity(TopLevelEntity):
+    entity_type: str = "user"
     model = ModelSet("user", attribute_library["user"], has_id=False)
 
     #
@@ -29,7 +27,7 @@ class UserEntity(Entity):
             )
         ):
             raise RecordNotFoundException(f"Unable to load user {name}")
-        return cls.from_record(exists=True, validate=False, **dict(user_data[0]))
+        return cls.from_record(user_data[0])
 
     #
     # Save
@@ -99,7 +97,7 @@ class UserEntity(Entity):
             return False
         return roles.get("manager", False) or roles.get("admin", False)
 
-    def permissions(self, project_name: str | None = None) -> Permissions:
+    def permissions(self, project_name: str) -> Permissions:
         """Return user permissions on a given project.
 
         When a project is not specified, only return permissions the user
