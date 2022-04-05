@@ -1,5 +1,7 @@
 from typing import Any
 
+from pydantic import BaseModel
+
 from openpype.entities.core.base import BaseEntity
 
 
@@ -40,14 +42,6 @@ class TopLevelEntity(BaseEntity):
         # TODO
         return self._payload.copy()
 
-    #
-    # Properties
-    #
-
-    @property
-    def name(self) -> str:
-        return self._payload.name
-
-    @name.setter
-    def name(self, value: str) -> None:
-        self._payload.name = value
+    def replace(self, replace_data: BaseModel) -> None:
+        """Replace entity data with given data."""
+        self._payload = self.model.main_model(name=self.name, **replace_data.dict())

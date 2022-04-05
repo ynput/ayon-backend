@@ -11,20 +11,12 @@ class SubsetEntity(ProjectLevelEntity):
     #
 
     @property
-    def name(self) -> str:
-        return self._payload.name
-
-    @name.setter
-    def name(self, value: str):
-        self.model._payload = value
-
-    @property
     def folder_id(self) -> str:
         return self._payload.folder_id
 
     @folder_id.setter
     def folder_id(self, value: str):
-        self.model._payload = value
+        self._payload.folder_id = value
 
     @property
     def family(self) -> str:
@@ -32,4 +24,4 @@ class SubsetEntity(ProjectLevelEntity):
 
     @family.setter
     def family(self, value: str):
-        self.model._payload = value
+        self._payload.family = value

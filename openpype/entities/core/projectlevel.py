@@ -1,5 +1,7 @@
 from typing import Any
 
+from pydantic import BaseModel
+
 from openpype.access.utils import ensure_entity_access
 from openpype.entities.core.base import BaseEntity
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
@@ -81,6 +83,9 @@ class ProjectLevelEntity(BaseEntity):
         return await ensure_entity_access(
             user, self.project_name, self.entity_type, self.id, "write"
         )
+
+    def replace(self, replace_data: BaseModel) -> None:
+        self._payload = self.model.main_model(id=self.id, **replace_data.dict())
 
     #
     # Database methods

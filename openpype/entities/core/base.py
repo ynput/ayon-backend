@@ -40,13 +40,6 @@ class BaseEntity:
         """Apply a patch to the entity."""
         self._payload = apply_patch(self._payload, patch_data)
 
-    def replace(self, replace_data: BaseModel) -> None:
-        """Replace entity data with given data."""
-        if self.entity_type in ["project", "user"]:
-            self._payload = self.model.main_model(name=self.name, **replace_data.dict())
-        else:
-            self._payload = self.model.main_model(id=self.id, **replace_data.dict())
-
     @property
     def payload(self):
         return self._payload
@@ -67,6 +60,14 @@ class BaseEntity:
     #
     # Properties
     #
+
+    @property
+    def name(self) -> str:
+        return self._payload.name
+
+    @name.setter
+    def name(self, value: str):
+        self._payload.name = value
 
     @property
     def attrib(self):

@@ -11,14 +11,6 @@ class TaskEntity(ProjectLevelEntity):
     #
 
     @property
-    def name(self) -> str:
-        return self._payload.name
-
-    @name.setter
-    def name(self, value: str):
-        self._payload.name = value
-
-    @property
     def folder_id(self) -> str:
         return self._payload.folder_id
 

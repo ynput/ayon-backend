@@ -7,10 +7,6 @@ class VersionEntity(ProjectLevelEntity):
     entity_type: str = "version"
     model = ModelSet("version", attribute_library["version"])
 
-    @property
-    def name(self):
-        return f"v{self.version:03d}"
-
     async def commit(self, transaction=False):
         """Refresh hierarchy materialized view on folder save."""
 
@@ -32,6 +28,14 @@ class VersionEntity(ProjectLevelEntity):
     #
     # Properties
     #
+
+    @property
+    def name(self):
+        return f"v{self.version:03d}"
+
+    @name.setter
+    def name(self, value):
+        raise AttributeError("Cannot set name of version.")
 
     @property
     def version(self) -> int:

@@ -11,14 +11,6 @@ class RepresentationEntity(ProjectLevelEntity):
     #
 
     @property
-    def name(self) -> str:
-        return self._payload.name
-
-    @name.setter
-    def name(self, value: str):
-        self._payload.name = value
-
-    @property
     def version_id(self) -> str:
         return self._payload.version_id
 

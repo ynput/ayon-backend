@@ -77,16 +77,8 @@ class FolderEntity(ProjectLevelEntity):
         )
 
     #
-    # Attributes
+    # Properties
     #
-
-    @property
-    def name(self) -> str:
-        return self._payload.name
-
-    @name.setter
-    def name(self, value: str) -> None:
-        self._payload.name = value
 
     @property
     def parent_id(self) -> str:
@@ -111,3 +103,11 @@ class FolderEntity(ProjectLevelEntity):
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
         self._payload.thumbnail_id = value
+
+    #
+    # Read only properties
+    #
+
+    @property
+    def path(self) -> str:
+        return self._payload.path

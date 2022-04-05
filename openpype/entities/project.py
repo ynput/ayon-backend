@@ -4,7 +4,7 @@ along with the project data, this entity also handles
 folder_types of the project and the folder hierarchy.
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 from openpype.entities.core import TopLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
