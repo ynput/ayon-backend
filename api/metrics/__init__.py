@@ -7,9 +7,12 @@ from openpype.lib.redis import Redis
 router = APIRouter(prefix="", include_in_schema=False)
 
 
-@router.get("/metrics", response_class=PlainTextResponse)
-async def metrics():
-
+@router.get(
+    "/metrics",
+    operation_id="get_system_metrics",
+    response_class=PlainTextResponse,
+)
+async def get_system_metrics():
     result = ""
     async for record in Postgres.iterate("SELECT name FROM users"):
         name = record["name"]

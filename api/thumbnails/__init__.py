@@ -66,6 +66,7 @@ async def retrieve_thumbnail(project_name: str, thumbnail_id: str) -> Response:
 
 @router.post(
     "/projects/{project_name}/folders/{folder_id}/thumbnail",
+    operation_id="create_folder_thumbnail",
     status_code=201,
     response_class=Response,
     responses=responses,
@@ -93,13 +94,14 @@ async def create_folder_thumbnail(
         mime=content_type,
         payload=payload,
     )
-    folder._payload.thumbnail_id = thumbnail_id
+    folder.thumbnail_id = thumbnail_id
     await folder.save()
     return Response(status_code=201)
 
 
 @router.get(
     "/projects/{project_name}/folders/{folder_id}/thumbnail",
+    operation_id="get_folder_thumbnail",
     response_class=Response,
     responses=responses,
 )
@@ -120,6 +122,7 @@ async def get_folder_thumbnail(
 
 @router.post(
     "/projects/{project_name}/versions/{version_id}/thumbnail",
+    operation_id="create_version_thumbnail",
     status_code=201,
     response_class=Response,
     responses=responses,
@@ -142,13 +145,14 @@ async def create_version_thumbnail(
         mime=content_type,
         payload=payload,
     )
-    version._payload.thumbnail_id = thumbnail_id
+    version.thumbnail_id = thumbnail_id
     await version.save()
     return Response(status_code=201)
 
 
 @router.get(
     "/projects/{project_name}/versions/{version_id}/thumbnail",
+    operation_id="get_version_thumbnail",
     response_class=Response,
     responses=responses,
 )

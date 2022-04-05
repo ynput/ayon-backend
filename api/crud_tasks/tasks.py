@@ -19,6 +19,7 @@ router = APIRouter(
 
 @router.get(
     "/projects/{project_name}/tasks/{task_id}",
+    operation_id="get_task",
     response_model=TaskEntity.model.main_model,
     response_model_exclude_none=True,
     responses={404: ResponseFactory.error(404, "Tasks not found")},
@@ -42,6 +43,7 @@ async def get_task(
 
 @router.post(
     "/projects/{project_name}/tasks",
+    operation_id="create_task",
     status_code=201,
     response_model=EntityIdResponse,
     responses={
@@ -70,6 +72,7 @@ async def create_task(
 
 @router.patch(
     "/projects/{project_name}/tasks/{task_id}",
+    operation_id="update_task",
     status_code=204,
     response_class=Response,
 )
@@ -94,6 +97,7 @@ async def update_task(
 
 @router.delete(
     "/projects/{project_name}/tasks/{task_id}",
+    operation_id="delete_task",
     response_class=Response,
     status_code=204,
 )

@@ -17,6 +17,7 @@ from .router import router
 
 @router.get(
     "/projects/{project_name}",
+    operation_id="get_project",
     response_model=ProjectEntity.model.main_model,
     response_model_exclude_none=True,
     responses={404: ResponseFactory.error(404, "Project not found")},
@@ -38,6 +39,7 @@ async def get_project(
 
 @router.get(
     "/projects/{project_name}/stats",
+    operation_id="get_project_stats",
 )
 async def get_project_stats(
     user: UserEntity = Depends(dep_current_user),
@@ -65,6 +67,7 @@ async def get_project_stats(
 
 @router.put(
     "/projects/{project_name}",
+    operation_id="create_project",
     response_class=Response,
     status_code=201,
     responses={
@@ -113,7 +116,12 @@ async def create_project(
 #
 
 
-@router.patch("/projects/{project_name}", status_code=204, response_class=Response)
+@router.patch(
+    "/projects/{project_name}",
+    operation_id="update_project",
+    status_code=204,
+    response_class=Response,
+)
 async def update_project(
     patch_data: ProjectEntity.model.patch_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
@@ -141,7 +149,12 @@ async def update_project(
 #
 
 
-@router.delete("/projects/{project_name}", response_class=Response, status_code=204)
+@router.delete(
+    "/projects/{project_name}",
+    operation_id="delete_project",
+    response_class=Response,
+    status_code=204,
+)
 async def delete_project(
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),

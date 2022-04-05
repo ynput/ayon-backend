@@ -53,7 +53,11 @@ class HierarchyResponseModel(BaseModel):
     hierarchy: list[HierarchyFolderModel]
 
 
-@router.get("/projects/{project_name}/hierarchy", response_model=HierarchyResponseModel)
+@router.get(
+    "/projects/{project_name}/hierarchy",
+    operation_id="get_folder_hierarchy",
+    response_model=HierarchyResponseModel,
+)
 async def get_folder_hierarchy(
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
@@ -157,7 +161,10 @@ class HierarchyChangeModel(BaseModel):
 
 
 @router.post(
-    "/projects/{project_name}/hierarchy", status_code=204, response_class=Response
+    "/projects/{project_name}/hierarchy",
+    operation_id="change_folder_hierarchy",
+    status_code=204,
+    response_class=Response,
 )
 async def change_hierarchy(
     body: HierarchyChangeModel,

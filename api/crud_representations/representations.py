@@ -23,6 +23,7 @@ router = APIRouter(
 
 @router.get(
     "/projects/{project_name}/representations/{representation_id}",
+    operation_id="get_representation",
     response_model=RepresentationEntity.model.main_model,
     response_model_exclude_none=True,
     responses={404: ResponseFactory.error(404, "Representations not found")},
@@ -46,6 +47,7 @@ async def get_representation(
 
 @router.post(
     "/projects/{project_name}/representations",
+    operation_id="create_representation",
     status_code=201,
     response_model=EntityIdResponse,
     responses={
@@ -76,6 +78,7 @@ async def create_representation(
 
 @router.patch(
     "/projects/{project_name}/representations/{representation_id}",
+    operation_id="update_representation",
     status_code=204,
     response_class=Response,
 )
@@ -100,6 +103,7 @@ async def update_representation(
 
 @router.delete(
     "/projects/{project_name}/representations/{representation_id}",
+    operation_id="delete_representation",
     response_class=Response,
     status_code=204,
 )

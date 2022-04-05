@@ -30,7 +30,10 @@ router = APIRouter(
 
 
 @router.get(
-    "/me", response_model=UserEntity.model.main_model, response_model_exclude_none=True
+    "/me",
+    operation_id="get_current_user",
+    response_model=UserEntity.model.main_model,
+    response_model_exclude_none=True,
 )
 async def get_current_user(user: UserEntity = Depends(dep_current_user)):
     """
@@ -48,6 +51,7 @@ async def get_current_user(user: UserEntity = Depends(dep_current_user)):
 
 @router.get(
     "/{user_name}",
+    operation_id="get_user",
     response_model=UserEntity.model.main_model,
     response_model_exclude_none=True,
 )
@@ -75,6 +79,7 @@ async def get_user(
 
 @router.put(
     "/{user_name}",
+    operation_id="create_user",
     response_class=Response,
     status_code=201,
     responses={
@@ -103,7 +108,12 @@ async def create_user(
     return Response(status_code=201)
 
 
-@router.delete("/{user_name}", response_class=Response, status_code=204)
+@router.delete(
+    "/{user_name}",
+    operation_id="delete_user",
+    response_class=Response,
+    status_code=204,
+)
 async def delete_user(
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
@@ -131,7 +141,12 @@ class ChangePasswordRequestModel(BaseModel):
     )
 
 
-@router.patch("/{user_name}/password", status_code=204, response_class=Response)
+@router.patch(
+    "/{user_name}/password",
+    operation_id="change_password",
+    status_code=204,
+    response_class=Response,
+)
 async def change_password(
     patch_data: ChangePasswordRequestModel,
     user: UserEntity = Depends(dep_current_user),
@@ -148,7 +163,7 @@ async def change_password(
         raise LowPasswordComplexityException
 
     hashed_password = create_password(patch_data.password)
-    target_user._payload.data["password"] = hashed_password
+    target_user.data["password"] = hashed_password
     await target_user.save()
     return Response(status_code=204)
 
@@ -170,8 +185,13 @@ class AssignRolesRequestModel(BaseModel):
     roles: list[RoleOnProjects] = Field(default_factory=list)
 
 
-@router.patch("/{user_name}/roles", status_code=204, response_class=Response)
-async def assign_roles(
+@router.patch(
+    "/{user_name}/roles",
+    operation_id="assign_user_roles",
+    status_code=204,
+    response_class=Response,
+)
+async def assign_user_roles(
     patch_data: AssignRolesRequestModel,
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
@@ -196,9 +216,7 @@ async def assign_roles(
         )
         roles[role.role] = role.projects
 
-    # TODO: do not access _payload, use transaction
-
-    target_user._payload.data["roles"] = roles
+    target_user.data["roles"] = roles
     await target_user.save()
 
     for message in messages:

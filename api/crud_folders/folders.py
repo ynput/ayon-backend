@@ -22,6 +22,7 @@ router = APIRouter(
 
 @router.get(
     "/projects/{project_name}/folders/{folder_id}",
+    operation_id="get_folder",
     response_model=FolderEntity.model.main_model,
     response_model_exclude_none=True,
     responses={
@@ -47,6 +48,7 @@ async def get_folder(
 
 @router.post(
     "/projects/{project_name}/folders",
+    operation_id="create_folder",
     status_code=201,
     response_model=EntityIdResponse,
 )
@@ -74,6 +76,7 @@ async def create_folder(
 
 @router.patch(
     "/projects/{project_name}/folders/{folder_id}",
+    operation_id="update_folder",
     status_code=204,
     response_class=Response,
 )
@@ -110,6 +113,7 @@ async def update_folder(
 
 @router.delete(
     "/projects/{project_name}/folders/{folder_id}",
+    operation_id="delete_folder",
     response_class=Response,
     status_code=204,
 )
