@@ -21,7 +21,7 @@ async def get_links(
     project_name = root.project_name
     logging.info(f"Loading entities linked to entity {root.id} in {project_name}")
 
-    edges = []
+    edges: list[LinkEdge] = []
 
     sql_conditions = []
     if direction == "in":
@@ -82,8 +82,6 @@ async def get_links(
 
     page_info = PageInfo(
         has_next_page=has_next_page,
-        has_previous_page=False,
-        start_cursor=False,
         end_cursor=end_cursor,
     )
 

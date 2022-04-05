@@ -31,7 +31,8 @@ class ResolveResponseModel(BaseModel):
 
 
 @router.post(
-    "/resolve", responses={401: ResponseFactory.error(401, "Unable to log in")},
+    "/resolve",
+    responses={401: ResponseFactory.error(401, "Unable to log in")},
 )
 async def resolve(request: ResolveRequestModel):
 
