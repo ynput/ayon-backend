@@ -75,3 +75,39 @@ class FolderEntity(ProjectLevelEntity):
             project_{self.project_name}.hierarchy
             """
         )
+
+    #
+    # Attributes
+    #
+
+    @property
+    def name(self) -> str:
+        return self._payload.name
+
+    @name.setter
+    def name(self, value: str) -> None:
+        self._payload.name = value
+
+    @property
+    def parent_id(self) -> str:
+        return self._payload.parent_id
+
+    @parent_id.setter
+    def parent_id(self, value: str) -> None:
+        self._payload.parent_id = value
+
+    @property
+    def folder_type(self) -> str:
+        return self._payload.folder_type
+
+    @folder_type.setter
+    def folder_type(self, value: str) -> None:
+        self._payload.folder_type = value
+
+    @property
+    def thumbnail_id(self) -> str:
+        return self._payload.thumbnail_id
+
+    @thumbnail_id.setter
+    def thumbnail_id(self, value: str) -> None:
+        self._payload.thumbnail_id = value

@@ -204,3 +204,17 @@ class ProjectLevelEntity(BaseEntity):
         if commit:
             await self.commit(transaction)
         return not not count
+
+    #
+    # Properties
+    #
+
+    @property
+    def id(self) -> str:
+        """Return the entity id."""
+        return self._payload.id
+
+    @id.setter
+    def id(self, value: str):
+        """Set the entity id."""
+        self._payload.id = value

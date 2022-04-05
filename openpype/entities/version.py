@@ -28,3 +28,43 @@ class VersionEntity(ProjectLevelEntity):
             project_{self.project_name}.version_list
             """
         )
+
+    #
+    # Properties
+    #
+
+    @property
+    def version(self) -> int:
+        return self._payload.version
+
+    @version.setter
+    def version(self, value: int):
+        self._payload.version = value
+
+    @property
+    def subset_id(self) -> str:
+        return self._payload.subset_id
+
+    @subset_id.setter
+    def subset_id(self, value: str):
+        self._payload.subset_id = value
+
+    @property
+    def task_id(self) -> str:
+        return self._payload.task_id
+
+    @task_id.setter
+    def task_id(self, value: str):
+        self._payload.task_id = value
+
+    @property
+    def thumbnail_id(self) -> str:
+        return self._payload.thumbnail_id
+
+    @thumbnail_id.setter
+    def thumbnail_id(self, value: str):
+        self._payload.thumbnail_id = value
+
+    @property
+    def author(self) -> str:
+        return self._payload.author

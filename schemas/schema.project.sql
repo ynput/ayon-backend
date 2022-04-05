@@ -32,8 +32,8 @@ CREATE TABLE folder_types(
 
 CREATE TABLE folders(
     id UUID NOT NULL PRIMARY KEY,
-    name VARCHAR NOT NULL,
 
+    name VARCHAR NOT NULL,
     folder_type VARCHAR REFERENCES folder_types(name) ON UPDATE CASCADE ON DELETE SET NULL,
     parent_id UUID REFERENCES folders(id),
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
@@ -87,6 +87,7 @@ CREATE UNIQUE INDEX hierarchy_id ON hierarchy (id);
 
 CREATE TABLE tasks(
     id UUID NOT NULL PRIMARY KEY,
+
     name VARCHAR NOT NULL,
     folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
     task_type VARCHAR REFERENCES task_types(name) ON UPDATE CASCADE,
@@ -109,6 +110,7 @@ CREATE UNIQUE INDEX task_unique_name ON tasks(folder_id, name);
 
 CREATE TABLE subsets(
     id UUID NOT NULL PRIMARY KEY,
+
     name VARCHAR NOT NULL,
     folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
     family VARCHAR NOT NULL,
@@ -130,8 +132,8 @@ CREATE UNIQUE INDEX subset_unique_name_parent ON subsets (folder_id, name) WHERE
 
 CREATE TABLE versions(
     id UUID NOT NULL PRIMARY KEY,
-    version INTEGER NOT NULL,
 
+    version INTEGER NOT NULL,
     subset_id UUID NOT NULL REFERENCES subsets(id) ON DELETE CASCADE,
     task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
@@ -170,8 +172,8 @@ CREATE UNIQUE INDEX version_list_id ON version_list (subset_id);
 
 CREATE TABLE representations(
     id UUID NOT NULL PRIMARY KEY,
-    name VARCHAR NOT NULL,
 
+    name VARCHAR NOT NULL,
     version_id UUID NOT NULL REFERENCES versions(id) ON DELETE CASCADE,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,

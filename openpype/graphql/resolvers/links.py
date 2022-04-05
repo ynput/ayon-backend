@@ -4,6 +4,7 @@ from nxtools import logging
 from strawberry.types import Info
 
 from openpype.graphql.nodes.common import LinkEdge, LinksConnection
+from openpype.graphql.types import PageInfo
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool
 
@@ -31,7 +32,7 @@ async def get_links(
         sql_conditions.append(f"(input_id = '{root.id}' or output_id = '{root.id}')")
 
     if after is not None:
-        sql_conditions.append("id > '{after}'")
+        sql_conditions.append(f"id > '{after}'")
 
     query = f"""
         SELECT id, input_id, output_id, link_name, data, created_at
@@ -42,6 +43,9 @@ async def get_links(
     """
 
     async for row in Postgres.iterate(query):
+        if first <= len(edges):
+            break
+
         link_type, input_type, output_type = row["link_name"].split("|")
         input_id = row["input_id"]
         output_id = row["output_id"]
@@ -73,4 +77,14 @@ async def get_links(
             )
         )
 
-    return LinksConnection(edges=edges)
+    has_next_page = len(edges) >= first
+    end_cursor = edges[-1].cursor if edges else None
+
+    page_info = PageInfo(
+        has_next_page=has_next_page,
+        has_previous_page=False,
+        start_cursor=False,
+        end_cursor=end_cursor,
+    )
+
+    return LinksConnection(edges=edges, page_info=page_info)

@@ -19,14 +19,6 @@ class BaseEntity:
     def __bool__(self) -> bool:
         return not not self._payload
 
-    def __getattr__(self, key) -> Any:
-        if key in self.dict():
-            return self.dict()[key]
-        raise AttributeError(f"{key} not found in {self.entity_type}")
-
-    def get(self, key, default=None) -> Any:
-        return self.dict().get(key, default)
-
     def dict(
         self,
         exclude_defaults=False,
@@ -73,16 +65,13 @@ class BaseEntity:
         pass
 
     #
-    # Common properties
+    # Properties
     #
 
     @property
-    def active(self) -> bool:
-        return self._payload.active
-
-    @active.setter
-    def active(self, value) -> None:
-        self._payload.active = value
+    def attrib(self):
+        """Return the entity attributes."""
+        return self._payload.attrib
 
     @property
     def data(self) -> Dict[str, Any]:
@@ -91,6 +80,14 @@ class BaseEntity:
     @data.setter
     def data(self, value: Dict[str, Any]) -> None:
         self._payload.data = value
+
+    @property
+    def active(self) -> bool:
+        return self._payload.active
+
+    @active.setter
+    def active(self, value) -> None:
+        self._payload.active = value
 
     @property
     def created_at(self) -> float:

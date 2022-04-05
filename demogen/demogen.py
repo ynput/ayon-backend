@@ -20,6 +20,8 @@ from openpype.utils import create_uuid, dict_exclude
 
 from .generators import generators
 
+VERSIONS_PER_SUBSET = 5
+
 
 class StateEnum(enum.IntEnum):
     """
@@ -107,7 +109,7 @@ class DemoGen:
 
         # Propagate project attributes
         attrib = kwargs.get("attrib", {})
-        for key, value in self.project.attrib.items():
+        for key, value in self.project.attrib.dict().items():
             if key in attrib:
                 continue
             attrib[key] = value
@@ -170,11 +172,11 @@ class DemoGen:
         )
         await subset.save(conn)
 
-        for i in range(1, folder.get("_version_count", 5)):
+        for i in range(1, VERSIONS_PER_SUBSET):
             self.version_count += 1
             attrib = {"families": [kwargs["family"]]}
             for key in [r["name"] for r in common_attributes]:
-                val = folder.attrib.get(key)
+                val = folder.attrib.dict().get(key)
                 if val is not None:
                     attrib[key] = val
             version = VersionEntity(
@@ -226,8 +228,8 @@ class DemoGen:
 
         files = {}
         if "{frame}" in kwargs["attrib"]["template"]:
-            frame_start = folder.attrib["frameStart"]
-            frame_end = folder.attrib["frameEnd"]
+            frame_start = folder.attrib.frameStart
+            frame_end = folder.attrib.frameEnd
         else:
             frame_start = 0
             frame_end = 0

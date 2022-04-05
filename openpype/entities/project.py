@@ -4,6 +4,8 @@ along with the project data, this entity also handles
 folder_types of the project and the folder hierarchy.
 """
 
+from typing import Dict, Any
+
 from openpype.entities.core import TopLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
 from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
@@ -241,3 +243,47 @@ class ProjectEntity(TopLevelEntity):
         )
         # TODO: Return false if project was not found
         return True
+
+    #
+    # Properties
+    #
+
+    @property
+    def library(self) -> bool:
+        """Return True if the entity is a library."""
+        return self._payload.library
+
+    @library.setter
+    def library(self, value: bool):
+        """Set the entity type to library."""
+        self._payload.library = value
+
+    @property
+    def config(self) -> Dict[str, Any]:
+        """Return the entity configuration."""
+        return self._payload.config
+
+    @config.setter
+    def config(self, value: Dict[str, Any]):
+        """Set the entity configuration."""
+        self._payload.config = value
+
+    @property
+    def folder_types(self) -> Dict[str, Any]:
+        """Return the folder types."""
+        return self._payload.folder_types
+
+    @folder_types.setter
+    def folder_types(self, value: Dict[str, Any]):
+        """Set the folder types."""
+        self._payload.folder_types = value
+
+    @property
+    def task_types(self) -> Dict[str, Any]:
+        """Return the task types."""
+        return self._payload.task_types
+
+    @task_types.setter
+    def task_types(self, value: Dict[str, Any]):
+        """Set the task types."""
+        self._payload.task_types = value

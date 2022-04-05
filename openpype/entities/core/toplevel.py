@@ -39,3 +39,15 @@ class TopLevelEntity(BaseEntity):
     def as_user(self, user):
         # TODO
         return self._payload.copy()
+
+    #
+    # Properties
+    #
+
+    @property
+    def name(self) -> str:
+        return self._payload.name
+
+    @name.setter
+    def name(self, value: str) -> None:
+        self._payload.name = value
