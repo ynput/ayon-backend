@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Literal
 
 from nxtools import logging
@@ -18,6 +19,8 @@ async def create_link(
 
     link_type, input_type, output_type = link_type_name.split("|")
     link_id = EntityID.create()
+
+    print(f"{input_type} {input_id} -> {output_type} {output_id}")
 
     if DEBUG:
         logging.debug(
@@ -40,6 +43,13 @@ async def create_link(
     )
 
 
+@dataclass
+class EntityResult:
+    id: str
+    folder_id: str
+    version: int
+
+
 async def query_entities(
     project_name: str,
     entity_type: str,
@@ -48,8 +58,8 @@ async def query_entities(
     folder_id: str | None = None,
     subset_name: str | None = None,
     limit: int | None = None,
-    version: Literal["same", "latest"] | None = None,
-) -> AsyncGenerator[tuple[str, str], None]:
+    version: Literal["hero", "latest"] | int | None = None,
+) -> AsyncGenerator[EntityResult, None]:
     """Query entities from a project.
 
     Returns a generator of tuples of (folder_id, entity_id) for a
@@ -66,6 +76,11 @@ async def query_entities(
         conditions.append(f"h.path ~* '{folder_path}'")
     if subset_name is not None:
         conditions.append(f"s.name ~* '{subset_name}'")
+
+    if type(version) is int:
+        conditions.append(f"v.version = {version}")
+    elif version == "latest":
+        conditions.append("v.id = l.ids[array_upper(l.ids, 1)]")
 
     if limit is not None:
         cols = ["f.id as folder_id", "s.id as subset_id", "v.id as version_id"]
@@ -94,6 +109,7 @@ async def query_entities(
     cols.append("h.path as path")
     cols.append("s.name as subset_name")
     cols.append("s.family as subset_family")
+    cols.append("v.version as version")
 
     query = f"""
         SELECT {", ".join(cols)}
@@ -105,19 +121,28 @@ async def query_entities(
         INNER JOIN
             project_{project_name}.versions v
             ON s.id = v.subset_id
-        LEFT JOIN
+        INNER JOIN
             project_{project_name}.hierarchy h
             ON f.id = h.id
+        INNER JOIN
+            project_{project_name}.version_list l
+            ON s.id = l.subset_id
         {SQLTool.conditions(conditions)}
         {'ORDER BY RANDOM()' if limit is not None else ''}
     """
+    print(query)
     used: list[str] = []  # faster that trying to find out, how to distinct
     async for row in Postgres.iterate(query):
         if row[f"{entity_type}_id"] in used:
             continue
         used.append(row[f"{entity_type}_id"])
-        # print("returning", entity_type, row["path"], row["subset_name"])
-        yield row["folder_id"], row[f"{entity_type}_id"]
+
+        print(row)
+        yield EntityResult(
+            id=row[f"{entity_type}_id"],
+            folder_id=row["folder_id"],
+            version=row["version"],
+        )
         if limit is not None and len(used) >= limit:
             break
 
@@ -136,16 +161,18 @@ async def make_links(
         raise ValueError(f"Missing output config in link type {link_type_name}")
 
     count = 0
-    async for folder_id, input_id in query_entities(
+    async for input_entity in query_entities(
         project_name,
         input_type,
         **link_type_config["input"],
     ):
-        lconfig = {}
+        lconfig: dict[str, Any] = {}
         if link_type_config.get("same_folder", False):
-            lconfig["folder_id"] = folder_id
+            lconfig["folder_id"] = input_entity.folder_id
+        if link_type_config.get("same_version", False):
+            lconfig["version"] = input_entity.version
 
-        async for _, output_id in query_entities(
+        async for output_entity in query_entities(
             project_name,
             output_type,
             **link_type_config["output"] | lconfig,
@@ -153,8 +180,8 @@ async def make_links(
 
             await create_link(
                 project_name,
-                input_id,
-                output_id,
+                input_entity.id,
+                output_entity.id,
                 link_type_name,
                 author="martas",
             )

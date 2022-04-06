@@ -59,8 +59,10 @@ GEN_CONFIG = [
             "folder_type": "Shot",
             "subset_name": "^workfileCompositing$",
             "limit": 20,
+            "version": "latest",
         },
         "same_folder": False,
+        "same_version": True,
     },
 ]
 
