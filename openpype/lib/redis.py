@@ -44,3 +44,17 @@ class Redis:
         if not cls.connected:
             await cls.connect()
         return await cls.redis_pool.incr(namespace + "-" + key)
+
+    @classmethod
+    async def pubsub(cls):
+        if not cls.connected:
+            await cls.connect()
+        return cls.redis_pool.pubsub()
+
+    @classmethod
+    async def publish(cls, message: str, channel: str | None = None):
+        if not cls.connected:
+            await cls.connect()
+        if channel is None:
+            channel = pypeconfig.redis_channel
+        return await cls.redis_pool.publish(channel, message)

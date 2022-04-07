@@ -4,9 +4,11 @@ import os
 import sys
 
 import fastapi
+from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_traceback, logging
 
 from openpype.access.roles import Roles
+from openpype.api.messaging import Messaging
 from openpype.api.metadata import app_meta, tags_meta
 from openpype.api.responses import ErrorResponse
 from openpype.auth.session import Session
@@ -86,6 +88,24 @@ def explorer():
         page = f.read()
     page = page.replace("{{ SUBSCRIPTION_ENABLED }}", "false")
     return fastapi.responses.HTMLResponse(page, 200)
+
+
+#
+# Websocket
+#
+
+messaging = Messaging()
+
+
+@app.websocket("/ws")
+async def ws_endpoint(websocket: WebSocket):
+    await messaging.join(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await websocket.send_text(f"Message text was: {data}")
+    except WebSocketDisconnect:
+        await messaging.leave(websocket)
 
 
 #

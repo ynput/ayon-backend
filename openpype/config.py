@@ -34,6 +34,11 @@ class PypeConfig(BaseModel):
         example="redis://studio:password123@redis.example.com:6379",
     )
 
+    redis_channel: str = Field(
+        default="pype:c",
+        description="Redis channel name for system messages",
+    )
+
     postgres_url: str = Field(
         default="postgres://pypeusr:pypepass@postgres/pype",
         description="Connection string for Postgres.",
