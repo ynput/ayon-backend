@@ -7,9 +7,10 @@ from pydantic import BaseModel, Field
 from openpype.access.utils import folder_access_list
 from openpype.api import ResponseFactory, dep_current_user, dep_project_name
 from openpype.entities import UserEntity
-from openpype.hierarchy import HierarchyResolver
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID, SQLTool
+
+from .solver import HierarchyResolver
 
 #
 # Router
