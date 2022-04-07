@@ -12,11 +12,13 @@ from .common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,
+    ARGHasLinks,
     ARGIds,
     ARGLast,
     FieldInfo,
     argdesc,
     create_pagination,
+    get_has_links_conds,
     resolve,
 )
 
@@ -36,6 +38,7 @@ async def get_subsets(
     families: Annotated[
         list[str] | None, argdesc("List of families to filter by")
     ] = None,
+    has_links: ARGHasLinks = None,
 ) -> SubsetsConnection:
     """Return a list of subsets."""
 
@@ -74,6 +77,11 @@ async def get_subsets(
 
     if name:
         sql_conditions.append(f"name ILIKE '{name}'")
+
+    if has_links is not None:
+        sql_conditions.extend(
+            get_has_links_conds(project_name, "subsets.id", has_links)
+        )
 
     access_list = None
     if root.__class__.__name__ == "ProjectNode":

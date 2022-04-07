@@ -1,5 +1,5 @@
-from typing import Literal, AsyncGenerator
 from dataclasses import dataclass
+from typing import AsyncGenerator, Literal
 
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool

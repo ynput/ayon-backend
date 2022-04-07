@@ -11,12 +11,14 @@ from .common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,
+    ARGHasLinks,
     ARGIds,
     ARGLast,
     FieldInfo,
     argdesc,
     create_folder_access_list,
     create_pagination,
+    get_has_links_conds,
     resolve,
 )
 
@@ -55,6 +57,7 @@ async def get_folders(
     has_tasks: Annotated[
         bool | None, argdesc("Whether to filter by folders with tasks")
     ] = None,
+    has_links: ARGHasLinks = None,
 ) -> FoldersConnection:
     """Return a list of folders."""
 
@@ -165,6 +168,11 @@ async def get_folders(
 
     if has_tasks is not None:
         sql_having.append("COUNT(tasks.id) > 0" if has_tasks else "COUNT(tasks.id) = 0")
+
+    if has_links is not None:
+        sql_conditions.extend(
+            get_has_links_conds(project_name, "folders.id", has_links)
+        )
 
     if paths is not None:
         sql_conditions.append(f"hierarchy.path IN {SQLTool.array(paths)}")

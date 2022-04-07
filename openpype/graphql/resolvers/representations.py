@@ -11,11 +11,13 @@ from .common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,
+    ARGHasLinks,
     ARGIds,
     ARGLast,
     argdesc,
     create_folder_access_list,
     create_pagination,
+    get_has_links_conds,
     resolve,
 )
 
@@ -34,6 +36,7 @@ async def get_representations(
         list[str] | None, argdesc("List of parent version IDs to filter by")
     ] = None,
     name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
+    has_links: ARGHasLinks = None,
 ) -> RepresentationsConnection:
     """Return a list of representations."""
 
@@ -70,6 +73,11 @@ async def get_representations(
 
     if name is not None:
         sql_conditions.append(f"name ILIKE '{name}'")
+
+    if has_links is not None:
+        sql_conditions.extend(
+            get_has_links_conds(project_name, "representations.id", has_links)
+        )
 
     #
     # ACL

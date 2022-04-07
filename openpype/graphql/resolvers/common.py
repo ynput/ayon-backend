@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Annotated, Any, Callable, TypeVar
 
 import strawberry
@@ -11,6 +12,15 @@ from openpype.utils import EntityID, validate_name
 DEFAULT_PAGE_SIZE = 100
 
 
+@strawberry.enum
+class HasLinksFilter(Enum):
+    NONE = "none"
+    IN = "in"
+    OUT = "out"
+    ANY = "any"
+    BOTH = "both"
+
+
 def argdesc(description):
     description = "\n".join([line.strip() for line in description.split("\n")])
     return strawberry.argument(description=description)
@@ -21,6 +31,7 @@ ARGAfter = Annotated[str | None, argdesc("Pagination: first")]
 ARGLast = Annotated[int | None, argdesc("Pagination: last")]
 ARGBefore = Annotated[str | None, argdesc("Pagination: before")]
 ARGIds = Annotated[list[str] | None, argdesc("List of ids to be returned")]
+ARGHasLinks = Annotated[HasLinksFilter | None, argdesc("Filter by links presence")]
 
 
 class FieldInfo:
@@ -183,3 +194,27 @@ async def resolve(
     )
 
     return connection_type(edges=edges, page_info=page_info)
+
+
+def get_has_links_conds(
+    project_name: str,
+    id_field: str,
+    filter: HasLinksFilter | None,
+) -> list[str]:
+    if filter is None:
+        return []
+    if filter == HasLinksFilter.IN:
+        return [f"{id_field} IN (SELECT output_id FROM project_{project_name}.links)"]
+    if filter == HasLinksFilter.OUT:
+        return [f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)"]
+    if filter == HasLinksFilter.ANY:
+        return [
+            f"({id_field} IN (SELECT input_id FROM project_{project_name}.links) OR "
+            f"{id_field} IN (SELECT output_id FROM project_{project_name}.links))",
+        ]
+    if filter == HasLinksFilter.BOTH:
+        return [
+            f"{id_field} IN (SELECT output_id FROM project_{project_name}.links)",
+            f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)",
+        ]
+    raise ValueError("Wrong has_links value")

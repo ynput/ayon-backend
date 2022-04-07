@@ -3,6 +3,7 @@ import json
 import sys
 
 from nxtools import critical_error, log_traceback
+
 from linker.linker import make_links
 from openpype.lib.postgres import Postgres
 

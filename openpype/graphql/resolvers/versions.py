@@ -9,11 +9,13 @@ from openpype.graphql.resolvers.common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,
+    ARGHasLinks,
     ARGIds,
     ARGLast,
     argdesc,
     create_folder_access_list,
     create_pagination,
+    get_has_links_conds,
     resolve,
 )
 from openpype.utils import SQLTool
@@ -52,6 +54,7 @@ async def get_versions(
         bool,
         argdesc("List hero versions. If hero does not exist, list latest"),
     ] = False,
+    has_links: ARGHasLinks = None,
 ) -> VersionsConnection:
     """Return a list of versions."""
 
@@ -118,6 +121,11 @@ async def get_versions(
             )
             )
             """
+        )
+
+    if has_links is not None:
+        sql_conditions.extend(
+            get_has_links_conds(project_name, "versions.id", has_links)
         )
 
     access_list = await create_folder_access_list(root, info)

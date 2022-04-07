@@ -1,9 +1,10 @@
 from typing import Any
+
 from nxtools import logging
+
 from linker.query import query_entities
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
-
 
 DEBUG = False
 

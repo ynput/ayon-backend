@@ -11,12 +11,14 @@ from .common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,
+    ARGHasLinks,
     ARGIds,
     ARGLast,
     FieldInfo,
     argdesc,
     create_folder_access_list,
     create_pagination,
+    get_has_links_conds,
     resolve,
 )
 
@@ -36,6 +38,7 @@ async def get_tasks(
         list[str] | None, argdesc("List of parent folder IDs to filter by")
     ] = None,
     name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
+    has_links: ARGHasLinks = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
 
@@ -81,6 +84,9 @@ async def get_tasks(
 
     if task_types:
         sql_conditions.append(f"task_type IN {SQLTool.array(task_types)}")
+
+    if has_links is not None:
+        sql_conditions.extend(get_has_links_conds(project_name, "tasks.id", has_links))
 
     access_list = await create_folder_access_list(root, info)
     if access_list is not None:
