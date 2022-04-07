@@ -1,79 +1,14 @@
 import asyncio
+import json
+import sys
 
+from nxtools import critical_error, log_traceback
 from linker.linker import make_links
 from openpype.lib.postgres import Postgres
 
-# Each link type has input and output descriptions.
-# Resolver for both is the same and accepts the following:
-#
-#
-# folder_path: regex to match folder path
-# folder_type: type of folder (str)
-# folder_id: only used internally to resolve "same_folder" argument
-# subset_name: regex to match subset name
-# limit: count of random objects to resolve (only makes sense on output)
-#
-# Top level parameter 'same_folder' limit the output section result
-# to the same folder as the input.
 
-LINK_TYPES = [
-    "breakdown|subset|folder",
-    "breakdown|folder|folder",
-    "reference|version|version",
-]
-
-GEN_CONFIG = [
-    {
-        "link_type": "breakdown|subset|folder",
-        "input": {
-            "folder_type": "Asset",
-            "folder_path": "^assets/characters/.*",
-            "subset_name": "^model.*",
-        },
-        "output": {
-            "subset_name": "^rigMain$",
-            "limit": 20,
-        },
-        "same_folder": True,
-    },
-    {
-        "link_type": "breakdown|folder|folder",
-        "input": {
-            "folder_type": "Asset",
-            "folder_path": "^assets/characters/.*",
-        },
-        "output": {
-            "folder_type": "Shot",
-            "limit": 20,
-        },
-        "same_folder": False,
-    },
-    {
-        "link_type": "reference|version|version",
-        "input": {
-            "folder_type": "Asset",
-            "folder_path": "^assets/characters/.*",
-            "subset_name": "^rigMain$",
-        },
-        "output": {
-            "folder_type": "Shot",
-            "subset_name": "^workfileCompositing$",
-            "limit": 20,
-            "version": "latest",
-        },
-        "same_folder": False,
-        "same_version": True,
-    },
-]
-
-
-async def create_link_type(
-    project_name: str,
-    link_type_name: str,
-) -> None:
-
+async def create_link_type(project_name: str, link_type_name: str) -> None:
     link_type, input_type, output_type = link_type_name.split("|")
-
     await Postgres.execute(
         f"""
         INSERT INTO project_{project_name}.link_types
@@ -89,24 +24,43 @@ async def create_link_type(
 
 
 async def main():
+    # Get generator config
+
+    data = sys.stdin.read()
+    if not data:
+        critical_error("No data provided")
+
+    try:
+        gen_config = json.loads(data)
+    except Exception:
+        log_traceback()
+        critical_error("Invalid project data provided")
+
+    project_name = gen_config["project_name"]
+    links_config = gen_config["links"]
+
+    # Connect to the DB and ensure the project exists
+
     await Postgres.connect()
-    project_names = [
-        row["name"] async for row in Postgres.iterate("SELECT name FROM projects")
-    ]
 
-    for project_name in project_names:
-        await Postgres.execute(f"DELETE FROM project_{project_name}.link_types")
-        await Postgres.execute(f"DELETE FROM project_{project_name}.links")
+    res = await Postgres.execute("SELECT * FROM projects WHERE name = $1", project_name)
+    if not res:
+        critical_error(f"Project {project_name} not found")
 
-        if project_name.lower() != "demo_commercial":
-            # DEBUG ON A SMALL PROJECT
-            continue
+    # Delete existing links and link types
 
-        for link_type in LINK_TYPES:
-            await create_link_type(project_name, link_type)
+    await Postgres.execute(f"DELETE FROM project_{project_name}.link_types")
+    await Postgres.execute(f"DELETE FROM project_{project_name}.links")
 
-        for link_type_config in GEN_CONFIG:
-            await make_links(project_name, link_type_config)
+    # Create link types
+
+    link_types = list(set([link_type["link_type"] for link_type in links_config]))
+
+    for link_type in link_types:
+        await create_link_type(project_name, link_type)
+
+    for link_type_config in links_config:
+        await make_links(project_name, link_type_config)
 
 
 if __name__ == "__main__":

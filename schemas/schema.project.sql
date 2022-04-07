@@ -110,8 +110,8 @@ CREATE UNIQUE INDEX task_unique_name ON tasks(folder_id, name);
 
 CREATE TABLE subsets(
     id UUID NOT NULL PRIMARY KEY,
-
     name VARCHAR NOT NULL,
+
     folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
     family VARCHAR NOT NULL,
 
@@ -172,8 +172,8 @@ CREATE UNIQUE INDEX version_list_id ON version_list (subset_id);
 
 CREATE TABLE representations(
     id UUID NOT NULL PRIMARY KEY,
-
     name VARCHAR NOT NULL,
+
     version_id UUID NOT NULL REFERENCES versions(id) ON DELETE CASCADE,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
