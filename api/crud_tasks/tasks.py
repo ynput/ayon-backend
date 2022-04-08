@@ -1,8 +1,12 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Response
+from pydantic import BaseModel, Field
 
 from openpype.api.dependencies import dep_current_user, dep_project_name, dep_task_id
 from openpype.api.responses import EntityIdResponse, ResponseFactory
 from openpype.entities import TaskEntity, UserEntity
+from openpype.exceptions import ForbiddenException
 
 router = APIRouter(
     tags=["Tasks"],
@@ -110,4 +114,63 @@ async def delete_task(
 
     task = await TaskEntity.load(project_name, task_id)
     await task.delete()
+    return Response(status_code=204)
+
+
+#
+# Assign
+#
+
+
+class AssignUsersRequestModel(BaseModel):
+    """Assign users to a task."""
+
+    mode: Literal["add", "remove", "set"] = Field(
+        ...,
+        description="What to do with the list of users",
+        example="add",
+    )
+    users: list[str] = Field(
+        ...,
+        description="List of user names",
+        example=["Eeny", "Meeny", "Miny", "Moe"],
+    )
+
+
+@router.post(
+    "/projects/{project_name}/tasks/{task_id}/assign",
+    operation_id="assign_users_to_task",
+    status_code=204,
+    response_class=Response,
+)
+async def assign_users_to_task(
+    post_data: AssignUsersRequestModel,  # type: ignore
+    user: UserEntity = Depends(dep_current_user),
+    project_name: str = Depends(dep_project_name),
+    task_id: str = Depends(dep_task_id),
+):
+    """Change the list of users assigned to a task."""
+
+    if not user.is_manager and post_data.users != [user.name]:
+        raise ForbiddenException("Normal users can only assign themselves")
+
+    task = await TaskEntity.load(project_name, task_id)
+    assignees = task.assignees
+
+    if post_data.mode == "add":
+        assignees.extend(post_data.users)
+        # Remove duplicates
+        assignees = list(dict.fromkeys(assignees))
+    elif post_data.mode == "remove":
+        assignees = [
+            assignee for assignee in assignees if assignee not in post_data.users
+        ]
+    elif post_data.mode == "set":
+        assignees = post_data.users
+    else:
+        raise ValueError(f"Unknown mode: {post_data.mode}")
+
+    task.assignees = assignees
+    await task.save()
+
     return Response(status_code=204)
