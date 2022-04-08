@@ -110,3 +110,10 @@ async def dep_task_id(
 ) -> str:
     """Validate a task id specified in an endpoint path."""
     return task_id
+
+
+async def dep_link_id(
+    link_id: str = Path(..., title="Link ID", **EntityID.META)
+) -> str:
+    """Validate a link id specified in an endpoint path."""
+    return link_id
