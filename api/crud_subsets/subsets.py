@@ -61,6 +61,7 @@ async def create_subset(
     """
 
     subset = SubsetEntity(project_name=project_name, payload=post_data.dict())
+    # TODO: ACL
     await subset.save()
     return EntityIdResponse(id=subset.id)
 
@@ -85,6 +86,7 @@ async def update_subset(
     """Patch (partially update) a subset."""
 
     subset = await SubsetEntity.load(project_name, subset_id)
+    await subset.ensure_update_access(user)
     subset.patch(post_data)
     await subset.save()
     return Response(status_code=204)
@@ -109,5 +111,6 @@ async def delete_subset(
     """Delete a subset."""
 
     subset = await SubsetEntity.load(project_name, subset_id)
+    await subset.ensure_delete_access(user)
     await subset.delete()
     return Response(status_code=204)

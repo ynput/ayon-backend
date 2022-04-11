@@ -65,6 +65,7 @@ async def create_task(
     """
 
     task = TaskEntity(project_name=project_name, payload=post_data.dict())
+    # TODO: how to solve access control?
     await task.save()
     return EntityIdResponse(id=task.id)
 
@@ -89,6 +90,7 @@ async def update_task(
     """Patch (partially update) a task."""
 
     task = await TaskEntity.load(project_name, task_id)
+    await task.ensure_update_access(user)
     task.patch(post_data)
     await task.save()
     return Response(status_code=204)

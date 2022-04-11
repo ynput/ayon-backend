@@ -91,6 +91,7 @@ async def update_representation(
     """Patch (partially update) a representation."""
 
     representation = await RepresentationEntity.load(project_name, representation_id)
+    await representation.ensure_update_access(user)
     representation.patch(post_data)
     await representation.save()
     return Response(status_code=204)
@@ -115,5 +116,6 @@ async def delete_representation(
     """Delete a representation."""
 
     representation = await RepresentationEntity.load(project_name, representation_id)
+    await representation.ensure_delete_access(user)
     await representation.delete()
     return Response(status_code=204)

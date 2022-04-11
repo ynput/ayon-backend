@@ -61,6 +61,8 @@ async def create_version(
     """
 
     version = VersionEntity(project_name=project_name, payload=post_data.dict())
+    # TODO: How to solve access control?
+
     await version.save()
     return EntityIdResponse(id=version.id)
 
@@ -85,6 +87,7 @@ async def update_version(
     """Patch (partially update) a version."""
 
     version = await VersionEntity.load(project_name, version_id)
+    await version.ensure_update_access(user)
     version.patch(post_data)
     await version.save()
     return Response(status_code=204)
@@ -109,5 +112,6 @@ async def delete_version(
     """Delete a version."""
 
     version = await VersionEntity.load(project_name, version_id)
+    await version.ensure_delete_access(user)
     await version.delete()
     return Response(status_code=204)

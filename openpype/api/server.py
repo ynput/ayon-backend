@@ -19,7 +19,10 @@ from openpype.lib.postgres import Postgres
 from openpype.utils import parse_access_token
 
 app = fastapi.FastAPI(
-    docs_url=None, redoc_url="/docs", openapi_tags=tags_meta, **app_meta
+    docs_url=None,
+    redoc_url="/docs",
+    openapi_tags=tags_meta,
+    **app_meta,
 )
 
 #

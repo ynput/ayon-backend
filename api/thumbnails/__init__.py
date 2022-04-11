@@ -85,7 +85,7 @@ async def create_folder_thumbnail(
     """
     payload = await request.body()
     folder = await FolderEntity.load(project_name, folder_id)
-    await folder.ensure_write_access(user)
+    await folder.ensure_update_access(user)
 
     thumbnail_id = EntityID.create()
     await store_thumbnail(
@@ -136,7 +136,7 @@ async def create_version_thumbnail(
 ):
     payload = await request.body()
     version = await VersionEntity.load(project_name, version_id)
-    await version.ensure_write_access(user)
+    await version.ensure_update_access(user)
 
     thumbnail_id = EntityID.create()
     await store_thumbnail(

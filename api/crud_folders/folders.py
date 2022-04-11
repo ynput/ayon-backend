@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Response
 
-from openpype.access.utils import folder_access_list
 from openpype.api.dependencies import dep_current_user, dep_folder_id, dep_project_name
 from openpype.api.responses import EntityIdResponse, ResponseFactory
 from openpype.entities import FolderEntity, UserEntity
@@ -62,9 +61,14 @@ async def create_folder(
     Use a POST request to create a new folder (with a new id).
     """
 
-    # TODO: Access control
-
     folder = FolderEntity(project_name=project_name, payload=post_data.dict())
+
+    if (folder.parent_id is None) and (not user.is_manager):
+        raise ForbiddenException("Only managers can create root folders")
+
+    parent_folder = await FolderEntity.load(project_name, folder.parent_id)
+    await parent_folder.ensure_create_access(user)
+
     await folder.save()
     return EntityIdResponse(id=folder.id)
 
@@ -94,12 +98,7 @@ async def update_folder(
                 project_name, folder_id, transaction=conn, for_update=True
             )
 
-            access_list = await folder_access_list(user, project_name, "update")
-
-            if access_list is not None:
-                if folder.path not in access_list:
-                    raise ForbiddenException
-
+            await folder.ensure_update_access(user)
             folder.patch(post_data)
             await folder.save(transaction=conn)
 
@@ -125,11 +124,7 @@ async def delete_folder(
     """Delete a folder."""
 
     folder = await FolderEntity.load(project_name, folder_id)
-    access_list = await folder_access_list(user, project_name, "update")
-
-    if access_list is not None:
-        if folder.path not in access_list:
-            raise ForbiddenException
+    folder.ensure_delete_access(user)
 
     await folder.delete()
     return Response(status_code=204)

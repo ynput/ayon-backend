@@ -51,7 +51,18 @@ class ProjectLevelEntity(BaseEntity):
             parsed[key] = payload[key]
         return cls(project_name, parsed, exists=True, validate=validate)
 
+    def replace(self, replace_data: BaseModel) -> None:
+        """Replace the entity payload with new data."""
+        self._payload = self.model.main_model(id=self.id, **replace_data.dict())
+
+    #
+    # Access control
+    #
+
     def as_user(self, user):
+        """Return a payload of the entity limited to the attributes that
+        are accessible to the given user.
+        """
         kw = {"deep": True, "exclude": {}}
 
         # TODO: Clean-up. use model.attrb_model.__fields__ to create blacklist
@@ -74,18 +85,41 @@ class ProjectLevelEntity(BaseEntity):
         result = self._payload.copy(**kw)
         return result
 
+    async def ensure_create_access(self, user):
+        """Check if the user has access to create a new entity.
+
+        Raises FobiddenException if the user does not have access.
+        """
+        await ensure_entity_access(
+            user, self.project_name, self.entity_type, self.id, "create"
+        )
+
     async def ensure_read_access(self, user):
-        return await ensure_entity_access(
+        """Check if the user has access to read the entity.
+
+        Raises FobiddenException if the user does not have access.
+        """
+        await ensure_entity_access(
             user, self.project_name, self.entity_type, self.id, "read"
         )
 
-    async def ensure_write_access(self, user):
-        return await ensure_entity_access(
-            user, self.project_name, self.entity_type, self.id, "write"
+    async def ensure_update_access(self, user):
+        """Check if the user has access to update the entity.
+
+        Raises FobiddenException if the user does not have access.
+        """
+        await ensure_entity_access(
+            user, self.project_name, self.entity_type, self.id, "update"
         )
 
-    def replace(self, replace_data: BaseModel) -> None:
-        self._payload = self.model.main_model(id=self.id, **replace_data.dict())
+    async def ensure_delete_access(self, user):
+        """Check if the user has access to delete the entity.
+
+        Raises FobiddenException if the user does not have access.
+        """
+        await ensure_entity_access(
+            user, self.project_name, self.entity_type, self.id, "delete"
+        )
 
     #
     # Database methods
