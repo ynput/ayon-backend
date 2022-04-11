@@ -11,7 +11,7 @@ from openpype.api.dependencies import (
 from openpype.entities.folder import FolderEntity
 from openpype.entities.user import UserEntity
 from openpype.entities.version import VersionEntity
-from openpype.exceptions import RecordNotFoundException
+from openpype.exceptions import BadRequestException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
 
@@ -40,6 +40,9 @@ async def store_thumbnail(
     mime: str,
     payload: bytes,
 ):
+    if len(payload) < 10:
+        raise BadRequestException("Thumbnail cannot be empty")
+
     query = f"""
         INSERT INTO project_{project_name}.thumbnails (id, mime, data)
         VALUES ($1, $2, $3)
@@ -56,7 +59,7 @@ async def retrieve_thumbnail(project_name: str, thumbnail_id: str) -> Response:
         return Response(
             media_type=record["mime"], status_code=200, content=record["data"]
         )
-    raise RecordNotFoundException("Thumbnail does not exist")
+    raise NotFoundException("Thumbnail does not exist")
 
 
 #

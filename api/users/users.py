@@ -11,7 +11,7 @@ from openpype.entities import UserEntity
 from openpype.exceptions import (
     ForbiddenException,
     LowPasswordComplexityException,
-    RecordNotFoundException,
+    NotFoundException,
 )
 
 #
@@ -99,7 +99,7 @@ async def create_user(
 
     try:
         nuser = await UserEntity.load(user_name)
-    except RecordNotFoundException:
+    except NotFoundException:
         nuser = UserEntity(put_data.dict() | {"name": user_name})
     else:
         return Response(status_code=409)

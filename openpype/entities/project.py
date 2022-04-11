@@ -8,7 +8,7 @@ from typing import Any, Dict
 
 from openpype.entities.core import TopLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
-from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
+from openpype.exceptions import ConstraintViolationException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, dict_exclude
 
@@ -105,7 +105,7 @@ class ProjectEntity(TopLevelEntity):
                 name,
             )
         ):
-            raise RecordNotFoundException()
+            raise NotFoundException
 
         # Load folder types
         folder_types = {}

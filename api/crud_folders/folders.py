@@ -63,11 +63,12 @@ async def create_folder(
 
     folder = FolderEntity(project_name=project_name, payload=post_data.dict())
 
-    if (folder.parent_id is None) and (not user.is_manager):
-        raise ForbiddenException("Only managers can create root folders")
-
-    parent_folder = await FolderEntity.load(project_name, folder.parent_id)
-    await parent_folder.ensure_create_access(user)
+    if folder.parent_id is None:
+        if not user.is_manager:
+            raise ForbiddenException("Only managers can create root folders")
+    else:
+        parent_folder = await FolderEntity.load(project_name, folder.parent_id)
+        await parent_folder.ensure_create_access(user)
 
     await folder.save()
     return EntityIdResponse(id=folder.id)

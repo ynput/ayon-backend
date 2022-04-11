@@ -1,6 +1,6 @@
 from openpype.entities.core import ProjectLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
-from openpype.exceptions import RecordNotFoundException
+from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
 
@@ -56,7 +56,7 @@ class FolderEntity(ProjectLevelEntity):
                 payload=record,
                 validate=False,
             )
-        raise RecordNotFoundException("Entity not found")
+        raise NotFoundException("Entity not found")
 
     async def commit(self, db=False):
         """Refresh hierarchy materialized view on folder save."""

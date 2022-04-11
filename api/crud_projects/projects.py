@@ -5,7 +5,7 @@ from nxtools import logging
 
 from openpype.api import ResponseFactory, dep_current_user, dep_project_name
 from openpype.entities import ProjectEntity, UserEntity
-from openpype.exceptions import ForbiddenException, RecordNotFoundException
+from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
 
 from .router import router
@@ -99,7 +99,7 @@ async def create_project(
         project = await ProjectEntity.load(project_name)
         # project.replace(put_data)
         # action = "Replaced"
-    except RecordNotFoundException:
+    except NotFoundException:
         project = ProjectEntity(payload=put_data.dict() | {"name": project_name})
         action = "Created"
     else:

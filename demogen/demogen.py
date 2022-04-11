@@ -14,7 +14,7 @@ from openpype.entities import (
     VersionEntity,
 )
 from openpype.entities.models.attributes import common_attributes
-from openpype.exceptions import RecordNotFoundException
+from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import create_uuid, dict_exclude
 
@@ -89,7 +89,7 @@ class DemoGen:
         """Attempt to delete the project."""
         try:
             project = await ProjectEntity.load(self.project_name)
-        except RecordNotFoundException:
+        except NotFoundException:
             return False
         else:
             await project.delete()

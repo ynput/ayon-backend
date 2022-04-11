@@ -9,7 +9,7 @@ from openpype.entities import UserEntity
 from openpype.exceptions import (
     ConstraintViolationException,
     ForbiddenException,
-    RecordNotFoundException,
+    NotFoundException,
 )
 from openpype.lib.postgres import Postgres
 
@@ -113,7 +113,7 @@ async def delete_role(
         raise ForbiddenException
 
     if (role_name, project_name) not in Roles.roles:
-        raise RecordNotFoundException("Unable to update role. Not found")
+        raise NotFoundException("Unable to update role. Not found")
 
     await Postgres.execute(
         "DELETE FROM roles WHERE name = $1 AND project_name = $2",
@@ -147,7 +147,7 @@ async def update_role(
         raise ForbiddenException
 
     if (role_name, project_name) not in Roles.roles:
-        raise RecordNotFoundException("Unable to update role. Not found")
+        raise NotFoundException("Unable to update role. Not found")
 
     await Postgres.execute(
         "UPDATE roles SET data=$1 WHERE name = $2 AND project_name = $3",

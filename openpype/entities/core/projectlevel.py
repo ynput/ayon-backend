@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from openpype.access.utils import ensure_entity_access
 from openpype.entities.core.base import BaseEntity
-from openpype.exceptions import ConstraintViolationException, RecordNotFoundException
+from openpype.exceptions import ConstraintViolationException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, dict_exclude
 
@@ -156,7 +156,7 @@ class ProjectLevelEntity(BaseEntity):
 
         async for record in Postgres.iterate(query, entity_id):
             return cls.from_record(project_name, record)
-        raise RecordNotFoundException("Entity not found")
+        raise NotFoundException("Entity not found")
 
     #
     # Save
@@ -222,9 +222,7 @@ class ProjectLevelEntity(BaseEntity):
     async def delete(self, transaction=None) -> bool:
         """Delete an existing entity."""
         if not self.id:
-            raise RecordNotFoundException(
-                f"Unable to delete unloaded {self.entity_type}."
-            )
+            raise NotFoundException(f"Unable to delete unloaded {self.entity_type}.")
 
         commit = not transaction
         transaction = transaction or Postgres

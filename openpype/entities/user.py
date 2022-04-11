@@ -4,7 +4,7 @@ from openpype.access.permissions import Permissions
 from openpype.access.roles import Roles
 from openpype.entities.core import TopLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
-from openpype.exceptions import RecordNotFoundException
+from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, dict_exclude
 
@@ -26,7 +26,7 @@ class UserEntity(TopLevelEntity):
                 "SELECT * FROM public.users WHERE name = $1", name
             )
         ):
-            raise RecordNotFoundException(f"Unable to load user {name}")
+            raise NotFoundException(f"Unable to load user {name}")
         return cls.from_record(user_data[0])
 
     #
@@ -59,9 +59,7 @@ class UserEntity(TopLevelEntity):
     async def delete(self, transaction=None) -> bool:
         """Delete existing user."""
         if not self.name:
-            raise RecordNotFoundException(
-                f"Unable to delete user {self.name}. Not loaded."
-            )
+            raise NotFoundException(f"Unable to delete user {self.name}. Not loaded.")
 
         commit = not transaction
         transaction = transaction or Postgres

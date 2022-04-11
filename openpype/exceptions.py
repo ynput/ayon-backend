@@ -24,6 +24,13 @@ class OpenPypeException(Exception):
         super().__init__(self.detail)
 
 
+class BadRequestException(OpenPypeException):
+    """Raised when the request is malformed or missing required fields."""
+
+    detail: str = "Bad request"
+    status = 400
+
+
 class UnauthorizedException(OpenPypeException):
     """Raised when a user is not authorized.
 
@@ -45,7 +52,7 @@ class ForbiddenException(OpenPypeException):
     status: int = 403
 
 
-class RecordNotFoundException(OpenPypeException):
+class NotFoundException(OpenPypeException):
     """Exception raised when a resource is not found."""
 
     detail: str = "Not found"

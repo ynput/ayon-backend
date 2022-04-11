@@ -4,7 +4,11 @@ from fastapi import Depends, Header, Path
 
 from openpype.auth.session import Session
 from openpype.entities import UserEntity
-from openpype.exceptions import UnauthorizedException, UnsupportedMediaException
+from openpype.exceptions import (
+    BadRequestException,
+    UnauthorizedException,
+    UnsupportedMediaException,
+)
 from openpype.lib.redis import Redis
 from openpype.utils import EntityID, parse_access_token
 
@@ -117,3 +121,27 @@ async def dep_link_id(
 ) -> str:
     """Validate a link id specified in an endpoint path."""
     return link_id
+
+
+async def dep_link_type(
+    link_type: str = Path(..., title="Link Type"),
+) -> tuple[str, str, str]:
+    try:
+        name, input_type, output_type = link_type.split("|")
+    except ValueError:
+        raise BadRequestException(
+            "Link type must be in the format 'name|input_type|output_type'"
+        )
+
+    if input_type not in ["folder", "subset", "version", "representation", "task"]:
+        raise BadRequestException(
+            "Link type input type must be one of 'folder', "
+            "'subset', 'version', 'representation', or 'task'"
+        )
+    if output_type not in ["folder", "subset", "version", "representation", "task"]:
+        raise BadRequestException(
+            "Link type output type must be one of 'folder', "
+            "'subset', 'version', 'representation', or 'task'"
+        )
+
+    return (name, input_type, output_type)
