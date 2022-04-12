@@ -84,7 +84,7 @@ async def create_role(
             """,
             role_name,
             project_name,
-            data,
+            data.dict(),
         )
     except Exception:
         # TODO: which exception is raised?
@@ -113,7 +113,7 @@ async def delete_role(
         raise ForbiddenException
 
     if (role_name, project_name) not in Roles.roles:
-        raise NotFoundException("Unable to update role. Not found")
+        raise NotFoundException(f"Unable to delete role {role_name}. Not found")
 
     await Postgres.execute(
         "DELETE FROM roles WHERE name = $1 AND project_name = $2",
@@ -151,7 +151,7 @@ async def update_role(
 
     await Postgres.execute(
         "UPDATE roles SET data=$1 WHERE name = $2 AND project_name = $3",
-        data,
+        data.dict(),
         role_name,
         project_name,
     )

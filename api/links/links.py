@@ -158,7 +158,6 @@ async def create_entity_link(
     link_type, input_type, output_type = post_data.link.split("|")
     link_id = EntityID.create()
 
-
     if input_type == output_type and post_data.input == post_data.output:
         raise BadRequestException("Cannot link an entity to itself.")
 
@@ -175,7 +174,7 @@ async def create_entity_link(
     for row in await Postgres.fetch(query, post_data.input):
         break
     else:
-        raise NotFoundException(f"Input entity {post_data.input_id} not found.")
+        raise NotFoundException(f"Input entity {post_data.input} not found.")
 
     # Ensure output_id is in the project
 

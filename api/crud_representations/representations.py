@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Response
+from nxtools import logging
 
 from openpype.api.dependencies import (
     dep_current_user,
@@ -67,7 +68,9 @@ async def create_representation(
     representation = RepresentationEntity(
         project_name=project_name, payload=post_data.dict()
     )
+    await representation.ensure_create_access(user)
     await representation.save()
+    logging.info(f"[POST] Created representation {representation.name}", user=user.name)
     return EntityIdResponse(id=representation.id)
 
 
@@ -118,4 +121,7 @@ async def delete_representation(
     representation = await RepresentationEntity.load(project_name, representation_id)
     await representation.ensure_delete_access(user)
     await representation.delete()
+    logging.info(
+        f"[DELETE] Deleted representation {representation.name}", user=user.name
+    )
     return Response(status_code=204)

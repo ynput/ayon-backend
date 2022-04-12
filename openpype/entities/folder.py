@@ -1,6 +1,7 @@
+from openpype.access.utils import ensure_entity_access
 from openpype.entities.core import ProjectLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
-from openpype.exceptions import NotFoundException
+from openpype.exceptions import NotFoundException, ForbiddenException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
 
@@ -75,6 +76,36 @@ class FolderEntity(ProjectLevelEntity):
             project_{self.project_name}.hierarchy
             """
         )
+
+    async def get_versions(self, transaction=None):
+        """Return of version ids associated with this folder."""
+        query = f"""
+            SELECT v.id as version_id
+            FROM project_{self.project_name}.versions as v
+            INNER JOIN project_{self.project_name}.subsets as s
+                ON s.id = v.subset_id
+            WHERE s.folder_id = $1
+            """
+        return [row["version_id"] async for row in Postgres.iterate(query, self.id)]
+
+    async def ensure_create_access(self, user):
+        """Check if the user has access to create a new entity.
+
+        Raises FobiddenException if the user does not have access.
+        Reimplements the method from the parent class, because in
+        case of folders we need to check the parent folder.
+        """
+        if self.parent_id is None:
+            if not user.is_manager:
+                raise ForbiddenException("Only managers can create root folders")
+        else:
+            await ensure_entity_access(
+                user,
+                self.project_name,
+                self.entity_type,
+                self.parent_id,
+                "create",
+            )
 
     #
     # Properties

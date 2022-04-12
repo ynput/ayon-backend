@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Response
+from nxtools import logging
 
 from openpype.api.dependencies import dep_current_user, dep_folder_id, dep_project_name
 from openpype.api.responses import EntityIdResponse, ResponseFactory
@@ -62,15 +63,9 @@ async def create_folder(
     """
 
     folder = FolderEntity(project_name=project_name, payload=post_data.dict())
-
-    if folder.parent_id is None:
-        if not user.is_manager:
-            raise ForbiddenException("Only managers can create root folders")
-    else:
-        parent_folder = await FolderEntity.load(project_name, folder.parent_id)
-        await parent_folder.ensure_create_access(user)
-
+    await folder.ensure_create_access(user)
     await folder.save()
+    logging.info(f"[POST] Created folder {folder.name}", user=user.name)
     return EntityIdResponse(id=folder.id)
 
 
@@ -100,6 +95,22 @@ async def update_folder(
             )
 
             await folder.ensure_update_access(user)
+            has_versions = not not (await folder.get_versions(conn))
+
+            # If the folder has versions, we can't update the name,
+            # folder_type or change the hierarchy
+            for key in ["name", "folder_type", "parent_id"]:
+                old_value = folder.payload.dict(exclude_none=True).get(key)
+                new_value = post_data.dict(exclude_none=None).get(key)
+
+                if (new_value is None) or (old_value == new_value):
+                    continue
+
+                if has_versions:
+                    raise ForbiddenException(
+                        f"Cannot update {key} folder with published versions"
+                    )
+
             folder.patch(post_data)
             await folder.save(transaction=conn)
 
@@ -125,7 +136,7 @@ async def delete_folder(
     """Delete a folder."""
 
     folder = await FolderEntity.load(project_name, folder_id)
-    folder.ensure_delete_access(user)
-
+    await folder.ensure_delete_access(user)
     await folder.delete()
+    logging.info(f"[DELETE] Deleted folder {folder.name}", user=user.name)
     return Response(status_code=204)

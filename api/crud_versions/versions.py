@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Response
+from nxtools import logging
 
 from openpype.api.dependencies import dep_current_user, dep_project_name, dep_version_id
 from openpype.api.responses import EntityIdResponse, ResponseFactory
@@ -61,9 +62,9 @@ async def create_version(
     """
 
     version = VersionEntity(project_name=project_name, payload=post_data.dict())
-    # TODO: How to solve access control?
-
+    await version.ensure_create_access(user)
     await version.save()
+    logging.info(f"[POST] Created version {version.name}", user=user.name)
     return EntityIdResponse(id=version.id)
 
 
@@ -114,4 +115,5 @@ async def delete_version(
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_delete_access(user)
     await version.delete()
+    logging.info(f"[DELETE] Deleted version {version.name}", user=user.name)
     return Response(status_code=204)
