@@ -47,7 +47,6 @@ def get_overal_status(files: dict) -> StatusEnum:
 
 @router.get(
     "/projects/{project_name}/sitesync/params",
-    operation_id="get_site_sync_params",
     response_model=SiteSyncParamsModel,
 )
 async def get_site_sync_params(
@@ -90,7 +89,6 @@ async def get_site_sync_params(
 
 @router.get(
     "/projects/{project_name}/sitesync/state",
-    operation_id="get_site_sync_state",
     response_model=SiteSyncSummaryModel,
 )
 async def get_site_sync_state(
@@ -320,7 +318,6 @@ async def get_site_sync_state(
 
 @router.post(
     "/projects/{project_name}/sitesync/state/{representation_id}/{site_name}",
-    operation_id="set_site_sync_state",
     response_class=Response,
     status_code=204,
 )

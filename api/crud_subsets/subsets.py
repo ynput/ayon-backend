@@ -20,7 +20,6 @@ router = APIRouter(
 
 @router.get(
     "/projects/{project_name}/subsets/{subset_id}",
-    operation_id="get_subset",
     response_model=SubsetEntity.model.main_model,
     response_model_exclude_none=True,
     responses={404: ResponseFactory.error(404, "Subset not found")},
@@ -44,7 +43,6 @@ async def get_subset(
 
 @router.post(
     "/projects/{project_name}/subsets",
-    operation_id="create_subset",
     status_code=201,
     response_model=EntityIdResponse,
     responses={
@@ -75,7 +73,6 @@ async def create_subset(
 
 @router.patch(
     "/projects/{project_name}/subsets/{subset_id}",
-    operation_id="update_subset",
     status_code=204,
     response_class=Response,
 )
@@ -101,7 +98,6 @@ async def update_subset(
 
 @router.delete(
     "/projects/{project_name}/subsets/{subset_id}",
-    operation_id="delete_subset",
     response_class=Response,
     status_code=204,
 )

@@ -132,6 +132,10 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api"):
 
         target_app.include_router(module.router, prefix="/api")
 
+    for route in app.routes:
+        if isinstance(route, fastapi.routing.APIRoute):
+            route.operation_id = route.name
+
 
 init_api(app, pypeconfig.api_modules_dir)
 

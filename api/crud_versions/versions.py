@@ -20,7 +20,6 @@ router = APIRouter(
 
 @router.get(
     "/projects/{project_name}/versions/{version_id}",
-    operation_id="get_version",
     response_model=VersionEntity.model.main_model,
     response_model_exclude_none=True,
     responses={404: ResponseFactory.error(404, "Versions not found")},
@@ -44,7 +43,6 @@ async def get_version(
 
 @router.post(
     "/projects/{project_name}/versions",
-    operation_id="create_version",
     status_code=201,
     response_model=EntityIdResponse,
     responses={
@@ -75,7 +73,6 @@ async def create_version(
 
 @router.patch(
     "/projects/{project_name}/versions/{version_id}",
-    operation_id="update_version",
     status_code=204,
     response_class=Response,
 )
@@ -101,7 +98,6 @@ async def update_version(
 
 @router.delete(
     "/projects/{project_name}/versions/{version_id}",
-    operation_id="delete_version",
     response_class=Response,
     status_code=204,
 )

@@ -45,7 +45,6 @@ class LoginResponseModel(BaseModel):
 
 @router.post(
     "/login",
-    operation_id="login",
     response_model=LoginResponseModel,
     responses={401: ResponseFactory.error(401, "Unable to log in")},
 )
@@ -78,7 +77,6 @@ class LogoutResponseModel(BaseModel):
 
 @router.post(
     "/logout",
-    operation_id="logout",
     response_model=LogoutResponseModel,
     responses={401: ResponseFactory.error(401, "Not logged in")},
 )

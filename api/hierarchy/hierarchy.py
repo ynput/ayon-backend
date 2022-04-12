@@ -56,7 +56,6 @@ class HierarchyResponseModel(BaseModel):
 
 @router.get(
     "/projects/{project_name}/hierarchy",
-    operation_id="get_folder_hierarchy",
     response_model=HierarchyResponseModel,
 )
 async def get_folder_hierarchy(
@@ -163,7 +162,6 @@ class HierarchyChangeModel(BaseModel):
 
 @router.post(
     "/projects/{project_name}/hierarchy",
-    operation_id="change_folder_hierarchy",
     status_code=204,
     response_class=Response,
 )

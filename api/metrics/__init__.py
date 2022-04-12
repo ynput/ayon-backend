@@ -9,7 +9,6 @@ router = APIRouter(prefix="", include_in_schema=False)
 
 @router.get(
     "/metrics",
-    operation_id="get_system_metrics",
     response_class=PlainTextResponse,
 )
 async def get_system_metrics():

@@ -1,6 +1,6 @@
 """Request dependencies."""
 
-from fastapi import Depends, Header, Path
+from fastapi import Depends, Header, Path, Request
 
 from openpype.auth.session import Session
 from openpype.entities import UserEntity
@@ -29,6 +29,7 @@ async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
 
 
 async def dep_current_user(
+    request: Request,
     x_forwarded_for: str = Header(None, include_in_schema=False),
     access_token: str = Depends(dep_access_token),
 ) -> UserEntity:
@@ -45,7 +46,10 @@ async def dep_current_user(
     if not session_data:
         raise UnauthorizedException("Invalid access token", log=False)
     await Redis.incr("user-requests", session_data.user.name)
-    return UserEntity.from_record(session_data.user.dict())
+    user = UserEntity.from_record(session_data.user.dict())
+    # logging.info("Accessed", request.scope["endpoint"].__name__, user=user.name)
+    # TODO: ensure user has access to the requested resource
+    return user
 
 
 async def dep_project_name(

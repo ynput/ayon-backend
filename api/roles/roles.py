@@ -35,7 +35,6 @@ router = APIRouter(
 
 @router.get(
     "/{role_name}/{project_name}",
-    operation_id="get_user_role",
     response_model=Permissions,
     response_model_exclude_none=True,
 )
@@ -54,7 +53,6 @@ async def get_role(
 
 @router.put(
     "/{role_name}/{project_name}",
-    operation_id="create_user_role",
     response_class=Response,
     status_code=201,
     responses={
@@ -98,7 +96,6 @@ async def create_role(
 
 @router.delete(
     "/{role_name}/{project_name}",
-    operation_id="delete_user_role",
     response_class=Response,
     status_code=204,
 )
@@ -127,7 +124,11 @@ async def delete_role(
     return Response(status_code=204)
 
 
-@router.patch("/{role_name}/{project_name}", response_class=Response, status_code=204)
+@router.patch(
+    "/{role_name}/{project_name}",
+    response_class=Response,
+    status_code=204,
+)
 async def update_role(
     data: Permissions = Body(..., description="Set of new permissions"),
     user: UserEntity = Depends(dep_current_user),

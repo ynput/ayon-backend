@@ -46,7 +46,6 @@ class CreateLinkTypeRequestModel(BaseModel):
 
 @router.get(
     "/projects/{project_name}/links/types",
-    operation_id="get_link_types",
 )
 async def list_link_types(
     project_name: str = Depends(dep_project_name),
@@ -67,7 +66,6 @@ async def list_link_types(
 
 @router.put(
     "/projects/{project_name}/links/types/{link_type}",
-    operation_id="create_link_type",
     status_code=201,
 )
 async def create_link_type(
@@ -100,7 +98,6 @@ async def create_link_type(
 
 @router.delete(
     "/projects/{project_name}/links/types/{link_type}",
-    operation_id="delete_link_type",
     status_code=204,
 )
 async def delete_link_type(
@@ -141,7 +138,6 @@ class CreateLinkRequestModel(BaseModel):
 
 @router.post(
     "/projects/{project_name}/links",
-    operation_id="create_entity_link",
     status_code=201,
     response_model=EntityIdResponse,
     responses={
@@ -225,7 +221,6 @@ async def create_entity_link(
 
 @router.delete(
     "/projects/{project_name}/links/{link_id}",
-    operation_id="delete_entity_link",
     response_class=Response,
     status_code=204,
 )

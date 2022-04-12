@@ -40,7 +40,6 @@ class ListProjectsResponseModel(BaseModel):
 
 @router.get(
     "/projects",
-    operation_id="list_projects",
     response_model=ListProjectsResponseModel,
 )
 async def list_projects(

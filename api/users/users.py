@@ -31,7 +31,6 @@ router = APIRouter(
 
 @router.get(
     "/me",
-    operation_id="get_current_user",
     response_model=UserEntity.model.main_model,
     response_model_exclude_none=True,
 )
@@ -51,7 +50,6 @@ async def get_current_user(user: UserEntity = Depends(dep_current_user)):
 
 @router.get(
     "/{user_name}",
-    operation_id="get_user",
     response_model=UserEntity.model.main_model,
     response_model_exclude_none=True,
 )
@@ -79,7 +77,6 @@ async def get_user(
 
 @router.put(
     "/{user_name}",
-    operation_id="create_user",
     response_class=Response,
     status_code=201,
     responses={
@@ -110,7 +107,6 @@ async def create_user(
 
 @router.delete(
     "/{user_name}",
-    operation_id="delete_user",
     response_class=Response,
     status_code=204,
 )
@@ -143,7 +139,6 @@ class ChangePasswordRequestModel(BaseModel):
 
 @router.patch(
     "/{user_name}/password",
-    operation_id="change_password",
     status_code=204,
     response_class=Response,
 )
@@ -187,7 +182,6 @@ class AssignRolesRequestModel(BaseModel):
 
 @router.patch(
     "/{user_name}/roles",
-    operation_id="assign_user_roles",
     status_code=204,
     response_class=Response,
 )
