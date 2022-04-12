@@ -4,6 +4,10 @@ from pydantic import BaseModel
 
 
 class FolderAccess(BaseModel):
+    """Base class for folder access.
+
+    Not to be used directly.
+    """
     access_type: str
 
     def __hash__(self):

@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from .versions import router
+from crud_versions.versions import router

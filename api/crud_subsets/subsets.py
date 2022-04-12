@@ -54,10 +54,7 @@ async def create_subset(
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
-    """Create a new subset.
-
-    Use a POST request to create a new subset (with a new id).
-    """
+    """Create a new subset."""
 
     subset = SubsetEntity(project_name=project_name, payload=post_data.dict())
     await subset.ensure_create_access(user)

@@ -55,10 +55,7 @@ async def create_folder(
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
-    """Create a new folder.
-
-    Use a POST request to create a new folder (with a new id).
-    """
+    """Create a new folder."""
 
     folder = FolderEntity(project_name=project_name, payload=post_data.dict())
     await folder.ensure_create_access(user)
@@ -83,7 +80,11 @@ async def update_folder(
     project_name: str = Depends(dep_project_name),
     folder_id: str = Depends(dep_folder_id),
 ):
-    """Patch (partially update) a folder."""
+    """Patch (partially update) a folder.
+
+    Once there is a version published, the folder's name and hierarchy
+    cannot be changed.
+    """
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():

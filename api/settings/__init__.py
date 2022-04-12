@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from .settings import router
+from settings.settings import router

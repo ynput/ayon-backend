@@ -8,10 +8,10 @@ __all__ = [
     "UserEntity",
 ]
 
-from .folder import FolderEntity
-from .project import ProjectEntity
-from .representation import RepresentationEntity
-from .subset import SubsetEntity
-from .task import TaskEntity
-from .user import UserEntity
-from .version import VersionEntity
+from openpype.entities.folder import FolderEntity
+from openpype.entities.project import ProjectEntity
+from openpype.entities.representation import RepresentationEntity
+from openpype.entities.subset import SubsetEntity
+from openpype.entities.task import TaskEntity
+from openpype.entities.user import UserEntity
+from openpype.entities.version import VersionEntity

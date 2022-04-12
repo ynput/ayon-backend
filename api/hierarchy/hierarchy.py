@@ -10,7 +10,7 @@ from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID, SQLTool
 
-from .solver import HierarchyResolver
+from hierarchy.solver import HierarchyResolver
 
 #
 # Router

@@ -1,2 +1,3 @@
 __all__ = ["router"]
-from .sitesync import router
+
+from sitesync.sitesync import router

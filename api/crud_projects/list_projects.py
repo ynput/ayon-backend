@@ -11,7 +11,7 @@ from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, validate_name
 
-from .router import router
+from crud_projects.router import router
 
 
 class ListProjectsItemModel(BaseModel):

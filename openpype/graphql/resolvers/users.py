@@ -1,14 +1,12 @@
 from typing import Annotated
-
 from strawberry.types import Info
 
 from openpype.exceptions import ForbiddenException
 from openpype.utils import SQLTool, validate_name
-
-from ..connections import UsersConnection
-from ..edges import UserEdge
-from ..nodes.user import UserNode
-from .common import (
+from openpype.graphql.connections import UsersConnection
+from openpype.graphql.edges import UserEdge
+from openpype.graphql.nodes.user import UserNode
+from openpype.graphql.resolvers.common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,

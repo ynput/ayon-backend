@@ -58,10 +58,7 @@ async def create_representation(
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
-    """Create a new representation.
-
-    Use a POST request to create a new representation (with a new id).
-    """
+    """Create a new representation."""
 
     representation = RepresentationEntity(
         project_name=project_name, payload=post_data.dict()

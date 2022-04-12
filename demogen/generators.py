@@ -1,4 +1,4 @@
-from .namegen import namegen
+from demogen.namegen import namegen
 
 
 async def gen_shots(parent):

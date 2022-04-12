@@ -132,6 +132,7 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api"):
 
         target_app.include_router(module.router, prefix="/api")
 
+    # Use endpoints function names as operation_ids
     for route in app.routes:
         if isinstance(route, fastapi.routing.APIRoute):
             route.operation_id = route.name
@@ -147,6 +148,12 @@ init_api(app, pypeconfig.api_modules_dir)
 
 @app.on_event("startup")
 async def startup_event():
+    """Startup event.
+
+    This is called after the server is started and:
+        - connects to the database
+        - loads roles
+    """
     retry_interval = 5
     while True:
         try:
@@ -160,5 +167,4 @@ async def startup_event():
             break
 
     await Roles.load()
-
     logging.goodnews("Server started")

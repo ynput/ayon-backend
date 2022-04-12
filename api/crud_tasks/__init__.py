@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from .tasks import router
+from crud_tasks.tasks import router

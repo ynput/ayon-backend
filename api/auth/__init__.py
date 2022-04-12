@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from .auth import router
+from auth.auth import router

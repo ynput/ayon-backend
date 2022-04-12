@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from .hierarchy import router
+from hierarchy.hierarchy import router

@@ -1,13 +1,11 @@
 from typing import Annotated
-
 from strawberry.types import Info
 
 from openpype.utils import SQLTool
-
-from ..connections import TasksConnection
-from ..edges import TaskEdge
-from ..nodes.task import TaskNode
-from .common import (
+from openpype.graphql.connections import TasksConnection
+from openpype.graphql.edges import TaskEdge
+from openpype.graphql.nodes.task import TaskNode
+from openpype.graphql.resolvers.common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,

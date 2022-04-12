@@ -206,9 +206,10 @@ async def create_entity_link(
         raise ConstraintViolationException("Link already exists.")
 
     logging.debug(
-        f"{user.name} created {link_type} link between "
+        f"Created {link_type} link between "
         f"{input_type} {post_data.input} and "
-        f"{output_type} {post_data.output}."
+        f"{output_type} {post_data.output}.",
+        user=user.name,
     )
 
     return EntityIdResponse(id=link_id)
@@ -229,9 +230,19 @@ async def delete_entity_link(
     project_name: str = Depends(dep_project_name),
     link_id: str = Depends(dep_link_id),
 ):
-    """Delete a link."""
+    """Delete a link.
 
-    # TODO: Access control
+    Normal users can only delete links they created.
+    Managers can delete any link.
+    """
+
+    query = f"SELECT data->'author' FROM project_{project_name}.links WHERE id = $1"
+    for row in await Postgres.fetch(query, link_id):
+        if (row["data"]["author"] != user.name) and (not user.is_manager):
+            raise ForbiddenException
+        break
+    else:
+        raise NotFoundException(f"Link {link_id} not found.")
 
     await Postgres.execute(
         f"DELETE FROM project_{project_name}.links WHERE id = $1",

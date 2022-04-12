@@ -4,7 +4,7 @@ import sys
 
 from nxtools import critical_error, log_traceback
 
-from .demogen import DemoGen
+from demogen.demogen import DemoGen
 
 
 async def main():

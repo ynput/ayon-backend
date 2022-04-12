@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from .links import router
+from links.links import router

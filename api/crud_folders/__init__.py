@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from .folders import router
+from crud_folders.folders import router

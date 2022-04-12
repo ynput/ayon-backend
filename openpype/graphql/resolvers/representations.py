@@ -1,13 +1,11 @@
 from typing import Annotated
-
 from strawberry.types import Info
 
 from openpype.utils import SQLTool
-
-from ..connections import RepresentationsConnection
-from ..edges import RepresentationEdge
-from ..nodes.representation import RepresentationNode
-from .common import (
+from openpype.graphql.connections import RepresentationsConnection
+from openpype.graphql.edges import RepresentationEdge
+from openpype.graphql.nodes.representation import RepresentationNode
+from openpype.graphql.resolvers.common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,

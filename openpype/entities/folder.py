@@ -1,7 +1,7 @@
 from openpype.access.utils import ensure_entity_access
 from openpype.entities.core import ProjectLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
-from openpype.exceptions import NotFoundException, ForbiddenException
+from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
 

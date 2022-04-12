@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from .subsets import router
+from crud_subsets.subsets import router

@@ -1,13 +1,11 @@
 from typing import Annotated
-
 from strawberry.types import Info
 
 from openpype.utils import SQLTool, validate_name
-
-from ..connections import ProjectsConnection
-from ..edges import ProjectEdge
-from ..nodes.project import ProjectNode
-from .common import (
+from openpype.graphql.connections import ProjectsConnection
+from openpype.graphql.edges import ProjectEdge
+from openpype.graphql.nodes.project import ProjectNode
+from openpype.graphql.resolvers.common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,

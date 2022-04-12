@@ -8,7 +8,7 @@ from openpype.entities import ProjectEntity, UserEntity
 from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
 
-from .router import router
+from crud_projects.router import router
 
 #
 # [GET]

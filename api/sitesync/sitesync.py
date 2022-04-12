@@ -9,7 +9,7 @@ from openpype.entities.user import UserEntity
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool
 
-from .models import (
+from sitesync.models import (
     FileModel,
     RepresentationStateModel,
     SiteSyncParamsModel,

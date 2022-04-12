@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from .representations import router
+from crud_representations.representations import router

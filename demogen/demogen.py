@@ -18,7 +18,7 @@ from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import create_uuid, dict_exclude
 
-from .generators import generators
+from demogen.generators import generators
 
 VERSIONS_PER_SUBSET = 5
 

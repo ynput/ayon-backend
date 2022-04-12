@@ -2,7 +2,7 @@
 DEPRECATED. For reference only
 """
 
-from .constants import NAME_REGEX
+from openpype.entities.models.constants import NAME_REGEX
 
 # Common attributes
 # shared by projects, folders and versions

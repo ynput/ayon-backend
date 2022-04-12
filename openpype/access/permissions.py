@@ -13,42 +13,48 @@ class Permissions(BaseModel):
     Each permission is either bool or a list.
     List permissions also accept Literal["all"]
     value.
+
+    Since access control is permissive by default, don't forget to set
+    all permissions you don't want to be allowed to access to empty list.
     """
 
     create: AccessList = Field(
-        default_factory=list,
+        default="all",
         description="Defines a set of folders, in which the use can create children",
     )
 
     read: AccessList = Field(
-        default_factory=list,
+        default="all",
         description="Defines a set of folders, to which the user has read access.",
     )
 
     update: AccessList = Field(
-        default_factory=list,
+        default="all",
         description="Defines a set of folders, to which the user has write access.",
     )
 
     delete: AccessList = Field(
-        default_factory=list,
+        default="all",
         description="Defines a set of folders, which user can delete",
     )
 
     attrib_read: list[str] | Literal["all"] = Field(
-        default_factory=list, description="List of attributes the user can read"
+        default="all",
+        description="List of attributes the user can read",
     )
 
     attrib_write: list[str] | Literal["all"] = Field(
-        default_factory=list, description="List of attributes the user can read"
+        default="all",
+        description="List of attributes the user can read",
     )
 
     endpoints: list[str] | Literal["all"] = Field(
-        default_factory=list, description="List of Rest endpoint user is allowed to use"
+        default="all",
+        description="List of REST endpoint user is allowed to use",
     )
 
     @classmethod
-    def from_record(cls, perm_dict: dict, validate: bool = True) -> "Permissions":
+    def from_record(cls, perm_dict: dict) -> "Permissions":
         """Recreate a permission object from a JSON object."""
         permissions = {}
         for key, value in perm_dict.items():
@@ -64,8 +70,4 @@ class Permissions(BaseModel):
                 permissions[key] = access_list
             else:
                 permissions[key] = value
-
-        if validate:
-            return cls(**permissions)
-        else:
-            return cls.construct(**permissions)
+        return cls(**permissions)
