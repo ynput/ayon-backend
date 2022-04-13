@@ -1,14 +1,14 @@
 from typing import Any
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
 
 from openpype.lib.postgres import Postgres
+from openpype.types import Field, OPModel
 
 router = APIRouter(prefix="", include_in_schema=False)
 
 
-class AttributeModel(BaseModel):
+class AttributeModel(OPModel):
     name: str
     title: str
     example: str
@@ -19,7 +19,7 @@ class AttributeModel(BaseModel):
     writable: bool
 
 
-class SettingsResponseModel(BaseModel):
+class SettingsResponseModel(OPModel):
     attributes: list[AttributeModel] = Field(
         default_factory=list, description="List of attributes user has access to"
     )

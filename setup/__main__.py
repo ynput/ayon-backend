@@ -1,12 +1,11 @@
 import asyncio
 import sys
-import asyncpg
 
+import asyncpg
 from nxtools import critical_error, log_traceback, logging
 
 from openpype.lib.postgres import Postgres
 from openpype.utils import json_loads
-
 from setup.attributes import deploy_attributes
 from setup.roles import deploy_roles
 from setup.users import deploy_users

@@ -1,7 +1,7 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
-from openpype.utils import SQLTool
 from openpype.graphql.connections import TasksConnection
 from openpype.graphql.edges import TaskEdge
 from openpype.graphql.nodes.task import TaskNode
@@ -19,6 +19,7 @@ from openpype.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
+from openpype.utils import SQLTool
 
 
 async def get_tasks(

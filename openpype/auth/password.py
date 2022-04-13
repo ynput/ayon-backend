@@ -1,13 +1,13 @@
 from nxtools import logging
 
-from openpype.entities import UserEntity
-from openpype.lib.postgres import Postgres
 from openpype.auth.session import Session, SessionModel
 from openpype.auth.utils import (
     create_password,
     ensure_password_complexity,
     hash_password,
 )
+from openpype.entities import UserEntity
+from openpype.lib.postgres import Postgres
 
 
 class PasswordAuth:

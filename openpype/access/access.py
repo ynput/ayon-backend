@@ -1,17 +1,17 @@
-import json
+from openpype.types import OPModel
+from openpype.utils import json_dumps
 
-from pydantic import BaseModel
 
-
-class FolderAccess(BaseModel):
+class FolderAccess(OPModel):
     """Base class for folder access.
 
     Not to be used directly.
     """
+
     access_type: str
 
     def __hash__(self):
-        return hash(json.dumps(self.dict()))
+        return hash(json_dumps(self.dict()))
 
 
 class AccessHierarchy(FolderAccess):

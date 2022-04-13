@@ -1,12 +1,12 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Response
-from pydantic import BaseModel, Field
 
 from openpype.api.dependencies import dep_current_user, dep_project_name, dep_task_id
 from openpype.api.responses import EntityIdResponse, ResponseFactory
 from openpype.entities import TaskEntity, UserEntity
 from openpype.exceptions import ForbiddenException
+from openpype.types import Field, OPModel
 
 router = APIRouter(
     tags=["Tasks"],
@@ -120,7 +120,7 @@ async def delete_task(
 #
 
 
-class AssignUsersRequestModel(BaseModel):
+class AssignUsersRequestModel(OPModel):
     """Assign users to a task."""
 
     mode: Literal["add", "remove", "set"] = Field(

@@ -1,10 +1,10 @@
 import time
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
 
 from openpype.api import ResponseFactory
 from openpype.lib.postgres import Postgres
+from openpype.types import Field, OPModel
 
 #
 # Router
@@ -21,11 +21,11 @@ router = APIRouter(
 #
 
 
-class ResolveRequestModel(BaseModel):
+class ResolveRequestModel(OPModel):
     uris: list[str] = Field(..., description="list of uris to resolve")
 
 
-class ResolveResponseModel(BaseModel):
+class ResolveResponseModel(OPModel):
     paths: list[str]
     time: float
 

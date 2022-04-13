@@ -1,14 +1,6 @@
 import os
 
 from fastapi import APIRouter, Depends, Path, Query, Response
-
-from openpype.access.utils import folder_access_list
-from openpype.api import dep_current_user, dep_project_name, dep_representation_id
-from openpype.entities.representation import RepresentationEntity
-from openpype.entities.user import UserEntity
-from openpype.lib.postgres import Postgres
-from openpype.utils import SQLTool
-
 from sitesync.models import (
     FileModel,
     RepresentationStateModel,
@@ -19,6 +11,13 @@ from sitesync.models import (
     StatusEnum,
     SyncStatusModel,
 )
+
+from openpype.access.utils import folder_access_list
+from openpype.api import dep_current_user, dep_project_name, dep_representation_id
+from openpype.entities.representation import RepresentationEntity
+from openpype.entities.user import UserEntity
+from openpype.lib.postgres import Postgres
+from openpype.utils import SQLTool
 
 router = APIRouter(tags=["Site sync"])
 

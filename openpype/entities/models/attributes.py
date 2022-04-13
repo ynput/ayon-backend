@@ -2,7 +2,7 @@
 DEPRECATED. For reference only
 """
 
-from openpype.entities.models.constants import NAME_REGEX
+from openpype.types import NAME_REGEX
 
 # Common attributes
 # shared by projects, folders and versions
@@ -99,9 +99,7 @@ version_attributes = common_attributes + [
     {"name": "intent"},
     {"name": "source"},
     {"name": "comment"},
-    {
-        "name": "machine",
-    },
+    {"name": "machine"},
     {"name": "families", "type": "list_of_strings"},
     {"name": "colorspace", "type": "string", "example": "rec708"},
 ]

@@ -1,7 +1,7 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
-from openpype.utils import EntityID, SQLTool
 from openpype.graphql.connections import FoldersConnection
 from openpype.graphql.edges import FolderEdge
 from openpype.graphql.nodes.folder import FolderNode
@@ -19,6 +19,7 @@ from openpype.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
+from openpype.utils import EntityID, SQLTool
 
 
 async def get_folders(

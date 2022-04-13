@@ -1,7 +1,7 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
-from openpype.utils import SQLTool, validate_name
 from openpype.graphql.connections import ProjectsConnection
 from openpype.graphql.edges import ProjectEdge
 from openpype.graphql.nodes.project import ProjectNode
@@ -14,6 +14,7 @@ from openpype.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
+from openpype.utils import SQLTool, validate_name
 
 
 async def get_projects(

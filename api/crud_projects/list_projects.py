@@ -3,24 +3,23 @@
 import time
 from typing import List, Literal, Optional
 
+from crud_projects.router import router
 from fastapi import Depends, Query
-from pydantic import BaseModel, Field
 
 from openpype.api import dep_current_user
 from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
+from openpype.types import Field, OPModel
 from openpype.utils import SQLTool, validate_name
 
-from crud_projects.router import router
 
-
-class ListProjectsItemModel(BaseModel):
+class ListProjectsItemModel(OPModel):
     name: str = Field(..., title="Project name")
     createdAt: int = Field(..., title="Creation time")
     updatedAt: int = Field(..., title="Last modified time")
 
 
-class ListProjectsResponseModel(BaseModel):
+class ListProjectsResponseModel(OPModel):
     detail: str = Field("OK", example="Showing LENGTH of COUNT projects")
     count: int = Field(
         0, description="Total count of projects (regardless the pagination)", example=1

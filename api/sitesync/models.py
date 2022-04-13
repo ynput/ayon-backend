@@ -1,7 +1,7 @@
 import enum
 import time
 
-from pydantic import BaseModel, Field
+from openpype.types import Field, OPModel
 
 
 class StatusEnum(enum.IntEnum):
@@ -31,7 +31,7 @@ class SortByEnum(enum.Enum):
     remoteStatus: str = "remoteStatus"
 
 
-class SyncStatusModel(BaseModel):
+class SyncStatusModel(OPModel):
     status: StatusEnum = Field(StatusEnum.NOT_AVAILABLE)
     size: int = Field(0)
     totalSize: int = Field(0)
@@ -44,7 +44,7 @@ class SyncStatusPostModel(SyncStatusModel):
     fileHash: str
 
 
-class FileModel(BaseModel):
+class FileModel(OPModel):
     fileHash: str
     size: int
     path: str
@@ -53,7 +53,7 @@ class FileModel(BaseModel):
     remoteStatus: SyncStatusModel
 
 
-class SiteSyncSummaryItem(BaseModel):
+class SiteSyncSummaryItem(OPModel):
     folder: str = Field(...)
     subset: str = Field(...)
     version: int = Field(...)
@@ -70,15 +70,15 @@ class SiteSyncSummaryItem(BaseModel):
     )
 
 
-class SiteSyncSummaryModel(BaseModel):
+class SiteSyncSummaryModel(OPModel):
     representations: list[SiteSyncSummaryItem] = Field(...)
 
 
-class SiteSyncParamsModel(BaseModel):
+class SiteSyncParamsModel(OPModel):
     count: int
     names: list[str] = Field(default_factory=list)
 
 
-class RepresentationStateModel(BaseModel):
+class RepresentationStateModel(OPModel):
     files: list[SyncStatusPostModel]
     priority: int | None = Field(None)

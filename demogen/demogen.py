@@ -5,6 +5,7 @@ import time
 
 from nxtools import logging
 
+from demogen.generators import generators
 from openpype.entities import (
     FolderEntity,
     ProjectEntity,
@@ -17,8 +18,6 @@ from openpype.entities.models.attributes import common_attributes
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import create_uuid, dict_exclude
-
-from demogen.generators import generators
 
 VERSIONS_PER_SUBSET = 5
 

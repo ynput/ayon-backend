@@ -2,15 +2,14 @@ import time
 from typing import TYPE_CHECKING, ForwardRef, Optional
 
 from fastapi import APIRouter, Depends, Query, Response
-from pydantic import BaseModel, Field
+from hierarchy.solver import HierarchyResolver
 
 from openpype.access.utils import folder_access_list
 from openpype.api import ResponseFactory, dep_current_user, dep_project_name
 from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
+from openpype.types import Field, OPModel
 from openpype.utils import EntityID, SQLTool
-
-from hierarchy.solver import HierarchyResolver
 
 #
 # Router
@@ -32,7 +31,7 @@ if not TYPE_CHECKING:
     HierarchyFolderModel = ForwardRef("HierarchyFolderModel")
 
 
-class HierarchyFolderModel(BaseModel):
+class HierarchyFolderModel(OPModel):
     id: str = EntityID.field("folder")
     name: str = Field(..., example="Tree", title="Folder name")
     folderType: str | None = Field(example="AssetBuild", title="Folder type")
@@ -48,7 +47,7 @@ class HierarchyFolderModel(BaseModel):
 HierarchyFolderModel.update_forward_refs()
 
 
-class HierarchyResponseModel(BaseModel):
+class HierarchyResponseModel(OPModel):
     detail: str
     projectName: str
     hierarchy: list[HierarchyFolderModel]
@@ -155,7 +154,7 @@ async def get_folder_hierarchy(
 #
 
 
-class HierarchyChangeModel(BaseModel):
+class HierarchyChangeModel(OPModel):
     id: Optional[str] = EntityID.field("folder")
     children: list[str] = Field(default_factory=list, example=[])
 

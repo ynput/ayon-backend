@@ -2,23 +2,18 @@ __all__ = ["Session"]
 
 import time
 
-from pydantic import BaseModel
-
 from openpype.entities import UserEntity
 from openpype.lib.redis import Redis
+from openpype.types import OPModel
 from openpype.utils import create_hash, json_dumps, json_loads
 
 
-class SessionModel(BaseModel):
+class SessionModel(OPModel):
     user: UserEntity.model.main_model  # type: ignore
     token: str
     created: float
     last_used: float
     ip: str | None = None
-
-    class Config:
-        json_loads = json_loads
-        json_dumps = json_dumps
 
 
 class Session:

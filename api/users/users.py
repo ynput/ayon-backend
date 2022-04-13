@@ -2,7 +2,6 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Response
 from nxtools import logging
-from pydantic import BaseModel, Field
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user, dep_user_name
@@ -13,6 +12,7 @@ from openpype.exceptions import (
     LowPasswordComplexityException,
     NotFoundException,
 )
+from openpype.types import Field, OPModel
 
 #
 # Router
@@ -129,7 +129,7 @@ async def delete_user(
 #
 
 
-class ChangePasswordRequestModel(BaseModel):
+class ChangePasswordRequestModel(OPModel):
     password: str = Field(
         ...,
         description="New password",
@@ -168,7 +168,7 @@ async def change_password(
 #
 
 
-class RoleOnProjects(BaseModel):
+class RoleOnProjects(OPModel):
     role: str = Field(..., description="Role name")
     projects: list[str] | Literal["all"] | None = Field(
         ...,
@@ -176,7 +176,7 @@ class RoleOnProjects(BaseModel):
     )
 
 
-class AssignRolesRequestModel(BaseModel):
+class AssignRolesRequestModel(OPModel):
     roles: list[RoleOnProjects] = Field(default_factory=list)
 
 

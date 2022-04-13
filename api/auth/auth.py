@@ -7,7 +7,6 @@ Login using Oauth2 is implemented in the oauth module.
 """
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_access_token
@@ -15,6 +14,7 @@ from openpype.auth.password import PasswordAuth
 from openpype.auth.session import Session
 from openpype.entities import UserEntity
 from openpype.exceptions import UnauthorizedException
+from openpype.types import OPModel
 
 #
 # Router
@@ -32,12 +32,12 @@ router = APIRouter(
 #
 
 
-class LoginRequestModel(BaseModel):
+class LoginRequestModel(OPModel):
     name: str
     password: str
 
 
-class LoginResponseModel(BaseModel):
+class LoginResponseModel(OPModel):
     detail: str = "Logged in as NAME"
     token: str = "ACCESS_TOKEN"
     user: UserEntity.model.main_model  # type: ignore
@@ -71,7 +71,7 @@ async def login(login: LoginRequestModel):
 #
 
 
-class LogoutResponseModel(BaseModel):
+class LogoutResponseModel(OPModel):
     detail: str = "Logged out"
 
 

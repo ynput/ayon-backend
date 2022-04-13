@@ -2,7 +2,6 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Response
 from nxtools import logging
-from pydantic import BaseModel, Field
 
 from openpype.api.dependencies import (
     dep_current_user,
@@ -19,6 +18,7 @@ from openpype.exceptions import (
     NotFoundException,
 )
 from openpype.lib.postgres import Postgres
+from openpype.types import Field, OPModel
 from openpype.utils import EntityID
 
 router = APIRouter(
@@ -30,17 +30,17 @@ router = APIRouter(
 )
 
 
-class LinkType(BaseModel):
+class LinkType(OPModel):
     name: str
     data: dict[str, Any]
     # TODO: link_type, inp_type, out_type ... but after camelize config
 
 
-class LinkTypeListResponse(BaseModel):
+class LinkTypeListResponse(OPModel):
     types: list[dict]
 
 
-class CreateLinkTypeRequestModel(BaseModel):
+class CreateLinkTypeRequestModel(OPModel):
     data: dict = Field(default_factory=dict, description="Link data")
 
 
@@ -124,7 +124,7 @@ async def delete_link_type(
 #
 
 
-class CreateLinkRequestModel(BaseModel):
+class CreateLinkRequestModel(OPModel):
     """Request model for creating a link."""
 
     input: str = Field(..., description="The ID of the input entity.")

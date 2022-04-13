@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING
 
-from openpype.access.common import AccessType, EntityType
 from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
+from openpype.types import AccessType, ProjectLevelEntityType
 from openpype.utils import SQLTool
 
 if TYPE_CHECKING:
@@ -100,7 +100,7 @@ async def folder_access_list(
 async def ensure_entity_access(
     user: "UserEntity",
     project_name: str,
-    entity_type: EntityType,
+    entity_type: ProjectLevelEntityType,
     entity_id: str,
     access_type: AccessType = "read",
 ):

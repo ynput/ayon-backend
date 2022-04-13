@@ -1,8 +1,8 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
 from openpype.access.utils import folder_access_list
-from openpype.utils import SQLTool
 from openpype.graphql.connections import SubsetsConnection
 from openpype.graphql.edges import SubsetEdge
 from openpype.graphql.nodes.subset import SubsetNode
@@ -19,6 +19,7 @@ from openpype.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
+from openpype.utils import SQLTool
 
 
 async def get_subsets(

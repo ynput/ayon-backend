@@ -1,7 +1,6 @@
 __all__ = ["router"]
 
 from nxtools import logging
-from pydantic import BaseModel
 from yaoauth2 import OAuth2Data, YAOAuth2
 
 from openpype.auth.session import Session
@@ -9,9 +8,10 @@ from openpype.config import pypeconfig
 from openpype.entities import UserEntity
 from openpype.exceptions import UnauthorizedException
 from openpype.lib.postgres import Postgres
+from openpype.types import OPModel
 
 
-class LoginResponseModel(BaseModel):
+class LoginResponseModel(OPModel):
     detail: str = "Logged in as NAME"
     token: str = "ACCESS_TOKEN"
     user: UserEntity.model.main_model  # type: ignore

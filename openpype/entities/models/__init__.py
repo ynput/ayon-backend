@@ -6,11 +6,6 @@ from typing import Any, Type
 from pydantic import BaseModel
 
 from openpype.entities.models.config import EntityModelConfig
-from openpype.entities.models.constants import (
-    ENTITY_ID_EXAMPLE,
-    ENTITY_ID_REGEX,
-    NAME_REGEX,
-)
 from openpype.entities.models.fields import (
     folder_fields,
     project_fields,
@@ -20,6 +15,7 @@ from openpype.entities.models.fields import (
     version_fields,
 )
 from openpype.entities.models.generator import generate_model
+from openpype.types import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, NAME_REGEX
 
 FIELD_LISTS: dict[str, list[Any]] = {
     "project": project_fields,

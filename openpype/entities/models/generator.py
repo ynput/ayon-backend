@@ -40,7 +40,12 @@ def current_timestamp():
     return int(time.time())
 
 
-FIELD_FACORIES = {"list": list, "dict": dict, "now": current_timestamp, "uuid": new_id}
+FIELD_FACORIES = {
+    "list": list,
+    "dict": dict,
+    "now": current_timestamp,
+    "uuid": new_id,
+}
 
 #
 # Field definition

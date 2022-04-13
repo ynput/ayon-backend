@@ -1,13 +1,12 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
-
 from openpype.access.access import AccessAssigned, AccessChildren, AccessHierarchy
+from openpype.types import Field, OPModel
 
 AccessList = list[AccessHierarchy | AccessAssigned | AccessChildren] | Literal["all"]
 
 
-class Permissions(BaseModel):
+class Permissions(OPModel):
     """Set of permission for a role.
 
     Each permission is either bool or a list.

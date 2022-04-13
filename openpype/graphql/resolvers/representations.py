@@ -1,7 +1,7 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
-from openpype.utils import SQLTool
 from openpype.graphql.connections import RepresentationsConnection
 from openpype.graphql.edges import RepresentationEdge
 from openpype.graphql.nodes.representation import RepresentationNode
@@ -18,6 +18,7 @@ from openpype.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
+from openpype.utils import SQLTool
 
 
 async def get_representations(

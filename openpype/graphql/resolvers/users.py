@@ -1,8 +1,8 @@
 from typing import Annotated
+
 from strawberry.types import Info
 
 from openpype.exceptions import ForbiddenException
-from openpype.utils import SQLTool, validate_name
 from openpype.graphql.connections import UsersConnection
 from openpype.graphql.edges import UserEdge
 from openpype.graphql.nodes.user import UserNode
@@ -15,6 +15,7 @@ from openpype.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
+from openpype.utils import SQLTool, validate_name
 
 
 async def get_users(

@@ -1,8 +1,8 @@
 from http import HTTPStatus
 
 from fastapi.responses import ORJSONResponse
-from pydantic import BaseModel
 
+from openpype.types import OPModel
 from openpype.utils import EntityID
 
 
@@ -10,12 +10,12 @@ class JSONResponse(ORJSONResponse):
     pass
 
 
-class ErrorResponse(BaseModel):
+class ErrorResponse(OPModel):
     code: int
     detail: str
 
 
-class EntityIdResponse(BaseModel):
+class EntityIdResponse(OPModel):
     id: str = EntityID.field()
 
 

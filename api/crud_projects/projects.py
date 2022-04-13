@@ -1,5 +1,6 @@
 """[POST] /projects (Save project)"""
 #
+from crud_projects.router import router
 from fastapi import Depends, Response
 from nxtools import logging
 
@@ -7,8 +8,6 @@ from openpype.api import ResponseFactory, dep_current_user, dep_project_name
 from openpype.entities import ProjectEntity, UserEntity
 from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
-
-from crud_projects.router import router
 
 #
 # [GET]
