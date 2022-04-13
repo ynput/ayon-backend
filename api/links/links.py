@@ -31,13 +31,37 @@ router = APIRouter(
 
 
 class LinkType(OPModel):
-    name: str
-    data: dict[str, Any]
-    # TODO: link_type, inp_type, out_type ... but after camelize config
+    name: str = Field(..., description="Name of the link type")
+    link_type: str = Field(..., description="Type of the link")
+    input_type: str = Field(..., description="Input entity type")
+    output_type: str = Field(..., description="Output entity type")
+    data: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional link type data",
+    )
 
 
 class LinkTypeListResponse(OPModel):
-    types: list[dict]
+    types: list[dict] = Field(
+        ...,
+        description="List of link types",
+        example=[
+            {
+                "name": "referene|version|version",
+                "link_type": "reference",
+                "input_type": "version",
+                "output_type": "version",
+                "data": {},
+            },
+            {
+                "name": "breakdown|folder|folder",
+                "link_type": "breakdown",
+                "input_type": "folder",
+                "output_type": "folder",
+                "data": {},
+            },
+        ],
+    )
 
 
 class CreateLinkTypeRequestModel(OPModel):
@@ -46,11 +70,12 @@ class CreateLinkTypeRequestModel(OPModel):
 
 @router.get(
     "/projects/{project_name}/links/types",
+    response_model=LinkTypeListResponse,
 )
 async def list_link_types(
     project_name: str = Depends(dep_project_name),
     current_user: UserEntity = Depends(dep_current_user),
-):
+) -> LinkTypeListResponse:
     """List all link types"""
 
     types: list[LinkType] = []
@@ -67,6 +92,7 @@ async def list_link_types(
 @router.put(
     "/projects/{project_name}/links/types/{link_type}",
     status_code=201,
+    response_class=Response,
 )
 async def create_link_type(
     project_name: str = Depends(dep_project_name),

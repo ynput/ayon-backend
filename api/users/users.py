@@ -177,7 +177,14 @@ class RoleOnProjects(OPModel):
 
 
 class AssignRolesRequestModel(OPModel):
-    roles: list[RoleOnProjects] = Field(default_factory=list)
+    roles: list[RoleOnProjects] = Field(
+        default_factory=list,
+        description="List of roles to assign",
+        example=[
+            {"role": "editor", "projects": ["project1", "project2"]},
+            {"role": "artist", "projects": "all"},
+        ],
+    )
 
 
 @router.patch(

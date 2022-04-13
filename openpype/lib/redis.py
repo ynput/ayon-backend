@@ -15,9 +15,10 @@ class Redis:
 
     @classmethod
     async def get(cls, namespace: str, key: str) -> str:
+        """Get a value from Redis"""
         if not cls.connected:
             await cls.connect()
-        return await cls.redis_pool.get(namespace + "-" + key)
+        return await cls.redis_pool.get(f"{namespace}-{key}")
 
     @classmethod
     async def set(cls, namespace: str, key: str, value: str, ttl: int = 0):
@@ -27,7 +28,7 @@ class Redis:
         """
         if not cls.connected:
             await cls.connect()
-        command = ["set", namespace + "-" + key, value]
+        command = ["set", f"{namespace}-{key}", value]
         if ttl:
             command.extend(["ex", str(ttl)])
 
@@ -35,24 +36,28 @@ class Redis:
 
     @classmethod
     async def delete(cls, namespace: str, key: str):
+        """Delete a record from Redis"""
         if not cls.connected:
             await cls.connect()
-        return await cls.redis_pool.delete(namespace + "-" + key)
+        return await cls.redis_pool.delete(f"{namespace}-{key}")
 
     @classmethod
     async def incr(cls, namespace: str, key: str):
+        """Increment a value in Redis"""
         if not cls.connected:
             await cls.connect()
-        return await cls.redis_pool.incr(namespace + "-" + key)
+        return await cls.redis_pool.incr(f"{namespace}-{key}")
 
     @classmethod
     async def pubsub(cls):
+        """Create a Redis pubsub connection"""
         if not cls.connected:
             await cls.connect()
         return cls.redis_pool.pubsub()
 
     @classmethod
     async def publish(cls, message: str, channel: str | None = None):
+        """Publish a message to a Redis channel"""
         if not cls.connected:
             await cls.connect()
         if channel is None:

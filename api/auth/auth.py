@@ -14,7 +14,7 @@ from openpype.auth.password import PasswordAuth
 from openpype.auth.session import Session
 from openpype.entities import UserEntity
 from openpype.exceptions import UnauthorizedException
-from openpype.types import OPModel
+from openpype.types import Field, OPModel
 
 #
 # Router
@@ -33,8 +33,8 @@ router = APIRouter(
 
 
 class LoginRequestModel(OPModel):
-    name: str
-    password: str
+    name: str = Field(..., description="Username", example="admin")
+    password: str = Field(..., description="Password", example="SecretPassword.123")
 
 
 class LoginResponseModel(OPModel):

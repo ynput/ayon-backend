@@ -20,36 +20,45 @@ class Permissions(OPModel):
     create: AccessList = Field(
         default="all",
         description="Defines a set of folders, in which the use can create children",
+        example=[{"access_type": "hierarchy", "path": "assets/characters"}],
     )
 
     read: AccessList = Field(
         default="all",
         description="Defines a set of folders, to which the user has read access.",
+        example=[
+            {"access_type": "hierarchy", "path": "assets/characters"},
+            {"access_type": "hierarchy", "path": "assets/locations"},
+            {"access_type": "assigned"},
+        ],
     )
 
     update: AccessList = Field(
         default="all",
         description="Defines a set of folders, to which the user has write access.",
+        example=[{"access_type": "children", "path": "assets/characters"}],
     )
 
     delete: AccessList = Field(
         default="all",
         description="Defines a set of folders, which user can delete",
+        example=[{"access_type": "assigned"}],
     )
 
     attrib_read: list[str] | Literal["all"] = Field(
-        default="all",
-        description="List of attributes the user can read",
+        default="all", description="List of attributes the user can read", example="all"
     )
 
     attrib_write: list[str] | Literal["all"] = Field(
         default="all",
-        description="List of attributes the user can read",
+        description="List of attributes the user can write",
+        example=["resolutionWidth", "resolutionHeight"],
     )
 
     endpoints: list[str] | Literal["all"] = Field(
         default="all",
         description="List of REST endpoint user is allowed to use",
+        example="all",
     )
 
     @classmethod

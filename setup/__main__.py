@@ -13,7 +13,7 @@ from setup.users import deploy_users
 # Defaults which should allow OpenPype to run out of the box
 
 DATA = {
-    "default_roles": {"viewer": "all"},
+    "default_roles": {"viewer": "all",},
     "users": [
         {
             "name": "admin",
@@ -37,7 +37,17 @@ DATA = {
             "fullname": "OpenPype user",
         },
     ],
-    "roles": [{"name": "viewer", "data": {"read": "all"}}],
+    "roles": [
+        {
+            "name": "viewer",
+            "data": {
+                "read": "all",
+                "create": [],
+                "update": [],
+                "delete": [],
+            },
+        }
+    ],
 }
 
 

@@ -27,8 +27,9 @@ project_fields = [
         "default": {},
         "title": "Folder types",
         "example": {
-            "AssetBuild": {"icon": "asset"},
-            "Folder": {"icon": "folder"},
+            "Asset": {"icon": "asset"},
+            "Shot": {"icon": "shot"},
+            "Sequence": {"icon": "sequence"},
         },
     },
     {
@@ -64,7 +65,7 @@ folder_fields = [
         "type": "string",
         "required": False,
         "title": "Folder type",
-        "example": "AssetBuild",
+        "example": "Asset",
     },
     {
         "name": "parent_id",
@@ -99,17 +100,21 @@ task_fields = [
         "required": True,
         "title": "Folder ID",
         "regex": NAME_REGEX,
+        "example": "modeling",
     },
     {
         "name": "task_type",
         "type": "string",
         "required": True,
         "title": "Task type",
+        "example": "Modeling",
     },
     {
         "name": "assignees",
         "type": "list_of_strings",
         "title": "Assignees",
+        "description": "List of users assigned to the task",
+        "example": ["john_doe", "jane_doe"],
     },
     {
         "name": "folder_id",
@@ -129,6 +134,7 @@ subset_fields = [
         "required": True,
         "description": "Name of the subset",
         "regex": NAME_REGEX,
+        "example": "modelMain",
     },
     {
         "name": "folder_id",
@@ -158,6 +164,7 @@ version_fields = [
         "required": True,
         "title": "Version",
         "description": "Version number",
+        "example": 1,
     },
     {
         "name": "subset_id",
@@ -189,6 +196,7 @@ version_fields = [
         "name": "author",
         "type": "string",
         "regex": NAME_REGEX,
+        "example": "john_doe",
     },
 ]
 
@@ -200,6 +208,7 @@ representation_fields = [
         "required": True,
         "title": "Name",
         "description": "The name of the representation",
+        "example": "ma",
         "regex": NAME_REGEX,
     },
     {

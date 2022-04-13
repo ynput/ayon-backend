@@ -209,16 +209,10 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict | None]:
 
 
 async def user_loader(keys: list[str]) -> list[dict | None]:
-    """Load a list of users by their names (used as a dataloader)."""
+    """Load a list of user records by their names."""
 
     result_dict = {k: None for k in keys}
-
-    query = f"""
-        SELECT * FROM public.users
-        WHERE id IN {SQLTool.id_array(keys)}
-        """
-
+    query = f"SELECT * FROM public.users WHERE id IN {SQLTool.id_array(keys)}"
     async for record in Postgres.iterate(query):
         result_dict[record["name"]] = record
-
     return [result_dict[k] for k in keys]
