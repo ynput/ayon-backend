@@ -125,6 +125,7 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api"):
             module = importlib.import_module(module_name)
         except ImportError:
             log_traceback(f"Unable to initialize {module_name}")
+            continue
 
         if not hasattr(module, "router"):
             logging.error(f"API plug-in '{module_name}' has no router")

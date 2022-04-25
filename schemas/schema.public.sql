@@ -46,3 +46,22 @@ CREATE TABLE IF NOT EXISTS public.attributes(
     builtin BOOLEAN NOT NULL DEFAULT FALSE,
     data JSONB NOT NULL DEFAULT '{}':: JSONB
 );
+
+--------------
+-- Settings --
+--------------
+
+CREATE TABLE IF NOT EXISTS public.anatomy_templates(
+  name VARCHAR NOT NULL,
+  version VARCHAR NOT NULL,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  PRIMARY KEY (name, version)
+);
+
+-- default project settings
+
+CREATE TABLE IF NOT EXISTS public.project_settings(
+  version VARCHAR NOT NULL PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+

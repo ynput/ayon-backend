@@ -21,7 +21,7 @@ tags_meta = [
     {
         "name": "Authentication",
         "description": """
-Authentication endpoints provide...
+Authentication endpoints
         """,
     },
     {
@@ -37,7 +37,7 @@ both the project name and the entity ID.
     {
         "name": "Folders",
         "description": """
-Folders are...
+Endpoints for managing folders.
         """,
     },
 ]

@@ -1,3 +1,15 @@
+--------------
+-- SETTINGS --
+--------------
+
+-- project settings overrides
+
+CREATE TABLE IF NOT EXISTS project_settings(
+  version VARCHAR NOT NULL PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+
 ----------------
 -- AUX TABLES --
 ----------------
