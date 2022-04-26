@@ -61,6 +61,7 @@ async def deploy_attributes():
             scope,
             atype,
             title,
+            default,
             example,
             gt,
             lt,
@@ -100,6 +101,16 @@ async def deploy_attributes():
             **parse_intval("min_length", min_len),
             **parse_intval("max_length", max_len),
         }
+
+        default = default.strip()
+        if default:
+            data["default"] = {
+                "integer": int,
+                "string": str,
+                "float": float,
+                "boolean": lambda x: True if x.lower == "true" else False,
+                "list_of_strings": lambda x: [r.strip() for r in x.split(",") if r],
+            }[atype](default)
 
         if regex.strip():
             data["regex"] = regex.strip()

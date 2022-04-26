@@ -1,6 +1,6 @@
 from typing import Iterable, Any
 from nxtools import slugify
-from pydantic import BaseModel, Field, conset, validator
+from pydantic import BaseModel, Field, validator
 
 
 def normalize_name(name: str) -> str:
@@ -105,17 +105,17 @@ class Templates(BaseModel):
         title="Frame template",
     )
 
-    work: conset(WorkTemplate, min_items=1) = Field(
+    work: list[WorkTemplate] = Field(
         default_factory=lambda: [WorkTemplate(name="default")],
         title="Work",
     )
 
-    render: conset(RenderTemplate, min_items=1) = Field(
+    render: list[RenderTemplate] = Field(
         default_factory=lambda: [RenderTemplate(name="default")],
         title="Render",
     )
 
-    publish: conset(PublishTemplate, min_items=1) = Field(
+    publish: list[PublishTemplate] = Field(
         default_factory=lambda: [PublishTemplate(name="default")],
         title="Publish",
     )

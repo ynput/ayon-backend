@@ -54,7 +54,10 @@ class DeployRequestModel(OPModel):
         description="The name of the project to deploy to.",
         example="superProject42",
     )
-    template: AnatomyTemplate = Field(..., description="The anatomy template to deploy.",)
+    template: AnatomyTemplate = Field(
+        ...,
+        description="The anatomy template to deploy.",
+    )
 
 
 @router.post("/deploy")

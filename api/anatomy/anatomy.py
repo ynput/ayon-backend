@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, conset
+from pydantic import BaseModel, Field
 
 from openpype.entities import ProjectEntity
 
@@ -12,7 +12,7 @@ Attributes = ProjectEntity.model.attrib_model
 
 
 class AnatomyTemplate(BaseModel):
-    roots: conset(Root, min_items=1) = Field(
+    roots: list[Root] = Field(
         default=default_roots,
         title="Roots",
     )
