@@ -22,6 +22,14 @@ class VersionListItem:
     id: str
     version: int
 
+    @strawberry.field(description="Version name")
+    def name(self) -> str:
+        """Return a version name based on the version number."""
+        if self.version < 0:
+            return "HERO"
+        # TODO: configurable zero pad / format?
+        return f"v{self.version:03d}"
+
 
 @SubsetEntity.strawberry_attrib()
 class SubsetAttribType:

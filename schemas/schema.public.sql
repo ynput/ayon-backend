@@ -51,9 +51,10 @@ CREATE TABLE IF NOT EXISTS public.attributes(
 -- Settings --
 --------------
 
-CREATE TABLE IF NOT EXISTS public.anatomy_templates(
+CREATE TABLE IF NOT EXISTS public.anatomy_presets(
   name VARCHAR NOT NULL,
-  version VARCHAR NOT NULL,
+  version VARCHAR NOT NULL DEFAULT '4.0.0',
+  is_primary BOOLEAN NOT NULL DEFAULT FALSE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (name, version)
 );

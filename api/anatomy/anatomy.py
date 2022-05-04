@@ -11,7 +11,7 @@ from anatomy.folder_types import FolderType, default_folder_types
 Attributes = ProjectEntity.model.attrib_model
 
 
-class AnatomyTemplate(BaseModel):
+class AnatomyPreset(BaseModel):
     roots: list[Root] = Field(
         default=default_roots,
         title="Roots",
