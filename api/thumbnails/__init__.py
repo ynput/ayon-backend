@@ -11,7 +11,7 @@ from openpype.api.dependencies import (
 from openpype.entities.folder import FolderEntity
 from openpype.entities.user import UserEntity
 from openpype.entities.version import VersionEntity
-from openpype.exceptions import BadRequestException, NotFoundException
+from openpype.exceptions import BadRequestException
 from openpype.lib.postgres import Postgres
 from openpype.utils import EntityID
 
@@ -59,7 +59,7 @@ async def retrieve_thumbnail(project_name: str, thumbnail_id: str) -> Response:
         return Response(
             media_type=record["mime"], status_code=200, content=record["data"]
         )
-    raise NotFoundException("Thumbnail does not exist")
+    return Response(status_code=204)
 
 
 #
