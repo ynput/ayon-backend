@@ -1,5 +1,3 @@
-"""[POST] /projects (Save project)"""
-#
 from crud_projects.router import router
 from fastapi import Depends, Response
 from nxtools import logging
@@ -105,7 +103,6 @@ async def create_project(
 
     logging.info(f"[PUT] {action} project {project.name}", user=user.name)
     return Response(status_code=201)
-
 
 #
 # [PATCH]

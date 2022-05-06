@@ -9,7 +9,9 @@ class Root(BaseModel):
     )
 
     windows: str = Field(
-        "", title="Windows", regex=r'(?:[a-zA-Z]\:)?(?:\\[^\\/:*?"<>|\r\n]+)*',
+        "",
+        title="Windows",
+        regex=r'(?:[a-zA-Z]\:)?(?:\\[^\\/:*?"<>|\r\n]+)*',
     )
 
     linux: str = Field(

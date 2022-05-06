@@ -1,4 +1,5 @@
-from typing import Iterable, Any
+from typing import Any, Iterable
+
 from nxtools import slugify
 from pydantic import BaseModel, Field, validator
 
@@ -79,7 +80,10 @@ class DeliveryTemplate(BaseTemplate):
 
 
 class CustomTemplate(BaseTemplate):
-    data: dict[str, str] = Field(default_factory=dict)
+    pass
+
+# TODO: Custom templates are not supported yet
+# data: dict[str, str] = Field(default_factory=dict)
 
 
 class Templates(BaseModel):

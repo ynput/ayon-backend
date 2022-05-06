@@ -1,17 +1,15 @@
+from openpype.anatomy.folder_types import FolderType, default_folder_types
+from openpype.anatomy.roots import Root, default_roots
+from openpype.anatomy.task_types import TaskType, default_task_types
+from openpype.anatomy.templates import Templates
 from pydantic import BaseModel, Field
 
 from openpype.entities import ProjectEntity
 
-from anatomy.roots import Root, default_roots
-from anatomy.templates import Templates
-from anatomy.task_types import TaskType, default_task_types
-from anatomy.folder_types import FolderType, default_folder_types
-
-
 Attributes = ProjectEntity.model.attrib_model
 
 
-class AnatomyPreset(BaseModel):
+class Anatomy(BaseModel):
     roots: list[Root] = Field(
         default=default_roots,
         title="Roots",
@@ -22,7 +20,7 @@ class AnatomyPreset(BaseModel):
         title="Templates",
     )
 
-    attributes: Attributes = Field(
+    attributes: Attributes = Field(  # type: ignore
         default_factory=Attributes,
         title="Attributes",
     )
@@ -38,4 +36,4 @@ class AnatomyPreset(BaseModel):
     )
 
     class Config:
-        title = "Project Template"
+        title = "Project anatomy"

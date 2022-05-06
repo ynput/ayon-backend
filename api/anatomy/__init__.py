@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Response
 
+from openpype.anatomy import Anatomy
 from openpype.exceptions import NotFoundException
-from openpype.types import OPModel, Field
 from openpype.lib.postgres import Postgres
-from anatomy.anatomy import AnatomyPreset
+from openpype.types import Field, OPModel
 
 router = APIRouter(tags=["Anatomy"], prefix="/anatomy")
 
@@ -26,7 +26,7 @@ def get_anatomy_schema():
 
     The schema is used to display the anatomy preset editor form.
     """
-    return AnatomyPreset.schema()
+    return Anatomy.schema()
 
 
 @router.get("/presets")
@@ -46,7 +46,7 @@ async def get_anatomy_presets() -> AnatomyPresetListModel:
 
 @router.get(
     "/presets/{preset_name}",
-    response_model=AnatomyPreset,
+    response_model=Anatomy,
 )
 async def get_anatomy_preset(preset_name: str):
     """Returns the anatomy preset with the given name.
@@ -54,19 +54,19 @@ async def get_anatomy_preset(preset_name: str):
     Use `_` character as a preset name to return the default preset.
     """
     if preset_name == "_":
-        tpl = AnatomyPreset()
+        tpl = Anatomy()
         return tpl
 
-    query = "SELECT * FROM anatomy_presets WHERE name = %s"
-    async for row in Postgres.iterate(query):
-        tpl = AnatomyPreset(**row["data"])
+    query = "SELECT * FROM anatomy_presets WHERE name = $1"
+    async for row in Postgres.iterate(query, preset_name):
+        tpl = Anatomy(**row["data"])
         return tpl
 
     raise NotFoundException(f"Anatomy preset {preset_name} not found.")
 
 
 @router.put("/presets/{preset_name}")
-async def update_anatomy_preset(preset_name: str, preset: AnatomyPreset):
+async def update_anatomy_preset(preset_name: str, preset: Anatomy):
     """Create/update an anatomy preset with the given name."""
 
     await Postgres.execute(
@@ -76,12 +76,15 @@ async def update_anatomy_preset(preset_name: str, preset: AnatomyPreset):
         ON CONFLICT (name, version) DO update
         SET data = $4
         """,
-        (preset_name, VERSION, preset.dict(), preset.dict()),
+        preset_name,
+        VERSION,
+        preset.dict(),
+        preset.dict(),
     )
     return Response(status_code=200)
 
 
-@router.post("/preset/{preset_name}/primary")
+@router.post("/presets/{preset_name}/primary")
 async def set_primary_preset(preset_name: str):
     """Set the given preset as the primary preset."""
 
@@ -106,10 +109,21 @@ async def set_primary_preset(preset_name: str):
     return Response(status_code=200)
 
 
-@router.delete("/preset/{preset_name}")
+@router.delete("/presets/{preset_name}")
 async def delete_anatomy_preset(preset_name: str):
     """Delete the anatomy preset with the given name."""
-    return Response(status_code=501)
+
+    async with Postgres.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """
+                DELETE FROM anatomy_presets
+                WHERE name = $1
+                """,
+                preset_name,
+            )
+
+    return Response(status_code=200)
 
 
 class DeployRequestModel(OPModel):
@@ -120,14 +134,14 @@ class DeployRequestModel(OPModel):
         description="The name of the project to deploy to.",
         example="superProject42",
     )
-    preset: AnatomyPreset = Field(
+    preset: Anatomy = Field(
         ...,
         description="The anatomy preset to deploy.",
     )
 
 
 @router.post("/deploy")
-def deploy_anatomy_preset(preset: AnatomyPreset):
+def deploy_anatomy_preset(preset: Anatomy):
     """Deploy the anatomy preset.
 
     Create a new project from the anatomy preset.
