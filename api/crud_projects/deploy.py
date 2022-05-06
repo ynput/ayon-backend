@@ -1,3 +1,5 @@
+from typing import Any
+
 from crud_projects.router import router
 from fastapi import Depends, Response
 
@@ -5,7 +7,7 @@ from openpype.anatomy import Anatomy
 from openpype.api import ResponseFactory, dep_current_user
 from openpype.entities import ProjectEntity, UserEntity
 from openpype.exceptions import ForbiddenException
-from openpype.types import OPModel, Field
+from openpype.types import Field, OPModel
 
 
 class DeployProjectRequestModel(OPModel):
@@ -56,7 +58,7 @@ async def deploy_project(
     # Config
     #
 
-    config = {}
+    config: dict[str, Any] = {}
     config["roots"] = {}
     for root in payload.anatomy.roots:
         config["roots"][root.name] = {
@@ -73,9 +75,12 @@ async def deploy_project(
             "frame": payload.anatomy.templates.frame,
         }
     }
-    for template_type in ["work", "render", "publish", "hero", "delivery", "others"]:
+    for template_type in ["work", "publish", "hero", "delivery", "others"]:
+        template_group = payload.anatomy.templates.dict().get(template_type, [])
+        if not template_group:
+            continue
         config["templates"][template_type] = {}
-        for template in payload.anatomy.templates.dict().get(template_type, []):
+        for template in template_group:
             config["templates"][template_type][template["name"]] = {
                 k: template[k] for k in template.keys() if k != "name"
             }

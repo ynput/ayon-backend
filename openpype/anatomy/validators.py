@@ -1,4 +1,5 @@
 from typing import Any, Iterable
+
 from nxtools import slugify
 
 
@@ -19,5 +20,3 @@ def ensure_unique_names(objects: Iterable[Any]) -> None:
             names.append(obj.name)
         else:
             raise ValueError(f"Duplicate name {obj.name}]")
-
-

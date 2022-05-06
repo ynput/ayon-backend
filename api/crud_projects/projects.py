@@ -104,6 +104,7 @@ async def create_project(
     logging.info(f"[PUT] {action} project {project.name}", user=user.name)
     return Response(status_code=201)
 
+
 #
 # [PATCH]
 #

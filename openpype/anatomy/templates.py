@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, validator
-from openpype.anatomy.validators import normalize_name, ensure_unique_names
+
+from openpype.anatomy.validators import ensure_unique_names, normalize_name
 
 
 class BaseTemplate(BaseModel):

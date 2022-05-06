@@ -7,7 +7,6 @@ from openpype.anatomy.templates import Templates
 from openpype.anatomy.validators import ensure_unique_names
 from openpype.entities import ProjectEntity
 
-
 Attributes = ProjectEntity.model.attrib_model
 
 
