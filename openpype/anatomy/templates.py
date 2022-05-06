@@ -99,12 +99,7 @@ class Templates(BaseModel):
                 name="default",
                 file="{project[code]}_{asset}_{subset}_{@version}<_{output}><.{@frame}><_{udim}>.{ext}",  # noqa: E501
                 directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/{@version}",  # noqa: E501
-            ),
-            PublishTemplate(
-                name="render",
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/{@version}",  # noqa: E501
-                file="{project[code]}_{asset}_{subset}_{@version}<_{output}><.{@frame}>.{ext}",  # noqa: E501
-            ),
+            )
         ],
     )
 
@@ -115,12 +110,7 @@ class Templates(BaseModel):
                 name="default",
                 directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/hero",  # noqa: E501
                 file="{project[code]}_{asset}_{task[name]}_{@version}<_{comment}>.{ext}",  # noqa: E501
-            ),
-            HeroTemplate(
-                name="render",
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/hero",  # noqa: E501
-                file="{project[code]}_{asset}_{subset}_hero<_{output}><.{frame}>.{ext}",  # noqa: E501
-            ),
+            )
         ],
     )
 
