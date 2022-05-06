@@ -1,26 +1,5 @@
-from typing import Any, Iterable
-
-from nxtools import slugify
 from pydantic import BaseModel, Field, validator
-
-
-def normalize_name(name: str) -> str:
-    name = name.strip()
-    if not name:
-        raise ValueError("Name must not be empty")
-    components = slugify(name).split("-")
-    return components[0] + "".join(x.title() for x in components[1:])
-
-
-def ensure_unique_names(objects: Iterable[Any]) -> None:
-    names = []
-    for obj in objects:
-        if not hasattr(obj, "name"):
-            raise ValueError("Object without name provided")
-        if obj.name not in names:
-            names.append(obj.name)
-        else:
-            raise ValueError(f"Duplicate name {obj.name}]")
+from openpype.anatomy.validators import normalize_name, ensure_unique_names
 
 
 class BaseTemplate(BaseModel):
@@ -127,4 +106,13 @@ class Templates(BaseModel):
     @validator("work", "publish", "hero", "delivery", "others")
     def validate_template_group(cls, value):
         ensure_unique_names(value)
+        return value
+
+    @validator("work", "publish", "hero")
+    def validate_has_default(cls, value):
+        for template in value:
+            if template.name == "default":
+                break
+        else:
+            raise ValueError("Default template must be defined")
         return value

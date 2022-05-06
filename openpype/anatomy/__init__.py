@@ -1,10 +1,12 @@
+from pydantic import BaseModel, Field, validator
+
 from openpype.anatomy.folder_types import FolderType, default_folder_types
 from openpype.anatomy.roots import Root, default_roots
 from openpype.anatomy.task_types import TaskType, default_task_types
 from openpype.anatomy.templates import Templates
-from pydantic import BaseModel, Field
-
+from openpype.anatomy.validators import ensure_unique_names
 from openpype.entities import ProjectEntity
+
 
 Attributes = ProjectEntity.model.attrib_model
 
@@ -37,3 +39,8 @@ class Anatomy(BaseModel):
 
     class Config:
         title = "Project anatomy"
+
+    @validator("roots", "folder_types", "task_types")
+    def ensure_unique_names(cls, value):
+        ensure_unique_names(value)
+        return value
