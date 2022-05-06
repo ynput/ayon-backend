@@ -32,55 +32,27 @@ class BaseTemplate(BaseModel):
 
 
 class WorkTemplate(BaseTemplate):
-    directory: str = Field(
-        "{root[work]}/{project[name]}/{hierarchy}/{asset}/work/{task[name]}",
-        title="Directory template",
-    )
-    file: str = Field(
-        "{project[code]}_{asset}_{task[name]}_{@version}<_{comment}>.{ext}",
-        title="File name template",
-    )
-
-
-class RenderTemplate(BaseTemplate):
-    directory: str = Field(
-        "{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/{@version}",  # noqa
-        title="Directory template",
-    )
-    file: str = Field(
-        "{project[code]}_{asset}_{subset}_{@version}<_{output}><.{@frame}>.{ext}",  # noqa
-        title="File name template",
-    )
+    directory: str = Field(..., title="Directory template")
+    file: str = Field(..., title="File name template")
 
 
 class PublishTemplate(BaseTemplate):
-    directory: str = Field(
-        "{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/{@version}",  # noqa
-        title="Directory template",
-    )
-    file: str = Field(
-        "{project[code]}_{asset}_{subset}_{@version}<_{output}><.{@frame}><_{udim}>.{ext}",  # noqa
-        title="File name template",
-    )
+    directory: str = Field(..., title="Directory template")
+    file: str = Field(..., title="File name template")
 
 
 class HeroTemplate(BaseTemplate):
-    directory: str = Field(
-        "{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/hero",  # noqa
-        title="Directory template",
-    )
-    file: str = Field(
-        "{project[code]}_{asset}_{subset}_hero<_{output}><.{frame}>.{ext}",
-        title="File name template",
-    )
+    directory: str = Field(..., title="Directory template")
+    file: str = Field(..., title="File name template")
 
 
 class DeliveryTemplate(BaseTemplate):
-    path: str = Field("", title="Path template")
+    path: str = Field(..., title="Path template")
 
 
 class CustomTemplate(BaseTemplate):
     pass
+
 
 # TODO: Custom templates are not supported yet
 # data: dict[str, str] = Field(default_factory=dict)
@@ -110,23 +82,46 @@ class Templates(BaseModel):
     )
 
     work: list[WorkTemplate] = Field(
-        default_factory=lambda: [WorkTemplate(name="default")],
+        default_factory=lambda: [
+            WorkTemplate(
+                name="default",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/work/{task[name]}",  # noqa: E501
+                file="{project[code]}_{asset}_{task[name]}_{@version}<_{comment}>.{ext}",  # noqa: E501
+            )
+        ],
         title="Work",
     )
 
-    render: list[RenderTemplate] = Field(
-        default_factory=lambda: [RenderTemplate(name="default")],
-        title="Render",
-    )
-
     publish: list[PublishTemplate] = Field(
-        default_factory=lambda: [PublishTemplate(name="default")],
         title="Publish",
+        default_factory=lambda: [
+            PublishTemplate(
+                name="default",
+                file="{project[code]}_{asset}_{subset}_{@version}<_{output}><.{@frame}><_{udim}>.{ext}",  # noqa: E501
+                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/{@version}",  # noqa: E501
+            ),
+            PublishTemplate(
+                name="render",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/{@version}",  # noqa: E501
+                file="{project[code]}_{asset}_{subset}_{@version}<_{output}><.{@frame}>.{ext}",  # noqa: E501
+            ),
+        ],
     )
 
     hero: list[HeroTemplate] = Field(
-        default_factory=lambda: [HeroTemplate(name="default")],
         title="Hero",
+        default_factory=lambda: [
+            HeroTemplate(
+                name="default",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/hero",  # noqa: E501
+                file="{project[code]}_{asset}_{task[name]}_{@version}<_{comment}>.{ext}",  # noqa: E501
+            ),
+            HeroTemplate(
+                name="render",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/hero",  # noqa: E501
+                file="{project[code]}_{asset}_{subset}_hero<_{output}><.{frame}>.{ext}",  # noqa: E501
+            ),
+        ],
     )
 
     delivery: list[DeliveryTemplate] = Field(
