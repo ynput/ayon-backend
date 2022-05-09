@@ -103,6 +103,7 @@ async def get_tasks(
                 "folders.id AS _folder_id",
                 "folders.name AS _folder_name",
                 "folders.folder_type AS _folder_folder_type",
+                "folders.thumbnail_id AS _folder_thumbnail_id",
                 "folders.parent_id AS _folder_parent_id",
                 "folders.attrib AS _folder_attrib",
                 "folders.data AS _folder_data",
