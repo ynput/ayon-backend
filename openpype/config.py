@@ -42,7 +42,7 @@ class PypeConfig(BaseModel):
     postgres_url: str = Field(
         default="postgres://pypeusr:pypepass@postgres/pype",
         description="Connection string for Postgres.",
-        example="redis://studio:password123@postgres.example.com:5432/openpype",
+        example="postgres://studio:password123@postgres.example.com:5432/openpype",
     )
 
     discord_client_id: str | None = Field(
