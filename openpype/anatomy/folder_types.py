@@ -10,8 +10,9 @@ class FolderType(BaseModel):
 
 
 default_folder_types = [
-    FolderType(name="Episode"),
-    FolderType(name="Asset"),
-    FolderType(name="Shot"),
-    FolderType(name="Sequence"),
+    FolderType(name="Library", icon="category"),
+    FolderType(name="Episode", icon="live_tv"),
+    FolderType(name="Asset", icon="smart_toy"),
+    FolderType(name="Shot", icon="movie"),
+    FolderType(name="Sequence", icon="theaters"),
 ]
