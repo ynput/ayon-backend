@@ -51,11 +51,6 @@ async def gen_assets(parent):
     """
     num = parent.get("_children_count", 20)
     combine = int(parent.get("_combine", 2))
-    # naming_scheme = parent.get("_children_naming", "objects")
-    # async with httpx.AsyncClient() as client:
-    #     url = f"http://names.drycodes.com/{num}?combine={combine}&nameOptions={naming_scheme}" # noqa
-    #     names = await client.get(url)
-
     names = ["_".join(namegen.generate_words(combine, 2)) for _ in range(num)]
 
     for i, name in enumerate(names):

@@ -21,6 +21,6 @@ default_task_types = [
     TaskType(name="FX", short_name="fx", icon="fireplace"),
     TaskType(name="Lighting", short_name="lgt", icon="highlight"),
     TaskType(name="Paint", short_name="paint", icon="video_stable"),
-    TaskType(name="Compositing", short_name="comp", icon="layer"),
+    TaskType(name="Compositing", short_name="comp", icon="layers"),
     TaskType(name="Roto", short_name="roto", icon="gesture"),
 ]
