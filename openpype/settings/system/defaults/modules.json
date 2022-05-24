@@ -1,0 +1,6 @@
+{
+  "ftrack" : {
+    "enabled": true,
+    "server": "https://ftrack.ftrack.com"
+  }
+}

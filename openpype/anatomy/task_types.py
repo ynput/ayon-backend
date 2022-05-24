@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field
+from pydantic import Field
+from openpype.settings.common import BaseSettingsModel
 
 
-class TaskType(BaseModel):
+class TaskType(BaseSettingsModel):
+    _layout: str = "compact"
     name: str = Field(..., title="Name", min_length=1, max_length=100)
     short_name: str = Field("", title="Short name")
     icon: str = Field("", title="Icon")

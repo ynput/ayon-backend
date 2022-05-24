@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import Field, validator
 
 from openpype.anatomy.folder_types import FolderType, default_folder_types
 from openpype.anatomy.roots import Root, default_roots
@@ -7,10 +7,13 @@ from openpype.anatomy.templates import Templates
 from openpype.anatomy.validators import ensure_unique_names
 from openpype.entities import ProjectEntity
 
+from openpype.settings.common import BaseSettingsModel
+
 Attributes = ProjectEntity.model.attrib_model
 
 
-class Anatomy(BaseModel):
+class Anatomy(BaseSettingsModel):
+    _layout: str = "root"
     roots: list[Root] = Field(
         default=default_roots,
         title="Roots",

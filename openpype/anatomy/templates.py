@@ -1,9 +1,10 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import Field, validator
 
+from openpype.settings.common import BaseSettingsModel
 from openpype.anatomy.validators import ensure_unique_names, normalize_name
 
 
-class BaseTemplate(BaseModel):
+class BaseTemplate(BaseSettingsModel):
     name: str = Field(..., title="Template name")
 
     @validator("name")
@@ -27,7 +28,8 @@ class HeroTemplate(BaseTemplate):
 
 
 class DeliveryTemplate(BaseTemplate):
-    path: str = Field(..., title="Path template")
+    directory: str = Field(..., title="Directory template")
+    file: str = Field(..., title="File name template")
 
 
 class CustomTemplate(BaseTemplate):
@@ -38,7 +40,7 @@ class CustomTemplate(BaseTemplate):
 # data: dict[str, str] = Field(default_factory=dict)
 
 
-class Templates(BaseModel):
+class Templates(BaseSettingsModel):
     version_padding: int = Field(
         default=3,
         title="Version padding",

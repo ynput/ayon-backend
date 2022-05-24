@@ -1,7 +1,10 @@
-from pydantic import BaseModel, Field
+from pydantic import Field
+from openpype.settings.common import BaseSettingsModel
 
 
-class Root(BaseModel):
+class Root(BaseSettingsModel):
+    _layout: str = "compact"
+
     name: str = Field(
         ...,
         title="Root name",

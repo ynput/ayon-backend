@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field
+from openpype.settings.common import BaseSettingsModel
+from pydantic import Field
 
 
-class FolderType(BaseModel):
+class FolderType(BaseSettingsModel):
+    _layout: str = "compact"
     name: str = Field(..., title="Name", min_length=1, max_length=100)
     icon: str = Field("fa-folder", title="Icon")
 
