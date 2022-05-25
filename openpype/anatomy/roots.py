@@ -3,6 +3,7 @@ from openpype.settings.common import BaseSettingsModel
 
 
 class Root(BaseSettingsModel):
+    """Setup root paths"""
     _layout: str = "compact"
 
     name: str = Field(
@@ -14,19 +15,16 @@ class Root(BaseSettingsModel):
     windows: str = Field(
         "",
         title="Windows",
-        regex=r'(?:[a-zA-Z]\:)?(?:\\[^\\/:*?"<>|\r\n]+)*',
     )
 
     linux: str = Field(
         "",
         title="Linux",
-        regex="^(/[^/ ]*)+/?$",
     )
 
     darwin: str = Field(
         "",
         title="Darwin",
-        regex="^(/[^/ ]*)+/?$",
     )
 
 

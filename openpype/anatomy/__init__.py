@@ -17,26 +17,31 @@ class Anatomy(BaseSettingsModel):
     roots: list[Root] = Field(
         default=default_roots,
         title="Roots",
+        description="Setup root paths for the project",
     )
 
     templates: Templates = Field(
         default_factory=Templates,
         title="Templates",
+        description="Path templates configuration",
     )
 
     attributes: Attributes = Field(  # type: ignore
         default_factory=Attributes,
         title="Attributes",
+        description="Attributes configuration",
     )
 
     folder_types: list[FolderType] = Field(
         default=default_folder_types,
         title="Folder Types",
+        description="Folder types configuration",
     )
 
     task_types: list[TaskType] = Field(
         default=default_task_types,
         title="Task Types",
+        description="Task types configuration",
     )
 
     class Config:

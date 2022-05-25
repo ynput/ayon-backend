@@ -2,6 +2,7 @@ from nxtools import logging
 
 from openpype.lib.postgres import Postgres
 
+
 # The following parameters may be used:
 # name, scope, type, title, default, example,
 # gt, lt, regex, min_len, max_len, description
@@ -232,7 +233,8 @@ async def deploy_attributes():
         }
 
         default = tdata.get("default")
-        if default:
+        if default is not None:
+
             data["default"] = {
                 "integer": int,
                 "string": str,

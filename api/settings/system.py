@@ -32,7 +32,7 @@ STUDIO_OVERRIDES = {
 }
 
 
-def apply_overrides(settings: SystemSettings, overrides: dict[str, Any]):
+def apply_studio_overrides(settings: SystemSettings, overrides: dict[str, Any]):
     result = {}
 
     def crawl(obj: BaseSettingsModel, override, target):
@@ -75,6 +75,5 @@ def apply_overrides(settings: SystemSettings, overrides: dict[str, Any]):
 @router.get("/system")
 async def get_system_settings() -> SystemSettings:
     """Return the system settings."""
-    # TODO: studio overrides
     defaults = get_default_system_settings()
-    return apply_overrides(defaults, STUDIO_OVERRIDES)
+    return apply_studio_overrides(defaults, STUDIO_OVERRIDES)

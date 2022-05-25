@@ -46,7 +46,6 @@ class BaseSettingsModel(BaseModel):
                         del prop[key]
 
                 if field := model.__fields__.get(camel_to_snake_case(name)):
-                    print(field)
                     if enum_resolver := field.field_info.extra.get("enum_resolver"):
                         prop["enum"] = enum_resolver()
 
