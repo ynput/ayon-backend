@@ -2,8 +2,10 @@ from pydantic import Field
 from openpype.settings.common import BaseSettingsModel
 
 
+
 class Root(BaseSettingsModel):
     """Setup root paths"""
+
     _layout: str = "compact"
 
     name: str = Field(

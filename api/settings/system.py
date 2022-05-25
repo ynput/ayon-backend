@@ -1,8 +1,9 @@
+import os
+import json
 from typing import Any
 from fastapi import Response
 from settings.router import router
 
-from openpype.types import camelize
 from openpype.settings.common import BaseSettingsModel
 from openpype.settings.system import SystemSettings, get_default_system_settings
 
@@ -19,61 +20,99 @@ async def get_project_settings_schema():
     return Response(status_code=501)
 
 
-STUDIO_OVERRIDES = {
-    "general": {
-        "artist_count": 5,
-    },
-    "modules": {
-        "ftrack": {
-            "server": "https://openpype.studio.com",
-            "enabled": True,
-        },
-    },
-}
+def get_studio_overrides():
+    try:
+        with open("/tmp/studio.json") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
 
-def apply_studio_overrides(settings: SystemSettings, overrides: dict[str, Any]):
+def set_studio_overrides(overrides: dict[str, Any]):
+    with open("/tmp/studio.json", "w") as f:
+        json.dump(overrides, f)
+
+
+def delete_studio_overrides():
+    try:
+        os.remove("/tmp/studio.json")
+    except FileNotFoundError:
+        pass
+
+
+def apply_studio_overrides(
+    settings: SystemSettings,
+    overrides: dict[str, Any],
+    verbose: bool = False,
+) -> dict[str, Any]:
     result = {}
 
     def crawl(obj: BaseSettingsModel, override, target):
-        target["__overrides__"] = {}
+        if verbose:
+            target["__overrides__"] = {}
         for name, field in obj.__fields__.items():
-            cname = camelize(name)
             child = getattr(obj, name)
             if isinstance(child, BaseSettingsModel):
-                if child._is_group:
-                    if name in override:
-                        target["__overrides__"][cname] = {
-                            "level": "studio",
-                            "value": override[name],
-                        }
+                if child._isGroup:
+                    print(f"{name} is a group")
+                    if verbose:
+                        if name in override:
+                            target["__overrides__"][name] = {
+                                "type": "group",
+                                "level": "studio",
+                                "value": override[name],
+                            }
+                        else:
+                            target["__overrides__"][name] = {
+                                "type": "group",
+                                "level": "default",
+                                "value": child.dict()
+                            }
 
-                target[cname] = {}
-                crawl(child, override.get(name, {}), target[cname])
+                target[name] = {}
+                crawl(child, override.get(name, {}), target[name])
 
             else:
                 # Naive types
                 if name in override:
-                    target[cname] = override[name]
-                    target["__overrides__"][cname] = {
-                        "type": "leaf",
-                        "level": "studio",
-                        "value": override[name],
-                    }
+                    target[name] = override[name]
+                    if verbose:
+                        target["__overrides__"][name] = {
+                            "type": "leaf",
+                            "level": "studio",
+                            "value": override[name],
+                        }
                 else:
-                    target[cname] = child
-                    target["__overrides__"][cname] = {
-                        "type": "leaf",
-                        "level": "default",
-                        "value": child,
-                    }
+                    target[name] = child
+                    if verbose:
+                        target["__overrides__"][name] = {
+                            "type": "leaf",
+                            "level": "default",
+                            "value": child,
+                        }
 
     crawl(settings, overrides, result)
     return result
 
 
 @router.get("/system")
-async def get_system_settings() -> SystemSettings:
+async def get_system_settings(verbose: bool = False) -> SystemSettings:
     """Return the system settings."""
     defaults = get_default_system_settings()
-    return apply_studio_overrides(defaults, STUDIO_OVERRIDES)
+    overrides = get_studio_overrides()
+    print("Overrides", overrides)
+    return apply_studio_overrides(defaults, overrides, verbose)
+
+
+@router.patch("/system")
+async def set_system_settings(settings: dict[str, Any]):
+    """Set the system settings."""
+    set_studio_overrides(settings)
+    return {"status": "ok"}
+
+
+@router.delete("/system")
+async def delete_system_settings():
+    """Delete the system settings."""
+    delete_studio_overrides()
+    return {"status": "ok"}

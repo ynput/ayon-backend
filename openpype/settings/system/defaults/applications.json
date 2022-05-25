@@ -3,7 +3,7 @@
     "enabled": true,
     "label": "Maya",
     "icon": "{}/app_icons/maya.png",
-    "host_name": "maya",
+    "hostName": "maya",
     "enviroment": {},
     "variants": [
       {
@@ -68,7 +68,7 @@
         "environment": {
           "MAYA_VERSION": "2020"
         },
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "2019",
@@ -90,7 +90,7 @@
         "environment": {
           "MAYA_VERSION": "2019"
         },
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "2018",
@@ -112,7 +112,7 @@
         "environment": {
           "MAYA_VERSION": "2018"
         },
-        "use_python_2": true
+        "usePython2": true
       }
     ]
   },
@@ -120,7 +120,7 @@
     "enabled": true,
     "label": "Flame",
     "icon": "{}/app_icons/flame.png",
-    "host_name": "flame",
+    "hostName": "flame",
     "enviroment": {},
     "variants": [
       {
@@ -145,7 +145,7 @@
           "OPENPYPE_FLAME_PYTHONPATH": "/opt/Autodesk/flame_2021/python",
           "OPENPYPE_WIRETAP_TOOLS": "/opt/Autodesk/wiretap/tools/2021"
         },
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "2021_1",
@@ -169,7 +169,7 @@
           "OPENPYPE_FLAME_PYTHONPATH": "/opt/Autodesk/flame_2021.1/python",
           "OPENPYPE_WIRETAP_TOOLS": "/opt/Autodesk/wiretap/tools/2021.1"
         },
-        "use_python_2": true
+        "usePython2": true
       }
     ]
   },
@@ -177,7 +177,7 @@
     "enabled": true,
     "label": "Nuke",
     "icon": "{}/app_icons/nuke.png",
-    "host_name": "nuke",
+    "hostName": "nuke",
     "enviroment": {},
     "variants": [
       {
@@ -217,7 +217,7 @@
           "linux": []
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "12-0",
@@ -237,7 +237,7 @@
           "linux": []
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "11-3",
@@ -257,7 +257,7 @@
           "linux": []
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "11-2",
@@ -275,7 +275,7 @@
           "linux": []
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       }
     ]
   },
@@ -283,7 +283,7 @@
     "enabled": true,
     "label": "Nuke X",
     "icon": "{}/app_icons/nuke.png",
-    "host_name": "nuke",
+    "hostName": "nuke",
     "enviroment": {},
     "variants": [
       {
@@ -335,7 +335,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "12-0",
@@ -361,7 +361,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "11-3",
@@ -387,7 +387,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "11-2",
@@ -411,7 +411,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       }
     ]
   },
@@ -419,7 +419,7 @@
     "enabled": true,
     "label": "Nuke Studio",
     "icon": "{}/app_icons/nuke.png",
-    "host_name": "hiero",
+    "hostName": "hiero",
     "enviroment": {},
     "variants": [
       {
@@ -471,7 +471,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "12-0",
@@ -497,7 +497,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "11-3",
@@ -523,7 +523,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "11-2",
@@ -545,7 +545,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       }
     ]
   },
@@ -553,7 +553,7 @@
     "enabled": true,
     "label": "Hiero",
     "icon": "{}/app_icons/hiero.png",
-    "host_name": "hiero",
+    "hostName": "hiero",
     "enviroment": {},
     "variants": [
       {
@@ -605,7 +605,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "12-0",
@@ -631,7 +631,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "11-3",
@@ -657,7 +657,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "11-2",
@@ -681,7 +681,7 @@
           ]
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       }
     ]
   },
@@ -689,7 +689,7 @@
     "enabled": true,
     "label": "Fusion",
     "icon": "{}/app_icons/fusion.png",
-    "host_name": "fusion",
+    "hostName": "fusion",
     "enviroment": {},
     "variants": [
       {
@@ -749,7 +749,7 @@
     "enabled": true,
     "label": "Resolve",
     "icon": "{}/app_icons/resolve.png",
-    "host_name": "resolve",
+    "hostName": "resolve",
     "enviroment": {},
     "variants": [
       {
@@ -775,7 +775,7 @@
     "enabled": true,
     "label": "Houdini",
     "icon": "{}/app_icons/houdini.png",
-    "host_name": "houdini",
+    "hostName": "houdini",
     "enviroment": {},
     "variants": [
       {
@@ -794,7 +794,7 @@
           "linux": []
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "18",
@@ -810,7 +810,7 @@
           "linux": []
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       },
       {
         "name": "17",
@@ -826,7 +826,7 @@
           "linux": []
         },
         "environment": {},
-        "use_python_2": true
+        "usePython2": true
       }
     ]
   },
@@ -834,7 +834,7 @@
     "enabled": true,
     "label": "Blender",
     "icon": "{}/app_icons/blender.png",
-    "host_name": "blender",
+    "hostName": "blender",
     "enviroment": {},
     "variants": [
       {
@@ -912,7 +912,7 @@
     "enabled": true,
     "label": "Harmony",
     "icon": "{}/app_icons/harmony.png",
-    "host_name": "harmony",
+    "hostName": "harmony",
     "enviroment": {},
     "variants": [
       {
@@ -978,7 +978,7 @@
     "enabled": true,
     "label": "TVPaint",
     "icon": "{}/app_icons/tvpaint.png",
-    "host_name": "tvpaint",
+    "hostName": "tvpaint",
     "enviroment": {},
     "variants": [
       {
@@ -1021,7 +1021,7 @@
     "enabled": true,
     "label": "Photoshop",
     "icon": "{}/app_icons/photoshop.png",
-    "host_name": "photoshop",
+    "hostName": "photoshop",
     "enviroment": {},
     "variants": [
       {
@@ -1081,7 +1081,7 @@
     "enabled": true,
     "label": "AfterEffects",
     "icon": "{}/app_icons/aftereffects.png",
-    "host_name": "aftereffects",
+    "hostName": "aftereffects",
     "enviroment": {},
     "variants": [
       {
@@ -1143,7 +1143,7 @@
     "enabled": true,
     "label": "CelAction 2D",
     "icon": "app_icons/celaction.png",
-    "host_name": "celaction",
+    "hostName": "celaction",
     "enviroment": {},
     "variants": [
       {
@@ -1167,7 +1167,7 @@
     "enabled": true,
     "label": "Unreal Editor",
     "icon": "{}/app_icons/ue4.png",
-    "host_name": "unreal",
+    "hostName": "unreal",
     "enviroment": {},
     "variants": [
       {
@@ -1183,7 +1183,7 @@
     "enabled": true,
     "label": "DJV View",
     "icon": "{}/app_icons/djvView.png",
-    "host_name": "",
+    "hostName": "",
     "enviroment": {},
     "variants": [
       {
@@ -1207,7 +1207,7 @@
     "enabled": true,
     "label": "additional_apps",
     "icon": null,
-    "host_name": null,
+    "hostName": null,
     "enviroment": {},
     "variants": []
   }

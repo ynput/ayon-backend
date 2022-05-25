@@ -15,8 +15,8 @@ def get_default_system_settings() -> SystemSettings:
         applications=json.load(open(os.path.join(base_dir, "applications.json"))),
         modules=json.load(open(os.path.join(base_dir, "modules.json"))),
         general={
-            "artist_count": 1,
-            "coffee_size": "small",
+            "artistCount": 1,
+            "coffeeSize": "small",
             "milk": "none",
         },
     )

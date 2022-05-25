@@ -2,6 +2,7 @@ from pydantic import Field
 from openpype.settings.common import BaseSettingsModel
 
 
+
 class ListPerPlatform(BaseSettingsModel):
     windows: list[str] = Field(default_factory=list)
     linux: list[str] = Field(default_factory=list)
@@ -20,12 +21,12 @@ class AppVariant(BaseSettingsModel):
 
 
 class AppVariantWithPython(AppVariant):
-    use_python_2: bool = Field(default=False)
+    usePython2: bool = Field(False, title="Use Python 2")
 
 
 class AppGroup(BaseSettingsModel):
     enabled: bool = Field(default=True)
-    host_name: str | None
+    hostName: str | None
     icon: str | None
     environment: dict[str, str] = Field(
         default_factory=dict,
@@ -55,33 +56,17 @@ class Applications(BaseSettingsModel):
     flame: AppGroupWithPython = Field(..., title="Autodesk Flame")
     nuke: AppGroupWithPython = Field(..., title="Nuke")
     aftereffects: AppGroup = Field(..., title="Adobe After Effects")
-    # photoshop: AppGroup = Field(
-    #     ...,
-    #     title="Adobe Photoshop",
-    #     description="A shop with a lot of photos",
-    # )
-    # tvpaint: AppGroup = Field(
-    #     ...,
-    #     title="TV Paint",
-    #     description="Paint used to paint televisions",
-    # )
-    # harmony: AppGroup = Field(
-    #     ...,
-    #     title="Harmony",
-    #     description="Disharmonic Harmonization",
-    # )
-    # additional_apps: AppGroup = Field(
-    #     ...,
-    #     title="Additional Applications",
-    #     description="Winamp, minecraft, PornHub desktop, etc.",
-    # )
+    photoshop: AppGroup = Field(..., title="Adobe Photoshop")
+    tvpaint: AppGroup = Field(..., title="TV Paint")
+    harmony: AppGroup = Field(..., title="Harmony")
+    # additional_apps: AppGroup = Field(..., title="Additional Applications")
 
 
 class FtrackModule(BaseSettingsModel):
-    """Here you can configure the Ftrack module in order to ftrack everything."""
+    """Here you can configure the ftrack module in order to ftrack everything."""
 
-    _title: str = "FTrack"
-    _is_group: bool = True
+    _title: str = "ftrack"
+    _isGroup: bool = True
     enabled: bool
     server: str
 
@@ -89,7 +74,7 @@ class FtrackModule(BaseSettingsModel):
 class Modules(BaseSettingsModel):
     """Modules configuration"""
 
-    addon_paths: ListPerPlatform = Field(
+    addonPaths: ListPerPlatform = Field(
         default_factory=ListPerPlatform,
         title="Addon paths",
         description="Paths where to look for addons",
@@ -108,12 +93,12 @@ def get_milk_options():
 class General(BaseSettingsModel):
     """Configure your generals here."""
 
-    artist_count: int = Field(
+    artistCount: int = Field(
         ...,
         title="Number of artists",
         description="Number of artists you have in the studio",
     )
-    coffee_size: str = Field(
+    coffeeSize: str = Field(
         ...,
         title="Coffee size",
         description="The size of the coffee you drink",
