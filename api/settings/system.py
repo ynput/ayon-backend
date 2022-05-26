@@ -1,6 +1,7 @@
-import os
 import json
+import os
 from typing import Any
+
 from fastapi import Response
 from settings.router import router
 
@@ -45,7 +46,7 @@ def apply_studio_overrides(
     overrides: dict[str, Any],
     verbose: bool = False,
 ) -> dict[str, Any]:
-    result = {}
+    result: dict[str, Any] = {}
 
     def crawl(obj: BaseSettingsModel, override, target):
         if verbose:
@@ -66,7 +67,7 @@ def apply_studio_overrides(
                             target["__overrides__"][name] = {
                                 "type": "group",
                                 "level": "default",
-                                "value": child.dict()
+                                "value": child.dict(),
                             }
 
                 target[name] = {}
@@ -95,24 +96,72 @@ def apply_studio_overrides(
     return result
 
 
+def list_overrides(
+    obj: BaseSettingsModel,
+    override: dict[str, Any],
+    root: str = "root",
+) -> dict[str, Any]:
+    result = {}
+
+    for name, field in obj.__fields__.items():
+        child = getattr(obj, name)
+        path = f"{root}_{name}"
+
+        if isinstance(child, BaseSettingsModel):
+            if child._isGroup:
+                r = {"path": path, "type": "group"}
+                if name in override:
+                    r["level"] = "studio"
+                    r["value"] = override[name]
+                else:
+                    r["level"] = "default"
+                    r["value"] = child.dict()
+
+                result[path] = r
+            result.update(list_overrides(child, override.get(name, {}), path))
+
+        else:
+            # Naive types
+            if name in override:
+                ovr_from = override[name]
+                ovr_level = "studio"
+            else:
+                ovr_from = child
+                ovr_level = "default"
+
+            result[path] = {
+                "value": ovr_from,
+                "level": ovr_level,
+            }
+
+    return result
+
+
 @router.get("/system")
-async def get_system_settings(verbose: bool = False) -> SystemSettings:
+async def get_system_settings(verbose: bool = False) -> dict[str, Any]:
     """Return the system settings."""
     defaults = get_default_system_settings()
     overrides = get_studio_overrides()
-    print("Overrides", overrides)
     return apply_studio_overrides(defaults, overrides, verbose)
 
 
-@router.patch("/system")
+@router.patch("/system", response_class=Response)
 async def set_system_settings(settings: dict[str, Any]):
     """Set the system settings."""
     set_studio_overrides(settings)
-    return {"status": "ok"}
+    return Response(status_code=204)
 
 
-@router.delete("/system")
+@router.delete("/system", response_class=Response)
 async def delete_system_settings():
     """Delete the system settings."""
     delete_studio_overrides()
-    return {"status": "ok"}
+    return Response(status_code=204)
+
+
+@router.get("/system/overrides")
+async def get_system_overrides():
+    """Return the system overrides."""
+    defaults = get_default_system_settings()
+    overrides = get_studio_overrides()
+    return list_overrides(defaults, overrides)

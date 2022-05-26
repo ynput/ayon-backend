@@ -1,17 +1,18 @@
 import re
+from typing import Any, Iterable
 
-from typing import Any
+from nxtools import slugify
 from pydantic import BaseModel
 
-from openpype.utils import json_loads, json_dumps
+from openpype.utils import json_dumps, json_loads
 
 pattern = re.compile(r"(?<!^)(?=[A-Z])")
 
 
 class BaseSettingsModel(BaseModel):
     _isGroup: bool = False
-    _title: str = None
-    _layout: str = None
+    _title: str | None = None
+    _layout: str | None = None
 
     class Config:
         underscore_attrs_are_private = True
@@ -45,3 +46,22 @@ class BaseSettingsModel(BaseModel):
 
                     if section := field.field_info.extra.get("section"):
                         prop["section"] = section
+
+
+def normalize_name(name: str) -> str:
+    name = name.strip()
+    if not name:
+        raise ValueError("Name must not be empty")
+    components = slugify(name).split("-")
+    return components[0] + "".join(x.title() for x in components[1:])
+
+
+def ensure_unique_names(objects: Iterable[Any]) -> None:
+    names = []
+    for obj in objects:
+        if not hasattr(obj, "name"):
+            raise ValueError("Object without name provided")
+        if obj.name not in names:
+            names.append(obj.name)
+        else:
+            raise ValueError(f"Duplicate name {obj.name}]")

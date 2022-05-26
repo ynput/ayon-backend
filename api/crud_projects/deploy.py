@@ -3,10 +3,10 @@ from typing import Any
 from crud_projects.router import router
 from fastapi import Depends, Response
 
-from openpype.anatomy import Anatomy
 from openpype.api import ResponseFactory, dep_current_user
 from openpype.entities import ProjectEntity, UserEntity
 from openpype.exceptions import ForbiddenException
+from openpype.settings.anatomy import Anatomy
 from openpype.types import Field, OPModel
 
 

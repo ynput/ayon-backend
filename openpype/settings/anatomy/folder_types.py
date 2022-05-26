@@ -1,5 +1,6 @@
-from openpype.settings.common import BaseSettingsModel
 from pydantic import Field
+
+from openpype.settings.common import BaseSettingsModel
 
 
 class FolderType(BaseSettingsModel):

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Response
 
-from openpype.anatomy import Anatomy
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
+from openpype.settings.anatomy import Anatomy
 from openpype.types import Field, OPModel
 
 router = APIRouter(tags=["Anatomy"], prefix="/anatomy")

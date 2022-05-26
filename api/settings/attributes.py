@@ -1,9 +1,9 @@
 from typing import Any
 
+from settings.router import router
+
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
-
-from settings.router import router
 
 
 class AttributeModel(OPModel):
