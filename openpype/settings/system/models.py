@@ -14,10 +14,7 @@ class AppVariant(BaseSettingsModel):
     label: str | None = None
     executables: ListPerPlatform = Field(..., title="Executables")
     arguments: ListPerPlatform = Field(..., title="Arguments")
-    environment: dict[str, str] = Field(
-        default_factory=dict,
-        description="App variant environment variables",
-    )
+    environment: str = Field("{}", title="Environment", widget="textarea")
 
 
 class AppVariantWithPython(AppVariant):
@@ -28,10 +25,8 @@ class AppGroup(BaseSettingsModel):
     enabled: bool = Field(default=True)
     hostName: str | None
     icon: str | None
-    environment: dict[str, str] = Field(
-        default_factory=dict,
-        description="Application group environment variables",
-    )
+    environment: str = Field("{}", title="Environment", widget="textarea")
+
     variants: list[AppVariant] = Field(
         default_factory=list,
         title="Variants",

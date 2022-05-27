@@ -37,7 +37,7 @@ class BaseSettingsModel(BaseModel):
 
             for name, prop in schema.get("properties", {}).items():
                 for key in [*prop.keys()]:
-                    if key in ["enum_resolver"]:
+                    if key in ["enum_resolver", "widget"]:
                         del prop[key]
 
                 if field := model.__fields__.get(name):
@@ -46,6 +46,10 @@ class BaseSettingsModel(BaseModel):
 
                     if section := field.field_info.extra.get("section"):
                         prop["section"] = section
+                    
+
+                    if widget := field.field_info.extra.get("widget"):
+                        prop["widget"] = widget
 
 
 def normalize_name(name: str) -> str:

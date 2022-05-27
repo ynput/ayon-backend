@@ -4,7 +4,6 @@ import os
 
 from openpype.settings.system.models import SystemSettings
 
-
 @functools.cache
 def get_default_system_settings() -> SystemSettings:
     """

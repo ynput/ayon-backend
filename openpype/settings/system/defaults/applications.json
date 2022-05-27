@@ -4,7 +4,7 @@
     "label": "Maya",
     "icon": "{}/app_icons/maya.png",
     "hostName": "maya",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "2023",
@@ -23,9 +23,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {
-          "MAYA_VERSION": "2023"
-        }
+        "environment": "{\n  \"MAYA_VERSION\": \"2023\"\n}"
       },
       {
         "name": "2022",
@@ -44,9 +42,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {
-          "MAYA_VERSION": "2022"
-        }
+        "environment": "{\n  \"MAYA_VERSION\": \"2022\"\n}"
       },
       {
         "name": "2020",
@@ -65,9 +61,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {
-          "MAYA_VERSION": "2020"
-        },
+        "environment": "{\n  \"MAYA_VERSION\": \"2020\"\n}",
         "usePython2": true
       },
       {
@@ -87,9 +81,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {
-          "MAYA_VERSION": "2019"
-        },
+        "environment": "{\n  \"MAYA_VERSION\": \"2019\"\n}",
         "usePython2": true
       },
       {
@@ -109,9 +101,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {
-          "MAYA_VERSION": "2018"
-        },
+        "environment": "{\n  \"MAYA_VERSION\": \"2018\"\n}",
         "usePython2": true
       }
     ]
@@ -121,7 +111,7 @@
     "label": "Flame",
     "icon": "{}/app_icons/flame.png",
     "hostName": "flame",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "2021",
@@ -140,11 +130,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {
-          "OPENPYPE_FLAME_PYTHON_EXEC": "/opt/Autodesk/python/2021/bin/python2.7",
-          "OPENPYPE_FLAME_PYTHONPATH": "/opt/Autodesk/flame_2021/python",
-          "OPENPYPE_WIRETAP_TOOLS": "/opt/Autodesk/wiretap/tools/2021"
-        },
+        "environment": "{\n  \"OPENPYPE_FLAME_PYTHON_EXEC\": \"/opt/Autodesk/python/2021/bin/python2.7\",\n  \"OPENPYPE_FLAME_PYTHONPATH\": \"/opt/Autodesk/flame_2021/python\",\n  \"OPENPYPE_WIRETAP_TOOLS\": \"/opt/Autodesk/wiretap/tools/2021\"\n}",
         "usePython2": true
       },
       {
@@ -164,11 +150,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {
-          "OPENPYPE_FLAME_PYTHON_EXEC": "/opt/Autodesk/python/2021.1/bin/python2.7",
-          "OPENPYPE_FLAME_PYTHONPATH": "/opt/Autodesk/flame_2021.1/python",
-          "OPENPYPE_WIRETAP_TOOLS": "/opt/Autodesk/wiretap/tools/2021.1"
-        },
+        "environment": "{\n  \"OPENPYPE_FLAME_PYTHON_EXEC\": \"/opt/Autodesk/python/2021.1/bin/python2.7\",\n  \"OPENPYPE_FLAME_PYTHONPATH\": \"/opt/Autodesk/flame_2021.1/python\",\n  \"OPENPYPE_WIRETAP_TOOLS\": \"/opt/Autodesk/wiretap/tools/2021.1\"\n}",
         "usePython2": true
       }
     ]
@@ -178,7 +160,7 @@
     "label": "Nuke",
     "icon": "{}/app_icons/nuke.png",
     "hostName": "nuke",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "13-0",
@@ -197,7 +179,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "12-2",
@@ -216,7 +198,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -236,7 +218,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -256,7 +238,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -274,7 +256,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       }
     ]
@@ -284,7 +266,7 @@
     "label": "Nuke X",
     "icon": "{}/app_icons/nuke.png",
     "hostName": "nuke",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "13-0",
@@ -309,7 +291,7 @@
             "--nukex"
           ]
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "12-2",
@@ -334,7 +316,7 @@
             "--nukex"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -360,7 +342,7 @@
             "--nukex"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -386,7 +368,7 @@
             "--nukex"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -410,7 +392,7 @@
             "--nukex"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       }
     ]
@@ -420,7 +402,7 @@
     "label": "Nuke Studio",
     "icon": "{}/app_icons/nuke.png",
     "hostName": "hiero",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "13-0",
@@ -445,7 +427,7 @@
             "--studio"
           ]
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "12-2",
@@ -470,7 +452,7 @@
             "--studio"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -496,7 +478,7 @@
             "--studio"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -522,7 +504,7 @@
             "--studio"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -544,7 +526,7 @@
             "--studio"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       }
     ]
@@ -554,7 +536,7 @@
     "label": "Hiero",
     "icon": "{}/app_icons/hiero.png",
     "hostName": "hiero",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "13-0",
@@ -579,7 +561,7 @@
             "--hiero"
           ]
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "12-2",
@@ -604,7 +586,7 @@
             "--hiero"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -630,7 +612,7 @@
             "--hiero"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -656,7 +638,7 @@
             "--hiero"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -680,7 +662,7 @@
             "--hiero"
           ]
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       }
     ]
@@ -690,7 +672,7 @@
     "label": "Fusion",
     "icon": "{}/app_icons/fusion.png",
     "hostName": "fusion",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "17",
@@ -707,7 +689,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "16",
@@ -724,7 +706,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "9",
@@ -741,7 +723,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       }
     ]
   },
@@ -750,7 +732,7 @@
     "label": "Resolve",
     "icon": "{}/app_icons/resolve.png",
     "hostName": "resolve",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "stable",
@@ -767,7 +749,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       }
     ]
   },
@@ -776,7 +758,7 @@
     "label": "Houdini",
     "icon": "{}/app_icons/houdini.png",
     "hostName": "houdini",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "18-5",
@@ -793,7 +775,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -809,7 +791,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       },
       {
@@ -825,7 +807,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {},
+        "environment": "{}",
         "usePython2": true
       }
     ]
@@ -835,7 +817,7 @@
     "label": "Blender",
     "icon": "{}/app_icons/blender.png",
     "hostName": "blender",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "2-83",
@@ -858,7 +840,7 @@
             "--python-use-system-env"
           ]
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "2-90",
@@ -881,7 +863,7 @@
             "--python-use-system-env"
           ]
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "2-91",
@@ -904,7 +886,7 @@
             "--python-use-system-env"
           ]
         },
-        "environment": {}
+        "environment": "{}"
       }
     ]
   },
@@ -913,7 +895,7 @@
     "label": "Harmony",
     "icon": "{}/app_icons/harmony.png",
     "hostName": "harmony",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "21",
@@ -932,7 +914,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "20",
@@ -951,7 +933,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "17",
@@ -970,7 +952,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       }
     ]
   },
@@ -979,7 +961,7 @@
     "label": "TVPaint",
     "icon": "{}/app_icons/tvpaint.png",
     "hostName": "tvpaint",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "animation_11-64bits",
@@ -996,7 +978,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "animation_11-32bits",
@@ -1013,7 +995,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       }
     ]
   },
@@ -1022,7 +1004,7 @@
     "label": "Photoshop",
     "icon": "{}/app_icons/photoshop.png",
     "hostName": "photoshop",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "2020",
@@ -1039,7 +1021,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "2021",
@@ -1056,7 +1038,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "2022",
@@ -1073,7 +1055,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       }
     ]
   },
@@ -1082,7 +1064,7 @@
     "label": "AfterEffects",
     "icon": "{}/app_icons/aftereffects.png",
     "hostName": "aftereffects",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "2020",
@@ -1099,7 +1081,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "2021",
@@ -1116,7 +1098,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       },
       {
         "name": "2022",
@@ -1133,9 +1115,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {
-          "MULTIPROCESS": "No"
-        }
+        "environment": "{\n  \"MULTIPROCESS\": \"No\"\n}"
       }
     ]
   },
@@ -1144,7 +1124,7 @@
     "label": "CelAction 2D",
     "icon": "app_icons/celaction.png",
     "hostName": "celaction",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "local",
@@ -1159,7 +1139,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       }
     ]
   },
@@ -1168,14 +1148,14 @@
     "label": "Unreal Editor",
     "icon": "{}/app_icons/ue4.png",
     "hostName": "unreal",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "4-26",
         "label": "Unreal Editor 4-26",
         "executables": {},
         "arguments": {},
-        "environment": {}
+        "environment": "{}"
       }
     ]
   },
@@ -1184,7 +1164,7 @@
     "label": "DJV View",
     "icon": "{}/app_icons/djvView.png",
     "hostName": "",
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": [
       {
         "name": "1-1",
@@ -1199,7 +1179,7 @@
           "darwin": [],
           "linux": []
         },
-        "environment": {}
+        "environment": "{}"
       }
     ]
   },
@@ -1208,7 +1188,7 @@
     "label": "additional_apps",
     "icon": null,
     "hostName": null,
-    "enviroment": {},
+    "enviroment": "{}",
     "variants": []
   }
 }

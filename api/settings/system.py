@@ -41,59 +41,27 @@ def delete_studio_overrides():
         pass
 
 
-def apply_studio_overrides(
+def apply_overrides(
     settings: SystemSettings,
     overrides: dict[str, Any],
-    verbose: bool = False,
-) -> dict[str, Any]:
+) -> SystemSettings:
     result: dict[str, Any] = {}
 
     def crawl(obj: BaseSettingsModel, override, target):
-        if verbose:
-            target["__overrides__"] = {}
         for name, field in obj.__fields__.items():
             child = getattr(obj, name)
             if isinstance(child, BaseSettingsModel):
-                if child._isGroup:
-                    print(f"{name} is a group")
-                    if verbose:
-                        if name in override:
-                            target["__overrides__"][name] = {
-                                "type": "group",
-                                "level": "studio",
-                                "value": override[name],
-                            }
-                        else:
-                            target["__overrides__"][name] = {
-                                "type": "group",
-                                "level": "default",
-                                "value": child.dict(),
-                            }
-
                 target[name] = {}
                 crawl(child, override.get(name, {}), target[name])
-
             else:
                 # Naive types
                 if name in override:
                     target[name] = override[name]
-                    if verbose:
-                        target["__overrides__"][name] = {
-                            "type": "leaf",
-                            "level": "studio",
-                            "value": override[name],
-                        }
                 else:
                     target[name] = child
-                    if verbose:
-                        target["__overrides__"][name] = {
-                            "type": "leaf",
-                            "level": "default",
-                            "value": child,
-                        }
 
     crawl(settings, overrides, result)
-    return result
+    return SystemSettings(**result)
 
 
 def list_overrides(
@@ -120,6 +88,22 @@ def list_overrides(
                 result[path] = r
             result.update(list_overrides(child, override.get(name, {}), path))
 
+        elif type(child) is list:
+            r = {"path": path, "type": "list"}
+            if name in override:
+                r["level"] = "studio"
+                r["value"] = override[name]
+            else:
+                r["level"] = "default"
+                r["value"] = child
+
+            result[path] = r
+            for i, item in enumerate(child):
+                if isinstance(item, BaseSettingsModel):
+                    result.update(list_overrides(item, override.get(name, {}), f"{path}_{i}"))
+                else:
+                    result[f"{path}_{i}"] = {"path": f"{path}_{i}", "level": "studio", "value": item,}
+
         else:
             # Naive types
             if name in override:
@@ -138,17 +122,22 @@ def list_overrides(
 
 
 @router.get("/system")
-async def get_system_settings(verbose: bool = False) -> dict[str, Any]:
+async def get_system_settings() -> SystemSettings:
     """Return the system settings."""
     defaults = get_default_system_settings()
     overrides = get_studio_overrides()
-    return apply_studio_overrides(defaults, overrides, verbose)
+    return apply_overrides(defaults, overrides)
 
 
 @router.patch("/system", response_class=Response)
-async def set_system_settings(settings: dict[str, Any]):
+async def set_system_settings(overrides: dict[str, Any]):
     """Set the system settings."""
-    set_studio_overrides(settings)
+
+    # Validate the settings by passing them through the schema
+    defaults = get_default_system_settings()
+    _ = apply_overrides(defaults, overrides)
+
+    set_studio_overrides(overrides)
     return Response(status_code=204)
 
 
