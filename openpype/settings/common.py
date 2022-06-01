@@ -46,7 +46,6 @@ class BaseSettingsModel(BaseModel):
 
                     if section := field.field_info.extra.get("section"):
                         prop["section"] = section
-                    
 
                     if widget := field.field_info.extra.get("widget"):
                         prop["widget"] = widget

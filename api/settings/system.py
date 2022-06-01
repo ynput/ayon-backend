@@ -8,7 +8,6 @@ from settings.router import router
 from openpype.settings.common import BaseSettingsModel
 from openpype.settings.system import SystemSettings, get_default_system_settings
 
-
 #
 # Temporary utils, before we store overrides in the database
 #
@@ -81,12 +80,11 @@ def list_overrides(
         chcrumbs = [*crumbs, name]
 
         if isinstance(child, BaseSettingsModel):
-            if child._isGroup:
-                result[path] = {
-                    "path": chcrumbs,
-                    "type": "group",
-                    "level": "studio" if name in override else "default",
-                }
+            result[path] = {
+                "path": chcrumbs,
+                "type": "group" if child._isGroup else "branch",
+                "level": "studio" if name in override else "default",
+            }
             result.update(list_overrides(child, override.get(name, {}), chcrumbs))
 
         elif type(child) is list:
