@@ -42,6 +42,12 @@ def apply_overrides(
     settings: SystemSettings,
     overrides: dict[str, Any],
 ) -> SystemSettings:
+    """Take a system settings object and apply the overrides to it.
+
+    Overrides are a dictionary of the same structure as the settings object,
+    but only the values that have been overridden are included (which is
+    the way overrides are stored in the database).
+    """
     result: dict[str, Any] = {}
 
     def crawl(obj: BaseSettingsModel, override, target):
@@ -66,6 +72,21 @@ def list_overrides(
     override: dict[str, Any],
     crumbs: list[str] = None,
 ) -> dict[str, Any]:
+    """Returns values which are overriden.
+
+    This is used in the settings form context.
+    Return a dictionary of the form:
+        {
+            key : {            // idSchema of the field as used in rjsf
+                "path": path,  // list of parent keys and the current key
+                "type": type,  // type of the field: branch, leaf, group, array
+                "value": value, // value of the field (only present on leaves)
+                "level": level, // source of the override: studio or project
+            }
+        }
+
+    """
+
     result = {}
 
     if crumbs is None:
@@ -80,58 +101,38 @@ def list_overrides(
         chcrumbs = [*crumbs, name]
 
         if isinstance(child, BaseSettingsModel):
-            result[path] = {
-                "path": chcrumbs,
-                "type": "group" if child._isGroup else "branch",
-                "level": "studio" if name in override else "default",
-            }
+            if name in override:
+                result[path] = {
+                    "path": chcrumbs,
+                    "type": "group" if child._isGroup else "branch",
+                    "level": "studio",
+                }
             result.update(list_overrides(child, override.get(name, {}), chcrumbs))
 
         elif type(child) is list:
-            r = {"path": chcrumbs, "type": "list"}
             if name in override:
-                r["level"] = "studio"
-            else:
-                r["level"] = "default"
+                result[path] = {
+                    "path": chcrumbs,
+                    "type": "list",
+                    "level": "studio",
+                }
 
-            result[path] = r
-            for i, item in enumerate(child):
-                if isinstance(item, BaseSettingsModel):
-                    ovr = override.get(name, None)
-                    if ovr is None:
-                        ovr = {}
+                for i, item in enumerate(child):
+                    ovr = override[name][i]
+                    if isinstance(item, BaseSettingsModel):
+                        result.update(list_overrides(item, ovr, [*chcrumbs, f"{i}"]))
                     else:
-                        ovr = ovr[i]
-                    result.update(list_overrides(item, ovr, [*chcrumbs, f"{i}"]))
-                    try:
-                        result.update(
-                            list_overrides(
-                                item, override.get(name, [])[i], [*chcrumbs, f"{i}"]
-                            )
-                        )
-                    except IndexError:
-                        pass
-                else:
-                    result[f"{path}_{i}"] = {
-                        "path": [*chcrumbs, f"{i}"],
-                        "level": "default",
-                        "value": item,
-                    }
-                    # TODO: overrides!!!
+                        result[f"{path}_{i}"] = {
+                            "path": [*chcrumbs, f"{i}"],
+                            "level": "default",
+                            "value": item,
+                        }
 
-        else:
-            # Naive types
-            if name in override:
-                ovr_from = override[name]
-                ovr_level = "studio"
-            else:
-                ovr_from = child
-                ovr_level = "default"
-
+        elif name in override:
             result[path] = {
                 "path": chcrumbs,
-                "value": ovr_from,
-                "level": ovr_level,
+                "value": override[name],
+                "level": "studio",
             }
 
     return result
@@ -184,7 +185,6 @@ async def set_system_settings(overrides: SystemSettings):
     defaults = get_default_system_settings()
     old_overrides = _get_studio_overrides()
     new_overrides = extract_overrides(defaults, overrides, old_overrides)
-    print(json.dumps(new_overrides, indent=2))
     _set_studio_overrides(new_overrides)
     return Response(status_code=204)
 
