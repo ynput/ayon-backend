@@ -1,17 +1,17 @@
-from typing import Any
-
 from crud_projects.router import router
 from fastapi import Depends, Response
 
 from openpype.api import ResponseFactory, dep_current_user
-from openpype.entities import ProjectEntity, UserEntity
+from openpype.entities import UserEntity
 from openpype.exceptions import ForbiddenException
 from openpype.settings.anatomy import Anatomy
 from openpype.types import Field, OPModel
+from openpype.helpers.deploy_project import create_project_from_anatomy
 
 
 class DeployProjectRequestModel(OPModel):
     name: str = Field(..., description="Project name")
+    code: str | None = Field(None, description="Project code")
     anatomy: Anatomy = Field(..., description="Project anatomy")
     library: bool = Field(False, description="Library project")
 
@@ -38,67 +38,10 @@ async def deploy_project(
     if not user.is_manager:
         raise ForbiddenException("Only managers can create projects")
 
-    #
-    # Folder and task types
-    #
-
-    task_types = {}
-    for task_type in payload.anatomy.task_types:
-        task_types[task_type.name] = {
-            k: v for k, v in task_type.dict().items() if k != "name"
-        }
-
-    folder_types = {}
-    for folder_type in payload.anatomy.folder_types:
-        folder_types[folder_type.name] = {
-            k: v for k, v in folder_type.dict().items() if k != "name"
-        }
-
-    #
-    # Config
-    #
-
-    config: dict[str, Any] = {}
-    config["roots"] = {}
-    for root in payload.anatomy.roots:
-        config["roots"][root.name] = {
-            "windows": root.windows,
-            "linux": root.linux,
-            "darwin": root.darwin,
-        }
-
-    config["templates"] = {
-        "common": {
-            "version_padding": payload.anatomy.templates.version_padding,
-            "version": payload.anatomy.templates.version,
-            "frame_padding": payload.anatomy.templates.frame_padding,
-            "frame": payload.anatomy.templates.frame,
-        }
-    }
-    for template_type in ["work", "publish", "hero", "delivery", "others"]:
-        template_group = payload.anatomy.templates.dict().get(template_type, [])
-        if not template_group:
-            continue
-        config["templates"][template_type] = {}
-        for template in template_group:
-            config["templates"][template_type][template["name"]] = {
-                k: template[k] for k in template.keys() if k != "name"
-            }
-
-    #
-    # Create a project entity
-    #
-
-    project = ProjectEntity(
-        payload={
-            "name": payload.name,
-            "library": payload.library,
-            "task_types": task_types,
-            "folder_types": folder_types,
-            "attrib": payload.anatomy.attributes,
-            "config": config,
-        }
+    await create_project_from_anatomy(
+        name=payload.name,
+        anatomy=payload.anatomy,
+        library=payload.library,
     )
 
-    await project.save()
     return Response(status_code=201)

@@ -1,8 +1,10 @@
+import sys
 import asyncio
 import enum
 import random
 import time
 
+from typing import Any
 from nxtools import logging
 
 from demogen.generators import generators
@@ -15,7 +17,6 @@ from openpype.entities import (
     VersionEntity,
 )
 from openpype.entities.models.attributes import common_attributes
-from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import create_uuid, dict_exclude
 
@@ -49,20 +50,15 @@ class DemoGen:
         self.task_count = 0
         self.validate = validate
 
-    async def populate(self, **kwargs):
+    async def populate(self, project_name: str, hierarchy: dict[str:Any]):
         start_time = time.monotonic()
-        self.project_name = kwargs["name"]
+        self.project_name = project_name
+        self.project = await ProjectEntity.load(project_name)
 
-        logging.info(f"Creating project {self.project_name}")
-        await Postgres.connect()
-
-        await self.delete_project()
-
-        self.project = ProjectEntity(payload=kwargs)
-        await self.project.save()
+        logging.info(f"Creating folders for project {project_name}")
 
         tasks = []
-        for folder_data in kwargs.get("hierarchy", []):
+        for folder_data in hierarchy:
             tasks.append(self.create_branch(**folder_data))
 
         await asyncio.gather(*tasks)
@@ -83,17 +79,6 @@ class DemoGen:
         logging.goodnews(
             f"Project {self.project_name} demo in {elapsed_time:.2f} seconds"
         )
-
-    async def delete_project(self):
-        """Attempt to delete the project."""
-        try:
-            project = await ProjectEntity.load(self.project_name)
-        except NotFoundException:
-            return False
-        else:
-            await project.delete()
-            logging.info(f"Project {self.project_name} deleted")
-            return True
 
     async def create_branch(self, **kwargs):
         async with Postgres.acquire() as conn:

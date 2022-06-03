@@ -26,4 +26,5 @@ default_task_types = [
     TaskType(name="Paint", short_name="paint", icon="video_stable"),
     TaskType(name="Compositing", short_name="comp", icon="layers"),
     TaskType(name="Roto", short_name="roto", icon="gesture"),
+    TaskType(name="Matchmove", short_name="matchmove", icon="switch_video"),
 ]

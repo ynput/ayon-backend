@@ -21,7 +21,7 @@ class TopLevelEntity(BaseEntity):
         self.exists = exists
 
     @classmethod
-    def from_record(cls, payload: dict[str, Any], validate=False):
+    def from_record(cls, payload: dict[str, Any], validate=True):
         """Return an entity instance based on a DB record.
 
         This factory method differs from the default constructor,
@@ -36,7 +36,7 @@ class TopLevelEntity(BaseEntity):
             if key not in payload:
                 continue  # there are optional keys too
             parsed[key] = payload[key]
-        return cls(parsed, exists=True, validate=False)
+        return cls(parsed, exists=True, validate=validate)
 
     def as_user(self, user):
         # TODO

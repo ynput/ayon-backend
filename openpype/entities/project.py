@@ -133,10 +133,7 @@ class ProjectEntity(TopLevelEntity):
             "folder_types": folder_types,
             "task_types": task_types,
         }
-        return cls.from_record(
-            payload=payload,
-            validate=False,
-        )
+        return cls.from_record(payload=payload)
 
     #
     # Save
