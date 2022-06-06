@@ -1,10 +1,9 @@
-import sys
 import asyncio
 import enum
 import random
 import time
-
 from typing import Any
+
 from nxtools import logging
 
 from demogen.generators import generators
@@ -50,7 +49,7 @@ class DemoGen:
         self.task_count = 0
         self.validate = validate
 
-    async def populate(self, project_name: str, hierarchy: dict[str:Any]):
+    async def populate(self, project_name: str, hierarchy: list[dict[str, Any]]):
         start_time = time.monotonic()
         self.project_name = project_name
         self.project = await ProjectEntity.load(project_name)

@@ -5,12 +5,11 @@ import sys
 from nxtools import critical_error, log_traceback, logging
 
 from demogen.demogen import DemoGen
-
-from openpype.lib.postgres import Postgres
-from openpype.settings.anatomy import Anatomy
 from openpype.entities.project import ProjectEntity
 from openpype.exceptions import NotFoundException
 from openpype.helpers.deploy_project import create_project_from_anatomy
+from openpype.lib.postgres import Postgres
+from openpype.settings.anatomy import Anatomy
 
 
 async def main():

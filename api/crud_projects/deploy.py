@@ -4,9 +4,9 @@ from fastapi import Depends, Response
 from openpype.api import ResponseFactory, dep_current_user
 from openpype.entities import UserEntity
 from openpype.exceptions import ForbiddenException
+from openpype.helpers.deploy_project import create_project_from_anatomy
 from openpype.settings.anatomy import Anatomy
 from openpype.types import Field, OPModel
-from openpype.helpers.deploy_project import create_project_from_anatomy
 
 
 class DeployProjectRequestModel(OPModel):

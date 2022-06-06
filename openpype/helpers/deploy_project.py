@@ -5,7 +5,9 @@ from openpype.settings.anatomy import Anatomy
 
 
 async def create_project_from_anatomy(
-    name: str, anatomy: Anatomy, library: bool = False,
+    name: str,
+    anatomy: Anatomy,
+    library: bool = False,
 ) -> None:
     """Deploy a project."""
 
