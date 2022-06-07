@@ -41,6 +41,7 @@ async def main():
 
     await create_project_from_anatomy(
         name=project_template["name"],
+        code=project_template["code"],
         anatomy=anatomy,
     )
 

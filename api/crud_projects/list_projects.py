@@ -15,6 +15,7 @@ from openpype.utils import SQLTool, validate_name
 
 class ListProjectsItemModel(OPModel):
     name: str = Field(..., title="Project name")
+    code: str = Field(..., title="Project code")
     createdAt: int = Field(..., title="Creation time")
     updatedAt: int = Field(..., title="Last modified time")
 
@@ -30,6 +31,7 @@ class ListProjectsResponseModel(OPModel):
         example=[
             ListProjectsItemModel(
                 name="Example project",
+                code="ex",
                 createdAt=int(time.time()),
                 updatedAt=int(time.time()),
             )
@@ -93,6 +95,7 @@ async def list_projects(
             SELECT
                 COUNT(name) OVER () AS count,
                 name,
+                code,
                 created_at,
                 updated_at
             FROM projects
@@ -109,6 +112,7 @@ async def list_projects(
         projects.append(
             ListProjectsItemModel(
                 name=row["name"],
+                code=row["code"],
                 createdAt=row["created_at"],
                 updatedAt=row["updated_at"],
             )

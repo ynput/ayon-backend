@@ -2,6 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS public.projects(
     name VARCHAR NOT NULL PRIMARY KEY,
+    code VARCHAR NOT NULL,
     library BOOLEAN NOT NULL DEFAULT FALSE,
     config JSONB NOT NULL DEFAULT '{}'::JSONB,
 
@@ -13,6 +14,7 @@ CREATE TABLE IF NOT EXISTS public.projects(
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS projectname_idx ON public.projects (LOWER(name));
+CREATE UNIQUE INDEX IF NOT EXISTS projectcode_idx ON public.projects(LOWER(code));
 
 -- Users
 

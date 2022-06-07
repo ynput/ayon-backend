@@ -11,7 +11,7 @@ from openpype.types import Field, OPModel
 
 class DeployProjectRequestModel(OPModel):
     name: str = Field(..., description="Project name")
-    code: str | None = Field(None, description="Project code")
+    code: str = Field(None, description="Project code")
     anatomy: Anatomy = Field(..., description="Project anatomy")
     library: bool = Field(False, description="Library project")
 
@@ -40,6 +40,7 @@ async def deploy_project(
 
     await create_project_from_anatomy(
         name=payload.name,
+        code=payload.code,
         anatomy=payload.anatomy,
         library=payload.library,
     )

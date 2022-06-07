@@ -246,6 +246,16 @@ class ProjectEntity(TopLevelEntity):
     #
 
     @property
+    def code(self) -> str:
+        """Get the project code."""
+        return self._payload.code.lower()
+
+    @code.setter
+    def code(self, value: str) -> None:
+        """Set the project code."""
+        self._payload.code = value
+
+    @property
     def library(self) -> bool:
         """Return True if the entity is a library."""
         return self._payload.library

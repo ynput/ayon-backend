@@ -17,6 +17,14 @@ project_fields = [
     # Name is not here, since it's added by ModelSet class
     # (it is used as a primary key)
     {
+        "name": "code",
+        "type": "string",
+        "regex": NAME_REGEX,
+        "example": "prj",
+        "title": "Project code",
+        "required": True,
+    },
+    {
         "name": "library",
         "type": "boolean",
         "default": False,

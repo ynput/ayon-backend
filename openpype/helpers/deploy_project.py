@@ -6,6 +6,7 @@ from openpype.settings.anatomy import Anatomy
 
 async def create_project_from_anatomy(
     name: str,
+    code: str,
     anatomy: Anatomy,
     library: bool = False,
 ) -> None:
@@ -61,6 +62,7 @@ async def create_project_from_anatomy(
     project = ProjectEntity(
         payload={
             "name": name,
+            "code": code,
             "library": library,
             "task_types": task_types,
             "folder_types": folder_types,

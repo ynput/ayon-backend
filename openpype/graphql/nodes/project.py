@@ -52,6 +52,7 @@ class ProjectAttribType:
 class ProjectNode:
     name: str = strawberry.field()
     project_name: str = strawberry.field()
+    code: str = strawberry.field()
     attrib: ProjectAttribType
     active: bool
     library: bool
@@ -158,6 +159,7 @@ def project_from_record(record: dict, context: dict) -> ProjectNode:
     """Construct a project node from a DB row."""
     return ProjectNode(
         name=record["name"],
+        code=record["code"],
         project_name=record["name"],
         active=record["active"],
         library=record["library"],
