@@ -50,6 +50,9 @@ class BaseSettingsModel(BaseModel):
                     if widget := field.field_info.extra.get("widget"):
                         prop["widget"] = widget
 
+                    if tags := field.field_info.extra.get("tags"):
+                        prop["tags"] = tags
+
 
 def normalize_name(name: str) -> str:
     name = name.strip()

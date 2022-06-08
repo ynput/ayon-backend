@@ -92,6 +92,7 @@ class General(BaseSettingsModel):
         ...,
         title="Number of artists",
         description="Number of artists you have in the studio",
+        tags=["general", "poo"],
     )
     coffeeSize: str = Field(
         ...,

@@ -61,10 +61,19 @@ CREATE TABLE IF NOT EXISTS public.anatomy_presets(
   PRIMARY KEY (name, version)
 );
 
--- default project settings
 
-CREATE TABLE IF NOT EXISTS public.project_settings(
-  version VARCHAR NOT NULL PRIMARY KEY,
-  data JSONB NOT NULL DEFAULT '{}'::JSONB
+
+CREATE TABLE IF NOT EXISTS public.system_settings(
+  setting_group VARCHAR NOT NULL,
+  version VARCHAR NOT NULL DEFAULT '4.0.0',
+  snapshot_time BIGINT NOT NULL DEFAULT 0,
+  staging BOOL NOT NULL DEFAULT FALSE,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  PRIMARY KEY (setting_group, version, snapshot_time, staging)
 );
 
+CREATE TABLE IF NOT EXISTS public.addon_versions(
+  name VARCHAR NOT NULL PRIMARY KEY,
+  production_version VARCHAR,
+  staging_version VARCHAR
+);
