@@ -10,7 +10,8 @@ from openpype.settings.common import BaseSettingsModel
 
 class BaseServerAddon:
     name: str
-    description: str
+    title: str | None = None
+    description: str | None = None
     addon_type: Literal["host", "module"]
 
     def __init__(self, library, addon_dir):
@@ -19,6 +20,10 @@ class BaseServerAddon:
         self._versions = None
 
         print(f"Initializing {self.name} in {self.addon_dir}")
+
+    @property
+    def friendly_name(self):
+        return self.title or self.name
 
     @property
     def versions(self):
@@ -42,8 +47,7 @@ class BaseServerAddon:
 
 class BaseServerAddonVersion:
     version: str
-    system_settings: Type[BaseSettingsModel] | None = None
-    project_settings: Type[BaseSettingsModel] | None = None
+    settings: Type[BaseSettingsModel] | None = None
 
     def __init__(self, group):
         self.group = group

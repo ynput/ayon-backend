@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
+from nxtools import logging
 from openpype.addons import AddonLibrary
 
 # from openpype.api import ResponseFactory
@@ -56,7 +57,7 @@ async def list_addons():
     result = []
     library = AddonLibrary.getinstance()
 
-    #maybe some ttl here?
+    # maybe some ttl here?
     active_versions = await library.get_active_versions()
 
     for name, addon in library.data.items():
@@ -96,8 +97,8 @@ async def configure_addons(payload: AddonConfigRequest):
                 INSERT INTO addon_versions
                 (name, production_version, staging_version) VALUES ($1, $2, $3)
                 ON CONFLICT (name)
-                DO UPDATE SET  production_version = $2, staging_version = $3
-            """,
+                DO UPDATE SET production_version = $2, staging_version = $3
+                """,
                 name,
                 version_config.productionVersion,
                 version_config.stagingVersion,
@@ -109,16 +110,45 @@ async def configure_addons(payload: AddonConfigRequest):
 #
 
 
-@router.get("/{addon}/system_settings")
-async def get_addon_system_settings(addon: str):
-    return {}
-
-
-@router.get("/{addon_name}/system_settings/schema")
-async def get_addon_system_settings_schema(addon_name: str):
+@router.get("/{addon_name}/schema")
+async def get_addon_settings_schema(addon_name: str, version: str | None = Query(None)):
     library = AddonLibrary.getinstance()
 
     if (addon := library.get(addon_name)) is None:
         return {}
 
-    return addon.versions["1.0.0"].system_settings.schema()
+    active_versions = await library.get_active_versions()
+
+    if version is None:
+        version = active_versions.get(addon_name, {}).get("production")
+    if version is None:
+        return {}
+
+    addon_version = addon.versions[version]
+    if addon_version.settings is None:
+        logging.error(f"No schema for addon {addon_name}")
+        return {}
+
+    schema = addon_version.settings.schema()
+    schema["title"] = addon.friendly_name
+    return schema
+
+
+@router.get("/{addon_name}/settings")
+async def get_addon_studio_settings(addon_name: str):
+    return {}
+
+
+@router.get("/{addon_name}/settings/{project_name}")
+async def get_addon_project_settings(addon_name: str, project_name: str):
+    return {}
+
+
+@router.get("/{addon_name}/overrides")
+async def get_addon_studio_overrides(addon_name: str):
+    return {}
+
+
+@router.get("/{addon_name}/overrides/{project_name}")
+async def get_addon_project_overrides(addon_name: str, project_name: str):
+    return {}

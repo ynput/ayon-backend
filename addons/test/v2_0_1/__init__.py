@@ -14,4 +14,4 @@ class TestSystemSettings(BaseSettingsModel):
 
 class AddOn(BaseServerAddonVersion):
     version = "2.0.1"
-    system_settings = TestSystemSettings
+    settings = TestSystemSettings
