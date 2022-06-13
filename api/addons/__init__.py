@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
-
 from nxtools import logging
+
 from openpype.addons import AddonLibrary
 
 # from openpype.api import ResponseFactory
@@ -135,8 +135,25 @@ async def get_addon_settings_schema(addon_name: str, version: str | None = Query
 
 
 @router.get("/{addon_name}/settings")
-async def get_addon_studio_settings(addon_name: str):
-    return {}
+async def get_addon_studio_settings(addon_name: str, version: str | None = Query(None)):
+    library = AddonLibrary.getinstance()
+
+    if (addon := library.get(addon_name)) is None:
+        return {}
+
+    active_versions = await library.get_active_versions()
+
+    version = active_versions.get(addon_name, {}).get("production")
+    if version is None:
+        return {}
+
+    addon_version = addon.versions[version]
+    if addon_version.settings is None:
+        logging.error(f"No schema for addon {addon_name}")
+        return {}
+    s = await addon_version.get_default_settings()
+
+    return s
 
 
 @router.get("/{addon_name}/settings/{project_name}")

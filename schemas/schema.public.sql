@@ -63,13 +63,13 @@ CREATE TABLE IF NOT EXISTS public.anatomy_presets(
 
 
 
-CREATE TABLE IF NOT EXISTS public.system_settings(
-  setting_group VARCHAR NOT NULL,
-  version VARCHAR NOT NULL DEFAULT '4.0.0',
-  snapshot_time BIGINT NOT NULL DEFAULT 0,
+CREATE TABLE IF NOT EXISTS public.settings(
+  addon_name VARCHAR NOT NULL,
+  addon_version VARCHAR NOT NULL,
   staging BOOL NOT NULL DEFAULT FALSE,
+  snapshot_time BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  PRIMARY KEY (setting_group, version, snapshot_time, staging)
+  PRIMARY KEY (addon_name, addon_version, snapshot_time, staging)
 );
 
 CREATE TABLE IF NOT EXISTS public.addon_versions(

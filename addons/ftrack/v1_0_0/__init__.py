@@ -1,8 +1,8 @@
-from openpype.addons import BaseServerAddonVersion
+from openpype.addons import BaseServerAddon
 
 from .settings import FtrackSettings
 
 
-class AddOn(BaseServerAddonVersion):
+class AddOn(BaseServerAddon):
     version = "1.0.0"
     settings = FtrackSettings

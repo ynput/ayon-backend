@@ -1,5 +1,6 @@
 from pydantic import Field
-from openpype.addons import BaseServerAddonVersion
+
+from openpype.addons import BaseServerAddon
 from openpype.settings.common import BaseSettingsModel
 
 
@@ -10,6 +11,6 @@ class TestSystemSettings(BaseSettingsModel):
     field2: str = Field("beta", title="Field 2")
 
 
-class AddOn(BaseServerAddonVersion):
+class AddOn(BaseServerAddon):
     version = "2.0.0"
     settings = TestSystemSettings

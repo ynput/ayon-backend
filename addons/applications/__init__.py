@@ -1,7 +1,7 @@
-from openpype.addons import BaseServerAddon
+from openpype.addons import ServerAddonDefinition
 
 
-class ServerAddon(BaseServerAddon):
+class ServerAddon(ServerAddonDefinition):
     name = "applications"
     title = "Applications"
     description = "Applications configuration"

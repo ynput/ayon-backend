@@ -1,9 +1,13 @@
-from openpype.addons import BaseServerAddonVersion
+import os
+import json
 
+from openpype.addons import BaseServerAddon
 from .settings import ApplicationSettings
 
-
-class AddOn(BaseServerAddonVersion):
+class AddOn(BaseServerAddon):
     version = "1.0.0"
     settings = ApplicationSettings
 
+    async def get_default_settings(self):
+        default_path = os.path.join(self.addon_dir, "applications.json") 
+        return self.settings(**json.load(open(default_path)))
