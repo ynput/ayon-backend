@@ -1,19 +1,11 @@
 FROM python:3.10-bullseye
 ENV PYTHONUNBUFFERED=1
-RUN mkdir /openpype
 
-RUN pip install \
-    nxtools \
-    orjson \
-    fastapi \
-    strawberry-graphql[fastapi] \
-    uvicorn[standard] \
-    aioredis \
-    asyncpg \
-    email-validator \
-    httpx \
-    yaoauth2 \
-    pytest \
-    pytest-order
+RUN pip install -U pip                                                                          
+RUN pip install poetry                                                                          
+RUN mkdir /openpype                                                                             
+WORKDIR /openpype                                                                               
+COPY . .                                                                                        
+RUN poetry config virtualenvs.create false \                                                    
+  && poetry install --no-interaction --no-ansi                                                  
 
-WORKDIR /openpype
