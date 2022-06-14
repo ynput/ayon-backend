@@ -82,6 +82,10 @@ async def get_versions(
     sql_conditions = []
     sql_joins = []
 
+    # Empty overrides. Skip querying
+    if ids == ["0"*32]:
+        return VersionsConnection(edges=[])
+
     if ids:
         sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
     if version:
