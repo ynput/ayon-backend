@@ -21,7 +21,7 @@ class ServerAddonDefinition:
 
     @property
     def friendly_name(self):
-        return self.title or self.name
+        return self.title or self.name.capitalize()
 
     @property
     def versions(self):

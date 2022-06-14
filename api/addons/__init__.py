@@ -130,7 +130,7 @@ async def get_addon_settings_schema(addon_name: str, version: str | None = Query
         return {}
 
     schema = addon_version.settings.schema()
-    schema["title"] = addon.friendly_name
+    schema["title"] = f"{addon.friendly_name} {version}"
     return schema
 
 
