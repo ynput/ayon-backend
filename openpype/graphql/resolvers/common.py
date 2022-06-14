@@ -161,16 +161,9 @@ async def resolve(
             break
 
         if project_name:
-            node = node_type.from_record(
-                project_name,
-                record,
-                context=context
-            )
+            node = node_type.from_record(project_name, record, context=context)
         else:
-            node = node_type.from_record(
-                record,
-                context=context
-            )
+            node = node_type.from_record(record, context=context)
         cursor = record[order_by]
         if order_by.endswith("id"):
             cursor = EntityID.parse(cursor)

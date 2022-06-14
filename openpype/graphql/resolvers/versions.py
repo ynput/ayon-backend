@@ -83,7 +83,7 @@ async def get_versions(
     sql_joins = []
 
     # Empty overrides. Skip querying
-    if ids == ["0"*32]:
+    if ids == ["0" * 32]:
         return VersionsConnection(edges=[])
 
     if ids:

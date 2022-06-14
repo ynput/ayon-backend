@@ -1,21 +1,22 @@
-import os 
-from typing import Literal
-from nxtools import slugify, logging
+import os
+
+from nxtools import logging, slugify
+
 from openpype.addons.utils import import_module
 
 
 class ServerAddonDefinition:
     name: str
     title: str | None = None
-    description: str | None = None
-    addon_type: Literal["host", "module"]
+    description: str = ""
+    addon_type: str = "module"
 
     def __init__(self, library, addon_dir):
         self.library = library
         self.addon_dir = addon_dir
         self._versions = None
 
-        assert self.name
+        assert hasattr(self, "name") and type(self.name) is str
         assert self.addon_type in ["host", "module"]
 
     @property

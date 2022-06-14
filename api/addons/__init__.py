@@ -143,7 +143,8 @@ async def get_addon_studio_settings(addon_name: str, version: str | None = Query
 
     active_versions = await library.get_active_versions()
 
-    version = active_versions.get(addon_name, {}).get("production")
+    if version is None:
+        version = active_versions.get(addon_name, {}).get("production")
     if version is None:
         return {}
 

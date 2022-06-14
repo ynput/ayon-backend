@@ -1,4 +1,5 @@
 import os
+
 from nxtools import logging
 
 from openpype.addons.addon import BaseServerAddon
@@ -57,7 +58,7 @@ class AddonLibrary:
             }
         return active_versions
 
-    async def get_production_addon(self, addon_name: str) -> BaseServerAddon:
+    async def get_production_addon(self, addon_name: str) -> BaseServerAddon | None:
         """Return a production instance of the addon."""
         active_versions = await self.get_active_versions()
         if addon_name not in active_versions:
@@ -67,7 +68,7 @@ class AddonLibrary:
             return None
         return self[addon_name][production_version]
 
-    async def get_staging_addon(self, addon_name: str) -> BaseServerAddon:
+    async def get_staging_addon(self, addon_name: str) -> BaseServerAddon | None:
         """Return a staging instance of the addon."""
         active_versions = await self.get_active_versions()
         if addon_name not in active_versions:
