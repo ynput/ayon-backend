@@ -1,7 +1,6 @@
 from typing import Any
 
 from openpype.settings.common import BaseSettingsModel
-from openpype.settings.system import SystemSettings
 
 
 def apply_overrides(
@@ -30,7 +29,7 @@ def apply_overrides(
                     target[name] = child
 
     crawl(settings, overrides, result)
-    return SystemSettings(**result)
+    return settings.__class__(**result)
 
 
 def list_overrides(

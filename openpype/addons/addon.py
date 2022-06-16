@@ -1,6 +1,8 @@
-from typing import TYPE_CHECKING, Any, Type, Callable, Awaitable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Type
 
+from openpype.lib.postgres import Postgres
 from openpype.settings.common import BaseSettingsModel
+from openpype.settings.utils import apply_overrides
 
 if TYPE_CHECKING:
     from openpype.addons.definition import ServerAddonDefinition
@@ -18,25 +20,48 @@ class BaseServerAddon:
         self.endpoints = []
         self.setup()
 
+    async def get_studio_overrides(self) -> dict[str, Any]:
+        """Load the studio overrides from the database."""
+
+        res = await Postgres.fetch(
+            f"""
+            SELECT data FROM settings
+            WHERE addon_name = '{self.definition.name}'
+            AND addon_version = '{self.version}'
+            ORDER BY snapshot_time DESC LIMIT 1
+            """
+        )
+        if res:
+            return res[0]["data"]
+        return {}
+
+    async def get_project_overrides(self, project_name: str) -> dict[str, Any]:
+        """Load the project overrides from the database."""
+        # TODO
+        return {}
+
     async def get_studio_settings(self) -> BaseSettingsModel | None:
         """Return the addon settings with the studio overrides.
 
         You shouldn't override this method, unless absolutely necessary.
         """
 
-        # res = await Postgres.fetch("SELECT ")
-        if self.settings is None:
+        settings = await self.get_default_settings()
+        if settings is None:
             return None
-        return self.settings()
+        overrides = await self.get_studio_overrides()
+        if overrides:
+            settings = apply_overrides(settings, overrides)
+
+        return settings
 
     async def get_project_settings(self, project_name: str) -> BaseSettingsModel | None:
         """Return the addon settings with the studio and project overrides.
 
         You shouldn't override this method, unless absolutely necessary.
         """
-        if self.settings is None:
-            return None
-        return self.settings()
+        # TODO
+        return await self.get_studio_settings()
 
     #
     # Overridable methods
@@ -82,6 +107,7 @@ class BaseServerAddon:
         *,
         method: str = "GET",
         name: str = None,
+        description: str = None,
     ):
         """Add a REST endpoint to the server."""
 
@@ -91,5 +117,6 @@ class BaseServerAddon:
                 "path": path,
                 "handler": handler,
                 "method": method,
+                "description": description or handler.__doc__ or "",
             }
         )

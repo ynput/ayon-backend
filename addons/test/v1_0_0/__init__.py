@@ -1,14 +1,16 @@
-from pydantic import Field
+from typing import Type
+
 from fastapi import Depends
+from pydantic import Field
 
 from openpype.addons import BaseServerAddon
 from openpype.api.dependencies import dep_project_name
-# from openpype.api.dependencies import dep_current_user
-
-from openpype.settings.common import BaseSettingsModel
-from openpype.lib.postgres import Postgres
-from openpype.exceptions import NotFoundException
 from openpype.entities import FolderEntity
+from openpype.exceptions import NotFoundException
+from openpype.lib.postgres import Postgres
+from openpype.settings.common import BaseSettingsModel
+
+# from openpype.api.dependencies import dep_current_user
 
 
 class TestSettings(BaseSettingsModel):
@@ -19,7 +21,7 @@ class TestSettings(BaseSettingsModel):
 
 class AddOn(BaseServerAddon):
     version = "1.0.0"
-    settings = TestSettings
+    settings: Type[TestSettings] = TestSettings
 
     def setup(self):
         self.add_endpoint(
@@ -37,6 +39,7 @@ class AddOn(BaseServerAddon):
         """Return a random asset from the database"""
 
         settings = await self.get_project_settings(project_name)
+        assert settings is not None  # Keep mypy happy
 
         #
         # Get a random asset id from the project

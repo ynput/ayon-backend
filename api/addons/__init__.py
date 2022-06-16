@@ -1,8 +1,11 @@
+from typing import Any
+
 from fastapi import APIRouter, Query
 from nxtools import logging
 
 from openpype.addons import AddonLibrary
 from openpype.lib.postgres import Postgres
+from openpype.settings.utils import extract_overrides
 from openpype.types import Field, OPModel
 
 #
@@ -157,9 +160,8 @@ async def get_addon_studio_settings(addon_name: str, version: str | None = Query
     if (addon := library.get(addon_name)) is None:
         return {}
 
-    active_versions = await library.get_active_versions()
-
     if version is None:
+        active_versions = await library.get_active_versions()
         version = active_versions.get(addon_name, {}).get("production")
     if version is None:
         return {}
@@ -168,9 +170,43 @@ async def get_addon_studio_settings(addon_name: str, version: str | None = Query
     if addon_version.settings is None:
         logging.error(f"No schema for addon {addon_name}")
         return {}
-    s = await addon_version.get_default_settings()
+    s = await addon_version.get_studio_settings()
 
     return s
+
+
+@router.post("/{addon_name}/settings", tags=["Addon settings"])
+async def set_addon_studio_settings(
+    payload: dict[str, Any],
+    addon_name: str,
+    version: str = Query(...),
+):
+    # TODO: this is a quick and dirty implementation
+    # Refactor as soon as possible
+
+    addon_definition = AddonLibrary.getinstance().get(addon_name)
+    addon = addon_definition.versions[version]
+
+    original = await get_addon_studio_settings(addon_name, version)
+    data = extract_overrides(original, addon.settings(**payload))
+
+    # Do not use versioning during the development (causes headaches)
+    await Postgres.execute(
+        "DELETE FROM settings WHERE addon_name = $1 AND addon_version = $2",
+        addon_name,
+        version,
+    )
+
+    await Postgres.execute(
+        """
+        INSERT INTO settings (addon_name, addon_version, data)
+        VALUES ($1, $2, $3)
+        """,
+        addon_name,
+        version,
+        data,
+    )
+    return {}
 
 
 @router.get("/{addon_name}/settings/{project_name}", tags=["Addon settings"])
@@ -179,10 +215,14 @@ async def get_addon_project_settings(addon_name: str, project_name: str):
 
 
 @router.get("/{addon_name}/overrides", tags=["Addon settings"])
-async def get_addon_studio_overrides(addon_name: str):
+async def get_addon_studio_overrides(addon_name: str, version: str = Query(...)):
     return {}
 
 
 @router.get("/{addon_name}/overrides/{project_name}", tags=["Addon settings"])
-async def get_addon_project_overrides(addon_name: str, project_name: str):
-    return {}
+async def get_addon_project_overrides(
+    addon_name: str,
+    project_name: str,
+    version: str = Query(...),
+):
+    pass
