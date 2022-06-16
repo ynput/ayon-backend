@@ -22,18 +22,10 @@ router = APIRouter(
 
 
 class AddonListItem(OPModel):
-    name: str = Field(
-        ...,
-        description="Name of the addon",
-    )
-    versions: list[str] = Field(
-        ...,
-        description="List of available versions of the addon",
-    )
-    description: str = Field(
-        ...,
-        description="Description of the addon",
-    )
+    name: str = Field(..., description="Machine friendly name of the addon")
+    title: str = Field(..., description="Human friendly title of the addon")
+    versions: list[str] = Field(..., description="List of available versions")
+    description: str = Field(..., description="Addon description")
     production_version: str | None = Field(
         None,
         description="Production version of the addon",
@@ -65,12 +57,14 @@ async def list_addons():
         result.append(
             AddonListItem(
                 name=addon.name,
+                title=addon.friendly_name,
                 versions=list(addon.versions.keys()),
                 description=addon.description,
                 production_version=vers.get("production"),
                 staging_version=vers.get("staging"),
             )
         )
+    result.sort(key=lambda x: x.name)
     return AddonList(addons=result)
 
 
