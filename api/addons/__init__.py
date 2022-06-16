@@ -2,8 +2,6 @@ from fastapi import APIRouter, Query
 from nxtools import logging
 
 from openpype.addons import AddonLibrary
-
-# from openpype.api import ResponseFactory
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 
@@ -11,10 +9,34 @@ from openpype.types import Field, OPModel
 # Router
 #
 
-router = APIRouter(
-    prefix="/addons",
-    tags=["addons"],
-)
+router = APIRouter(prefix="/addons")
+
+
+def register_addon_endpoints():
+    library = AddonLibrary.getinstance()
+    for addon_name, addon_definition in library.items():
+        for version in addon_definition.versions:
+
+            addon = addon_definition.versions[version]
+            addon_router = APIRouter(
+                prefix=f"/{addon_name}/{version}",
+                tags=[f"{addon_definition.friendly_name} {version}"],
+            )
+
+            for endpoint in addon.endpoints:
+                addon_router.add_api_route(
+                    f"/{endpoint['path']}",
+                    endpoint["handler"],
+                    methods=[endpoint["method"]],
+                    name=endpoint["name"],
+                )
+            router.include_router(addon_router)
+    for route in router.routes:
+        logging.debug(route.path, route.methods)
+
+
+register_addon_endpoints()
+
 
 #
 # [POST] /usd/resolve
@@ -43,7 +65,7 @@ class AddonList(OPModel):
     )
 
 
-@router.get("", response_model=AddonList)
+@router.get("", response_model=AddonList, tags=["Addon settings"])
 async def list_addons():
 
     result = []
@@ -82,7 +104,7 @@ class AddonConfigRequest(OPModel):
     versions: dict[str, AddonVersionConfig] | None = Field(None)
 
 
-@router.post("")
+@router.post("", tags=["Addon settings"])
 async def configure_addons(payload: AddonConfigRequest):
     if payload.versions:
         for name, version_config in payload.versions.items():
@@ -104,7 +126,7 @@ async def configure_addons(payload: AddonConfigRequest):
 #
 
 
-@router.get("/{addon_name}/schema")
+@router.get("/{addon_name}/schema", tags=["Addon settings"])
 async def get_addon_settings_schema(addon_name: str, version: str | None = Query(None)):
     library = AddonLibrary.getinstance()
 
@@ -128,7 +150,7 @@ async def get_addon_settings_schema(addon_name: str, version: str | None = Query
     return schema
 
 
-@router.get("/{addon_name}/settings")
+@router.get("/{addon_name}/settings", tags=["Addon settings"])
 async def get_addon_studio_settings(addon_name: str, version: str | None = Query(None)):
     library = AddonLibrary.getinstance()
 
@@ -151,16 +173,16 @@ async def get_addon_studio_settings(addon_name: str, version: str | None = Query
     return s
 
 
-@router.get("/{addon_name}/settings/{project_name}")
+@router.get("/{addon_name}/settings/{project_name}", tags=["Addon settings"])
 async def get_addon_project_settings(addon_name: str, project_name: str):
     return {}
 
 
-@router.get("/{addon_name}/overrides")
+@router.get("/{addon_name}/overrides", tags=["Addon settings"])
 async def get_addon_studio_overrides(addon_name: str):
     return {}
 
 
-@router.get("/{addon_name}/overrides/{project_name}")
+@router.get("/{addon_name}/overrides/{project_name}", tags=["Addon settings"])
 async def get_addon_project_overrides(addon_name: str, project_name: str):
     return {}

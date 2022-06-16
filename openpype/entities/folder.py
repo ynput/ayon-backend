@@ -51,12 +51,15 @@ class FolderEntity(ProjectLevelEntity):
             }
             """
 
-        async for record in Postgres.iterate(query, entity_id):
-            return cls.from_record(
-                project_name=project_name,
-                payload=record,
-                validate=False,
-            )
+        try:
+            async for record in Postgres.iterate(query, entity_id):
+                return cls.from_record(
+                    project_name=project_name,
+                    payload=record,
+                    validate=False,
+                )
+        except Postgres.UndefinedTableError:
+            raise NotFoundException(f"Project {project_name} not found")
         raise NotFoundException("Entity not found")
 
     async def commit(self, db=False):

@@ -1,3 +1,3 @@
 from fastapi import APIRouter
 
-router = APIRouter(prefix="/settings", include_in_schema=True)
+router = APIRouter(prefix="/settings", tags=["Settings"])

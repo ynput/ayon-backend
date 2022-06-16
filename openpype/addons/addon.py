@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Type
+from typing import TYPE_CHECKING, Any, Type, Callable, Awaitable
 
 from openpype.settings.common import BaseSettingsModel
 
@@ -10,10 +10,13 @@ class BaseServerAddon:
     version: str
     definition: "ServerAddonDefinition"
     settings: Type[BaseSettingsModel] | None = None
+    endpoints: list[dict[str, Any]]
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str):
         self.definition = definition
         self.addon_dir = addon_dir
+        self.endpoints = []
+        self.setup()
 
     async def get_studio_settings(self) -> BaseSettingsModel | None:
         """Return the addon settings with the studio overrides.
@@ -67,3 +70,26 @@ class BaseServerAddon:
     ) -> dict[str, Any]:
         """Convert project overrides from a previous version."""
         return overrides
+
+    def setup(self):
+        """Setup the addon."""
+        pass
+
+    def add_endpoint(
+        self,
+        path: str,
+        handler: Callable | Awaitable,
+        *,
+        method: str = "GET",
+        name: str = None,
+    ):
+        """Add a REST endpoint to the server."""
+
+        self.endpoints.append(
+            {
+                "name": name or handler.__name__,
+                "path": path,
+                "handler": handler,
+                "method": method,
+            }
+        )

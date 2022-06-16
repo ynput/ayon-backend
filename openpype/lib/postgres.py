@@ -14,6 +14,7 @@ class Postgres:
     pool: asyncpg.pool.Pool | None = None
     ForeignKeyViolationError = asyncpg.exceptions.ForeignKeyViolationError
     UniqueViolationError = asyncpg.exceptions.UniqueViolationError
+    UndefinedTableError = asyncpg.exceptions.UndefinedTableError
 
     @classmethod
     @property
