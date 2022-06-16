@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from nxtools import logging
 
 from openpype.addons import AddonLibrary
@@ -181,13 +181,11 @@ async def set_addon_studio_settings(
     addon_name: str,
     version: str = Query(...),
 ):
-    # TODO: this is a quick and dirty implementation
-    # Refactor as soon as possible
-
-    addon_definition = AddonLibrary.getinstance().get(addon_name)
-    addon = addon_definition.versions[version]
-
-    original = await get_addon_studio_settings(addon_name, version)
+    addon = AddonLibrary.addon(addon_name, version)
+    original = await addon.get_studio_settings()
+    if (original is None) or (addon.settings is None):
+        # This addon does not have settings
+        return Response(status_code=400)
     data = extract_overrides(original, addon.settings(**payload))
 
     # Do not use versioning during the development (causes headaches)
@@ -206,7 +204,7 @@ async def set_addon_studio_settings(
         version,
         data,
     )
-    return {}
+    return Response(status_code=204)
 
 
 @router.get("/{addon_name}/settings/{project_name}", tags=["Addon settings"])

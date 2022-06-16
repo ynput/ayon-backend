@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Type
+from typing import TYPE_CHECKING, Any, Callable, Type
 
 from openpype.lib.postgres import Postgres
 from openpype.settings.common import BaseSettingsModel
@@ -103,7 +103,7 @@ class BaseServerAddon:
     def add_endpoint(
         self,
         path: str,
-        handler: Callable | Awaitable,
+        handler: Callable,
         *,
         method: str = "GET",
         name: str = None,

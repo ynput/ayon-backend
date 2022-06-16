@@ -34,6 +34,20 @@ class AddonLibrary:
 
             self.data[AddOn.name] = AddOn(self, addon_dir)
 
+    @classmethod
+    def addon(cls, name: str, version: str) -> BaseServerAddon:
+        """Return an instance of the given addon.
+
+        Raise KeyError if the addon is not found.
+        """
+
+        instance = cls.getinstance()
+        if (definition := instance.get(name)) is None:
+            raise KeyError(f"Addon {name} does not exist")
+        if (addon := definition.versions.get(version)) is None:
+            raise KeyError(f"Addon {name} version {version} does not exist")
+        return addon
+
     def __getitem__(self, key):
         return self.data[key]
 
