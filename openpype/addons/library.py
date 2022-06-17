@@ -3,7 +3,9 @@ import os
 from nxtools import logging
 
 from openpype.addons.addon import BaseServerAddon
-from openpype.addons.utils import import_module
+from openpype.addons.definition import ServerAddonDefinition
+from openpype.addons.utils import classes_from_module, import_module
+from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 
 
@@ -27,25 +29,26 @@ class AddonLibrary:
                 continue
 
             try:
-                AddOn = import_module(addon_name, mfile).ServerAddon
+                module = import_module(addon_name, mfile)
             except AttributeError:
                 logging.error(f"Addon {addon_name} is not valid")
                 continue
 
-            self.data[AddOn.name] = AddOn(self, addon_dir)
+            for Definition in classes_from_module(ServerAddonDefinition, module):
+                self.data[Definition.name] = Definition(self, addon_dir)
 
     @classmethod
     def addon(cls, name: str, version: str) -> BaseServerAddon:
         """Return an instance of the given addon.
 
-        Raise KeyError if the addon is not found.
+        Raise NotFoundException if the addon is not found.
         """
 
         instance = cls.getinstance()
         if (definition := instance.get(name)) is None:
-            raise KeyError(f"Addon {name} does not exist")
+            raise NotFoundException(f"Addon {name} does not exist")
         if (addon := definition.versions.get(version)) is None:
-            raise KeyError(f"Addon {name} version {version} does not exist")
+            raise NotFoundException(f"Addon {name} version {version} does not exist")
         return addon
 
     def __getitem__(self, key):

@@ -9,4 +9,8 @@ __all__ = [
 ]
 
 from openpype.settings.common import BaseSettingsModel
-from openpype.settings.overrides import (apply_overrides, list_overrides, extract_overrides)
+from openpype.settings.overrides import (
+    apply_overrides,
+    extract_overrides,
+    list_overrides,
+)

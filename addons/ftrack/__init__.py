@@ -2,6 +2,7 @@ from openpype.addons import ServerAddonDefinition
 
 
 class ServerAddon(ServerAddonDefinition):
+    """Ftrack integration"""
+
     name = "ftrack"
-    description = "ftrack addon"
     addon_type = "module"

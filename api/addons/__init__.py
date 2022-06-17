@@ -17,6 +17,8 @@ router = APIRouter(prefix="/addons")
 
 
 def register_addon_endpoints():
+    """Register all addons endpoints in the router."""
+
     library = AddonLibrary.getinstance()
     for addon_name, addon_definition in library.items():
         for version in addon_definition.versions:
@@ -26,6 +28,13 @@ def register_addon_endpoints():
                 prefix=f"/{addon_name}/{version}",
                 tags=[f"{addon_definition.friendly_name} {version}"],
             )
+
+            # TODO: add a condition to check if the addon REST API is enabled
+            # We should discuss where the information about the addon is stored
+            # and how to enable/disable it. It doesn't make sense to have
+            # it in the database, because when this function is called,
+            # database is not yet initialized (and we want to avoid the async madness)
+            # Maybe each Addon versionshould have an attribute to enable/disable it?
 
             for endpoint in addon.endpoints:
                 path = endpoint["path"].lstrip("/")
@@ -67,14 +76,12 @@ class AddonListItem(OPModel):
 
 
 class AddonList(OPModel):
-    addons: list[AddonListItem] = Field(
-        ...,
-        description="List of available addons",
-    )
+    addons: list[AddonListItem] = Field(..., description="List of available addons")
 
 
 @router.get("", response_model=AddonList, tags=["Addon settings"])
 async def list_addons():
+    """List all available addons."""
 
     result = []
     library = AddonLibrary.getinstance()
@@ -82,14 +89,17 @@ async def list_addons():
     # maybe some ttl here?
     active_versions = await library.get_active_versions()
 
-    for name, addon in library.data.items():
-        vers = active_versions.get(addon.name, {})
+    # TODO: for each version, return the information
+    # whether it has settings (and don't show the addon in the settings editor if not)
+
+    for name, definition in library.data.items():
+        vers = active_versions.get(definition.name, {})
         result.append(
             AddonListItem(
-                name=addon.name,
-                title=addon.friendly_name,
-                versions=list(addon.versions.keys()),
-                description=addon.description,
+                name=definition.name,
+                title=definition.friendly_name,
+                versions=list(definition.versions.keys()),
+                description=definition.__doc__ or "",
                 production_version=vers.get("production"),
                 staging_version=vers.get("staging"),
             )
@@ -130,12 +140,15 @@ async def configure_addons(payload: AddonConfigRequest):
 
 
 #
-# Addon settings
+# Addon settings + studio overrides
+# TODO: Add ACL. Endpoints now does not check if the calls are authorized,
+# because during the development it is useful to test it using curl.
 #
 
 
 @router.get("/{addon_name}/{version}/schema", tags=["Addon settings"])
 async def get_addon_settings_schema(addon_name: str, version: str):
+    """Return the JSON schema of the addon settings."""
 
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
@@ -151,6 +164,8 @@ async def get_addon_settings_schema(addon_name: str, version: str):
 
 @router.get("/{addon_name}/{version}/settings", tags=["Addon settings"])
 async def get_addon_studio_settings(addon_name: str, version: str):
+    """Return the settings (including studio overrides) of the given addon."""
+
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
     return await addon.get_studio_settings()
@@ -158,8 +173,12 @@ async def get_addon_studio_settings(addon_name: str, version: str):
 
 @router.post("/{addon_name}/{version}/settings", tags=["Addon settings"])
 async def set_addon_studio_settings(
-    payload: dict[str, Any], addon_name: str, version: str
+    payload: dict[str, Any],
+    addon_name: str,
+    version: str,
 ):
+    """Set the studio overrides of the given addon."""
+
     addon = AddonLibrary.addon(addon_name, version)
     original = await addon.get_studio_settings()
     if (original is None) or (addon.settings is None):
@@ -186,13 +205,18 @@ async def set_addon_studio_settings(
     return Response(status_code=204)
 
 
-@router.get("/{addon_name}/{version}/settings/{project_name}", tags=["Addon settings"])
-async def get_addon_project_settings(addon_name: str, version: str, project_name: str):
+@router.get("/{addon_name}/{version}/overrides", tags=["Addon settings"])
+async def get_addon_studio_overrides(addon_name: str, version: str):
     return {}
 
 
-@router.get("/{addon_name}/{version}/overrides", tags=["Addon settings"])
-async def get_addon_studio_overrides(addon_name: str, version: str):
+#
+# Project overrides
+#
+
+
+@router.get("/{addon_name}/{version}/settings/{project_name}", tags=["Addon settings"])
+async def get_addon_project_settings(addon_name: str, version: str, project_name: str):
     return {}
 
 

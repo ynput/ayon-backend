@@ -2,6 +2,7 @@ from openpype.addons import ServerAddonDefinition
 
 
 class ServerAddon(ServerAddonDefinition):
+    """Test addon"""
+
     name = "test"
-    description = "test addon"
     addon_type = "module"
