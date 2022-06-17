@@ -1,9 +1,10 @@
 from typing import Any
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Response
 from nxtools import logging
 
 from openpype.addons import AddonLibrary
+from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.settings.utils import extract_overrides
 from openpype.types import Field, OPModel
@@ -27,8 +28,14 @@ def register_addon_endpoints():
             )
 
             for endpoint in addon.endpoints:
+                path = endpoint["path"].lstrip("/")
+                first_element = path.split("/")[0]
+                if first_element in ["settings", "schema", "overrides"]:
+                    logging.error(f"Unable to assing path to endpoint: {path}")
+                    continue
+
                 addon_router.add_api_route(
-                    f"/{endpoint['path']}",
+                    f"/{path}",
                     endpoint["handler"],
                     methods=[endpoint["method"]],
                     name=endpoint["name"],
@@ -129,57 +136,31 @@ async def configure_addons(payload: AddonConfigRequest):
 #
 
 
-@router.get("/{addon_name}/schema", tags=["Addon settings"])
-async def get_addon_settings_schema(addon_name: str, version: str | None = Query(None)):
-    library = AddonLibrary.getinstance()
+@router.get("/{addon_name}/{version}/schema", tags=["Addon settings"])
+async def get_addon_settings_schema(addon_name: str, version: str):
 
-    if (addon := library.get(addon_name)) is None:
-        return {}
+    if (addon := AddonLibrary.addon(addon_name, version)) is None:
+        raise NotFoundException(f"Addon {addon_name} {version} not found")
 
-    active_versions = await library.get_active_versions()
-
-    if version is None:
-        version = active_versions.get(addon_name, {}).get("production")
-    if version is None:
-        return {}
-
-    addon_version = addon.versions[version]
-    if addon_version.settings is None:
+    if addon.settings is None:
         logging.error(f"No schema for addon {addon_name}")
         return {}
 
-    schema = addon_version.settings.schema()
-    schema["title"] = f"{addon.friendly_name} {version}"
+    schema = addon.settings.schema()
+    schema["title"] = addon.friendly_name
     return schema
 
 
-@router.get("/{addon_name}/settings", tags=["Addon settings"])
-async def get_addon_studio_settings(addon_name: str, version: str | None = Query(None)):
-    library = AddonLibrary.getinstance()
-
-    if (addon := library.get(addon_name)) is None:
-        return {}
-
-    if version is None:
-        active_versions = await library.get_active_versions()
-        version = active_versions.get(addon_name, {}).get("production")
-    if version is None:
-        return {}
-
-    addon_version = addon.versions[version]
-    if addon_version.settings is None:
-        logging.error(f"No schema for addon {addon_name}")
-        return {}
-    s = await addon_version.get_studio_settings()
-
-    return s
+@router.get("/{addon_name}/{version}/settings", tags=["Addon settings"])
+async def get_addon_studio_settings(addon_name: str, version: str):
+    if (addon := AddonLibrary.addon(addon_name, version)) is None:
+        raise NotFoundException(f"Addon {addon_name} {version} not found")
+    return await addon.get_studio_settings()
 
 
-@router.post("/{addon_name}/settings", tags=["Addon settings"])
+@router.post("/{addon_name}/{version}/settings", tags=["Addon settings"])
 async def set_addon_studio_settings(
-    payload: dict[str, Any],
-    addon_name: str,
-    version: str = Query(...),
+    payload: dict[str, Any], addon_name: str, version: str
 ):
     addon = AddonLibrary.addon(addon_name, version)
     original = await addon.get_studio_settings()
@@ -207,20 +188,20 @@ async def set_addon_studio_settings(
     return Response(status_code=204)
 
 
-@router.get("/{addon_name}/settings/{project_name}", tags=["Addon settings"])
-async def get_addon_project_settings(addon_name: str, project_name: str):
+@router.get("/{addon_name}/{version}/settings/{project_name}", tags=["Addon settings"])
+async def get_addon_project_settings(addon_name: str, version: str, project_name: str):
     return {}
 
 
-@router.get("/{addon_name}/overrides", tags=["Addon settings"])
-async def get_addon_studio_overrides(addon_name: str, version: str = Query(...)):
+@router.get("/{addon_name}/{version}/overrides", tags=["Addon settings"])
+async def get_addon_studio_overrides(addon_name: str, version: str):
     return {}
 
 
-@router.get("/{addon_name}/overrides/{project_name}", tags=["Addon settings"])
+@router.get("/{addon_name}/{version}/overrides/{project_name}", tags=["Addon settings"])
 async def get_addon_project_overrides(
     addon_name: str,
+    version: str,
     project_name: str,
-    version: str = Query(...),
 ):
-    pass
+    return {}

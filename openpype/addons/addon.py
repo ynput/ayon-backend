@@ -20,6 +20,11 @@ class BaseServerAddon:
         self.endpoints = []
         self.setup()
 
+    @property
+    def friendly_name(self) -> str:
+        """Return the friendly name of the addon."""
+        return f"{self.definition.friendly_name} {self.version}"
+
     async def get_studio_overrides(self) -> dict[str, Any]:
         """Load the studio overrides from the database."""
 
