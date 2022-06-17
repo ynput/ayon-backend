@@ -6,7 +6,7 @@ from nxtools import logging
 from openpype.addons import AddonLibrary
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
-from openpype.settings.utils import extract_overrides
+from openpype.settings import extract_overrides
 from openpype.types import Field, OPModel
 
 #
@@ -41,8 +41,6 @@ def register_addon_endpoints():
                     name=endpoint["name"],
                 )
             router.include_router(addon_router)
-    for route in router.routes:
-        logging.debug(route.path, route.methods)
 
 
 register_addon_endpoints()

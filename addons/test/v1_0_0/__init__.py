@@ -8,7 +8,7 @@ from openpype.api.dependencies import dep_project_name
 from openpype.entities import FolderEntity
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
-from openpype.settings.common import BaseSettingsModel
+from openpype.settings import BaseSettingsModel
 
 # from openpype.api.dependencies import dep_current_user
 

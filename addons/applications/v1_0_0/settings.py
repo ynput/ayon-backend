@@ -1,6 +1,6 @@
 from pydantic import Field
 
-from openpype.settings.common import BaseSettingsModel
+from openpype.settings import BaseSettingsModel
 
 
 class ListPerPlatform(BaseSettingsModel):

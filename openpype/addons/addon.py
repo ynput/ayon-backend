@@ -1,8 +1,7 @@
 from typing import TYPE_CHECKING, Any, Callable, Type
 
 from openpype.lib.postgres import Postgres
-from openpype.settings.common import BaseSettingsModel
-from openpype.settings.utils import apply_overrides
+from openpype.settings import BaseSettingsModel, apply_overrides
 
 if TYPE_CHECKING:
     from openpype.addons.definition import ServerAddonDefinition
