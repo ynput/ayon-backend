@@ -1,12 +1,15 @@
+import os
+
 from typing import Any
 
 from fastapi import APIRouter, Response
+from fastapi.staticfiles import StaticFiles
 from nxtools import logging
 
 from openpype.addons import AddonLibrary
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
-from openpype.settings import extract_overrides
+from openpype.settings import extract_overrides, list_overrides
 from openpype.types import Field, OPModel
 
 #
@@ -60,10 +63,17 @@ register_addon_endpoints()
 #
 
 
+class VersionInfo(OPModel):
+    has_settings: bool = Field(default=False)
+    frontend_scopes: list[str] = Field(default=[])
+
+
 class AddonListItem(OPModel):
     name: str = Field(..., description="Machine friendly name of the addon")
     title: str = Field(..., description="Human friendly title of the addon")
-    versions: list[str] = Field(..., description="List of available versions")
+    versions: dict[str, VersionInfo] = Field(
+        ..., description="List of available versions"
+    )
     description: str = Field(..., description="Addon description")
     production_version: str | None = Field(
         None,
@@ -94,11 +104,18 @@ async def list_addons():
 
     for name, definition in library.data.items():
         vers = active_versions.get(definition.name, {})
+        versions = {}
+        for version, addon in definition.versions.items():
+            versions[version] = VersionInfo(
+                has_settings=bool(addon.settings),
+                frontend_scopes=addon.frontend_scopes,
+            )
+
         result.append(
             AddonListItem(
                 name=definition.name,
                 title=definition.friendly_name,
-                versions=list(definition.versions.keys()),
+                versions=versions,
                 description=definition.__doc__ or "",
                 production_version=vers.get("production"),
                 staging_version=vers.get("staging"),
@@ -181,10 +198,11 @@ async def set_addon_studio_settings(
 
     addon = AddonLibrary.addon(addon_name, version)
     original = await addon.get_studio_settings()
+    existing = await addon.get_studio_overrides()
     if (original is None) or (addon.settings is None):
         # This addon does not have settings
         return Response(status_code=400)
-    data = extract_overrides(original, addon.settings(**payload))
+    data = extract_overrides(original, addon.settings(**payload), existing)
 
     # Do not use versioning during the development (causes headaches)
     await Postgres.execute(
@@ -207,7 +225,12 @@ async def set_addon_studio_settings(
 
 @router.get("/{addon_name}/{version}/overrides", tags=["Addon settings"])
 async def get_addon_studio_overrides(addon_name: str, version: str):
-    return {}
+    addon = AddonLibrary.addon(addon_name, version)
+    settings = await addon.get_studio_settings()
+    overrides = await addon.get_studio_overrides()
+    if settings is None:
+        return {}
+    return list_overrides(settings, overrides)
 
 
 #

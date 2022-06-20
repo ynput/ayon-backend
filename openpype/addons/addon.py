@@ -12,11 +12,13 @@ class BaseServerAddon:
     definition: "ServerAddonDefinition"
     settings: Type[BaseSettingsModel] | None = None
     endpoints: list[dict[str, Any]]
+    frontend_scopes: list[str]
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str):
         self.definition = definition
         self.addon_dir = addon_dir
         self.endpoints = []
+        self.frontend_scopes = []
         self.setup()
 
     @property

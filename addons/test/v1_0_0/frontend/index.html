@@ -1,0 +1,47 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Test addon</title>
+    <style>
+
+html, body {
+  padding: 20px;
+  background: transparent;
+  color: white;
+  font-family: sans-serif;
+}
+
+#ctxwnd {
+  width: 800px;
+  max-height: 600px;
+  background: rgba(0, 0, 0, 0.5);
+  overflow: scroll;  I am a project-level test addon frontend
+}
+
+    </style>
+  </head>
+  <body>
+    <h1>Test addon</h1>
+
+    <p>
+    My dear parent told me to use the following context:
+    </p>
+
+    <pre id="ctxwnd"></pre>
+
+  </body>
+
+  <script>
+
+    document.addEventListener('DOMContentLoaded', () => {
+
+      window.onmessage = (e) => {
+        document.querySelector('#ctxwnd').innerHTML = JSON.stringify(e.data, null, 2);
+      }
+
+    })
+
+  </script>
+
+</html>
+
