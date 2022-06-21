@@ -148,7 +148,7 @@ def init_addons(target_app: fastapi.FastAPI):
     for addon_name, addon_definition in library.items():
         for version in addon_definition.versions:
             addon = addon_definition.versions[version]
-            if not os.path.isdir(fedir := f"{addon.addon_dir}/frontend"):
+            if not os.path.isdir(fedir := f"{addon.addon_dir}/frontend/dist"):
                 continue
             logging.info(f"Initializing addon {addon_name} version {version}")
             target_app.mount(

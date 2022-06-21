@@ -22,6 +22,7 @@ class TestSettings(BaseSettingsModel):
 class AddOn(BaseServerAddon):
     version = "1.0.0"
     settings: Type[TestSettings] = TestSettings
+    frontend_scopes = ["project"]
 
     def setup(self):
         self.add_endpoint(

@@ -1,9 +1,6 @@
-import os
-
 from typing import Any
 
 from fastapi import APIRouter, Response
-from fastapi.staticfiles import StaticFiles
 from nxtools import logging
 
 from openpype.addons import AddonLibrary
