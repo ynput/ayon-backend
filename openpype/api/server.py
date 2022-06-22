@@ -1,12 +1,11 @@
 import asyncio
-import fastapi
 import importlib
 import os
 import sys
 
-from fastapi.websockets import WebSocket, WebSocketDisconnect
+import fastapi
 from fastapi.staticfiles import StaticFiles
-
+from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_traceback, logging
 
 from openpype.access.roles import Roles
@@ -143,6 +142,8 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api"):
 
 
 def init_addons(target_app: fastapi.FastAPI):
+    """Serve static files for addon frontends."""
+
     logging.info("Initializing addons")
     library = AddonLibrary()
     for addon_name, addon_definition in library.items():
@@ -150,7 +151,9 @@ def init_addons(target_app: fastapi.FastAPI):
             addon = addon_definition.versions[version]
             if not os.path.isdir(fedir := f"{addon.addon_dir}/frontend/dist"):
                 continue
-            logging.info(f"Initializing addon {addon_name} version {version}")
+            logging.info(
+                f"Initializing frontend for addon {addon_name} version {version}"
+            )
             target_app.mount(
                 f"/addons/{addon_name}/{version}",
                 StaticFiles(directory=fedir, html=True),

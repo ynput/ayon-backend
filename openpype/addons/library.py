@@ -4,7 +4,8 @@ from nxtools import logging
 
 from openpype.addons.addon import BaseServerAddon
 from openpype.addons.definition import ServerAddonDefinition
-from openpype.addons.utils import classes_from_module, import_module
+
+# from openpype.addons.utils import classes_from_module, import_module
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 
@@ -23,19 +24,13 @@ class AddonLibrary:
         self.data = {}
         for addon_name in os.listdir(self.ADDONS_DIR):
             addon_dir = os.path.join(self.ADDONS_DIR, addon_name)
-            mfile = os.path.join(addon_dir, "__init__.py")
-
-            if not os.path.isfile(mfile):
+            if not os.path.isdir(addon_dir):
                 continue
 
-            try:
-                module = import_module(addon_name, mfile)
-            except AttributeError:
-                logging.error(f"Addon {addon_name} is not valid")
-                continue
-
-            for Definition in classes_from_module(ServerAddonDefinition, module):
-                self.data[Definition.name] = Definition(self, addon_dir)
+            definition = ServerAddonDefinition(self, addon_dir, addon_name)
+            if definition.versions:
+                logging.info("Initializing addon", addon_name)
+                self.data[addon_name] = definition
 
     @classmethod
     def addon(cls, name: str, version: str) -> BaseServerAddon:

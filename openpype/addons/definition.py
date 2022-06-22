@@ -15,9 +15,10 @@ class ServerAddonDefinition:
     title: str | None = None
     addon_type: str = "module"
 
-    def __init__(self, library: "AddonLibrary", addon_dir: str):
+    def __init__(self, library: "AddonLibrary", addon_dir: str, addon_name: str):
         self.library = library
         self.addon_dir = addon_dir
+        self.name = addon_name
         self._versions: dict[str, BaseServerAddon] | None = None
 
         assert hasattr(self, "name") and type(self.name) is str

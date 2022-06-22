@@ -62,7 +62,7 @@ register_addon_endpoints()
 
 class VersionInfo(OPModel):
     has_settings: bool = Field(default=False)
-    frontend_scopes: list[str] = Field(default=[])
+    frontend_scopes: dict[str, Any] = Field(default_factory={})
 
 
 class AddonListItem(OPModel):
@@ -104,7 +104,7 @@ async def list_addons():
         versions = {}
         for version, addon in definition.versions.items():
             versions[version] = VersionInfo(
-                has_settings=bool(addon.settings),
+                has_settings=bool(addon.get_settings_model()),
                 frontend_scopes=addon.frontend_scopes,
             )
 
@@ -167,11 +167,13 @@ async def get_addon_settings_schema(addon_name: str, version: str):
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
-    if addon.settings is None:
-        logging.error(f"No schema for addon {addon_name}")
+    model = addon.get_settings_model()
+
+    if model is None:
+        logging.error(f"No settings schema for addon {addon_name}")
         return {}
 
-    schema = addon.settings.schema()
+    schema = model.schema()
     schema["title"] = addon.friendly_name
     return schema
 
@@ -196,10 +198,11 @@ async def set_addon_studio_settings(
     addon = AddonLibrary.addon(addon_name, version)
     original = await addon.get_studio_settings()
     existing = await addon.get_studio_overrides()
-    if (original is None) or (addon.settings is None):
+    model = addon.get_settings_model()
+    if (original is None) or (model is None):
         # This addon does not have settings
         return Response(status_code=400)
-    data = extract_overrides(original, addon.settings(**payload), existing)
+    data = extract_overrides(original, model(**payload), existing)
 
     # Do not use versioning during the development (causes headaches)
     await Postgres.execute(

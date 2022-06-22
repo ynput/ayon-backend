@@ -10,9 +10,10 @@ if TYPE_CHECKING:
 class BaseServerAddon:
     version: str
     definition: "ServerAddonDefinition"
-    settings: Type[BaseSettingsModel] | None = None
     endpoints: list[dict[str, Any]]
-    frontend_scopes: list[str] = []
+    settings_model: Type[BaseSettingsModel] | None = None
+    frontend_scopes: dict[str, Any] = {}
+    frontend_dir: str = "frontend/dist"
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str):
         self.definition = definition
@@ -20,10 +21,23 @@ class BaseServerAddon:
         self.endpoints = []
         self.setup()
 
+    def __repr__(self):
+        return f"<Addon name='{self.definition.name}' version='{self.version}'>"
+
     @property
     def friendly_name(self) -> str:
         """Return the friendly name of the addon."""
         return f"{self.definition.friendly_name} {self.version}"
+
+    def get_frontend_dir(self) -> str:
+        return self.frontend_dir
+
+    def get_settings_model(self) -> Type[BaseSettingsModel] | None:
+        return self.settings_model
+
+    #
+    # Settings
+    #
 
     async def get_studio_overrides(self) -> dict[str, Any]:
         """Load the studio overrides from the database."""
@@ -78,12 +92,12 @@ class BaseServerAddon:
         Override this method to return the default settings for the addon.
         By default it returns defaults from the addon's settings model, but
         if you need to use a complex model or force required fields, you should
-        do something like: `return self.settings(**YOUR_ADDON_DEFAULTS)`.
+        do something like: `return self.get_settings_model(**YOUR_ADDON_DEFAULTS)`.
         """
 
-        if self.settings is None:
+        if (model := self.get_settings_model()) is None:
             return None
-        return self.settings()
+        return model()
 
     def convert_system_overrides(
         self,
