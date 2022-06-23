@@ -13,8 +13,6 @@ from openpype.lib.postgres import Postgres
 #   integer, float, string, boolean, list_of_strings
 #
 # Possible validation rules:
-# - min_len (for strings)
-# - max_len (for strings)
 # - gt (for integers and floats)
 # - lt (for integers and floats)
 # - regex (for strings)
@@ -25,8 +23,8 @@ DEFAULT_ATTRIBUTES = {
         "scope": "P, F, V, R, T",
         "type": "float",
         "title": "FPS",
-        "default": "25",
-        "example": "23.976",
+        "default": 25,
+        "example": 23.976,
         "description": "Frame rate",
     },
     "resolutionWidth": {
@@ -163,37 +161,11 @@ DEFAULT_ATTRIBUTES = {
 }
 
 
-def parse_example(example, atype):
-    if not example:
-        return {}
-    example = {
-        "integer": int,
-        "string": str,
-        "float": float,
-        "boolean": lambda x: True if x.lower == "true" else False,
-        "list_of_strings": lambda x: None,
-    }[atype](example)
-    if example:
-        return {"example": example}
-    return {}
-
-
-def parse_intval(name, value):
-    if not value:
-        return {}
-    value = int(value)
-    if value:
-        return {name: value}
-    return {}
-
-
 async def deploy_attributes():
-
     await Postgres.execute("DELETE FROM public.attributes")
 
     position = 0
     for name, tdata in DEFAULT_ATTRIBUTES.items():
-
         try:
             scope = [
                 {
@@ -224,29 +196,11 @@ async def deploy_attributes():
         data = {
             "type": tdata["type"],
             "title": tdata.get("title", name.capitalize()),
-            **parse_example(tdata.get("example", tdata.get("default")), tdata["type"]),
-            **parse_intval("gt", tdata.get("gt")),
-            **parse_intval("lt", tdata.get("lt")),
-            **parse_intval("min_length", tdata.get("min_len")),
-            **parse_intval("max_length", tdata.get("max_len")),
         }
 
-        default = tdata.get("default")
-        if default is not None:
-
-            data["default"] = {
-                "integer": int,
-                "string": str,
-                "float": float,
-                "boolean": lambda x: True if x.lower == "true" else False,
-                "list_of_strings": lambda x: [r.strip() for r in x.split(",") if r],
-            }[tdata["type"]](default)
-
-        if tdata.get("regex", "").strip():
-            data["regex"] = tdata["regex"].strip()
-
-        if tdata.get("description", "").strip():
-            data["description"] = tdata["description"].strip()
+        for key in ["default", "example", "regex", "description", "gt", "lt"]:
+            if (value := tdata.get(key)) is not None:
+                data[key] = value
 
         await Postgres.execute(
             """
