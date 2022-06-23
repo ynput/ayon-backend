@@ -8,7 +8,7 @@ from openpype.lib.redis import Redis
 
 
 class Messaging:
-    def __init__(self):
+    def __init__(self) -> None:
         self.connections: list[WebSocket] = []
         self.started = False
 
@@ -28,13 +28,13 @@ class Messaging:
             await self.start()
         await Redis.publish(message)
 
-    async def start(self):
+    async def start(self) -> None:
         self.pubsub = await Redis.pubsub()
         await self.pubsub.subscribe(pypeconfig.redis_channel)
         asyncio.create_task(self.listen())
         self.started = True
 
-    async def listen(self):
+    async def listen(self) -> None:
         while self.connections:
             try:
                 message = await self.pubsub.get_message(ignore_subscribe_messages=True)

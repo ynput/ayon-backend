@@ -1,9 +1,10 @@
 from openpype.entities.core import ProjectLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
+from openpype.types import ProjectLevelEntityType
 
 
 class SubsetEntity(ProjectLevelEntity):
-    entity_type: str = "subset"
+    entity_type: ProjectLevelEntityType = "subset"
     model = ModelSet("subset", attribute_library["subset"])
 
     #

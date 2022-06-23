@@ -1,3 +1,5 @@
+from typing import Any
+
 import asyncpg
 import asyncpg.pool
 
@@ -20,10 +22,12 @@ class Postgres:
     @property
     def acquire(cls):
         """Acquire a connection from the pool."""
+        if cls.pool is None:
+            raise ConnectionError
         return cls.pool.acquire
 
     @classmethod
-    async def init_connection(self, conn):
+    async def init_connection(self, conn) -> None:
         """Set up the connection pool"""
         await conn.set_type_codec(
             "jsonb",
@@ -39,32 +43,39 @@ class Postgres:
         )
 
     @classmethod
-    async def connect(cls):
+    async def connect(cls) -> None:
         """Create a PostgreSQL connection pool."""
         cls.pool = await asyncpg.create_pool(
             pypeconfig.postgres_url, init=cls.init_connection
         )
 
     @classmethod
-    async def execute(cls, query, *args):
+    async def execute(cls, query: str, *args: Any):
         """Execute a SQL query and return a status (e.g. 'INSERT 0 2')"""
+        if cls.pool is None:
+            raise ConnectionError
         async with cls.pool.acquire() as connection:
             return await connection.execute(query, *args)
 
     @classmethod
-    async def fetch(cls, query, *args):
+    async def fetch(cls, query: str, *args: Any):
         """Run a query and return the results as a list of Record."""
+        if cls.pool is None:
+            raise ConnectionError
         async with cls.pool.acquire() as connection:
             return await connection.fetch(query, *args)
 
     @classmethod
-    async def iterate(cls, query, *args, transaction=None):
+    async def iterate(cls, query: str, *args: Any, transaction=None):
         """Run a query and return a generator yielding resulting rows records."""
         if transaction:
             statement = await transaction.prepare(query)
             async for record in transaction.fetch(query, *args):
                 yield record
             return
+
+        if cls.pool is None:
+            raise ConnectionError
 
         async with cls.pool.acquire() as connection:
             async with connection.transaction():

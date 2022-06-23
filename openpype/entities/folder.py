@@ -3,11 +3,12 @@ from openpype.entities.core import ProjectLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
 from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
+from openpype.types import ProjectLevelEntityType
 from openpype.utils import EntityID
 
 
 class FolderEntity(ProjectLevelEntity):
-    entity_type: str = "folder"
+    entity_type: ProjectLevelEntityType = "folder"
     model: ModelSet = ModelSet("folder", attribute_library["folder"])
 
     @classmethod
@@ -115,7 +116,7 @@ class FolderEntity(ProjectLevelEntity):
     #
 
     @property
-    def parent_id(self) -> str:
+    def parent_id(self) -> str | None:
         return self._payload.parent_id
 
     @parent_id.setter
@@ -123,7 +124,7 @@ class FolderEntity(ProjectLevelEntity):
         self._payload.parent_id = value
 
     @property
-    def folder_type(self) -> str:
+    def folder_type(self) -> str | None:
         return self._payload.folder_type
 
     @folder_type.setter
@@ -131,7 +132,7 @@ class FolderEntity(ProjectLevelEntity):
         self._payload.folder_type = value
 
     @property
-    def thumbnail_id(self) -> str:
+    def thumbnail_id(self) -> str | None:
         return self._payload.thumbnail_id
 
     @thumbnail_id.setter

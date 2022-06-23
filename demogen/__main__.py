@@ -12,7 +12,7 @@ from openpype.lib.postgres import Postgres
 from openpype.settings.anatomy import Anatomy
 
 
-async def main():
+async def main() -> None:
     data = sys.stdin.read()
     if not data:
         critical_error("No data provided")

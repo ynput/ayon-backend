@@ -294,7 +294,7 @@ components = {
 
 
 class Gibberish:
-    def __init__(self):
+    def __init__(self) -> None:
         self.initial_consonants = list(
             set(string.ascii_lowercase) - set("aeiou") - set("qxc")
             | set(sum(components["initials"], []))

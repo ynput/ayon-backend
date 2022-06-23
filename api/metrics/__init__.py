@@ -16,13 +16,7 @@ async def get_system_metrics():
     async for record in Postgres.iterate("SELECT name FROM users"):
         name = record["name"]
         requests = await Redis.get("user-requests", name)
-        if requests is None:
-            requests = 0
-        else:
-            try:
-                requests = int(requests.decode("utf-8"))
-            except ValueError:
-                requests = 0
-        result += f'openpype_user_requests{{name="{name}"}} {requests}\n'
+        num_requests = 0 if requests is None else int(requests)
+        result += f'openpype_user_requests{{name="{name}"}} {num_requests}\n'
 
     return PlainTextResponse(result)

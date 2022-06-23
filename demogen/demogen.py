@@ -15,9 +15,9 @@ from openpype.entities import (
     TaskEntity,
     VersionEntity,
 )
-from openpype.entities.models.attributes import common_attributes
 from openpype.lib.postgres import Postgres
 from openpype.utils import create_uuid, dict_exclude
+from setup.attributes import DEFAULT_ATTRIBUTES
 
 VERSIONS_PER_SUBSET = 5
 
@@ -108,7 +108,7 @@ class DemoGen:
             validate=self.validate,
         )
         await folder.save(conn)
-        folder.parents = parents
+        folder.parents = parents  # type: ignore
 
         tasks = {}
 
@@ -158,7 +158,11 @@ class DemoGen:
         for i in range(1, VERSIONS_PER_SUBSET):
             self.version_count += 1
             attrib = {"families": [kwargs["family"]]}
-            for key in [r["name"] for r in common_attributes]:
+
+            for key, acfg in DEFAULT_ATTRIBUTES.items():
+                if "V" not in [scope.strip() for scope in acfg["scope"].split(",")]:
+                    continue
+
                 val = folder.attrib.dict().get(key)
                 if val is not None:
                     attrib[key] = val
@@ -256,13 +260,14 @@ class DemoGen:
             if site_name == "local" and random.choice([True] * 4 + [False]):
                 continue
 
-            fdata = {"files": {}}
+            fdata: dict[str, Any] = {"files": {}}
             for fid, file in files.items():
+                status: StateEnum
 
                 if site_name == "remote":
                     status = StateEnum.SYNCED
                 else:
-                    status = random.choice([-1, 0, 2, 3, 4])
+                    status = StateEnum(random.choice([-1, 0, 2, 3, 4]))
                 fsize = {
                     StateEnum.NOT_AVAILABLE: 0,
                     StateEnum.FAILED: 0,

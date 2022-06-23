@@ -24,7 +24,7 @@ async def create_link_type(project_name: str, link_type_name: str) -> None:
     )
 
 
-async def main():
+async def main() -> None:
     # Get generator config
 
     data = sys.stdin.read()

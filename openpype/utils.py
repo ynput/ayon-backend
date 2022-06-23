@@ -5,7 +5,7 @@ import random
 import re
 import time
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 import orjson
 from pydantic import Field
@@ -16,7 +16,7 @@ def json_loads(data: str) -> Any:
     return orjson.loads(data)
 
 
-def json_dumps(data: Any, *, default=None) -> str:
+def json_dumps(data: Any, *, default: Callable[[Any], Any] | None = None) -> str:
     """Dump JSON data."""
     return orjson.dumps(data, default=default).decode()
 
@@ -115,8 +115,8 @@ class EntityID:
 
     @classmethod
     @property
-    def example(cls):
-        return cls.meta["example"]
+    def example(cls) -> Any:
+        return cls.META["example"]
 
     @classmethod
     def field(cls, name: str = "entity") -> Field:
@@ -131,7 +131,7 @@ class SQLTool:
     """SQL query construction helpers."""
 
     @staticmethod
-    def array(elements: list[str] | list[int]):
+    def array(elements: list[str] | list[int]) -> str:
         """Return a SQL-friendly list string."""
         return (
             "("
@@ -186,8 +186,15 @@ class SQLTool:
         return ""
 
     @staticmethod
-    def insert(table: str, **kwargs):
-        """Return an SQL INSERT statement."""
+    def insert(table: str, **kwargs: Any) -> list[Any]:
+        """Return an SQL INSERT statement.
+
+        The result format is a list, in which the first element
+        is the SQL statement and the other items are the values,
+        so the results could be used as:.
+            Postgres.execute(*SQLTool.insert(...))
+        """
+
         keys = list(kwargs.keys())
         command = f"""
             INSERT INTO {table}
@@ -195,7 +202,7 @@ class SQLTool:
             VALUES
             ({ ', '.join([f'${i+1}' for i, _ in enumerate(keys)]) })
             """
-        result = [command]
+        result: list[Any] = [command]
         for key in keys:
             result.append(kwargs[key])
         return result
@@ -204,8 +211,8 @@ class SQLTool:
     def update(
         table: str,
         conditions: str,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> list[Any]:
         """Return an SQL UPDATE statement.
 
         Updated fields shall be specified in kwargs.

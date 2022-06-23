@@ -6,11 +6,12 @@ from openpype.access.utils import ensure_entity_access
 from openpype.entities.core.base import BaseEntity
 from openpype.exceptions import ConstraintViolationException, NotFoundException
 from openpype.lib.postgres import Postgres
+from openpype.types import ProjectLevelEntityType
 from openpype.utils import SQLTool, dict_exclude
 
 
 class ProjectLevelEntity(BaseEntity):
-    entity_type: str
+    entity_type: ProjectLevelEntityType
     project_name: str
 
     def __init__(
@@ -33,7 +34,7 @@ class ProjectLevelEntity(BaseEntity):
     @classmethod
     def from_record(
         cls, project_name: str, payload: dict[str, Any], validate: bool = False
-    ):
+    ) -> 'ProjectLevelEntity':
         """Return an entity instance based on a DB record.
 
         This factory method differs from the default constructor,
@@ -63,7 +64,7 @@ class ProjectLevelEntity(BaseEntity):
         """Return a payload of the entity limited to the attributes that
         are accessible to the given user.
         """
-        kw = {"deep": True, "exclude": {}}
+        kw: dict[str, Any] = {"deep": True, "exclude": {}}
 
         # TODO: Clean-up. use model.attrb_model.__fields__ to create blacklist
         if isinstance(self._payload.attrib, dict):
@@ -85,7 +86,7 @@ class ProjectLevelEntity(BaseEntity):
         result = self._payload.copy(**kw)
         return result
 
-    async def ensure_create_access(self, user):
+    async def ensure_create_access(self, user) -> None:
         """Check if the user has access to create a new entity.
 
         Raises FobiddenException if the user does not have access.
@@ -94,7 +95,7 @@ class ProjectLevelEntity(BaseEntity):
             user, self.project_name, self.entity_type, self.id, "create"
         )
 
-    async def ensure_read_access(self, user):
+    async def ensure_read_access(self, user) -> None:
         """Check if the user has access to read the entity.
 
         Raises FobiddenException if the user does not have access.
@@ -103,7 +104,7 @@ class ProjectLevelEntity(BaseEntity):
             user, self.project_name, self.entity_type, self.id, "read"
         )
 
-    async def ensure_update_access(self, user):
+    async def ensure_update_access(self, user) -> None:
         """Check if the user has access to update the entity.
 
         Raises FobiddenException if the user does not have access.
@@ -112,7 +113,7 @@ class ProjectLevelEntity(BaseEntity):
             user, self.project_name, self.entity_type, self.id, "update"
         )
 
-    async def ensure_delete_access(self, user):
+    async def ensure_delete_access(self, user) -> None:
         """Check if the user has access to delete the entity.
 
         Raises FobiddenException if the user does not have access.
@@ -132,7 +133,7 @@ class ProjectLevelEntity(BaseEntity):
         entity_id: str,
         transaction=None,
         for_update=False,
-    ):
+    ) -> 'ProjectLevelEntity':
         """Return an entity instance based on its ID and a project name.
 
         ProjectEntity reimplements this method to load the project based

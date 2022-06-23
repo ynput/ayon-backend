@@ -42,7 +42,7 @@ class LinkType(OPModel):
 
 
 class LinkTypeListResponse(OPModel):
-    types: list[dict] = Field(
+    types: list[dict[str, Any]] = Field(
         ...,
         description="List of link types",
         example=[
@@ -65,7 +65,7 @@ class LinkTypeListResponse(OPModel):
 
 
 class CreateLinkTypeRequestModel(OPModel):
-    data: dict = Field(default_factory=dict, description="Link data")
+    data: dict[str, Any] = Field(default_factory=dict, description="Link data")
 
 
 @router.get(

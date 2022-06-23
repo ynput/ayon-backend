@@ -34,7 +34,9 @@ router = APIRouter(
     response_model=UserEntity.model.main_model,
     response_model_exclude_none=True,
 )
-async def get_current_user(user: UserEntity = Depends(dep_current_user)):
+async def get_current_user(
+    user: UserEntity = Depends(dep_current_user),
+) -> UserEntity.model.main_model:
     """
     Return the current user information (based on the Authorization header).
     This is used for a profile page as well as as an initial check to ensure
@@ -56,7 +58,7 @@ async def get_current_user(user: UserEntity = Depends(dep_current_user)):
 async def get_user(
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
-):
+) -> UserEntity.model.main_model:
     """
     Return the current user information (based on the Authorization header).
     This is used for a profile page as well as as an initial check to ensure
@@ -88,7 +90,7 @@ async def create_user(
     put_data: UserEntity.model.post_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
-):
+) -> Response:
     """Create a new user."""
 
     if not user.is_manager:
@@ -113,7 +115,7 @@ async def create_user(
 async def delete_user(
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
-):
+) -> Response:
     logging.info(f"[DELETE] /users/{user_name}")
     if not user.is_manager:
         raise ForbiddenException
@@ -146,7 +148,7 @@ async def change_password(
     patch_data: ChangePasswordRequestModel,
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
-):
+) -> Response:
     if (user_name != user.name) and not (user.is_manager):
         # Users can only change their own password
         # Managers can change any password
@@ -196,7 +198,7 @@ async def assign_user_roles(
     patch_data: AssignRolesRequestModel,
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
-):
+) -> Response:
     if not user.is_manager:
         raise ForbiddenException("You are not permitted to assign user roles")
 

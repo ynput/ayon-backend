@@ -1,5 +1,6 @@
 import asyncio
 import sys
+from typing import Any
 
 import asyncpg
 from nxtools import critical_error, log_traceback, logging
@@ -12,7 +13,7 @@ from setup.users import deploy_users
 
 # Defaults which should allow OpenPype to run out of the box
 
-DATA = {
+DATA: dict[str, Any] = {
     "default_roles": {
         "viewer": "all",
     },
@@ -53,7 +54,7 @@ DATA = {
 }
 
 
-async def main():
+async def main() -> None:
     while 1:
         try:
             await Postgres.connect()
@@ -95,9 +96,9 @@ async def main():
 
     if force_install:
         if "-" in sys.argv:
-            data = sys.stdin.read()
+            raw_data = sys.stdin.read()
             try:
-                data = json_loads(data)
+                data: dict[str, Any] = json_loads(raw_data)
             except Exception:
                 log_traceback()
                 critical_error("Invalid setup fileprovided")
@@ -106,8 +107,12 @@ async def main():
         else:
             logging.warning("No setup file provided. Using defaults")
 
-        await deploy_users(DATA["users"], DATA["default_roles"])
-        await deploy_roles(DATA.get("roles", {}))
+        users: list[dict[str, Any]] = DATA["users"]
+        roles: list[dict[str, Any]] = DATA.get("roles", [])
+        default_roles: dict[str, Any] = DATA["default_roles"]
+
+        await deploy_users(users, default_roles)
+        await deploy_roles(roles)
 
     logging.goodnews("Setup is finished")
 

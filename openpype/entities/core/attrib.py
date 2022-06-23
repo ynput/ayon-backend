@@ -2,6 +2,7 @@ import asyncio
 import collections
 import threading
 
+from typing import Any
 from openpype.lib.postgres import Postgres
 
 
@@ -19,19 +20,19 @@ class AttributeLibrary:
     using __getitem__ method.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.data = collections.defaultdict(list)
         _thread = threading.Thread(target=self.execute)
         _thread.start()
         _thread.join()
 
-    def execute(self):
+    def execute(self) -> None:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(self.load())
         loop.close()
 
-    async def load(self):
+    async def load(self) -> None:
         query = "SELECT name, scope, data from public.attributes"
         await Postgres.connect()
         async for row in Postgres.iterate(query):
@@ -39,7 +40,7 @@ class AttributeLibrary:
             for scope in row["scope"]:
                 self.data[scope].append(attrd)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> list[dict[str, Any]]:
         return self.data[key]
 
 

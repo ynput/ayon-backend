@@ -1,8 +1,9 @@
 from enum import Enum
-from typing import Annotated, Any, Callable, TypeVar
+from typing import Annotated, Any, Callable, TypeVar, Generator
 
 import strawberry
 from strawberry.types import Info
+from strawberry.arguments import StrawberryArgumentAnnotation
 
 from openpype.access.utils import folder_access_list
 from openpype.graphql.types import PageInfo
@@ -21,7 +22,7 @@ class HasLinksFilter(Enum):
     BOTH = "both"
 
 
-def argdesc(description):
+def argdesc(description: str) -> StrawberryArgumentAnnotation:
     description = "\n".join([line.strip() for line in description.split("\n")])
     return strawberry.argument(description=description)
 
@@ -46,14 +47,17 @@ class FieldInfo:
     Paths are returned as a comma separated string.
     """
 
-    def __init__(self, info: Info, roots: list[str] = None):
+    def __init__(self, info: Info, roots: list[str] | None = None):
         self.info = info
         if roots is None:
             self.roots = []
         else:
             self.roots = roots
 
-        def parse_fields(fields, name=None):
+        def parse_fields(
+            fields: list[Any],
+            name: str | None = None,
+        ) -> Generator[str, None, None]:
             for field in fields:
                 if not hasattr(field, "name"):
                     continue
@@ -74,17 +78,17 @@ class FieldInfo:
     def __iter__(self):
         return self.fields.__iter__()
 
-    def __contains__(self, field):
+    def __contains__(self, field: str) -> bool:
         return field in self.fields
 
-    def has_any(self, *fields):
+    def has_any(self, *fields: str) -> bool:
         for field in fields:
             if field in self.fields:
                 return True
         return False
 
 
-async def create_folder_access_list(root, info):
+async def create_folder_access_list(root, info) -> list[str] | None:
     user = info.context["user"]
     project_name = root.project_name
     if root.__class__.__name__ != "ProjectNode":

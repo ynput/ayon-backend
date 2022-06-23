@@ -1,5 +1,6 @@
 import os
 
+from typing import ItemsView
 from nxtools import logging
 
 from openpype.addons.addon import BaseServerAddon
@@ -20,7 +21,7 @@ class AddonLibrary:
             cls._instance = AddonLibrary()
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.data = {}
         for addon_name in os.listdir(self.ADDONS_DIR):
             addon_dir = os.path.join(self.ADDONS_DIR, addon_name)
@@ -46,22 +47,22 @@ class AddonLibrary:
             raise NotFoundException(f"Addon {name} version {version} does not exist")
         return addon
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> ServerAddonDefinition:
         return self.data[key]
 
-    def __contains__(self, key):
+    def __contains__(self, key) -> bool:
         return key in self.data
 
     def __iter__(self):
         return iter(self.data)
 
-    def items(self):
+    def items(self) -> ItemsView[str, ServerAddonDefinition]:
         return self.data.items()
 
-    def get(self, key, default=None):
+    def get(self, key: str, default=None) -> ServerAddonDefinition:
         return self.data.get(key, default)
 
-    async def get_active_versions(self):
+    async def get_active_versions(self) -> dict[str, dict[str, str]]:
         active_versions = {}
         async for row in Postgres.iterate("SELECT * FROM addon_versions"):
             active_versions[row["name"]] = {

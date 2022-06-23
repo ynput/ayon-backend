@@ -1,9 +1,10 @@
 from openpype.entities.core import ProjectLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
+from openpype.types import ProjectLevelEntityType
 
 
 class RepresentationEntity(ProjectLevelEntity):
-    entity_type: str = "representation"
+    entity_type: ProjectLevelEntityType = "representation"
     model = ModelSet("representation", attribute_library["representation"])
 
     #

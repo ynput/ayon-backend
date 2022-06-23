@@ -1,3 +1,5 @@
+from typing import Any
+
 from nxtools import logging
 
 from openpype.lib.postgres import Postgres
@@ -18,7 +20,7 @@ from openpype.lib.postgres import Postgres
 # - regex (for strings)
 
 
-DEFAULT_ATTRIBUTES = {
+DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
     "fps": {
         "scope": "P, F, V, R, T",
         "type": "float",
@@ -161,7 +163,7 @@ DEFAULT_ATTRIBUTES = {
 }
 
 
-async def deploy_attributes():
+async def deploy_attributes() -> None:
     await Postgres.execute("DELETE FROM public.attributes")
 
     position = 0

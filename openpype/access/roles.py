@@ -10,7 +10,7 @@ class Roles:
     roles: dict[tuple[str, str], Permissions] = {}
 
     @classmethod
-    async def load(cls):
+    async def load(cls) -> None:
         cls.roles = {}
         async for row in Postgres.iterate("SELECT * FROM public.roles"):
             cls.add_role(
@@ -20,7 +20,7 @@ class Roles:
             )
 
     @classmethod
-    def add_role(cls, name: str, project_name: str, permissions: Permissions):
+    def add_role(cls, name: str, project_name: str, permissions: Permissions) -> None:
         logging.debug("Adding role", name)
         cls.roles[(name, project_name)] = permissions
 

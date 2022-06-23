@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
@@ -103,7 +103,7 @@ async def ensure_entity_access(
     entity_type: ProjectLevelEntityType,
     entity_id: str,
     access_type: AccessType = "read",
-):
+) -> Literal[True]:
     """Check whether the user has access to a given entity.
 
     Warning: THIS IS SLOW. DO NOT USE IN BATCHES!

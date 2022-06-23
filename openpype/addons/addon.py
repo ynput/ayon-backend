@@ -115,7 +115,7 @@ class BaseServerAddon:
         """Convert project overrides from a previous version."""
         return overrides
 
-    def setup(self):
+    def setup(self) -> None:
         """Setup the addon."""
         pass
 

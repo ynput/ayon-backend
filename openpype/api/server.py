@@ -46,11 +46,16 @@ async def user_name_from_request(request: fastapi.Request) -> str:
         return "anonymous"
     if not session_data:
         return "anonymous"
-    return session_data.user.name
+    user_name = session_data.user.name
+    assert type(user_name) is str
+    return user_name
 
 
 @app.exception_handler(OpenPypeException)
-async def openpype_exception_handler(request: fastapi.Request, exc: OpenPypeException):
+async def openpype_exception_handler(
+    request: fastapi.Request,
+    exc: OpenPypeException,
+) -> fastapi.responses.JSONResponse:
     user_name = await user_name_from_request(request)
 
     path = f"[{request.method.upper()}]"
@@ -65,7 +70,10 @@ async def openpype_exception_handler(request: fastapi.Request, exc: OpenPypeExce
 
 
 @app.exception_handler(Exception)
-async def all_exception_handler(request: fastapi.Request, exc: Exception):
+async def all_exception_handler(
+    request: fastapi.Request,
+    exc: Exception,
+) -> fastapi.responses.JSONResponse:
     user_name = await user_name_from_request(request)
     path = f"[{request.method.upper()}]"
     path += f" {request.url.path.removeprefix('/api')}"
@@ -87,7 +95,7 @@ app.include_router(
 
 
 @app.get("/graphiql", include_in_schema=False)
-def explorer():
+def explorer() -> fastapi.responses.HTMLResponse:
     # TODO: use async load here
     with open("static/graphiql.html") as f:
         page = f.read()
@@ -103,7 +111,7 @@ messaging = Messaging()
 
 
 @app.websocket("/ws")
-async def ws_endpoint(websocket: WebSocket):
+async def ws_endpoint(websocket: WebSocket) -> None:
     await messaging.join(websocket)
     try:
         while True:
@@ -118,7 +126,7 @@ async def ws_endpoint(websocket: WebSocket):
 #
 
 
-def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api"):
+def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
     """Register API modules to the server"""
 
     sys.path.insert(0, plugin_dir)
@@ -141,7 +149,7 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api"):
             route.operation_id = route.name
 
 
-def init_addons(target_app: fastapi.FastAPI):
+def init_addons(target_app: fastapi.FastAPI) -> None:
     """Serve static files for addon frontends."""
 
     logging.info("Initializing addons")
@@ -171,7 +179,7 @@ init_addons(app)
 
 
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     """Startup event.
 
     This is called after the server is started and:
