@@ -13,21 +13,26 @@ if TYPE_CHECKING:
 class ServerAddonDefinition:
     name: str
     title: str | None = None
-    addon_type: str = "module"
+    addon_type: str
 
-    def __init__(self, library: "AddonLibrary", addon_dir: str, addon_name: str):
+    def __init__(self, library: "AddonLibrary", addon_dir: str):
         self.library = library
         self.addon_dir = addon_dir
-        self.name = addon_name
         self._versions: dict[str, BaseServerAddon] | None = None
 
-        assert hasattr(self, "name") and type(self.name) is str
-        assert self.addon_type in ["host", "module"]
+    @property
+    def dir_name(self) -> str:
+        return os.path.split(self.addon_dir)[-1]
 
     @property
     def friendly_name(self) -> str:
         """Return a friendly (human readable) name of the addon."""
-        return self.title or self.name.capitalize()
+        if self.versions:
+            if self.title:
+                return self.title
+            if hasattr(self, "name"):
+                return self.name.capitalize()
+        return f"(Empty addon {self.dir_name})"
 
     @property
     def versions(self) -> dict[str, BaseServerAddon]:
@@ -39,7 +44,7 @@ class ServerAddonDefinition:
                 if not os.path.exists(os.path.join(mfile)):
                     continue
 
-                vname = slugify(f"{self.name}-{version_name}")
+                vname = slugify(f"{self.dir_name}-{version_name}")
                 try:
                     module = import_module(vname, mfile)
                 except AttributeError:
@@ -47,7 +52,10 @@ class ServerAddonDefinition:
                     continue
 
                 for Addon in classes_from_module(BaseServerAddon, module):
-                    self._versions[Addon.version] = Addon(self, mdir)
+                    try:
+                        self._versions[Addon.version] = Addon(self, mdir)
+                    except ValueError:
+                        pass
 
         return self._versions
 

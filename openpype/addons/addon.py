@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Any, Callable, Type
+from nxtools import logging
 
 from openpype.lib.postgres import Postgres
 from openpype.settings import BaseSettingsModel, apply_overrides
@@ -8,7 +9,10 @@ if TYPE_CHECKING:
 
 
 class BaseServerAddon:
+    name: str
+    title: str | None = None
     version: str
+    addon_type: str = "module"
     definition: "ServerAddonDefinition"
     endpoints: list[dict[str, Any]]
     settings_model: Type[BaseSettingsModel] | None = None
@@ -16,9 +20,27 @@ class BaseServerAddon:
     frontend_dir: str = "frontend/dist"
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str):
+        assert self.name and self.version
         self.definition = definition
         self.addon_dir = addon_dir
         self.endpoints = []
+
+        # Ensure name was not changed during versions, update definition.name and title
+        # TODO: maybe move this to the definition
+        if definition.versions:
+            if self.name != definition.name:
+                logging.error(f"Addon name mismatch {self.name} != {definition.name}")
+                raise ValueError
+            if self.addon_type != definition.addon_type:
+                logging.error(
+                    f"Addon type mismatch {self.addon_type} != {definition.addon_type}"
+                )
+                raise ValueError
+
+        definition.name = self.name
+        if self.title:
+            definition.title = self.title
+
         self.setup()
 
     def __repr__(self):

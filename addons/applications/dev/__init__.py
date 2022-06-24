@@ -6,7 +6,8 @@ from openpype.addons import BaseServerAddon
 from .settings import ApplicationSettings
 
 
-class AddOn(BaseServerAddon):
+class ApplicationsAddon(BaseServerAddon):
+    name = "applications"
     version = "1.0.0"
     settings_model = ApplicationSettings
 

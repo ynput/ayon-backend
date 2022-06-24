@@ -28,10 +28,12 @@ class AddonLibrary:
             if not os.path.isdir(addon_dir):
                 continue
 
-            definition = ServerAddonDefinition(self, addon_dir, addon_name)
-            if definition.versions:
-                logging.info("Initializing addon", addon_name)
-                self.data[addon_name] = definition
+            definition = ServerAddonDefinition(self, addon_dir)
+            if not definition.versions:
+                continue
+
+            logging.info("Initializing addon", addon_name)
+            self.data[addon_name] = definition
 
     @classmethod
     def addon(cls, name: str, version: str) -> BaseServerAddon:
