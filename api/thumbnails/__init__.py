@@ -53,12 +53,13 @@ async def store_thumbnail(
     await Postgres.execute(query, thumbnail_id, mime, payload)
 
 
-async def retrieve_thumbnail(project_name: str, thumbnail_id: str) -> Response:
+async def retrieve_thumbnail(project_name: str, thumbnail_id: str | None) -> Response:
     query = f"SELECT mime, data FROM project_{project_name}.thumbnails WHERE id = $1"
-    async for record in Postgres.iterate(query, thumbnail_id):
-        return Response(
-            media_type=record["mime"], status_code=200, content=record["data"]
-        )
+    if thumbnail_id is not None:
+        async for record in Postgres.iterate(query, thumbnail_id):
+            return Response(
+                media_type=record["mime"], status_code=200, content=record["data"]
+            )
     return Response(status_code=204)
 
 

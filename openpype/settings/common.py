@@ -59,7 +59,7 @@ def normalize_name(name: str) -> str:
     if not name:
         raise ValueError("Name must not be empty")
     components = slugify(name).split("-")
-    return components[0] + "".join(x.title() for x in components[1:])
+    return f"{components[0]}{''.join(x.title() for x in components[1:])}"
 
 
 def ensure_unique_names(objects: Iterable[Any]) -> None:

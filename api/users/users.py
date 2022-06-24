@@ -36,7 +36,7 @@ router = APIRouter(
 )
 async def get_current_user(
     user: UserEntity = Depends(dep_current_user),
-) -> UserEntity.model.main_model:
+) -> UserEntity.model.main_model:  # type: ignore
     """
     Return the current user information (based on the Authorization header).
     This is used for a profile page as well as as an initial check to ensure
@@ -58,7 +58,7 @@ async def get_current_user(
 async def get_user(
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
-) -> UserEntity.model.main_model:
+) -> UserEntity.model.main_model | dict[str, str]:  # type: ignore
     """
     Return the current user information (based on the Authorization header).
     This is used for a profile page as well as as an initial check to ensure
@@ -66,7 +66,7 @@ async def get_user(
     """
 
     if user_name == user.name:
-        return user.payload.as_user(user)
+        return user.as_user(user)
 
     result = await UserEntity.load(user_name)
 
@@ -211,6 +211,7 @@ async def assign_user_roles(
             messages.append(f"Removed user {user_name} role {role.role}")
             del roles[role.role]
             continue
+
         messages.append(
             f"Assigned '{role.role}' role to {user_name} on projects: "
             + ", ".join(role.projects)

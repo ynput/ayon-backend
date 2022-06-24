@@ -1,6 +1,6 @@
 import os
-
 from typing import ItemsView
+
 from nxtools import logging
 
 from openpype.addons.addon import BaseServerAddon
@@ -16,7 +16,7 @@ class AddonLibrary:
     _instance = None
 
     @classmethod
-    def getinstance(cls):
+    def getinstance(cls) -> "AddonLibrary":
         if cls._instance is None:
             cls._instance = AddonLibrary()
         return cls._instance

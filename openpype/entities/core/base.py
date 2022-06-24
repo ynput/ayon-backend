@@ -41,7 +41,7 @@ class BaseEntity:
         self._payload = apply_patch(self._payload, patch_data)
 
     @property
-    def payload(self):
+    def payload(self) -> BaseModel:
         return self._payload
 
     @classmethod

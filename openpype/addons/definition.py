@@ -59,5 +59,5 @@ class ServerAddonDefinition:
 
         return self._versions
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> BaseServerAddon:
         return self.versions[item]

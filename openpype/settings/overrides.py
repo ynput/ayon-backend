@@ -15,7 +15,11 @@ def apply_overrides(
     """
     result: dict[str, Any] = {}
 
-    def crawl(obj: BaseSettingsModel, override, target):
+    def crawl(
+        obj: BaseSettingsModel,
+        override: dict[str, Any],
+        target: dict[str, Any],
+    ) -> None:
         for name, field in obj.__fields__.items():
             child = getattr(obj, name)
             if isinstance(child, BaseSettingsModel):

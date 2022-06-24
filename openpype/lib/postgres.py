@@ -2,6 +2,7 @@ from typing import Any
 
 import asyncpg
 import asyncpg.pool
+import asyncpg.transaction
 
 from openpype.config import pypeconfig
 from openpype.utils import EntityID, json_dumps, json_loads
@@ -17,10 +18,12 @@ class Postgres:
     ForeignKeyViolationError = asyncpg.exceptions.ForeignKeyViolationError
     UniqueViolationError = asyncpg.exceptions.UniqueViolationError
     UndefinedTableError = asyncpg.exceptions.UndefinedTableError
+    Connection = asyncpg.Connection
+    Transaction = asyncpg.transaction.Transaction
 
     @classmethod
     @property
-    def acquire(cls):
+    def acquire(cls) -> asyncpg.Connection:
         """Acquire a connection from the pool."""
         if cls.pool is None:
             raise ConnectionError
@@ -50,7 +53,7 @@ class Postgres:
         )
 
     @classmethod
-    async def execute(cls, query: str, *args: Any):
+    async def execute(cls, query: str, *args: Any) -> str:
         """Execute a SQL query and return a status (e.g. 'INSERT 0 2')"""
         if cls.pool is None:
             raise ConnectionError

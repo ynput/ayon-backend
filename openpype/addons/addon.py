@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Any, Callable, Type
+
 from nxtools import logging
 
 from openpype.lib.postgres import Postgres
@@ -43,7 +44,7 @@ class BaseServerAddon:
 
         self.setup()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Addon name='{self.definition.name}' version='{self.version}'>"
 
     @property
@@ -73,7 +74,7 @@ class BaseServerAddon:
             """
         )
         if res:
-            return res[0]["data"]
+            return dict(res[0]["data"])
         return {}
 
     async def get_project_overrides(self, project_name: str) -> dict[str, Any]:
@@ -147,9 +148,9 @@ class BaseServerAddon:
         handler: Callable,
         *,
         method: str = "GET",
-        name: str = None,
-        description: str = None,
-    ):
+        name: str | None = None,
+        description: str | None = None,
+    ) -> None:
         """Add a REST endpoint to the server."""
 
         self.endpoints.append(

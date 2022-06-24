@@ -1,8 +1,8 @@
 import asyncio
 import collections
 import threading
+from typing import Any, DefaultDict
 
-from typing import Any
 from openpype.lib.postgres import Postgres
 
 
@@ -21,7 +21,7 @@ class AttributeLibrary:
     """
 
     def __init__(self) -> None:
-        self.data = collections.defaultdict(list)
+        self.data: DefaultDict[str, Any] = collections.defaultdict(list)
         _thread = threading.Thread(target=self.execute)
         _thread.start()
         _thread.join()

@@ -6,9 +6,11 @@ since Python 3.10 syntax does not work with Strawberry yet.
 
 import time
 import uuid
-from typing import Any, List, Literal, Optional, Type, Union
+from typing import Any, List, Literal, Optional, Type, TypeVar, Union
 
 from pydantic import BaseModel, Field, create_model
+
+C = TypeVar("C", bound=type)
 
 #
 # Field types
@@ -30,12 +32,12 @@ FIELD_TYPES = {
 #
 
 
-def new_id():
+def new_id() -> str:
     """Create a new entity ID."""
     return str(uuid.uuid1()).replace("-", "")
 
 
-def current_timestamp():
+def current_timestamp() -> int:
     """Return current unix timestamp."""
     return int(time.time())
 
@@ -108,7 +110,7 @@ class FieldDefinition(BaseModel):
 def generate_model(
     model_name: str,
     field_data: list[dict[str, Any]],
-    config=None,
+    config: C | None = None,
 ) -> Type[BaseModel]:
     """Create a new model from a given field set."""
     fields = {}
@@ -166,4 +168,4 @@ def generate_model(
 
         fields[fdef.name] = (ftype, Field(**field))
 
-    return create_model(model_name, __config__=config, **fields)
+    return create_model(model_name, __config__=config, **fields)  # type: ignore

@@ -1,13 +1,15 @@
 from collections import defaultdict
 from typing import Any, DefaultDict
 
+HierarchyType = list[dict[str, Any]]
+
 
 class HierarchyResolver:
     branch_name = "children"
     id_key = "id"
     parent_key = "parentId"
 
-    def __init__(self, source: list[dict] | None = None):
+    def __init__(self, source: HierarchyType | None = None):
         """
         You can either pass a source list to the constructor or call
         the append method for each item, and finally call the commit
@@ -30,12 +32,14 @@ class HierarchyResolver:
         self._parents[parent_id].append(item)
         self.count += 1
 
-    def commit(self):
+    def commit(self) -> None:
         self._hierarchy = self._build_tree(self._parents, None)
 
-    def _build_tree(self, parents, parent=None):
-        items = []
-        for child in parents.get(parent, []):
+    def _build_tree(
+        self, parents: DefaultDict[str, list[Any]], parent: str | None = None
+    ) -> HierarchyType:
+        items: HierarchyType = []
+        for child in parents.get(parent, []):  # type: ignore
             if not child:
                 continue
             items.append(child)
@@ -46,17 +50,20 @@ class HierarchyResolver:
         return items
 
     @property
-    def hierarchy(self):
+    def hierarchy(self) -> HierarchyType:
         # TODO: use LRU cache
         return self._hierarchy
 
-    def all(self) -> list:
+    def all(self) -> HierarchyType:
         """Return all items of the hierarchy."""
         return self.hierarchy
 
     def filtered(
-        self, search: str = "", types: list[int] | None = None, folder=None
-    ) -> list:
+        self,
+        search: str = "",
+        types: list[int] | None = None,
+        folder: HierarchyType | None = None,
+    ) -> HierarchyType:
         """Return filtered hiearchy.
 
         You may specify a serch string and list of types to
@@ -65,7 +72,7 @@ class HierarchyResolver:
         if types is None:
             types = []
         new_tree = []
-        for item in folder or self.hierarchy:
+        for item in self.hierarchy if folder is None else folder:
             if item.get("name", "").find(search) > -1:
                 new_tree.append(item)
             elif item.get(self.branch_name):
@@ -75,7 +82,11 @@ class HierarchyResolver:
                     new_tree.append(new_item)
         return new_tree
 
-    def __call__(self, search: str = "", types: list[int] | None = None) -> list:
+    def __call__(
+        self,
+        search: str = "",
+        types: list[int] | None = None,
+    ) -> HierarchyType:
         if types is None:
             types = []
         if not (search or types):

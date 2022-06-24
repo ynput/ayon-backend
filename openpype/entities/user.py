@@ -18,7 +18,11 @@ class UserEntity(TopLevelEntity):
     #
 
     @classmethod
-    async def load(cls, name: str, transaction=None) -> "UserEntity":
+    async def load(
+        cls,
+        name: str,
+        transaction: Postgres.Connection | Postgres.Transaction | None = None,
+    ) -> "UserEntity":
         """Load a user from the database."""
 
         if not (
@@ -33,7 +37,10 @@ class UserEntity(TopLevelEntity):
     # Save
     #
 
-    async def save(self, transaction=None) -> bool:
+    async def save(
+        self,
+        transaction: Postgres.Connection | Postgres.Transaction | None = None,
+    ) -> bool:
         """Save the user to the database."""
 
         conn = transaction or Postgres
@@ -56,7 +63,10 @@ class UserEntity(TopLevelEntity):
     # Delete
     #
 
-    async def delete(self, transaction=None) -> bool:
+    async def delete(
+        self,
+        transaction: Postgres.Connection | Postgres.Transaction | None = None,
+    ) -> bool:
         """Delete existing user."""
         if not self.name:
             raise NotFoundException(f"Unable to delete user {self.name}. Not loaded.")

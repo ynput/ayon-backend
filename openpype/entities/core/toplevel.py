@@ -21,7 +21,7 @@ class TopLevelEntity(BaseEntity):
         self.exists = exists
 
     @classmethod
-    def from_record(cls, payload: dict[str, Any], validate=True):
+    def from_record(cls, payload: dict[str, Any], validate: bool = True):
         """Return an entity instance based on a DB record.
 
         This factory method differs from the default constructor,

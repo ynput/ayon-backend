@@ -1,9 +1,9 @@
 from enum import Enum
-from typing import Annotated, Any, Callable, TypeVar, Generator
+from typing import Annotated, Any, Callable, Generator, TypeVar
 
 import strawberry
-from strawberry.types import Info
 from strawberry.arguments import StrawberryArgumentAnnotation
+from strawberry.types import Info
 
 from openpype.access.utils import folder_access_list
 from openpype.graphql.types import PageInfo

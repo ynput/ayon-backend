@@ -63,7 +63,7 @@ class FolderEntity(ProjectLevelEntity):
             raise NotFoundException(f"Project {project_name} not found")
         raise NotFoundException("Entity not found")
 
-    async def commit(self, db=False):
+    async def commit(self, db=False) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
         db = db or Postgres

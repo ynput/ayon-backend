@@ -49,7 +49,11 @@ class DemoGen:
         self.task_count = 0
         self.validate = validate
 
-    async def populate(self, project_name: str, hierarchy: list[dict[str, Any]]):
+    async def populate(
+        self,
+        project_name: str,
+        hierarchy: list[dict[str, Any]],
+    ) -> None:
         start_time = time.monotonic()
         self.project_name = project_name
         self.project = await ProjectEntity.load(project_name)
@@ -79,13 +83,19 @@ class DemoGen:
             f"Project {self.project_name} demo in {elapsed_time:.2f} seconds"
         )
 
-    async def create_branch(self, **kwargs):
+    async def create_branch(self, **kwargs: Any) -> None:
         async with Postgres.acquire() as conn:
             async with conn.transaction():
                 folder = await self.create_folder(conn, **kwargs)
                 await folder.commit(conn)
 
-    async def create_folder(self, conn, parent=None, parents=[], **kwargs):
+    async def create_folder(
+        self,
+        conn: Postgres.Transaction,
+        parent_id: str | None = None,
+        parents: list[str] = [],
+        **kwargs: Any,
+    ) -> FolderEntity:
         self.folder_count += 1
         if self.folder_count % 100 == 0:
             logging.debug(f"{self.folder_count} folders created")
@@ -99,7 +109,7 @@ class DemoGen:
         kwargs["attrib"] = attrib
 
         payload = {
-            "parent_id": parent,
+            "parent_id": parent_id,
             **dict_exclude(kwargs, ["_", "parentId"], mode="startswith"),
         }
         folder = FolderEntity(
@@ -117,8 +127,8 @@ class DemoGen:
                 task["assignees"] = random.choice(
                     [["artist"], ["artist", "visitor"], [], [], []]
                 )
-            tname, tid = await self.create_task(conn, folder_id=folder.id, **task)
-            tasks[tname] = tid
+            task_entity = await self.create_task(conn, folder_id=folder.id, **task)
+            tasks[task_entity.name] = task_entity.id
 
         for subset in kwargs.get("_subsets", []):
             await self.create_subset(conn, folder, tasks=tasks, **subset)
@@ -136,7 +146,13 @@ class DemoGen:
                     )
         return folder
 
-    async def create_subset(self, conn, folder, tasks, **kwargs):
+    async def create_subset(
+        self,
+        conn: Postgres.Transaction,
+        folder: FolderEntity,
+        tasks,
+        **kwargs,
+    ) -> SubsetEntity:
         self.subset_count += 1
         if task_name := kwargs.get("_task_link"):
             task_id = tasks.get(task_name)
@@ -183,16 +199,30 @@ class DemoGen:
                 await self.create_representation(
                     conn, folder, subset, version, **representation
                 )
+        return subset
 
-    async def create_task(self, conn, **kwargs):
+    async def create_task(
+        self,
+        conn: Postgres.Transaction,
+        **kwargs: Any,
+    ) -> TaskEntity:
         self.task_count += 1
         task = TaskEntity(
-            project_name=self.project_name, payload=kwargs, validate=self.validate
+            project_name=self.project_name,
+            payload=kwargs,
+            validate=self.validate,
         )
         await task.save(conn)
-        return task.name, task.id
+        return task
 
-    async def create_representation(self, conn, folder, subset, version, **kwargs):
+    async def create_representation(
+        self,
+        conn: Postgres.Transaction,
+        folder: FolderEntity,
+        subset: SubsetEntity,
+        version: VersionEntity,
+        **kwargs: Any,
+    ) -> RepresentationEntity:
         self.representation_count += 1
 
         attrib = kwargs.get("attrib", {})
@@ -206,7 +236,7 @@ class DemoGen:
         context = {
             "root": "{root}",
             "project_name": self.project_name,
-            "path": "/".join(folder.parents + [folder.name]),
+            "path": "/".join(folder.parents + [folder.name]),  # type: ignore
             "family": subset.family,
             "subset": subset.name,
             "version": version.version,
@@ -321,3 +351,4 @@ class DemoGen:
                 priority,
                 fdata,
             )
+        return representation

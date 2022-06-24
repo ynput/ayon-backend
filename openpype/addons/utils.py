@@ -2,7 +2,7 @@ import importlib.util
 import inspect
 import sys
 from types import ModuleType
-from typing import Type, TypeVar
+from typing import TypeVar
 
 T = TypeVar("T", bound=type)
 
@@ -19,7 +19,7 @@ def import_module(name: str, path: str) -> ModuleType:
     return module
 
 
-def classes_from_module(superclass: T, module: ModuleType) -> list[Type[T]]:
+def classes_from_module(superclass: T, module: ModuleType) -> list[T]:
     """Return plug-ins from module
 
     Arguments:
@@ -42,4 +42,4 @@ def classes_from_module(superclass: T, module: ModuleType) -> list[Type[T]]:
         if issubclass(obj, superclass):
             classes.append(obj)
 
-    return classes
+    return classes  # type: ignore

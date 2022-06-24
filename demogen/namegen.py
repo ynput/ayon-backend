@@ -308,7 +308,10 @@ class Gibberish:
         self.vowels = list(set(sum(components["vowels"], [])))
 
     def generate_word(
-        self, vowel_consonant_repeats=1, start_vowel=False, end_vowel=False
+        self,
+        vowel_consonant_repeats: int = 1,
+        start_vowel: bool = False,
+        end_vowel: bool = False,
     ) -> str:
         """Returns a random consonant-(vowel-consonant)*wc pseudo-word."""
         if not start_vowel:
@@ -321,7 +324,11 @@ class Gibberish:
             letter_list.pop()
         return "".join(choice(s) for s in letter_list)
 
-    def generate_words(self, wordcount=1, vowel_consonant_repeats=1):
+    def generate_words(
+        self,
+        wordcount: int = 1,
+        vowel_consonant_repeats: int = 1,
+    ) -> list[str]:
         """Returns a list of ``wordcount`` pseudo-words."""
         return [
             self.generate_word(

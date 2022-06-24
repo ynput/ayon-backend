@@ -34,7 +34,7 @@ class ProjectLevelEntity(BaseEntity):
     @classmethod
     def from_record(
         cls, project_name: str, payload: dict[str, Any], validate: bool = False
-    ) -> 'ProjectLevelEntity':
+    ):
         """Return an entity instance based on a DB record.
 
         This factory method differs from the default constructor,
@@ -133,7 +133,7 @@ class ProjectLevelEntity(BaseEntity):
         entity_id: str,
         transaction=None,
         for_update=False,
-    ) -> 'ProjectLevelEntity':
+    ):
         """Return an entity instance based on its ID and a project name.
 
         ProjectEntity reimplements this method to load the project based
