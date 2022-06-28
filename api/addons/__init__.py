@@ -233,6 +233,28 @@ async def get_addon_studio_overrides(addon_name: str, version: str):
     return list_overrides(settings, overrides)
 
 
+@router.delete("/{addon_name}/{version}/overrides", tags=["Addon settings"])
+async def delete_addon_studio_overrides(addon_name: str, version: str):
+
+    logging.info(f"Deleting overrides for {addon_name} {version}")
+
+    # Ensure addon exists
+    _ = AddonLibrary.addon(addon_name, version)
+
+    # we don't use versioned settings at the moment.
+    # in the future, insert an empty dict instead
+    await Postgres.execute(
+        """
+        DELETE FROM settings
+        WHERE addon_name = $1
+        AND addon_version = $2
+        """,
+        addon_name,
+        version,
+    )
+    return Response(status_code=204)
+
+
 #
 # Project overrides
 #
