@@ -10,6 +10,7 @@ from openpype.utils import EntityID
 class FolderEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "folder"
     model: ModelSet = ModelSet("folder", attribute_library["folder"])
+    own_attrib: list[str] = []
 
     @classmethod
     async def load(
@@ -41,11 +42,18 @@ class FolderEntity(ProjectLevelEntity):
                 f.active as active,
                 f.created_at as created_at,
                 f.updated_at as updated_at,
-                h.path as path
+                h.path as path,
+                ia.attrib AS inherited_attrib,
+                p.attrib AS project_attrib
             FROM project_{project_name}.folders as f
             INNER JOIN
                 project_{project_name}.hierarchy as h
                 ON f.id = h.id
+            LEFT JOIN
+                project_{project_name}.exported_attributes as ia
+                ON f.parent_id = ia.folder_id
+            LEFT JOIN public.projects as p
+                ON p.name = $2
             WHERE f.id=$1
             {'FOR UPDATE OF f'
                 if transaction and for_update else ''
@@ -53,7 +61,7 @@ class FolderEntity(ProjectLevelEntity):
             """
 
         try:
-            async for record in Postgres.iterate(query, entity_id):
+            async for record in Postgres.iterate(query, entity_id, project_name):
                 return cls.from_record(
                     project_name=project_name,
                     payload=record,

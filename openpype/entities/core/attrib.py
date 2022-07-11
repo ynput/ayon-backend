@@ -36,8 +36,13 @@ class AttributeLibrary:
         query = "SELECT name, scope, data from public.attributes"
         await Postgres.connect()
         async for row in Postgres.iterate(query):
-            attrd = {"name": row["name"], **row["data"]}
             for scope in row["scope"]:
+                attrd = {"name": row["name"], **row["data"]}
+                # Only project attributes should have defaults.
+                # All the others are nullable and should inherit from
+                # their parent entities
+                if (scope != "project") and ("default" in attrd):
+                    del attrd["default"]
                 self.data[scope].append(attrd)
 
     def __getitem__(self, key) -> list[dict[str, Any]]:

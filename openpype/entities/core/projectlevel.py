@@ -26,7 +26,10 @@ class ProjectLevelEntity(BaseEntity):
         if validate:
             self._payload = self.model.main_model(**payload)
         else:
-            self._payload = self.model.main_model.construct(**payload)
+            attrib = self.model.attrib_model.construct(**payload.get("attrib", {}))
+            self._payload = self.model.main_model.construct(
+                attrib=attrib, **dict_exclude(payload, "attrib")
+            )
 
         self.exists = exists
         self.project_name = project_name
@@ -67,10 +70,7 @@ class ProjectLevelEntity(BaseEntity):
         kw: dict[str, Any] = {"deep": True, "exclude": {}}
 
         # TODO: Clean-up. use model.attrb_model.__fields__ to create blacklist
-        if isinstance(self._payload.attrib, dict):
-            attrib = self._payload.attrib
-        else:
-            attrib = self._payload.attrib.dict()
+        attrib = self._payload.attrib.dict()
         if not user.is_manager:
             kw["exclude"]["data"] = True
 
@@ -156,7 +156,7 @@ class ProjectLevelEntity(BaseEntity):
             """
 
         async for record in Postgres.iterate(query, entity_id):
-            return cls.from_record(project_name, record)
+            return cls.from_record(project_name, record, validate=False)
         raise NotFoundException("Entity not found")
 
     #

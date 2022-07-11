@@ -162,7 +162,10 @@ def generate_model(
         if fdef.submodel:
             ftype = fdef.submodel
         elif fdef.type in FIELD_TYPES:
-            ftype = FIELD_TYPES[fdef.type]
+            if fdef.required:
+                ftype = FIELD_TYPES[fdef.type]
+            else:
+                ftype = FIELD_TYPES[fdef.type] | None
         else:
             ftype = Any
 

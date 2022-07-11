@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from openpype.entities.core.base import BaseEntity
+from openpype.utils import dict_exclude
 
 
 class TopLevelEntity(BaseEntity):
@@ -17,7 +18,10 @@ class TopLevelEntity(BaseEntity):
         if validate:
             self._payload = self.model.main_model(**payload)
         else:
-            self._payload = self.model.main_model.construct(**payload)
+            attrib = self.model.attrib_model.construct(**payload.get("attrib", {}))
+            self._payload = self.model.main_model.construct(
+                attrib=attrib, **dict_exclude(payload, "attrib")
+            )
         self.exists = exists
 
     @classmethod

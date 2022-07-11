@@ -26,7 +26,7 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "type": "float",
         "title": "FPS",
         "default": 25,
-        "example": 23.976,
+        "example": 25,
         "description": "Frame rate",
     },
     "resolutionWidth": {
@@ -54,24 +54,28 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "type": "float",
         "title": "Pixel aspect",
         "default": 1.0,
+        "example": 1.0,
     },
     "clipIn": {
         "scope": "P, F, V, R",
         "type": "integer",
         "title": "Clip In",
         "default": 1,
+        "example": 1,
     },
     "clipOut": {
         "scope": "P, F, V, R",
         "type": "integer",
         "title": "Clip Out",
         "default": 1,
+        "example": 1,
     },
     "frameStart": {
         "scope": "P, F, V, R",
         "type": "integer",
         "title": "Start frame",
         "default": 1001,
+        "example": 1001,
     },
     "frameEnd": {
         "scope": "P, F, V, R",

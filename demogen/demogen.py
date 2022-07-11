@@ -102,11 +102,21 @@ class DemoGen:
 
         # Propagate project attributes
         attrib = kwargs.get("attrib", {})
-        for key, value in self.project.attrib.dict().items():
-            if key in attrib:
-                continue
-            attrib[key] = value
+        if kwargs.get("folder_type") is None:
+            # Use explicit attributes inherited from the project settings
+            # For folder-folders
+            for key, value in self.project.attrib.dict().items():
+                if key in attrib:
+                    continue
+                attrib[key] = value
         kwargs["attrib"] = attrib
+
+        for s in kwargs.get("_subsets", []):
+            for r in s.get("_representations", []):
+                if (tpl := r.get("template")) is not None:
+                    if "{frame}" in tpl:
+                        kwargs["attrib"]["frameStart"] = self.project.attrib.frameStart
+                        kwargs["attrib"]["frameEnd"] = self.project.attrib.frameEnd
 
         payload = {
             "parent_id": parent_id,
