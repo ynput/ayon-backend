@@ -28,6 +28,19 @@ FIELD_LISTS: dict[str, list[Any]] = {
 }
 
 
+class AttribModelConfig:
+    """Configuration of the attribute model.
+
+    Attributes are immutable - that enforces you to
+    use patch method of the entity to change attributes.
+
+    This is used to keep track which attributes are
+    own entity attributes and which are inherited).
+    """
+
+    allow_mutation = False
+
+
 class ModelSet:
     """Set of models used for each entity type.
 
@@ -60,6 +73,7 @@ class ModelSet:
             self._attrib_model = generate_model(
                 f"{self.entity_name.capitalize()}AttribModel",
                 self.attributes,
+                AttribModelConfig,
             )
         assert self._attrib_model is not None
         return self._attrib_model

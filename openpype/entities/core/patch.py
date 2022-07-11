@@ -16,7 +16,8 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
         if isinstance(getattr(original, key), BaseModel):
             # Patch a submodel (attrib)
             ndata = apply_patch(
-                getattr(original, key), getattr(original, key).__class__(**value),
+                getattr(original, key),
+                getattr(original, key).__class__(**value),
             )
             update_data[key] = ndata
 

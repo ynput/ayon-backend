@@ -28,7 +28,7 @@ class ProjectLevelEntity(BaseEntity):
         else:
             attrib = self.model.attrib_model.construct(**payload.get("attrib", {}))
             self._payload = self.model.main_model.construct(
-                attrib=attrib, **dict_exclude(payload, "attrib")
+                attrib=attrib, **dict_exclude(payload, ["attrib"])
             )
 
         self.exists = exists
