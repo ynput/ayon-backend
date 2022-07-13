@@ -111,6 +111,7 @@ async def update_folder(
 
             folder.patch(post_data)
             await folder.save(transaction=conn)
+            await folder.commit(conn)
 
     return Response(status_code=204)
 

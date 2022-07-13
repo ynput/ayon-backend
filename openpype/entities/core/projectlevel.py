@@ -20,13 +20,26 @@ class ProjectLevelEntity(BaseEntity):
         payload: dict[str, Any],
         exists: bool = False,
         validate: bool = True,
+        own_attrib: list[str] = None,
     ) -> None:
-        """Return a new entity instance from given data."""
+        """Return a new entity instance from given data.
+
+        When own_attrib is set to None, all attributes are
+        considered entity's own. When set to list, only selected
+        attributes will be stored in the attrib column, others will
+        be considered inherited (and stored in exported_attribs)
+        """
+
+        attrib_dict = payload.get("attrib", {})
+        if own_attrib is None:
+            self.own_attrib = list(attrib_dict.keys())
+        else:
+            self.own_attrib = own_attrib
 
         if validate:
             self._payload = self.model.main_model(**payload)
         else:
-            attrib = self.model.attrib_model.construct(**payload.get("attrib", {}))
+            attrib = self.model.attrib_model.construct(**attrib_dict)
             self._payload = self.model.main_model.construct(
                 attrib=attrib, **dict_exclude(payload, ["attrib"])
             )
@@ -36,7 +49,11 @@ class ProjectLevelEntity(BaseEntity):
 
     @classmethod
     def from_record(
-        cls, project_name: str, payload: dict[str, Any], validate: bool = False
+        cls,
+        project_name: str,
+        payload: dict[str, Any],
+        validate: bool = False,
+        own_attrib: list[str] | None = None,
     ):
         """Return an entity instance based on a DB record.
 
@@ -53,7 +70,13 @@ class ProjectLevelEntity(BaseEntity):
             if key not in payload:
                 continue  # there are optional keys too
             parsed[key] = payload[key]
-        return cls(project_name, parsed, exists=True, validate=validate)
+        return cls(
+            project_name,
+            parsed,
+            exists=True,
+            validate=validate,
+            own_attrib=own_attrib,
+        )
 
     def replace(self, replace_data: BaseModel) -> None:
         """Replace the entity payload with new data."""

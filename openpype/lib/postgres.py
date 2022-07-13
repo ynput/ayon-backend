@@ -71,9 +71,9 @@ class Postgres:
     @classmethod
     async def iterate(cls, query: str, *args: Any, transaction=None):
         """Run a query and return a generator yielding resulting rows records."""
-        if transaction:
+        if transaction and transaction != cls:
             statement = await transaction.prepare(query)
-            async for record in transaction.fetch(query, *args):
+            async for record in statement.cursor(*args):
                 yield record
             return
 

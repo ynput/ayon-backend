@@ -66,7 +66,7 @@ async def create_project_from_anatomy(
             "library": library,
             "task_types": task_types,
             "folder_types": folder_types,
-            "attrib": anatomy.attributes,
+            "attrib": anatomy.attributes.dict(),  # type: ignore
             "config": config,
         }
     )

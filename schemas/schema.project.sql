@@ -96,6 +96,7 @@ CREATE UNIQUE INDEX hierarchy_id ON hierarchy (id);
 
 CREATE TABLE exported_attributes(
   folder_id UUID NOT NULL PRIMARY KEY REFERENCES folders(id) ON DELETE CASCADE,
+  path VARCHAR NOT NULL,
   attrib JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 

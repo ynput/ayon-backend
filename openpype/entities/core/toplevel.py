@@ -15,6 +15,9 @@ class TopLevelEntity(BaseEntity):
     ) -> None:
         """Return a new entity instance from given data."""
 
+        attrib_dict = payload.get("attrib", {})
+        self.own_attrib = list(attrib_dict.keys())
+
         if validate:
             self._payload = self.model.main_model(**payload)
         else:

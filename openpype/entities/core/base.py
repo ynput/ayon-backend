@@ -11,6 +11,7 @@ class BaseEntity:
     entity_type: str
     model: ModelSet
     exists: bool = False
+    own_attrib: list[str] = []
     _payload: BaseModel
 
     def __repr__(self):
@@ -38,6 +39,10 @@ class BaseEntity:
 
     def patch(self, patch_data: BaseModel) -> None:
         """Apply a patch to the entity."""
+        if (attrib := patch_data.dict().get("attrib")) is not None:
+            for key in attrib:
+                if key not in self.own_attrib:
+                    self.own_attrib.append(key)
         self._payload = apply_patch(self._payload, patch_data)
 
     @property
