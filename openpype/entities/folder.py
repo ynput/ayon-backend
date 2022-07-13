@@ -13,7 +13,7 @@ from openpype.exceptions import (
 )
 from openpype.lib.postgres import Postgres
 from openpype.types import ProjectLevelEntityType
-from openpype.utils import EntityID, SQLTool
+from openpype.utils import EntityID, SQLTool, dict_exclude
 
 
 class FolderEntity(ProjectLevelEntity):
@@ -138,7 +138,7 @@ class FolderEntity(ProjectLevelEntity):
                 await transaction.execute(
                     *SQLTool.insert(
                         f"project_{self.project_name}.{self.entity_type}s",
-                        **self.dict(exclude_none=True),
+                        **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
                     )
                 )
             except Postgres.ForeignKeyViolationError as e:

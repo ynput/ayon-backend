@@ -37,11 +37,16 @@ class ProjectLevelEntity(BaseEntity):
             self.own_attrib = own_attrib
 
         if validate:
-            self._payload = self.model.main_model(**payload)
+            self._payload = self.model.main_model(
+                **dict_exclude(payload, ["own_attrib"]),
+                own_attrib=self.own_attrib,
+            )
         else:
             attrib = self.model.attrib_model.construct(**attrib_dict)
             self._payload = self.model.main_model.construct(
-                attrib=attrib, **dict_exclude(payload, ["attrib"])
+                **dict_exclude(payload, ["attrib", "own_attrib"]),
+                attrib=attrib,
+                own_attrib=self.own_attrib,
             )
 
         self.exists = exists
@@ -226,7 +231,10 @@ class ProjectLevelEntity(BaseEntity):
             await transaction.execute(
                 *SQLTool.insert(
                     f"project_{self.project_name}.{self.entity_type}s",
-                    **self.dict(exclude_none=True),
+                    **dict_exclude(
+                        self.dict(exclude_none=True),
+                        self.model.dynamic_fields,
+                    ),
                 )
             )
         except Postgres.ForeignKeyViolationError as e:

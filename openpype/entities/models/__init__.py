@@ -112,7 +112,7 @@ class ModelSet:
 
         Dynamic fields cannot be used in inserts and updates.
         """
-        return [f["name"] for f in self.fields if f.get("dynamic")]
+        return [f["name"] for f in self.fields if f.get("dynamic")] + ["own_attrib"]
 
     @property
     def _common_fields(self) -> list:
@@ -134,6 +134,13 @@ class ModelSet:
                 "title": f"{self.entity_name.capitalize()} active",
                 "description": f"Whether the {self.entity_name} is active",
                 "default": True,
+            },
+            {
+                "name": "own_attrib",
+                "type": "list_of_strings",
+                "title": "Own attributes",
+                "example": ["frameStart", "frameEnd"],
+                "dynamic": True,
             },
         ]
 

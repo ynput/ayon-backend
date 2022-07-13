@@ -46,7 +46,9 @@ class UserEntity(TopLevelEntity):
         conn = transaction or Postgres
 
         if self.exists:
-            data = dict_exclude(self.dict(exclude_none=True), ["ctime", "name"])
+            data = dict_exclude(
+                self.dict(exclude_none=True), ["ctime", "name", "own_attrib"]
+            )
             await conn.execute(
                 *SQLTool.update(
                     "public.users",
@@ -56,7 +58,12 @@ class UserEntity(TopLevelEntity):
             )
             return True
 
-        await conn.execute(*SQLTool.insert("users", **self.dict(exclude_none=True)))
+        await conn.execute(
+            *SQLTool.insert(
+                "users",
+                **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
+            )
+        )
         return True
 
     #

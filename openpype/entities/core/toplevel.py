@@ -19,11 +19,16 @@ class TopLevelEntity(BaseEntity):
         self.own_attrib = list(attrib_dict.keys())
 
         if validate:
-            self._payload = self.model.main_model(**payload)
+            self._payload = self.model.main_model(
+                **dict_exclude(payload, ["own_attrib"]),
+                own_attrib = self.own_attrib,
+            )
         else:
             attrib = self.model.attrib_model.construct(**payload.get("attrib", {}))
             self._payload = self.model.main_model.construct(
-                attrib=attrib, **dict_exclude(payload, ["attrib"])
+                **dict_exclude(payload, ["attrib", "own_attrib"]),
+                attrib=attrib,
+                own_attrib=self.own_attrib,
             )
         self.exists = exists
 
