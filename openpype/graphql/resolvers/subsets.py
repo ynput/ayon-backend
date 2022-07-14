@@ -63,19 +63,19 @@ async def get_subsets(
     sql_joins = []
 
     if ids:
-        sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
+        sql_conditions.append(f"subsets.id IN {SQLTool.id_array(ids)}")
 
     if folder_ids:
-        sql_conditions.append(f"folder_id IN {SQLTool.id_array(folder_ids)}")
+        sql_conditions.append(f"subsets.folder_id IN {SQLTool.id_array(folder_ids)}")
     elif root.__class__.__name__ == "FolderNode":
         # cannot use isinstance here because of circular imports
-        sql_conditions.append(f"folder_id = '{root.id}'")
+        sql_conditions.append(f"subsets.folder_id = '{root.id}'")
 
     if families:
-        sql_conditions.append(f"family IN {SQLTool.array(families)}")
+        sql_conditions.append(f"subsets.family IN {SQLTool.array(families)}")
 
     if name:
-        sql_conditions.append(f"name ILIKE '{name}'")
+        sql_conditions.append(f"subsets.name ILIKE '{name}'")
 
     if has_links is not None:
         sql_conditions.extend(
@@ -118,6 +118,31 @@ async def get_subsets(
             ON folders.id = subsets.folder_id
             """
         )
+
+        if any(field.endswith("folder.attrib") for field in fields):
+            sql_columns.extend(
+                [
+                    "pr.attrib as _folder_project_attributes",
+                    "ex.attrib as _folder_inherited_attributes",
+                ]
+            )
+            sql_joins.extend(
+                [
+                    f"""
+                    LEFT JOIN project_{project_name}.exported_attributes AS ex
+                    ON folders.parent_id = ex.folder_id
+                    """,
+                    f"""
+                    INNER JOIN public.projects AS pr
+                    ON pr.name ILIKE '{project_name}'
+                    """,
+                ]
+            )
+        else:
+            sql_columns.extend([
+                "'{}'::JSONB as _folder_project_attributes",
+                "'{}'::JSONB as _folder_inherited_attributes",
+            ])
 
         if any(
             field.endswith("folder.path") or field.endswith("folder.parents")

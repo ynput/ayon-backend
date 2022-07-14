@@ -42,18 +42,26 @@ async def folder_loader(keys: list[KeyType]) -> list[dict | None]:
             folders.attrib AS attrib,
             folders.created_at AS created_at,
             folders.updated_at AS updated_at,
-            hierarchy.path AS path
+            hierarchy.path AS path,
+            pr.attrib AS project_attributes,
+            ex.attrib AS inherited_attributes
         FROM
             project_{project_name}.folders as folders
 
         LEFT JOIN
             project_{project_name}.hierarchy as hierarchy
             ON hierarchy.id = folders.id
+        LEFT JOIN
+            project_{project_name}.exported_attributes AS ex
+            ON folders.parent_id = ex.folder_id
+        INNER JOIN
+            public.projects AS pr
+            ON pr.name ILIKE '{project_name}'
 
         WHERE folders.id IN {SQLTool.id_array([k[1] for k in keys])}
 
         GROUP BY
-            folders.id, hierarchy.path
+            folders.id, hierarchy.path, pr.attrib, ex.attrib
     """
 
     async for record in Postgres.iterate(query):

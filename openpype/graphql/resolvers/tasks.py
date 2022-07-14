@@ -131,6 +131,31 @@ async def get_tasks(
                 """
             )
 
+        if any(field.endswith("folder.attrib") for field in fields):
+            sql_columns.extend(
+                [
+                    "pr.attrib as _folder_project_attributes",
+                    "ex.attrib as _folder_inherited_attributes",
+                ]
+            )
+            sql_joins.extend(
+                [
+                    f"""
+                    LEFT JOIN project_{project_name}.exported_attributes AS ex
+                    ON folders.parent_id = ex.folder_id
+                    """,
+                    f"""
+                    INNER JOIN public.projects AS pr
+                    ON pr.name ILIKE '{project_name}'
+                    """,
+                ]
+            )
+        else:
+            sql_columns.extend([
+                "'{}'::JSONB as _folder_project_attributes",
+                "'{}'::JSONB as _folder_inherited_attributes",
+            ])
+
     #
     # Pagination
     #
