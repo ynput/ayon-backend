@@ -199,24 +199,20 @@ class FolderEntity(ProjectLevelEntity):
 
         async for row in Postgres.iterate(query, transaction=transaction):
             parent_path = "/".join(row["path"].split("/")[:-1])
-            # print()
-            # print("Updating", row["path"])
-            # print("Own", row["own_attrib"])
-            # print("Inherited", row["inherited_attrib"])
-            # print("Project", row["project_attrib"])
+            attr = {}
             if (inherited := row["inherited_attrib"]) is not None:
-                attr = inherited
+                attr |= inherited
             elif not row["parent_id"]:
-                attr = row["project_attrib"]
+                attr |= row["project_attrib"]
             elif parent_path in cache:
-                print("Cached", cache[parent_path])
-                attr = cache[parent_path]
+                attr |= cache[parent_path]
             else:
                 logging.error(f"Unable to build exported attrs for {row['path']}.")
                 continue
 
             if row["own_attrib"] is not None:
-                attr.update(row["own_attrib"])
+                attr |= row["own_attrib"]
+
             cache[row["path"]] = attr
             await transaction.execute(
                 f"""
