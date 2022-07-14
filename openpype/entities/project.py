@@ -158,7 +158,13 @@ class ProjectEntity(TopLevelEntity):
                         f"WHERE name='{project_name}'",
                         **dict_exclude(
                             self.dict(exclude_none=True),
-                            ["folder_types", "task_types", "ctime", "name", "own_attrib"],
+                            [
+                                "folder_types",
+                                "task_types",
+                                "ctime",
+                                "name",
+                                "own_attrib",
+                            ],
                         ),
                     )
                 )
@@ -181,7 +187,8 @@ class ProjectEntity(TopLevelEntity):
                 *SQLTool.insert(
                     "projects",
                     **dict_exclude(
-                        self.dict(exclude_none=True), ["folder_types", "task_types", "own_attrib"]
+                        self.dict(exclude_none=True),
+                        ["folder_types", "task_types", "own_attrib"],
                     ),
                 )
             )

@@ -1,12 +1,11 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal
 
 import strawberry
 
-from openpype.entities import FolderEntity
+from openpype.entities import FolderEntity, UserEntity
 from openpype.graphql.nodes.common import BaseNode
 from openpype.graphql.resolvers.subsets import get_subsets
 from openpype.graphql.resolvers.tasks import get_tasks
-from openpype.graphql.utils import parse_attrib_data
 
 if TYPE_CHECKING:
     from openpype.graphql.connections import SubsetsConnection, TasksConnection
@@ -24,6 +23,7 @@ class FolderNode(BaseNode):
     thumbnail_id: str | None
     path: str
     attrib: FolderAttribType
+    own_attrib: list[str]
 
     # GraphQL specifics
 
@@ -63,6 +63,40 @@ class FolderNode(BaseNode):
 #
 
 
+def parse_folder_attrib_data(
+    own_attrib: dict[str, Any] | None,
+    inherited_attrib: dict[str, Any] | None,
+    project_attrib: dict[str, Any] | None,
+    user: UserEntity,
+    project_name: str | None = None,
+) -> FolderAttribType:
+
+    attr_limit: list[str] | Literal["all"] = []
+
+    if user.is_manager:
+        attr_limit = "all"
+    elif project_name is not None:
+        perms = user.permissions(project_name)
+        attr_limit = perms.attrib_read
+    else:
+        attr_limit = "all"  # TODO
+
+    data = project_attrib or {}
+    if inherited_attrib is not None:
+        data.update(inherited_attrib)
+    if own_attrib is not None:
+        data.update(own_attrib)
+
+    if not data:
+        return FolderAttribType()
+    for key in FolderEntity.model.attrib_model.__dataclass_fields__.keys():
+        if key in data:
+            if attr_limit == "all" or key in attr_limit:
+                continue
+            del data[key]
+    return FolderAttribType(**data)
+
+
 def folder_from_record(project_name: str, record: dict, context: dict) -> FolderNode:
     """Construct a folder node from a DB row."""
     return FolderNode(
@@ -73,11 +107,12 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         folder_type=record["folder_type"],
         parent_id=record["parent_id"],
         thumbnail_id=record["thumbnail_id"],
-        attrib=parse_attrib_data(
-            FolderAttribType,
+        attrib=parse_folder_attrib_data(
             record["attrib"],
-            context["user"],
-            project_name,
+            record["inherited_attributes"],
+            record["project_attributes"],
+            user=context["user"],
+            project_name=project_name,
         ),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
@@ -85,6 +120,7 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         subset_count=record.get("subset_count", 0),
         task_count=record.get("task_count", 0),
         path=record.get("path", None),
+        own_attrib=list(record["attrib"].keys()),
     )
 
 

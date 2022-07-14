@@ -21,7 +21,7 @@ class TopLevelEntity(BaseEntity):
         if validate:
             self._payload = self.model.main_model(
                 **dict_exclude(payload, ["own_attrib"]),
-                own_attrib = self.own_attrib,
+                own_attrib=self.own_attrib,
             )
         else:
             attrib = self.model.attrib_model.construct(**payload.get("attrib", {}))

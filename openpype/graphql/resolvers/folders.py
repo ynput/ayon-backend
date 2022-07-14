@@ -77,10 +77,21 @@ async def get_folders(
         "folders.attrib AS attrib",
         "folders.created_at AS created_at",
         "folders.updated_at AS updated_at",
+        "pr.attrib AS project_attributes",
+        "ex.attrib AS inherited_attributes",
     ]
 
-    sql_joins = []
-    sql_group_by = ["folders.id"]
+    sql_joins = [
+        f"""
+        LEFT JOIN project_{project_name}.exported_attributes AS ex
+        ON folders.parent_id = ex.folder_id
+        """,
+        f"""
+        INNER JOIN public.projects AS pr
+        ON pr.name ILIKE '{project_name}'
+        """,
+    ]
+    sql_group_by = ["folders.id", "pr.attrib", "ex.attrib"]
     sql_conditions = []
     sql_having = []
 
@@ -127,7 +138,7 @@ async def get_folders(
     # We need to join hierarchy view
     if use_hierarchy:
         sql_columns.append("hierarchy.path AS path")
-        sql_group_by.append("path")
+        sql_group_by.append("hierarchy.path")
         sql_joins.append(
             f"""
             INNER JOIN project_{project_name}.hierarchy AS hierarchy

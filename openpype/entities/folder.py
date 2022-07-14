@@ -61,7 +61,7 @@ class FolderEntity(ProjectLevelEntity):
                 project_{project_name}.exported_attributes as ia
                 ON f.parent_id = ia.folder_id
             LEFT JOIN public.projects as p
-                ON p.name = $2
+                ON p.name ILIKE $2
             WHERE f.id=$1
             {'FOR UPDATE OF f'
                 if transaction and for_update else ''
@@ -186,9 +186,9 @@ class FolderEntity(ProjectLevelEntity):
             LEFT JOIN
                 project_{self.project_name}.exported_attributes AS e
                 ON e.folder_id = f.parent_id
-            LEFT JOIN
+            INNER JOIN
                 public.projects AS p
-                ON p.name = '{self.project_name}'
+                ON p.name ILIKE '{self.project_name}'
             WHERE h.path NOT IN
                 (SELECT path FROM project_{self.project_name}.exported_attributes)
             ORDER BY h.path ASC
@@ -198,6 +198,11 @@ class FolderEntity(ProjectLevelEntity):
 
         async for row in Postgres.iterate(query, transaction=transaction):
             parent_path = "/".join(row["path"].split("/")[:-1])
+            # print()
+            # print("Updating", row["path"])
+            # print("Own", row["own_attrib"])
+            # print("Inherited", row["inherited_attrib"])
+            # print("Project", row["project_attrib"])
             if (inherited := row["inherited_attrib"]) is not None:
                 attr = inherited
             elif not row["parent_id"]:
@@ -208,7 +213,8 @@ class FolderEntity(ProjectLevelEntity):
                 logging.error(f"Unable to build exported attrs for {row['path']}.")
                 continue
 
-            attr.update(row["own_attrib"])
+            if row["own_attrib"] is not None:
+                attr.update(row["own_attrib"])
             cache[row["path"]] = attr
             await transaction.execute(
                 f"""
