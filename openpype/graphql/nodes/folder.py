@@ -89,7 +89,7 @@ def parse_folder_attrib_data(
 
     if not data:
         return FolderAttribType()
-    for key in FolderEntity.model.attrib_model.__dataclass_fields__.keys():
+    for key in FolderAttribType.__dataclass_fields__.keys():
         if key in data:
             if attr_limit == "all" or key in attr_limit:
                 continue

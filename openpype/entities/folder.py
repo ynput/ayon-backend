@@ -103,7 +103,8 @@ class FolderEntity(ProjectLevelEntity):
 
         attrib = {}
         for key in self.own_attrib:
-            attrib[key] = getattr(self.attrib, key)
+            if (value := getattr(self.attrib, key)) is not None:
+                attrib[key] = value
 
         if self.exists:
             # Update existing entity
@@ -208,6 +209,7 @@ class FolderEntity(ProjectLevelEntity):
             elif not row["parent_id"]:
                 attr = row["project_attrib"]
             elif parent_path in cache:
+                print("Cached", cache[parent_path])
                 attr = cache[parent_path]
             else:
                 logging.error(f"Unable to build exported attrs for {row['path']}.")

@@ -111,7 +111,7 @@ class EntityID:
             if len(entity_id) == 32:
                 return entity_id
         # TODO: Raise OpenPypeException, not Value error
-        raise ValueError("Invalid entity ID")
+        raise ValueError(f"Invalid entity ID {entity_id}")
 
     @classmethod
     @property
