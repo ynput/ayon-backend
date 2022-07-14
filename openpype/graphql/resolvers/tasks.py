@@ -70,19 +70,19 @@ async def get_tasks(
     sql_joins = []
 
     if ids:
-        sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
+        sql_conditions.append(f"tasks.id IN {SQLTool.id_array(ids)}")
 
     if folder_ids:
-        sql_conditions.append(f"folder_id IN {SQLTool.id_array(folder_ids)}")
+        sql_conditions.append(f"tasks.folder_id IN {SQLTool.id_array(folder_ids)}")
     elif root.__class__.__name__ == "FolderNode":
         # cannot use isinstance here because of circular imports
-        sql_conditions.append(f"folder_id = '{root.id}'")
+        sql_conditions.append(f"tasks.folder_id = '{root.id}'")
 
     if name:
-        sql_conditions.append(f"name ILIKE '{name}'")
+        sql_conditions.append(f"tasks.name ILIKE '{name}'")
 
     if task_types:
-        sql_conditions.append(f"task_type IN {SQLTool.array(task_types)}")
+        sql_conditions.append(f"tasks.task_type IN {SQLTool.array(task_types)}")
 
     if has_links is not None:
         sql_conditions.extend(get_has_links_conds(project_name, "tasks.id", has_links))
@@ -96,6 +96,17 @@ async def get_tasks(
     #
     # Joins
     #
+
+    if "attrib" in fields:
+        sql_columns.append("pf.attrib as parent_folder_attrib")
+        sql_joins.append(
+            f"""
+            LEFT JOIN project_{project_name}.exported_attributes AS pf
+            ON tasks.folder_id = pf.folder_id
+            """
+        )
+    else:
+        sql_columns.append("'{}'::JSONB as parent_folder_attrib")
 
     if "folder" in fields or (access_list is not None):
         sql_columns.extend(
@@ -151,10 +162,12 @@ async def get_tasks(
                 ]
             )
         else:
-            sql_columns.extend([
-                "'{}'::JSONB as _folder_project_attributes",
-                "'{}'::JSONB as _folder_inherited_attributes",
-            ])
+            sql_columns.extend(
+                [
+                    "'{}'::JSONB as _folder_project_attributes",
+                    "'{}'::JSONB as _folder_inherited_attributes",
+                ]
+            )
 
     #
     # Pagination

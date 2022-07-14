@@ -164,9 +164,6 @@ class ProjectLevelEntity(BaseEntity):
     ):
         """Return an entity instance based on its ID and a project name.
 
-        ProjectEntity reimplements this method to load the project based
-        on the project name.
-
         Raise ValueError if project_name or base_id is not valid.
         Raise KeyError if the folder does not exists.
 

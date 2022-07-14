@@ -31,7 +31,8 @@ class FolderEntity(ProjectLevelEntity):
         """Load a folder from the database by its project name and IDself.
 
         This is reimplemented, because we need to select dynamic
-        attribute hierarchy.path along with the base data.
+        attribute hierarchy.path along with the base data and
+        the attributes inherited from parent entities.
         """
         project_name = project_name.lower()
 
@@ -60,7 +61,7 @@ class FolderEntity(ProjectLevelEntity):
             LEFT JOIN
                 project_{project_name}.exported_attributes as ia
                 ON f.parent_id = ia.folder_id
-            LEFT JOIN public.projects as p
+            INNER JOIN public.projects as p
                 ON p.name ILIKE $2
             WHERE f.id=$1
             {'FOR UPDATE OF f'
@@ -199,7 +200,7 @@ class FolderEntity(ProjectLevelEntity):
 
         async for row in Postgres.iterate(query, transaction=transaction):
             parent_path = "/".join(row["path"].split("/")[:-1])
-            attr = {}
+            attr: dict[str, Any] = {}
             if (inherited := row["inherited_attrib"]) is not None:
                 attr |= inherited
             elif not row["parent_id"]:

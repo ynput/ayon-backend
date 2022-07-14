@@ -1,12 +1,12 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import strawberry
 from strawberry.types import Info
 
-from openpype.entities import TaskEntity
+from openpype.entities import TaskEntity, UserEntity
 from openpype.graphql.nodes.common import BaseNode
 from openpype.graphql.resolvers.versions import get_versions
-from openpype.graphql.utils import lazy_type, parse_attrib_data
+from openpype.graphql.utils import lazy_type
 
 if TYPE_CHECKING:
     from openpype.graphql.connections import VersionsConnection
@@ -26,6 +26,7 @@ class TaskNode(BaseNode):
     assignees: list[str]
     folder_id: str
     attrib: TaskAttribType
+    own_attrib: list[str]
 
     # GraphQL specifics
 
@@ -46,6 +47,40 @@ class TaskNode(BaseNode):
         return info.context["folder_from_record"](
             self.project_name, record, info.context
         )
+
+
+def parse_task_attrib_data(
+    task_attrib: dict[str, Any] | None,
+    parent_folder_attrib: dict[str, Any] | None,
+    user: UserEntity,
+    project_name: str | None = None,
+) -> TaskAttribType:
+
+    attr_limit: list[str] | Literal["all"] = []
+
+    if user.is_manager:
+        attr_limit = "all"
+    elif project_name is not None:
+        perms = user.permissions(project_name)
+        attr_limit = perms.attrib_read
+    else:
+        attr_limit = "all"  # TODO
+
+    data: dict[str, Any] = {}
+    if parent_folder_attrib is not None:
+        data |= parent_folder_attrib
+    if task_attrib is not None:
+        data |= task_attrib
+
+    if not data:
+        return TaskAttribType()
+    valid_keys = list(TaskAttribType.__dataclass_fields__.keys())  # type: ignore
+    for key in valid_keys:
+        if key in data:
+            if attr_limit == "all" or key in attr_limit:
+                continue
+            del data[key]
+    return TaskAttribType(**{k: v for k, v in data.items() if k in valid_keys})
 
 
 def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode:
@@ -72,15 +107,16 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
         task_type=record["task_type"],
         assignees=record["assignees"],
         folder_id=record["folder_id"],
-        attrib=parse_attrib_data(
-            TaskAttribType,
+        attrib=parse_task_attrib_data(
             record["attrib"],
+            record["parent_folder_attrib"],
             user=context["user"],
             project_name=project_name,
         ),
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        own_attrib=list(record["attrib"].keys()),
         _folder=folder,
     )
 

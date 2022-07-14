@@ -139,10 +139,12 @@ async def get_subsets(
                 ]
             )
         else:
-            sql_columns.extend([
-                "'{}'::JSONB as _folder_project_attributes",
-                "'{}'::JSONB as _folder_inherited_attributes",
-            ])
+            sql_columns.extend(
+                [
+                    "'{}'::JSONB as _folder_project_attributes",
+                    "'{}'::JSONB as _folder_inherited_attributes",
+                ]
+            )
 
         if any(
             field.endswith("folder.path") or field.endswith("folder.parents")
