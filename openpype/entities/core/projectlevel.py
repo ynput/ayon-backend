@@ -206,17 +206,25 @@ class ProjectLevelEntity(BaseEntity):
         commit = not transaction
         transaction = transaction or Postgres
 
+        attrib = {}
+        for key in self.own_attrib:
+            if (value := getattr(self.attrib, key)) is not None:
+                attrib[key] = value
+
         if self.exists:
             # Update existing entity
+
+            fields = dict_exclude(
+                self.dict(exclude_none=True),
+                ["id", "ctime"] + self.model.dynamic_fields,
+            )
+            fields["attrib"] = attrib
 
             await transaction.execute(
                 *SQLTool.update(
                     f"project_{self.project_name}.{self.entity_type}s",
                     f"WHERE id = '{self.id}'",
-                    **dict_exclude(
-                        self.dict(exclude_none=True),
-                        ["id", "ctime"] + self.model.dynamic_fields,
-                    ),
+                    **fields,
                 )
             )
             if commit:
@@ -225,13 +233,16 @@ class ProjectLevelEntity(BaseEntity):
 
         # Create a new entity
         try:
+            fields = dict_exclude(
+                self.dict(exclude_none=True),
+                self.model.dynamic_fields,
+            )
+            fields["attrib"] = attrib
+
             await transaction.execute(
                 *SQLTool.insert(
                     f"project_{self.project_name}.{self.entity_type}s",
-                    **dict_exclude(
-                        self.dict(exclude_none=True),
-                        self.model.dynamic_fields,
-                    ),
+                    **fields,
                 )
             )
         except Postgres.ForeignKeyViolationError as e:

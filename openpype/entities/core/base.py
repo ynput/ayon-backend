@@ -41,8 +41,11 @@ class BaseEntity:
         """Apply a patch to the entity."""
         if (attrib := patch_data.dict().get("attrib")) is not None:
             for key in attrib:
-                if key not in self.own_attrib:
-                    self.own_attrib.append(key)
+                if attrib.get(key) is None:
+                    continue
+                if key in self.own_attrib:
+                    continue
+                self.own_attrib.append(key)
         self._payload = apply_patch(self._payload, patch_data)
 
     @property
