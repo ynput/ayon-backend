@@ -21,23 +21,19 @@ DATA: dict[str, Any] = {
         {
             "name": "admin",
             "password": "admin",
-            "fullname": "OpenPype admin",
-            "roles": {
-                "admin": True,
-            },
+            "fullName": "OpenPype admin",
+            "is_admin": True,
         },
         {
             "name": "manager",
             "password": "manager",
-            "fullname": "OpenPype manager",
-            "roles": {
-                "manager": True,
-            },
+            "fullName": "OpenPype manager",
+            "is_manager": True,
         },
         {
             "name": "user",
             "password": "user",
-            "fullname": "OpenPype user",
+            "fullName": "OpenPype user",
         },
     ],
     "roles": [

@@ -16,9 +16,13 @@ async def deploy_users(
         attrib = {}
         data: dict[str, Any] = {}
 
-        for key in ["fullname", "email"]:
+        for key in ["fullName", "email"]:
             if key in user:
                 attrib[key] = user[key]
+
+        for key in ["is_manager", "is_admin"]:
+            if key in user:
+                data[key] = user[key]
 
         if "password" in user:
             logging.debug(f"Creating password for user {name}")

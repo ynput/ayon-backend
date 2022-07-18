@@ -90,6 +90,9 @@ class Query:
             updated_at=user.updated_at,
             created_at=user.created_at,
             attrib=UserAttribType(**user.attrib),
+            roles=user.data.get("roles", {}),
+            is_admin=user.is_admin,
+            is_manager=user.is_manager,
         )
 
 

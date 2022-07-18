@@ -20,8 +20,29 @@ from openpype.types import Field, OPModel
 
 
 router = APIRouter(
-    prefix="/users", tags=["Users"], responses={401: ResponseFactory.error(401)}
+    prefix="/users",
+    tags=["Users"],
+    responses={401: ResponseFactory.error(401)},
 )
+
+#
+# [GET] /api/users
+#
+
+# TODO: do we need this? Or is graphql enough
+
+
+class UserListItemModel(OPModel):
+    name: str
+
+
+class UserListModel(OPModel):
+    users: list[UserListItemModel] = Field(default_factory=list)
+
+
+@router.get("")
+async def list_users():
+    pass
 
 
 #
