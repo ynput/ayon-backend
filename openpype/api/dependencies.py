@@ -57,9 +57,10 @@ async def dep_current_user(
     endpoint = request.scope["endpoint"].__name__
     project_name = request.path_params.get("project_name")
     if not user.is_manager:
-        available_ops = user.permissions(project_name or "_").endpoints
-        if (type(available_ops) is list) and (endpoint not in available_ops):
-            raise UnauthorizedException(f"{endpoint} is not accessible")
+        if (perms := user.permissions(project_name)) is not None:
+            available_ops = perms.endpoints
+            if (type(available_ops) is list) and (endpoint not in available_ops):
+                raise UnauthorizedException(f"{endpoint} is not accessible")
     return user
 
 

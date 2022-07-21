@@ -191,21 +191,24 @@ async def change_password(
 #
 
 
-class RoleOnProjects(OPModel):
-    role: str = Field(..., description="Role name")
-    projects: list[str] | Literal["all"] | None = Field(
+class RolesOnProject(OPModel):
+    project: str = Field(
         ...,
-        description="List of project user has the role on",
+        description="Project name",
+    )
+    roles: list[str] = Field(
+        ...,
+        description="List of user roles on the project",
     )
 
 
 class AssignRolesRequestModel(OPModel):
-    roles: list[RoleOnProjects] = Field(
+    roles: list[RolesOnProject] = Field(
         default_factory=list,
         description="List of roles to assign",
         example=[
-            {"role": "editor", "projects": ["project1", "project2"]},
-            {"role": "artist", "projects": "all"},
+            {"project": "project1", "roles": ["artist", "viewer"]},
+            {"project": "project2", "roles": ["viewer"]},
         ],
     )
 
@@ -225,26 +228,17 @@ async def assign_user_roles(
 
     target_user = await UserEntity.load(user_name)
 
-    roles = {**target_user.data.get("roles", {})}
-    messages = []
-    for role in patch_data.roles:
-        if (role.projects is None) and (role.role in roles):
-            messages.append(f"Removed user {user_name} role {role.role}")
-            del roles[role.role]
+    role_set = target_user.data.get("roles", {})
+    for rconf in patch_data.roles:
+        project_name = rconf.project
+        roles = rconf.roles
+        if not roles:
+            if project_name in role_set:
+                del role_set[project_name]
             continue
+        role_set[project_name] = roles
 
-        messages.append(
-            f"Assigned '{role.role}' role to {user_name} on projects: "
-            + ", ".join(role.projects)
-            if type(role.projects) == list
-            else "all"
-        )
-        roles[role.role] = role.projects
-
-    target_user.data["roles"] = roles
+    target_user.data["roles"] = role_set
     await target_user.save()
-
-    for message in messages:
-        logging.info(message, user=user.name)
 
     return Response(status_code=204)

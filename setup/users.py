@@ -7,7 +7,8 @@ from openpype.lib.postgres import Postgres
 
 
 async def deploy_users(
-    users: list[dict[str, Any]], default_roles: dict[str, Any]
+    users: list[dict[str, Any]],
+    projects: list[str],
 ) -> None:
     """Create users in the database."""
     for user in users:
@@ -28,7 +29,21 @@ async def deploy_users(
             logging.debug(f"Creating password for user {name}")
             data["password"] = create_password(user["password"])
 
-        data["roles"] = {**default_roles, **user.get("roles", {})}
+        data["default_roles"] = user.get("default_roles", [])
+
+        data["roles"] = {
+            project_name: data["default_roles"]
+            for project_name in projects
+            if data["default_roles"]
+        }
+        for project_name, roles in user.get("roles", {}).items():
+            #  roles = list(
+            #     set(data["roles"].get(project_name, [])) | set(roles)
+            # )
+            if roles:
+                data["roles"][project_name] = roles
+            elif data["roles"].get(project_name):
+                del data["roles"][project_name]
 
         res = await Postgres.fetch("SELECT * FROM users WHERE name = $1", name)
         if res:

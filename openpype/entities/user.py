@@ -4,7 +4,7 @@ from openpype.access.permissions import Permissions
 from openpype.access.roles import Roles
 from openpype.entities.core import TopLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
-from openpype.exceptions import NotFoundException
+from openpype.exceptions import NotFoundException, ForbiddenException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, dict_exclude
 
@@ -109,18 +109,15 @@ class UserEntity(TopLevelEntity):
         data = self._payload.data
         return data.get("is_manager", False) or data.get("is_admin", False)
 
-    def permissions(self, project_name: str) -> Permissions:
-        """Return user permissions on a given project.
+    def permissions(self, project_name: str | None) -> Permissions | None:
+        """Return user permissions on a given project."""
 
-        When a project is not specified, only return permissions the user
-        has on all projects.
-        """
+        if project_name is None:
+            return None
 
-        active_roles = []
-        for role_name, projects in self._payload.data.get("roles", {}).items():
-            if projects == "all" or (
-                isinstance(projects, list) and project_name in projects
-            ):
-                active_roles.append(role_name)
+        try:
+            active_roles = self.data.get("roles", {})[project_name]
+        except KeyError:
+            raise ForbiddenException
 
         return Roles.combine(active_roles, project_name)

@@ -29,8 +29,33 @@ router = APIRouter(
 
 
 #
-# [GET] /api/users/{username}
+# [GET] /api/roles/{project_name}
 #
+
+
+@router.get("/{project_name}")
+async def get_roles(
+    user: UserEntity = Depends(dep_current_user),
+    project_name: str = Depends(dep_project_name),
+):
+    """Get a list of roles for a given project"""
+
+    rdict = {}
+
+    for role_key, perms in Roles.roles.items():
+        role_name, pname = role_key
+        if pname == "_":
+            if role_name in rdict:
+                continue
+            else:
+                rdict[role_name] = {"isProjectLevel": False}
+        elif pname == project_name:
+            rdict[role_name] = {"isProjectLevel": pname != "_"}
+
+    result = []
+    for role_name, data in rdict.items():
+        result.append({"name": role_name, **data})
+    return result
 
 
 @router.get(
@@ -60,15 +85,15 @@ async def get_role(
         409: ResponseFactory.error(409, "Role already exists"),
     },
 )
-async def create_role(
+async def save_role(
     data: Permissions = Body(..., description="Set of role permissions"),
     user: UserEntity = Depends(dep_current_user),
     role_name: str = Depends(dep_role_name),
     project_name: str = Depends(dep_project_name),
 ):
-    """Create a new user roleself.
+    """Create or update a user role.
 
-    Use `_` as a project name to create a global role.
+    Use `_` as a project name to save a global role.
     """
 
     if not user.is_manager:
@@ -79,6 +104,8 @@ async def create_role(
             """
             INSERT INTO public.roles (name, project_name, data)
             VALUES ($1, $2, $3)
+            ON CONFLICT (name, project_name)
+            DO UPDATE SET data = $3
             """,
             role_name,
             project_name,
@@ -119,44 +146,6 @@ async def delete_role(
     )
 
     # TODO: Remove role records from users. Tricky.
-    await Roles.load()
-    # TODO: messaging: notify other instances
-    return Response(status_code=204)
-
-
-@router.patch(
-    "/{role_name}/{project_name}",
-    response_class=Response,
-    status_code=204,
-)
-async def update_role(
-    data: Permissions = Body(..., description="Set of new permissions"),
-    user: UserEntity = Depends(dep_current_user),
-    role_name: str = Depends(dep_role_name),
-    project_name: str = Depends(dep_project_name),
-):
-    """Update a user role.
-
-    Warning! This endpoint does not support partial updates.
-    Always provide complete `Permissions` object.
-
-    e.g. use [GET] /roles to obtain the original, modify it
-    and store it again using the [PATCH] request.
-    """
-
-    if not user.is_manager:
-        raise ForbiddenException
-
-    if (role_name, project_name) not in Roles.roles:
-        raise NotFoundException("Unable to update role. Not found")
-
-    await Postgres.execute(
-        "UPDATE roles SET data=$1 WHERE name = $2 AND project_name = $3",
-        data.dict(),
-        role_name,
-        project_name,
-    )
-
     await Roles.load()
     # TODO: messaging: notify other instances
     return Response(status_code=204)

@@ -18,8 +18,10 @@ class UserNode:
     updated_at: int
     attrib: UserAttribType
     roles: str
+    default_roles: list[str]
     is_admin: bool
     is_manager: bool
+    has_password: bool
 
 
 def user_from_record(record: dict, context: dict) -> UserNode:
@@ -41,6 +43,8 @@ def user_from_record(record: dict, context: dict) -> UserNode:
         roles=json_dumps(roles),
         is_admin=is_admin,
         is_manager=is_manager,
+        has_password=bool(data.get("password")),
+        default_roles=data.get("default_roles", []),
     )
 
 

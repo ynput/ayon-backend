@@ -103,11 +103,14 @@ async def main() -> None:
         else:
             logging.warning("No setup file provided. Using defaults")
 
+        projects: list[str] = []
+        async for row in Postgres.iterate("SELECT name FROM projects"):
+            projects.append(row["name"])
+
         users: list[dict[str, Any]] = DATA["users"]
         roles: list[dict[str, Any]] = DATA.get("roles", [])
-        default_roles: dict[str, Any] = DATA["default_roles"]
 
-        await deploy_users(users, default_roles)
+        await deploy_users(users, projects)
         await deploy_roles(roles)
 
     logging.goodnews("Setup is finished")
