@@ -46,7 +46,9 @@ class Permissions(OPModel):
     )
 
     attrib_read: list[str] | Literal["all"] = Field(
-        default="all", description="List of attributes the user can read", example="all",
+        default="all",
+        description="List of attributes the user can read",
+        example="all",
     )
 
     attrib_write: list[str] | Literal["all"] = Field(

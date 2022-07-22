@@ -4,7 +4,7 @@ from openpype.access.permissions import Permissions
 from openpype.access.roles import Roles
 from openpype.entities.core import TopLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
-from openpype.exceptions import NotFoundException, ForbiddenException
+from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, dict_exclude
 

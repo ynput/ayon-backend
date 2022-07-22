@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Body, Depends, Response
 from nxtools import log_traceback
 
@@ -52,7 +54,7 @@ async def get_roles(
         elif pname == project_name:
             rdict[role_name] = {"isProjectLevel": pname != "_"}
 
-    result = []
+    result: list[dict[str, Any]] = []
     for role_name, data in rdict.items():
         result.append({"name": role_name, **data})
     return result

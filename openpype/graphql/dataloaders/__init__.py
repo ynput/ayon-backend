@@ -70,58 +70,6 @@ async def folder_loader(keys: list[KeyType]) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def folder_loader2(keys: list[KeyType]) -> list[dict | None]:
-    """Load a list of folders by their ids (used as a dataloader).
-    keys must be a list of tuples (project_name, folder_id) and project_name
-    values must be the same!
-
-    This is a more complex version which also returns subset_counts
-    and children_counts.  which we probably do not need
-    """
-
-    result_dict = {k: None for k in keys}
-    project_name = get_project_name(keys)
-
-    query = f"""
-        SELECT
-            folders.id AS id,
-            folders.name AS name,
-            folders.active AS active,
-            folders.folder_type AS folder_type,
-            folders.parent_id AS parent_id,
-            folders.attrib AS attrib,
-            folders.created_at AS created_at,
-            folders.updated_at AS updated_at,
-            COUNT(children.id) AS children_count,
-            COUNT(subsets.id) AS subset_count,
-            hierarchy.path AS path
-        FROM
-            project_{project_name}.folders as folders
-
-        LEFT JOIN
-            project_{project_name}.hierarchy as hierarchy
-            ON hierarchy.id = folders.id
-
-        LEFT JOIN
-            project_{project_name}.folders as children
-            ON folders.id = children.parent_id
-
-        LEFT JOIN
-            project_{project_name}.subsets as subsets
-            ON subsets.folder_id = folders.id
-
-        WHERE folders.id IN {SQLTool.id_array([k[1] for k in keys])}
-
-        GROUP BY
-            folders.id, hierarchy.path
-    """
-
-    async for record in Postgres.iterate(query):
-        key: KeyType = KeyType((project_name, str(record["id"])))
-        result_dict[key] = record
-    return [result_dict[k] for k in keys]
-
-
 async def subset_loader(keys: list[KeyType]) -> list[dict | None]:
     """Load a list of subsets by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, subset_id) and project_name

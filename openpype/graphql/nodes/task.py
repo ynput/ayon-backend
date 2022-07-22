@@ -60,11 +60,10 @@ def parse_task_attrib_data(
 
     if user.is_manager:
         attr_limit = "all"
-    elif project_name is not None:
-        perms = user.permissions(project_name)
-        attr_limit = perms.attrib_read
+    elif (perms := user.permissions(project_name)) is None:
+        attr_limit = "all"
     else:
-        attr_limit = "all"  # TODO
+        attr_limit = perms.attrib_read
 
     data: dict[str, Any] = {}
     if parent_folder_attrib is not None:

@@ -75,11 +75,10 @@ def parse_folder_attrib_data(
 
     if user.is_manager:
         attr_limit = "all"
-    elif project_name is not None:
-        perms = user.permissions(project_name)
-        attr_limit = perms.attrib_read
+    elif (perms := user.permissions(project_name)) is None:
+        attr_limit = "all"
     else:
-        attr_limit = "all"  # TODO
+        attr_limit = perms.attrib_read
 
     data = project_attrib or {}
     if inherited_attrib is not None:

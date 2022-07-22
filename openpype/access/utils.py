@@ -48,6 +48,7 @@ async def folder_access_list(
         return None
 
     perms = user.permissions(project_name)
+    assert perms is not None, "folder_access_list without selected project"
 
     if perms.read == "all":
         return None
