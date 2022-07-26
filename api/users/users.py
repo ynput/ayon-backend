@@ -145,6 +145,28 @@ async def delete_user(
     return Response(status_code=204)
 
 
+@router.patch(
+    "/{user_name}",
+    response_class=Response,
+    status_code=204,
+)
+async def patch_user(
+    payload: UserEntity.model.patch_model, 
+    user: UserEntity = Depends(dep_current_user),
+    user_name: str = Depends(dep_user_name),
+) -> Response:
+    logging.info(f"[DELETE] /users/{user_name}")
+    if not user.is_manager:
+        raise ForbiddenException
+
+    target_user = await UserEntity.load(user_name)
+    target_user.patch(payload)
+    await target_user.save()
+
+    return Response(status_code=204)
+
+
+
 #
 # Change password
 #
