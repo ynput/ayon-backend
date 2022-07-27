@@ -14,26 +14,24 @@ from setup.users import deploy_users
 # Defaults which should allow OpenPype to run out of the box
 
 DATA: dict[str, Any] = {
-    "default_roles": {
-        "viewer": "all",
-    },
     "users": [
         {
             "name": "admin",
             "password": "admin",
             "fullName": "OpenPype admin",
-            "is_admin": True,
+            "isAdmin": True,
         },
         {
             "name": "manager",
             "password": "manager",
             "fullName": "OpenPype manager",
-            "is_manager": True,
+            "isManager": True,
         },
         {
             "name": "user",
             "password": "user",
             "fullName": "OpenPype user",
+            "defaultRoles": ["viewer"]
         },
     ],
     "roles": [

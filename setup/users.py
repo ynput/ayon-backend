@@ -21,7 +21,7 @@ async def deploy_users(
             if key in user:
                 attrib[key] = user[key]
 
-        for key in ["is_manager", "is_admin"]:
+        for key in ["isManager", "isAdmin"]:
             if key in user:
                 data[key] = user[key]
 
@@ -29,12 +29,12 @@ async def deploy_users(
             logging.debug(f"Creating password for user {name}")
             data["password"] = create_password(user["password"])
 
-        data["default_roles"] = user.get("default_roles", [])
+        data["defaultRoles"] = user.get("defaultRoles", [])
 
         data["roles"] = {
-            project_name: data["default_roles"]
+            project_name: data["defaultRoles"]
             for project_name in projects
-            if data["default_roles"]
+            if data["defaultRoles"]
         }
         for project_name, roles in user.get("roles", {}).items():
             #  roles = list(

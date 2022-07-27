@@ -102,12 +102,12 @@ class UserEntity(TopLevelEntity):
 
     @property
     def is_admin(self) -> bool:
-        return self._payload.data.get("is_admin", False)
+        return self._payload.data.get("isAdmin", False)
 
     @property
     def is_manager(self) -> bool:
         data = self._payload.data
-        return data.get("is_manager", False) or data.get("is_admin", False)
+        return data.get("isManager", False) or data.get("isAdmin", False)
 
     def permissions(self, project_name: str | None) -> Permissions | None:
         """Return user permissions on a given project."""
