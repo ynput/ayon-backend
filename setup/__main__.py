@@ -43,7 +43,34 @@ DATA: dict[str, Any] = {
                 "update": [],
                 "delete": [],
             },
-        }
+        },
+        {
+            "name": "guest",
+            "data": {
+                "read": [{"access_type": "assigned"}],
+                "create": [],
+                "update": [{"access_type": "assigned"}],
+                "delete": [],
+            }
+        },
+        {
+            "name": "artist",
+            "data": {
+                "read": "all",
+                "create": [],
+                "update": [{"access_type": "assigned"}],
+                "delete": [],
+            }
+        },
+        {
+            "name": "editor",
+            "data": {
+                "read": "all",
+                "create": "all",
+                "update": "all",
+                "delete": "all",
+            }
+        },
     ],
 }
 
