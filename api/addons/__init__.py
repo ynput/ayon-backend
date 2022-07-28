@@ -1,4 +1,6 @@
-from typing import Any
+import inspect
+
+from typing import Any, TYPE_CHECKING
 
 from fastapi import APIRouter, Response
 from nxtools import logging
@@ -8,6 +10,10 @@ from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.settings import extract_overrides, list_overrides
 from openpype.types import Field, OPModel
+
+
+if TYPE_CHECKING:
+    from openpype.settings import BaseSettingsModel
 
 #
 # Router
@@ -159,6 +165,42 @@ async def configure_addons(payload: AddonConfigRequest):
 # because during the development it is useful to test it using curl.
 #
 
+async def update_schema(
+    schema: dict[str, Any],
+    model: type["BaseSettingsModel"],
+) -> None:
+    is_group = model.__private_attributes__["_isGroup"].default
+    schema["isgroup"] = is_group
+    if "title" in schema:
+        del schema["title"]
+
+    for attr in ["title", "layout"]:
+        if pattr := model.__private_attributes__.get(f"_{attr}"):
+            if pattr.default is not None:
+                schema[attr] = pattr.default
+
+    for name, prop in schema.get("properties", {}).items():
+        for key in [*prop.keys()]:
+            if key in ["enum_resolver", "widget"]:
+                del prop[key]
+
+        if field := model.__fields__.get(name):
+            if enum_resolver := field.field_info.extra.get("enum_resolver"):
+                if inspect.iscoroutinefunction(enum_resolver):
+                    prop["enum"] = await enum_resolver()
+                else:
+                    prop["enum"] = enum_resolver()
+
+            if section := field.field_info.extra.get("section"):
+                prop["section"] = section
+
+            if widget := field.field_info.extra.get("widget"):
+                prop["widget"] = widget
+
+            if tags := field.field_info.extra.get("tags"):
+                prop["tags"] = tags
+
+
 
 @router.get("/{addon_name}/{version}/schema", tags=["Addon settings"])
 async def get_addon_settings_schema(addon_name: str, version: str):
@@ -174,6 +216,7 @@ async def get_addon_settings_schema(addon_name: str, version: str):
         return {}
 
     schema = model.schema()
+    await update_schema(schema, model)
     schema["title"] = addon.friendly_name
     return schema
 

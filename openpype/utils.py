@@ -1,6 +1,8 @@
 """A set of commonly used functions."""
 
+import asyncio
 import hashlib
+import threading
 import random
 import re
 import time
@@ -236,3 +238,20 @@ class SQLTool:
         for key in keys:
             result.append(kwargs[key])
         return result
+
+
+def run_blocking_coro(coro) -> Any:
+    result = {"output": None}
+
+    def execute():
+        loop = asyncio.new_event_loop()
+        task = loop.create_task(coro())
+        # asyncio.set_event_loop(loop)
+        loop.run_until_complete(task)
+        result["output"] = task.result()  # noqa
+        loop.close()
+
+    thread = threading.Thread(target=execute)
+    thread.start()
+    thread.join()
+    return result["output"]

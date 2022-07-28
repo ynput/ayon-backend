@@ -1,10 +1,11 @@
 import re
+import inspect
 from typing import Any, Iterable
 
 from nxtools import slugify
 from pydantic import BaseModel
 
-from openpype.utils import json_dumps, json_loads
+from openpype.utils import json_dumps, json_loads, run_blocking_coro
 
 pattern = re.compile(r"(?<!^)(?=[A-Z])")
 
@@ -21,7 +22,7 @@ class BaseSettingsModel(BaseModel):
         json_dumps = json_dumps
 
         @staticmethod
-        def schema_extra(
+        def schema_extra_off(
             schema: dict[str, Any],
             model: type["BaseSettingsModel"],
         ) -> None:
@@ -42,7 +43,11 @@ class BaseSettingsModel(BaseModel):
 
                 if field := model.__fields__.get(name):
                     if enum_resolver := field.field_info.extra.get("enum_resolver"):
-                        prop["enum"] = enum_resolver()
+                        if inspect.iscoroutinefunction(enum_resolver):
+                            result = run_blocking_coro(enum_resolver)
+                            prop["enum"] = result
+                        else:
+                            prop["enum"] = enum_resolver()
 
                     if section := field.field_info.extra.get("section"):
                         prop["section"] = section
