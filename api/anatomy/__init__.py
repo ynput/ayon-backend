@@ -2,6 +2,7 @@ from fastapi import APIRouter, Response
 
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
+from openpype.settings import postprocess_settings_schema
 from openpype.settings.anatomy import Anatomy
 from openpype.types import Field, OPModel
 
@@ -21,12 +22,15 @@ class AnatomyPresetListModel(OPModel):
 
 
 @router.get("/schema")
-def get_anatomy_schema():
+async def get_anatomy_schema():
     """Returns the anatomy JSON schema.
 
     The schema is used to display the anatomy preset editor form.
     """
-    return Anatomy.schema()
+
+    schema = Anatomy.schema()
+    await postprocess_settings_schema(schema, Anatomy)
+    return schema
 
 
 @router.get("/presets")

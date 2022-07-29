@@ -7,7 +7,9 @@ from openpype.settings.anatomy.task_types import TaskType, default_task_types
 from openpype.settings.anatomy.templates import Templates
 from openpype.settings.common import BaseSettingsModel, ensure_unique_names
 
-Attributes = ProjectEntity.model.attrib_model
+
+class ProjectAttribModel(ProjectEntity.model.attrib_model, BaseSettingsModel):
+    pass
 
 
 class Anatomy(BaseSettingsModel):
@@ -24,8 +26,8 @@ class Anatomy(BaseSettingsModel):
         description="Path templates configuration",
     )
 
-    attributes: Attributes = Field(  # type: ignore
-        default_factory=Attributes,
+    attributes: ProjectAttribModel = Field(  # type: ignore
+        default_factory=ProjectAttribModel,
         title="Attributes",
         description="Attributes configuration",
     )
