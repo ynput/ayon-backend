@@ -1,9 +1,11 @@
 from typing import Any
+
 from fastapi import APIRouter, Response
 from nxtools import logging
+from pydantic.error_wrappers import ValidationError
 
 from openpype.addons import AddonLibrary
-from openpype.exceptions import NotFoundException
+from openpype.exceptions import BadRequestException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.settings import (
     extract_overrides,
@@ -206,7 +208,10 @@ async def set_addon_studio_settings(
     if (original is None) or (model is None):
         # This addon does not have settings
         return Response(status_code=400)
-    data = extract_overrides(original, model(**payload), existing)
+    try:
+        data = extract_overrides(original, model(**payload), existing)
+    except ValidationError:
+        raise BadRequestException
 
     # Do not use versioning during the development (causes headaches)
     await Postgres.execute(

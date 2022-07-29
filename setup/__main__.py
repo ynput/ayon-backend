@@ -31,7 +31,7 @@ DATA: dict[str, Any] = {
             "name": "user",
             "password": "user",
             "fullName": "OpenPype user",
-            "defaultRoles": ["viewer"]
+            "defaultRoles": ["viewer"],
         },
     ],
     "roles": [
@@ -51,7 +51,7 @@ DATA: dict[str, Any] = {
                 "create": [],
                 "update": [{"access_type": "assigned"}],
                 "delete": [],
-            }
+            },
         },
         {
             "name": "artist",
@@ -60,7 +60,7 @@ DATA: dict[str, Any] = {
                 "create": [],
                 "update": [{"access_type": "assigned"}],
                 "delete": [],
-            }
+            },
         },
         {
             "name": "editor",
@@ -69,7 +69,7 @@ DATA: dict[str, Any] = {
                 "create": "all",
                 "update": "all",
                 "delete": "all",
-            }
+            },
         },
     ],
 }

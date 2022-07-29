@@ -1,6 +1,6 @@
-import re
-import inspect
 import collections
+import inspect
+import re
 from typing import Any, Iterable
 
 from nxtools import slugify

@@ -151,7 +151,7 @@ async def delete_user(
     status_code=204,
 )
 async def patch_user(
-    payload: UserEntity.model.patch_model, 
+    payload: UserEntity.model.patch_model,
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
 ) -> Response:
@@ -164,7 +164,6 @@ async def patch_user(
     await target_user.save()
 
     return Response(status_code=204)
-
 
 
 #
