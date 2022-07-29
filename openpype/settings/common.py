@@ -69,6 +69,11 @@ def normalize_name(name: str) -> str:
 
 
 def ensure_unique_names(objects: Iterable[Any]) -> None:
+    """Ensure a list of objects have unique 'name' property.
+
+    In settings, we use lists instead of dictionaries (for various reasons).
+    'name' property is considered the primary key for the items.
+    """
     names = []
     for obj in objects:
         if not hasattr(obj, "name"):
@@ -84,6 +89,20 @@ async def postprocess_settings_schema(
     model: type["BaseSettingsModel"],
     is_top_level: bool = True,
 ) -> None:
+    """Post-process exported JSON schema.
+
+    Apply custom attributes to the settings schema.
+    That includes layout, custom widgets, enumerators and
+    grouping.
+
+    We use this instead of pydantic schema_extra classmethod,
+    because we need to support async functions passed to
+    enum_resolver argument.
+
+    It is called (and only used) in .../schema requests for
+    addon settings and anatomy presets.
+    """
+
     is_group = model.__private_attributes__["_isGroup"].default
     schema["isgroup"] = is_group
     if "title" in schema:
