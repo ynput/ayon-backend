@@ -39,6 +39,7 @@ async def get_folders(
             """
         ),
     ] = None,
+    parent_ids: Annotated[list[str] | None, argdesc("List of parent ids.")] = None,
     folder_types: Annotated[
         list[str] | None, argdesc("List of folder types to filter by")
     ] = None,
@@ -46,6 +47,10 @@ async def get_folders(
     path_ex: Annotated[str | None, argdesc("Match paths by regular expression")] = None,
     name: Annotated[
         str | None, argdesc("Text string to filter names by. Use `%` as wildcard.")
+    ] = None,
+    names: Annotated[
+        list[str] | None,
+        argdesc("List of names to filter. Only exact matches are returned"),
     ] = None,
     has_children: Annotated[
         bool | None, argdesc("Whether to filter by folders with children")
@@ -154,10 +159,20 @@ async def get_folders(
         sql_conditions.append(f"folders.id IN {SQLTool.id_array(ids)}")
 
     if parent_id is not None:
+        # DEPRECATED
         sql_conditions.append(
             "folders.parent_id IS NULL"
             if parent_id == "root"
             else f" folders.parent_id = '{EntityID.parse(parent_id)}'"
+        )
+
+    if parent_ids is not None:
+        pids_set = set(parent_ids)
+        if "root" in pids_set:
+            pids_set.add(None)
+            pids_set.remove("root")
+        sql_conditions.append(
+            f"folders.parent_id IN {SQLTool.id_array(list(pids_set))}"
         )
 
     if folder_types is not None:
@@ -165,6 +180,9 @@ async def get_folders(
 
     if name is not None:
         sql_conditions.append(f"folders.name ILIKE '{name}'")
+
+    if names is not None:
+        sql_conditions.append(f"folders.name in {SQLTool.array(names)}")
 
     if has_subsets is not None:
         sql_having.append(

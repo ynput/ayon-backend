@@ -33,7 +33,8 @@ async def get_subsets(
     folder_ids: Annotated[
         list[str] | None, argdesc("List of parent folder IDs to filter by")
     ] = None,
-    name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
+    # name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
+    names: Annotated[list[str] | None, argdesc("Filter by a list of names")] = None,
     families: Annotated[
         list[str] | None, argdesc("List of families to filter by")
     ] = None,
@@ -74,8 +75,12 @@ async def get_subsets(
     if families:
         sql_conditions.append(f"subsets.family IN {SQLTool.array(families)}")
 
-    if name:
-        sql_conditions.append(f"subsets.name ILIKE '{name}'")
+    # NOTE: replaced by the plural form
+    # if name:
+    #    sql_conditions.append(f"subsets.name ILIKE '{name}'")
+
+    if names:
+        sql_conditions.append(f"subsets.name IN {SQLTool.array(names)}")
 
     if has_links is not None:
         sql_conditions.extend(
