@@ -137,7 +137,7 @@ class DemoGen:
                 task["assignees"] = random.choice(
                     [["artist"], ["artist", "visitor"], [], [], []]
                 )
-            task_entity = await self.create_task(conn, folder_id=folder.id, **task)
+            task_entity = await self.create_task(conn, folder=folder, **task)
             tasks[task_entity.name] = task_entity.id
 
         for subset in kwargs.get("_subsets", []):
@@ -214,12 +214,16 @@ class DemoGen:
     async def create_task(
         self,
         conn: Postgres.Transaction,
+        folder: FolderEntity,
         **kwargs: Any,
     ) -> TaskEntity:
         self.task_count += 1
+        payload = {**kwargs}
+        payload["folder_id"] = folder.id
+        payload["attrib"] = folder.attrib.dict()
         task = TaskEntity(
             project_name=self.project_name,
-            payload=kwargs,
+            payload=payload,
             validate=self.validate,
         )
         await task.save(conn)

@@ -208,8 +208,12 @@ class ProjectLevelEntity(BaseEntity):
 
         attrib = {}
         for key in self.own_attrib:
-            if (value := getattr(self.attrib, key)) is not None:
-                attrib[key] = value
+            try:
+                if (value := getattr(self.attrib, key)) is not None:
+                    attrib[key] = value
+            except AttributeError:
+                # Do not store attributes which are not in the attrib model
+                pass
 
         if self.exists:
             # Update existing entity
