@@ -69,5 +69,18 @@ class Session:
         return session
 
     @classmethod
+    async def update(cls, token: str, user: UserEntity) -> None:
+        """Update a session with new user data."""
+        data = await Redis.get(cls.ns, token)
+        if not data:
+            # TODO: shouldn't be silent!
+            return None
+
+        session = SessionModel(**json_loads(data))
+        session.user = user.dict()
+        session.last_used = time.time()
+        await Redis.set(cls.ns, token, session.json())
+
+    @classmethod
     async def delete(cls, token: str) -> None:
         await Redis.delete(cls.ns, token)

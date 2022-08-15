@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Response
 from nxtools import logging
 
 from openpype.api import ResponseFactory
-from openpype.api.dependencies import dep_current_user, dep_user_name
+from openpype.api.dependencies import dep_current_user, dep_user_name, dep_access_token
+from openpype.auth.session import Session
 from openpype.auth.utils import create_password, ensure_password_complexity
 from openpype.entities import UserEntity
 from openpype.exceptions import (
@@ -154,14 +155,24 @@ async def patch_user(
     payload: UserEntity.model.patch_model,
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
+    access_token: str = Depends(dep_access_token),
 ) -> Response:
     logging.info(f"[DELETE] /users/{user_name}")
-    if not user.is_manager:
+
+    if user_name == user.name and (not user.is_manager):
+        # Normal users can only patch their attributes
+        # (such as full name and email)
+        payload.data = None
+        payload.active = None
+    elif not user.is_manager:
         raise ForbiddenException
 
     target_user = await UserEntity.load(user_name)
     target_user.patch(payload)
     await target_user.save()
+    
+    if user_name == user.name:
+        await Session.update(access_token, target_user)
 
     return Response(status_code=204)
 
