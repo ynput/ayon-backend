@@ -169,7 +169,7 @@ async def get_folders(
     if parent_ids is not None:
         pids_set = set(parent_ids)
         if "root" in pids_set:
-            pids_set.add(None)
+            pids_set.add(None)  # type: ignore
             pids_set.remove("root")
         sql_conditions.append(
             f"folders.parent_id IN {SQLTool.id_array(list(pids_set))}"

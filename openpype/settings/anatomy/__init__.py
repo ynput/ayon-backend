@@ -8,7 +8,10 @@ from openpype.settings.anatomy.templates import Templates
 from openpype.settings.common import BaseSettingsModel, ensure_unique_names
 
 
-class ProjectAttribModel(ProjectEntity.model.attrib_model, BaseSettingsModel):
+class ProjectAttribModel(
+    ProjectEntity.model.attrib_model,  # type: ignore
+    BaseSettingsModel,
+):
     pass
 
 

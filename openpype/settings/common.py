@@ -1,7 +1,7 @@
 import collections
 import inspect
 import re
-from typing import Any, Iterable
+from typing import Any, Deque, Iterable, Type
 
 from nxtools import slugify
 from pydantic import BaseModel
@@ -143,8 +143,8 @@ async def postprocess_settings_schema(
     if not is_top_level:
         return
 
-    submodels = {}
-    submodels_deque = collections.deque()
+    submodels: dict[str, Type[BaseSettingsModel]] = {}
+    submodels_deque: Deque[Type[BaseSettingsModel]] = collections.deque()
     submodels_deque.append(model)
     while submodels_deque:
         parent = submodels_deque.popleft()

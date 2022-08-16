@@ -152,7 +152,7 @@ async def delete_user(
     status_code=204,
 )
 async def patch_user(
-    payload: UserEntity.model.patch_model,
+    payload: UserEntity.model.patch_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
     access_token: str = Depends(dep_access_token),
