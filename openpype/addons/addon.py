@@ -30,15 +30,15 @@ class BaseServerAddon:
         # TODO: maybe move this to the definition
         if definition.versions:
             if self.name != definition.name:
-                logging.error(f"Addon name mismatch {self.name} != {definition.name}")
-                raise ValueError
+                raise ValueError(f"name mismatch {self.name} != {definition.name}")
             if self.addon_type != definition.addon_type:
-                logging.error(
-                    f"Addon type mismatch {self.addon_type} != {definition.addon_type}"
+                raise ValueError(
+                    f"type mismatch {self.addon_type} != {definition.addon_type}"
                 )
-                raise ValueError
+        else:
+            definition.name = self.name
+            definition.addon_type = self.addon_type
 
-        definition.name = self.name
         if self.title:
             definition.title = self.title
 
@@ -53,6 +53,7 @@ class BaseServerAddon:
         return f"{self.definition.friendly_name} {self.version}"
 
     def get_frontend_dir(self) -> str:
+        """Return the frontend directory (relative to addon directory)."""
         return self.frontend_dir
 
     def get_settings_model(self) -> Type[BaseSettingsModel] | None:

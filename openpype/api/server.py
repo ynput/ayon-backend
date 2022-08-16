@@ -151,15 +151,14 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
 
 def init_addons(target_app: fastapi.FastAPI) -> None:
     """Serve static files for addon frontends."""
-
-    logging.info("Initializing addons")
-    library = AddonLibrary()
+    library = AddonLibrary.getinstance()
     for addon_name, addon_definition in library.items():
         for version in addon_definition.versions:
             addon = addon_definition.versions[version]
-            if not os.path.isdir(fedir := f"{addon.addon_dir}/frontend/dist"):
+            fedir = f"{addon.addon_dir}/{addon.get_frontend_dir()}"
+            if not os.path.isdir(fedir):
                 continue
-            logging.info(
+            logging.debug(
                 f"Initializing frontend for addon {addon_name} version {version}"
             )
             target_app.mount(

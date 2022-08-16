@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Response
 from nxtools import logging
 
 from openpype.api import ResponseFactory
-from openpype.api.dependencies import dep_current_user, dep_user_name, dep_access_token
+from openpype.api.dependencies import dep_access_token, dep_current_user, dep_user_name
 from openpype.auth.session import Session
 from openpype.auth.utils import create_password, ensure_password_complexity
 from openpype.entities import UserEntity
@@ -170,7 +170,7 @@ async def patch_user(
     target_user = await UserEntity.load(user_name)
     target_user.patch(payload)
     await target_user.save()
-    
+
     if user_name == user.name:
         await Session.update(access_token, target_user)
 

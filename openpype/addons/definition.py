@@ -54,8 +54,10 @@ class ServerAddonDefinition:
                 for Addon in classes_from_module(BaseServerAddon, module):
                     try:
                         self._versions[Addon.version] = Addon(self, mdir)
-                    except ValueError:
-                        pass
+                    except ValueError as e:
+                        logging.error(
+                            f"Error loading addon {vname} versions: {e.args[0]}"
+                        )
 
         return self._versions
 
