@@ -1,24 +1,20 @@
 from typing import Any
 
-from fastapi import APIRouter, Response
+from addons.router import router
+from fastapi import APIRouter, Depends
 from nxtools import logging
-from pydantic.error_wrappers import ValidationError
 
+from addons import project_settings, studio_settings
 from openpype.addons import AddonLibrary
-from openpype.exceptions import BadRequestException, NotFoundException
+from openpype.api.dependencies import dep_current_user
+from openpype.entities import UserEntity
+from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
-from openpype.settings import (
-    extract_overrides,
-    list_overrides,
-    postprocess_settings_schema,
-)
+from openpype.settings import postprocess_settings_schema
 from openpype.types import Field, OPModel
 
-#
-# Router
-#
-
-router = APIRouter(prefix="/addons")
+assert studio_settings
+assert project_settings
 
 
 def register_addon_endpoints():
@@ -58,11 +54,6 @@ def register_addon_endpoints():
 
 
 register_addon_endpoints()
-
-
-#
-# [POST] /usd/resolve
-#
 
 
 class VersionInfo(OPModel):
@@ -142,7 +133,13 @@ class AddonConfigRequest(OPModel):
 
 
 @router.post("", tags=["Addon settings"])
-async def configure_addons(payload: AddonConfigRequest):
+async def configure_addons(
+    payload: AddonConfigRequest,
+    user: UserEntity = Depends(dep_current_user),
+):
+    if not user.is_manager:
+        raise ForbiddenException
+
     if payload.versions:
         for name, version_config in payload.versions.items():
             await Postgres.execute(
@@ -159,9 +156,7 @@ async def configure_addons(payload: AddonConfigRequest):
 
 
 #
-# Addon settings + studio overrides
-# TODO: Add ACL. Endpoints now does not check if the calls are authorized,
-# because during the development it is useful to test it using curl.
+# Settings schema
 #
 
 
@@ -182,102 +177,3 @@ async def get_addon_settings_schema(addon_name: str, version: str):
     await postprocess_settings_schema(schema, model)
     schema["title"] = addon.friendly_name
     return schema
-
-
-@router.get("/{addon_name}/{version}/settings", tags=["Addon settings"])
-async def get_addon_studio_settings(addon_name: str, version: str):
-    """Return the settings (including studio overrides) of the given addon."""
-
-    if (addon := AddonLibrary.addon(addon_name, version)) is None:
-        raise NotFoundException(f"Addon {addon_name} {version} not found")
-    return await addon.get_studio_settings()
-
-
-@router.post("/{addon_name}/{version}/settings", tags=["Addon settings"])
-async def set_addon_studio_settings(
-    payload: dict[str, Any],
-    addon_name: str,
-    version: str,
-):
-    """Set the studio overrides of the given addon."""
-
-    addon = AddonLibrary.addon(addon_name, version)
-    original = await addon.get_studio_settings()
-    existing = await addon.get_studio_overrides()
-    model = addon.get_settings_model()
-    if (original is None) or (model is None):
-        # This addon does not have settings
-        return Response(status_code=400)
-    try:
-        data = extract_overrides(original, model(**payload), existing)
-    except ValidationError:
-        raise BadRequestException
-
-    # Do not use versioning during the development (causes headaches)
-    await Postgres.execute(
-        "DELETE FROM settings WHERE addon_name = $1 AND addon_version = $2",
-        addon_name,
-        version,
-    )
-
-    await Postgres.execute(
-        """
-        INSERT INTO settings (addon_name, addon_version, data)
-        VALUES ($1, $2, $3)
-        """,
-        addon_name,
-        version,
-        data,
-    )
-    return Response(status_code=204)
-
-
-@router.get("/{addon_name}/{version}/overrides", tags=["Addon settings"])
-async def get_addon_studio_overrides(addon_name: str, version: str):
-    addon = AddonLibrary.addon(addon_name, version)
-    settings = await addon.get_studio_settings()
-    overrides = await addon.get_studio_overrides()
-    if settings is None:
-        return {}
-    return list_overrides(settings, overrides)
-
-
-@router.delete("/{addon_name}/{version}/overrides", tags=["Addon settings"])
-async def delete_addon_studio_overrides(addon_name: str, version: str):
-
-    logging.info(f"Deleting overrides for {addon_name} {version}")
-
-    # Ensure addon exists
-    _ = AddonLibrary.addon(addon_name, version)
-
-    # we don't use versioned settings at the moment.
-    # in the future, insert an empty dict instead
-    await Postgres.execute(
-        """
-        DELETE FROM settings
-        WHERE addon_name = $1
-        AND addon_version = $2
-        """,
-        addon_name,
-        version,
-    )
-    return Response(status_code=204)
-
-
-#
-# Project overrides
-#
-
-
-@router.get("/{addon_name}/{version}/settings/{project_name}", tags=["Addon settings"])
-async def get_addon_project_settings(addon_name: str, version: str, project_name: str):
-    return {}
-
-
-@router.get("/{addon_name}/{version}/overrides/{project_name}", tags=["Addon settings"])
-async def get_addon_project_overrides(
-    addon_name: str,
-    version: str,
-    project_name: str,
-):
-    return {}

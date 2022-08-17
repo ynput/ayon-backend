@@ -252,3 +252,22 @@ CREATE TABLE links (
 CREATE INDEX link_input_idx ON links(input_id);
 CREATE INDEX link_output_idx ON links(output_id);
 CREATE UNIQUE INDEX link_unique_idx ON links(input_id, output_id, link_name);
+
+--------------
+-- SETTINGS --
+--------------
+
+CREATE TABLE settings(
+  addon_name VARCHAR NOT NULL,
+  addon_version VARCHAR NOT NULL,
+  staging BOOL NOT NULL DEFAULT FALSE,
+  snapshot_time BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  PRIMARY KEY (addon_name, addon_version, snapshot_time, staging)
+);
+
+CREATE TABLE addon_versions(
+  name VARCHAR NOT NULL PRIMARY KEY,
+  production_version VARCHAR,
+  staging_version VARCHAR
+);

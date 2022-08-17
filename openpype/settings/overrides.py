@@ -40,6 +40,7 @@ def list_overrides(
     obj: BaseSettingsModel,
     override: dict[str, Any],
     crumbs: list[str] = None,
+    level: str = "studio",
 ) -> dict[str, Any]:
     """Returns values which are overriden.
 
@@ -74,16 +75,18 @@ def list_overrides(
                 result[path] = {
                     "path": chcrumbs,
                     "type": "group" if child._isGroup else "branch",
-                    "level": "studio",
+                    "level": level,
                 }
-            result.update(list_overrides(child, override.get(name, {}), chcrumbs))
+            result.update(
+                list_overrides(child, override.get(name, {}), chcrumbs, level)
+            )
 
         elif type(child) is list:
             if name in override:
                 result[path] = {
                     "path": chcrumbs,
                     "type": "list",
-                    "level": "studio",
+                    "level": "level",
                 }
 
                 for i, item in enumerate(child):
@@ -101,7 +104,7 @@ def list_overrides(
             result[path] = {
                 "path": chcrumbs,
                 "value": override[name],
-                "level": "studio",
+                "level": level,
             }
 
     return result

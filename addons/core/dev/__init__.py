@@ -6,6 +6,7 @@ from openpype.settings import BaseSettingsModel
 
 class CoreSettings(BaseSettingsModel):
     studio_name: str = Field("", title="Studio name")
+    artist_count: int = Field(0, title="Artist count")
 
 
 class CoreAddon(BaseServerAddon):

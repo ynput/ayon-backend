@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any, Callable, Type
 
+from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.settings import BaseSettingsModel, apply_overrides
 
@@ -78,7 +79,20 @@ class BaseServerAddon:
 
     async def get_project_overrides(self, project_name: str) -> dict[str, Any]:
         """Load the project overrides from the database."""
-        # TODO
+
+        try:
+            res = await Postgres.fetch(
+                f"""
+                SELECT data FROM project_{project_name}.settings
+                WHERE addon_name = '{self.definition.name}'
+                AND addon_version = '{self.version}'
+                ORDER BY snapshot_time DESC LIMIT 1
+                """
+            )
+        except Postgres.UndefinedTableError:
+            raise NotFoundException(f"Project {project_name} does not exists")
+        if res:
+            return dict(res[0]["data"])
         return {}
 
     async def get_studio_settings(self) -> BaseSettingsModel | None:
@@ -89,7 +103,7 @@ class BaseServerAddon:
 
         settings = await self.get_default_settings()
         if settings is None:
-            return None
+            return None  # this addon has no settings at all
         overrides = await self.get_studio_overrides()
         if overrides:
             settings = apply_overrides(settings, overrides)
@@ -101,8 +115,17 @@ class BaseServerAddon:
 
         You shouldn't override this method, unless absolutely necessary.
         """
-        # TODO
-        return await self.get_studio_settings()
+
+        settings = await self.get_studio_settings()
+        if settings is None:
+            return None  # this addon has no settings at all
+        studio_overrides = await self.get_studio_overrides()
+        if studio_overrides:
+            settings = apply_overrides(settings, studio_overrides)
+        project_overrides = await self.get_project_overrides(project_name)
+        if project_overrides:
+            settings = apply_overrides(settings, project_overrides)
+        return settings
 
     #
     # Overridable methods
