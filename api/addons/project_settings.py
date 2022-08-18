@@ -68,8 +68,8 @@ async def set_addon_project_settings(
         raise ForbiddenException
 
     addon = AddonLibrary.addon(addon_name, version)
-    original = await addon.get_studio_settings()
-    existing = await addon.get_studio_overrides()
+    original = await addon.get_project_settings(project_name)
+    existing = await addon.get_project_overrides(project_name)
     model = addon.get_settings_model()
     if (original is None) or (model is None):
         # This addon does not have settings
@@ -81,14 +81,17 @@ async def set_addon_project_settings(
 
     # Do not use versioning during the development (causes headaches)
     await Postgres.execute(
-        "DELETE FROM settings WHERE addon_name = $1 AND addon_version = $2",
+        f"""
+        DELETE FROM project_{project_name}.settings
+        WHERE addon_name = $1 AND addon_version = $2
+        """,
         addon_name,
         version,
     )
 
     await Postgres.execute(
-        """
-        INSERT INTO settings (addon_name, addon_version, data)
+        f"""
+        INSERT INTO project_{project_name}.settings (addon_name, addon_version, data)
         VALUES ($1, $2, $3)
         """,
         addon_name,
