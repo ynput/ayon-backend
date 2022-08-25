@@ -4,6 +4,7 @@ import os
 import sys
 
 import fastapi
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_traceback, logging
@@ -66,6 +67,16 @@ async def openpype_exception_handler(
     return fastapi.responses.JSONResponse(
         status_code=exc.status,
         content=ErrorResponse(code=exc.status, detail=exc.detail).dict(),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc) -> fastapi.responses.JSONResponse:
+    logging.error(f"Validation error\n{str(exc)}")
+    detail = "Validation error"  # TODO: Be descriptive, but not too much
+    return fastapi.responses.JSONResponse(
+        status_code=400,
+        content=ErrorResponse(code=400, detail=detail).dict(),
     )
 
 
