@@ -106,6 +106,7 @@ def list_overrides(
                                 item,
                                 ovr,
                                 [*chcrumbs, f"{i}"],
+                                level=level,
                                 in_group=True,
                             )
                         )

@@ -15,6 +15,7 @@ from openpype.exceptions import (
 )
 from openpype.lib.postgres import Postgres
 from openpype.settings import extract_overrides, list_overrides
+
 from .common import ModifyOverridesRequestModel, remove_override
 
 
@@ -140,7 +141,8 @@ async def delete_addon_project_overrides(
 
 
 @router.post(
-    "/{addon_name}/{version}/overrides/{project_name}", tags=["Addon settings"],
+    "/{addon_name}/{version}/overrides/{project_name}",
+    tags=["Addon settings"],
 )
 async def modify_overrides(
     payload: ModifyOverridesRequestModel,

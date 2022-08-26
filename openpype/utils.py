@@ -58,7 +58,9 @@ def dict_exclude(
 
 
 def dict_remove_path(
-    data: dict[str, Any], path: list[str], remove_orphans: bool = True,
+    data: dict[str, Any],
+    path: list[str],
+    remove_orphans: bool = True,
 ):
     """Delete a key in a nested dictionary specified by its path"""
     parents = [data]

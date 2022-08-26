@@ -35,7 +35,10 @@ async def get_addon_studio_settings(
     return await addon.get_studio_settings()
 
 
-@router.post("/{addon_name}/{version}/settings", tags=["Addon settings"],)
+@router.post(
+    "/{addon_name}/{version}/settings",
+    tags=["Addon settings"],
+)
 async def set_addon_studio_settings(
     payload: dict[str, Any],
     addon_name: str,

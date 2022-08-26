@@ -1,10 +1,11 @@
 from typing import Literal
+
 from nxtools import log_traceback
 
 from openpype.addons import AddonLibrary
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
-from openpype.types import OPModel, Field
+from openpype.types import Field, OPModel
 from openpype.utils import dict_remove_path
 
 
