@@ -16,9 +16,18 @@ from openpype.exceptions import (
 from openpype.lib.postgres import Postgres
 from openpype.settings import extract_overrides, list_overrides
 
+from .common import ModifyOverridesRequestModel, remove_override
 
-@router.get("/{addon_name}/{version}/settings", tags=["Addon settings"])
-async def get_addon_studio_settings(addon_name: str, version: str):
+
+@router.get(
+    "/{addon_name}/{version}/settings",
+    tags=["Addon settings"],
+)
+async def get_addon_studio_settings(
+    addon_name: str,
+    version: str,
+    user: UserEntity = Depends(dep_current_user),
+):
     """Return the settings (including studio overrides) of the given addon."""
 
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
@@ -26,7 +35,7 @@ async def get_addon_studio_settings(addon_name: str, version: str):
     return await addon.get_studio_settings()
 
 
-@router.post("/{addon_name}/{version}/settings", tags=["Addon settings"])
+@router.post("/{addon_name}/{version}/settings", tags=["Addon settings"],)
 async def set_addon_studio_settings(
     payload: dict[str, Any],
     addon_name: str,
@@ -69,9 +78,18 @@ async def set_addon_studio_settings(
     return Response(status_code=204)
 
 
-@router.get("/{addon_name}/{version}/overrides", tags=["Addon settings"])
-async def get_addon_studio_overrides(addon_name: str, version: str):
-    # TODO: enable authentication
+@router.get(
+    "/{addon_name}/{version}/overrides",
+    tags=["Addon settings"],
+)
+async def get_addon_studio_overrides(
+    addon_name: str,
+    version: str,
+    user: UserEntity = Depends(dep_current_user),
+):
+    if not user.is_manager:
+        raise ForbiddenException
+
     addon = AddonLibrary.addon(addon_name, version)
     settings = await addon.get_studio_settings()
     if settings is None:
@@ -80,15 +98,17 @@ async def get_addon_studio_overrides(addon_name: str, version: str):
     return list_overrides(settings, overrides)
 
 
-@router.delete("/{addon_name}/{version}/overrides", tags=["Addon settings"])
+@router.delete(
+    "/{addon_name}/{version}/overrides",
+    tags=["Addon settings"],
+)
 async def delete_addon_studio_overrides(
     addon_name: str,
     version: str,
-    #    user: UserEntity = Depends(dep_current_user),
+    user: UserEntity = Depends(dep_current_user),
 ):
-    # TODO: enable authentication
-    #    if not user.is_manager:
-    #        raise ForbiddenException
+    if not user.is_manager:
+        raise ForbiddenException
 
     # Ensure addon exists
     _ = AddonLibrary.addon(addon_name, version)
@@ -105,4 +125,21 @@ async def delete_addon_studio_overrides(
         addon_name,
         version,
     )
+    return Response(status_code=204)
+
+
+@router.post(
+    "/{addon_name}/{version}/overrides",
+    tags=["Addon settings"],
+)
+async def modify_overrides(
+    payload: ModifyOverridesRequestModel,
+    addon_name: str,
+    version: str,
+    user: UserEntity = Depends(dep_current_user),
+):
+    if not user.is_manager:
+        raise ForbiddenException
+
+    await remove_override(addon_name, version, payload.path)
     return Response(status_code=204)

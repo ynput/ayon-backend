@@ -41,6 +41,7 @@ def list_overrides(
     override: dict[str, Any],
     crumbs: list[str] = None,
     level: str = "studio",
+    in_group: bool = False,
 ) -> dict[str, Any]:
     """Returns values which are overriden.
 
@@ -76,9 +77,16 @@ def list_overrides(
                     "path": chcrumbs,
                     "type": "group" if child._isGroup else "branch",
                     "level": level,
+                    "inGroup": in_group,
                 }
             result.update(
-                list_overrides(child, override.get(name, {}), chcrumbs, level)
+                list_overrides(
+                    child,
+                    override.get(name, {}),
+                    chcrumbs,
+                    level,
+                    in_group=child._isGroup,
+                )
             )
 
         elif type(child) is list:
@@ -86,18 +94,27 @@ def list_overrides(
                 result[path] = {
                     "path": chcrumbs,
                     "type": "list",
-                    "level": "level",
+                    "level": level,
+                    "inGroup": in_group,
                 }
 
                 for i, item in enumerate(child):
                     ovr = override[name][i]
                     if isinstance(item, BaseSettingsModel):
-                        result.update(list_overrides(item, ovr, [*chcrumbs, f"{i}"]))
+                        result.update(
+                            list_overrides(
+                                item,
+                                ovr,
+                                [*chcrumbs, f"{i}"],
+                                in_group=True,
+                            )
+                        )
                     else:
                         result[f"{path}_{i}"] = {
                             "path": [*chcrumbs, f"{i}"],
                             "level": "default",
                             "value": item,
+                            "inGroup": True,
                         }
 
         elif name in override:
@@ -105,6 +122,7 @@ def list_overrides(
                 "path": chcrumbs,
                 "value": override[name],
                 "level": level,
+                "inGroup": in_group,
             }
 
     return result

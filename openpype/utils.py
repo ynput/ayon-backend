@@ -57,6 +57,22 @@ def dict_exclude(
     return data
 
 
+def dict_remove_path(
+    data: dict[str, Any], path: list[str], remove_orphans: bool = True,
+):
+    """Delete a key in a nested dictionary specified by its path"""
+    parents = [data]
+    for key in path[:-1]:
+        n = parents[-1][key]
+        parents.append(n)
+    del parents[-1][path[-1]]
+    if not remove_orphans:
+        return
+    for i, key in enumerate(reversed(path)):
+        if not parents[-i] and key in parents[-i - 1]:
+            del parents[-i - 1][key]
+
+
 def validate_name(name: str) -> bool:
     """Validate a name."""
     if not name:

@@ -15,6 +15,7 @@ from openpype.exceptions import (
 )
 from openpype.lib.postgres import Postgres
 from openpype.settings import extract_overrides, list_overrides
+from .common import ModifyOverridesRequestModel, remove_override
 
 
 @router.get("/{addon_name}/{version}/settings/{project_name}", tags=["Addon settings"])
@@ -135,4 +136,21 @@ async def delete_addon_project_overrides(
         addon_name,
         version,
     )
+    return Response(status_code=204)
+
+
+@router.post(
+    "/{addon_name}/{version}/overrides/{project_name}", tags=["Addon settings"],
+)
+async def modify_overrides(
+    payload: ModifyOverridesRequestModel,
+    addon_name: str,
+    version: str,
+    project_name: str,
+    user: UserEntity = Depends(dep_current_user),
+):
+    if not user.is_manager:
+        raise ForbiddenException
+
+    await remove_override(addon_name, version, payload.path, project_name)
     return Response(status_code=204)
