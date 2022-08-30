@@ -16,7 +16,7 @@ from openpype.exceptions import (
 from openpype.lib.postgres import Postgres
 from openpype.settings import extract_overrides, list_overrides
 
-from .common import ModifyOverridesRequestModel, remove_override
+from .common import ModifyOverridesRequestModel, remove_override, pin_override
 
 
 @router.get(
@@ -144,5 +144,8 @@ async def modify_overrides(
     if not user.is_manager:
         raise ForbiddenException
 
-    await remove_override(addon_name, version, payload.path)
+    if payload.action == "delete":
+        await remove_override(addon_name, version, payload.path)
+    elif payload.action == "pin":
+        await pin_override(addon_name, version, payload.path)
     return Response(status_code=204)

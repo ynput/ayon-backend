@@ -166,17 +166,25 @@ def init_addons(target_app: fastapi.FastAPI) -> None:
     for addon_name, addon_definition in library.items():
         for version in addon_definition.versions:
             addon = addon_definition.versions[version]
-            fedir = f"{addon.addon_dir}/{addon.get_frontend_dir()}"
-            if not os.path.isdir(fedir):
-                continue
-            logging.debug(
-                f"Initializing frontend for addon {addon_name} version {version}"
-            )
-            target_app.mount(
-                f"/addons/{addon_name}/{version}",
-                StaticFiles(directory=fedir, html=True),
-                name=f"{addon_name}/{version}",
-            )
+            if (fedir := addon.get_frontend_dir()) is not None:
+                logging.debug(
+                    f"Initializing frontend for addon {addon_name} {version}"
+                )
+                target_app.mount(
+                    f"/addons/{addon_name}/{version}",
+                    StaticFiles(directory=fedir, html=True),
+                    name=f"{addon_name}/{version}",
+                )
+            if (resdir := addon.get_resources_dir()) is not None:
+                logging.debug(
+                    f"Initializing resources for addon {addon_name} {version}"
+                )
+                target_app.mount(
+                    f"/resources/{addon_name}/{version}",
+                    StaticFiles(directory=resdir),
+                    name=f"{addon_name}/{version}",
+                )
+
 
 
 init_api(app, pypeconfig.api_modules_dir)

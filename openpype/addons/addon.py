@@ -1,3 +1,10 @@
+import os
+
+try:
+    import toml
+except ModuleNotFoundError:
+    toml = None
+
 from typing import TYPE_CHECKING, Any, Callable, Type
 
 from openpype.exceptions import NotFoundException
@@ -17,7 +24,6 @@ class BaseServerAddon:
     endpoints: list[dict[str, Any]]
     settings_model: Type[BaseSettingsModel] | None = None
     frontend_scopes: dict[str, Any] = {}
-    frontend_dir: str = "frontend/dist"
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str):
         assert self.name and self.version
@@ -51,16 +57,62 @@ class BaseServerAddon:
         """Return the friendly name of the addon."""
         return f"{self.definition.friendly_name} {self.version}"
 
-    def get_frontend_dir(self) -> str:
-        """Return the frontend directory (relative to addon directory)."""
-        return self.frontend_dir
+    #
+    # File serving
+    #
 
-    def get_settings_model(self) -> Type[BaseSettingsModel] | None:
-        return self.settings_model
+    def get_frontend_dir(self) -> str | None:
+        """Return the addon frontend directory."""
+        res = os.path.join(self.addon_dir, "frontend/dist")
+        if os.path.isdir(res):
+            return res
+
+    def get_resources_dir(self) -> str | None:
+        """Return the addon resources directory.
+
+        This directory contains the client code, pyproject.toml,
+        icons and additional resources. If the directory exists,
+        it is served via http on:
+            /resources/{addon_name}/{addon/version}/{path}
+        """
+        res = os.path.join(self.addon_dir, "resources")
+        if os.path.isdir(res):
+            return res
+
+    async def get_client_pyproject(self) -> dict[str, Any] | None:
+        if self.get_resources_dir() is None:
+            return None
+        pyproject_path = os.path.join(self.get_resources_dir(), "pyproject.toml")
+        if not os.path.exists(pyproject_path):
+            return None
+        if toml is None:
+            return {"error": "Toml is not installed (but pyproject exists)"}
+        return toml.load(open(pyproject_path))
+
+    async def get_client_source_info(
+        self,
+        base_url: str | None = None,
+    ) -> list[dict[str:Any]] | None:
+        if self.get_resources_dir() is None:
+            return None
+        if base_url is None:
+            base_url = ""
+        local_path = os.path.join(self.get_resources_dir(), "client.zip")
+        if not os.path.exists(local_path):
+            return None
+        return [
+            {
+                "type": "http",
+                "path": f"{base_url}/resources/{self.name}/{self.version}/client.zip",
+            }
+        ]
 
     #
     # Settings
     #
+
+    def get_settings_model(self) -> Type[BaseSettingsModel] | None:
+        return self.settings_model
 
     async def get_studio_overrides(self) -> dict[str, Any]:
         """Load the studio overrides from the database."""

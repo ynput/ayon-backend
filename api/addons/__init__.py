@@ -1,7 +1,7 @@
 from typing import Any
 
 from addons.router import router
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Request
 from nxtools import logging
 
 from addons import project_settings, studio_settings
@@ -56,9 +56,16 @@ def register_addon_endpoints():
 register_addon_endpoints()
 
 
+class ClientSourceInfo(OPModel):
+    type: str
+    path: str
+
+
 class VersionInfo(OPModel):
     has_settings: bool = Field(default=False)
-    frontend_scopes: dict[str, Any] = Field(default_factory={})
+    frontend_scopes: dict[str, Any] = Field(default_factory=dict)
+    client_pyproject: dict[str, Any] | None = Field(None)
+    client_source_info: list[ClientSourceInfo] | None = Field(None)
 
 
 class AddonListItem(OPModel):
@@ -82,9 +89,19 @@ class AddonList(OPModel):
     addons: list[AddonListItem] = Field(..., description="List of available addons")
 
 
-@router.get("", response_model=AddonList, tags=["Addon settings"])
-async def list_addons():
+@router.get(
+    "",
+    response_model=AddonList,
+    response_model_exclude_none=True,
+    tags=["Addon settings"],
+)
+async def list_addons(
+    request: Request,
+    details: bool = Query(False, title="Show details"),
+):
     """List all available addons."""
+
+    base_url = f"{request.url.scheme}://{request.url.netloc}"
 
     result = []
     library = AddonLibrary.getinstance()
@@ -99,10 +116,14 @@ async def list_addons():
         vers = active_versions.get(definition.name, {})
         versions = {}
         for version, addon in definition.versions.items():
-            versions[version] = VersionInfo(
-                has_settings=bool(addon.get_settings_model()),
-                frontend_scopes=addon.frontend_scopes,
-            )
+            vinf = {
+                "has_settings": bool(addon.get_settings_model()),
+                "frontend_scopes": addon.frontend_scopes,
+            }
+            if details:
+                vinf["client_pyproject"] = await addon.get_client_pyproject()
+                vinf["client_source_info"] = await addon.get_client_source_info(base_url=base_url)
+            versions[version] = VersionInfo(**vinf)
 
         result.append(
             AddonListItem(

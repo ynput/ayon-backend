@@ -55,3 +55,27 @@ async def remove_override(
         addon_version,
         overrides,
     )
+
+
+async def pin_override(
+    addon_name: str,
+    addon_version: str,
+    path: list[str],
+    project_name: str | None = None,
+):
+    if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
+        raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
+
+    model = addon.get_settings_model()
+
+    # TODO: ensure the path is not a part of a group
+
+    if project_name:
+        scope = f"project_{project_name}."
+        overrides = await addon.get_project_overrides(project_name)
+        settings = await addon.get_project_settings(project_name)
+    else:
+        scope = ""
+        overrides = await addon.get_studio_overrides()
+        settings = await addon.get_studio_settings()
+
