@@ -3,11 +3,11 @@ import os
 try:
     import toml
 except ModuleNotFoundError:
-    toml = None
+    toml = None  # type: ignore
 
 from typing import TYPE_CHECKING, Any, Callable, Type
 
-from openpype.exceptions import NotFoundException
+from openpype.exceptions import NotFoundException, OpenPypeException
 from openpype.lib.postgres import Postgres
 from openpype.settings import BaseSettingsModel, apply_overrides
 
@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 
 class BaseServerAddon:
     name: str
-    title: str | None = None
     version: str
+    title: str | None = None
     addon_type: str = "module"
     definition: "ServerAddonDefinition"
     endpoints: list[dict[str, Any]]
@@ -57,8 +57,42 @@ class BaseServerAddon:
         """Return the friendly name of the addon."""
         return f"{self.definition.friendly_name} {self.version}"
 
+    def setup(self) -> None:
+        """Setup the addon.
+
+        This metod is started during the addon initialization
+        and it is here just for the convinience.
+        """
+        pass
+
+    def add_endpoint(
+        self,
+        path: str,
+        handler: Callable,
+        *,
+        method: str = "GET",
+        name: str | None = None,
+        description: str | None = None,
+    ) -> None:
+        """Add a REST endpoint to the server."""
+
+        self.endpoints.append(
+            {
+                "name": name or handler.__name__,
+                "path": path,
+                "handler": handler,
+                "method": method,
+                "description": description or handler.__doc__ or "",
+            }
+        )
+
     #
     # File serving
+    #
+    # Each addon supports serving files from the following directories:
+    #  - frontend (html/javascript frontend code with index.html)
+    #  - private (files which require authentication header to download)
+    #  - public (files available for unauthenticated download)
     #
 
     def get_frontend_dir(self) -> str | None:
@@ -66,46 +100,67 @@ class BaseServerAddon:
         res = os.path.join(self.addon_dir, "frontend/dist")
         if os.path.isdir(res):
             return res
+        return None  # just to make mypy happy
 
-    def get_resources_dir(self) -> str | None:
-        """Return the addon resources directory.
-
-        This directory contains the client code, pyproject.toml,
-        icons and additional resources. If the directory exists,
-        it is served via http on:
-            /resources/{addon_name}/{addon/version}/{path}
-        """
-        res = os.path.join(self.addon_dir, "resources")
+    def get_private_dir(self) -> str | None:
+        """Return the addon private directory."""
+        res = os.path.join(self.addon_dir, "private")
         if os.path.isdir(res):
             return res
+        return None
 
-    async def get_client_pyproject(self) -> dict[str, Any] | None:
-        if self.get_resources_dir() is None:
+    def get_public_dir(self) -> str | None:
+        """Return the addon private directory."""
+        res = os.path.join(self.addon_dir, "public")
+        if os.path.isdir(res):
+            return res
+        return None
+
+    #
+    # Client code
+    #
+
+    def get_local_client_info(
+        self,
+        base_url: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Returns information on local copy of the client code."""
+        if (pdir := self.get_private_dir()) is None:
             return None
-        pyproject_path = os.path.join(self.get_resources_dir(), "pyproject.toml")
-        if not os.path.exists(pyproject_path):
+        if base_url is None:
+            base_url = ""
+        local_path = os.path.join(pdir, "client.zip")
+        if not os.path.exists(local_path):
             return None
-        if toml is None:
-            return {"error": "Toml is not installed (but pyproject exists)"}
-        return toml.load(open(pyproject_path))
+        return {
+            "type": "http",
+            "path": f"{base_url}/addons/{self.name}/{self.version}/private/client.zip",
+        }
 
     async def get_client_source_info(
         self,
         base_url: str | None = None,
-    ) -> list[dict[str:Any]] | None:
-        if self.get_resources_dir() is None:
+    ) -> list[dict[str, Any]] | None:
+        """Return a list of locations from where the client part of
+        the addon can be downloaded.
+        """
+
+        if (local := self.get_local_client_info()) is None:
             return None
-        if base_url is None:
-            base_url = ""
-        local_path = os.path.join(self.get_resources_dir(), "client.zip")
-        if not os.path.exists(local_path):
+        return [local]
+
+    async def get_client_pyproject(self) -> dict[str, Any] | None:
+        if (pdir := self.get_private_dir()) is None:
             return None
-        return [
-            {
-                "type": "http",
-                "path": f"{base_url}/resources/{self.name}/{self.version}/client.zip",
-            }
-        ]
+        pyproject_path = os.path.join(pdir, "pyproject.toml")
+        if not os.path.exists(pyproject_path):
+            return None
+        if toml is None:
+            return {"error": "Toml is not installed (but pyproject exists)"}
+        try:
+            return toml.load(open(pyproject_path))
+        except Exception:
+            raise OpenPypeException("Unable to parse pyproject.toml")
 
     #
     # Settings
@@ -180,7 +235,7 @@ class BaseServerAddon:
         return settings
 
     #
-    # Overridable methods
+    # Overridable settings-related methods
     #
 
     async def get_default_settings(self) -> BaseSettingsModel | None:
@@ -211,28 +266,3 @@ class BaseServerAddon:
     ) -> dict[str, Any]:
         """Convert project overrides from a previous version."""
         return overrides
-
-    def setup(self) -> None:
-        """Setup the addon."""
-        pass
-
-    def add_endpoint(
-        self,
-        path: str,
-        handler: Callable,
-        *,
-        method: str = "GET",
-        name: str | None = None,
-        description: str | None = None,
-    ) -> None:
-        """Add a REST endpoint to the server."""
-
-        self.endpoints.append(
-            {
-                "name": name or handler.__name__,
-                "path": path,
-                "handler": handler,
-                "method": method,
-                "description": description or handler.__doc__ or "",
-            }
-        )

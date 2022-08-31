@@ -122,7 +122,9 @@ async def list_addons(
             }
             if details:
                 vinf["client_pyproject"] = await addon.get_client_pyproject()
-                vinf["client_source_info"] = await addon.get_client_source_info(base_url=base_url)
+                vinf["client_source_info"] = await addon.get_client_source_info(
+                    base_url=base_url
+                )
             versions[version] = VersionInfo(**vinf)
 
         result.append(

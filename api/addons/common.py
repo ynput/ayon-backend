@@ -79,3 +79,7 @@ async def pin_override(
         overrides = await addon.get_studio_overrides()
         settings = await addon.get_studio_settings()
 
+    assert scope
+    assert overrides
+    assert model
+    assert settings

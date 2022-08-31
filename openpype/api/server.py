@@ -16,7 +16,7 @@ from openpype.api.metadata import app_meta, tags_meta
 from openpype.api.responses import ErrorResponse
 from openpype.auth.session import Session
 from openpype.config import pypeconfig
-from openpype.exceptions import OpenPypeException
+from openpype.exceptions import OpenPypeException, UnauthorizedException
 from openpype.graphql import router as graphql_router
 from openpype.lib.postgres import Postgres
 from openpype.utils import parse_access_token
@@ -27,6 +27,31 @@ app = fastapi.FastAPI(
     openapi_tags=tags_meta,
     **app_meta,
 )
+
+#
+# Static files
+#
+
+
+class AuthStaticFiles(StaticFiles):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    async def __call__(self, scope, receive, send) -> None:
+        request = fastapi.Request(scope, receive)
+        access_token = parse_access_token(request.headers.get("Authorization"))
+        if access_token:
+            try:
+                session_data = await Session.check(access_token, None)
+            except OpenPypeException:
+                pass
+            else:
+                if session_data:
+                    await super().__call__(scope, receive, send)
+                    return
+        err_msg = "You need to be logged in in order to download this file"
+        raise UnauthorizedException(err_msg)
+
 
 #
 # Error handling
@@ -107,7 +132,6 @@ app.include_router(
 
 @app.get("/graphiql", include_in_schema=False)
 def explorer() -> fastapi.responses.HTMLResponse:
-    # TODO: use async load here
     with open("static/graphiql.html") as f:
         page = f.read()
     page = page.replace("{{ SUBSCRIPTION_ENABLED }}", "false")
@@ -167,24 +191,23 @@ def init_addons(target_app: fastapi.FastAPI) -> None:
         for version in addon_definition.versions:
             addon = addon_definition.versions[version]
             if (fedir := addon.get_frontend_dir()) is not None:
-                logging.debug(
-                    f"Initializing frontend for addon {addon_name} {version}"
-                )
+                logging.debug(f"Initializing frontend dir for {addon_name} {version}")
                 target_app.mount(
-                    f"/addons/{addon_name}/{version}",
+                    f"/addons/{addon_name}/{version}/frontend",
                     StaticFiles(directory=fedir, html=True),
-                    name=f"{addon_name}/{version}",
                 )
-            if (resdir := addon.get_resources_dir()) is not None:
-                logging.debug(
-                    f"Initializing resources for addon {addon_name} {version}"
-                )
+            if (resdir := addon.get_public_dir()) is not None:
+                logging.debug(f"Initializing public dir for {addon_name} {version}")
                 target_app.mount(
-                    f"/resources/{addon_name}/{version}",
+                    f"/addons/{addon_name}/{version}/public",
                     StaticFiles(directory=resdir),
-                    name=f"{addon_name}/{version}",
                 )
-
+            if (resdir := addon.get_private_dir()) is not None:
+                logging.debug(f"Initializing private dir for {addon_name} {version}")
+                target_app.mount(
+                    f"/addons/{addon_name}/{version}/private",
+                    AuthStaticFiles(directory=resdir),
+                )
 
 
 init_api(app, pypeconfig.api_modules_dir)
