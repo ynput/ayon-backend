@@ -145,7 +145,7 @@ class BaseServerAddon:
         the addon can be downloaded.
         """
 
-        if (local := self.get_local_client_info()) is None:
+        if (local := self.get_local_client_info(base_url)) is None:
             return None
         return [local]
 
