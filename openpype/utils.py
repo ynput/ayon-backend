@@ -130,7 +130,6 @@ class EntityID:
             entity_id = entity_id.replace("-", "")
             if len(entity_id) == 32:
                 return entity_id
-        # TODO: Raise OpenPypeException, not Value error
         raise ValueError(f"Invalid entity ID {entity_id}")
 
     @classmethod

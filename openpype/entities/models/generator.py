@@ -58,8 +58,6 @@ FIELD_FACORIES = {
 # 'include',
 # 'const',
 # 'multiple_of',
-# 'min_items',
-# 'max_items',
 # 'allow_mutation',
 # 'repr',
 # 'extra',
@@ -104,6 +102,8 @@ class FieldDefinition(BaseModel):
     le: Union[int, float, None] = Field(title="Less or equal")
     min_length: Optional[int] = Field(title="Minimum length")
     max_length: Optional[int] = Field(title="Maximum length")
+    min_items: Optional[int] = Field(title="Minimum items")
+    max_items: Optional[int] = Field(title="Maximum items")
     regex: Optional[str] = Field(title="Field regex")
 
 
@@ -137,6 +137,9 @@ def generate_model(
             "min_length",
             "max_length",
             "regex",
+            # Array validators
+            "min_items",
+            "max_items",
         ]:
             if getattr(fdef, k):
                 field[k] = getattr(fdef, k)
