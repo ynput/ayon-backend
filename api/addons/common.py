@@ -7,7 +7,7 @@ from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.settings import BaseSettingsModel
 from openpype.types import Field, OPModel
-from openpype.utils import dict_remove_path
+from openpype.utils import dict_remove_path, json_loads
 
 
 class ModifyOverridesRequestModel(OPModel):
@@ -96,7 +96,18 @@ async def pin_override(
             c_overr = c_overr[key]
             continue
 
-        c_overr[key] = c_field
+        if isinstance(c_field, BaseSettingsModel):
+            c_overr[key] = c_field.dict()
+        elif isinstance(c_field, list):
+            val = []
+            for r in c_field:
+                if isinstance(r, BaseSettingsModel):
+                    val.append(r.dict())
+                else:
+                    val.append(r)
+            c_overr[key] = val
+        else:
+            c_overr[key] = c_field
         break
 
     # Do not use versioning during the development (causes headaches)
