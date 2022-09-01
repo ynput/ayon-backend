@@ -5,12 +5,13 @@ from nxtools import log_traceback
 from openpype.addons import AddonLibrary
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
+from openpype.settings import BaseSettingsModel
 from openpype.types import Field, OPModel
 from openpype.utils import dict_remove_path
 
 
 class ModifyOverridesRequestModel(OPModel):
-    action: Literal["delete"] = Field(..., title="Action")
+    action: Literal["delete", "pin"] = Field(..., title="Action")
     path: list[str] = Field(..., title="Path")
 
 
@@ -66,10 +67,6 @@ async def pin_override(
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
-    model = addon.get_settings_model()
-
-    # TODO: ensure the path is not a part of a group
-
     if project_name:
         scope = f"project_{project_name}."
         overrides = await addon.get_project_overrides(project_name)
@@ -79,7 +76,43 @@ async def pin_override(
         overrides = await addon.get_studio_overrides()
         settings = await addon.get_studio_settings()
 
-    assert scope
-    assert overrides
-    assert model
-    assert settings
+    c_field = settings
+    c_overr = overrides
+
+    for i, key in enumerate(path):
+        if key not in c_field.__fields__:
+            raise KeyError(f"{key} is not present in {c_field}")
+
+        c_field = getattr(c_field, key)
+        is_group = False
+        if isinstance(c_field, BaseSettingsModel):
+            is_group = c_field._isGroup
+        else:
+            is_group = True
+
+        if not is_group:
+            if key not in c_overr:
+                c_overr[key] = {}
+            c_overr = c_overr[key]
+            continue
+
+        c_overr[key] = c_field
+        break
+
+    # Do not use versioning during the development (causes headaches)
+
+    await Postgres.execute(
+        f"DELETE FROM {scope}settings WHERE addon_name = $1 AND addon_version = $2",
+        addon_name,
+        addon_version,
+    )
+
+    await Postgres.execute(
+        f"""
+        INSERT INTO {scope}settings (addon_name, addon_version, data)
+        VALUES ($1, $2, $3)
+        """,
+        addon_name,
+        addon_version,
+        overrides,
+    )

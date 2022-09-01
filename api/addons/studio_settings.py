@@ -142,7 +142,7 @@ async def modify_overrides(
     user: UserEntity = Depends(dep_current_user),
 ):
     if not user.is_manager:
-        raise ForbiddenException
+       raise ForbiddenException
 
     if payload.action == "delete":
         await remove_override(addon_name, version, payload.path)
