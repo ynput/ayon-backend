@@ -85,7 +85,7 @@ async def list_projects(
     if library is not None:
         conditions.append("library IS " + "TRUE" if library else "FALSE")
     if active is not None:
-        conditions.append("archived IS " + "TRUE" if active else "FALSE")
+        conditions.append("active IS " + "TRUE" if active else "FALSE")
 
     if name and validate_name(name):
         conditions.append(f"name ILIKE '{name}'")
