@@ -19,7 +19,7 @@ class FolderAttribType:
 @strawberry.type
 class FolderNode(BaseNode):
     folder_type: str | None
-    parent_id: str
+    parent_id: str | None
     thumbnail_id: str | None
     path: str
     attrib: FolderAttribType
