@@ -10,6 +10,7 @@ from openpype.exceptions import (
     UnsupportedMediaException,
 )
 from openpype.lib.redis import Redis
+from openpype.types import USER_NAME_REGEX
 from openpype.utils import EntityID, parse_access_token
 
 
@@ -57,9 +58,9 @@ async def dep_current_user(
     endpoint = request.scope["endpoint"].__name__
     project_name = request.path_params.get("project_name")
     if not user.is_manager:
-        if (perms := user.permissions(project_name)) is not None:
-            available_ops = perms.endpoints
-            if (type(available_ops) is list) and (endpoint not in available_ops):
+        perms = user.permissions(project_name)
+        if (perms is not None) and perms.endpoints.enabled:
+            if endpoint not in perms.endpoints.endpoints:
                 raise UnauthorizedException(f"{endpoint} is not accessible")
     return user
 
@@ -79,7 +80,7 @@ async def dep_user_name(
     user_name: str = Path(
         ...,
         title="User name",
-        regex=r"^[0-9a-zA-Z_]*$",
+        regex=USER_NAME_REGEX
     )
 ) -> str:
     """Validate and return a user name specified in an endpoint path."""

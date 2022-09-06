@@ -11,7 +11,11 @@ See .generator.FieldDefinition model for more information on specifiing
 field parameters.
 """
 
-from openpype.types import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, NAME_REGEX
+from openpype.types import (
+    ENTITY_ID_EXAMPLE,
+    ENTITY_ID_REGEX,
+    NAME_REGEX,
+)
 
 project_fields = [
     # Name is not here, since it's added by ModelSet class

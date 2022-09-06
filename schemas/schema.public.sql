@@ -32,12 +32,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS username_idx ON public.projects (LOWER(name));
 
 -- Roles
 
-CREATE TABLE IF NOT EXISTS public.roles(
-    name VARCHAR NOT NULL, 
-    project_name VARCHAR NOT NULL DEFAULT '_', 
-    data JSONB NOT NULL DEFAULT '{}'::JSONB,
-    PRIMARY KEY (name, project_name)
-);
 
 -- Attributes
 
@@ -61,7 +55,10 @@ CREATE TABLE IF NOT EXISTS public.anatomy_presets(
   PRIMARY KEY (name, version)
 );
 
-
+CREATE TABLE IF NOT EXISTS public.roles(
+    name VARCHAR NOT NULL PRIMARY KEY, 
+    data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
 
 CREATE TABLE IF NOT EXISTS public.settings(
   addon_name VARCHAR NOT NULL,

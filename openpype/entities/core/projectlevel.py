@@ -103,10 +103,10 @@ class ProjectLevelEntity(BaseEntity):
             kw["exclude"]["data"] = True
 
             attr_perm = user.permissions(self.project_name).attrib_read
-            if attr_perm != "all":
+            if attr_perm.enabled:
                 exattr = set()
                 for key in [*attrib.keys()]:
-                    if key not in attr_perm:
+                    if key not in attr_perm.attributes:
                         exattr.add(key)
                 if exattr:
                     kw["exclude"]["attrib"] = exattr

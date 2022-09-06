@@ -15,7 +15,7 @@ from openpype.entities.models.fields import (
     version_fields,
 )
 from openpype.entities.models.generator import generate_model
-from openpype.types import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, NAME_REGEX
+from openpype.types import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, NAME_REGEX, USER_NAME_REGEX
 
 FIELD_LISTS: dict[str, list[Any]] = {
     "project": project_fields,
@@ -168,7 +168,9 @@ class ModelSet:
                     "title": f"{self.entity_name.capitalize()} name",
                     "description": "Name is an unique id of the {entity_name}",
                     "example": f"awesome_{self.entity_name.lower()}",
-                    "regex": NAME_REGEX,
+                    "regex": USER_NAME_REGEX
+                    if self.entity_name.lower() == "user"
+                    else NAME_REGEX,
                 }
             ]
         )

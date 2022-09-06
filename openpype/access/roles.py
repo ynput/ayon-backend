@@ -1,9 +1,14 @@
-from typing import Any
-
 from nxtools import logging
 
-from openpype.access.permissions import Permissions
+from openpype.access.permissions import Permissions, BasePermissionsModel, FolderAccess
 from openpype.lib.postgres import Postgres
+
+
+def normalize_to_dict(s: any):
+    if type(s) is dict:
+        return s
+    else:
+        return s.dict()
 
 
 class Roles:
@@ -12,12 +17,25 @@ class Roles:
     @classmethod
     async def load(cls) -> None:
         cls.roles = {}
-        async for row in Postgres.iterate("SELECT * FROM public.roles"):
+        async for row in Postgres.iterate("SELECT name, data FROM public.roles"):
             cls.add_role(
                 row["name"],
-                row["project_name"],
+                "_",
                 Permissions.from_record(row["data"]),
             )
+        project_list: list[str] = [
+            row["name"] async for row in Postgres.iterate("SELECT name FROM projects")
+        ]
+
+        for project_name in project_list:
+            async for row in Postgres.iterate(
+                f"SELECT name, data FROM project_{project_name}.roles"
+            ):
+                cls.add_role(
+                    row["name"],
+                    project_name.lower(),
+                    Permissions.from_record(row["data"]),
+                )
 
     @classmethod
     def add_role(cls, name: str, project_name: str, permissions: Permissions) -> None:
@@ -33,7 +51,8 @@ class Roles:
         be used.
         """
 
-        result: dict[str, Any] = {}
+        project_name = project_name.lower()
+        result: Permissions | None = None
 
         for role_name in role_names:
             if (role_name, project_name) in cls.roles:
@@ -43,27 +62,36 @@ class Roles:
             else:
                 continue
 
+            if result is None:
+                result = role.dict()
+
             for perm_name, value in role:
-                # already have the highest possible setting
-                if result.get(perm_name) is True:
-                    continue
-                elif result.get(perm_name) == "all":
-                    continue
+                if isinstance(value, BasePermissionsModel):
+                    if not value.enabled:
+                        result[perm_name] = {"enabled": False}
+                        continue
+                    elif not result[perm_name]["enabled"]:
+                        continue
 
-                # combine permissions
-                if type(value) is bool:
-                    result[perm_name] = result.get(perm_name, False) or value
+                if perm_name in ["create", "read", "update", "delete"]:
+                    # TODO: deduplicate
+                    result[perm_name]["access_list"] = list(
+                        set(
+                            FolderAccess(**normalize_to_dict(r))
+                            for r in result[perm_name].get("access_list", [])
+                        )
+                        | set(value.access_list)
+                    )
 
-                elif value == "all":
-                    result[perm_name] = "all"
-
-                elif type(value) == list:
-                    # We already covered 'all' case, so we can
-                    # safely assume that value from previously
-                    # processed roles is list
-                    vals = set(result.get(perm_name, []))
-                    for v in value:
-                        vals.add(v)
-                    result[perm_name] = list(vals)
+                elif perm_name in ["attrib_read", "attrib_write"]:
+                    result[perm_name]["attributes"] = list(
+                        set(result[perm_name].get("attributes", []))
+                        | set(value.attributes)
+                    )
+                elif perm_name == "endpoints":
+                    result[perm_name]["endpoints"] = list(
+                        set(result[perm_name].get("endpoints", []))
+                        | set(value.endpoints)
+                    )
 
         return Permissions(**result)

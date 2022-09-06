@@ -1,15 +1,3 @@
---------------
--- SETTINGS --
---------------
-
--- project settings overrides
-
-CREATE TABLE IF NOT EXISTS project_settings(
-  version VARCHAR NOT NULL PRIMARY KEY,
-  data JSONB NOT NULL DEFAULT '{}'::JSONB
-);
-
-
 ----------------
 -- AUX TABLES --
 ----------------
@@ -256,6 +244,14 @@ CREATE UNIQUE INDEX link_unique_idx ON links(input_id, output_id, link_name);
 --------------
 -- SETTINGS --
 --------------
+
+-- Project specific overrides of roles and addon settings
+-- The table structure is the same as in the public schema
+
+CREATE TABLE IF NOT EXISTS roles(
+    name VARCHAR NOT NULL PRIMARY KEY,  
+    data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
 
 CREATE TABLE settings(
   addon_name VARCHAR NOT NULL,

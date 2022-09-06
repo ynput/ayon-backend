@@ -9,11 +9,10 @@ async def deploy_roles(roles: list[dict[str, Any]]) -> None:
         await Postgres.execute(
             """
             INSERT INTO public.roles
-                (name, project_name, data)
+                (name, data)
             VALUES
-                ($1, $2, $3)
+                ($1, $2)
             """,
             role["name"],
-            role.get("project_name", "_"),
             role["data"],
         )

@@ -101,14 +101,15 @@ async def set_primary_preset(preset_name: str):
                 WHERE is_primary = TRUE
                 """
             )
-            await conn.execute(
-                """
-                UPDATE anatomy_presets
-                SET is_primary = TRUE
-                WHERE name = $1
-                """,
-                preset_name,
-            )
+            if preset_name != "_":
+                await conn.execute(
+                    """
+                    UPDATE anatomy_presets
+                    SET is_primary = TRUE
+                    WHERE name = $1
+                    """,
+                    preset_name,
+                )
 
     return Response(status_code=200)
 
@@ -128,26 +129,3 @@ async def delete_anatomy_preset(preset_name: str):
             )
 
     return Response(status_code=200)
-
-
-class DeployRequestModel(OPModel):
-    """The request model for the deploy endpoint."""
-
-    project_name: str = Field(
-        ...,
-        description="The name of the project to deploy to.",
-        example="superProject42",
-    )
-    preset: Anatomy = Field(
-        ...,
-        description="The anatomy preset to deploy.",
-    )
-
-
-@router.post("/deploy")
-def deploy_anatomy_preset(preset: Anatomy):
-    """Deploy the anatomy preset.
-
-    Create a new project from the anatomy preset.
-    """
-    return Response(status_code=501)

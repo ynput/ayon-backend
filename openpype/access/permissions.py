@@ -1,83 +1,94 @@
-from typing import Literal
+from pydantic import Field, validator
 
-from openpype.access.access import AccessAssigned, AccessChildren, AccessHierarchy
-from openpype.types import Field, OPModel
+from openpype.lib.postgres import Postgres
+from openpype.settings import BaseSettingsModel
+from openpype.utils import json_dumps
 
-AccessList = list[AccessHierarchy | AccessAssigned | AccessChildren] | Literal["all"]
+
+async def attr_enum():
+    return [
+        row["name"]
+        async for row in Postgres.iterate("SELECT name FROM public.attributes")
+    ]
 
 
-class Permissions(OPModel):
-    """Set of permission for a role.
 
-    Each permission is either bool or a list.
-    List permissions also accept Literal["all"]
-    value.
 
-    Since access control is permissive by default, don't forget to set
-    all permissions you don't want to be allowed to access to empty list.
-    """
+class FolderAccess(BaseSettingsModel):
+    _layout: str = "compact"
+    access_type: str = Field(
+        "assigned",
+        title="Type",
+        enum_resolver=lambda: ["assigned", "hierarchy", "children"],
+    )
 
-    create: AccessList = Field(
+    path: str | None = Field("", title="Path")
+
+    def __hash__(self):
+        return hash(json_dumps(self.dict()))
+
+    @validator("path")
+    def validate_path(cls, value, values):
+        # Do not store path if the access_type does not support it
+        if values["access_type"] not in ["hierarchy", "children"]:
+            return None
+        return value
+
+class BasePermissionsModel(BaseSettingsModel):
+    enabled: bool = Field(False)
+
+class FolderAccessList(BasePermissionsModel):
+    access_list: list[FolderAccess] = Field(default_factory=list, layout="compact")
+
+
+class AttributeAccessList(BasePermissionsModel):
+    attributes: list[str] = Field(
         default_factory=list,
-        description="Defines a set of folders, in which the use can create children",
-        example=[{"access_type": "hierarchy", "path": "assets/characters"}],
+        enum_resolver=attr_enum,
     )
 
-    read: AccessList = Field(
-        default_factory=list,
-        description="Defines a set of folders, to which the user has read access.",
-        example=[
-            {"access_type": "hierarchy", "path": "assets/characters"},
-            {"access_type": "hierarchy", "path": "assets/locations"},
-            {"access_type": "assigned"},
-        ],
+class EndpointsAccessList(BasePermissionsModel):
+    endpoints: list[str] = Field(default_factory=list)
+
+class Permissions(BaseSettingsModel):
+    _layout: str = "root"
+
+    create: FolderAccessList = Field(
+        default_factory=FolderAccessList,
+        title="Limit folder create",
     )
 
-    update: AccessList = Field(
-        default_factory=list,
-        description="Defines a set of folders, to which the user has write access.",
-        example=[{"access_type": "children", "path": "assets/characters"}],
+    read: FolderAccessList = Field(
+        default_factory=FolderAccessList,
+        title="Limit folder read",
     )
 
-    delete: AccessList = Field(
-        default_factory=list,
-        description="Defines a set of folders, which user can delete",
-        example=[{"access_type": "assigned"}],
+    update: FolderAccessList = Field(
+        default_factory=FolderAccessList,
+        title="Limit folder update",
     )
 
-    attrib_read: list[str] | Literal["all"] = Field(
-        default="all",
-        description="List of attributes the user can read",
-        example="all",
+    delete: FolderAccessList = Field(
+        default_factory=FolderAccessList,
+        title="Limit folder delete",
     )
 
-    attrib_write: list[str] | Literal["all"] = Field(
-        default="all",
-        description="List of attributes the user can write",
-        example=["resolutionWidth", "resolutionHeight"],
+    attrib_read: AttributeAccessList = Field(
+        default_factory=AttributeAccessList,
+        title="Limit attribute read access",
     )
 
-    endpoints: list[str] | Literal["all"] = Field(
-        default="all",
-        description="List of REST endpoint user is allowed to use",
-        example="all",
+    attrib_write: AttributeAccessList = Field(
+        default_factory=AttributeAccessList,
+        title="Limit attribute write access",
+    )
+
+    endpoints: EndpointsAccessList = Field(
+        default_factory=EndpointsAccessList,
+        title="Limit REST endpoints",
     )
 
     @classmethod
     def from_record(cls, perm_dict: dict) -> "Permissions":
         """Recreate a permission object from a JSON object."""
-        permissions = {}
-        for key, value in perm_dict.items():
-            if (type(value) is list) and (key in ["read", "write"]):
-                access_list = []
-                for access in value:
-                    if access["access_type"] == "hierarchy":
-                        access_list.append(AccessHierarchy(path=access["path"]))
-                    elif access["access_type"] == "children":
-                        access_list.append(AccessChildren(path=access["path"]))
-                    elif access["access_type"] == "assigned":
-                        access_list.append(AccessAssigned())
-                permissions[key] = access_list
-            else:
-                permissions[key] = value
-        return cls(**permissions)
+        return cls(**perm_dict)

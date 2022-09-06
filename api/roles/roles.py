@@ -14,6 +14,7 @@ from openpype.exceptions import (
     NotFoundException,
 )
 from openpype.lib.postgres import Postgres
+from openpype.settings import postprocess_settings_schema
 
 #
 # Router
@@ -30,9 +31,11 @@ router = APIRouter(
 )
 
 
-#
-# [GET] /api/roles/{project_name}
-#
+@router.get("/_schema")
+async def get_role_schema():
+    schema = Permissions.schema()
+    await postprocess_settings_schema(schema, Permissions)
+    return Permissions.schema()
 
 
 @router.get("/{project_name}")
@@ -82,10 +85,7 @@ async def get_role(
     "/{role_name}/{project_name}",
     response_class=Response,
     status_code=201,
-    responses={
-        201: {"content": "", "description": "Role created"},
-        409: ResponseFactory.error(409, "Role already exists"),
-    },
+    responses={201: {"content": "", "description": "Role created"}},
 )
 async def save_role(
     data: Permissions = Body(..., description="Set of role permissions"),
@@ -101,22 +101,25 @@ async def save_role(
     if not user.is_manager:
         raise ForbiddenException
 
+    scope = "public" if project_name == "_" else f"project_{project_name}"
+
     try:
         await Postgres.execute(
-            """
-            INSERT INTO public.roles (name, project_name, data)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (name, project_name)
-            DO UPDATE SET data = $3
+            f"""
+            INSERT INTO {scope}.roles (name, data)
+            VALUES ($1, $2)
+            ON CONFLICT (name)
+            DO UPDATE SET data = $2
             """,
             role_name,
-            project_name,
             data.dict(),
         )
     except Exception:
         # TODO: which exception is raised?
         log_traceback()
         raise ConstraintViolationException(f"Unable to add role {role_name}")
+
+    print("DONE PUT ROLE", role_name, project_name, data.dict())
 
     await Roles.load()
     # TODO: messaging: notify other instances
@@ -141,10 +144,11 @@ async def delete_role(
     if (role_name, project_name) not in Roles.roles:
         raise NotFoundException(f"Unable to delete role {role_name}. Not found")
 
+    scope = "public" if project_name == "_" else f"project_{project_name}"
+
     await Postgres.execute(
-        "DELETE FROM roles WHERE name = $1 AND project_name = $2",
+        f"DELETE FROM {scope}.roles WHERE name = $1",
         role_name,
-        project_name,
     )
 
     # TODO: Remove role records from users. Tricky.

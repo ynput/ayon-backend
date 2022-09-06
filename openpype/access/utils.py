@@ -50,12 +50,13 @@ async def folder_access_list(
     perms = user.permissions(project_name)
     assert perms is not None, "folder_access_list without selected project"
 
-    if perms.read == "all":
+    permset = perms.__getattribute__(access_type)
+    if not permset.enabled:
         return None
 
     fpaths = set()
 
-    for perm in perms.__getattribute__(access_type):
+    for perm in permset.access_list:
         if perm.access_type == "hierarchy":
             for path in path_to_paths(
                 perm.path,

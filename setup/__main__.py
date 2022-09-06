@@ -36,41 +36,27 @@ DATA: dict[str, Any] = {
     ],
     "roles": [
         {
-            "name": "viewer",
-            "data": {
-                "read": "all",
-                "create": [],
-                "update": [],
-                "delete": [],
-            },
+            "name": "editor",
+            "data": {},
         },
         {
-            "name": "guest",
+            "name": "viewer",
             "data": {
-                "read": [{"access_type": "assigned"}],
-                "create": [],
-                "update": [{"access_type": "assigned"}],
-                "delete": [],
+                "read": {"enabled": False},
+                "update": {"enabled": True, "access_list": []},
+                "create": {"enabled": True, "access_list": []},
+                "delete": {"enabled": True, "access_list": []},
             },
         },
         {
             "name": "artist",
             "data": {
-                "read": "all",
-                "create": [],
-                "update": [{"access_type": "assigned"}],
-                "delete": [],
+                "read": {"enabled": True, "access_list": [{"type": "assigned"}]},
+                "update": {"enabled": True, "access_list": [{"type": "assigned"}]},
+                "create": {"enabled": True, "access_list": []},
+                "delete": {"enabled": True, "access_list": []},
             },
-        },
-        {
-            "name": "editor",
-            "data": {
-                "read": "all",
-                "create": "all",
-                "update": "all",
-                "delete": "all",
-            },
-        },
+        }
     ],
 }
 

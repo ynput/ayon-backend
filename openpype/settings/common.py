@@ -108,7 +108,7 @@ async def postprocess_settings_schema(
     if "title" in schema:
         del schema["title"]
 
-    for attr in ["title", "layout"]:
+    for attr in ["title", "layout", "dependencies"]:
         if pattr := model.__private_attributes__.get(f"_{attr}"):
             if pattr.default is not None:
                 schema[attr] = pattr.default
@@ -137,8 +137,27 @@ async def postprocess_settings_schema(
             if widget := field.field_info.extra.get("widget"):
                 prop["widget"] = widget
 
+            if layout := field.field_info.extra.get("layout"):
+                prop["layout"] = layout
+
             if tags := field.field_info.extra.get("tags"):
                 prop["tags"] = tags
+
+            if depends_on := field.field_info.extra.get("depends_on"):
+                if "allOf" not in schema:
+                    schema["allOf"] = []
+
+                schema["allOf"].append(
+                    {
+                        "if": {
+                            "properties": {depends_on: {"const": True}},
+                        },
+                        "then": {
+                            "properties": {name: {"disabled": True}},
+                        },
+                        "else": {"properties": {name: {"disabled": True}}},
+                    }
+                )
 
     if not is_top_level:
         return
