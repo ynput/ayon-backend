@@ -77,11 +77,7 @@ async def dep_project_name(
 
 
 async def dep_user_name(
-    user_name: str = Path(
-        ...,
-        title="User name",
-        regex=USER_NAME_REGEX
-    )
+    user_name: str = Path(..., title="User name", regex=USER_NAME_REGEX)
 ) -> str:
     """Validate and return a user name specified in an endpoint path."""
     return user_name

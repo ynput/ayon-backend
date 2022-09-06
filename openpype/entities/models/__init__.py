@@ -15,7 +15,12 @@ from openpype.entities.models.fields import (
     version_fields,
 )
 from openpype.entities.models.generator import generate_model
-from openpype.types import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, NAME_REGEX, USER_NAME_REGEX
+from openpype.types import (
+    ENTITY_ID_EXAMPLE,
+    ENTITY_ID_REGEX,
+    NAME_REGEX,
+    USER_NAME_REGEX,
+)
 
 FIELD_LISTS: dict[str, list[Any]] = {
     "project": project_fields,

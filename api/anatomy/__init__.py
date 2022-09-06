@@ -10,9 +10,11 @@ router = APIRouter(tags=["Anatomy"], prefix="/anatomy")
 
 VERSION = "4.0.0"
 
+# TODO: define fields properly
+
 
 class AnatomyPresetListItem(OPModel):
-    name: str
+    name: str = Field(...)
     primary: bool
     version: str
 

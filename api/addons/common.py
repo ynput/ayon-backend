@@ -7,7 +7,7 @@ from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.settings import BaseSettingsModel
 from openpype.types import Field, OPModel
-from openpype.utils import dict_remove_path, json_loads
+from openpype.utils import dict_remove_path
 
 
 class ModifyOverridesRequestModel(OPModel):

@@ -47,7 +47,7 @@ async def list_projects(
     user: UserEntity = Depends(dep_current_user),
     page: int = Query(1, title="Page", ge=1),
     length: int = Query(
-        50, 
+        50,
         title="Records per page",
         description="If not provided, the result will not be limited",
         ge=1,

@@ -56,7 +56,7 @@ DATA: dict[str, Any] = {
                 "create": {"enabled": True, "access_list": []},
                 "delete": {"enabled": True, "access_list": []},
             },
-        }
+        },
     ],
 }
 

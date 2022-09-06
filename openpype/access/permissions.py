@@ -12,8 +12,6 @@ async def attr_enum():
     ]
 
 
-
-
 class FolderAccess(BaseSettingsModel):
     _layout: str = "compact"
     access_type: str = Field(
@@ -34,8 +32,10 @@ class FolderAccess(BaseSettingsModel):
             return None
         return value
 
+
 class BasePermissionsModel(BaseSettingsModel):
     enabled: bool = Field(False)
+
 
 class FolderAccessList(BasePermissionsModel):
     access_list: list[FolderAccess] = Field(default_factory=list, layout="compact")
@@ -47,8 +47,10 @@ class AttributeAccessList(BasePermissionsModel):
         enum_resolver=attr_enum,
     )
 
+
 class EndpointsAccessList(BasePermissionsModel):
     endpoints: list[str] = Field(default_factory=list)
+
 
 class Permissions(BaseSettingsModel):
     _layout: str = "root"

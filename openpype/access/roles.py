@@ -1,10 +1,12 @@
+from typing import Any
+
 from nxtools import logging
 
-from openpype.access.permissions import Permissions, BasePermissionsModel, FolderAccess
+from openpype.access.permissions import BasePermissionsModel, FolderAccess, Permissions
 from openpype.lib.postgres import Postgres
 
 
-def normalize_to_dict(s: any):
+def normalize_to_dict(s: Any):
     if type(s) is dict:
         return s
     else:
@@ -64,6 +66,7 @@ class Roles:
 
             if result is None:
                 result = role.dict()
+                continue
 
             for perm_name, value in role:
                 if isinstance(value, BasePermissionsModel):
@@ -94,4 +97,5 @@ class Roles:
                         | set(value.endpoints)
                     )
 
+        assert result is not None
         return Permissions(**result)
