@@ -60,6 +60,7 @@ async def get_roles(
     result: list[dict[str, Any]] = []
     for role_name, data in rdict.items():
         result.append({"name": role_name, **data})
+    result.sort(key=lambda x: x["name"])
     return result
 
 
@@ -118,8 +119,6 @@ async def save_role(
         # TODO: which exception is raised?
         log_traceback()
         raise ConstraintViolationException(f"Unable to add role {role_name}")
-
-    print("DONE PUT ROLE", role_name, project_name, data.dict())
 
     await Roles.load()
     # TODO: messaging: notify other instances
