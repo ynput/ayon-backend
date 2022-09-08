@@ -28,9 +28,9 @@ def parse_attrib_data(
     if user.is_manager:
         attr_limit = "all"
     elif (perms := user.permissions(project_name)) is None:
-        attr_limit = "all"  # TODO
-    else:
-        attr_limit = perms.attrib_read
+        attr_limit = []  # This shouldn't happen
+    elif perms.attrib_read.enabled:
+        attr_limit = perms.attrib_read.attributes
 
     if not data:
         return target_type()
