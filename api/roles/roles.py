@@ -74,11 +74,7 @@ async def get_role(
     role_name: str = Depends(dep_role_name),
     project_name: str = Depends(dep_project_name),
 ):
-    """Get user role information"""
-
-    if not user.is_manager:
-        raise ForbiddenException
-
+    """Get a role definition"""
     return Roles.combine([role_name], project_name)
 
 
@@ -150,7 +146,14 @@ async def delete_role(
         role_name,
     )
 
-    # TODO: Remove role records from users. Tricky.
+    if scope == "public":
+        # TODO: Remove role records from users
+        # when the default role is removed
+        pass
+
+
+
+
     await Roles.load()
     # TODO: messaging: notify other instances
     return Response(status_code=204)
