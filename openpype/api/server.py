@@ -147,13 +147,32 @@ messaging = Messaging()
 
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket) -> None:
-    await messaging.join(websocket)
+    client = await messaging.join(websocket)
     try:
         while True:
-            data = await websocket.receive_text()
-            await websocket.send_text(f"Message text was: {data}")
+            message = await client.receive()
+            if message is None:
+                continue
+
+            if message["topic"] == "auth":
+                await client.authorize(
+                    message.get("token"),
+                    topics=message.get("subscribe", []),
+                )
     except WebSocketDisconnect:
-        await messaging.leave(websocket)
+        if client.user_name:
+            logging.info(f"{client.user_name} disconnected")
+        else:
+            logging.info("Anonymous client disconnected")
+        del messaging.clients[client.id]
+
+
+@app.get("/testevent")
+async def test_event():
+    """Event system testing endpoint"""
+    from openpype.events import dispatch_event
+
+    eid = await dispatch_event("test")
 
 
 #
