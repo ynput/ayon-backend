@@ -32,7 +32,7 @@ class Client:
     async def authorize(self, access_token: str, topics: list[str]) -> bool:
         session_data = await Session.check(access_token, None)
         if session_data:
-            logging.info("Authorized connection", session_data.user.name)
+            logging.info("Authorized connection", session_data.user.name, "topics:", topics)
             self.topics = topics
             self.authorized = True
             self.user = session_data.user
@@ -72,7 +72,7 @@ class Client:
 
 class Messaging:
     def __init__(self) -> None:
-        self.clients: list[Client] = {}
+        self.clients: dict[str, Client] = {}
         self.started = False
 
     async def join(self, websocket: WebSocket):
@@ -100,7 +100,6 @@ class Messaging:
         self.started = True
         last_msg = time.time()
         while self.clients:
-            1
             try:
                 raw_message = await self.pubsub.get_message(
                     ignore_subscribe_messages=True

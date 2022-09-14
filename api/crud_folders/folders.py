@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, Header
 from nxtools import logging
 
 from openpype.api.dependencies import dep_current_user, dep_folder_id, dep_project_name
 from openpype.api.responses import EntityIdResponse, ResponseFactory
 from openpype.entities import FolderEntity, UserEntity
+from openpype.events import dispatch_event
 from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
 
@@ -79,12 +80,15 @@ async def update_folder(
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     folder_id: str = Depends(dep_folder_id),
+    x_sender: str | None = Header(default=None),
 ):
     """Patch (partially update) a folder.
 
     Once there is a version published, the folder's name and hierarchy
     cannot be changed.
     """
+
+    print("FOLDER UPDATE BY", x_sender)
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
@@ -112,6 +116,18 @@ async def update_folder(
             folder.patch(post_data)
             await folder.save(transaction=conn)
             await folder.commit(conn)
+
+            await dispatch_event(
+                "entity_changed",
+                sender=x_sender,
+                project=project_name,
+                user=user.name,
+                summary={
+                    "entityType": "folder",
+                    "ids": [folder.id],
+                    "parents": [folder.parent_id],
+                },
+            )
 
     return Response(status_code=204)
 

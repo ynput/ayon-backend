@@ -32,6 +32,7 @@ class Event(OPModel):
 async def dispatch_event(
     topic: str,
     *,
+    sender: str | None = None,
     project: str | None = None,
     user: str | None = None,
     dependencies: list[uuid.UUID] | None = None,
@@ -73,6 +74,7 @@ async def dispatch_event(
                 "summary": event.summary,
                 "status": event.status,
                 "progress": progress,
+                "sender": sender,
             }
         )
     )
