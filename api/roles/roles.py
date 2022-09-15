@@ -151,9 +151,6 @@ async def delete_role(
         # when the default role is removed
         pass
 
-
-
-
     await Roles.load()
     # TODO: messaging: notify other instances
     return Response(status_code=204)

@@ -167,14 +167,6 @@ async def ws_endpoint(websocket: WebSocket) -> None:
         del messaging.clients[client.id]
 
 
-@app.get("/testevent")
-async def test_event():
-    """Event system testing endpoint"""
-    from openpype.events import dispatch_event
-
-    eid = await dispatch_event("test")
-
-
 #
 # REST endpoints
 #

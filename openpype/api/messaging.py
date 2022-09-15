@@ -1,7 +1,6 @@
-import uuid
 import asyncio
 import time
-
+import uuid
 from typing import Any
 
 from fastapi.websockets import WebSocket, WebSocketDisconnect
@@ -32,10 +31,14 @@ class Client:
     async def authorize(self, access_token: str, topics: list[str]) -> bool:
         session_data = await Session.check(access_token, None)
         if session_data:
-            logging.info("Authorized connection", session_data.user.name, "topics:", topics)
+            logging.info(
+                "Authorized connection", session_data.user.name, "topics:", topics
+            )
             self.topics = topics
             self.authorized = True
             self.user = session_data.user
+            return True
+        return False
 
     async def send(self, message: dict[str, Any], auth_only: bool = True):
         if (not self.authorized) and auth_only:
@@ -89,11 +92,14 @@ class Messaging:
         asyncio.create_task(self.listen())
 
     async def purge(self):
+        to_rm = []
         for client_id, client in self.clients.items():
             if not client.is_valid:
                 if not client.disconnected:
                     await client.sock.close(code=1000)
-                self.clients.remove(client)
+                to_rm.append(client_id)
+        for client_id in to_rm:
+            del self.clients[client_id]
 
     async def listen(self) -> None:
         logging.info("Starting redis2ws")

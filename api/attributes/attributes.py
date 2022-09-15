@@ -1,7 +1,7 @@
 from typing import Any
 
-from pydantic import Field
 from fastapi import APIRouter, Depends
+from pydantic import Field
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user
