@@ -5,12 +5,14 @@ from typing import Any, Literal
 from pydantic import Field
 
 from openpype.lib.redis import Redis
+from openpype.lib.postgres import Postgres
 from openpype.types import OPModel
-from openpype.utils import json_dumps
+from openpype.utils import json_dumps, SQLTool
 
 
 class Event(OPModel):
     id: uuid.UUID = Field(default_factory=uuid.uuid1)
+    hash: str = Field(...)
     topic: str = Field(...)
     project: str | None = Field(None)
     user: str | None = Field(None)
@@ -24,6 +26,7 @@ class Event(OPModel):
         "restarted",
     ] = Field("pending")
     retries: int = Field(0)
+    description: str = Field(...)
     summary: dict[str, Any] = Field(default_factory=dict)
     payload: dict[str, Any] = Field(default_factory=dict)
     created_at: float = Field(default_factory=time.time)
@@ -34,9 +37,11 @@ async def dispatch_event(
     topic: str,
     *,
     sender: str | None = None,
+    hash: str | None = None,
     project: str | None = None,
     user: str | None = None,
     dependencies: list[uuid.UUID] | None = None,
+    description: str | None = None,
     summary: dict | None = None,
     payload: dict | None = None,
     finished: bool = True,
@@ -49,22 +54,41 @@ async def dispatch_event(
     if payload is None:
         payload = {}
 
+    event_id = uuid.uuid1()
+    if hash is None:
+        hash = f"{event_id}"
+
     status: str = "finished" if finished else "pending"
     progress: float = 100 if finished else 0.0
 
     event = Event(
+        id=event_id,
+        hash=hash,
         topic=topic,
         project=project,
         user=user,
         dependencies=dependencies,
         status=status,
+        description=description,
         summary=summary,
         payload=payload,
     )
 
     if store:
-        # TODO: save the event
-        pass
+        query = SQLTool.insert(
+            table="events",
+            id=event.id,
+            hash=event.hash,
+            topic=event.topic,
+            project_name=event.project,
+            user_name=event.user,
+            dependencies=dependencies,
+            status=status,
+            description=description,
+            summary=json_dumps(event.summary),
+            payload=json_dumps(event.payload),
+        )
+        await Postgres.execute(*query)
 
     await Redis.publish(
         json_dumps(
@@ -72,6 +96,7 @@ async def dispatch_event(
                 "topic": event.topic,
                 "project": event.project,
                 "user": event.user,
+                "description": event.description,
                 "summary": event.summary,
                 "status": event.status,
                 "progress": progress,

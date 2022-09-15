@@ -74,3 +74,43 @@ CREATE TABLE IF NOT EXISTS public.addon_versions(
   production_version VARCHAR,
   staging_version VARCHAR
 );
+
+
+------------
+-- Events --
+------------
+
+CREATE TABLE IF NOT EXISTS public.events(
+  id UUID NOT NULL PRIMARY KEY,
+  hash VARCHAR NOT NULL,
+  topic VARCHAR NOT NULL,
+  project_name VARCHAR REFERENCES public.projects(name)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  user_name VARCHAR REFERENCES public.users(name) 
+    ON DELETE CASCADE 
+    ON UPDATE CASCADE,
+  dependencies UUID[],
+  status VARCHAR NOT NULL
+    DEFAULT 'finished'
+    CHECK (status IN (
+      'pending', 
+      'in_progress',
+      'finished',
+      'failed',
+      'aborted',
+      'restarted'
+    )
+  ),
+  retries INTEGER NOT NULL DEFAULT 0,
+  description TEXT NOT NULL DEFAULT '',
+  summary JSONB NOT NULL DEFAULT '{}'::JSONB,
+  payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at NUMERIC NOT NULL 
+    DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+  updated_at NUMERIC NOT NULL 
+    DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+);
+
+-- TODO: some indices here
+CREATE UNIQUE INDEX IF NOT EXISTS unique_event_hash ON events(hash);

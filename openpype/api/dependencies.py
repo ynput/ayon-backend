@@ -73,7 +73,7 @@ async def dep_project_name(
     )
 ) -> str:
     """Validate and return a project name specified in an endpoint path."""
-    return project_name.lower()
+    return project_name
 
 
 async def dep_user_name(

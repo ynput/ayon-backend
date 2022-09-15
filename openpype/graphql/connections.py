@@ -8,6 +8,7 @@ from openpype.graphql.edges import (
     TaskEdge,
     UserEdge,
     VersionEdge,
+    EventEdge,
 )
 from openpype.graphql.types import BaseConnection
 
@@ -45,3 +46,7 @@ class VersionsConnection(BaseConnection):
 @strawberry.type
 class RepresentationsConnection(BaseConnection):
     edges: list[RepresentationEdge] = strawberry.field(default_factory=list)
+
+@strawberry.type
+class EventsConnection(BaseConnection):
+    edges: list[EventEdge] = strawberry.field(default_factory=list)

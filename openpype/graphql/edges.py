@@ -21,6 +21,7 @@ else:
     SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
     VersionNode = lazy_type("VersionNode", ".nodes.version")
     RepresentationNode = lazy_type("RepresentationNode", ".nodes.representation")
+    EventNode = lazy_type("EventNode", ".nodes.event")
     BaseNode = lazy_type("BaseNode", ".nodes.common")
 
 
@@ -63,4 +64,9 @@ class VersionEdge(BaseEdge):
 @strawberry.type
 class RepresentationEdge(BaseEdge):
     node: "RepresentationNode" = strawberry.field(description="Representation node")
+    cursor: str | None = strawberry.field(default=None)
+
+@strawberry.type
+class EventEdge(BaseEdge):
+    node: "EventNode" = strawberry.field(description="Event node")
     cursor: str | None = strawberry.field(default=None)

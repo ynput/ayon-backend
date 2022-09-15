@@ -118,10 +118,11 @@ async def update_folder(
             await folder.commit(conn)
 
             await dispatch_event(
-                "entity_changed",
+                "entity.update",
                 sender=x_sender,
                 project=project_name,
                 user=user.name,
+                description=f"Updated {folder.path}",
                 summary={
                     "entityType": "folder",
                     "ids": [folder.id],
