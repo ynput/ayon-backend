@@ -1,4 +1,6 @@
 __pycache__
 .pytest_cache
 Makefile
-addons/example
+addons/
+addons/
+poetry.lock
