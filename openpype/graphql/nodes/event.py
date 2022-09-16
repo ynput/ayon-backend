@@ -1,5 +1,7 @@
 import uuid
+
 import strawberry
+
 
 @strawberry.type
 class EventNode:

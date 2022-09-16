@@ -4,10 +4,10 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from openpype.lib.redis import Redis
 from openpype.lib.postgres import Postgres
+from openpype.lib.redis import Redis
 from openpype.types import OPModel
-from openpype.utils import json_dumps, SQLTool
+from openpype.utils import SQLTool, json_dumps
 
 
 class Event(OPModel):
@@ -89,7 +89,7 @@ async def dispatch_event(
             payload=json_dumps(event.payload),
         )
         try:
-           await Postgres.execute(*query)
+            await Postgres.execute(*query)
         except Postgres.ForeignKeyViolationError:
             print(f"Unable to dispatch {event.topic}")
 

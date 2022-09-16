@@ -66,6 +66,7 @@ class RepresentationEdge(BaseEdge):
     node: "RepresentationNode" = strawberry.field(description="Representation node")
     cursor: str | None = strawberry.field(default=None)
 
+
 @strawberry.type
 class EventEdge(BaseEdge):
     node: "EventNode" = strawberry.field(description="Event node")

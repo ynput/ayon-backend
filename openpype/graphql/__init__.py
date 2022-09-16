@@ -6,7 +6,11 @@ from strawberry.types import Info
 
 from openpype.api.dependencies import dep_current_user
 from openpype.entities import UserEntity
-from openpype.graphql.connections import ProjectsConnection, UsersConnection, EventsConnection
+from openpype.graphql.connections import (
+    EventsConnection,
+    ProjectsConnection,
+    UsersConnection,
+)
 from openpype.graphql.dataloaders import (
     folder_loader,
     latest_version_loader,
@@ -22,10 +26,10 @@ from openpype.graphql.nodes.subset import subset_from_record
 from openpype.graphql.nodes.task import task_from_record
 from openpype.graphql.nodes.user import UserAttribType, UserNode, user_from_record
 from openpype.graphql.nodes.version import version_from_record
+from openpype.graphql.resolvers.events import get_events
 from openpype.graphql.resolvers.links import get_links
 from openpype.graphql.resolvers.projects import get_project, get_projects
 from openpype.graphql.resolvers.users import get_user, get_users
-from openpype.graphql.resolvers.events import get_events
 
 
 async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> dict:
