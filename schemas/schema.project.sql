@@ -249,7 +249,7 @@ CREATE UNIQUE INDEX link_unique_idx ON links(input_id, output_id, link_name);
 -- The table structure is the same as in the public schema
 
 CREATE TABLE IF NOT EXISTS roles(
-    name VARCHAR NOT NULL PRIMARY KEY REFERENCES folder_types(name) ON DELETE CASCADE,
+    name VARCHAR NOT NULL PRIMARY KEY REFERENCES public.roles(name) ON DELETE CASCADE,
     data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
