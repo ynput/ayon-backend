@@ -88,7 +88,10 @@ async def dispatch_event(
             summary=json_dumps(event.summary),
             payload=json_dumps(event.payload),
         )
-        await Postgres.execute(*query)
+        try:
+           await Postgres.execute(*query)
+        except Postgres.ForeignKeyViolationError:
+            print(f"Unable to dispatch {event.topic}")
 
     await Redis.publish(
         json_dumps(
