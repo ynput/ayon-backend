@@ -6,12 +6,14 @@ from openpype.auth.session import Session
 from openpype.entities import UserEntity
 from openpype.exceptions import (
     BadRequestException,
+    NotFoundException,
     UnauthorizedException,
     UnsupportedMediaException,
 )
+from openpype.lib.postgres import Postgres
 from openpype.lib.redis import Redis
 from openpype.types import USER_NAME_REGEX
-from openpype.utils import EntityID, parse_access_token
+from openpype.utils import EntityID, json_dumps, json_loads, parse_access_token
 
 
 async def dep_access_token(authorization: str = Header(None)) -> str:
@@ -36,6 +38,7 @@ async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
 async def dep_current_user(
     request: Request,
     x_forwarded_for: str = Header(None, include_in_schema=False),
+    x_as_user: str = Header(None, include_in_schema=False),
     access_token: str = Depends(dep_access_token),
 ) -> UserEntity:
     """Return the currently logged-in user.
@@ -55,6 +58,11 @@ async def dep_current_user(
         raise UnauthorizedException("Invalid access token")
     await Redis.incr("user-requests", session_data.user.name)
     user = UserEntity.from_record(session_data.user.dict())
+
+    if x_as_user is not None and user.is_service:
+        # sudo :)
+        user = await UserEntity.load(x_as_user)
+
     endpoint = request.scope["endpoint"].__name__
     project_name = request.path_params.get("project_name")
     if not user.is_manager:
@@ -65,6 +73,22 @@ async def dep_current_user(
     return user
 
 
+async def dep_new_project_name(
+    project_name: str = Path(
+        ...,
+        title="Project name",
+        regex=r"^[0-9a-zA-Z_]*$",
+    )
+) -> str:
+    """Validate and return a project name.
+
+    This only validate the regex and does not care whether
+    the project already exists, so it is used in [PUT] /projects
+    request to create a new project.
+    """
+    return project_name
+
+
 async def dep_project_name(
     project_name: str = Path(
         ...,
@@ -72,8 +96,31 @@ async def dep_project_name(
         regex=r"^[0-9a-zA-Z_]*$",
     )
 ) -> str:
-    """Validate and return a project name specified in an endpoint path."""
-    return project_name
+    """Validate and return a project name specified in an endpoint path.
+
+    This dependecy actually validates whether the project exists.
+    If the name is specified using wrong letter case, it is corrected
+    to match the database record.
+    """
+    if project_name == "_":
+        # Wildcard project name
+        return project_name
+
+    project_list: list[str]
+    project_list_data = await Redis.get("global", "project_list")
+    if project_list_data:
+        project_list = json_loads(project_list_data)
+        for pn in project_list:
+            if project_name.lower() == pn.lower():
+                return pn
+    project_list = [
+        row["name"] async for row in Postgres.iterate("SELECT name FROM projects")
+    ]
+    await Redis.set("global", "project_list", json_dumps(project_list))
+    for pn in project_list:
+        if project_name.lower() == pn.lower():
+            return pn
+    raise NotFoundException(f"Project {project_name} not found")
 
 
 async def dep_user_name(

@@ -4,9 +4,7 @@ __all__ = [
 ]
 
 from typing import Literal
-
 from pydantic import BaseModel, Field
-
 from openpype.utils import json_dumps, json_loads
 
 #

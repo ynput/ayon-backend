@@ -34,6 +34,7 @@ class FolderAccess(BaseSettingsModel):
 
 
 class BasePermissionsModel(BaseSettingsModel):
+    _isGroup = True
     enabled: bool = Field(False)
 
 

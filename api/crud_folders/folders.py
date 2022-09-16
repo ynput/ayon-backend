@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
 from nxtools import logging
 
 from openpype.api.dependencies import dep_current_user, dep_folder_id, dep_project_name
@@ -77,6 +77,7 @@ async def create_folder(
 )
 async def update_folder(
     post_data: FolderEntity.model.patch_model,  # type: ignore
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     folder_id: str = Depends(dep_folder_id),
@@ -87,8 +88,6 @@ async def update_folder(
     Once there is a version published, the folder's name and hierarchy
     cannot be changed.
     """
-
-    print("FOLDER UPDATE BY", x_sender)
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
@@ -117,7 +116,8 @@ async def update_folder(
             await folder.save(transaction=conn)
             await folder.commit(conn)
 
-            await dispatch_event(
+            background_tasks.add_task(
+                dispatch_event,
                 "entity.update",
                 sender=x_sender,
                 project=project_name,

@@ -101,13 +101,25 @@ class UserEntity(TopLevelEntity):
     #
 
     @property
+    def is_service(self) -> bool:
+        """
+        Service accounts have similar rights as managers,
+        but they also can act as a different user (sudo-style)
+        """
+        return self._payload.data.get("isService", False)
+
+    @property
     def is_admin(self) -> bool:
         return self._payload.data.get("isAdmin", False)
 
     @property
     def is_manager(self) -> bool:
         data = self._payload.data
-        return data.get("isManager", False) or data.get("isAdmin", False)
+        return (
+            data.get("isManager", False)
+            or data.get("isAdmin", False)
+            or data.get("isService", False)
+        )
 
     def permissions(self, project_name: str | None) -> Permissions | None:
         """Return user permissions on a given project."""
@@ -116,8 +128,9 @@ class UserEntity(TopLevelEntity):
             return None
 
         try:
-            active_roles = self.data.get("roles", {})[project_name]
+            roles = {k.lower(): v for k, v in self.data.get("roles", {}).items()}
+            active_roles = roles[project_name.lower()]
         except KeyError:
-            raise ForbiddenException
+            raise ForbiddenException("No role assigned on this project")
 
         return Roles.combine(active_roles, project_name)

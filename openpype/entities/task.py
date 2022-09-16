@@ -27,7 +27,6 @@ class TaskEntity(ProjectLevelEntity):
         This is reimplemented, because we need to select
         attributes inherited from the parent folder.
         """
-        project_name = project_name.lower()
 
         if EntityID.parse(entity_id) is None:
             raise ValueError(f"Invalid {cls.entity_type} ID specified")

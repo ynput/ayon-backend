@@ -69,7 +69,6 @@ class ProjectLevelEntity(BaseEntity):
         By default it does not validate the data, sice it is assumed the
         correct format is stored in the database.
         """
-        project_name = project_name.lower()
         parsed = {}
         for key in cls.model.main_model.__fields__:
             if key not in payload:
@@ -170,8 +169,6 @@ class ProjectLevelEntity(BaseEntity):
         Set for_update=True and pass a transaction to lock the row
         for update.
         """
-
-        project_name = project_name.lower()
 
         query = f"""
             SELECT  *

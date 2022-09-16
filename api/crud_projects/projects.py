@@ -2,7 +2,12 @@ from crud_projects.router import router
 from fastapi import Depends, Response
 from nxtools import logging
 
-from openpype.api import ResponseFactory, dep_current_user, dep_project_name
+from openpype.api import (
+    ResponseFactory,
+    dep_current_user,
+    dep_new_project_name,
+    dep_project_name,
+)
 from openpype.entities import ProjectEntity, UserEntity
 from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
@@ -23,6 +28,8 @@ async def get_project(
     project_name: str = Depends(dep_project_name),
 ):
     """Retrieve a project by its name."""
+
+    print(user)
 
     project = await ProjectEntity.load(project_name)
     return project.as_user(user)
@@ -72,7 +79,7 @@ async def get_project_stats(
 async def create_project(
     put_data: ProjectEntity.model.post_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    project_name: str = Depends(dep_new_project_name),
 ):
     """Create a new project.
 
@@ -85,12 +92,13 @@ async def create_project(
     """
 
     if not user.is_manager:
-        raise ForbiddenException
+        raise ForbiddenException("You need to be a manager in order to create projects")
 
     action = ""
 
     try:
         project = await ProjectEntity.load(project_name)
+        # NOTE: Replacing projects is not (and shoud not be) supported
         # project.replace(put_data)
         # action = "Replaced"
     except NotFoundException:
@@ -129,7 +137,9 @@ async def update_project(
     project = await ProjectEntity.load(project_name)
 
     if not user.is_manager:
-        raise ForbiddenException
+        raise ForbiddenException(
+            "You need to be a manager in order to update a project"
+        )
 
     project.patch(patch_data)
     await project.save()
@@ -156,7 +166,7 @@ async def delete_project(
     project = await ProjectEntity.load(project_name)
 
     if not user.is_manager:
-        raise ForbiddenException
+        raise ForbiddenException("You need to be a manager in order to delete projects")
 
     await project.delete()
     logging.info(f"[DELETE] Deleted project {project.name}", user=user.name)

@@ -94,7 +94,7 @@ async def folder_access_list(
                     fpaths.add(path)
 
     if not fpaths:
-        raise ForbiddenException
+        raise ForbiddenException("No paths")
 
     return list(fpaths)
 
@@ -158,4 +158,4 @@ async def ensure_entity_access(
 
     async for row in Postgres.iterate(query):
         return True
-    raise ForbiddenException
+    raise ForbiddenException("Entity access denied")

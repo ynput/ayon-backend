@@ -34,7 +34,6 @@ class FolderEntity(ProjectLevelEntity):
         attribute hierarchy.path along with the base data and
         the attributes inherited from parent entities.
         """
-        project_name = project_name.lower()
 
         if EntityID.parse(entity_id) is None:
             raise ValueError(f"Invalid {cls.entity_type} ID specified")

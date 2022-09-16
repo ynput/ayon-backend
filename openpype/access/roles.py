@@ -35,7 +35,7 @@ class Roles:
             ):
                 cls.add_role(
                     row["name"],
-                    project_name.lower(),
+                    project_name,
                     Permissions.from_record(row["data"]),
                 )
 
@@ -53,7 +53,6 @@ class Roles:
         be used.
         """
 
-        project_name = project_name.lower()
         result: Permissions | None = None
 
         for role_name in role_names:

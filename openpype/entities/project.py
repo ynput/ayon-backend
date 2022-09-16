@@ -92,7 +92,7 @@ class ProjectEntity(TopLevelEntity):
     ) -> "ProjectEntity":
         """Load a project from the database."""
 
-        project_name = name.lower()
+        project_name = name
 
         if not (
             project_data := await Postgres.fetch(
@@ -149,7 +149,7 @@ class ProjectEntity(TopLevelEntity):
                     return await (self._save(conn))
 
     async def _save(self, transaction) -> bool:
-        project_name = self.name.lower()
+        project_name = self.name
         if self.exists:
             try:
                 await transaction.execute(
@@ -255,7 +255,7 @@ class ProjectEntity(TopLevelEntity):
     @property
     def code(self) -> str:
         """Get the project code."""
-        return self._payload.code.lower()
+        return self._payload.code
 
     @code.setter
     def code(self, value: str) -> None:

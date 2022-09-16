@@ -93,13 +93,16 @@ class Messaging:
 
     async def purge(self):
         to_rm = []
-        for client_id, client in self.clients.items():
+        for client_id, client in list(self.clients.items()):
             if not client.is_valid:
                 if not client.disconnected:
                     await client.sock.close(code=1000)
                 to_rm.append(client_id)
         for client_id in to_rm:
-            del self.clients[client_id]
+            try:
+                del self.clients[client_id]
+            except KeyError:
+                pass  # already removed
 
     async def listen(self) -> None:
         logging.info("Starting redis2ws")
