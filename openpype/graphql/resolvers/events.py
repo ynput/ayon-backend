@@ -14,12 +14,15 @@ from openpype.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
-from openpype.utils import SQLTool, validate_name
+from openpype.utils import SQLTool
 
 
 async def get_events(
     root,
     info: Info,
+    topics: Annotated[list[str] | None, argdesc("List of topics")] = None,
+    projects: Annotated[list[str] | None, argdesc("List of projects")] = None,
+    users: Annotated[list[str] | None, argdesc("List of users")] = None,
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
@@ -27,9 +30,29 @@ async def get_events(
 ) -> EventsConnection:
     """Return a list of events."""
 
+    sql_conditions = []
+
+    if topics:
+        sql_conditions.append(f"topic IN {SQLTool.array(topics)}")
+    if projects:
+        sql_conditions.append(f"project_name IN {SQLTool.array(projects)}")
+    if users:
+        sql_conditions.append(f"user_name IN {SQLTool.array(users)}")
+
+    order_by = "updated_at"
+    pagination, paging_conds = create_pagination(
+        order_by,
+        first,
+        after,
+        last,
+        before,
+    )
+    sql_conditions.extend(paging_conds)
+
     query = f"""
         SELECT * FROM events
-        ORDER BY updated_at DESC
+        {SQLTool.conditions(sql_conditions)}
+        {pagination}
     """
 
     return await resolve(
