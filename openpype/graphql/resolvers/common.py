@@ -157,7 +157,7 @@ async def resolve(
     elif last is not None:
         count = last
     else:
-        count = DEFAULT_PAGE_SIZE
+        count = first = DEFAULT_PAGE_SIZE
 
     edges: list[Any] = []
     async for record in Postgres.iterate(query):
