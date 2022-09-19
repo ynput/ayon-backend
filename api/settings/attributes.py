@@ -8,10 +8,10 @@ from openpype.types import Field, OPModel
 
 class AttributeModel(OPModel):
     name: str
-    title: str
-    example: str
-    description: str
-    attribType: str
+    title: str | None
+    example: str | None
+    description: str | None
+    attribType: str | None
     scope: list[str] = Field(default_factory=list)
     builtIn: bool
     writable: bool
