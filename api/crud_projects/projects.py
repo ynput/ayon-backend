@@ -29,8 +29,6 @@ async def get_project(
 ):
     """Retrieve a project by its name."""
 
-    print(user)
-
     project = await ProjectEntity.load(project_name)
     return project.as_user(user)
 
