@@ -10,7 +10,7 @@ from openpype.types import OPModel
 from openpype.utils import SQLTool, json_dumps
 
 
-class Event(OPModel):
+class EventModel(OPModel):
     id: uuid.UUID = Field(default_factory=uuid.uuid1)
     hash: str = Field(...)
     topic: str = Field(...)
@@ -61,7 +61,7 @@ async def dispatch_event(
     status: str = "finished" if finished else "pending"
     progress: float = 100 if finished else 0.0
 
-    event = Event(
+    event = EventModel(
         id=event_id,
         hash=hash,
         topic=topic,
