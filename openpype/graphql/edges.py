@@ -6,6 +6,7 @@ from openpype.graphql.types import BaseEdge
 from openpype.graphql.utils import lazy_type
 
 if TYPE_CHECKING:
+    from openpype.graphql.nodes.event import EventNode
     from openpype.graphql.nodes.folder import FolderNode
     from openpype.graphql.nodes.project import ProjectNode
     from openpype.graphql.nodes.representation import RepresentationNode

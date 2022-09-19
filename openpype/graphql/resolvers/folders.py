@@ -73,7 +73,7 @@ async def get_folders(
     #
 
     sql_columns = [
-        "folders.id AS folder_id", # paging hack
+        "folders.id AS folder_id",  # paging hack
         "folders.id AS id",
         "folders.name AS name",
         "folders.active AS active",

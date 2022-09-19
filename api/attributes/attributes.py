@@ -8,7 +8,7 @@ from openpype.api.dependencies import dep_current_user
 from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
 from openpype.types import OPModel
-from openpype.utils import SQLTool, json_dumps
+from openpype.utils import SQLTool
 
 #
 # Router
@@ -94,7 +94,7 @@ async def set_attribute_list(
             position = $2,
             scope = $3,
             data = $4
-        """ 
+        """
 
         await Postgres.execute(
             query,
