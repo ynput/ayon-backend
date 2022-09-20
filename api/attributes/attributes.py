@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, Response
 from pydantic import Field
 
 from openpype.api import ResponseFactory
-from openpype.api.dependencies import dep_current_user
+from openpype.api.dependencies import dep_current_user, dep_attribute_name
 from openpype.entities import UserEntity
+from openpype.exceptions import NotFoundException, ForbiddenException
 from openpype.lib.postgres import Postgres
 from openpype.types import OPModel
 from openpype.utils import SQLTool
@@ -42,46 +43,82 @@ class AttributeData(OPModel):
     regex: int | None = Field(None, title="Field regex")
 
 
-class AttributeListItem(OPModel):
-    name: str
-    position: int
+class AttributeNameModel(OPModel):
+    name: str = Field(
+        ...,
+        name="Attribute name",
+        regex="^[a-zA-Z0-9]{2,30}$",
+    )
+
+
+class AttributePutModel(OPModel):
+    position: int = Field(
+        ...,
+        title="Positon",
+        description="Default order",
+    )
     scope: list[str]
     builtin: bool
     data: AttributeData
 
 
-class AttributeListModel(OPModel):
-    attributes: list[AttributeListItem]
+class AttributeModel(AttributePutModel, AttributeNameModel):
+    pass
 
 
-@router.get("")
+class GetAttributeListModel(OPModel):
+    attributes: list[AttributeModel] = Field(
+        default_factory=list,
+        title="Attributes configuration",
+    )
+
+
+class SetAttributeListModel(GetAttributeListModel):
+    delete_missing: bool = Field(
+        False,
+        title="Delete missing",
+        description="Delete custom attributes not included"
+        "in the payload from the database.",
+    )
+
+
+@router.get("", response_model=GetAttributeListModel)
 async def get_attribute_list(user: UserEntity = Depends(dep_current_user)):
+    """
+    Return a list of attributes available in the system and their configuration.
+    """
 
     query = "SELECT * FROM attributes ORDER BY position"
-
-    attributes: list[AttributeListItem] = []
+    attributes: list[AttributeModel] = []
     async for row in Postgres.iterate(query):
-        attributes.append(AttributeListItem(**row))
+        attributes.append(AttributeModel(**row))
+    return GetAttributeListModel(attributes=attributes)
 
-    return AttributeListModel(attributes=attributes)
 
-
-@router.put("")
+@router.put("", response_class=Response)
 async def set_attribute_list(
-    payload: AttributeListModel,
+    payload: SetAttributeListModel,
     user: UserEntity = Depends(dep_current_user),
 ):
+    """
+    Set the attribute configuration for all (or a subset of) attributes
+    """
+
+    if not user.is_admin:
+        raise ForbiddenException("Only administrators are allowed to modify attributes")
 
     new_attributes = payload.attributes
     new_names = [attribute.name for attribute in new_attributes]
 
     # Delete deleted
-    query = f"""
-        DELETE FROM attributes
-        WHERE builtin IS NOT TRUE
-        AND name NOT IN {SQLTool.array(new_names)}
-    """
-    await Postgres.execute(query)
+    if payload.delete_missing:
+        await Postgres.execute(
+            f"""
+            DELETE FROM attributes
+            WHERE builtin IS NOT TRUE
+            AND name NOT IN {SQLTool.array(new_names)}
+            """
+        )
 
     for attr in new_attributes:
         query = """
@@ -104,4 +141,54 @@ async def set_attribute_list(
             attr.data.dict(),
         )
 
+    return Response(status_code=204)
+
+
+@router.get("/{attribute_name}", response_model=AttributeModel)
+async def get_attribute_config(
+    user: UserEntity = Depends(dep_current_user),
+    attribute_name: str = Depends(dep_attribute_name),
+):
+    query = "SELECT * FROM attributes WHERE name = $1"
+    async for row in Postgres.iterate(query, attribute_name):
+        return AttributeModel(**row)
+    raise NotFoundException(f"Attribute {attribute_name} not found")
+
+
+@router.put("/{attribute_name}", response_class=Response)
+async def set_attribute_config(
+    payload: AttributePutModel,
+    user: UserEntity = Depends(dep_current_user),
+    attribute_name: str = Depends(dep_attribute_name),
+):
+    if not user.is_admin:
+        raise ForbiddenException("Only administrators are allowed to modify attributes")
+
+    query = """
+        UPDATE attributes SET
+            position = $1,
+            scope = $2,
+            data = $3
+        WHERE name = $4
+    """
+
+    await Postgres.execute(
+        query,
+        payload.position,
+        payload.scope,
+        payload.data,
+    )
+    return Response(status_code=204)
+
+
+@router.delete("/{attribute_name}", response_class=Response)
+async def delete_attribute(
+    user: UserEntity = Depends(dep_current_user),
+    attribute_name: str = Depends(dep_attribute_name),
+):
+    if not user.is_admin:
+        raise ForbiddenException("Only administrators are allowed to delete attributes")
+
+    query = "DELETE FROM attributes WHERE name = $1"
+    await Postgres.iterate(query, attribute_name)
     return Response(status_code=204)

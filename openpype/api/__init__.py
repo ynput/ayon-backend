@@ -2,6 +2,7 @@ __all__ = [
     "JSONResponse",
     "ResponseFactory",
     "dep_access_token",
+    "dep_attribute_name",
     "dep_current_user",
     "dep_project_name",
     "dep_new_project_name",
@@ -14,6 +15,7 @@ __all__ = [
 
 from openpype.api.dependencies import (
     dep_access_token,
+    dep_attribute_name,
     dep_current_user,
     dep_folder_id,
     dep_new_project_name,

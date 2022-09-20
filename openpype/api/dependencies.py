@@ -73,6 +73,15 @@ async def dep_current_user(
     return user
 
 
+async def dep_attribute_name(
+    project_name: str = Path(
+        ...,
+        title="Attribute name",
+        regex=r"^[0-9a-zA-Z_]*$",
+    )
+) -> str:
+    return attribute_name
+
 async def dep_new_project_name(
     project_name: str = Path(
         ...,

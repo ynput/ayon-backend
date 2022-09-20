@@ -40,4 +40,13 @@ both the project name and the entity ID.
 Endpoints for managing folders.
         """,
     },
+    {
+        "name": "Attributes",
+        "description": """
+Endpoints related to attribute configuration.
+
+Warning: data does not reflect the active configuration of the attributes.
+The server needs to be restarted in order the changes become active.
+        """,
+    },
 ]
