@@ -36,6 +36,7 @@ class TaskEntity(ProjectLevelEntity):
                 t.id as id,
                 t.name as name,
                 t.task_type as task_type,
+                t.assignees as assignees,
                 t.folder_id as folder_id,
                 t.attrib as attrib,
                 t.data as data,
