@@ -49,4 +49,10 @@ Warning: data does not reflect the active configuration of the attributes.
 The server needs to be restarted in order the changes become active.
         """,
     },
+    {
+        "name": "Addon settings",
+        "description": """
+Addon configuration, site and project overrides...
+        """,
+    },
 ]

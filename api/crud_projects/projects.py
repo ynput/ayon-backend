@@ -156,8 +156,8 @@ async def update_project(
     status_code=204,
 )
 async def delete_project(
-    project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
+    project_name: str = Depends(dep_project_name),
 ):
     """Delete a given project including all its entities."""
 

@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, Response
 from pydantic import Field
 
 from openpype.api import ResponseFactory
-from openpype.api.dependencies import dep_current_user, dep_attribute_name
+from openpype.api.dependencies import dep_attribute_name, dep_current_user
 from openpype.entities import UserEntity
-from openpype.exceptions import NotFoundException, ForbiddenException
+from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.types import OPModel
 from openpype.utils import SQLTool
