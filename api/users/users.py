@@ -11,6 +11,7 @@ from openpype.exceptions import (
     LowPasswordComplexityException,
     NotFoundException,
 )
+from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 
 #
@@ -213,6 +214,59 @@ async def change_password(
     hashed_password = create_password(patch_data.password)
     target_user.data["password"] = hashed_password
     await target_user.save()
+    return Response(status_code=204)
+
+
+#
+# Change login name
+#
+
+
+class ChangeUserNameRequestModel(OPModel):
+    new_name: str = Field(
+        ...,
+        description="New user name",
+        example="EvenBetterUser",
+    )
+
+
+@router.patch(
+    "/{user_name}/rename",
+    status_code=204,
+    response_class=Response,
+)
+async def change_user_name(
+    patch_data: ChangeUserNameRequestModel,
+    user: UserEntity = Depends(dep_current_user),
+    user_name: str = Depends(dep_user_name),
+) -> Response:
+    if not user.is_manager:
+        raise ForbiddenException
+
+    # TODO: Run all this in a transaction
+
+    await Postgres.execute(
+        "UPDATE users SET name = $1 WHERE name = $2",
+        patch_data.new_name,
+        user_name,
+    )
+
+    # Update tasks assignees - since assignees is an array,
+    # it won't update automatically (there's no foreign key)
+
+    project_names = [
+        row["name"] async for row in Postgres.iterate("SELECT name FROM projects")
+    ]
+
+    for project_name in project_names:
+        query = f"""
+            UPDATE project_{project_name}.tasks SET
+            assignees = array_replace(assignees, '{user_name}', '{patch_data.new_name}')
+            WHERE '{user_name}' = ANY(assignees)
+        """
+        await Postgres.execute(query)
+
+    # TODO: Force the user to log out (e.g. invalidate all sessions)
     return Response(status_code=204)
 
 
