@@ -130,7 +130,7 @@ def create_pagination(
         if after:
             sql_conditions.append(f"{order_by} > {after}")
     elif last:
-        pagination += f"ORDER BY {order_by} DESC LIMIT {first}"
+        pagination += f"ORDER BY {order_by} DESC LIMIT {last}"
         if before:
             sql_conditions.append(f"{order_by} < '{EntityID.parse(before)}'")
     return pagination, sql_conditions
@@ -168,7 +168,7 @@ async def resolve(
             node = node_type.from_record(project_name, record, context=context)
         else:
             node = node_type.from_record(record, context=context)
-        cursor = record[order_by]
+        cursor = record[order_by.split(".")[-1]]
         if order_by.endswith("id"):
             cursor = EntityID.parse(cursor)
         edges.append(edge_type(node=node, cursor=cursor))

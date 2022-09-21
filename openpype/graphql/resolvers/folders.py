@@ -73,7 +73,6 @@ async def get_folders(
     #
 
     sql_columns = [
-        "folders.id AS folder_id",  # paging hack
         "folders.id AS id",
         "folders.name AS name",
         "folders.active AS active",
@@ -213,7 +212,7 @@ async def get_folders(
     # Pagination
     #
 
-    order_by = "folder_id"
+    order_by = "folders.id"
     pagination, paging_conds = create_pagination(order_by, first, after, last, before)
     sql_conditions.extend(paging_conds)
 

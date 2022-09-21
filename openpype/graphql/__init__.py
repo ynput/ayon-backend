@@ -103,6 +103,7 @@ class Query:
             roles=user.data.get("roles", {}),
             is_admin=user.is_admin,
             is_manager=user.is_manager,
+            is_service=user.is_service,
             default_roles=user.data.get("defaultRoles", []),
             has_password=bool(user.data.get("password")),
         )
