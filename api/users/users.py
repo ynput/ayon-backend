@@ -158,7 +158,7 @@ async def patch_user(
     user_name: str = Depends(dep_user_name),
     access_token: str = Depends(dep_access_token),
 ) -> Response:
-    logging.info(f"[DELETE] /users/{user_name}")
+    logging.info(f"[PATCH] /users/{user_name}")
 
     if user_name == user.name and (not user.is_manager):
         # Normal users can only patch their attributes

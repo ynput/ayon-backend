@@ -21,6 +21,7 @@ class UserNode:
     default_roles: list[str]
     is_admin: bool
     is_manager: bool
+    is_service: bool
     has_password: bool
 
 
@@ -28,7 +29,8 @@ def user_from_record(record: dict, context: dict) -> UserNode:
     data = record["data"]
     roles = data.get("roles", {})
     is_admin = data.get("isAdmin", False)
-    is_manager = is_admin or data.get("isManager", False)
+    is_service = data.get("isService", False)
+    is_manager = is_admin or is_service or data.get("isManager", False)
 
     return UserNode(
         name=record["name"],
@@ -43,6 +45,7 @@ def user_from_record(record: dict, context: dict) -> UserNode:
         roles=json_dumps(roles),
         is_admin=is_admin,
         is_manager=is_manager,
+        is_service=is_service,
         has_password=bool(data.get("password")),
         default_roles=data.get("defaultRoles", []),
     )
