@@ -16,6 +16,7 @@ from openpype.api.metadata import app_meta, tags_meta
 from openpype.api.responses import ErrorResponse
 from openpype.auth.session import Session
 from openpype.config import pypeconfig
+from openpype.events import dispatch_event
 from openpype.exceptions import OpenPypeException, UnauthorizedException
 from openpype.graphql import router as graphql_router
 from openpype.lib.postgres import Postgres
@@ -251,4 +252,6 @@ async def startup_event() -> None:
             break
 
     await Roles.load()
+    await messaging.start()
+    await dispatch_event("server.started")
     logging.goodnews("Server started")

@@ -6,10 +6,16 @@ from typing import Any
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_traceback, logging
 
+from openpype.api.system import restart_server
 from openpype.auth.session import Session
 from openpype.config import pypeconfig
 from openpype.lib.redis import Redis
 from openpype.utils import json_dumps, json_loads
+
+ALWAYS_SUBSCRIBE = [
+    "client.",
+    "server.started",
+]
 
 
 class Client:
@@ -34,7 +40,7 @@ class Client:
             logging.info(
                 "Authorized connection", session_data.user.name, "topics:", topics
             )
-            self.topics = topics
+            self.topics = [*topics, *ALWAYS_SUBSCRIBE]
             self.authorized = True
             self.user = session_data.user
             return True
@@ -108,7 +114,7 @@ class Messaging:
         logging.info("Starting redis2ws")
         self.started = True
         last_msg = time.time()
-        while self.clients:
+        while True:
             try:
                 raw_message = await self.pubsub.get_message(
                     ignore_subscribe_messages=True
@@ -123,13 +129,21 @@ class Messaging:
                 else:
                     message = json_loads(raw_message["data"])
 
+                if message["topic"] == "server.restart_requested":
+                    logging.warning("Server configuration changed. Requesting restart.")
+                    await restart_server()
+
                 for client_id, client in self.clients.items():
-                    await client.send(message)
+                    for topic in client.topics:
+                        if message["topic"].startswith(topic):
+                            await client.send(message)
+                            break
 
                 await self.purge()
 
             except Exception:
                 log_traceback()
+                await asyncio.sleep(0.5)
 
         logging.warning("Stopping redis2ws")
         self.started = False

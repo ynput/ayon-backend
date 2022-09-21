@@ -53,6 +53,8 @@ async def dispatch_event(
         summary = {}
     if payload is None:
         payload = {}
+    if description is None:
+        description = ""
 
     event_id = uuid.uuid1()
     if hash is None:

@@ -8,6 +8,16 @@ from pydantic import BaseModel, Field
 class PypeConfig(BaseModel):
     """Server configuration"""
 
+    http_listen_address: str = Field(
+        default="0.0.0.0",
+        description="An address the API server listens on",
+    )
+
+    http_listen_port: int = Field(
+        default=5000,
+        description="A port the API server listens on",
+    )
+
     api_modules_dir: str = Field(
         default="api",
         description="Path to the directory containing the API modules.",
