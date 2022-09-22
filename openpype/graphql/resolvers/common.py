@@ -188,7 +188,7 @@ async def resolve(
         has_previous_page = len(edges) >= last
         start_cursor = edges[0].cursor if edges else None
         end_cursor = edges[-1].cursor if edges else None
-        edges.reverse()
+        #edges.reverse()
 
     page_info = PageInfo(
         has_next_page=has_next_page,

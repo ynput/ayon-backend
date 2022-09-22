@@ -13,7 +13,6 @@ from openpype.lib.redis import Redis
 from openpype.utils import json_dumps, json_loads
 
 ALWAYS_SUBSCRIBE = [
-    "client.",
     "server.started",
 ]
 
@@ -37,12 +36,15 @@ class Client:
     async def authorize(self, access_token: str, topics: list[str]) -> bool:
         session_data = await Session.check(access_token, None)
         if session_data:
-            logging.info(
-                "Authorized connection", session_data.user.name, "topics:", topics
-            )
-            self.topics = [*topics, *ALWAYS_SUBSCRIBE]
+            self.topics = [*topics, *ALWAYS_SUBSCRIBE] if "*" not in topics else ["*"]
             self.authorized = True
             self.user = session_data.user
+            logging.info(
+                "Authorized connection",
+                session_data.user.name,
+                "topics:",
+                self.topics,
+            )
             return True
         return False
 
@@ -135,7 +137,7 @@ class Messaging:
 
                 for client_id, client in self.clients.items():
                     for topic in client.topics:
-                        if message["topic"].startswith(topic):
+                        if topic == "*" or message["topic"].startswith(topic):
                             await client.send(message)
                             break
 

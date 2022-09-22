@@ -106,6 +106,8 @@ async def dispatch_event(
                 "status": event.status,
                 "progress": progress,
                 "sender": sender,
+                "createdAt": event.created_at,
+                "updatedAt": event.updated_at,
             }
         )
     )
