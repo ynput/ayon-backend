@@ -38,7 +38,7 @@ class DispatchEventRequestModel(OPModel):
 
 
 class DispatchEventResponseModel(OPModel):
-    id: uuid
+    id: uuid.UUID
 
 
 @router.post("", response_model=DispatchEventResponseModel)
