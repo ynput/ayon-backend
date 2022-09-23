@@ -14,6 +14,7 @@ class SessionModel(OPModel):
     created: float
     last_used: float
     ip: str | None = None
+    is_service: bool = False
 
 
 class Session:
@@ -34,7 +35,9 @@ class Session:
             return None
 
         session = SessionModel(**json_loads(data))
-        if time.time() - session.last_used > cls.ttl:
+
+        ttl = 600 if session.is_service else cls.ttl
+        if time.time() - session.last_used > ttl:
             # TODO: some logging here?
             await Redis.delete(cls.ns, token)
             return None
@@ -43,26 +46,38 @@ class Session:
             # TODO: log this?
             return None
 
+        # extend normal tokens validity, but not service tokens.
+        # they should be validated against db forcefully every 10 minutes or so
+
         # Extend the session lifetime only if it's in its second half
         # (save update requests).
         # So it doesn't make sense to call the parameter last_used is it?
         # Whatever. Fix later.
 
-        if time.time() - session.created > cls.ttl / 2:
-            session.last_used = time.time()
-            await Redis.set(cls.ns, token, json_dumps(session.dict()))
+        if not session.is_service:
+            if time.time() - session.created > cls.ttl / 2:
+                session.last_used = time.time()
+                await Redis.set(cls.ns, token, json_dumps(session.dict()))
 
         return session
 
     @classmethod
-    async def create(cls, user: UserEntity, ip: str = None) -> SessionModel:
+    async def create(
+        cls,
+        user: UserEntity,
+        ip: str | None = None,
+        token: str | None = None,
+    ) -> SessionModel:
         """Create a new session for a given user."""
-        token = create_hash()
+        is_service = not not token
+        if token is None:
+            token = create_hash()
         session = SessionModel(
             user=user.dict(),
             token=token,
             created=time.time(),
             last_used=time.time(),
+            is_service=is_service,
             ip=ip,
         )
         await Redis.set(cls.ns, token, session.json())

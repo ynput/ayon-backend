@@ -3,6 +3,7 @@
 from fastapi import Depends, Header, Path, Request
 
 from openpype.auth.session import Session
+from openpype.auth.utils import hash_password
 from openpype.entities import UserEntity
 from openpype.exceptions import (
     BadRequestException,
@@ -16,11 +17,9 @@ from openpype.types import USER_NAME_REGEX
 from openpype.utils import EntityID, json_dumps, json_loads, parse_access_token
 
 
-async def dep_access_token(authorization: str = Header(None)) -> str:
+async def dep_access_token(authorization: str = Header(None)) -> str | None:
     """Parse and return an access token provided in the authorisation header."""
     access_token = parse_access_token(authorization)
-    if not access_token:
-        raise UnauthorizedException(log=False)
     return access_token
 
 
@@ -38,8 +37,9 @@ async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
 async def dep_current_user(
     request: Request,
     x_forwarded_for: str = Header(None, include_in_schema=False),
-    x_as_user: str = Header(None, include_in_schema=False),
-    access_token: str = Depends(dep_access_token),
+    x_as_user: str | None = Header(None),  # TODO: at least validate against a regex
+    x_api_key: str | None = Header(None),  # TODO: some validation here
+    access_token: str | None = Depends(dep_access_token),
 ) -> UserEntity:
     """Return the currently logged-in user.
 
@@ -53,7 +53,25 @@ async def dep_current_user(
     or the user is not permitted to access the endpoint.
     """
 
-    session_data = await Session.check(access_token, x_forwarded_for)
+    if x_api_key:
+        hashed_key = hash_password(x_api_key)
+        if (session_data := await Session.check(x_api_key, x_forwarded_for)) is None:
+            result = await Postgres.fetch(
+                "SELECT * FROM users WHERE data->>'apiKey' = $1 LIMIT 1",
+                hashed_key,
+            )
+            if not result:
+                raise UnauthorizedException(
+                    f"Invalid API key {hashed_key}",
+                )
+            user = UserEntity.from_record(result[0])
+            session_data = await Session.create(user, x_forwarded_for, token=x_api_key)
+
+    elif access_token is None:
+        raise UnauthorizedException("Access token is missing")
+    else:
+        session_data = await Session.check(access_token, x_forwarded_for)
+
     if not session_data:
         raise UnauthorizedException("Invalid access token")
     await Redis.incr("user-requests", session_data.user.name)

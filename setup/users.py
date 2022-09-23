@@ -2,7 +2,7 @@ from typing import Any
 
 from nxtools import logging
 
-from openpype.auth.utils import create_password
+from openpype.auth.utils import create_password, hash_password
 from openpype.lib.postgres import Postgres
 
 
@@ -21,13 +21,17 @@ async def deploy_users(
             if key in user:
                 attrib[key] = user[key]
 
-        for key in ["isManager", "isAdmin"]:
+        for key in ["isManager", "isAdmin", "isService"]:
             if key in user:
                 data[key] = user[key]
 
         if "password" in user:
             logging.debug(f"Creating password for user {name}")
             data["password"] = create_password(user["password"])
+
+        if "apiKey" in user:
+            logging.debug(f"Creating api key for user {name}")
+            data["apiKey"] = hash_password(user["apiKey"])
 
         data["defaultRoles"] = user.get("defaultRoles", [])
 

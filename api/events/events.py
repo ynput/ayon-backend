@@ -1,11 +1,12 @@
 import uuid
 
+from typing import Any
 from fastapi import APIRouter, Depends
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user, dep_event_id
 from openpype.entities import UserEntity
-from openpype.events import EventModel
+from openpype.events import EventModel, dispatch_event
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.types import OPModel, Field
@@ -29,10 +30,10 @@ class DispatchEventRequestModel(OPModel):
     sender: str | None = None
     hash: str | None = None
     project: str | None = None
-    dependencies: list[uuid.UUID] | None = None
-    description: str | None = None
-    summary: dict | None = None
-    payload: dict | None = None
+    dependencies: list[uuid.UUID] | None = Field(default_factory=list)
+    description: str = Field("")
+    summary: dict[str, Any] = Field(default_factory=dict)
+    payload: dict[str, Any] = Field(default_factory=dict)
     finished: bool = True
     store: bool = True
 
@@ -42,12 +43,23 @@ class DispatchEventResponseModel(OPModel):
 
 
 @router.post("", response_model=DispatchEventResponseModel)
-async def dispatch_event(
+async def post_event(
     request: DispatchEventRequestModel,
     user: UserEntity = Depends(dep_current_user),
 ) -> DispatchEventResponseModel:
-    event_id = await dispatch_event(**request, user=user.name)
-    return DispatchEventRequestModel(id=event_id)
+    event_id = await dispatch_event(
+        request.topic,
+        sender=request.sender,
+        hash=request.hash,
+        user=user.name,
+        # TODO description
+        description=request.description,
+        summary=request.summary,
+        payload=request.payload,
+        finished=request.finished,
+        store=request.store,
+    )
+    return DispatchEventResponseModel(id=event_id)
 
 
 @router.get("/{event_id}")

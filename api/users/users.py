@@ -156,7 +156,7 @@ async def patch_user(
     payload: UserEntity.model.patch_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
-    access_token: str = Depends(dep_access_token),
+    access_token: str | None = Depends(dep_access_token),
 ) -> Response:
     logging.info(f"[PATCH] /users/{user_name}")
 
@@ -172,7 +172,8 @@ async def patch_user(
     target_user.patch(payload)
     await target_user.save()
 
-    if user_name == user.name:
+    # TODO: reload service accounts too?
+    if access_token and (user_name == user.name):
         await Session.update(access_token, target_user)
 
     return Response(status_code=204)
