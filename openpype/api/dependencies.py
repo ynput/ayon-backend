@@ -91,6 +91,26 @@ async def dep_current_user(
     return user
 
 
+async def dep_current_user_optional(
+    request: Request,
+    x_forwarded_for: str = Header(None, include_in_schema=False),
+    x_as_user: str | None = Header(None),  # TODO: at least validate against a regex
+    x_api_key: str | None = Header(None),  # TODO: some validation here
+    access_token: str | None = Depends(dep_access_token),
+) -> UserEntity:
+    try:
+        user = await dep_current_user(
+            request=request,
+            x_forwarded_for=x_forwarded_for,
+            x_as_user=x_as_user,
+            x_api_key=x_api_key,
+            access_token=access_token,
+        )
+    except UnauthorizedException:
+        return None
+    return user
+
+
 async def dep_attribute_name(
     attribute_name: str = Path(
         ...,

@@ -1,5 +1,7 @@
 from typing import Any
+
 from nxtools import logging
+
 from openpype.lib.postgres import Postgres
 
 

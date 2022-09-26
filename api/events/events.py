@@ -1,6 +1,6 @@
 import uuid
-
 from typing import Any
+
 from fastapi import APIRouter, Depends
 
 from openpype.api import ResponseFactory
@@ -9,7 +9,7 @@ from openpype.entities import UserEntity
 from openpype.events import EventModel, dispatch_event
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
-from openpype.types import OPModel, Field
+from openpype.types import Field, OPModel
 
 #
 # Router
