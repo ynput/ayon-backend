@@ -10,10 +10,13 @@ from openpype.utils import json_loads
 from setup.attributes import deploy_attributes
 from setup.roles import deploy_roles
 from setup.users import deploy_users
+from setup.settings import deploy_settings
 
 # Defaults which should allow OpenPype to run out of the box
 
 DATA: dict[str, Any] = {
+    "addons": {},
+    "settings": {},
     "users": [
         {
             "name": "admin",
@@ -120,9 +123,12 @@ async def main() -> None:
 
         users: list[dict[str, Any]] = DATA["users"]
         roles: list[dict[str, Any]] = DATA.get("roles", [])
+        settings: dict[str, Any] = DATA.get("settings", {})
+        addons: dict[str, str] = DATA.get("addons", {})
 
         await deploy_users(users, projects)
         await deploy_roles(roles)
+        await deploy_settings(settings, addons)
 
     logging.goodnews("Setup is finished")
 
