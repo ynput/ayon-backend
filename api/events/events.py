@@ -81,6 +81,8 @@ async def get_event(
             status=record["status"],
             retries=record["retries"],
             description=record["description"],
+            payload=record["payload"],
+            summary=record["summary"],
             created_at=record["created_at"],
             updated_at=record["updated_at"],
         )

@@ -87,8 +87,8 @@ async def dispatch_event(
             dependencies=dependencies,
             status=status,
             description=description,
-            summary=json_dumps(event.summary),
-            payload=json_dumps(event.payload),
+            summary=event.summary,
+            payload=event.payload,
         )
         try:
             await Postgres.execute(*query)
