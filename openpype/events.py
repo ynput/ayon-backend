@@ -98,6 +98,7 @@ async def dispatch_event(
     await Redis.publish(
         json_dumps(
             {
+                "id": event.id,
                 "topic": event.topic,
                 "project": event.project,
                 "user": event.user,
@@ -106,6 +107,7 @@ async def dispatch_event(
                 "status": event.status,
                 "progress": progress,
                 "sender": sender,
+                "store": store,  # useful to allow querying details
                 "createdAt": event.created_at,
                 "updatedAt": event.updated_at,
             }
