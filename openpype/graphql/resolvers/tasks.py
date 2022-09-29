@@ -37,6 +37,7 @@ async def get_tasks(
         list[str] | None, argdesc("List of parent folder IDs to filter by")
     ] = None,
     name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
+    names: Annotated[list[str]  | None, argdesc("List of names to filter by")] = None,
     has_links: ARGHasLinks = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
@@ -80,6 +81,9 @@ async def get_tasks(
 
     if name:
         sql_conditions.append(f"tasks.name ILIKE '{name}'")
+
+    if names:
+        sql_conditions.append(f"tasks.name IN {SQLTool.array(names)}")
 
     if task_types:
         sql_conditions.append(f"tasks.task_type IN {SQLTool.array(task_types)}")
