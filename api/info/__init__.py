@@ -1,13 +1,13 @@
 import time
-
 from typing import Any
+
 from fastapi import APIRouter, Depends
 
-from openpype.entities import UserEntity
-from openpype.types import Field, OPModel
-from openpype.api.metadata import VERSION
 from openpype.api import dep_current_user_optional
+from openpype.api.metadata import VERSION
+from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
+from openpype.types import Field, OPModel
 
 router = APIRouter(prefix="/info")
 BOOT_TIME = time.time()

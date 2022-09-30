@@ -89,7 +89,6 @@ async def folder_access_list(
                 for path in path_to_paths(
                     record["path"],
                     include_parents=access_type == "read",
-                    include_self=True,
                 ):
                     fpaths.add(path)
 
@@ -118,14 +117,14 @@ async def ensure_entity_access(
     conditions = [f"hierarchy.path like ANY ('{{{', '.join(access_list)}}}')"]
     joins = []
 
-    if entity_type in ["subset", "version", "representation"]:
+    if entity_type in ("subset", "version", "representation"):
         joins.append(
             f"""
             INNER JOIN project_{project_name}.subsets
             ON subsets.folder_id = hierarchy.id
             """
         )
-        if entity_type in ["version", "representation"]:
+        if entity_type in ("version", "representation"):
             joins.append(
                 f"""
                 INNER JOIN project_{project_name}.versions

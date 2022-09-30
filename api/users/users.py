@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, Path
 from nxtools import logging
 
 from openpype.api import ResponseFactory
@@ -12,7 +12,9 @@ from openpype.exceptions import (
     NotFoundException,
 )
 from openpype.lib.postgres import Postgres
+from openpype.lib.redis import Redis
 from openpype.types import Field, OPModel
+from openpype.utils import json_loads
 
 #
 # Router
@@ -268,6 +270,60 @@ async def change_user_name(
         await Postgres.execute(query)
 
     # TODO: Force the user to log out (e.g. invalidate all sessions)
+    return Response(status_code=204)
+
+
+#
+# Sessions
+#
+
+
+class UserSessionModel(OPModel):
+    token: str
+    ip: str | None
+    is_service: bool
+    last_used: int
+
+
+class UserSessionsResponseModel(OPModel):
+    sessions: list[UserSessionModel]
+
+
+@router.get("/{user_name}/sessions", response_model=UserSessionsResponseModel)
+async def get_user_sessions(
+    current_user: UserEntity = Depends(dep_current_user), 
+    user_name: str = Depends(dep_user_name),
+):
+    if (not current_user.is_manager) and (current_user.name != user_name):
+        raise ForbiddenException("You are not allowed to list other users' sessions")
+
+    return UserSessionsResponseModel(
+        sessions=[
+            UserSessionModel(
+                token=session.token,
+                ip=session.ip,
+                is_service=session.is_service,
+                last_used=session.last_used,
+            )
+            async for session in Session.list(user_name)
+        ]
+    )
+
+
+@router.delete("/{user_name}/sessions/{session_id}", response_class=Response)
+async def delete_user_session(
+    current_user: UserEntity = Depends(dep_current_user),
+    user_name: str = Depends(dep_user_name),
+    session_id: str = Path(...),
+):
+    session = await Session.check(session_id)
+    if not session:
+        raise NotFoundException("Requested session id does not exist")
+    if session.user.name != current_user.name and (not current_user.is_manager):
+        raise ForbiddenException(
+            "You are not allowed to delete sessions which don't belong to you"
+        )
+    await session.delete(session_id)
     return Response(status_code=204)
 
 

@@ -1,4 +1,5 @@
 import time
+import pathlib
 
 
 async def restart_server():
@@ -8,5 +9,4 @@ async def restart_server():
     We should find a better way in the future
     """
 
-    with open("openpype/trigger.py", "w") as f:
-        f.write(f"{time.time()}")
+    pathlib.Path("openpype/trigger.py", "w").write_text(f"{time.time()}")

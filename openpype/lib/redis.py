@@ -67,3 +67,22 @@ class Redis:
         if channel is None:
             channel = pypeconfig.redis_channel
         await cls.redis_pool.publish(channel, message)
+
+    @classmethod
+    async def keys(cls, namespace: str) -> list[str]:
+        if not cls.connected:
+            await cls.connect()
+        return await cls.redis_pool.keys(f"{namespace}-*")
+
+    @classmethod
+    async def iterate(cls, namespace: str):
+        """Iterate over stored keys and yield [key, payload] tuples
+        matching given namespace.
+        """
+        if not cls.connected:
+            await cls.connect()
+
+        async for key in cls.redis_pool.scan_iter(match=f"{namespace}-*"):
+            key_without_ns = key.decode("ascii").removeprefix(f"{namespace}-")
+            payload = await cls.redis_pool.get(key)
+            yield key_without_ns, payload

@@ -2,6 +2,7 @@ import asyncio
 import time
 import uuid
 from typing import Any
+from contextlib import suppress
 
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_traceback, logging
@@ -107,10 +108,8 @@ class Messaging:
                     await client.sock.close(code=1000)
                 to_rm.append(client_id)
         for client_id in to_rm:
-            try:
+            with suppress(KeyError):
                 del self.clients[client_id]
-            except KeyError:
-                pass  # already removed
 
     async def listen(self) -> None:
         logging.info("Starting redis2ws")

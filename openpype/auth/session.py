@@ -2,6 +2,8 @@ __all__ = ["Session"]
 
 import time
 
+from nxtools import logging
+
 from openpype.entities import UserEntity
 from openpype.lib.redis import Redis
 from openpype.types import OPModel
@@ -22,6 +24,11 @@ class Session:
     ns = "session"
 
     @classmethod
+    def is_expired(cls, session: SessionModel) -> bool:
+        ttl = 600 if session.is_service else cls.ttl
+        return time.time() - session.last_used > ttl
+
+    @classmethod
     async def check(cls, token: str, ip: str | None) -> SessionModel | None:
         """Return a session corresponding to a given access token.
 
@@ -36,8 +43,7 @@ class Session:
 
         session = SessionModel(**json_loads(data))
 
-        ttl = 600 if session.is_service else cls.ttl
-        if time.time() - session.last_used > ttl:
+        if cls.is_expired(session):
             # TODO: some logging here?
             await Redis.delete(cls.ns, token)
             return None
@@ -99,3 +105,24 @@ class Session:
     @classmethod
     async def delete(cls, token: str) -> None:
         await Redis.delete(cls.ns, token)
+
+    @classmethod
+    async def list(cls, user_name: str | None = None):
+        """List active sessions for all or given user
+
+        Additionally, this function also removes expired sessions
+        from the database.
+        """
+
+        async for session_id, data in Redis.iterate("session"):
+            session = SessionModel(**json_loads(data))
+            if cls.is_expired(session):
+                logging.info(
+                    f"Removing expired session for user"
+                    f"{session.user.name} {session.token}"
+                )
+                await Redis.delete(cls.ns, session.token)
+                continue
+
+            if user_name is None or session.user.name == user_name:
+                yield session

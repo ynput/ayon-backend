@@ -9,8 +9,7 @@ from openpype.lib.postgres import Postgres
 def normalize_to_dict(s: Any):
     if type(s) is dict:
         return s
-    else:
-        return s.dict()
+    return s.dict()
 
 
 class Roles:
@@ -75,7 +74,7 @@ class Roles:
                     elif not result[perm_name]["enabled"]:
                         continue
 
-                if perm_name in ["create", "read", "update", "delete"]:
+                if perm_name in ("create", "read", "update", "delete"):
                     # TODO: deduplicate
                     result[perm_name]["access_list"] = list(
                         set(
@@ -85,7 +84,7 @@ class Roles:
                         | set(value.access_list)
                     )
 
-                elif perm_name in ["attrib_read", "attrib_write"]:
+                elif perm_name in ("attrib_read", "attrib_write"):
                     result[perm_name]["attributes"] = list(
                         set(result[perm_name].get("attributes", []))
                         | set(value.attributes)

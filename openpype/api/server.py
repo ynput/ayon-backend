@@ -2,8 +2,9 @@ import asyncio
 import importlib
 import os
 import sys
-
 import fastapi
+import pathlib
+
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
@@ -98,7 +99,7 @@ async def openpype_exception_handler(
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc) -> fastapi.responses.JSONResponse:
-    logging.error(f"Validation error\n{str(exc)}")
+    logging.error(f"Validation error\n{exc}")
     detail = "Validation error"  # TODO: Be descriptive, but not too much
     return fastapi.responses.JSONResponse(
         status_code=400,
@@ -133,9 +134,8 @@ app.include_router(
 
 @app.get("/graphiql", include_in_schema=False)
 def explorer() -> fastapi.responses.HTMLResponse:
-    with open("static/graphiql.html") as f:
-        page = f.read()
-    page = page.replace("{{ SUBSCRIPTION_ENABLED }}", "false")
+    page = pathlib.Path("static/graphiql.html").read_text()
+    page = page.replace("{{ SUBSCRIPTION_ENABLED }}", "false") # TODO
     return fastapi.responses.HTMLResponse(page, 200)
 
 
