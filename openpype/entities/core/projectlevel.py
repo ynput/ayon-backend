@@ -1,3 +1,4 @@
+from contextlib import suppress
 from typing import Any
 
 from pydantic import BaseModel
@@ -104,7 +105,7 @@ class ProjectLevelEntity(BaseEntity):
             attr_perm = user.permissions(self.project_name).attrib_read
             if attr_perm.enabled:
                 exattr = set()
-                for key in [*attrib.keys()]:
+                for key in tuple(attrib.keys()):
                     if key not in attr_perm.attributes:
                         exattr.add(key)
                 if exattr:
@@ -127,9 +128,7 @@ class ProjectLevelEntity(BaseEntity):
 
         Raises FobiddenException if the user does not have access.
         """
-        await ensure_entity_access(
-            user, self.project_name, self.entity_type, self.id, "read"
-        )
+        await ensure_entity_access(user, self.project_name, self.entity_type, self.id)
 
     async def ensure_update_access(self, user) -> None:
         """Check if the user has access to update the entity.
@@ -205,12 +204,9 @@ class ProjectLevelEntity(BaseEntity):
 
         attrib = {}
         for key in self.own_attrib:
-            try:
+            with suppress(AttributeError):
                 if (value := getattr(self.attrib, key)) is not None:
                     attrib[key] = value
-            except AttributeError:
-                # Do not store attributes which are not in the attrib model
-                pass
 
         if self.exists:
             # Update existing entity
@@ -281,7 +277,7 @@ class ProjectLevelEntity(BaseEntity):
 
         if commit:
             await self.commit(transaction)
-        return not not count
+        return bool(count)
 
     #
     # Properties

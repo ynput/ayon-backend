@@ -1,10 +1,10 @@
 import asyncio
 import importlib
 import os
-import sys
-import fastapi
 import pathlib
+import sys
 
+import fastapi
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
@@ -135,7 +135,7 @@ app.include_router(
 @app.get("/graphiql", include_in_schema=False)
 def explorer() -> fastapi.responses.HTMLResponse:
     page = pathlib.Path("static/graphiql.html").read_text()
-    page = page.replace("{{ SUBSCRIPTION_ENABLED }}", "false") # TODO
+    page = page.replace("{{ SUBSCRIPTION_ENABLED }}", "false")  # TODO
     return fastapi.responses.HTMLResponse(page, 200)
 
 

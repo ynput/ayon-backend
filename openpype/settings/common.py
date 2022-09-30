@@ -32,14 +32,14 @@ class BaseSettingsModel(BaseModel):
             if "title" in schema:
                 del schema["title"]
 
-            for attr in ["title", "layout"]:
+            for attr in ("title", "layout"):
                 if pattr := model.__private_attributes__.get(f"_{attr}"):
                     if pattr.default is not None:
                         schema[attr] = pattr.default
 
             for name, prop in schema.get("properties", {}).items():
-                for key in [*prop.keys()]:
-                    if key in ["enum_resolver", "widget"]:
+                for key in tuple(prop.keys()):
+                    if key in ("enum_resolver:", "widget"):
                         del prop[key]
 
                 if field := model.__fields__.get(name):
@@ -108,14 +108,14 @@ async def postprocess_settings_schema(
     if "title" in schema:
         del schema["title"]
 
-    for attr in ["title", "layout", "dependencies"]:
+    for attr in ("title", "layout", "dependencies"):
         if pattr := model.__private_attributes__.get(f"_{attr}"):
             if pattr.default is not None:
                 schema[attr] = pattr.default
 
     for name, prop in schema.get("properties", {}).items():
-        for key in [*prop.keys()]:
-            if key in ["enum_resolver", "widget"]:
+        for key in tuple(prop.keys()):
+            if key in ("enum_resolver", "widget"):
                 del prop[key]
 
         if field := model.__fields__.get(name):

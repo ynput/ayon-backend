@@ -18,7 +18,7 @@ class BaseEntity:
         return f"<{self.entity_type} {self.name}>"
 
     def __bool__(self) -> bool:
-        return not not self._payload
+        return bool(self._payload)
 
     def dict(
         self,

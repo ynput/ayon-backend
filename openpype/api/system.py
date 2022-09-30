@@ -1,5 +1,5 @@
-import time
 import pathlib
+import time
 
 
 async def restart_server():

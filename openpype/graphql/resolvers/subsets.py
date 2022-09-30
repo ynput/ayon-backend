@@ -92,7 +92,7 @@ async def get_subsets(
         # Selecting subsets directly from the project node,
         # so we need to check access rights
         user = info.context["user"]
-        access_list = await folder_access_list(user, project_name, "read")
+        access_list = await folder_access_list(user, project_name)
         if access_list is not None:
             sql_conditions.append(
                 f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"

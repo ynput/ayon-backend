@@ -1,8 +1,8 @@
 import asyncio
 import time
 import uuid
-from typing import Any
 from contextlib import suppress
+from typing import Any
 
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_traceback, logging

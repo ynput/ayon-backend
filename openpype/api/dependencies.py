@@ -97,7 +97,7 @@ async def dep_current_user_optional(
     x_as_user: str | None = Header(None),  # TODO: at least validate against a regex
     x_api_key: str | None = Header(None),  # TODO: some validation here
     access_token: str | None = Depends(dep_access_token),
-) -> UserEntity:
+) -> UserEntity | None:
     try:
         user = await dep_current_user(
             request=request,

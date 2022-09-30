@@ -75,7 +75,7 @@ class Session:
         token: str | None = None,
     ) -> SessionModel:
         """Create a new session for a given user."""
-        is_service = not not token
+        is_service = bool(token)
         if token is None:
             token = create_hash()
         session = SessionModel(

@@ -21,7 +21,7 @@ class FolderNode(BaseNode):
     folder_type: str | None
     parent_id: str | None
     thumbnail_id: str | None
-    path: str
+    path: str | None
     attrib: FolderAttribType
     own_attrib: list[str]
 
@@ -118,7 +118,7 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         children_count=record.get("children_count", 0),
         subset_count=record.get("subset_count", 0),
         task_count=record.get("task_count", 0),
-        path=record.get("path", None),
+        path=record.get("path"),
         own_attrib=list(record["attrib"].keys()),
     )
 

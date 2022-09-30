@@ -93,7 +93,7 @@ async def create_folder_access_list(root, info) -> list[str] | None:
     project_name = root.project_name
     if root.__class__.__name__ != "ProjectNode":
         return None
-    return await folder_access_list(user, project_name, "read")
+    return await folder_access_list(user, project_name)
 
 
 def create_pagination(

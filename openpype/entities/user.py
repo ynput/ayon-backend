@@ -94,7 +94,7 @@ class UserEntity(TopLevelEntity):
 
         if commit:
             await self.commit(transaction)
-        return not not count
+        return bool(count)
 
     #
     # Authorization helpers

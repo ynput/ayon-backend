@@ -63,7 +63,7 @@ class ModelSet:
         self.entity_name = entity_name
         self.fields: list[Any] = FIELD_LISTS[entity_name]
 
-        self.attributes = attributes if attributes else []
+        self.attributes = attributes or []
         self.has_id = has_id
 
         self._model: Type[BaseModel] | None = None

@@ -123,7 +123,7 @@ def generate_model(
         # Documentation and validation
         #
 
-        for k in [
+        for k in (
             # Descriptive tags
             "title",
             "description",
@@ -140,7 +140,7 @@ def generate_model(
             # Array validators
             "min_items",
             "max_items",
-        ]:
+        ):
             if getattr(fdef, k):
                 field[k] = getattr(fdef, k)
         #

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, Path
+from fastapi import APIRouter, Depends, Path, Response
 from nxtools import logging
 
 from openpype.api import ResponseFactory
@@ -12,9 +12,7 @@ from openpype.exceptions import (
     NotFoundException,
 )
 from openpype.lib.postgres import Postgres
-from openpype.lib.redis import Redis
 from openpype.types import Field, OPModel
-from openpype.utils import json_loads
 
 #
 # Router
@@ -291,7 +289,7 @@ class UserSessionsResponseModel(OPModel):
 
 @router.get("/{user_name}/sessions", response_model=UserSessionsResponseModel)
 async def get_user_sessions(
-    current_user: UserEntity = Depends(dep_current_user), 
+    current_user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
 ):
     if (not current_user.is_manager) and (current_user.name != user_name):
@@ -316,7 +314,7 @@ async def delete_user_session(
     user_name: str = Depends(dep_user_name),
     session_id: str = Path(...),
 ):
-    session = await Session.check(session_id)
+    session = await Session.check(session_id, None)
     if not session:
         raise NotFoundException("Requested session id does not exist")
     if session.user.name != current_user.name and (not current_user.is_manager):

@@ -45,7 +45,7 @@ async def create_project_from_anatomy(
             "frame": anatomy.templates.frame,
         }
     }
-    for template_type in ["work", "publish", "hero", "delivery", "others"]:
+    for template_type in ("work", "publish", "hero", "delivery", "others"):
         template_group = anatomy.templates.dict().get(template_type, [])
         if not template_group:
             continue

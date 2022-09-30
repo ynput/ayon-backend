@@ -36,7 +36,7 @@ class InfoResponseModel(OPModel):
     motd: str = Field(default_factory=get_motd)
     version: str = Field(VERSION)
     uptime: float = Field(default_factory=get_uptime)
-    user: UserEntity.model.main_model | None = Field(None)
+    user: UserEntity.model.main_model | None = Field(None)  # type: ignore
     attributes: list[AttributeItemModel] | None = Field(None)
 
 
