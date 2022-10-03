@@ -321,7 +321,7 @@ async def delete_user_session(
         raise ForbiddenException(
             "You are not allowed to delete sessions which don't belong to you"
         )
-    await session.delete(session_id)
+    await Session.delete(session_id)
     return Response(status_code=204)
 
 
