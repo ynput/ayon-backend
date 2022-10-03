@@ -9,7 +9,7 @@ from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 
-router = APIRouter(prefix="/info")
+router = APIRouter(prefix="/info", tags=["Site info"])
 BOOT_TIME = time.time()
 
 

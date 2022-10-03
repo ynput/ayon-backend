@@ -114,3 +114,25 @@ CREATE TABLE IF NOT EXISTS public.events(
 
 -- TODO: some indices here
 CREATE UNIQUE INDEX IF NOT EXISTS unique_event_hash ON events(hash);
+
+
+--------------
+-- SERVICES --
+--------------
+
+CREATE TABLE IF NOT EXISTS public.hosts(
+  name VARCHAR NOT NULL PRIMARY KEY,
+  last_seen NUMERIC NOT NULL DEFAULT 0,
+  health JSONB NOT NULL DEFAULT '{}'::JSONB,
+  services JSONB NOT NULL DEFAULT '[]'::JSONB
+);
+
+CREATE TABLE IF NOT EXISTS public.services(
+  id SERIAL PRIMARY KEY,
+  hostname VARCHAR REFERENCES public.hosts(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  addon_name VARCHAR NOT NULL,
+  addon_version VARCHAR NOT NULL,
+  service_name VARCHAR NOT NULL,
+  image VARCHAR NOT NULL,
+  env JSONB NOT NULL DEFAULT '{}'::JSONB
+);
