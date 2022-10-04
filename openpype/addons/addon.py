@@ -24,6 +24,7 @@ class BaseServerAddon:
     endpoints: list[dict[str, Any]]
     settings_model: Type[BaseSettingsModel] | None = None
     frontend_scopes: dict[str, Any] = {}
+    services: dict[str, Any] = {}
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str):
         assert self.name and self.version

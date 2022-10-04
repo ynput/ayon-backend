@@ -66,6 +66,7 @@ class VersionInfo(OPModel):
     frontend_scopes: dict[str, Any] = Field(default_factory=dict)
     client_pyproject: dict[str, Any] | None = Field(None)
     client_source_info: list[ClientSourceInfo] | None = Field(None)
+    services: dict[str, Any] | None = Field(None)
 
 
 class AddonListItem(OPModel):
@@ -93,7 +94,6 @@ class AddonList(OPModel):
     "",
     response_model=AddonList,
     response_model_exclude_none=True,
-    tags=["Addon settings"],
 )
 async def list_addons(
     request: Request,
@@ -125,6 +125,7 @@ async def list_addons(
                 vinf["client_source_info"] = await addon.get_client_source_info(
                     base_url=base_url
                 )
+                vinf["services"] = addon.services or None
             versions[version] = VersionInfo(**vinf)
 
         result.append(
@@ -155,7 +156,7 @@ class AddonConfigRequest(OPModel):
     versions: dict[str, AddonVersionConfig] | None = Field(None)
 
 
-@router.post("", tags=["Addon settings"])
+@router.post("")
 async def configure_addons(
     payload: AddonConfigRequest,
     user: UserEntity = Depends(dep_current_user),
@@ -183,7 +184,7 @@ async def configure_addons(
 #
 
 
-@router.get("/{addon_name}/{version}/schema", tags=["Addon settings"])
+@router.get("/{addon_name}/{version}/schema")
 async def get_addon_settings_schema(addon_name: str, version: str):
     """Return the JSON schema of the addon settings."""
 

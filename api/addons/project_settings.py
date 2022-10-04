@@ -19,7 +19,7 @@ from openpype.settings import extract_overrides, list_overrides
 from .common import ModifyOverridesRequestModel, pin_override, remove_override
 
 
-@router.get("/{addon_name}/{version}/settings/{project_name}", tags=["Addon settings"])
+@router.get("/{addon_name}/{version}/settings/{project_name}")
 async def get_addon_project_settings(
     addon_name: str,
     version: str,
@@ -31,7 +31,7 @@ async def get_addon_project_settings(
     return await addon.get_project_settings(project_name)
 
 
-@router.get("/{addon_name}/{version}/overrides/{project_name}", tags=["Addon settings"])
+@router.get("/{addon_name}/{version}/overrides/{project_name}")
 async def get_addon_project_overrides(
     addon_name: str,
     version: str,
@@ -56,7 +56,7 @@ async def get_addon_project_overrides(
     return result
 
 
-@router.post("/{addon_name}/{version}/settings/{project_name}", tags=["Addon settings"])
+@router.post("/{addon_name}/{version}/settings/{project_name}")
 async def set_addon_project_settings(
     payload: dict[str, Any],
     addon_name: str,
@@ -105,7 +105,6 @@ async def set_addon_project_settings(
 
 @router.delete(
     "/{addon_name}/{version}/overrides/{project_name}",
-    tags=["Addon settings"],
 )
 async def delete_addon_project_overrides(
     addon_name: str,
@@ -142,7 +141,6 @@ async def delete_addon_project_overrides(
 
 @router.post(
     "/{addon_name}/{version}/overrides/{project_name}",
-    tags=["Addon settings"],
 )
 async def modify_overrides(
     payload: ModifyOverridesRequestModel,

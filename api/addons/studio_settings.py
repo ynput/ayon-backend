@@ -21,8 +21,7 @@ from .common import ModifyOverridesRequestModel, pin_override, remove_override
 
 @router.get(
     "/{addon_name}/{version}/settings",
-    tags=["Addon settings"],
-)
+  )
 async def get_addon_studio_settings(
     addon_name: str,
     version: str,
@@ -37,8 +36,7 @@ async def get_addon_studio_settings(
 
 @router.post(
     "/{addon_name}/{version}/settings",
-    tags=["Addon settings"],
-)
+   )
 async def set_addon_studio_settings(
     payload: dict[str, Any],
     addon_name: str,
@@ -83,8 +81,7 @@ async def set_addon_studio_settings(
 
 @router.get(
     "/{addon_name}/{version}/overrides",
-    tags=["Addon settings"],
-)
+  )
 async def get_addon_studio_overrides(
     addon_name: str,
     version: str,
@@ -103,8 +100,7 @@ async def get_addon_studio_overrides(
 
 @router.delete(
     "/{addon_name}/{version}/overrides",
-    tags=["Addon settings"],
-)
+   )
 async def delete_addon_studio_overrides(
     addon_name: str,
     version: str,
@@ -133,8 +129,7 @@ async def delete_addon_studio_overrides(
 
 @router.post(
     "/{addon_name}/{version}/overrides",
-    tags=["Addon settings"],
-)
+   )
 async def modify_overrides(
     payload: ModifyOverridesRequestModel,
     addon_name: str,
