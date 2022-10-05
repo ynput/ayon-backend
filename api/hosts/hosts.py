@@ -98,7 +98,9 @@ async def host_heartbeat(
 
     all_services = (await list_services(user=user)).services
     services = [
-        service for service in all_services if service.hostname == payload.hostname
+        service
+        for service in all_services
+        if service.hostname == payload.hostname and service.should_run
     ]
 
     return HeartbeatResponseModel(services=services)

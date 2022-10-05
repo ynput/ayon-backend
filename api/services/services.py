@@ -9,6 +9,7 @@ from openpype.entities import UserEntity
 from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
+from openpype.utils import SQLTool
 
 router = APIRouter(
     prefix="/services",
@@ -113,8 +114,32 @@ async def delete_service(
 ):
 
     if not user.is_admin:
-        raise ForbiddenException("Only admins can spawn services")
+        raise ForbiddenException("Only admins can delete services")
 
-    await Postgres.execute("DELETE FROM services WHERE name = %s", name)
+    await Postgres.execute("DELETE FROM services WHERE name = $1", name)
+
+    return Response(status_code=204)
+
+
+class PatchServiceRequestModel(OPModel):
+    should_run: bool | None = Field(None)
+
+
+@router.patch("/{name}", response_class=Response)
+async def patch_service(
+    payload: PatchServiceRequestModel,
+    name: str = Path(...),
+    user: UserEntity = Depends(dep_current_user),
+):
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can modify services")
+
+    await Postgres.execute(
+        *SQLTool.update(
+            "services",
+            f"WHERE name='{name}'",
+            **payload.dict(),
+        )
+    )
 
     return Response(status_code=204)
