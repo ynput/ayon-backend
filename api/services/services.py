@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from typing import Any
+
+from fastapi import APIRouter, Depends, Path, Response
 
 from openpype.addons import AddonLibrary
 from openpype.api import ResponseFactory
@@ -15,15 +17,21 @@ router = APIRouter(
 )
 
 
+class ServiceDataModel(OPModel):
+    image: str | None = Field(None, example="openpype/ftrack-addon-collector:2.0.0")
+    env: dict[str, Any] = Field(default_factory=dict)
+
+
 class ServiceModel(OPModel):
-    id: int = Field(...)
+    name: str = Field(...)
     hostname: str = Field(..., example="worker03")
     addon_name: str = Field(..., example="ftrack")
     addon_version: str = Field(..., example="2.0.0")
-    service_name: str = Field(..., example="collector")
-    image: str = Field(..., example="openpype/ftrack-addon-collector:2.0.0")
-    is_running: bool = Field(False)
-    last_seen: int = Field(0)
+    service: str = Field(..., example="collector")
+    should_run: bool = Field(...)
+    is_running: bool = Field(...)
+    last_seen: int | None = Field(None)
+    data: ServiceDataModel = Field(default_factory=ServiceDataModel)
 
 
 class ServiceListModel(OPModel):
@@ -33,26 +41,10 @@ class ServiceListModel(OPModel):
 @router.get("", response_model=ServiceListModel)
 async def list_services(user: UserEntity = Depends(dep_current_user)):
 
-    query = """
-        SELECT
-            s.id AS id,
-            s.hostname AS hostname,
-            s.addon_name AS addon_name,
-            s.addon_version AS addon_version,
-            s.service_name AS service_name,
-            s.image AS image,
-            h.services as host_runs,
-            h.last_seen as last_seen
-        FROM services AS s
-        LEFT JOIN hosts AS h
-            ON s.hostname = h.name
-        ORDER BY s.id DESC
-    """
-
+    query = "SELECT * FROM services ORDER BY name ASC"
     services = []
     async for row in Postgres.iterate(query):
-        is_running = row["id"] in row["host_runs"]
-        services.append(ServiceModel(is_running=is_running, **row))
+        services.append(ServiceModel(**row))
 
     return ServiceListModel(services=services)
 
@@ -65,17 +57,14 @@ async def list_services(user: UserEntity = Depends(dep_current_user)):
 class SpawnServiceRequestModel(OPModel):
     addon_name: str
     addon_version: str
-    service_name: str
+    service: str
     hostname: str
 
 
-class SpawnServiceResponseModel(OPModel):
-    id: int
-
-
-@router.post("", response_model=SpawnServiceResponseModel)
+@router.put("/{name}", response_class=Response)
 async def spawn_service(
     payload: SpawnServiceRequestModel,
+    name: str = Path(...),
     user: UserEntity = Depends(dep_current_user),
 ):
 
@@ -84,25 +73,48 @@ async def spawn_service(
 
     library = AddonLibrary.getinstance()
     addon = library.addon(payload.addon_name, payload.addon_version)
-    if payload.service_name not in addon.services:
+    if payload.service not in addon.services:
         # TODO: be more verbose
         raise NotFoundException("This addon does not have this service")
 
-    image = addon.services[payload.service_name].get("image")
+    image = addon.services[payload.service].get("image")
     assert image is not None  # TODO: raise smarter exception
 
-    res = await Postgres.fetch(
+    data = {"image": image}
+
+    await Postgres.execute(
         """
-        INSERT INTO SERVICES (hostname, addon_name, addon_version, service_name, image)
+        INSERT INTO SERVICES (
+            name,
+            hostname,
+            addon_name,
+            addon_version,
+            service,
+            data
+        )
         VALUES
-        ($1, $2, $3, $4, $5)
-        RETURNING id
+            ($1, $2, $3, $4, $5, $6)
         """,
+        name,
         payload.hostname,
         payload.addon_name,
         payload.addon_version,
-        payload.service_name,
-        image,
+        payload.service,
+        data,
     )
-    id = res[0]["id"]
-    return SpawnServiceResponseModel(id=id)
+
+    return Response(status_code=201)
+
+
+@router.delete("/{name}", response_class=Response)
+async def delete_service(
+    name: str = Path(...),
+    user: UserEntity = Depends(dep_current_user),
+):
+
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can spawn services")
+
+    await Postgres.execute("DELETE FROM services WHERE name = %s", name)
+
+    return Response(status_code=204)

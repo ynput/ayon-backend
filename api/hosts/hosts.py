@@ -26,7 +26,6 @@ class HostModel(OPModel):
     name: str
     last_seen: int
     health: HostHealthModel
-    services: list[int]
 
 
 class HostListResponseModel(OPModel):
@@ -36,9 +35,9 @@ class HostListResponseModel(OPModel):
 class HeartbeatRequestModel(OPModel):
     hostname: str
     health: HostHealthModel
-    services: list[int] = Field(
+    services: list[str] = Field(
         default_factory=list,
-        title="List of running service ids",
+        title="List of running services",
     )
 
 
@@ -67,21 +66,35 @@ async def host_heartbeat(
     if not user.is_service:
         raise ForbiddenException("Only services have hearts to beat")
 
-    await Postgres.execute(
-        """
-        INSERT INTO hosts (name, last_seen, health, services)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (name)
-        DO UPDATE SET
-            last_seen = $2,
-            health = $3,
-            services = $4
-        """,
-        payload.hostname,
-        time.time(),
-        payload.health.dict(),
-        payload.services,
-    )
+    now = time.time()
+
+    async with Postgres.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """
+                INSERT INTO hosts (name, last_seen, health)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (name)
+                DO UPDATE SET
+                    last_seen = $2,
+                    health = $3
+                """,
+                payload.hostname,
+                time.time(),
+                payload.health.dict(),
+            )
+
+            await conn.execute(
+                """
+                UPDATE services SET
+                is_running = (name = ANY($1::VARCHAR[]))::BOOL,
+                last_seen = $2
+                WHERE hostname = $3
+                """,
+                payload.services,
+                now,
+                payload.hostname,
+            )
 
     all_services = (await list_services(user=user)).services
     services = [
