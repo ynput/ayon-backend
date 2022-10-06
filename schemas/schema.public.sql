@@ -84,13 +84,14 @@ CREATE TABLE IF NOT EXISTS public.events(
   id UUID NOT NULL PRIMARY KEY,
   hash VARCHAR NOT NULL,
   topic VARCHAR NOT NULL,
+  sender VARCHAR,
   project_name VARCHAR REFERENCES public.projects(name)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
   user_name VARCHAR REFERENCES public.users(name) 
     ON DELETE CASCADE 
     ON UPDATE CASCADE,
-  dependencies UUID[],
+  depends_on UUID REFERENCES public.events(id),
   status VARCHAR NOT NULL
     DEFAULT 'finished'
     CHECK (status IN (

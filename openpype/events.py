@@ -11,12 +11,31 @@ from openpype.utils import SQLTool, json_dumps
 
 
 class EventModel(OPModel):
+    """
+    ID is an automatically assigned primary identifier of the event.
+    Apart from uniqueness, it does not have any special meaning. But it is used
+    for dependencies and hashing.
+
+    Hash is an unique value for an evend, which is per-topic deterministic.
+    This prevents storing two identical events by two different dispatchers.
+    For example 'enroll' endpoint, which is responsible to create new processing
+    jobs uses hash of source event id and the target topic. that effectively
+    prevents two services starting the same job.
+
+    Depends_on is nullable field, when used, it contains an ID of previously
+    finished event which this event depends.
+    TBD: when a dependency is restarted, should all dependent
+    events be restarted as well?
+
+    """
+
     id: uuid.UUID = Field(default_factory=uuid.uuid1)
     hash: str = Field(...)
     topic: str = Field(...)
+    sender: str | None = Field(None)
     project: str | None = Field(None)
     user: str | None = Field(None)
-    dependencies: list[uuid.UUID] = Field(default_factory=list)
+    depends_on: uuid.UUID | None = Field(None)
     status: Literal[
         "pending",
         "in_progress",
@@ -40,15 +59,13 @@ async def dispatch_event(
     hash: str | None = None,
     project: str | None = None,
     user: str | None = None,
-    dependencies: list[uuid.UUID] | None = None,
+    depends_on: uuid.UUID | None = None,
     description: str | None = None,
     summary: dict | None = None,
     payload: dict | None = None,
     finished: bool = True,
     store: bool = True,
-):
-    if dependencies is None:
-        dependencies = []
+) -> uuid.UUID | None:
     if summary is None:
         summary = {}
     if payload is None:
@@ -69,7 +86,7 @@ async def dispatch_event(
         topic=topic,
         project=project,
         user=user,
-        dependencies=dependencies,
+        depends_on=depends_on,
         status=status,
         description=description,
         summary=summary,
@@ -81,10 +98,11 @@ async def dispatch_event(
             table="events",
             id=event.id,
             hash=event.hash,
+            sender=event.sender,
             topic=event.topic,
             project_name=event.project,
             user_name=event.user,
-            dependencies=dependencies,
+            depends_on=depends_on,
             status=status,
             description=description,
             summary=event.summary,
@@ -94,6 +112,7 @@ async def dispatch_event(
             await Postgres.execute(*query)
         except Postgres.ForeignKeyViolationError:
             print(f"Unable to dispatch {event.topic}")
+            return None
 
     await Redis.publish(
         json_dumps(
