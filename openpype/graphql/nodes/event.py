@@ -6,10 +6,11 @@ import strawberry
 @strawberry.type
 class EventNode:
     id: uuid.UUID
-    hash: str
+    hash: uuid.UUID
     topic: str
     project: str | None
     user: str | None
+    sender: str | None
     status: str
     retries: int
     description: str
@@ -24,6 +25,7 @@ def event_from_record(record: dict, context: dict) -> EventNode:
         topic=record["topic"],
         project=record["project_name"],
         user=record["user_name"],
+        sender=record["sender"],
         status=record["status"],
         retries=record["retries"],
         description=record["description"],
