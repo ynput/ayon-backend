@@ -1,12 +1,12 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user, dep_event_id
 from openpype.entities import UserEntity
 from openpype.events import EventModel, dispatch_event, update_event
-from openpype.exceptions import NotFoundException, NothingToDoException
+from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 from openpype.utils import hash_data
@@ -200,7 +200,7 @@ async def enroll(
             print(sender, row["target_sender"])
             if row["target_sender"] != sender:
                 if payload.sequential:
-                    raise NothingToDoException()
+                    return Response(status_code=204)
                 continue
 
             # TODO: handle restarting own jobs
@@ -230,6 +230,6 @@ async def enroll(
                 id=new_id, hash=new_hash, depends_on=row["source_id"]
             )
         elif payload.sequential:
-            raise NothingToDoException()
+            return Response(status_code=204)
 
-    raise NothingToDoException()
+    return Response(status_code=204)
