@@ -1,13 +1,13 @@
-import uuid
 import time
-
+import uuid
 from typing import Any, Literal
+
 from pydantic import Field
 
 from openpype.lib.postgres import Postgres
 from openpype.lib.redis import Redis
 from openpype.types import OPModel
-from openpype.utils import SQLTool, json_dumps, EntityID
+from openpype.utils import EntityID, SQLTool, json_dumps
 
 
 def create_id():
@@ -152,7 +152,7 @@ async def update_event(
     payload: dict[str, Any] | None = None,
 ):
 
-    new_data = {"updated_at": time.time()}
+    new_data: dict[str, Any] = {"updated_at": time.time()}
 
     if sender is not None:
         new_data["sender"] = sender
@@ -168,7 +168,6 @@ async def update_event(
         new_data["payload"] = payload
 
     query = SQLTool.update("events", f"WHERE id = '{event_id}'", **new_data)
-
 
     res = await Postgres.execute(*query)
     print(res)
