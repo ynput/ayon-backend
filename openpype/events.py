@@ -1,13 +1,17 @@
-import time
 import uuid
-from typing import Any, Literal
+import time
 
+from typing import Any, Literal
 from pydantic import Field
 
 from openpype.lib.postgres import Postgres
 from openpype.lib.redis import Redis
 from openpype.types import OPModel
-from openpype.utils import SQLTool, json_dumps
+from openpype.utils import SQLTool, json_dumps, EntityID
+
+
+def create_id():
+    return uuid.uuid1().hex
 
 
 class EventModel(OPModel):
@@ -29,13 +33,13 @@ class EventModel(OPModel):
 
     """
 
-    id: uuid.UUID = Field(default_factory=uuid.uuid1)
+    id: str = Field(default_factory=create_id, **EntityID.META)
     hash: str = Field(...)
     topic: str = Field(...)
     sender: str | None = Field(None)
     project: str | None = Field(None)
     user: str | None = Field(None)
-    depends_on: uuid.UUID | None = Field(None)
+    depends_on: str | None = Field(None, **EntityID.META)
     status: Literal[
         "pending",
         "in_progress",
@@ -59,13 +63,13 @@ async def dispatch_event(
     hash: str | None = None,
     project: str | None = None,
     user: str | None = None,
-    depends_on: uuid.UUID | None = None,
+    depends_on: str | None = None,
     description: str | None = None,
     summary: dict | None = None,
     payload: dict | None = None,
     finished: bool = True,
     store: bool = True,
-) -> uuid.UUID | None:
+) -> str | None:
     if summary is None:
         summary = {}
     if payload is None:
@@ -73,7 +77,7 @@ async def dispatch_event(
     if description is None:
         description = ""
 
-    event_id = uuid.uuid1()
+    event_id = create_id()
     if hash is None:
         hash = f"{event_id}"
 
@@ -83,6 +87,7 @@ async def dispatch_event(
     event = EventModel(
         id=event_id,
         hash=hash,
+        sender=sender,
         topic=topic,
         project=project,
         user=user,
@@ -117,10 +122,11 @@ async def dispatch_event(
     await Redis.publish(
         json_dumps(
             {
-                "id": event.id,
+                "id": str(event.id).replace("-", ""),
                 "topic": event.topic,
                 "project": event.project,
                 "user": event.user,
+                "depends_on": str(event.depends_on).replace("-", ""),
                 "description": event.description,
                 "summary": event.summary,
                 "status": event.status,
@@ -134,3 +140,36 @@ async def dispatch_event(
     )
 
     return event.id
+
+
+async def update_event(
+    event_id: str,
+    sender: str | None = None,
+    project_name: str | None = None,
+    status: str | None = None,
+    description: str | None = None,
+    summary: dict[str, Any] | None = None,
+    payload: dict[str, Any] | None = None,
+):
+
+    new_data = {"updated_at": time.time()}
+
+    if sender is not None:
+        new_data["sender"] = sender
+    if project_name is not None:
+        new_data["project_name"] = project_name
+    if status is not None:
+        new_data["status"] = status
+    if description is not None:
+        new_data["description"] = description
+    if summary is not None:
+        new_data["summary"] = summary
+    if payload is not None:
+        new_data["payload"] = payload
+
+    query = SQLTool.update("events", f"WHERE id = '{event_id}'", **new_data)
+
+
+    res = await Postgres.execute(*query)
+    print(res)
+    return res

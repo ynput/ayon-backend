@@ -1,4 +1,3 @@
-import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -6,8 +5,8 @@ from fastapi import APIRouter, Depends
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user, dep_event_id
 from openpype.entities import UserEntity
-from openpype.events import EventModel, dispatch_event
-from openpype.exceptions import NotFoundException
+from openpype.events import EventModel, dispatch_event, update_event
+from openpype.exceptions import NotFoundException, NothingToDoException
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 from openpype.utils import hash_data
@@ -31,7 +30,7 @@ class DispatchEventRequestModel(OPModel):
     sender: str | None = None
     hash: str | None = None
     project: str | None = None
-    depends_on: uuid.UUID | None = Field(None)
+    depends_on: str | None = Field(None, min_length=32, max_length=32)
     description: str = Field("")
     summary: dict[str, Any] = Field(default_factory=dict)
     payload: dict[str, Any] = Field(default_factory=dict)
@@ -40,7 +39,7 @@ class DispatchEventRequestModel(OPModel):
 
 
 class DispatchEventResponseModel(OPModel):
-    id: uuid.UUID
+    id: str
 
 
 @router.post("/events", response_model=DispatchEventResponseModel)
@@ -79,6 +78,8 @@ async def get_event(
             topic=record["topic"],
             project=record["project_name"],
             user=record["user_name"],
+            sender=record["sender"],
+            depends_on=record["depends_on"],
             status=record["status"],
             retries=record["retries"],
             description=record["description"],
@@ -92,6 +93,33 @@ async def get_event(
     if event is None:
         raise NotFoundException("Event not found")
     return event
+
+
+class PatchEventRequestModel(OPModel):
+    sender: str | None = None
+    project_name: str | None = None
+    status: str | None = None
+    description: str | None = None
+    summary: dict[str, Any] | None = None
+    payload: dict[str, Any] | None = None
+
+
+@router.patch("/events/{event_id}")
+async def patch_event(
+    payload: PatchEventRequestModel,
+    user: UserEntity = Depends(dep_current_user),
+    event_id: str = Depends(dep_event_id),
+):
+
+    await update_event(
+        event_id,
+        payload.sender,
+        payload.project_name,
+        payload.status,
+        payload.description,
+        payload.summary,
+        payload.payload,
+    )
 
 
 #
@@ -114,7 +142,9 @@ class EnrollRequestModel(OPModel):
 
 
 class EnrollResponseModel(OPModel):
-    id: uuid.UUID = Field(...)
+    id: str = Field(...)
+    depends_on: str = Field(...)
+    hash: str = Field(...)
     status: str = Field("pending")
 
 
@@ -138,7 +168,8 @@ async def enroll(
         SELECT
             source_events.id AS source_id,
             target_events.status AS target_status,
-            target_events.sender AS target_sender
+            target_events.sender AS target_sender,
+            target_events.hash AS target_hash,
             target_events.id AS target_id
         FROM
             events AS source_events
@@ -147,9 +178,9 @@ async def enroll(
         ON target_events.depends_on = source_events.id
 
         WHERE
-            source_event.topic = $1
+            source_events.topic = $1
         AND
-            source_event.status = 'finished'
+            source_events.status = 'finished'
         AND
             source_events.id NOT IN (
                 SELECT depends_on
@@ -166,20 +197,25 @@ async def enroll(
 
         if row["target_status"] is not None:
 
+            print(sender, row["target_sender"])
             if row["target_sender"] != sender:
                 if payload.sequential:
-                    raise NotFoundException("Nothing to do")
+                    raise NothingToDoException()
                 continue
 
             # TODO: handle restarting own jobs
             # if a job is restarted, just return its id so
             # the processor will
-            return row["target_id"]
-            return EnrollResponseModel(id=row["target_id"], status=row["target_status"])
+            return EnrollResponseModel(
+                id=row["target_id"],
+                depends_on=row["source_id"],
+                status=row["target_status"],
+                hash="target_hash",
+            )
 
         # Target event does not exist yet. Create a new one
         new_hash = hash_data((payload.target_topic, row["source_id"]))
-        new_id = dispatch_event(
+        new_id = await dispatch_event(
             payload.target_topic,
             sender=sender,
             hash=new_hash,
@@ -190,8 +226,10 @@ async def enroll(
         )
 
         if new_id:
-            return EnrollResponseModel(id=new_id)
+            return EnrollResponseModel(
+                id=new_id, hash=new_hash, depends_on=row["source_id"]
+            )
         elif payload.sequential:
-            raise NotFoundException("Sequential booo")
+            raise NothingToDoException()
 
-    raise NotFoundException("Nothing to do")
+    raise NothingToDoException()

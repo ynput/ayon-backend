@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS public.addon_versions(
 
 CREATE TABLE IF NOT EXISTS public.events(
   id UUID NOT NULL PRIMARY KEY,
-  hash UUID NOT NULL,
+  hash VARCHAR NOT NULL,
   topic VARCHAR NOT NULL,
   sender VARCHAR,
   project_name VARCHAR REFERENCES public.projects(name)

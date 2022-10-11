@@ -78,3 +78,10 @@ class LowPasswordComplexityException(OpenPypeException):
 
     detail: str = "Password is not seure enough"
     status: int = 400
+
+
+class NothingToDoException(OpenPypeException):
+    """Exception raised when there's nothing to do"""
+
+    detail: str = "Nothing to do"
+    status: int = 404
