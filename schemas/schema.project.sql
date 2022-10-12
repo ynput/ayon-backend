@@ -42,10 +42,12 @@ CREATE TABLE folders(
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
-    updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+    updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+    creation_order SERIAL NOT NULL
 );
 
 CREATE INDEX folder_parent_idx ON folders(parent_id);
+CREATE UNIQUE INDEX folder_creation_order_idx ON folders(creation_order);
 
 -- Two partial indices are used as a workaround for root folders (which have parent_id NULL)
 
@@ -104,11 +106,13 @@ CREATE TABLE tasks(
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
-    updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+    updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+    creation_order SERIAL NOT NULL
 );
 
 CREATE INDEX task_parent_idx ON tasks(folder_id);
 CREATE INDEX task_type_idx ON tasks(task_type);
+CREATE UNIQUE INDEX task_creation_order_idx ON tasks(creation_order);
 CREATE UNIQUE INDEX task_unique_name ON tasks(folder_id, name);
 
 -------------
@@ -126,11 +130,13 @@ CREATE TABLE subsets(
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
-    updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+    updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+    creation_order SERIAL NOT NULL
 );
 
 CREATE INDEX subset_parent_idx ON subsets(folder_id);
 CREATE INDEX subset_family_idx ON subsets(family);
+CREATE UNIQUE INDEX subset_creation_order_idx ON subsets(creation_order);
 CREATE UNIQUE INDEX subset_unique_name_parent ON subsets (folder_id, name) WHERE (active IS TRUE);
 
 --------------
@@ -150,10 +156,12 @@ CREATE TABLE versions(
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
-    updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+    updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+    creation_order SERIAL NOT NULL
 );
 
 CREATE INDEX version_parent_idx ON versions(subset_id);
+CREATE UNIQUE INDEX version_creation_order_idx ON versions(creation_order);
 CREATE UNIQUE INDEX version_unique_version_parent ON versions (subset_id, version) WHERE (active IS TRUE);
 
 -- Version list VIEW
@@ -187,10 +195,12 @@ CREATE TABLE representations(
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
-    updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+    updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+    creation_order SERIAL NOT NULL
 );
 
 CREATE INDEX representation_parent_idx ON representations(version_id);
+CREATE UNIQUE INDEX representation_creation_order_idx ON representations(creation_order);
 
 -----------
 -- FILES --
@@ -234,11 +244,13 @@ CREATE TABLE links (
     output_id UUID NOT NULL,
     link_name VARCHAR NOT NULL REFERENCES link_types(name) ON DELETE CASCADE,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
-    created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+    created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+    creation_order SERIAL NOT NULL
 );
 
 CREATE INDEX link_input_idx ON links(input_id);
 CREATE INDEX link_output_idx ON links(output_id);
+CREATE UNIQUE INDEX link_creation_order_idx ON links(creation_order);
 CREATE UNIQUE INDEX link_unique_idx ON links(input_id, output_id, link_name);
 
 --------------

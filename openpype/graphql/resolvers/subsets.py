@@ -59,6 +59,7 @@ async def get_subsets(
         "subsets.active AS active",
         "subsets.created_at AS created_at",
         "subsets.updated_at AS updated_at",
+        "subsets.creation_order AS creation_order",
     ]
     sql_conditions = []
     sql_joins = []
@@ -183,7 +184,7 @@ async def get_subsets(
     # Pagination
     #
 
-    order_by = "id"
+    order_by = "subsets.creation_order"
     pagination, paging_conds = create_pagination(order_by, first, after, last, before)
     sql_conditions.extend(paging_conds)
 

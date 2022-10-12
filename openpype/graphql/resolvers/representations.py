@@ -53,6 +53,7 @@ async def get_representations(
         "representations.active AS active",
         "representations.created_at AS created_at",
         "representations.updated_at AS updated_at",
+        "representations.creation_order AS creation_order",
     ]
 
     sql_joins = []
@@ -143,8 +144,7 @@ async def get_representations(
     # Pagination
     #
 
-    pagination = ""
-    order_by = "id"
+    order_by = "representations.creation_order"
     pagination, paging_conds = create_pagination(order_by, first, after, last, before)
     sql_conditions.extend(paging_conds)
 

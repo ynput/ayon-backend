@@ -31,14 +31,14 @@ async def get_links(
     else:
         sql_conditions.append(f"(input_id = '{root.id}' or output_id = '{root.id}')")
 
-    if after is not None:
-        sql_conditions.append(f"id > '{after}'")
+    if after is not None and after.isdigit():
+        sql_conditions.append(f"id > {after}")
 
     query = f"""
         SELECT id, input_id, output_id, link_name, data, created_at
         FROM project_{project_name}.links
         {SQLTool.conditions(sql_conditions)}
-        ORDER BY id
+        ORDER BY creation_order
         LIMIT {first}
     """
 

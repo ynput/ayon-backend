@@ -66,6 +66,7 @@ async def get_tasks(
         "tasks.active AS active",
         "tasks.created_at AS created_at",
         "tasks.updated_at AS updated_at",
+        "tasks.creation_order AS creation_order",
     ]
     sql_conditions = []
     sql_joins = []
@@ -181,7 +182,7 @@ async def get_tasks(
     # is not the best idea ever. It skips duplicate names, so it only makes sense
     # for querying tasks of one folder
 
-    order_by = "id"
+    order_by = "tasks.creation_order"
     pagination, paging_conds = create_pagination(order_by, first, after, last, before)
     sql_conditions.extend(paging_conds)
 

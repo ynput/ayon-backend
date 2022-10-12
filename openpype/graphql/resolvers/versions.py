@@ -77,6 +77,7 @@ async def get_versions(
         "versions.active AS active",
         "versions.created_at AS created_at",
         "versions.updated_at AS updated_at",
+        "versions.creation_order AS creation_order",
     ]
 
     # sql_joins = []
@@ -158,8 +159,7 @@ async def get_versions(
     # Pagination
     #
 
-    pagination = ""
-    order_by = "id"
+    order_by = "versions.creation_order"
     pagination, paging_conds = create_pagination(order_by, first, after, last, before)
     sql_conditions.extend(paging_conds)
 

@@ -82,6 +82,7 @@ async def get_folders(
         "folders.attrib AS attrib",
         "folders.created_at AS created_at",
         "folders.updated_at AS updated_at",
+        "folders.creation_order AS creation_order",
         "pr.attrib AS project_attributes",
         "ex.attrib AS inherited_attributes",
     ]
@@ -212,7 +213,7 @@ async def get_folders(
     # Pagination
     #
 
-    order_by = "folders.id"
+    order_by = "folders.creation_order"
     pagination, paging_conds = create_pagination(order_by, first, after, last, before)
     sql_conditions.extend(paging_conds)
 

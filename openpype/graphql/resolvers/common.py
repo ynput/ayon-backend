@@ -132,7 +132,7 @@ def create_pagination(
     elif last:
         pagination += f"ORDER BY {order_by} DESC LIMIT {last}"
         if before:
-            sql_conditions.append(f"{order_by} < '{EntityID.parse(before)}'")
+            sql_conditions.append(f"{order_by} < {before}")
     return pagination, sql_conditions
 
 

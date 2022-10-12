@@ -23,6 +23,7 @@ async def get_events(
     topics: Annotated[list[str] | None, argdesc("List of topics")] = None,
     projects: Annotated[list[str] | None, argdesc("List of projects")] = None,
     users: Annotated[list[str] | None, argdesc("List of users")] = None,
+    states: Annotated[list[str] | None, argdesc("List of states")] = None,
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
@@ -38,6 +39,8 @@ async def get_events(
         sql_conditions.append(f"project_name IN {SQLTool.array(projects)}")
     if users:
         sql_conditions.append(f"user_name IN {SQLTool.array(users)}")
+    if states:
+        sql_conditions.append(f"status IN {SQLTool.array(states)}")
 
     order_by = "creation_order"
     pagination, paging_conds = create_pagination(
