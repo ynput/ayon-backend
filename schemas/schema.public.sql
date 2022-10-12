@@ -110,11 +110,13 @@ CREATE TABLE IF NOT EXISTS public.events(
   created_at NUMERIC NOT NULL 
     DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
   updated_at NUMERIC NOT NULL 
-    DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
+    DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+  creation_order SERIAL NOT NULL
 );
 
 -- TODO: some indices here
 CREATE UNIQUE INDEX IF NOT EXISTS unique_event_hash ON events(hash);
+CREATE UNIQUE INDEX IF NOT EXISTS unique_creation_order ON events(creation_order);
 
 
 --------------

@@ -150,6 +150,8 @@ async def update_event(
     description: str | None = None,
     summary: dict[str, Any] | None = None,
     payload: dict[str, Any] | None = None,
+    progress: float | None = None,
+    store: bool = True,
 ):
 
     new_data: dict[str, Any] = {"updated_at": time.time()}
@@ -167,8 +169,50 @@ async def update_event(
     if payload is not None:
         new_data["payload"] = payload
 
-    query = SQLTool.update("events", f"WHERE id = '{event_id}'", **new_data)
+    if store:
+        query = SQLTool.update("events", f"WHERE id = '{event_id}'", **new_data)
 
-    res = await Postgres.execute(*query)
-    print(res)
-    return res
+        query[0] = (
+            query[0]
+            + """
+             RETURNING
+                id,
+                topic,
+                project_name,
+                user_name,
+                depends_on,
+                description,
+                summary,
+                status,
+                sender,
+                created_at,
+                updated_at
+        """
+        )
+
+    else:
+        query = ("SELECT * FROM events WHERE id=$!", event_id)
+
+    result = await Postgres.fetch(*query)
+    for row in result:
+        data = dict(row)
+        if not store:
+            data.update(new_data)
+        message = {
+            "id": data["id"],
+            "topic": data["topic"],
+            "project": data["project_name"],
+            "user": data["user_name"],
+            "depends_on": data["depends_on"],
+            "description": data["description"],
+            "summary": data["summary"],
+            "status": data["status"],
+            "sender": data["sender"],
+            "createdAt": float(data["created_at"]),
+            "updatedAt": float(data["updated_at"]),
+        }
+        if progress is not None:
+            message["progress"] = progress
+        await Redis.publish(json_dumps(message))
+        return True
+    return False

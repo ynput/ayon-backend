@@ -39,7 +39,7 @@ async def get_events(
     if users:
         sql_conditions.append(f"user_name IN {SQLTool.array(users)}")
 
-    order_by = "updated_at"
+    order_by = "creation_order"
     pagination, paging_conds = create_pagination(
         order_by,
         first,

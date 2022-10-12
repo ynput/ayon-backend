@@ -104,7 +104,7 @@ class PatchEventRequestModel(OPModel):
     payload: dict[str, Any] | None = None
 
 
-@router.patch("/events/{event_id}")
+@router.patch("/events/{event_id}", response_class=Response)
 async def patch_event(
     payload: PatchEventRequestModel,
     user: UserEntity = Depends(dep_current_user),
@@ -120,6 +120,8 @@ async def patch_event(
         payload.summary,
         payload.payload,
     )
+
+    return Response(status_code=204)
 
 
 #
