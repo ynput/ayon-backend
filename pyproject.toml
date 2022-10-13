@@ -30,6 +30,7 @@ mypy = "^0.931"
 
 [tool.isort]
 profile = "black"
+skip = ["addons/"]
 
 [tool.black]
 line-length = 88
