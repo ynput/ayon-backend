@@ -2,9 +2,9 @@
 
 import time
 from typing import List, Literal, Optional
+from fastapi import Depends, Query
 
 from crud_projects.router import router
-from fastapi import Depends, Query
 
 from openpype.api import dep_current_user
 from openpype.entities import UserEntity
