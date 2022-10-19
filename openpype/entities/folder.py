@@ -157,13 +157,14 @@ class FolderEntity(ProjectLevelEntity):
 
         transaction = transaction or Postgres
 
-        await transaction.execute(
-            f"""
-            DELETE FROM project_{self.project_name}.thumbnails
-            WHERE id = $1
-            """,
-            self.id,
-        )
+        # TODO: why is this here?
+        # await transaction.execute(
+        #     f"""
+        #     DELETE FROM project_{self.project_name}.thumbnails
+        #     WHERE id = $1
+        #     """,
+        #     self.id,
+        # )
         await transaction.execute(
             f"""
             REFRESH MATERIALIZED VIEW CONCURRENTLY
