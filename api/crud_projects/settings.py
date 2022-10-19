@@ -1,12 +1,11 @@
+from crud_projects.router import router
 from fastapi import Depends
 
-from openpype.api import dep_current_user, dep_project_name
 from openpype.addons import AddonLibrary
+from openpype.api import dep_current_user, dep_project_name
 from openpype.entities import UserEntity
 from openpype.settings import BaseSettingsModel
 from openpype.types import OPModel
-
-from crud_projects.router import router
 
 
 class GetProjectSettingsResponse(OPModel):
@@ -39,11 +38,11 @@ async def get_project_settings(
         print("PRODVER", addon_name, production_version)
 
         try:
-            addon = library.addon(addon_name, production_version)
+            active_addon = library.addon(addon_name, production_version)
         except Exception:
             continue
 
-        settings = await addon.get_project_settings(project_name)
+        settings = await active_addon.get_project_settings(project_name)
         if settings is None:
             continue
         result[addon_name] = settings

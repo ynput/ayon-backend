@@ -1,21 +1,21 @@
-from typing import Literal, Any
+from typing import Any, Literal
+
 from fastapi import APIRouter, Depends
 from nxtools import log_traceback
 
 from openpype.api.dependencies import dep_current_user, dep_project_name
 from openpype.entities import (
-    UserEntity,
     FolderEntity,
-    TaskEntity,
-    SubsetEntity,
-    VersionEntity,
     RepresentationEntity,
+    SubsetEntity,
+    TaskEntity,
+    UserEntity,
+    VersionEntity,
 )
 from openpype.entities.core import ProjectLevelEntity
 from openpype.lib.postgres import Postgres
-from openpype.types import OPModel, Field, ProjectLevelEntityType
+from openpype.types import Field, OPModel, ProjectLevelEntityType
 from openpype.utils import create_uuid
-
 
 router = APIRouter(tags=["Edit"])
 
