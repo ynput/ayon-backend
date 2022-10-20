@@ -1,3 +1,4 @@
+from contextlib import suppress
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
@@ -29,23 +30,26 @@ EditOperation = Literal["create", "update", "delete"]
 class EditOperationModel(OPModel):
     id: str = Field(
         default_factory=create_uuid,
-        description="ID of operation",
+        title="Operation ID",
+        description="identifier manually or automatically assigned to each operation",
     )
     type: EditOperation = Field(
         ...,
-        description="Type of operation",
+        title="Operation type",
     )
     entity_type: ProjectLevelEntityType = Field(
         ...,
-        description="Type of the entity",
+        title="Entity type",
     )
     entity_id: str | None = Field(
         None,
+        title="Entity ID",
         description="ID of the entity. None for create",
     )
     data: dict[str, Any] | None = Field(
         None,
-        description="Data to be used for create or update",
+        title="Data",
+        description="Data to be used for create or update. Ignored for delete.",
     )
 
 
@@ -156,14 +160,15 @@ async def process_operations(
                     error=str(exc),
                 )
             )
+
             if not can_fail:
+                # No need to continue
                 break
 
+    # Create overall success value
     success = all(op.success for op in result)
-
     if success or can_fail:
         for entity in to_commit:
-            print("commiting", entity.entity_type, entity.id)
             await entity.commit(transaction=transaction)
 
     return EditResponseModel(operations=result, success=success)
@@ -181,7 +186,6 @@ async def edit(
     user: UserEntity = Depends(dep_current_user),
 ):
 
-    response = None
     if payload.can_fail:
         response = await process_operations(
             project_name,
@@ -189,20 +193,23 @@ async def edit(
             payload.operations,
             can_fail=True,
         )
-    else:
-        try:
-            async with Postgres.acquire() as conn:
-                async with conn.transaction():
-                    response = await process_operations(
-                        project_name,
-                        user,
-                        payload.operations,
-                        transaction=conn,
-                    )
+        return response
 
-                    if not response.success:
-                        raise Exception(response.error)
-        except Exception:
-            print("Rollback!")
+    # If can_fail is false, process all items in a transaction
+    # and roll back on error
+
+    with suppress(Exception):
+        async with Postgres.acquire() as conn:
+            async with conn.transaction():
+                response = await process_operations(
+                    project_name,
+                    user,
+                    payload.operations,
+                    transaction=conn,
+                )
+
+                if not response.success:
+                    # Raising will trigger transaction rollback
+                    raise Exception(response.error)
 
     return response
