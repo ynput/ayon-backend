@@ -179,7 +179,7 @@ async def process_operations(
 #
 
 
-@router.post("/projects/{project_name}/edit")
+@router.post("/projects/{project_name}/edit", response_model=EditResponseModel)
 async def edit(
     payload: EditRequestModel,
     project_name: str = Depends(dep_project_name),
