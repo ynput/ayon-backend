@@ -18,22 +18,22 @@ from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel, ProjectLevelEntityType
 from openpype.utils import create_uuid
 
-router = APIRouter(tags=["Edit"])
+router = APIRouter(tags=["Projects"])
 
 #
 # Models
 #
 
-EditOperation = Literal["create", "update", "delete"]
+OperationType = Literal["create", "update", "delete"]
 
 
-class EditOperationModel(OPModel):
+class OperationModel(OPModel):
     id: str = Field(
         default_factory=create_uuid,
         title="Operation ID",
         description="identifier manually or automatically assigned to each operation",
     )
-    type: EditOperation = Field(
+    type: OperationType = Field(
         ...,
         title="Operation type",
     )
@@ -53,12 +53,12 @@ class EditOperationModel(OPModel):
     )
 
 
-class EditRequestModel(OPModel):
-    operations: list[EditOperationModel] = Field(default_factory=list)
+class OperationsRequestModel(OPModel):
+    operations: list[OperationModel] = Field(default_factory=list)
     can_fail: bool = False
 
 
-class EditItemResponseModel(OPModel):
+class OperationResponseModel(OPModel):
     id: str = Field(..., title="Operation ID")
     success: bool = Field(..., title="Operation success")
     error: str | None = Field(None, title="Error message")
@@ -66,8 +66,8 @@ class EditItemResponseModel(OPModel):
     entity_id: str | None = Field(None, title="Entity ID")
 
 
-class EditResponseModel(OPModel):
-    operations: list[EditItemResponseModel] = Field(default_factory=list)
+class OperationsResponseModel(OPModel):
+    operations: list[OperationResponseModel] = Field(default_factory=list)
     success: bool = Field(..., title="Overall success")
 
 
@@ -89,9 +89,9 @@ def get_entity_class(entity_type: ProjectLevelEntityType):
 async def process_operation(
     project_name: str,
     user: UserEntity,
-    operation: EditOperationModel,
+    operation: OperationModel,
     transaction=None,
-) -> tuple[ProjectLevelEntity, EditItemResponseModel]:
+) -> tuple[ProjectLevelEntity, OperationResponseModel]:
     """Process a single operation. Raise exception on error."""
 
     entity_class = get_entity_class(operation.entity_type)
@@ -124,7 +124,7 @@ async def process_operation(
         await entity.ensure_delete_access(user)
         await entity.delete(transaction=transaction)
 
-    return entity, EditItemResponseModel(
+    return entity, OperationResponseModel(
         success=True, id=operation.id, entity_id=entity.id
     )
 
@@ -132,12 +132,12 @@ async def process_operation(
 async def process_operations(
     project_name: str,
     user: UserEntity,
-    operations: list[EditOperationModel],
+    operations: list[OperationModel],
     can_fail: bool = False,
     transaction=None,
-) -> EditResponseModel:
+) -> OperationsResponseModel:
 
-    result: list[EditItemResponseModel] = []
+    result: list[OperationResponseModel] = []
     to_commit: list[ProjectLevelEntity] = []
 
     for i, operation in enumerate(operations):
@@ -154,7 +154,7 @@ async def process_operations(
         except Exception as exc:
             log_traceback()
             result.append(
-                EditItemResponseModel(
+                OperationResponseModel(
                     success=False,
                     id=operation.id,
                     error=str(exc),
@@ -171,20 +171,34 @@ async def process_operations(
         for entity in to_commit:
             await entity.commit(transaction=transaction)
 
-    return EditResponseModel(operations=result, success=success)
+    return OperationsResponseModel(operations=result, success=success)
 
 
 #
-# Edit request
+# Operations request
 #
 
 
-@router.post("/projects/{project_name}/edit", response_model=EditResponseModel)
-async def edit(
-    payload: EditRequestModel,
+@router.post(
+    "/projects/{project_name}/operations",
+    response_model=OperationsResponseModel,
+)
+async def operations(
+    payload: OperationsRequestModel,
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
 ):
+    """
+    Process multiple operations (create / update / delete) in a single request.
+
+    All operations are processed in the order they are provided in the request.
+    If can_fail is set to False, the processing stops on the first error and
+    all previous operations are rolled back. If can_fail is set to True, the
+    processing continues and all operations are committed.
+
+    The response contains the list of operations with their success status.
+    In case of failure, the error message is provided for each operation (TODO).
+    """
 
     if payload.can_fail:
         response = await process_operations(
