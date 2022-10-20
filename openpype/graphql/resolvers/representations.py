@@ -169,6 +169,7 @@ async def get_representations(
         first,
         last,
         context=info.context,
+        order_by=order_by,
     )
 
 
