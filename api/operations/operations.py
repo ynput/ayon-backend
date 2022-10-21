@@ -13,12 +13,18 @@ from openpype.entities import (
     UserEntity,
     VersionEntity,
 )
+from openpype.exceptions import OpenPypeException
 from openpype.entities.core import ProjectLevelEntity
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel, ProjectLevelEntityType
 from openpype.utils import create_uuid
 
 router = APIRouter(tags=["Projects"])
+
+
+class RollbackException(Exception):
+    pass
+
 
 #
 # Models
@@ -60,6 +66,7 @@ class OperationsRequestModel(OPModel):
 
 class OperationResponseModel(OPModel):
     id: str = Field(..., title="Operation ID")
+    type: OperationType = Field(..., title="Operation type")
     success: bool = Field(..., title="Operation success")
     error: str | None = Field(None, title="Error message")
     # entity_id is optional for the cases create operation fails
@@ -92,7 +99,7 @@ async def process_operation(
     operation: OperationModel,
     transaction=None,
 ) -> tuple[ProjectLevelEntity, OperationResponseModel]:
-    """Process a single operation. Raise exception on error."""
+    """Process a single operation. Raise an exception on error."""
 
     entity_class = get_entity_class(operation.entity_type)
 
@@ -125,7 +132,10 @@ async def process_operation(
         await entity.delete(transaction=transaction)
 
     return entity, OperationResponseModel(
-        success=True, id=operation.id, entity_id=entity.id
+        success=True,
+        id=operation.id,
+        type=operation.type,
+        entity_id=entity.id,
     )
 
 
@@ -136,6 +146,14 @@ async def process_operations(
     can_fail: bool = False,
     transaction=None,
 ) -> OperationsResponseModel:
+    """Process a list of operations. Return a response model.
+
+    This is separated from the endpoint so the endpoint can
+    run this operation within or without a transaction context.
+
+    This function shouldn't raise any exceptions, instead it should
+    return a response model with success=False and error set.
+    """
 
     result: list[OperationResponseModel] = []
     to_commit: list[ProjectLevelEntity] = []
@@ -151,13 +169,27 @@ async def process_operations(
             result.append(response)
             if entity.entity_type not in [e.entity_type for e in to_commit]:
                 to_commit.append(entity)
+        except OpenPypeException as e:
+            result.append(
+                OperationResponseModel(
+                    success=False,
+                    id=operation.id,
+                    type=operation.type,
+                    error=e.detail,
+                    entity_id=operation.entity_id,
+                )
+            )
+            if not can_fail:
+                break
         except Exception as exc:
             log_traceback()
             result.append(
                 OperationResponseModel(
                     success=False,
                     id=operation.id,
+                    type=operation.type,
                     error=str(exc),
+                    entity_id=operation.entity_id,
                 )
             )
 
@@ -198,6 +230,9 @@ async def operations(
 
     The response contains the list of operations with their success status.
     In case of failure, the error message is provided for each operation (TODO).
+
+    The endpoint should never return an error status code - if so, something is
+    very wrong (or the request is malformed).
     """
 
     if payload.can_fail:
@@ -212,7 +247,7 @@ async def operations(
     # If can_fail is false, process all items in a transaction
     # and roll back on error
 
-    with suppress(Exception):
+    with suppress(RollbackException):
         async with Postgres.acquire() as conn:
             async with conn.transaction():
                 response = await process_operations(
@@ -223,7 +258,6 @@ async def operations(
                 )
 
                 if not response.success:
-                    # Raising will trigger transaction rollback
-                    raise Exception(response.error)
+                    raise RollbackException()
 
     return response
