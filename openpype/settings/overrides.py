@@ -1,4 +1,5 @@
 from typing import Any
+from nxtools import logging
 
 from openpype.settings.common import BaseSettingsModel
 
@@ -28,6 +29,15 @@ def apply_overrides(
             else:
                 # Naive types
                 if name in override:
+                    try:
+                        type(child)(override[name])
+                    except ValueError:
+                        logging.warning(f"Invalid value for {name}: {override[name]}")
+                        continue
+                    except TypeError:
+                        # This is okay
+                        pass
+
                     target[name] = override[name]
                 else:
                     target[name] = child
