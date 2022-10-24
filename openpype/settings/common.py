@@ -3,10 +3,10 @@ import inspect
 import re
 from typing import Any, Deque, Iterable, Type
 
-from nxtools import slugify
+from nxtools import slugify, logging
 from pydantic import BaseModel
 
-from openpype.utils import json_dumps, json_loads, run_blocking_coro
+from openpype.utils import json_dumps, json_loads
 
 pattern = re.compile(r"(?<!^)(?=[A-Z])")
 
@@ -21,43 +21,6 @@ class BaseSettingsModel(BaseModel):
         allow_population_by_field_name = True
         json_loads = json_loads
         json_dumps = json_dumps
-
-        @staticmethod
-        def schema_extra_off(
-            schema: dict[str, Any],
-            model: type["BaseSettingsModel"],
-        ) -> None:
-            is_group = model.__private_attributes__["_isGroup"].default
-            schema["isgroup"] = is_group
-            if "title" in schema:
-                del schema["title"]
-
-            for attr in ("title", "layout"):
-                if pattr := model.__private_attributes__.get(f"_{attr}"):
-                    if pattr.default is not None:
-                        schema[attr] = pattr.default
-
-            for name, prop in schema.get("properties", {}).items():
-                for key in tuple(prop.keys()):
-                    if key in ("enum_resolver:", "widget"):
-                        del prop[key]
-
-                if field := model.__fields__.get(name):
-                    if enum_resolver := field.field_info.extra.get("enum_resolver"):
-                        if inspect.iscoroutinefunction(enum_resolver):
-                            result = run_blocking_coro(enum_resolver)
-                            prop["enum"] = result
-                        else:
-                            prop["enum"] = enum_resolver()
-
-                    if section := field.field_info.extra.get("section"):
-                        prop["section"] = section
-
-                    if widget := field.field_info.extra.get("widget"):
-                        prop["widget"] = widget
-
-                    if tags := field.field_info.extra.get("tags"):
-                        prop["tags"] = tags
 
 
 def normalize_name(name: str) -> str:
@@ -125,10 +88,27 @@ async def postprocess_settings_schema(
                 else:
                     enum = enum_resolver()
 
+                enum_values = []
+                enum_labels = {}
+                if type(enum) is list:
+                    for item in enum:
+                        if type(item) is str:
+                            enum_values.append(item)
+                        elif type(item) is dict:
+                            if "value" not in item or "label" not in item:
+                                logging.warning(
+                                    f"Invalid enumerator item: {item} in {model}"
+                                )
+                                continue
+                            enum_values.append(item["value"])
+                            enum_labels[item["value"]] = item["label"]
+
                 if prop.get("items"):
-                    prop["items"]["enum"] = enum
+                    prop["items"]["enum"] = enum_values
                 else:
-                    prop["enum"] = enum
+                    prop["enum"] = enum_values
+                if enum_labels:
+                    prop["enumLabels"] = enum_labels
                 prop["uniqueItems"] = True
 
             if section := field.field_info.extra.get("section"):
