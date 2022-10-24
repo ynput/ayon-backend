@@ -13,8 +13,8 @@ from openpype.entities import (
     UserEntity,
     VersionEntity,
 )
-from openpype.exceptions import OpenPypeException
 from openpype.entities.core import ProjectLevelEntity
+from openpype.exceptions import OpenPypeException
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel, ProjectLevelEntityType
 from openpype.utils import create_uuid

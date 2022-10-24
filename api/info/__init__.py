@@ -1,12 +1,11 @@
 import time
-from typing import Any
 
+from attributes.attributes import AttributeModel, get_attribute_list
 from fastapi import APIRouter, Depends
 
 from openpype.api import dep_current_user_optional
 from openpype.api.metadata import VERSION
 from openpype.entities import UserEntity
-from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 
 router = APIRouter(prefix="/info", tags=["Site info"])
@@ -21,49 +20,19 @@ def get_uptime():
     return time.time() - BOOT_TIME
 
 
-class AttributeItemModel(OPModel):
-    name: str
-    title: str | None
-    example: str | None
-    description: str | None
-    attribType: str | None
-    scope: list[str] = Field(default_factory=list)
-    builtIn: bool
-    writable: bool
-
-
 class InfoResponseModel(OPModel):
     motd: str = Field(default_factory=get_motd)
     version: str = Field(VERSION)
     uptime: float = Field(default_factory=get_uptime)
     user: UserEntity.model.main_model | None = Field(None)  # type: ignore
-    attributes: list[AttributeItemModel] | None = Field(None)
+    attributes: list[AttributeModel] | None = Field(None)
 
 
 async def get_additional_info(user: UserEntity):
-
-    attributes: list[AttributeItemModel] = []
-    query = "SELECT name, scope, builtin, data FROM attributes ORDER BY position"
-    async for row in Postgres.iterate(query):
-        data: dict[str, Any] = row["data"]
-
-        # TODO: skip attributes user does not have read access to
-        # TODO: set writable flag according to user rights
-
-        attributes.append(
-            AttributeItemModel(
-                name=row["name"],
-                title=data.get("title", row["name"]),
-                example=str(data.get("example", "")),
-                description=data.get("description", ""),
-                scope=row["scope"],
-                attribType=data.get("type", "string"),
-                builtIn=row["builtin"],
-                writable=True,
-            )
-        )
-
-    return {"attributes": attributes}
+    attr_list = await get_attribute_list(user)
+    return {
+        "attributes": attr_list.attributes,
+    }
 
 
 @router.get("", response_model=InfoResponseModel, response_model_exclude_none=True)

@@ -2,9 +2,14 @@
 
 from openpype.access.permissions import Permissions
 from openpype.access.roles import Roles
+from openpype.auth.utils import create_password, ensure_password_complexity
 from openpype.entities.core import TopLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
-from openpype.exceptions import ForbiddenException, NotFoundException
+from openpype.exceptions import (
+    ForbiddenException,
+    LowPasswordComplexityException,
+    NotFoundException,
+)
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool, dict_exclude
 
@@ -134,3 +139,10 @@ class UserEntity(TopLevelEntity):
             raise ForbiddenException("No role assigned on this project")
 
         return Roles.combine(active_roles, project_name)
+
+    def set_password(self, password: str) -> None:
+        """Set user password."""
+        if not ensure_password_complexity(password):
+            raise LowPasswordComplexityException
+        hashed_password = create_password(password)
+        self._payload.data["password"] = hashed_password

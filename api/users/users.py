@@ -4,13 +4,8 @@ from nxtools import logging
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_access_token, dep_current_user, dep_user_name
 from openpype.auth.session import Session
-from openpype.auth.utils import create_password, ensure_password_complexity
 from openpype.entities import UserEntity
-from openpype.exceptions import (
-    ForbiddenException,
-    LowPasswordComplexityException,
-    NotFoundException,
-)
+from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 
@@ -98,6 +93,10 @@ async def get_user(
     return {"name": result.name}
 
 
+class NewUserModel(UserEntity.model.post_model):  # type: ignore
+    password: str | None = Field(None, description="Password for the new user")
+
+
 @router.put(
     "/{user_name}",
     response_class=Response,
@@ -108,7 +107,7 @@ async def get_user(
     },
 )
 async def create_user(
-    put_data: UserEntity.model.post_model,  # type: ignore
+    put_data: NewUserModel,
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
 ) -> Response:
@@ -124,6 +123,8 @@ async def create_user(
     else:
         return Response(status_code=409)
 
+    if put_data.password:
+        nuser.set_password(put_data.password)
     await nuser.save()
     return Response(status_code=201)
 
@@ -208,12 +209,8 @@ async def change_password(
         raise ForbiddenException
 
     target_user = await UserEntity.load(user_name)
+    target_user.set_password(patch_data.password)
 
-    if not ensure_password_complexity(patch_data.password):
-        raise LowPasswordComplexityException
-
-    hashed_password = create_password(patch_data.password)
-    target_user.data["password"] = hashed_password
     await target_user.save()
     return Response(status_code=204)
 

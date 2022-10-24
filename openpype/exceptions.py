@@ -76,7 +76,7 @@ class UnsupportedMediaException(OpenPypeException):
 class LowPasswordComplexityException(OpenPypeException):
     """Exception raised when a new password doesn't meet the required complexity."""
 
-    detail: str = "Password is not seure enough"
+    detail: str = "Password does not meet complexity requirements"
     status: int = 400
 
 
