@@ -14,6 +14,7 @@ from openpype.entities import (
     SubsetEntity,
     TaskEntity,
     VersionEntity,
+    WorkfileEntity,
 )
 from openpype.lib.postgres import Postgres
 from openpype.utils import create_uuid, dict_exclude
@@ -47,6 +48,7 @@ class DemoGen:
         self.version_count = 0
         self.representation_count = 0
         self.task_count = 0
+        self.workfile_count = 0
         self.validate = validate
 
     async def populate(
@@ -79,6 +81,7 @@ class DemoGen:
         logging.info(f"{self.version_count} versions created")
         logging.info(f"{self.representation_count} representations created")
         logging.info(f"{self.task_count} tasks created")
+        logging.info(f"{self.workfile_count} workfiles created")
         logging.goodnews(
             f"Project {self.project_name} demo in {elapsed_time:.2f} seconds"
         )
@@ -137,7 +140,12 @@ class DemoGen:
                 task["assignees"] = random.choice(
                     [["artist"], ["artist", "visitor"], [], [], []]
                 )
-            task_entity = await self.create_task(conn, folder=folder, **task)
+            task_entity = await self.create_task(
+                conn,
+                folder=folder,
+                parents=parents + [folder.name],
+                **task,
+            )
             tasks[task_entity.name] = task_entity.id
 
         for subset in kwargs.get("_subsets", []):
@@ -215,6 +223,7 @@ class DemoGen:
         self,
         conn: Postgres.Transaction,
         folder: FolderEntity,
+        parents: list[str],
         **kwargs: Any,
     ) -> TaskEntity:
         self.task_count += 1
@@ -227,6 +236,26 @@ class DemoGen:
             validate=self.validate,
         )
         await task.save(conn)
+
+        num_workfiles = random.randint(0, 5)
+        for i in range(1, num_workfiles):
+            fname = f"{self.project.code}_{folder.name}_{task.name}_v{i:03d}.ma"
+            path = "{root[work]}/"
+            path += "/".join(parents)
+            path += f"/work/{task.name}/{fname}"
+
+            workfile = WorkfileEntity(
+                project_name=self.project_name,
+                payload={
+                    "path": path,
+                    "task_id": task.id,
+                    "created_by": "admin",
+                },
+                validate=self.validate,
+            )
+            await workfile.save(conn)
+            self.workfile_count += 1
+
         return task
 
     async def create_representation(
