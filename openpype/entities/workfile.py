@@ -8,7 +8,7 @@ from openpype.types import ProjectLevelEntityType
 
 class WorkfileEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "workfile"
-    model = ModelSet("task", attribute_library["workfile"])
+    model = ModelSet("workfile", attribute_library["workfile"])
 
     #
     # Properties

@@ -1,3 +1,4 @@
+import os
 from typing import TYPE_CHECKING
 
 import strawberry
@@ -29,8 +30,8 @@ class WorkfileNode(BaseNode):
 
     @strawberry.field(description="Workfile name")
     def name(self) -> str:
-        """Return a version name based on the version number."""
-        return f"v{self.version:03d}"
+        """Return a version name based on the workfile path."""
+        return os.path.basename(self.path)
 
     @strawberry.field(description="Parent task of the workfile")
     async def task(self, info: Info) -> TaskNode:
@@ -53,7 +54,7 @@ def workfile_from_record(
     return WorkfileNode(  # type: ignore
         project_name=project_name,
         id=record["id"],
-        path=record["version"],
+        path=record["path"],
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
         created_by=record["created_by"],
