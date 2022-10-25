@@ -6,10 +6,12 @@ from strawberry.types import Info
 from openpype.entities import TaskEntity, UserEntity
 from openpype.graphql.nodes.common import BaseNode
 from openpype.graphql.resolvers.versions import get_versions
+from openpype.graphql.resolvers.workfiles import get_workfiles
 from openpype.graphql.utils import lazy_type
 
 if TYPE_CHECKING:
     from openpype.graphql.connections import VersionsConnection
+    from openpype.graphql.connections import WorkfilesConnection
     from openpype.graphql.nodes.folder import FolderNode
 else:
     FolderNode = lazy_type("FolderNode", ".nodes.folder")
@@ -33,6 +35,11 @@ class TaskNode(BaseNode):
     versions: "VersionsConnection" = strawberry.field(
         resolver=get_versions,
         description=get_versions.__doc__,
+    )
+
+    workfiles: "WorkfilesConnection" = strawberry.field(
+        resolver=get_workfiles,
+        description=get_workfiles.__doc__,
     )
 
     _folder: Optional[FolderNode] = None

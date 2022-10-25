@@ -139,10 +139,21 @@ async def ensure_entity_access(
                     """
                 )
 
-    elif entity_type == "task":
+    elif entity_type in ("task", "workfile"):
         joins.append(
-            f"INNER JOIN project_{project_name}.tasks ON tasks.folder_id = hierarchy.id"
+            f"""
+            INNER JOIN project_{project_name}.tasks
+            ON tasks.folder_id = hierarchy.id
+            """
         )
+
+        if entity_type == "workfile":
+            joins.append(
+                f"""
+                INNER JOIN project_{project_name}.workfiles
+                ON workfiles.task_id = tasks.id
+                """
+            )
 
     if entity_type == "folder":
         conditions.append(f"hierarchy.id = '{entity_id}'")

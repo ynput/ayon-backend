@@ -13,6 +13,7 @@ from openpype.entities.models.fields import (
     subset_fields,
     task_fields,
     version_fields,
+    workfile_fields,
 )
 from openpype.entities.models.generator import generate_model
 from openpype.types import (
@@ -30,6 +31,7 @@ FIELD_LISTS: dict[str, list[Any]] = {
     "subset": subset_fields,
     "version": version_fields,
     "representation": representation_fields,
+    "workfile": workfile_fields,
 }
 
 

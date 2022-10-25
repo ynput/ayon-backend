@@ -11,6 +11,7 @@ from openpype.graphql.resolvers.representations import (
 from openpype.graphql.resolvers.subsets import get_subset, get_subsets
 from openpype.graphql.resolvers.tasks import get_task, get_tasks
 from openpype.graphql.resolvers.versions import get_version, get_versions
+from openpype.graphql.resolvers.workfiles import get_workfile, get_workfiles
 from openpype.graphql.utils import parse_attrib_data
 from openpype.lib.postgres import Postgres
 
@@ -21,12 +22,14 @@ if TYPE_CHECKING:
         SubsetsConnection,
         TasksConnection,
         VersionsConnection,
+        WorkfilesConnection,
     )
     from openpype.graphql.nodes.folder import FolderNode
     from openpype.graphql.nodes.representation import RepresentationNode
     from openpype.graphql.nodes.subset import SubsetNode
     from openpype.graphql.nodes.task import TaskNode
     from openpype.graphql.nodes.version import VersionNode
+    from openpype.graphql.nodes.workfile import WorkfileNode
 
 
 @strawberry.type
@@ -107,6 +110,16 @@ class ProjectNode:
     representations: "RepresentationsConnection" = strawberry.field(
         resolver=get_representations,
         description=get_representations.__doc__,
+    )
+
+    workfile: "WorkfileNode" = strawberry.field(
+        resolver=get_workfile,
+        description=get_workfile.__doc__,
+    )
+
+    workfiles: "WorkfilesConnection" = strawberry.field(
+        resolver=get_workfiles,
+        description=get_workfiles.__doc__,
     )
 
     @strawberry.field

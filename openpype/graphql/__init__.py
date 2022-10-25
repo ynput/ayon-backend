@@ -18,6 +18,7 @@ from openpype.graphql.dataloaders import (
     task_loader,
     user_loader,
     version_loader,
+    workfile_loader,
 )
 from openpype.graphql.nodes.folder import folder_from_record
 from openpype.graphql.nodes.project import ProjectNode, project_from_record
@@ -26,6 +27,7 @@ from openpype.graphql.nodes.subset import subset_from_record
 from openpype.graphql.nodes.task import task_from_record
 from openpype.graphql.nodes.user import UserAttribType, UserNode, user_from_record
 from openpype.graphql.nodes.version import version_from_record
+from openpype.graphql.nodes.workfile import workfile_from_record
 from openpype.graphql.resolvers.events import get_events
 from openpype.graphql.resolvers.links import get_links
 from openpype.graphql.resolvers.projects import get_project, get_projects
@@ -45,6 +47,7 @@ async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> d
         "task_from_record": task_from_record,
         "user_from_record": user_from_record,
         "project_from_record": project_from_record,
+        "workfile_from_record": workfile_from_record,
         # Data loaders
         "folder_loader": DataLoader(load_fn=folder_loader),
         "subset_loader": DataLoader(load_fn=subset_loader),
@@ -52,6 +55,7 @@ async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> d
         "version_loader": DataLoader(load_fn=version_loader),
         "latest_version_loader": DataLoader(load_fn=latest_version_loader),
         "user_loader": DataLoader(load_fn=user_loader),
+        "workfile_loader": DataLoader(load_fn=workfile_loader),
         # Other
         "links_resolver": get_links,
     }

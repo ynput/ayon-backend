@@ -11,6 +11,7 @@ __all__ = [
     "dep_subset_id",
     "dep_version_id",
     "dep_representation_id",
+    "dep_workfile_id",
     "app",
 ]
 
@@ -25,6 +26,7 @@ from openpype.api.dependencies import (
     dep_representation_id,
     dep_subset_id,
     dep_version_id,
+    dep_workfile_id,
 )
 from openpype.api.responses import JSONResponse, ResponseFactory
 

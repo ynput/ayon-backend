@@ -26,6 +26,7 @@ ProjectLevelEntityType = Literal[
     "version",
     "representation",
     "task",
+    "workfile",
 ]
 
 TopLevelEntityType = Literal[

@@ -14,13 +14,13 @@ class VersionEntity(ProjectLevelEntity):
         """Refresh hierarchy materialized view on folder save."""
 
         transaction = transaction or Postgres
-        await transaction.execute(
-            f"""
-            DELETE FROM project_{self.project_name}.thumbnails
-            WHERE id = $1
-            """,
-            self.id,
-        )
+        # await transaction.execute(
+        #     f"""
+        #     DELETE FROM project_{self.project_name}.thumbnails
+        #     WHERE id = $1
+        #     """,
+        #     self.id,
+        # )
         await transaction.execute(
             f"""
             REFRESH MATERIALIZED VIEW CONCURRENTLY

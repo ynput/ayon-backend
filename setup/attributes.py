@@ -160,7 +160,7 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "title": "Template",
     },
     "extension": {
-        "scope": "R",
+        "scope": "R, W",
         "type": "string",
         "title": "File extension",
     },
@@ -182,6 +182,7 @@ async def deploy_attributes() -> None:
                     "s": "subset",
                     "v": "version",
                     "r": "representation",
+                    "w": "workfile",
                 }[k.strip().lower()]
                 for k in tdata["scope"].split(",")
             ]

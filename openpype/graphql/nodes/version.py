@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Optional
 
+
 import strawberry
 from strawberry.types import Info
 

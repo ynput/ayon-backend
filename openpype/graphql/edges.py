@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from openpype.graphql.nodes.task import TaskNode
     from openpype.graphql.nodes.user import UserNode
     from openpype.graphql.nodes.version import VersionNode
+    from openpype.graphql.nodes.workfile import WorkfileNode
 else:
     ProjectNode = lazy_type("ProjectNode", ".nodes.project")
     UserNode = lazy_type("UserNode", ".nodes.user")
@@ -23,6 +24,7 @@ else:
     VersionNode = lazy_type("VersionNode", ".nodes.version")
     RepresentationNode = lazy_type("RepresentationNode", ".nodes.representation")
     EventNode = lazy_type("EventNode", ".nodes.event")
+    WorkfileNode = lazy_type("WorkfileNode", ".nodes.workfile")
     BaseNode = lazy_type("BaseNode", ".nodes.common")
 
 
@@ -67,6 +69,10 @@ class RepresentationEdge(BaseEdge):
     node: "RepresentationNode" = strawberry.field(description="Representation node")
     cursor: str | None = strawberry.field(default=None)
 
+@strawberry.type
+class WorkfileEdge(BaseEdge):
+    node: "WorkfileNode" = strawberry.field(description="Workfile node")
+    cursor: str | None = strawberry.field(default=None)
 
 @strawberry.type
 class EventEdge(BaseEdge):

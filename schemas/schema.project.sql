@@ -202,6 +202,28 @@ CREATE TABLE representations(
 CREATE INDEX representation_parent_idx ON representations(version_id);
 CREATE UNIQUE INDEX representation_creation_order_idx ON representations(creation_order);
 
+---------------
+-- WORKFILES --
+---------------
+
+CREATE TABLE workfiles(
+    id UUID NOT NULL PRIMARY KEY,
+    path VARCHAR NOT NULL UNIQUE,
+    task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+
+    thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
+
+    created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+
+    attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+    updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+    creation_order SERIAL NOT NULL
+);
+
 -----------
 -- FILES --
 -----------

@@ -110,6 +110,28 @@ async def task_loader(keys: list[KeyType]) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
+async def workfile_loader(keys: list[KeyType]) -> list[dict | None]:
+    """Load a list of workfiles by their ids (used as a dataloader).
+    keys must be a list of tuples (project_name, workfile_id) and project_name
+    values must be the same!
+    """
+
+    # TODO: query parent tasks?
+
+    result_dict = {k: None for k in keys}
+    project_name = get_project_name(keys)
+
+    query = f"""
+        SELECT * FROM project_{project_name}.workfiles
+        WHERE id IN {SQLTool.id_array([k[1] for k in keys])}
+        """
+
+    async for record in Postgres.iterate(query):
+        key: KeyType = KeyType((project_name, str(record["id"])))
+        result_dict[key] = record
+    return [result_dict[k] for k in keys]
+
+
 async def version_loader(keys: list[KeyType]) -> list[dict | None]:
     """Load a list of versions by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, version_id) and project_name

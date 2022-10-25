@@ -229,3 +229,44 @@ representation_fields = [
         "example": ENTITY_ID_EXAMPLE,
     },
 ]
+
+workfile_fields = [
+    {
+        "name": "path",
+        "type": "string",
+        "required": True,
+        "title": "Path",
+        "description": "Path to the workfile",
+        "example": "{root['work']}/Project/workfiles/ma/modelMain_v001.ma",
+    },
+    {
+        "name": "task_id",
+        "type": "string",
+        "required": True,
+        "title": "Task ID",
+        "description": "ID of the parent task",
+        "regex": ENTITY_ID_REGEX,
+        "example": ENTITY_ID_EXAMPLE,
+    },
+    {
+        "name": "thumbnail_id",
+        "type": "string",
+        "title": "Thumbnail ID",
+        "required": False,
+        "regex": ENTITY_ID_REGEX,
+        "example": ENTITY_ID_EXAMPLE,
+    },
+    {
+        "name": "created_by",
+        "type": "string",
+        "regex": NAME_REGEX,
+        "example": "john_doe",
+    },
+    {
+        "name": "updated_by",
+        "type": "string",
+        "regex": NAME_REGEX,
+        "example": "john_doe",
+    },
+
+]

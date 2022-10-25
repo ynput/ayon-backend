@@ -223,6 +223,11 @@ async def dep_task_id(
     """Validate and return a task id specified in an endpoint path."""
     return task_id
 
+async def dep_workfile_id(
+    workfile_id: str = Path(..., title="Workfile ID", **EntityID.META)
+) -> str:
+    """Validate and return a workfile id specified in an endpoint path."""
+    return workfile_id
 
 async def dep_event_id(
     event_id: str = Path(..., title="Event ID", **EntityID.META)
