@@ -100,8 +100,24 @@ async def task_loader(keys: list[KeyType]) -> list[dict | None]:
     project_name = get_project_name(keys)
 
     query = f"""
-        SELECT * FROM project_{project_name}.tasks
-        WHERE id IN {SQLTool.id_array([k[1] for k in keys])}
+        SELECT
+            tasks.id AS id,
+            tasks.name AS name,
+            tasks.folder_id AS folder_id,
+            tasks.task_type AS task_type,
+            tasks.assignees AS assignees,
+            tasks.attrib AS attrib,
+            tasks.data AS data,
+            tasks.active AS active,
+            tasks.created_at AS created_at,
+            tasks.updated_at AS updated_at,
+            tasks.creation_order AS creation_order,
+            pf.attrib AS parent_folder_attrib
+        FROM project_{project_name}.tasks
+        LEFT JOIN project_{project_name}.exported_attributes AS pf
+        ON tasks.folder_id = pf.folder_id
+
+        WHERE tasks.id IN {SQLTool.id_array([k[1] for k in keys])}
         """
 
     async for record in Postgres.iterate(query):
