@@ -31,23 +31,6 @@ class BaseServerAddon:
         self.definition = definition
         self.addon_dir = addon_dir
         self.endpoints = []
-
-        # Ensure name was not changed during versions, update definition.name and title
-        # TODO: maybe move this to the definition
-        if definition.versions:
-            if self.name != definition.name:
-                raise ValueError(f"name mismatch {self.name} != {definition.name}")
-            if self.addon_type != definition.addon_type:
-                raise ValueError(
-                    f"type mismatch {self.addon_type} != {definition.addon_type}"
-                )
-        else:
-            definition.name = self.name
-            definition.addon_type = self.addon_type
-
-        if self.title:
-            definition.title = self.title
-
         self.setup()
 
     def __repr__(self) -> str:

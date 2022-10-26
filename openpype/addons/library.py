@@ -32,8 +32,8 @@ class AddonLibrary:
             if not definition.versions:
                 continue
 
-            logging.info("Initializing addon", addon_name)
-            self.data[addon_name] = definition
+            logging.info("Initializing addon", definition.name)
+            self.data[definition.name] = definition
 
     @classmethod
     def addon(cls, name: str, version: str) -> BaseServerAddon:

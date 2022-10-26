@@ -13,16 +13,45 @@ if TYPE_CHECKING:
 class ServerAddonDefinition:
     name: str
     title: str | None = None
-    addon_type: str
+    addon_type: str | None = None
 
     def __init__(self, library: "AddonLibrary", addon_dir: str):
         self.library = library
         self.addon_dir = addon_dir
         self._versions: dict[str, BaseServerAddon] | None = None
 
+        if not self.versions:
+            logging.warning(f"Addon {self.name} has no versions")
+            return
+
+        for version in self.versions.values():
+            if self.addon_type is None:
+                self.addon_type = version.addon_type
+            if self.name is None:
+                self.name = version.name
+
+            if version.addon_type != self.addon_type:
+                raise ValueError(
+                    f"Addon {self.name} has version {version.version} with "
+                    f"mismatched type {version.addon_type} != {self.addon_type}"
+                )
+
+            if version.name != self.name:
+                raise ValueError(
+                    f"Addon {self.name} has version {version.version} with "
+                    f"mismatched name {version.name} != {self.name}"
+                )
+
+            self.title = version.title  # Use the latest title
+
     @property
     def dir_name(self) -> str:
         return os.path.split(self.addon_dir)[-1]
+
+    @property
+    def name(self) -> str:
+        for version in self.versions.values():
+            return version.name
 
     @property
     def friendly_name(self) -> str:
