@@ -48,9 +48,11 @@ class VersionsConnection(BaseConnection):
 class RepresentationsConnection(BaseConnection):
     edges: list[RepresentationEdge] = strawberry.field(default_factory=list)
 
+
 @strawberry.type
 class WorkfilesConnection(BaseConnection):
     edges: list[WorkfileEdge] = strawberry.field(default_factory=list)
+
 
 @strawberry.type
 class EventsConnection(BaseConnection):

@@ -268,5 +268,4 @@ workfile_fields = [
         "regex": NAME_REGEX,
         "example": "john_doe",
     },
-
 ]

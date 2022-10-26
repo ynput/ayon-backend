@@ -69,10 +69,12 @@ class RepresentationEdge(BaseEdge):
     node: "RepresentationNode" = strawberry.field(description="Representation node")
     cursor: str | None = strawberry.field(default=None)
 
+
 @strawberry.type
 class WorkfileEdge(BaseEdge):
     node: "WorkfileNode" = strawberry.field(description="Workfile node")
     cursor: str | None = strawberry.field(default=None)
+
 
 @strawberry.type
 class EventEdge(BaseEdge):

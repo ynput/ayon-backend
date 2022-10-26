@@ -10,8 +10,7 @@ from openpype.graphql.resolvers.workfiles import get_workfiles
 from openpype.graphql.utils import lazy_type
 
 if TYPE_CHECKING:
-    from openpype.graphql.connections import VersionsConnection
-    from openpype.graphql.connections import WorkfilesConnection
+    from openpype.graphql.connections import VersionsConnection, WorkfilesConnection
     from openpype.graphql.nodes.folder import FolderNode
 else:
     FolderNode = lazy_type("FolderNode", ".nodes.folder")
