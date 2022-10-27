@@ -113,33 +113,16 @@ async def postprocess_settings_schema(  # noqa
                     prop["enumLabels"] = enum_labels
                 prop["uniqueItems"] = True
 
-            if section := field.field_info.extra.get("section"):
-                prop["section"] = section
-
-            if widget := field.field_info.extra.get("widget"):
-                prop["widget"] = widget
-
-            if layout := field.field_info.extra.get("layout"):
-                prop["layout"] = layout
-
-            if tags := field.field_info.extra.get("tags"):
-                prop["tags"] = tags
-
-            if depends_on := field.field_info.extra.get("depends_on"):
-                if "allOf" not in schema:
-                    schema["allOf"] = []
-
-                schema["allOf"].append(
-                    {
-                        "if": {
-                            "properties": {depends_on: {"const": True}},
-                        },
-                        "then": {
-                            "properties": {name: {"disabled": True}},
-                        },
-                        "else": {"properties": {name: {"disabled": True}}},
-                    }
-                )
+            for extra_field_name in (
+                "section",
+                "widget",
+                "layout",
+                "scope",
+                "tags",
+                "conditionalEnum",
+            ):
+                if extra_field := field.field_info.extra.get(extra_field_name):
+                    prop[extra_field_name] = extra_field
 
     if not is_top_level:
         return
