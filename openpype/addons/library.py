@@ -35,6 +35,12 @@ class AddonLibrary:
             logging.info("Initializing addon", definition.name)
             self.data[definition.name] = definition
 
+        # TODO: It cannot be here! Causes recursive recursion,
+        # which causes a recursion while recursing.
+        # for addon_name, addon in self.data.items():
+        #     for version in addon.versions.values():
+        #         version.setup()
+
     @classmethod
     def addon(cls, name: str, version: str) -> BaseServerAddon:
         """Return an instance of the given addon.
@@ -49,6 +55,14 @@ class AddonLibrary:
             raise NotFoundException(f"Addon {name} version {version} does not exist")
         return addon
 
+    @classmethod
+    def items(cls) -> ItemsView[str, ServerAddonDefinition]:
+        instance = cls.getinstance()
+        return instance.data.items()
+
+    def get(self, key: str, default=None) -> ServerAddonDefinition:
+        return self.data.get(key, default)
+
     def __getitem__(self, key) -> ServerAddonDefinition:
         return self.data[key]
 
@@ -57,12 +71,6 @@ class AddonLibrary:
 
     def __iter__(self):
         return iter(self.data)
-
-    def items(self) -> ItemsView[str, ServerAddonDefinition]:
-        return self.data.items()
-
-    def get(self, key: str, default=None) -> ServerAddonDefinition:
-        return self.data.get(key, default)
 
     async def get_active_versions(self) -> dict[str, dict[str, str]]:
         active_versions = {}

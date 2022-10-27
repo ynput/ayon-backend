@@ -31,7 +31,7 @@ class BaseServerAddon:
         self.definition = definition
         self.addon_dir = addon_dir
         self.endpoints = []
-        self.setup()
+        self.initialize()
 
     def __repr__(self) -> str:
         return f"<Addon name='{self.definition.name}' version='{self.version}'>"
@@ -41,11 +41,22 @@ class BaseServerAddon:
         """Return the friendly name of the addon."""
         return f"{self.definition.friendly_name} {self.version}"
 
+    def initialize(self) -> None:
+        """Initialize the addon.
+
+        This metod is started during the addon initialization
+        and it is here just for the convinience (override this
+        instead using super().__init__).
+
+        Add `add_endpoint` calls here.
+        """
+        pass
+
     def setup(self) -> None:
         """Setup the addon.
 
-        This metod is started during the addon initialization
-        and it is here just for the convinience.
+        This method is called when all addons are initialized.
+        Add code which needs to access other addons here.
         """
         pass
 

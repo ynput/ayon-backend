@@ -1,6 +1,6 @@
 __pycache__
 .pytest_cache
-Makefile
-addons/
-poetry.lock
-openpype/trigger.py
+/Makefile
+/poetry.lock
+/addons/
+/openpype/trigger.py

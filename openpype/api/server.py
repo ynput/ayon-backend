@@ -198,8 +198,7 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
 
 def init_addons(target_app: fastapi.FastAPI) -> None:
     """Serve static files for addon frontends."""
-    library = AddonLibrary.getinstance()
-    for addon_name, addon_definition in library.items():
+    for addon_name, addon_definition in AddonLibrary.items():
         for version in addon_definition.versions:
             addon = addon_definition.versions[version]
             if (fedir := addon.get_frontend_dir()) is not None:
@@ -254,4 +253,10 @@ async def startup_event() -> None:
     await Roles.load()
     await messaging.start()
     await dispatch_event("server.started")
+
+    logging.info("Setting up addons")
+    for addon_name, addon in AddonLibrary.items():
+        for version in addon.versions.values():
+            version.setup()
+
     logging.goodnews("Server started")
