@@ -5,6 +5,7 @@ from fastapi import Depends, Response
 
 from openpype.api import ResponseFactory, dep_current_user, dep_project_name
 from openpype.entities import ProjectEntity, UserEntity
+from openpype.exceptions import ForbiddenException
 from openpype.helpers.deploy_project import anatomy_to_project_data
 from openpype.settings.anatomy import Anatomy
 
@@ -40,6 +41,7 @@ async def get_project_anatomy(
         roots=dict2list(project.config.get("roots", {})),
         folder_types=dict2list(project.folder_types),
         task_types=dict2list(project.task_types),
+        attributes=project.attrib,
     )
 
 
@@ -51,6 +53,9 @@ async def set_project_anatomy(
 ):
     """Set a project anatomy."""
 
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can set project anatomy.")
+
     project = await ProjectEntity.load(project_name)
 
     patch_data = anatomy_to_project_data(payload)
@@ -58,5 +63,4 @@ async def set_project_anatomy(
     project.patch(patch)
 
     await project.save()
-
     return Response(status_code=204)
