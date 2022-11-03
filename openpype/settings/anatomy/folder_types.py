@@ -7,6 +7,11 @@ class FolderType(BaseSettingsModel):
     _layout: str = "compact"
     name: str = Field(..., title="Name", min_length=1, max_length=100)
     icon: str = Field("fa-folder", title="Icon")
+    original_name: str | None = Field(
+        None,
+        title="Original name",
+        scope="hidden",
+    )  # Used for renaming
 
     def __hash__(self):
         return hash(self.name)

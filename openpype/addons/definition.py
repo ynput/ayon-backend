@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 
 
 class ServerAddonDefinition:
-    name: str
     title: str | None = None
     addon_type: str | None = None
 
@@ -52,6 +51,7 @@ class ServerAddonDefinition:
     def name(self) -> str:
         for version in self.versions.values():
             return version.name
+        raise ValueError("No versions found")
 
     @property
     def friendly_name(self) -> str:

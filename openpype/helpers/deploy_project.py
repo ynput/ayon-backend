@@ -4,29 +4,39 @@ from openpype.entities.project import ProjectEntity
 from openpype.settings.anatomy import Anatomy
 
 
-async def create_project_from_anatomy(
-    name: str,
-    code: str,
-    anatomy: Anatomy,
-    library: bool = False,
-) -> None:
-    """Deploy a project."""
+def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
 
     task_types = {}
     for task_type in anatomy.task_types:
-        task_types[task_type.name] = {
-            k: v for k, v in task_type.dict().items() if k != "name"
+        if task_type.original_name and task_type.original_name != task_type.name:
+            name = task_type.original_name
+            new_name = task_type.name
+        else:
+            name = task_type.name
+            new_name = None
+        task_types[name] = {
+            k: v
+            for k, v in task_type.dict().items()
+            if k not in ("name", "original_name")
         }
+        if new_name:
+            task_types[name]["name"] = new_name
 
     folder_types = {}
     for folder_type in anatomy.folder_types:
-        folder_types[folder_type.name] = {
-            k: v for k, v in folder_type.dict().items() if k != "name"
+        if folder_type.original_name and folder_type.original_name != folder_type.name:
+            name = folder_type.original_name
+            new_name = folder_type.name
+        else:
+            name = folder_type.name
+            new_name = None
+        folder_types[name] = {
+            k: v
+            for k, v in folder_type.dict().items()
+            if k not in ("name", "original_name")
         }
-
-    #
-    # Config
-    #
+        if new_name:
+            folder_types[name]["name"] = new_name
 
     config: dict[str, Any] = {}
     config["roots"] = {}
@@ -55,20 +65,27 @@ async def create_project_from_anatomy(
                 k: template[k] for k in template.keys() if k != "name"
             }
 
-    #
-    # Create a project entity
-    #
+    return {
+        "task_types": task_types,
+        "folder_types": folder_types,
+        "attrib": anatomy.attributes.dict(),  # type: ignore
+        "config": config,
+    }
 
+
+async def create_project_from_anatomy(
+    name: str,
+    code: str,
+    anatomy: Anatomy,
+    library: bool = False,
+) -> None:
+    """Deploy a project."""
     project = ProjectEntity(
         payload={
             "name": name,
             "code": code,
             "library": library,
-            "task_types": task_types,
-            "folder_types": folder_types,
-            "attrib": anatomy.attributes.dict(),  # type: ignore
-            "config": config,
+            **anatomy_to_project_data(anatomy),
         }
     )
-
     await project.save()

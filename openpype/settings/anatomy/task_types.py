@@ -8,6 +8,11 @@ class TaskType(BaseSettingsModel):
     name: str = Field(..., title="Name", min_length=1, max_length=100)
     short_name: str = Field("", title="Short name")
     icon: str = Field("", title="Icon")
+    original_name: str | None = Field(
+        None,
+        title="Original name",
+        scope="hidden",
+    )  # Used for renaming
 
 
 default_task_types = [
