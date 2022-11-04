@@ -28,7 +28,7 @@ class VersionNode(BaseNode):
     subset_id: str
     task_id: str | None
     thumbnail_id: str | None
-    author: str
+    author: str | None
     attrib: VersionAttribType
 
     # GraphQL specifics
