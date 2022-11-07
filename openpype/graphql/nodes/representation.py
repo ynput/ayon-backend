@@ -184,7 +184,7 @@ def representation_from_record(
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
-        context=json_dumps(data.get("context")),
+        context=json_dumps(data.get("context", {})),
         files=parse_files(files, local_files, remote_files),
         local_status=get_overal_status(record.get("local_status"), files, local_files),
         remote_status=get_overal_status(

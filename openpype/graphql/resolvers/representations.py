@@ -55,13 +55,14 @@ async def get_representations(
         "representations.created_at AS created_at",
         "representations.updated_at AS updated_at",
         "representations.creation_order AS creation_order",
+        "representations.data AS data",
     ]
 
     sql_joins = []
     sql_conditions = []
 
-    if local_site or remote_site:
-        sql_columns.append("representations.data AS data")
+    # if local_site or remote_site:
+    #     sql_columns.append("representations.data AS data")
 
     if ids:
         sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
