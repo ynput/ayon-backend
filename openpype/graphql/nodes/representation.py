@@ -101,6 +101,9 @@ def parse_files(
     """Parse the files from a representation."""
     result = []
 
+    if type(files) is not dict:
+        return result
+
     for fid, fdata in files.items():
         file_size = fdata.get("size")
         local_file = local_files.get(fid)
