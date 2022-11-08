@@ -136,6 +136,9 @@ def get_overal_status(status, files, site_files):
     size = 0
     total_size = 0
     timestamp = 0
+    if type(files) is not dict:
+        return SyncStatusType(status=StatusEnum.NOT_AVAILABLE)
+
     for f in files.values():
         total_size += f["size"]
     for f in site_files.values():
