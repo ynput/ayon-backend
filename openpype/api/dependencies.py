@@ -231,6 +231,13 @@ async def dep_workfile_id(
     return workfile_id
 
 
+async def dep_thumbnail_id(
+    thumbnail_id: str = Path(..., title="Thumbnail ID", **EntityID.META)
+) -> str:
+    """Validate and return a thumbnail id specified in an endpoint path."""
+    return thumbnail_id
+
+
 async def dep_event_id(
     event_id: str = Path(..., title="Event ID", **EntityID.META)
 ) -> str:

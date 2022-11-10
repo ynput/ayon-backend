@@ -6,14 +6,17 @@ from openpype.api.dependencies import (
     dep_folder_id,
     dep_project_name,
     dep_thumbnail_content_type,
+    dep_thumbnail_id,
     dep_version_id,
+    dep_workfile_id,
 )
 from openpype.entities.folder import FolderEntity
 from openpype.entities.user import UserEntity
 from openpype.entities.version import VersionEntity
+from openpype.entities.workfile import WorkfileEntity
 from openpype.exceptions import BadRequestException, ForbiddenException
 from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel
+from openpype.types import OPModel
 from openpype.utils import EntityID
 
 #
@@ -84,6 +87,12 @@ async def create_thumbnail(
     project_name: str = Depends(dep_project_name),
     content_type: str = Depends(dep_thumbnail_content_type),
 ):
+    """Create a thumbnail.
+
+    This endpoint is used to create a thumbnail not associated with any entity.
+    Returns the ID of the created thumbnail. which can be used to assign it to
+    an entity.
+    """
     thumbnail_id = EntityID.create()
     payload = await request.body()
     await store_thumbnail(project_name, thumbnail_id, content_type, payload)
@@ -99,9 +108,16 @@ async def update_thumbnail(
     request: Request,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
-    thumbnail_id: str = Depends(dep_folder_id),
+    thumbnail_id: str = Depends(dep_thumbnail_id),
     content_type: str = Depends(dep_thumbnail_content_type),
 ):
+    """Create or update a thumbnail with a specific ID.
+
+    This endpoint is used to create or update a thumbnail by its ID.
+    Since this is can be an security issue, this endpoint is only available
+    to users with the `manager` role or higher.
+    """
+
     if not user.is_manager:
         raise ForbiddenException("Only managers can update arbitrary thumbnails")
     payload = await request.body()
@@ -117,8 +133,14 @@ async def update_thumbnail(
 async def get_thumbnail(
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
-    thumbnail_id: str = Depends(dep_thumbnail_content_type),
+    thumbnail_id: str = Depends(dep_thumbnail_id),
 ):
+    """Get a thumbnail by its ID.
+
+    This endpoint is used to retrieve a thumbnail by its ID.
+    Since this is can be an security issue, this endpoint is only available
+    to users with the `manager` role or higher.
+    """
     if not user.is_manager:
         raise ForbiddenException("Only managers can access arbitrary thumbnails")
 
@@ -226,3 +248,52 @@ async def get_version_thumbnail(
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_read_access(user)
     return await retrieve_thumbnail(project_name, version.thumbnail_id)
+
+
+#
+# Workfile endpoints
+#
+
+
+@router.post(
+    "/projects/{project_name}/workfiles/{workfile_id}/thumbnail",
+    status_code=201,
+    response_class=Response,
+    responses=responses,
+)
+async def create_workfile_thumbnail(
+    request: Request,
+    user: UserEntity = Depends(dep_current_user),
+    project_name: str = Depends(dep_project_name),
+    workfile_id: str = Depends(dep_workfile_id),
+    content_type: str = Depends(dep_thumbnail_content_type),
+):
+    payload = await request.body()
+    workfile = await WorkfileEntity.load(project_name, workfile_id)
+    await workfile.ensure_update_access(user)
+
+    thumbnail_id = EntityID.create()
+    await store_thumbnail(
+        project_name=project_name,
+        thumbnail_id=thumbnail_id,
+        mime=content_type,
+        payload=payload,
+    )
+    workfile.thumbnail_id = thumbnail_id
+    await workfile.save()
+    return Response(status_code=201)
+
+
+@router.get(
+    "/projects/{project_name}/workfiles/{workfile_id}/thumbnail",
+    response_class=Response,
+    responses=responses,
+)
+async def get_workfile_thumbnail(
+    user: UserEntity = Depends(dep_current_user),
+    project_name: str = Depends(dep_project_name),
+    workfile_id: str = Depends(dep_workfile_id),
+):
+    workfile = await WorkfileEntity.load(project_name, workfile_id)
+    await workfile.ensure_read_access(user)
+    return await retrieve_thumbnail(project_name, workfile.thumbnail_id)

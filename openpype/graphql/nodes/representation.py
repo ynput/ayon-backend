@@ -99,7 +99,7 @@ def parse_files(
     remote_files: dict[str, Any],
 ) -> list[FileNode]:
     """Parse the files from a representation."""
-    result = []
+    result: list[FileNode] = []
 
     if type(files) is not dict:
         return result
