@@ -11,8 +11,9 @@ from openpype.api.dependencies import (
 from openpype.entities.folder import FolderEntity
 from openpype.entities.user import UserEntity
 from openpype.entities.version import VersionEntity
-from openpype.exceptions import BadRequestException
+from openpype.exceptions import BadRequestException, ForbiddenException
 from openpype.lib.postgres import Postgres
+from openpype.types import Field, OPModel
 from openpype.utils import EntityID
 
 #
@@ -61,6 +62,67 @@ async def retrieve_thumbnail(project_name: str, thumbnail_id: str | None) -> Res
                 media_type=record["mime"], status_code=200, content=record["data"]
             )
     return Response(status_code=204)
+
+
+#
+# Direct thumbnail access
+#
+
+
+class CreateThumbnailResponseModel(OPModel):
+    id: str
+
+
+@router.post(
+    "/projects/{project_name}/thumbnails",
+    response_model=CreateThumbnailResponseModel,
+    responses=responses,
+)
+async def create_thumbnail(
+    request: Request,
+    user: UserEntity = Depends(dep_current_user),
+    project_name: str = Depends(dep_project_name),
+    content_type: str = Depends(dep_thumbnail_content_type),
+):
+    thumbnail_id = EntityID.create()
+    payload = await request.body()
+    await store_thumbnail(project_name, thumbnail_id, content_type, payload)
+    return CreateThumbnailResponseModel(id=thumbnail_id)
+
+
+@router.put(
+    "/projects/{project_name}/thumbnails/{thumbnail_id}",
+    responses=responses,
+    response_class=Response,
+)
+async def update_thumbnail(
+    request: Request,
+    user: UserEntity = Depends(dep_current_user),
+    project_name: str = Depends(dep_project_name),
+    thumbnail_id: str = Depends(dep_folder_id),
+    content_type: str = Depends(dep_thumbnail_content_type),
+):
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can update arbitrary thumbnails")
+    payload = await request.body()
+    await store_thumbnail(project_name, thumbnail_id, content_type, payload)
+    return Response(status_code=204)
+
+
+@router.get(
+    "/projects/{project_name}/thumbnails/{thumbnail_id}",
+    response_class=Response,
+    responses=responses,
+)
+async def get_thumbnail(
+    user: UserEntity = Depends(dep_current_user),
+    project_name: str = Depends(dep_project_name),
+    thumbnail_id: str = Depends(dep_thumbnail_content_type),
+):
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can access arbitrary thumbnails")
+
+    return await retrieve_thumbnail(project_name, thumbnail_id)
 
 
 #
