@@ -29,6 +29,8 @@ async def get_workfiles(
     last: ARGLast = None,
     before: ARGBefore = None,
     ids: ARGIds = None,
+    paths: Annotated[list[str] | None, argdesc("List of paths to filter by")] = None,
+    path_ex: Annotated[str | None, argdesc("Match paths by regular expression")] = None,
     task_ids: Annotated[
         list[str] | None,
         argdesc("List of parent task IDs"),
@@ -69,6 +71,12 @@ async def get_workfiles(
         sql_conditions.append(f"task_id IN {SQLTool.id_array(task_ids)}")
     elif root.__class__.__name__ == "TaskNode":
         sql_conditions.append(f"task_id = '{root.id}'")
+
+    if paths:
+        sql_conditions.append(f"path IN {SQLTool.array(paths)}")
+
+    if path_ex:
+        sql_conditions.append(f"path ~ '{path_ex}'")
 
     if has_links is not None:
         sql_conditions.extend(
