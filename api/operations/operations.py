@@ -121,7 +121,7 @@ async def process_operation(
             for_update=True,
             transaction=transaction,
         )
-        entity.ensure_update_access(user)
+        await entity.ensure_update_access(user)
         entity.patch(payload)
         await entity.save(transaction=transaction)
         print(f"updated {entity_class.__name__} {entity.id}")
