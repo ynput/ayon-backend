@@ -2,6 +2,7 @@ from typing import NoReturn
 
 from openpype.entities.core import ProjectLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
+from openpype.exceptions import ConstraintViolationException
 from openpype.lib.postgres import Postgres
 from openpype.types import ProjectLevelEntityType
 
@@ -10,17 +11,29 @@ class VersionEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "version"
     model = ModelSet("version", attribute_library["version"])
 
+    async def save(self, transaction=False) -> None:
+        """Save entity to database."""
+
+        if self.version < 0:
+            # Ensure there is no previous hero version
+            res = await Postgres.fetch(
+                f"""
+                SELECT id FROM project_{self.project_name}.versions
+                WHERE version < 0 AND id != $1
+                """,
+                self.id,
+            )
+            if res:
+                raise ConstraintViolationException(
+                    "Hero version already exists."
+                )
+
+        await super().save(transaction=transaction)
+
     async def commit(self, transaction=False) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
         transaction = transaction or Postgres
-        # await transaction.execute(
-        #     f"""
-        #     DELETE FROM project_{self.project_name}.thumbnails
-        #     WHERE id = $1
-        #     """,
-        #     self.id,
-        # )
         await transaction.execute(
             f"""
             REFRESH MATERIALIZED VIEW CONCURRENTLY
