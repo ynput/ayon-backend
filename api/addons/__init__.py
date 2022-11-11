@@ -18,7 +18,7 @@ assert project_settings
 
 
 def register_addon_endpoints():
-    """Register all addons endpoints in the router."""
+    """Register all addons endpoints in the router. """
 
     library = AddonLibrary.getinstance()
     for addon_name, addon_definition in library.items():

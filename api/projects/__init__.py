@@ -1,7 +1,7 @@
 __all__ = ["router"]
 
-from crud_projects import anatomy, deploy, list_projects, projects, settings
-from crud_projects.router import router
+from projects import anatomy, deploy, list_projects, projects, settings
+from projects.router import router
 
 # To keep the linter happy
 assert list_projects

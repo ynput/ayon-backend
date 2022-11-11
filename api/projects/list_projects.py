@@ -1,9 +1,8 @@
 """[GET] /projects (List projects)"""
 
 import time
-from typing import List, Literal, Optional
 
-from crud_projects.router import router
+from typing import List, Literal, Optional
 from fastapi import Depends, Query
 
 from openpype.api import dep_current_user
@@ -11,6 +10,8 @@ from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 from openpype.utils import SQLTool, validate_name
+
+from projects.router import router
 
 
 class ListProjectsItemModel(OPModel):

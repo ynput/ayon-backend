@@ -84,9 +84,7 @@ class SetAttributeListModel(GetAttributeListModel):
 
 @router.get("", response_model=GetAttributeListModel)
 async def get_attribute_list(user: UserEntity = Depends(dep_current_user)):
-    """
-    Return a list of attributes available in the system and their configuration.
-    """
+    """Return a list of attributes and their configuration."""
 
     query = "SELECT * FROM attributes ORDER BY position"
     attributes: list[AttributeModel] = []
@@ -149,6 +147,8 @@ async def get_attribute_config(
     user: UserEntity = Depends(dep_current_user),
     attribute_name: str = Depends(dep_attribute_name),
 ):
+    """Return the configuration for a single attribute."""
+
     query = "SELECT * FROM attributes WHERE name = $1"
     async for row in Postgres.iterate(query, attribute_name):
         return AttributeModel(**row)
@@ -161,6 +161,8 @@ async def set_attribute_config(
     user: UserEntity = Depends(dep_current_user),
     attribute_name: str = Depends(dep_attribute_name),
 ):
+    """Update attribute configuration"""
+
     if not user.is_admin:
         raise ForbiddenException("Only administrators are allowed to modify attributes")
 

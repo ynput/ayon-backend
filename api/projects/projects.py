@@ -1,4 +1,3 @@
-from crud_projects.router import router
 from fastapi import Depends, Response
 from nxtools import logging
 
@@ -11,6 +10,8 @@ from openpype.api import (
 from openpype.entities import ProjectEntity, UserEntity
 from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
+
+from projects.router import router
 
 #
 # [GET]

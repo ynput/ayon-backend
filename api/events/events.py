@@ -27,11 +27,19 @@ router = APIRouter(
 
 class DispatchEventRequestModel(OPModel):
     topic: str = Field(...)
-    sender: str | None = None
+    sender: str | None = Field(
+        None,
+        title="Sender",
+        description="Identifier of the process that sent the event.",
+    )
     hash: str | None = None
     project: str | None = None
     depends_on: str | None = Field(None, min_length=32, max_length=32)
-    description: str = Field("")
+    description: str = Field(
+        "",
+        title="Description",
+        description="Human-readable event description.",
+    )
     summary: dict[str, Any] = Field(default_factory=dict)
     payload: dict[str, Any] = Field(default_factory=dict)
     finished: bool = True
@@ -67,6 +75,10 @@ async def get_event(
     user: UserEntity = Depends(dep_current_user),
     event_id: str = Depends(dep_event_id),
 ) -> EventModel:
+    """Get event by ID.
+
+    Return event data with given ID. If event is not found, 404 is returned.
+    """
 
     query = "SELECT * FROM events WHERE id = $1", event_id
 
@@ -95,7 +107,7 @@ async def get_event(
     return event
 
 
-class PatchEventRequestModel(OPModel):
+class UpdateEventRequestModel(OPModel):
     sender: str | None = None
     project_name: str | None = None
     status: str | None = None
@@ -105,11 +117,12 @@ class PatchEventRequestModel(OPModel):
 
 
 @router.patch("/events/{event_id}", response_class=Response)
-async def patch_event(
-    payload: PatchEventRequestModel,
+async def update_existing_event(
+    payload: UpdateEventRequestModel,
     user: UserEntity = Depends(dep_current_user),
     event_id: str = Depends(dep_event_id),
 ):
+    """Update existing event."""
 
     await update_event(
         event_id,
