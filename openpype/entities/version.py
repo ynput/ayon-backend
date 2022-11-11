@@ -19,14 +19,16 @@ class VersionEntity(ProjectLevelEntity):
             res = await Postgres.fetch(
                 f"""
                 SELECT id FROM project_{self.project_name}.versions
-                WHERE version < 0 AND id != $1
+                WHERE
+                    version < 0
+                AND id != $1
+                AND subset_id = $2
                 """,
                 self.id,
+                self.subset_id,
             )
             if res:
-                raise ConstraintViolationException(
-                    "Hero version already exists."
-                )
+                raise ConstraintViolationException("Hero version already exists.")
 
         await super().save(transaction=transaction)
 

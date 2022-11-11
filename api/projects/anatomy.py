@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi import Depends, Response
+from projects.router import router
 
 from openpype.api import ResponseFactory, dep_current_user, dep_project_name
 from openpype.entities import ProjectEntity, UserEntity
@@ -8,7 +9,6 @@ from openpype.exceptions import ForbiddenException
 from openpype.helpers.deploy_project import anatomy_to_project_data
 from openpype.settings.anatomy import Anatomy
 
-from projects.router import router
 
 def dict2list(src) -> list[dict[str, Any]]:
     return [{"name": k, "original_name": k, **v} for k, v in src.items()]

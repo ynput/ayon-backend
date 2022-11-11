@@ -1,12 +1,11 @@
 from fastapi import Depends
+from projects.router import router
 
 from openpype.addons import AddonLibrary
 from openpype.api import dep_current_user, dep_project_name
 from openpype.entities import UserEntity
 from openpype.settings import BaseSettingsModel
 from openpype.types import OPModel
-
-from projects.router import router
 
 
 class GetProjectSettingsResponse(OPModel):
