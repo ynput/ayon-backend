@@ -10,38 +10,6 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
     folder_types = [t.dict() for t in anatomy.folder_types]
     statuses = [t.dict() for t in anatomy.statuses]
 
-    # task_types = {}
-    # for task_type in anatomy.task_types:
-    #     if task_type.original_name and task_type.original_name != task_type.name:
-    #         name = task_type.original_name
-    #         new_name = task_type.name
-    #     else:
-    #         name = task_type.name
-    #         new_name = None
-    #     task_types[name] = {
-    #         k: v
-    #         for k, v in task_type.dict().items()
-    #         if k not in ("name", "original_name")
-    #     }
-    #     if new_name:
-    #         task_types[name]["name"] = new_name
-    #
-    # folder_types = {}
-    # for folder_type in anatomy.folder_types:
-    #     if folder_type.original_name and folder_type.original_name != folder_type.name:
-    #         name = folder_type.original_name
-    #         new_name = folder_type.name
-    #     else:
-    #         name = folder_type.name
-    #         new_name = None
-    #     folder_types[name] = {
-    #         k: v
-    #         for k, v in folder_type.dict().items()
-    #         if k not in ("name", "original_name")
-    #     }
-    #     if new_name:
-    #         folder_types[name]["name"] = new_name
-
     config: dict[str, Any] = {}
     config["roots"] = {}
     for root in anatomy.roots:

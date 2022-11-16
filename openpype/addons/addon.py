@@ -5,7 +5,7 @@ try:
 except ModuleNotFoundError:
     toml = None  # type: ignore
 
-from typing import TYPE_CHECKING, Any, Callable, Type, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal, Type
 
 from openpype.exceptions import NotFoundException, OpenPypeException
 from openpype.lib.postgres import Postgres

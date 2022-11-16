@@ -17,4 +17,3 @@ class Status(BaseSettingsModel):
 default_statuses = [
     Status(name="Unknown"),
 ]
-

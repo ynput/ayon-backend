@@ -11,7 +11,7 @@ class VersionEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "version"
     model = ModelSet("version", attribute_library["version"])
 
-    async def save(self, transaction=False) -> None:
+    async def save(self, transaction=False) -> bool:
         """Save entity to database."""
 
         if self.version < 0:
@@ -30,7 +30,7 @@ class VersionEntity(ProjectLevelEntity):
             if res:
                 raise ConstraintViolationException("Hero version already exists.")
 
-        await super().save(transaction=transaction)
+        return await super().save(transaction=transaction)
 
     async def commit(self, transaction=False) -> None:
         """Refresh hierarchy materialized view on folder save."""

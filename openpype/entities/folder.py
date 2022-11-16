@@ -10,7 +10,6 @@ from openpype.exceptions import (
     ConstraintViolationException,
     ForbiddenException,
     NotFoundException,
-    BadRequestException,
     OpenPypeException,
 )
 from openpype.lib.postgres import Postgres
@@ -300,5 +299,5 @@ class FolderEntity(ProjectLevelEntity):
         return self._payload.path
 
     @property
-    def entity_subtype(self) -> str:
+    def entity_subtype(self) -> str | None:
         return self.folder_type

@@ -61,8 +61,9 @@ async def aux_table_update(conn, table: str, update_data: list[dict[str, Any]]):
 
     # Delete the rest
     if old_data:
+        old_keys = list(old_data.keys())
         await conn.execute(
-            f"DELETE FROM {table} WHERE name IN ({SQLTool.array(old_data.keys())})"
+            f"DELETE FROM {table} WHERE name IN ({SQLTool.array(old_keys)})"
         )
 
 

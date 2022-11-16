@@ -77,7 +77,7 @@ class TaskEntity(ProjectLevelEntity):
             raise NotFoundException(f"Project {project_name} not found")
         raise NotFoundException("Entity not found")
 
-    async def save(self, transaction=False) -> None:
+    async def save(self, transaction=False) -> bool:
         if self.task_type is None:
             res = await transaction.fetch(
                 f"""
@@ -89,7 +89,7 @@ class TaskEntity(ProjectLevelEntity):
                 raise OpenPypeException("No task types defined")
             self.folder_type = res[0]["name"]
 
-        await super().save(transaction=transaction)
+        return await super().save(transaction=transaction)
 
     #
     # Properties

@@ -9,8 +9,8 @@ __all__ = [
     "WorkfileEntity",
 ]
 
-from openpype.entities.project import ProjectEntity
 from openpype.entities.folder import FolderEntity
+from openpype.entities.project import ProjectEntity
 from openpype.entities.representation import RepresentationEntity
 from openpype.entities.subset import SubsetEntity
 from openpype.entities.task import TaskEntity
