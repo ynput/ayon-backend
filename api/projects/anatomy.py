@@ -14,6 +14,14 @@ def dict2list(src) -> list[dict[str, Any]]:
     return [{"name": k, "original_name": k, **v} for k, v in src.items()]
 
 
+def process_aux_table(src: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Process auxiliary table."""
+    result = []
+    for data in src:
+        result.append({**data, "original_name": data["name"]})
+    return result
+
+
 @router.get(
     "/projects/{project_name}/anatomy",
     response_model=Anatomy,
@@ -39,8 +47,9 @@ async def get_project_anatomy(
     return Anatomy(
         templates=templates,
         roots=dict2list(project.config.get("roots", {})),
-        folder_types=dict2list(project.folder_types),
-        task_types=dict2list(project.task_types),
+        folder_types=process_aux_table(project.folder_types),
+        task_types=process_aux_table(project.task_types),
+        statuses=process_aux_table(project.statuses),
         attributes=project.attrib,
     )
 

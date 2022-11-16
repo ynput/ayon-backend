@@ -133,6 +133,7 @@ class ProjectNode:
             query = f"""
                 SELECT name AS task_type
                 FROM project_{self.project_name}.task_types
+                ORDER BY position
             """
         return [
             TaskType(name=row["task_type"]) async for row in Postgres.iterate(query)
@@ -144,12 +145,12 @@ class ProjectNode:
             query = f"""
                 SELECT DISTINCT(folder_type) AS folder_type
                 FROM project_{self.project_name}.folders
-                WHERE folder_type IS NOT NULL
             """
         else:
             query = f"""
                 SELECT name AS folder_type
                 FROM project_{self.project_name}.folder_types
+                ORDER BY position
             """
         return [
             FolderType(name=row["folder_type"]) async for row in Postgres.iterate(query)

@@ -97,6 +97,23 @@ async def openpype_exception_handler(
     )
 
 
+@app.exception_handler(AssertionError)
+async def assertion_error_handler(
+    request: fastapi.Request,
+    exc: AssertionError,
+) -> fastapi.responses.JSONResponse:
+    user_name = await user_name_from_request(request)
+
+    path = f"[{request.method.upper()}]"
+    path += f" {request.url.path.removeprefix('/api')}"
+    message = exc.args[0] if exc.args else "Assertion failed"
+    logging.error(f"{path}: {message}", user=user_name)
+    return fastapi.responses.JSONResponse(
+        status_code=500,
+        content=ErrorResponse(code=500, detail=message).dict(),
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc) -> fastapi.responses.JSONResponse:
     logging.error(f"Validation error\n{exc}")

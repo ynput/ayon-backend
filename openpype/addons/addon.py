@@ -5,7 +5,7 @@ try:
 except ModuleNotFoundError:
     toml = None  # type: ignore
 
-from typing import TYPE_CHECKING, Any, Callable, Type
+from typing import TYPE_CHECKING, Any, Callable, Type, Literal
 
 from openpype.exceptions import NotFoundException, OpenPypeException
 from openpype.lib.postgres import Postgres
@@ -19,7 +19,7 @@ class BaseServerAddon:
     name: str
     version: str
     title: str | None = None
-    addon_type: str = "module"
+    addon_type: Literal["module", "host"] = "module"
     definition: "ServerAddonDefinition"
     endpoints: list[dict[str, Any]]
     settings_model: Type[BaseSettingsModel] | None = None

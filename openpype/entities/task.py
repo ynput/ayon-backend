@@ -4,7 +4,7 @@ from nxtools import logging
 
 from openpype.entities.core import ProjectLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
-from openpype.exceptions import NotFoundException
+from openpype.exceptions import NotFoundException, OpenPypeException
 from openpype.lib.postgres import Postgres
 from openpype.types import ProjectLevelEntityType
 from openpype.utils import EntityID
@@ -77,6 +77,20 @@ class TaskEntity(ProjectLevelEntity):
             raise NotFoundException(f"Project {project_name} not found")
         raise NotFoundException("Entity not found")
 
+    async def save(self, transaction=False) -> None:
+        if self.task_type is None:
+            res = await transaction.fetch(
+                f"""
+                SELECT name from project_{self.project_name}.task_types
+                ORDER BY position ASC LIMIT 1
+                """
+            )
+            if not res:
+                raise OpenPypeException("No task types defined")
+            self.folder_type = res[0]["name"]
+
+        await super().save(transaction=transaction)
+
     #
     # Properties
     #
@@ -104,3 +118,7 @@ class TaskEntity(ProjectLevelEntity):
     @assignees.setter
     def assignees(self, value: list) -> None:
         self._payload.assignees = value
+
+    @property
+    def entity_subtype(self) -> str:
+        return self.task_type

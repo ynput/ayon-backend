@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from openpype.access.utils import ensure_entity_access
 from openpype.entities.core.base import BaseEntity
 from openpype.exceptions import ConstraintViolationException, NotFoundException
+from openpype.helpers.statuses import get_default_status_for_entity
 from openpype.lib.postgres import Postgres
 from openpype.types import ProjectLevelEntityType
 from openpype.utils import SQLTool, dict_exclude
@@ -202,6 +203,9 @@ class ProjectLevelEntity(BaseEntity):
         commit = not transaction
         transaction = transaction or Postgres
 
+        if self.status is None:
+            self.status = await self.get_default_status()
+
         attrib = {}
         for key in self.own_attrib:
             with suppress(AttributeError):
@@ -279,6 +283,13 @@ class ProjectLevelEntity(BaseEntity):
             await self.commit(transaction)
         return bool(count)
 
+    async def get_default_status(self) -> str:
+        return await get_default_status_for_entity(
+            self.project_name,
+            self.entity_type,
+            self.entity_subtype,
+        )
+
     #
     # Properties
     #
@@ -292,3 +303,22 @@ class ProjectLevelEntity(BaseEntity):
     def id(self, value: str):
         """Set the entity id."""
         self._payload.id = value
+
+    @property
+    def status(self) -> str:
+        """Return the entity status."""
+        return self._payload.status
+
+    @status.setter
+    def status(self, value: str):
+        """Set the entity status."""
+        self._payload.status = value
+
+    @property
+    def entity_subtype(self) -> str | None:
+        """Return the entity subtype.
+
+        For folders and tasks this is the folder type or task type.
+        For other entities this is None.
+        """
+        return None

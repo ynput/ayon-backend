@@ -10,6 +10,8 @@ from openpype.exceptions import (
     ConstraintViolationException,
     ForbiddenException,
     NotFoundException,
+    BadRequestException,
+    OpenPypeException,
 )
 from openpype.lib.postgres import Postgres
 from openpype.types import ProjectLevelEntityType
@@ -101,6 +103,20 @@ class FolderEntity(ProjectLevelEntity):
         commit = not transaction
         transaction = transaction or Postgres
 
+        if self.status is None:
+            self.status = await self.get_default_status()
+
+        if self.folder_type is None:
+            res = await transaction.fetch(
+                f"""
+                SELECT name from project_{self.project_name}.folder_types
+                ORDER BY position ASC LIMIT 1
+                """
+            )
+            if not res:
+                raise OpenPypeException("No folder types defined")
+            self.folder_type = res[0]["name"]
+
         attrib = {}
         for key in self.own_attrib:
             if (value := getattr(self.attrib, key)) is not None:
@@ -157,14 +173,6 @@ class FolderEntity(ProjectLevelEntity):
 
         transaction = transaction or Postgres
 
-        # TODO: why is this here?
-        # await transaction.execute(
-        #     f"""
-        #     DELETE FROM project_{self.project_name}.thumbnails
-        #     WHERE id = $1
-        #     """,
-        #     self.id,
-        # )
         await transaction.execute(
             f"""
             REFRESH MATERIALIZED VIEW CONCURRENTLY
@@ -290,3 +298,7 @@ class FolderEntity(ProjectLevelEntity):
     @property
     def path(self) -> str:
         return self._payload.path
+
+    @property
+    def entity_subtype(self) -> str:
+        return self.folder_type

@@ -143,6 +143,13 @@ class ModelSet:
                 "default": True,
             },
             {
+                "name": "status",
+                "type": "string",
+                "title": f"{self.entity_name.capitalize()} status",
+                "description": f"Status of the {self.entity_name}",
+                "required": False,  # It is required in the DB, but not in the model
+            },
+            {
                 "name": "own_attrib",
                 "type": "list_of_strings",
                 "title": "Own attributes",

@@ -31,24 +31,33 @@ project_fields = [
     },
     {
         "name": "folder_types",
-        "type": "dict",
-        "default": {},
+        "type": "list_of_any",
+        "factory": "list",
         "title": "Folder types",
-        "example": {
-            "Asset": {"icon": "asset"},
-            "Shot": {"icon": "shot"},
-            "Sequence": {"icon": "sequence"},
-        },
+        "example": [
+            {"name": "Folder", "icon": "folder"},
+            {"name": "Asset", "icon": "folder"},
+            {"name": "Shot", "icon": "folder"},
+        ],
     },
     {
         "name": "task_types",
-        "type": "dict",
-        "default": {},
+        "type": "list_of_any",
+        "factory": "list",
         "title": "Task types",
-        "example": {
-            "Rigging": {},
-            "Animation": {},
-        },
+        "example": [
+            {"name": "Rigging", "icon": "rig"},
+            {"name": "Modeling", "icon": "model"},
+        ],
+    },
+    {
+        "name": "statuses",
+        "type": "list_of_any",
+        "factory": "list",
+        "title": "Statuses",
+        "example": [
+            {"name": "Unknown"},
+        ],
     },
     {
         "name": "config",

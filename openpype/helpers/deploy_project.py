@@ -6,37 +6,41 @@ from openpype.settings.anatomy import Anatomy
 
 def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
 
-    task_types = {}
-    for task_type in anatomy.task_types:
-        if task_type.original_name and task_type.original_name != task_type.name:
-            name = task_type.original_name
-            new_name = task_type.name
-        else:
-            name = task_type.name
-            new_name = None
-        task_types[name] = {
-            k: v
-            for k, v in task_type.dict().items()
-            if k not in ("name", "original_name")
-        }
-        if new_name:
-            task_types[name]["name"] = new_name
+    task_types = [t.dict() for t in anatomy.task_types]
+    folder_types = [t.dict() for t in anatomy.folder_types]
+    statuses = [t.dict() for t in anatomy.statuses]
 
-    folder_types = {}
-    for folder_type in anatomy.folder_types:
-        if folder_type.original_name and folder_type.original_name != folder_type.name:
-            name = folder_type.original_name
-            new_name = folder_type.name
-        else:
-            name = folder_type.name
-            new_name = None
-        folder_types[name] = {
-            k: v
-            for k, v in folder_type.dict().items()
-            if k not in ("name", "original_name")
-        }
-        if new_name:
-            folder_types[name]["name"] = new_name
+    # task_types = {}
+    # for task_type in anatomy.task_types:
+    #     if task_type.original_name and task_type.original_name != task_type.name:
+    #         name = task_type.original_name
+    #         new_name = task_type.name
+    #     else:
+    #         name = task_type.name
+    #         new_name = None
+    #     task_types[name] = {
+    #         k: v
+    #         for k, v in task_type.dict().items()
+    #         if k not in ("name", "original_name")
+    #     }
+    #     if new_name:
+    #         task_types[name]["name"] = new_name
+    #
+    # folder_types = {}
+    # for folder_type in anatomy.folder_types:
+    #     if folder_type.original_name and folder_type.original_name != folder_type.name:
+    #         name = folder_type.original_name
+    #         new_name = folder_type.name
+    #     else:
+    #         name = folder_type.name
+    #         new_name = None
+    #     folder_types[name] = {
+    #         k: v
+    #         for k, v in folder_type.dict().items()
+    #         if k not in ("name", "original_name")
+    #     }
+    #     if new_name:
+    #         folder_types[name]["name"] = new_name
 
     config: dict[str, Any] = {}
     config["roots"] = {}
@@ -68,6 +72,7 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
     return {
         "task_types": task_types,
         "folder_types": folder_types,
+        "statuses": statuses,
         "attrib": anatomy.attributes.dict(),  # type: ignore
         "config": config,
     }
