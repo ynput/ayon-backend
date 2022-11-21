@@ -56,6 +56,7 @@ class RepresentationAttribType:
 @strawberry.type
 class RepresentationNode(BaseNode):
     version_id: str
+    status: str
     attrib: RepresentationAttribType
 
     # GraphQL specifics
@@ -181,6 +182,7 @@ def representation_from_record(
         id=record["id"],
         name=record["name"],
         version_id=record["version_id"],
+        status=record["status"],
         attrib=parse_attrib_data(
             RepresentationAttribType,
             record["attrib"],

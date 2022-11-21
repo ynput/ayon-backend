@@ -40,6 +40,7 @@ async def folder_loader(keys: list[KeyType]) -> list[dict | None]:
             folders.parent_id AS parent_id,
             folders.thumbnail_id AS thumbnail_id,
             folders.attrib AS attrib,
+            folders.status AS status,
             folders.created_at AS created_at,
             folders.updated_at AS updated_at,
             hierarchy.path AS path,
@@ -109,6 +110,7 @@ async def task_loader(keys: list[KeyType]) -> list[dict | None]:
             tasks.attrib AS attrib,
             tasks.data AS data,
             tasks.active AS active,
+            tasks.status AS status,
             tasks.created_at AS created_at,
             tasks.updated_at AS updated_at,
             tasks.creation_order AS creation_order,
@@ -185,6 +187,7 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict | None]:
             v.attrib AS attrib,
             v.data AS data,
             v.active AS active,
+            v.status AS status,
             v.created_at AS created_at,
             v.updated_at AS updated_at
         FROM

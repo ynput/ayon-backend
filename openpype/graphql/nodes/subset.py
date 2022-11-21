@@ -40,6 +40,7 @@ class SubsetAttribType:
 class SubsetNode(BaseNode):
     folder_id: str
     family: str
+    status: str
     attrib: SubsetAttribType
 
     # GraphQL specifics
@@ -112,6 +113,7 @@ def subset_from_record(
         name=record["name"],
         folder_id=record["folder_id"],
         family=record["family"],
+        status=record["status"],
         attrib=parse_attrib_data(
             SubsetAttribType,
             record["attrib"],

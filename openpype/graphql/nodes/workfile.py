@@ -26,6 +26,7 @@ class WorkfileNode(BaseNode):
     thumbnail_id: str | None
     created_by: str | None
     updated_by: str | None
+    status: str
     attrib: WorkfileAttribType
 
     @strawberry.field(description="Workfile name")
@@ -60,6 +61,7 @@ def workfile_from_record(
         created_by=record["created_by"],
         updated_by=record["updated_by"],
         active=record["active"],
+        status=record["status"],
         attrib=parse_attrib_data(
             WorkfileAttribType,
             record["attrib"],

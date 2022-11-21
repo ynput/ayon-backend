@@ -56,6 +56,7 @@ async def get_subsets(
         "subsets.family AS family",
         "subsets.attrib AS attrib",
         "subsets.data AS data",
+        "subsets.status AS status",
         "subsets.active AS active",
         "subsets.created_at AS created_at",
         "subsets.updated_at AS updated_at",
@@ -114,6 +115,7 @@ async def get_subsets(
                 "folders.attrib AS _folder_attrib",
                 "folders.data AS _folder_data",
                 "folders.active AS _folder_active",
+                "folders.status AS _folder_status",
                 "folders.created_at AS _folder_created_at",
                 "folders.updated_at AS _folder_updated_at",
             ]

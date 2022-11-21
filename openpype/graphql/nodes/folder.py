@@ -22,6 +22,7 @@ class FolderNode(BaseNode):
     parent_id: str | None
     thumbnail_id: str | None
     path: str | None
+    status: str
     attrib: FolderAttribType
     own_attrib: list[str]
 
@@ -106,6 +107,7 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         folder_type=record["folder_type"],
         parent_id=record["parent_id"],
         thumbnail_id=record["thumbnail_id"],
+        status=record["status"],
         attrib=parse_folder_attrib_data(
             record["attrib"],
             record["inherited_attributes"],
