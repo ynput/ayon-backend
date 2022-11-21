@@ -9,4 +9,4 @@ async def restart_server():
     We should find a better way in the future
     """
 
-    pathlib.Path("openpype/trigger.py", "w").write_text(f"{time.time()}")
+    pathlib.Path("openpype/trigger.py").write_text(f"{time.time()}")
