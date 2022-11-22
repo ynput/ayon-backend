@@ -277,3 +277,16 @@ async def startup_event() -> None:
             version.setup()
 
     logging.goodnews("Server started")
+
+
+@app.on_event("shutdown")
+async def shutdown_event() -> None:
+    """Shutdown event."""
+    # Disconnect all websocket clients
+    for client in messaging.clients.values():
+        if not client.disconnected:
+            logging.info(f"Disconnecting {client.user_name}")
+            await client.sock.close(code=1000)
+ 
+
+    logging.info("Server is shutting down")

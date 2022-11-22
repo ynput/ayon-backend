@@ -30,52 +30,6 @@ CREATE TABLE IF NOT EXISTS public.users(
 
 CREATE UNIQUE INDEX IF NOT EXISTS username_idx ON public.projects (LOWER(name));
 
--- Roles
-
-
--- Attributes
-
-CREATE TABLE IF NOT EXISTS public.attributes(
-    name VARCHAR NOT NULL PRIMARY KEY,
-    position INTEGER,
-    scope VARCHAR[],
-    builtin BOOLEAN NOT NULL DEFAULT FALSE,
-    data JSONB NOT NULL DEFAULT '{}':: JSONB
-);
-
---------------
--- Settings --
---------------
-
-CREATE TABLE IF NOT EXISTS public.anatomy_presets(
-  name VARCHAR NOT NULL,
-  version VARCHAR NOT NULL DEFAULT '4.0.0',
-  is_primary BOOLEAN NOT NULL DEFAULT FALSE,
-  data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  PRIMARY KEY (name, version)
-);
-
-CREATE TABLE IF NOT EXISTS public.roles(
-    name VARCHAR NOT NULL PRIMARY KEY, 
-    data JSONB NOT NULL DEFAULT '{}'::JSONB
-);
-
-CREATE TABLE IF NOT EXISTS public.settings(
-  addon_name VARCHAR NOT NULL,
-  addon_version VARCHAR NOT NULL,
-  staging BOOL NOT NULL DEFAULT FALSE,
-  snapshot_time BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
-  data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  PRIMARY KEY (addon_name, addon_version, snapshot_time, staging)
-);
-
-CREATE TABLE IF NOT EXISTS public.addon_versions(
-  name VARCHAR NOT NULL PRIMARY KEY,
-  production_version VARCHAR,
-  staging_version VARCHAR
-);
-
-
 ------------
 -- Events --
 ------------
@@ -118,6 +72,47 @@ CREATE TABLE IF NOT EXISTS public.events(
 CREATE UNIQUE INDEX IF NOT EXISTS unique_event_hash ON events(hash);
 CREATE UNIQUE INDEX IF NOT EXISTS unique_creation_order ON events(creation_order);
 
+--------------
+-- Settings --
+--------------
+
+CREATE TABLE IF NOT EXISTS public.roles(
+    name VARCHAR NOT NULL PRIMARY KEY, 
+    data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+CREATE TABLE IF NOT EXISTS public.attributes(
+    name VARCHAR NOT NULL PRIMARY KEY,
+    position INTEGER,
+    scope VARCHAR[],
+    builtin BOOLEAN NOT NULL DEFAULT FALSE,
+    data JSONB NOT NULL DEFAULT '{}':: JSONB
+);
+
+
+CREATE TABLE IF NOT EXISTS public.anatomy_presets(
+  name VARCHAR NOT NULL,
+  version VARCHAR NOT NULL DEFAULT '4.0.0',
+  is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  PRIMARY KEY (name, version)
+);
+
+
+CREATE TABLE IF NOT EXISTS public.settings(
+  addon_name VARCHAR NOT NULL,
+  addon_version VARCHAR NOT NULL,
+  staging BOOL NOT NULL DEFAULT FALSE,
+  snapshot_time BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  PRIMARY KEY (addon_name, addon_version, snapshot_time, staging)
+);
+
+CREATE TABLE IF NOT EXISTS public.addon_versions(
+  name VARCHAR NOT NULL PRIMARY KEY,
+  production_version VARCHAR,
+  staging_version VARCHAR
+);
 
 --------------
 -- SERVICES --
@@ -139,4 +134,15 @@ CREATE TABLE IF NOT EXISTS public.services(
   is_running BOOLEAN NOT NULL DEFAULT FALSE,
   last_seen NUMERIC,
   data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+------------------
+-- Dependencies --
+------------------
+
+CREATE TABLE public.dependency_packages(
+  name VARCHAR NOT NULL,
+  platform VARCHAR NOT NULL,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  PRIMARY KEY (name, platform)
 );
