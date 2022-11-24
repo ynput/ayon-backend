@@ -27,6 +27,7 @@ class TaskNode(BaseNode):
     assignees: list[str]
     folder_id: str
     status: str
+    tags: list[str]
     attrib: TaskAttribType
     own_attrib: list[str]
 
@@ -114,6 +115,7 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
         assignees=record["assignees"],
         folder_id=record["folder_id"],
         status=record["status"],
+        tags=record["tags"],
         attrib=parse_task_attrib_data(
             record["attrib"],
             record["parent_folder_attrib"],

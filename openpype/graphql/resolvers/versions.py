@@ -75,6 +75,7 @@ async def get_versions(
         "versions.attrib AS attrib",
         "versions.data AS data",
         "versions.status AS status",
+        "versions.tags AS tags",
         "versions.active AS active",
         "versions.created_at AS created_at",
         "versions.updated_at AS updated_at",

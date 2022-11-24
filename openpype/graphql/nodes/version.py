@@ -31,6 +31,7 @@ class VersionNode(BaseNode):
     author: str | None
     status: str
     attrib: VersionAttribType
+    tags: list[str]
 
     # GraphQL specifics
 
@@ -84,6 +85,7 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
         thumbnail_id=record["thumbnail_id"],
         author=record["author"],
         status=record["status"],
+        tags=record["tags"],
         attrib=parse_attrib_data(
             VersionAttribType,
             record["attrib"],

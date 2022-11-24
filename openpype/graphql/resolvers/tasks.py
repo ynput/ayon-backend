@@ -64,6 +64,7 @@ async def get_tasks(
         "tasks.attrib AS attrib",
         "tasks.data AS data",
         "tasks.status AS status",
+        "tasks.tags AS tags",
         "tasks.active AS active",
         "tasks.created_at AS created_at",
         "tasks.updated_at AS updated_at",
@@ -126,6 +127,7 @@ async def get_tasks(
                 "folders.data AS _folder_data",
                 "folders.active AS _folder_active",
                 "folders.status AS _folder_status",
+                "folders.tags AS _folder_tags",
                 "folders.created_at AS _folder_created_at",
                 "folders.updated_at AS _folder_updated_at",
             ]

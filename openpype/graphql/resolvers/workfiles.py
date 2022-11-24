@@ -55,6 +55,7 @@ async def get_workfiles(
         "workfiles.attrib AS attrib",
         "workfiles.data AS data",
         "workfiles.status AS status",
+        "workfiles.tags AS tags",
         "workfiles.active AS active",
         "workfiles.created_at AS created_at",
         "workfiles.updated_at AS updated_at",

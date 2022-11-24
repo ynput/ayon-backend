@@ -52,6 +52,7 @@ async def get_representations(
         "representations.version_id AS version_id",
         "representations.attrib AS attrib",
         "representations.status AS status",
+        "representations.tags AS tags",
         "representations.active AS active",
         "representations.created_at AS created_at",
         "representations.updated_at AS updated_at",

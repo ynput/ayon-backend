@@ -57,6 +57,7 @@ class RepresentationAttribType:
 class RepresentationNode(BaseNode):
     version_id: str
     status: str
+    tags: list[str]
     attrib: RepresentationAttribType
 
     # GraphQL specifics
@@ -183,6 +184,7 @@ def representation_from_record(
         name=record["name"],
         version_id=record["version_id"],
         status=record["status"],
+        tags=record["tags"],
         attrib=parse_attrib_data(
             RepresentationAttribType,
             record["attrib"],

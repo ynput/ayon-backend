@@ -28,6 +28,7 @@ class WorkfileNode(BaseNode):
     updated_by: str | None
     status: str
     attrib: WorkfileAttribType
+    tags: list[str]
 
     @strawberry.field(description="Workfile name")
     def name(self) -> str:
@@ -62,6 +63,7 @@ def workfile_from_record(
         updated_by=record["updated_by"],
         active=record["active"],
         status=record["status"],
+        tags=record["tags"],
         attrib=parse_attrib_data(
             WorkfileAttribType,
             record["attrib"],
