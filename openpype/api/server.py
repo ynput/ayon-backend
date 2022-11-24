@@ -287,6 +287,5 @@ async def shutdown_event() -> None:
         if not client.disconnected:
             logging.info(f"Disconnecting {client.user_name}")
             await client.sock.close(code=1000)
- 
 
     logging.info("Server is shutting down")

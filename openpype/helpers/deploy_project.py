@@ -9,6 +9,7 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
     task_types = [t.dict() for t in anatomy.task_types]
     folder_types = [t.dict() for t in anatomy.folder_types]
     statuses = [t.dict() for t in anatomy.statuses]
+    tags = [t.dict() for t in anatomy.tags]
 
     config: dict[str, Any] = {}
     config["roots"] = {}
@@ -41,6 +42,7 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         "task_types": task_types,
         "folder_types": folder_types,
         "statuses": statuses,
+        "tags": tags,
         "attrib": anatomy.attributes.dict(),  # type: ignore
         "config": config,
     }

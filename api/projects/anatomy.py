@@ -50,6 +50,7 @@ async def get_project_anatomy(
         folder_types=process_aux_table(project.folder_types),
         task_types=process_aux_table(project.task_types),
         statuses=process_aux_table(project.statuses),
+        tags=process_aux_table(project.tags),
         attributes=project.attrib,
     )
 

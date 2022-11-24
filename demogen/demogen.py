@@ -86,6 +86,16 @@ class DemoGen:
             f"Project {self.project_name} demo in {elapsed_time:.2f} seconds"
         )
 
+    def get_entity_tags(self):
+        """return a list of random tags for entity"""
+        tags = [tag["name"] for tag in self.project.tags]
+        return random.sample(tags, random.randint(0, 5))
+
+    def get_entity_status(self):
+        """return a random status for entity"""
+        status = random.choice(self.project.statuses)
+        return status["name"]
+
     async def create_branch(self, **kwargs: Any) -> None:
         async with Postgres.acquire() as conn:
             async with conn.transaction():
@@ -123,6 +133,8 @@ class DemoGen:
 
         payload = {
             "parent_id": parent_id,
+            "tags": self.get_entity_tags(),
+            "status": self.get_entity_status(),
             **dict_exclude(kwargs, ["_", "parentId"], mode="startswith"),
         }
         folder = FolderEntity(
@@ -180,6 +192,8 @@ class DemoGen:
 
         payload = {
             "folder_id": folder.id,
+            "tags": self.get_entity_tags(),
+            "status": self.get_entity_status(),
             **dict_exclude(kwargs, ["_"], mode="startswith"),
         }
         subset = SubsetEntity(
@@ -208,6 +222,8 @@ class DemoGen:
                     "version": i,
                     "author": "admin",
                     "attrib": attrib,
+                    "tags": self.get_entity_tags(),
+                    "status": self.get_entity_status(),
                 },
                 validate=self.validate,
             )
@@ -230,6 +246,8 @@ class DemoGen:
         payload = {**kwargs}
         payload["folder_id"] = folder.id
         payload["attrib"] = folder.attrib.dict()
+        payload["tags"] = self.get_entity_tags()
+        payload["status"] = self.get_entity_status()
         task = TaskEntity(
             project_name=self.project_name,
             payload=payload,
@@ -250,6 +268,8 @@ class DemoGen:
                     "path": path,
                     "task_id": task.id,
                     "created_by": "admin",
+                    "tags": self.get_entity_tags(),
+                    "status": self.get_entity_status(),
                 },
                 validate=self.validate,
             )
@@ -310,6 +330,8 @@ class DemoGen:
             project_name=self.project_name,
             payload={
                 "version_id": version.id,
+                "tags": self.get_entity_tags(),
+                "status": self.get_entity_status(),
                 "data": {
                     "files": files,
                     "context": context,

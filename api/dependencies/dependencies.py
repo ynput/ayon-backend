@@ -1,15 +1,15 @@
 import os
+from typing import Any, Literal
 
-from typing import Literal, Any
+from fastapi import APIRouter, Depends, Path, Request, Response
 from nxtools import logging
-from fastapi import APIRouter, Depends, Response, Path, Request
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user
 from openpype.entities import UserEntity
 from openpype.exceptions import ForbiddenException, NotFoundException, OpenPypeException
 from openpype.lib.postgres import Postgres
-from openpype.types import OPModel, Field
+from openpype.types import Field, OPModel
 from openpype.utils import dict_exclude
 
 router = APIRouter(

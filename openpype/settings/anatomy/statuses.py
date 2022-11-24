@@ -1,8 +1,8 @@
 from typing import Literal
+
 from pydantic import Field
 
 from openpype.settings.common import BaseSettingsModel
-
 
 State = Literal["not_started", "in_progress", "done", "blocked"]
 

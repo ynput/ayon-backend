@@ -60,6 +60,16 @@ project_fields = [
         ],
     },
     {
+        "name": "tags",
+        "type": "list_of_any",
+        "factory": "list",
+        "title": "Tags",
+        "description": "List of tags available to set on entities.",
+        "example": [
+            {"name": "Unknown"},
+        ],
+    },
+    {
         "name": "config",
         "type": "dict",
         "default": {},

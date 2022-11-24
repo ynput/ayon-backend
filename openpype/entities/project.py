@@ -115,7 +115,7 @@ class ProjectEntity(TopLevelEntity):
         task_types = []
         for name, data in await Postgres.fetch(
             f"""
-            SELECT  name, data
+            SELECT name, data
             FROM project_{project_name}.task_types
             ORDER BY position
             {'FOR UPDATE' if transaction and for_update else ''}
@@ -127,7 +127,7 @@ class ProjectEntity(TopLevelEntity):
         statuses = []
         for name, data in await Postgres.fetch(
             f"""
-            SELECT  name, data
+            SELECT name, data
             FROM project_{project_name}.statuses
             ORDER BY position
             {'FOR UPDATE' if transaction and for_update else ''}
@@ -135,10 +135,23 @@ class ProjectEntity(TopLevelEntity):
         ):
             statuses.append({"name": name, **data})
 
+        # Load tags
+        tags = []
+        for name, data in await Postgres.fetch(
+            f"""
+            SELECT name, data
+            FROM project_{project_name}.tags
+            ORDER BY position
+            {'FOR UPDATE' if transaction and for_update else ''}
+            """
+        ):
+            tags.append({"name": name, **data})
+
         payload = dict(project_data[0]) | {
             "folder_types": folder_types,
             "task_types": task_types,
             "statuses": statuses,
+            "tags": tags,
         }
         return cls.from_record(payload=payload, validate=False)
 
@@ -174,6 +187,7 @@ class ProjectEntity(TopLevelEntity):
                                 "folder_types",
                                 "task_types",
                                 "statuses",
+                                "tags",
                                 "ctime",
                                 "name",
                                 "own_attrib",
@@ -193,7 +207,13 @@ class ProjectEntity(TopLevelEntity):
                         "projects",
                         **dict_exclude(
                             self.dict(exclude_none=True),
-                            ["folder_types", "task_types", "statuses", "own_attrib"],
+                            [
+                                "folder_types",
+                                "task_types",
+                                "statuses",
+                                "tags",
+                                "own_attrib",
+                            ],
                         ),
                     )
                 )
@@ -227,6 +247,11 @@ class ProjectEntity(TopLevelEntity):
             transaction,
             f"project_{project_name}.statuses",
             self.statuses,
+        )
+        await aux_table_update(
+            transaction,
+            f"project_{project_name}.tags",
+            self.tags,
         )
 
         return True
@@ -318,3 +343,13 @@ class ProjectEntity(TopLevelEntity):
     def statuses(self, value: list[dict[str, Any]]):
         """Set the statuses."""
         self._payload.statuses = value
+
+    @property
+    def tags(self) -> list[dict[str, Any]]:
+        """Return the tags."""
+        return self._payload.tags
+
+    @tags.setter
+    def tags(self, value: list[dict[str, Any]]):
+        """Set the tags."""
+        self._payload.tags = value

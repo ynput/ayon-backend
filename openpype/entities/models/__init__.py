@@ -143,6 +143,20 @@ class ModelSet:
                 "default": True,
             },
             {
+                "name": "own_attrib",
+                "type": "list_of_strings",
+                "title": "Own attributes",
+                "example": ["frameStart", "frameEnd"],
+                "dynamic": True,
+            },
+        ]
+
+    @property
+    def _project_level_fields(self) -> list:
+        if self.entity_name in ["project", "user"]:
+            return []
+        return [
+            {
                 "name": "status",
                 "type": "string",
                 "title": f"{self.entity_name.capitalize()} status",
@@ -150,11 +164,12 @@ class ModelSet:
                 "required": False,  # It is required in the DB, but not in the model
             },
             {
-                "name": "own_attrib",
+                "name": "tags",
                 "type": "list_of_strings",
-                "title": "Own attributes",
-                "example": ["frameStart", "frameEnd"],
-                "dynamic": True,
+                "title": f"{self.entity_name.capitalize()} tags",
+                "description": f"Tags assigned to the the {self.entity_name}",
+                "factory": "list",
+                "example": ["flabadob", "blip", "blop", "blup"],
             },
         ]
 
@@ -212,7 +227,11 @@ class ModelSet:
 
         return generate_model(
             model_name,
-            pre_fields + self.fields + self._common_fields + post_fields,
+            pre_fields
+            + self.fields
+            + self._common_fields
+            + self._project_level_fields
+            + post_fields,
             EntityModelConfig,
         )
 
