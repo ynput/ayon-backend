@@ -13,6 +13,14 @@ from openpype.settings.anatomy import Anatomy
 from openpype.settings.anatomy.tags import Tag
 
 
+def create_color():
+    """Return a random color visible on dark background"""
+    color = [random.randint(0, 255) for _ in range(3)]
+    if sum(color) < 400:
+        color = [255 - x for x in color]
+    return f'#{"".join([f"{x:02x}" for x in color])}'
+
+
 def generate_tags() -> list[dict[str, Any]]:
     pool = """
     beauty cute funny happy sad scary sexy
@@ -26,7 +34,7 @@ def generate_tags() -> list[dict[str, Any]]:
         tags.append(
             Tag(
                 name=name,
-                color=f"#{random.randint(0, 0xFFFFFF):06X}",
+                color=create_color(),
                 original_name=name,
             )
         )
