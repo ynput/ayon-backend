@@ -167,19 +167,23 @@ async def set_attribute_config(
         raise ForbiddenException("Only administrators are allowed to modify attributes")
 
     query = """
-        UPDATE attributes SET
-            position = $1,
-            scope = $2,
-            data = $3
-        WHERE name = $4
+        INSERT INTO attributes
+        (name, position, scope, data)
+        VALUES
+        ($1, $2, $3, $4)
+        ON CONFLICT (name)
+        DO UPDATE SET
+            position = $2,
+            scope = $3,
+            data = $4
     """
 
     await Postgres.execute(
         query,
+        attribute_name,
         payload.position,
         payload.scope,
         payload.data.dict(),
-        attribute_name,
     )
     return Response(status_code=204)
 
