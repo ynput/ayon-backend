@@ -178,7 +178,7 @@ async def set_attribute_config(
         query,
         payload.position,
         payload.scope,
-        payload.data,
+        payload.data.dict(),
         attribute_name,
     )
     return Response(status_code=204)
