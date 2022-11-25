@@ -179,6 +179,7 @@ async def set_attribute_config(
         payload.position,
         payload.scope,
         payload.data,
+        attribute_name,
     )
     return Response(status_code=204)
 
