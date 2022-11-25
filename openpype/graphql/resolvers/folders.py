@@ -43,6 +43,7 @@ async def get_folders(
     folder_types: Annotated[
         list[str] | None, argdesc("List of folder types to filter by")
     ] = None,
+    tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     paths: Annotated[list[str] | None, argdesc("List of paths to filter by")] = None,
     path_ex: Annotated[str | None, argdesc("Match paths by regular expression")] = None,
     name: Annotated[
@@ -186,6 +187,9 @@ async def get_folders(
 
     if names is not None:
         sql_conditions.append(f"folders.name in {SQLTool.array(names)}")
+
+    if tags:
+        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     if has_subsets is not None:
         sql_having.append(

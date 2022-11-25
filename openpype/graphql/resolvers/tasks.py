@@ -38,6 +38,7 @@ async def get_tasks(
     ] = None,
     name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
     names: Annotated[list[str] | None, argdesc("List of names to filter by")] = None,
+    tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
@@ -90,6 +91,9 @@ async def get_tasks(
 
     if task_types:
         sql_conditions.append(f"tasks.task_type IN {SQLTool.array(task_types)}")
+
+    if tags:
+        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     if has_links is not None:
         sql_conditions.extend(get_has_links_conds(project_name, "tasks.id", has_links))

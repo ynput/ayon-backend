@@ -35,6 +35,7 @@ async def get_workfiles(
         list[str] | None,
         argdesc("List of parent task IDs"),
     ] = None,
+    tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
 ) -> WorkfilesConnection:
     """Return a list of workfiles."""
@@ -84,6 +85,9 @@ async def get_workfiles(
         sql_conditions.extend(
             get_has_links_conds(project_name, "workfiles.id", has_links)
         )
+
+    if tags:
+        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     access_list = await create_folder_access_list(root, info)
     if access_list is not None:

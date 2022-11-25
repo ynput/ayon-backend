@@ -31,6 +31,7 @@ async def get_versions(
     ids: ARGIds = None,
     version: int | None = None,
     versions: list[int] | None = None,
+    tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     subset_ids: Annotated[
         list[str] | None,
         argdesc("List of parent subsets IDs"),
@@ -98,6 +99,8 @@ async def get_versions(
         sql_conditions.append(f"version IN {SQLTool.array(versions)}")
     if authors:
         sql_conditions.append(f"author IN {SQLTool.id_array(authors)}")
+    if tags:
+        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     if subset_ids:
         sql_conditions.append(f"subset_id IN {SQLTool.id_array(subset_ids)}")

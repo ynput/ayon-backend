@@ -36,6 +36,7 @@ async def get_representations(
     ] = None,
     name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
     names: Annotated[list[str] | None, argdesc("List of names to filter")] = None,
+    tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
 ) -> RepresentationsConnection:
     """Return a list of representations."""
@@ -79,6 +80,9 @@ async def get_representations(
         sql_conditions.append(f"name ILIKE '{name}'")
     if names is not None:
         sql_conditions.append(f"name IN {SQLTool.array(names)}")
+
+    if tags:
+        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     if has_links is not None:
         sql_conditions.extend(

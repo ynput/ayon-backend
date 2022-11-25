@@ -38,6 +38,7 @@ async def get_subsets(
     families: Annotated[
         list[str] | None, argdesc("List of families to filter by")
     ] = None,
+    tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
 ) -> SubsetsConnection:
     """Return a list of subsets."""
@@ -77,6 +78,9 @@ async def get_subsets(
 
     if families:
         sql_conditions.append(f"subsets.family IN {SQLTool.array(families)}")
+
+    if tags:
+        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     # NOTE: replaced by the plural form
     # if name:
