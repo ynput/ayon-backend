@@ -1,9 +1,8 @@
 import asyncio
 import json
-import sys
 import random
+import sys
 
-from typing import Any
 from nxtools import critical_error, log_traceback, logging
 
 from demogen.demogen import DemoGen
@@ -13,7 +12,7 @@ from openpype.settings.anatomy import Anatomy
 from openpype.settings.anatomy.tags import Tag
 
 
-def create_color():
+def create_color() -> str:
     """Return a random color visible on dark background"""
     color = [random.randint(0, 255) for _ in range(3)]
     if sum(color) < 400:
@@ -21,15 +20,15 @@ def create_color():
     return f'#{"".join([f"{x:02x}" for x in color])}'
 
 
-def generate_tags() -> list[dict[str, Any]]:
+def generate_tags() -> list[Tag]:
     pool = """
     beauty cute funny happy sad scary sexy
     cuddly fluffy soft warm fuzzy hairy furry
     spiky sharp pointy dangerous adorable
     flabadob blip blup blip boo
     """
-    names = [r.strip() for r in pool.split() if r.strip()]
-    tags = []
+    names: list[str] = [r.strip() for r in pool.split() if r.strip()]
+    tags: list[Tag] = []
     for name in names:
         tags.append(
             Tag(

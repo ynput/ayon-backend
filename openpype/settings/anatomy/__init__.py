@@ -4,8 +4,8 @@ from openpype.entities import ProjectEntity
 from openpype.settings.anatomy.folder_types import FolderType, default_folder_types
 from openpype.settings.anatomy.roots import Root, default_roots
 from openpype.settings.anatomy.statuses import Status, default_statuses
-from openpype.settings.anatomy.task_types import TaskType, default_task_types
 from openpype.settings.anatomy.tags import Tag
+from openpype.settings.anatomy.task_types import TaskType, default_task_types
 from openpype.settings.anatomy.templates import Templates
 from openpype.settings.common import BaseSettingsModel, ensure_unique_names
 

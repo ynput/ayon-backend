@@ -19,8 +19,8 @@ def get_state_enum():
 class Status(BaseSettingsModel):
     _layout: str = "compact"
     name: str = Field(..., title="Name", min_length=1, max_length=100)
-    color: str = Field("#cacaca", title="Color", widget="color")
     state: State = Field("not_started", title="State", enum_resolver=get_state_enum)
+    color: str = Field("#cacaca", title="Color", widget="color")
     original_name: str | None = Field(None, scope="hidden")  # Used for renaming
 
     def __hash__(self):
