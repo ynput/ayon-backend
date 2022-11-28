@@ -3,6 +3,7 @@
 
 __all__ = [
     "BaseSettingsModel",
+    "Field",
     "apply_overrides",
     "list_overrides",
     "extract_overrides",
@@ -11,6 +12,7 @@ __all__ = [
     "normalize_name",
 ]
 
+from pydantic import Field
 from openpype.settings.common import (
     BaseSettingsModel,
     ensure_unique_names,

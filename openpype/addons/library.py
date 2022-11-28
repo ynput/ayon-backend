@@ -1,7 +1,7 @@
 import os
 from typing import ItemsView
 
-from nxtools import logging
+from nxtools import logging, log_traceback
 
 from openpype.addons.addon import BaseServerAddon
 from openpype.addons.definition import ServerAddonDefinition
@@ -28,7 +28,11 @@ class AddonLibrary:
             if not os.path.isdir(addon_dir):
                 continue
 
-            definition = ServerAddonDefinition(self, addon_dir)
+            try:
+                definition = ServerAddonDefinition(self, addon_dir)
+            except Exception:
+                log_traceback(f"Unable to initialize {addon_dir}")
+                continue
             if not definition.versions:
                 continue
 
