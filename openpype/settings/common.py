@@ -95,6 +95,7 @@ async def postprocess_settings_schema(  # noqa
                 "layout",
                 "scope",
                 "tags",
+                "placeholder",
                 "conditionalEnum",
             ):
                 if extra_field := field.field_info.extra.get(extra_field_name):
