@@ -1,15 +1,12 @@
-from pydantic import Field
-
 from openpype.addons import BaseServerAddon
-from openpype.settings import BaseSettingsModel
-
-
-class CoreSettings(BaseSettingsModel):
-    studio_name: str = Field("", title="Studio name")
-    artist_count: int = Field(0, title="Artist count")
+from .settings import CoreSettings, DEFAULT_VALUES
 
 
 class CoreAddon(BaseServerAddon):
     name = "core"
     version = "1.0.0"
     settings_model = CoreSettings
+
+    async def get_default_settings(self):
+        settings_model_cls = self.get_settings_model()
+        return settings_model_cls(**DEFAULT_VALUES)

@@ -1,10 +1,7 @@
 from pydantic import Field, validator
 
-from openpype.settings.common import (
-    BaseSettingsModel,
-    ensure_unique_names,
-    normalize_name,
-)
+from openpype.settings.common import BaseSettingsModel
+from openpype.settings.validators import ensure_unique_names, normalize_name
 
 
 class BaseTemplate(BaseSettingsModel):
