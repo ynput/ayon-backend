@@ -126,7 +126,7 @@ async def get_folders(
             """
         )
 
-    if (has_subsets is not None) or fields.has_any("subsetsCount", "hasSubsets"):
+    if (has_subsets is not None) or fields.has_any("subsetCount", "hasSubsets"):
         sql_columns.append("COUNT(subsets.id) AS subset_count")
         sql_joins.append(
             f"""
