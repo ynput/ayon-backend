@@ -64,7 +64,11 @@ DATA: dict[str, Any] = {
 }
 
 
-async def main() -> None:
+async def main(force: bool | None = None) -> None:
+    """Main entry point for setup."""
+
+    logging.info("Starting setup")
+
     while 1:
         try:
             await Postgres.connect()
@@ -87,7 +91,10 @@ async def main() -> None:
         # DB is okay, if we just checking the state,
         # do not force the setup
         has_schema = True
-        force_install = "--ensure-installed" not in sys.argv
+        if force is None:
+            force_install = "--ensure-installed" not in sys.argv
+        else:
+            force_install = force
 
     if ("--with-schema" in sys.argv) or (not has_schema):
         logging.info("(re)creating database schema")

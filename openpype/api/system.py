@@ -1,12 +1,10 @@
-import pathlib
-import time
+import signal
+import os
+
+from nxtools import logging
 
 
 async def restart_server():
-    """Force the server to restart.
-
-    This is a hackish way how to do that (using uvicorn auto-reload function)
-    We should find a better way in the future
-    """
-
-    pathlib.Path("openpype/trigger.py").write_text(f"{time.time()}")
+    """Force the server to restart."""
+    logging.warning("Server is restarting")
+    os.kill(os.getpid(), signal.SIGTERM)

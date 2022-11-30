@@ -12,7 +12,7 @@ router = APIRouter(
 
 
 @router.post("/restart", response_class=Response)
-async def request_server_restart(user: UserEntity = Depends(dep_current_user)):
-    logging.info("Dispatching event restart request", user=user.name)
-    await dispatch_event("server.restart_requested", user=user.name)
+async def request_server_restart():  # user: UserEntity = Depends(dep_current_user)):
+    #    logging.info("Dispatching event restart request", user=user.name)
+    await dispatch_event("server.restart_requested", user="admin")
     return Response(status_code=204)

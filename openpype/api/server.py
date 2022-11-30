@@ -12,6 +12,7 @@ from nxtools import log_traceback, logging
 
 from openpype.access.roles import Roles
 from openpype.addons import AddonLibrary
+from openpype.logs import log_collector
 from openpype.api.messaging import Messaging
 from openpype.api.metadata import app_meta, tags_meta
 from openpype.api.responses import ErrorResponse
@@ -178,10 +179,11 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                     topics=message.get("subscribe", []),
                 )
     except WebSocketDisconnect:
-        if client.user_name:
-            logging.info(f"{client.user_name} disconnected")
-        else:
-            logging.info("Anonymous client disconnected")
+        # NOTE: Too noisy
+        # if client.user_name:
+        #     logging.info(f"{client.user_name} disconnected")
+        # else:
+        #     logging.info("Anonymous client disconnected")
         del messaging.clients[client.id]
 
 
@@ -252,10 +254,15 @@ async def startup_event() -> None:
     """Startup event.
 
     This is called after the server is started and:
+        - initializes the log
+        - initializes redis2websocket bridge
         - connects to the database
         - loads roles
     """
     retry_interval = 5
+
+    log_collector.start()
+
     while True:
         try:
             await Postgres.connect()

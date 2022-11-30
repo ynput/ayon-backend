@@ -1,4 +1,4 @@
-from fastapi import Depends, Response
+from fastapi import Depends, Response, Header
 from nxtools import logging
 from projects.router import router
 
@@ -9,6 +9,7 @@ from openpype.api import (
     dep_project_name,
 )
 from openpype.entities import ProjectEntity, UserEntity
+from openpype.events import dispatch_event
 from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
 
@@ -125,6 +126,7 @@ async def update_project(
     patch_data: ProjectEntity.model.patch_model,  # type: ignore
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
+    x_sender: str | None = Header(default=None),
 ):
     """Patch a project.
 
@@ -141,6 +143,18 @@ async def update_project(
 
     project.patch(patch_data)
     await project.save()
+
+    dispatch_event(
+        "entity.update",
+        sender=x_sender,
+        project=project_name,
+        user=user.name,
+        description=f"Updated project {project_name}",
+        summary={
+            "entityType": "project",
+            "name": project_name,
+        },
+    )
     logging.info(f"[PATCH] Updated project {project.name}", user=user.name)
     return Response(status_code=204)
 

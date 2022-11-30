@@ -15,6 +15,7 @@ from openpype.utils import json_dumps, json_loads
 
 ALWAYS_SUBSCRIBE = [
     "server.started",
+    "server.restart_requested",
 ]
 
 
@@ -40,12 +41,12 @@ class Client:
             self.topics = [*topics, *ALWAYS_SUBSCRIBE] if "*" not in topics else ["*"]
             self.authorized = True
             self.user = session_data.user
-            logging.info(
-                "Authorized connection",
-                session_data.user.name,
-                "topics:",
-                self.topics,
-            )
+            # logging.info(
+            #     "Authorized connection",
+            #     session_data.user.name,
+            #     "topics:",
+            #     self.topics,
+            # )
             return True
         return False
 
@@ -77,7 +78,7 @@ class Client:
         if self.disconnected:
             return False
         if not self.authorized and (time.time() - self.created_at > 3):
-            logging.info("Removing unauthorized client")
+            # logging.info("Removing unauthorized client")
             return False
         return True
 
@@ -130,15 +131,14 @@ class Messaging:
                 else:
                     message = json_loads(raw_message["data"])
 
-                if message["topic"] == "server.restart_requested":
-                    logging.warning("Server configuration changed. Requesting restart.")
-                    await restart_server()
-
                 for client_id, client in self.clients.items():
                     for topic in client.topics:
                         if topic == "*" or message["topic"].startswith(topic):
                             await client.send(message)
                             break
+
+                if message["topic"] == "server.restart_requested":
+                    await restart_server()
 
                 await self.purge()
 

@@ -1,10 +1,11 @@
 from typing import Any
 
-from fastapi import Depends, Response
+from fastapi import Depends, Response, Header
 from projects.router import router
 
 from openpype.api import ResponseFactory, dep_current_user, dep_project_name
 from openpype.entities import ProjectEntity, UserEntity
+from openpype.events import dispatch_event
 from openpype.exceptions import ForbiddenException
 from openpype.helpers.deploy_project import anatomy_to_project_data
 from openpype.settings.anatomy import Anatomy
@@ -60,6 +61,7 @@ async def set_project_anatomy(
     payload: Anatomy,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
+    x_sender: str | None = Header(default=None),
 ):
     """Set a project anatomy."""
 
@@ -73,4 +75,17 @@ async def set_project_anatomy(
     project.patch(patch)
 
     await project.save()
+
+    await dispatch_event(
+        "entity.update",
+        sender=x_sender,
+        project=project_name,
+        user=user.name,
+        description=f"Updated project {project_name} anatomy",
+        summary={
+            "entityType": "project",
+            "name": project_name,
+        },
+    )
+
     return Response(status_code=204)
