@@ -14,6 +14,7 @@ class Postgres:
     Provides an interface for interacting with a Postgres database.
     """
 
+    shutting_down: bool = False
     pool: asyncpg.pool.Pool | None = None
     ForeignKeyViolationError = asyncpg.exceptions.ForeignKeyViolationError
     UniqueViolationError = asyncpg.exceptions.UniqueViolationError
@@ -48,9 +49,20 @@ class Postgres:
     @classmethod
     async def connect(cls) -> None:
         """Create a PostgreSQL connection pool."""
+        if cls.shutting_down:
+            print("Unable to connect to Postgres while shutting down.")
+            return
         cls.pool = await asyncpg.create_pool(
             pypeconfig.postgres_url, init=cls.init_connection
         )
+
+    @classmethod
+    async def shutdown(cls) -> None:
+        """Close the PostgreSQL connection pool."""
+        if cls.pool is not None:
+            await cls.pool.close()
+            cls.pool = None
+            cls.shutting_down = True
 
     @classmethod
     async def execute(cls, query: str, *args: Any) -> str:

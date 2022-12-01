@@ -1,10 +1,10 @@
-import signal
 import os
+import signal
 
 from nxtools import logging
 
 
-async def restart_server():
+def restart_server():
     """Force the server to restart."""
     logging.warning("Server is restarting")
     os.kill(os.getpid(), signal.SIGTERM)

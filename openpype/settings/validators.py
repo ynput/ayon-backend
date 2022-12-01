@@ -1,5 +1,7 @@
+from typing import Any, Iterable
+
 from nxtools import slugify
-from typing import Iterable, Any
+
 from openpype.exceptions import BadRequestException
 
 

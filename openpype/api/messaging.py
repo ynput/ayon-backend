@@ -9,6 +9,7 @@ from nxtools import log_traceback, logging
 
 from openpype.api.system import restart_server
 from openpype.auth.session import Session
+from openpype.background import BackgroundTask
 from openpype.config import pypeconfig
 from openpype.lib.redis import Redis
 from openpype.utils import json_dumps, json_loads
@@ -83,23 +84,18 @@ class Client:
         return True
 
 
-class Messaging:
-    def __init__(self) -> None:
+class Messaging(BackgroundTask):
+    def initialize(self):
         self.clients: dict[str, Client] = {}
-        self.started = False
 
     async def join(self, websocket: WebSocket):
+        if not self.is_running:
+            await websocket.reject()
+            return
         await websocket.accept()
         client = Client(websocket)
         self.clients[client.id] = client
-        if not self.started:
-            await self.start()
         return client
-
-    async def start(self) -> None:
-        self.pubsub = await Redis.pubsub()
-        await self.pubsub.subscribe(pypeconfig.redis_channel)
-        asyncio.create_task(self.listen())
 
     async def purge(self):
         to_rm = []
@@ -112,14 +108,16 @@ class Messaging:
             with suppress(KeyError):
                 del self.clients[client_id]
 
-    async def listen(self) -> None:
-        logging.info("Starting redis2ws")
-        self.started = True
+    async def run(self) -> None:
+        self.pubsub = await Redis.pubsub()
+        await self.pubsub.subscribe(pypeconfig.redis_channel)
         last_msg = time.time()
+
         while True:
             try:
                 raw_message = await self.pubsub.get_message(
-                    ignore_subscribe_messages=True
+                    ignore_subscribe_messages=True,
+                    timeout=2,
                 )
                 if raw_message is None:
                     await asyncio.sleep(0.01)
@@ -138,13 +136,12 @@ class Messaging:
                             break
 
                 if message["topic"] == "server.restart_requested":
-                    await restart_server()
+                    restart_server()
 
                 await self.purge()
 
             except Exception:
-                log_traceback()
+                log_traceback(handlers=None)
                 await asyncio.sleep(0.5)
 
         logging.warning("Stopping redis2ws")
-        self.started = False

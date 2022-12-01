@@ -9,8 +9,8 @@ from projects.router import router
 from openpype.api import dep_current_user
 from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel
-from openpype.utils import SQLTool, validate_name
+from openpype.types import Field, OPModel, NAME_REGEX
+from openpype.utils import SQLTool
 
 
 class ListProjectsItemModel(OPModel):
@@ -72,6 +72,7 @@ async def list_projects(
         description="""Limit the result to project with the matching name,
         or its part. % character may be used as a wildcard""",
         example="forest",
+        regex=NAME_REGEX,
     ),
 ):
     """
@@ -87,7 +88,7 @@ async def list_projects(
     if active is not None:
         conditions.append("active IS " + "TRUE" if active else "FALSE")
 
-    if name and validate_name(name):
+    if name:
         conditions.append(f"name ILIKE '{name}'")
 
     for row in await Postgres.fetch(

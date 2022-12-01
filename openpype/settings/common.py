@@ -1,9 +1,9 @@
 import collections
 import inspect
 import re
-from typing import Any, Deque, Iterable, Type
+from typing import Any, Deque, Type
 
-from nxtools import logging, slugify
+from nxtools import logging
 from pydantic import BaseModel
 
 from openpype.utils import json_dumps, json_loads

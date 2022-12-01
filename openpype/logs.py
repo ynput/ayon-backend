@@ -1,8 +1,11 @@
-import time
 import asyncio
+import time
 import queue
 
+from typing import Any
 from nxtools import logging
+
+from openpype.background import BackgroundTask
 from openpype.events import dispatch_event
 
 
@@ -31,19 +34,44 @@ def parse_log_message(message):
     }
 
 
-class LogCollector:
-    def __init__(self):
-        self.queue = queue.Queue()
-        self.is_running = False
+class LogCollector(BackgroundTask):
+    def initialize(self):
+        self.queue: queue.Queue[dict[str, Any]] = queue.Queue()
         self.msg_id = 0
         self.start_time = time.time()
 
-    def start(self):
-        asyncio.create_task(self.run())
+    def __call__(self, **kwargs):
+        # We need to add messages to the queue even if the
+        # collector is not running to catch the messages
+        # that are logged during the startup.
+        if len(self.queue.queue) > 1000:
+            print("Log collector queue is full")
+            return
+        self.queue.put(kwargs)
+
+    async def process_message(self, record):
+        self.msg_id += 1
+        try:
+            message = parse_log_message(record)
+            await dispatch_event(
+                message["topic"],
+                sender=None,
+                project=None,
+                user=None,
+                description=message["description"],
+                summary=None,
+                payload=message["payload"],
+                finished=True,
+                store=True,
+            )
+        except Exception:
+            # This actually should not happen, but if it does,
+            # we don't want to crash the whole application and
+            # we don't want to log the exception using the logger,
+            # since it failed in the first place.
+            print("Unable to dispatch log message", message["description"])
 
     async def run(self):
-        self.is_running = True
-
         # During the startup, we cannot write to the database
         # so the following loop patiently waits for the database
         # to be ready.
@@ -59,43 +87,19 @@ class LogCollector:
 
         while True:
             if self.queue.empty():
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.1)
                 continue
 
             record = self.queue.get()
-            self.msg_id += 1
+            await self.process_message(record)
 
-            try:
-                message = parse_log_message(record)
-                await dispatch_event(
-                    message["topic"],
-                    sender=None,
-                    hash=f"log{self.start_time}{self.msg_id}",
-                    project=None,
-                    user=None,
-                    depends_on=None,
-                    description=message["description"],
-                    summary=None,
-                    payload=message["payload"],
-                    finished=True,
-                    store=True,
-                )
-            except Exception:
-                # This actually should not happen, but if it does,
-                # we don't want to crash the whole application and
-                # we don't want to log the exception using the logger,
-                # since it failed in the first place.
-                print("Unable to dispatch log message")
-
-    def __call__(self, **kwargs):
-        # We need to add messages to the queue even if the
-        # collector is not running to catch the messages
-        # that are logged during the startup.
-        if len(self.queue.queue) > 1000:
-            print("Log collector queue is full")
-            return
-        self.queue.put(kwargs)
+    async def finalize(self):
+        while not self.queue.empty():
+            print("Processing remaining log messages", len(self.queue.queue))
+            record = self.queue.get()
+            await self.process_message(record)
 
 
 log_collector = LogCollector()
 logging.add_handler(log_collector)
+logging.info("Log collector initialized", handlers=None)

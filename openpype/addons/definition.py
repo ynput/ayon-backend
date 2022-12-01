@@ -17,6 +17,7 @@ class ServerAddonDefinition:
     def __init__(self, library: "AddonLibrary", addon_dir: str):
         self.library = library
         self.addon_dir = addon_dir
+        self.restart_requested = False
         self._versions: dict[str, BaseServerAddon] | None = None
 
         if not self.versions:
@@ -87,6 +88,13 @@ class ServerAddonDefinition:
                         logging.error(
                             f"Error loading addon {vname} versions: {e.args[0]}"
                         )
+
+                    if self._versions[Addon.version].restart_requested:
+                        logging.warning(
+                            f"Addon {self.name} version {Addon.version} "
+                            "requested server restart"
+                        )
+                        self.restart_requested = True
 
         return self._versions
 

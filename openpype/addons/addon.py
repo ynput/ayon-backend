@@ -31,6 +31,7 @@ class BaseServerAddon:
         self.definition = definition
         self.addon_dir = addon_dir
         self.endpoints = []
+        self.restart_requested = False
         self.initialize()
 
     def __repr__(self) -> str:
@@ -48,7 +49,7 @@ class BaseServerAddon:
         and it is here just for the convinience (override this
         instead using super().__init__).
 
-        Add `add_endpoint` calls here.
+        Add `add_endpoint` calls here. This method cannot be async.
         """
         pass
 
@@ -57,8 +58,22 @@ class BaseServerAddon:
 
         This method is called when all addons are initialized.
         Add code which needs to access other addons here.
+
+        This method may be async if needed (for example when)
+        it needs to access the database.
         """
         pass
+
+    def request_server_restart(self):
+        """Request the server to restart.
+
+        call this method from initialize or setup to request server restart.
+        For example when you change the server configuration. If called from
+        initialize the server will restart after all addons are initialized.
+        If called from setup the server will restart after all addons are
+        setup.
+        """
+        self.restart_requested = True
 
     def add_endpoint(
         self,

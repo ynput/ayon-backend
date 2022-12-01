@@ -1,7 +1,7 @@
 import os
 from typing import ItemsView
 
-from nxtools import logging, log_traceback
+from nxtools import log_traceback, logging
 
 from openpype.addons.addon import BaseServerAddon
 from openpype.addons.definition import ServerAddonDefinition
@@ -23,6 +23,7 @@ class AddonLibrary:
 
     def __init__(self) -> None:
         self.data = {}
+        self.restart_requested = False
         for addon_name in os.listdir(self.ADDONS_DIR):
             addon_dir = os.path.join(self.ADDONS_DIR, addon_name)
             if not os.path.isdir(addon_dir):
@@ -38,6 +39,8 @@ class AddonLibrary:
 
             logging.info("Initializing addon", definition.name)
             self.data[definition.name] = definition
+            if definition.restart_requested:
+                self.restart_requested = True
 
         # TODO: It cannot be here! Causes recursive recursion,
         # which causes a recursion while recursing.

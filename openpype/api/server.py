@@ -1,3 +1,4 @@
+import inspect
 import asyncio
 import importlib
 import os
@@ -10,15 +11,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_traceback, logging
 
+# This needs to be imported first!
+from openpype.logs import log_collector
+
 from openpype.access.roles import Roles
 from openpype.addons import AddonLibrary
-from openpype.logs import log_collector
 from openpype.api.messaging import Messaging
 from openpype.api.metadata import app_meta, tags_meta
 from openpype.api.responses import ErrorResponse
 from openpype.auth.session import Session
 from openpype.config import pypeconfig
-from openpype.events import dispatch_event
+from openpype.events import dispatch_event, update_event
 from openpype.exceptions import OpenPypeException, UnauthorizedException
 from openpype.graphql import router as graphql_router
 from openpype.lib.postgres import Postgres
@@ -167,6 +170,8 @@ messaging = Messaging()
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket) -> None:
     client = await messaging.join(websocket)
+    if client is None:
+        return
     try:
         while True:
             message = await client.receive()
@@ -261,38 +266,75 @@ async def startup_event() -> None:
     """
     retry_interval = 5
 
-    log_collector.start()
-
     while True:
         try:
             await Postgres.connect()
         except Exception as e:
             msg = " ".join([str(k) for k in e.args])
-            logging.error(f"Unable to connect to the database ({msg})")
-            logging.info(f"Retrying in {retry_interval} seconds")
+            logging.error(f"Unable to connect to the database ({msg})", handlers=None)
+            logging.info(f"Retrying in {retry_interval} seconds", handlers=None)
             await asyncio.sleep(retry_interval)
         else:
             break
 
     await Roles.load()
-    await messaging.start()
-    await dispatch_event("server.started")
+    log_collector.start()
+    messaging.start()
 
     logging.info("Setting up addons")
-    for addon_name, addon in AddonLibrary.items():
-        for version in addon.versions.values():
-            version.setup()
+    start_event = await dispatch_event("server.started", finished=False)
 
-    logging.goodnews("Server started")
+    library = AddonLibrary.getinstance()
+    addon_records = list(AddonLibrary.items())
+    if library.restart_requested:
+        logging.warning("Restart requested, skipping addon setup")
+        await dispatch_event(
+            "server.restart_requested",
+            description="Server restart requested during addon initialization",
+        )
+        return
+
+    restart_requested = False
+    for addon_name, addon in addon_records:
+        for version in addon.versions.values():
+            if inspect.iscoroutinefunction(version.setup):
+                await version.setup()
+            else:
+                version.setup()
+            if (not restart_requested) and version.restart_requested:
+                logging.warning(f"Restart requested during addon {addon_name} setup.")
+                restart_requested = True
+
+    if restart_requested:
+        await dispatch_event(
+            "server.restart_requested",
+            description="Server restart requested during addon setup",
+        )
+
+    await update_event(
+        start_event,
+        status="finished",
+        description="Server started",
+    )
+    logging.goodnews("Server is now ready to connect")
 
 
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
     """Shutdown event."""
-    # Disconnect all websocket clients
-    for client in messaging.clients.values():
-        if not client.disconnected:
-            logging.info(f"Disconnecting {client.user_name}")
-            await client.sock.close(code=1000)
-
     logging.info("Server is shutting down")
+
+    await log_collector.shutdown()
+    await messaging.shutdown()
+    await Postgres.shutdown()
+
+    # tasks = []
+    # for task in asyncio.all_tasks():
+    #     task.cancel()
+    #     tasks.append(task)
+    #
+    # while not all(task.done() for task in tasks):
+    #     await asyncio.sleep(0.1)
+    #     print("Waiting for tasks to finish")
+
+    logging.info("Server stopped", handlers=None)

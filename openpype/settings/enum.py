@@ -1,5 +1,6 @@
 from openpype.lib.postgres import Postgres
 
+
 async def folder_types_enum(project_name: str | None = None):
     """TODO"""
 
@@ -10,17 +11,17 @@ async def folder_types_enum(project_name: str | None = None):
             "Folder type 3",
             "Folder type 4",
         ]
-    
+
     return [
-        row["name"] async for row in 
-        Postgres.iterate(
+        row["name"]
+        async for row in Postgres.iterate(
             f"""
-            SELECT name FROM folder_types 
+            SELECT name FROM folder_types
             FROM project_{project_name} ORDER BY POSITION
             """
         )
     ]
-    
+
 
 async def task_types_enum(project_name: str | None = None):
     """TODO"""
@@ -33,10 +34,10 @@ async def task_types_enum(project_name: str | None = None):
         ]
 
     return [
-        row["name"] async for row in 
-        Postgres.iterate(
+        row["name"]
+        async for row in Postgres.iterate(
             f"""
-            SELECT name FROM task_types 
+            SELECT name FROM task_types
             FROM project_{project_name} ORDER BY POSITION
             """
         )
