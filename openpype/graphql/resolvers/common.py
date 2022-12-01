@@ -8,7 +8,8 @@ from strawberry.types import Info
 from openpype.access.utils import folder_access_list
 from openpype.graphql.types import PageInfo
 from openpype.lib.postgres import Postgres
-from openpype.utils import EntityID, validate_name
+from openpype.types import validate_name
+from openpype.utils import EntityID
 
 DEFAULT_PAGE_SIZE = 100
 
@@ -117,12 +118,10 @@ def create_pagination(
             before = f"'{EntityID.parse(after)}'"
     elif order_by == "name":
         if after:
-            if not validate_name(after):
-                raise ValueError("Wrong name")
+            validate_name(after)
             after = f"'{after}'"
         elif before:
-            if not validate_name(before):
-                raise ValueError("Wrong name")
+            validate_name(before)
             before = f"'{before}'"
 
     if first:

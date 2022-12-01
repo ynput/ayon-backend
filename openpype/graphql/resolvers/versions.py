@@ -18,6 +18,7 @@ from openpype.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
+from openpype.types import validate_name, validate_name_list
 from openpype.utils import SQLTool
 
 
@@ -98,8 +99,10 @@ async def get_versions(
     if versions:
         sql_conditions.append(f"version IN {SQLTool.array(versions)}")
     if authors:
-        sql_conditions.append(f"author IN {SQLTool.id_array(authors)}")
+        validate_name_list(authors)
+        sql_conditions.append(f"author IN {SQLTool.array(authors)}")
     if tags:
+        validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     if subset_ids:

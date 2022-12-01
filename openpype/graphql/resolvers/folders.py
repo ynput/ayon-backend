@@ -19,6 +19,7 @@ from openpype.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
+from openpype.types import validate_name, validate_name_list
 from openpype.utils import EntityID, SQLTool
 
 
@@ -163,11 +164,11 @@ async def get_folders(
         sql_conditions.append(f"folders.id IN {SQLTool.id_array(ids)}")
 
     if parent_id is not None:
-        # DEPRECATED
+        # Still used. do not remove!
         sql_conditions.append(
-            "folders.parent_id IS NULL"
-            if parent_id == "root"
-            else f" folders.parent_id = '{EntityID.parse(parent_id)}'"
+             "folders.parent_id IS NULL"
+             if parent_id == "root"
+             else f" folders.parent_id = '{EntityID.parse(parent_id)}'"
         )
 
     if parent_ids is not None:
@@ -180,15 +181,19 @@ async def get_folders(
         )
 
     if folder_types is not None:
+        validate_name_list(folder_types)
         sql_conditions.append(f"folders.folder_type in {SQLTool.array(folder_types)}")
 
     if name is not None:
+        validate_name(name)
         sql_conditions.append(f"folders.name ILIKE '{name}'")
 
     if names is not None:
+        validate_name_list(names)
         sql_conditions.append(f"folders.name in {SQLTool.array(names)}")
 
     if tags:
+        validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     if has_subsets is not None:
@@ -210,9 +215,11 @@ async def get_folders(
         )
 
     if paths is not None:
+        # TODO: sanitize
         sql_conditions.append(f"hierarchy.path IN {SQLTool.array(paths)}")
 
     if path_ex is not None:
+        # TODO: sanitize
         sql_conditions.append(f"hierarchy.path ~ '{path_ex}'")
 
     #

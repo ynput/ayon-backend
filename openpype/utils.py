@@ -3,7 +3,6 @@
 import asyncio
 import hashlib
 import random
-import re
 import threading
 import time
 import uuid
@@ -73,15 +72,6 @@ def dict_remove_path(
     for i, key in enumerate(reversed(path)):
         if not parents[-i] and key in parents[-i - 1]:
             del parents[-i - 1][key]
-
-
-def validate_name(name: str) -> bool:
-    """Validate a name."""
-    if not name:
-        return False
-    if not re.match(r"^[a-zA-Z0-9_]+$", name):
-        return False
-    return True
 
 
 def parse_access_token(authorization: str) -> str | None:

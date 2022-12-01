@@ -14,7 +14,9 @@ from openpype.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
+from openpype.types import validate_name, validate_name_list, validate_user_name_list
 from openpype.utils import SQLTool
+
 
 
 async def get_events(
@@ -34,12 +36,16 @@ async def get_events(
     sql_conditions = []
 
     if topics:
+        validate_name_list(topics)
         sql_conditions.append(f"topic IN {SQLTool.array(topics)}")
     if projects:
+        validate_name_list(projects)
         sql_conditions.append(f"project_name IN {SQLTool.array(projects)}")
     if users:
+        validate_user_name_list(users)
         sql_conditions.append(f"user_name IN {SQLTool.array(users)}")
     if states:
+        validate_name_list(states)
         sql_conditions.append(f"status IN {SQLTool.array(states)}")
 
     order_by = "creation_order"

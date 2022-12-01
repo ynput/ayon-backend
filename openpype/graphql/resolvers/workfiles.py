@@ -18,6 +18,7 @@ from openpype.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
+from openpype.types import validate_name_list
 from openpype.utils import SQLTool
 
 
@@ -76,9 +77,12 @@ async def get_workfiles(
         sql_conditions.append(f"task_id = '{root.id}'")
 
     if paths:
+        paths = [r.replace("'", "''") for r in paths]
         sql_conditions.append(f"path IN {SQLTool.array(paths)}")
 
     if path_ex:
+        # TODO: is this safe?
+        path_ex = path_ex.replace("'", "''").replace("\\", "\\\\")
         sql_conditions.append(f"path ~ '{path_ex}'")
 
     if has_links is not None:
@@ -87,6 +91,7 @@ async def get_workfiles(
         )
 
     if tags:
+        validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     access_list = await create_folder_access_list(root, info)

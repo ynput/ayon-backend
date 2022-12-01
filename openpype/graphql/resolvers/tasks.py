@@ -19,6 +19,7 @@ from openpype.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
+from openpype.types import validate_name_list
 from openpype.utils import SQLTool
 
 
@@ -36,7 +37,7 @@ async def get_tasks(
     folder_ids: Annotated[
         list[str] | None, argdesc("List of parent folder IDs to filter by")
     ] = None,
-    name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
+#    name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
     names: Annotated[list[str] | None, argdesc("List of names to filter by")] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
@@ -83,16 +84,19 @@ async def get_tasks(
         # cannot use isinstance here because of circular imports
         sql_conditions.append(f"tasks.folder_id = '{root.id}'")
 
-    if name:
-        sql_conditions.append(f"tasks.name ILIKE '{name}'")
+    # if name:
+    #     sql_conditions.append(f"tasks.name ILIKE '{name}'")
 
     if names:
+        validate_name_list(names)
         sql_conditions.append(f"tasks.name IN {SQLTool.array(names)}")
 
     if task_types:
+        validate_name_list(task_types)
         sql_conditions.append(f"tasks.task_type IN {SQLTool.array(task_types)}")
 
     if tags:
+        validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     if has_links is not None:
@@ -185,10 +189,6 @@ async def get_tasks(
     #
     # Pagination
     #
-
-    # TODO: ordering by name breaks pagination because using name as a cursor
-    # is not the best idea ever. It skips duplicate names, so it only makes sense
-    # for querying tasks of one folder
 
     order_by = "tasks.creation_order"
     pagination, paging_conds = create_pagination(order_by, first, after, last, before)

@@ -14,7 +14,8 @@ from openpype.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
-from openpype.utils import SQLTool, validate_name
+from openpype.types import validate_name
+from openpype.utils import SQLTool
 
 
 async def get_projects(
@@ -38,10 +39,7 @@ async def get_projects(
 
     sql_conditions = []
     if name is not None:
-        # if name is valid, it is also safe to use it in a query
-        # without worrying about SQL injection
-        if not validate_name(name):
-            raise ValueError("Invalid project name specified")
+        validate_name(name)
         sql_conditions.append(f"projects.name ILIKE '{name}'")
 
     #

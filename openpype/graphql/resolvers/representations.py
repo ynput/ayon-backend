@@ -18,6 +18,7 @@ from openpype.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
+from openpype.types import validate_name, validate_name_list
 from openpype.utils import SQLTool
 
 
@@ -34,7 +35,7 @@ async def get_representations(
     version_ids: Annotated[
         list[str] | None, argdesc("List of parent version IDs to filter by")
     ] = None,
-    name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
+    # name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
     names: Annotated[list[str] | None, argdesc("List of names to filter")] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
@@ -76,12 +77,14 @@ async def get_representations(
         # cannot use isinstance here because of circular imports
         sql_conditions.append(f"version_id = '{root.id}'")
 
-    if name is not None:
-        sql_conditions.append(f"name ILIKE '{name}'")
+    # if name is not None:
+    #     sql_conditions.append(f"name ILIKE '{name}'")
     if names is not None:
+        validate_name_list(names)
         sql_conditions.append(f"name IN {SQLTool.array(names)}")
 
     if tags:
+        validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     if has_links is not None:
@@ -121,6 +124,7 @@ async def get_representations(
     #
 
     if local_site is not None:
+        validate_name(local_site)
         sql_joins.append(
             f"""
             LEFT JOIN project_{project_name}.files as local_files
@@ -136,6 +140,7 @@ async def get_representations(
         )
 
     if remote_site is not None:
+        validate_name(remote_site)
         sql_joins.append(
             f"""
             LEFT JOIN project_{project_name}.files as remote_files
