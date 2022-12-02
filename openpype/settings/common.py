@@ -7,6 +7,7 @@ from nxtools import logging
 from pydantic import BaseModel
 
 from openpype.utils import json_dumps, json_loads
+from openpype.types import camelize
 
 pattern = re.compile(r"(?<!^)(?=[A-Z])")
 
@@ -15,6 +16,7 @@ class BaseSettingsModel(BaseModel):
     _isGroup: bool = False
     _title: str | None = None
     _layout: str | None = None
+    _required: bool = False
 
     class Config:
         underscore_attrs_are_private = True
@@ -23,11 +25,24 @@ class BaseSettingsModel(BaseModel):
         json_dumps = json_dumps
 
 
-async def process_enum(enum_resolver) -> tuple[list[str], dict[str, str]]:
+async def process_enum(
+    enum_resolver,
+    context: dict[str, Any] | None = None,
+) -> tuple[list[str], dict[str, str]]:
+
+    if context is None:
+        context = {}
+
+    resolver_args = inspect.getfullargspec(enum_resolver).args
+    available_keys = list(context.keys())
+    for key in available_keys:
+        if key not in resolver_args:
+            del context[key]
+
     if inspect.iscoroutinefunction(enum_resolver):
-        enum = await enum_resolver()
+        enum = await enum_resolver(**context)
     else:
-        enum = enum_resolver()
+        enum = enum_resolver(**context)
 
     enum_values = []
     enum_labels = {}
@@ -48,6 +63,7 @@ async def postprocess_settings_schema(  # noqa
     schema: dict[str, Any],
     model: type["BaseSettingsModel"],
     is_top_level: bool = True,
+    context: dict[str, Any] | None = None,
 ) -> None:
     """Post-process exported JSON schema.
 
@@ -63,6 +79,9 @@ async def postprocess_settings_schema(  # noqa
     addon settings and anatomy presets.
     """
 
+    if context is None:
+        context = {}
+
     is_group = model.__private_attributes__["_isGroup"].default
     schema["isgroup"] = is_group
     if "title" in schema:
@@ -75,12 +94,12 @@ async def postprocess_settings_schema(  # noqa
 
     for name, prop in schema.get("properties", {}).items():
         for key in tuple(prop.keys()):
-            if key in ("enum_resolver", "widget"):
+            if key in ("enum_resolver", "required_items"):
                 del prop[key]
 
         if field := model.__fields__.get(name):
             if enum_resolver := field.field_info.extra.get("enum_resolver"):
-                enum_values, enum_labels = await process_enum(enum_resolver)
+                enum_values, enum_labels = await process_enum(enum_resolver, context)
                 if prop.get("items"):
                     prop["items"]["enum"] = enum_values
                 else:
@@ -96,10 +115,12 @@ async def postprocess_settings_schema(  # noqa
                 "scope",
                 "tags",
                 "placeholder",
+                "required_items",
+                "conditional_enum",
                 "conditionalEnum",
             ):
                 if extra_field := field.field_info.extra.get(extra_field_name):
-                    prop[extra_field_name] = extra_field
+                    prop[camelize(extra_field_name)] = extra_field
 
     if not is_top_level:
         return
@@ -130,5 +151,8 @@ async def postprocess_settings_schema(  # noqa
         if definition_name not in submodels:
             continue
         await postprocess_settings_schema(
-            definition, submodels[definition_name], is_top_level=False
+            definition,
+            submodels[definition_name],
+            is_top_level=False,
+            context=context,
         )

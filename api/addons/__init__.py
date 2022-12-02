@@ -8,9 +8,8 @@ from addons import project_settings, studio_settings
 from openpype.addons import AddonLibrary
 from openpype.api.dependencies import dep_current_user
 from openpype.entities import UserEntity
-from openpype.exceptions import ForbiddenException, NotFoundException
+from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
-from openpype.settings import postprocess_settings_schema
 from openpype.types import Field, OPModel
 
 assert studio_settings
@@ -179,25 +178,3 @@ async def configure_addons(
             )
 
 
-#
-# Settings schema
-#
-
-
-@router.get("/{addon_name}/{version}/schema")
-async def get_addon_settings_schema(addon_name: str, version: str):
-    """Return the JSON schema of the addon settings."""
-
-    if (addon := AddonLibrary.addon(addon_name, version)) is None:
-        raise NotFoundException(f"Addon {addon_name} {version} not found")
-
-    model = addon.get_settings_model()
-
-    if model is None:
-        logging.error(f"No settings schema for addon {addon_name}")
-        return {}
-
-    schema = model.schema()
-    await postprocess_settings_schema(schema, model)
-    schema["title"] = addon.friendly_name
-    return schema

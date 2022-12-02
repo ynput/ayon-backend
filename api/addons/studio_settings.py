@@ -14,9 +14,32 @@ from openpype.exceptions import (
     NotFoundException,
 )
 from openpype.lib.postgres import Postgres
-from openpype.settings import extract_overrides, list_overrides
+from openpype.settings import (
+    extract_overrides,
+    list_overrides,
+    postprocess_settings_schema,
+)
 
 from .common import ModifyOverridesRequestModel, pin_override, remove_override
+
+
+@router.get("/{addon_name}/{version}/schema")
+async def get_addon_settings_schema(addon_name: str, version: str):
+    """Return the JSON schema of the addon settings."""
+
+    if (addon := AddonLibrary.addon(addon_name, version)) is None:
+        raise NotFoundException(f"Addon {addon_name} {version} not found")
+
+    model = addon.get_settings_model()
+
+    if model is None:
+        logging.error(f"No settings schema for addon {addon_name}")
+        return {}
+
+    schema = model.schema()
+    await postprocess_settings_schema(schema, model)
+    schema["title"] = addon.friendly_name
+    return schema
 
 
 @router.get(

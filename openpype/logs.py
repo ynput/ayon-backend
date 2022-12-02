@@ -45,7 +45,7 @@ class LogCollector(BackgroundTask):
         # collector is not running to catch the messages
         # that are logged during the startup.
         if len(self.queue.queue) > 1000:
-            print("Log collector queue is full")
+            logging.warning("Log collector queue is full", handlers=None)
             return
         self.queue.put(kwargs)
 
@@ -69,7 +69,9 @@ class LogCollector(BackgroundTask):
             # we don't want to crash the whole application and
             # we don't want to log the exception using the logger,
             # since it failed in the first place.
-            print("Unable to dispatch log message", message["description"])
+            logging.error(
+                "Unable to dispatch log message", message["description"], handlers=None,
+            )
 
     async def run(self):
         # During the startup, we cannot write to the database
@@ -95,7 +97,10 @@ class LogCollector(BackgroundTask):
 
     async def finalize(self):
         while not self.queue.empty():
-            print("Processing remaining log messages", len(self.queue.queue))
+            logging.debug(
+                f"Processing {len(self.queue.queue)} remaining log messages",
+                handlers=None,
+            )
             record = self.queue.get()
             await self.process_message(record)
 
