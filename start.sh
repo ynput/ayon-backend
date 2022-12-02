@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Starting the backend"
-python -m setup --ensure-installed 
+python -m setup --ensure-installed
 
 while true; do
     uvicorn --log-level info --host 0.0.0.0 --port 5000 openpype.api:app
