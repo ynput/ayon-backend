@@ -90,7 +90,7 @@ class Messaging(BackgroundTask):
 
     async def join(self, websocket: WebSocket):
         if not self.is_running:
-            await websocket.reject()
+            await websocket.close()
             return
         await websocket.accept()
         client = Client(websocket)
