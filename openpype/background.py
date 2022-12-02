@@ -17,7 +17,8 @@ class BackgroundTask:
         if self.task:
             self.task.cancel()
 
-        while self.task is not None:
+        self.shutting_down = True
+        while self.is_running:
             print(f"Waiting for {self.__class__.__name__} to stop")
             await asyncio.sleep(0.1)
         print(f"{self.__class__.__name__} stopped")
