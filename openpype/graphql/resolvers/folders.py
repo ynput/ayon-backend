@@ -118,8 +118,8 @@ async def get_folders(
         use_hierarchy = True
 
     # We need to use children-join
-    if (has_children is not None) or fields.has_any("childrenCount", "hasChildren"):
-        sql_columns.append("COUNT(children.id) AS children_count")
+    if (has_children is not None) or fields.has_any("childount", "hasChildren"):
+        sql_columns.append("COUNT(children.id) AS child_count")
         sql_joins.append(
             f"""
             LEFT JOIN project_{project_name}.folders AS children
@@ -136,7 +136,7 @@ async def get_folders(
             """
         )
 
-    if (has_tasks is not None) or fields.has_any("tasksCount", "hasTasks"):
+    if (has_tasks is not None) or fields.has_any("taskCount", "hasTasks"):
         sql_columns.append("COUNT(tasks.id) AS task_count")
         sql_joins.append(
             f"""

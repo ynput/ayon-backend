@@ -29,7 +29,7 @@ class FolderNode(BaseNode):
 
     # GraphQL specifics
 
-    children_count: int = strawberry.field(default=0)
+    child_count: int = strawberry.field(default=0)
     subset_count: int = strawberry.field(default=0)
     task_count: int = strawberry.field(default=0)
 
@@ -119,7 +119,7 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         ),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
-        children_count=record.get("children_count", 0),
+        child_count=record.get("child_count", 0),
         subset_count=record.get("subset_count", 0),
         task_count=record.get("task_count", 0),
         path=record.get("path"),
