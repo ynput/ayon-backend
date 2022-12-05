@@ -41,6 +41,7 @@ class AttributeData(OPModel):
     min_items: int | None = Field(None, title="Minimum items")
     max_items: int | None = Field(None, title="Maximum items")
     regex: int | None = Field(None, title="Field regex")
+    enum: list[dict[str, Any]] | None = Field(None, title="Field enum")
 
 
 class AttributeNameModel(OPModel):
