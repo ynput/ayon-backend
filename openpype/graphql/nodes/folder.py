@@ -45,7 +45,7 @@ class FolderNode(BaseNode):
 
     @strawberry.field
     def has_children(self) -> bool:
-        return bool(self.children_count)
+        return bool(self.child_count)
 
     @strawberry.field
     def has_subsets(self) -> bool:

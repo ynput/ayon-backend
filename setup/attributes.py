@@ -166,6 +166,17 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "type": "string",
         "title": "File extension",
     },
+    "testEnum": {
+        "scope": "P, F, V, R, T",
+        "type": "string",
+        "title": "Test enum",
+        "default": "test1",
+        "enum": [
+            {"value": "test1", "label": "Test 1"},
+            {"value": "test2", "label": "Test 2"},
+            {"value": "test3", "label": "Test 3"},
+        ],
+    }
 }
 
 
