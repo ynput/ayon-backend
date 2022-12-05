@@ -6,6 +6,7 @@ from typing import Any, Deque, Type
 from nxtools import logging
 from pydantic import BaseModel
 
+from openpype.exceptions import OpenPypeException
 from openpype.utils import json_dumps, json_loads
 from openpype.types import camelize
 
@@ -99,7 +100,16 @@ async def postprocess_settings_schema(  # noqa
 
         if field := model.__fields__.get(name):
             if enum_resolver := field.field_info.extra.get("enum_resolver"):
-                enum_values, enum_labels = await process_enum(enum_resolver, context)
+                try:
+                    enum_values, enum_labels = await process_enum(
+                        enum_resolver, context
+                    )
+                except OpenPypeException as e:
+                    prop["placeholder"] = e.detail
+                    prop["disabled"] = True
+                    enum_values = []
+                    enum_labels = {}
+
                 if prop.get("items"):
                     prop["items"]["enum"] = enum_values
                 else:
@@ -120,7 +130,13 @@ async def postprocess_settings_schema(  # noqa
                 "conditionalEnum",
             ):
                 if extra_field := field.field_info.extra.get(extra_field_name):
-                    prop[camelize(extra_field_name)] = extra_field
+                    if not camelize(extra_field_name) in prop:
+                        prop[camelize(extra_field_name)] = extra_field
+
+            # Support for VERY CUSTOM widgets, which would be otherwise
+            # redered as arrays or objects.
+            if prop.get("widget") in ["color_with_alpha"]:
+                prop["type"] = "string"
 
     if not is_top_level:
         return
@@ -137,7 +153,12 @@ async def postprocess_settings_schema(  # noqa
         if parent.__name__ in submodels:
             continue
 
-        if not issubclass(parent, BaseSettingsModel):
+        try:
+            if not issubclass(parent, BaseSettingsModel):
+                continue
+        except TypeError:
+            # This happens when parent is not a class
+            # but a weird field such as Tuple[...]
             continue
 
         submodels[parent.__name__] = parent

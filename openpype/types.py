@@ -5,7 +5,7 @@ __all__ = [
 
 import re
 
-from typing import Literal
+from typing import Literal, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -36,6 +36,8 @@ TopLevelEntityType = Literal[
     "project",
     "user",
 ]
+
+ColorWithAlpha = Tuple[float, float, float, float]
 
 ENTITY_ID_REGEX = r"^[0-f]{32}$"
 ENTITY_ID_EXAMPLE = "c10d5bc73dcab7da4cba0f3e0b3c0aea"

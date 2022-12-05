@@ -1,9 +1,10 @@
 from openpype.lib.postgres import Postgres
+from openpype.exceptions import OpenPypeException
 
 
 async def folder_types_enum(project_name: str | None = None):
     if project_name is None:
-        return []
+        raise OpenPypeException("Only available in project context")
 
     return [
         row["name"]
@@ -19,7 +20,7 @@ async def folder_types_enum(project_name: str | None = None):
 
 async def task_types_enum(project_name: str | None = None):
     if project_name is None:
-        return []
+        raise OpenPypeException("Only available in project context")
 
     return [
         row["name"]
