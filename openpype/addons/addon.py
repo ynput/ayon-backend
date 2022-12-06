@@ -62,7 +62,7 @@ class BaseServerAddon:
         This method may be async if needed (for example when)
         it needs to access the database.
         """
-        pass
+        return None
 
     def request_server_restart(self):
         """Request the server to restart.

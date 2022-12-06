@@ -1,8 +1,8 @@
 import asyncio
-import time
 import queue
-
+import time
 from typing import Any
+
 from nxtools import logging
 
 from openpype.background import BackgroundTask
@@ -70,7 +70,9 @@ class LogCollector(BackgroundTask):
             # we don't want to log the exception using the logger,
             # since it failed in the first place.
             logging.error(
-                "Unable to dispatch log message", message["description"], handlers=None,
+                "Unable to dispatch log message",
+                message["description"],
+                handlers=None,
             )
 
     async def run(self):

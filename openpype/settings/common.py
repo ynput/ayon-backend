@@ -7,8 +7,8 @@ from nxtools import logging
 from pydantic import BaseModel
 
 from openpype.exceptions import OpenPypeException
-from openpype.utils import json_dumps, json_loads
 from openpype.types import camelize
+from openpype.utils import json_dumps, json_loads
 
 pattern = re.compile(r"(?<!^)(?=[A-Z])")
 

@@ -1,5 +1,5 @@
-from openpype.lib.postgres import Postgres
 from openpype.exceptions import OpenPypeException
+from openpype.lib.postgres import Postgres
 
 
 async def folder_types_enum(project_name: str | None = None):

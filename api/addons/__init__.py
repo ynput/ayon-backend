@@ -176,5 +176,3 @@ async def configure_addons(
                 version_config.productionVersion,
                 version_config.stagingVersion,
             )
-
-

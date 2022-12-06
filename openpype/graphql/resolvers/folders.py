@@ -166,9 +166,9 @@ async def get_folders(
     if parent_id is not None:
         # Still used. do not remove!
         sql_conditions.append(
-             "folders.parent_id IS NULL"
-             if parent_id == "root"
-             else f" folders.parent_id = '{EntityID.parse(parent_id)}'"
+            "folders.parent_id IS NULL"
+            if parent_id == "root"
+            else f" folders.parent_id = '{EntityID.parse(parent_id)}'"
         )
 
     if parent_ids is not None:

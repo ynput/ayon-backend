@@ -176,7 +176,7 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
             {"value": "test2", "label": "Test 2"},
             {"value": "test3", "label": "Test 3"},
         ],
-    }
+    },
 }
 
 

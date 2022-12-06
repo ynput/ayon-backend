@@ -4,7 +4,6 @@ __all__ = [
 ]
 
 import re
-
 from typing import Literal, Tuple
 
 from pydantic import BaseModel, Field
@@ -50,6 +49,7 @@ def validate_name(name: str) -> None:
     if not re.match(NAME_REGEX, name):
         raise BadRequestException(f"Name '{name}' does not match regex '{NAME_REGEX}'")
 
+
 def validate_user_name(name: str) -> None:
     """Validate user name."""
     if not re.match(USER_NAME_REGEX, name):
@@ -57,15 +57,18 @@ def validate_user_name(name: str) -> None:
             f"User name '{name}' does not match regex '{USER_NAME_REGEX}'"
         )
 
+
 def validate_name_list(names: list) -> None:
     """Validate list of names."""
     for name in names:
         validate_name(name)
 
+
 def validate_user_name_list(names: list) -> None:
     """Validate list of user names."""
     for name in names:
         validate_user_name(name)
+
 
 #
 # Pydantic model used for API requests and responses,

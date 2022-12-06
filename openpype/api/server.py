@@ -1,6 +1,6 @@
-import inspect
 import asyncio
 import importlib
+import inspect
 import os
 import pathlib
 import sys
@@ -10,9 +10,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_traceback, logging
-
-# This needs to be imported first!
-from openpype.logs import log_collector
 
 from openpype.access.roles import Roles
 from openpype.addons import AddonLibrary
@@ -25,6 +22,9 @@ from openpype.events import dispatch_event, update_event
 from openpype.exceptions import OpenPypeException, UnauthorizedException
 from openpype.graphql import router as graphql_router
 from openpype.lib.postgres import Postgres
+
+# This needs to be imported first!
+from openpype.logs import log_collector
 from openpype.utils import parse_access_token
 
 app = fastapi.FastAPI(
@@ -226,13 +226,13 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
             route.operation_id = route.name
 
 
-def init_frontend(target_app: fastapi.FastAPI) -> None:
+def init_frontend(target_app: fastapi.FastAPI, frontend_dir: str) -> None:
     """Initialize frontend endpoints."""
-    if not os.path.isdir(pypeconfig.frontend_dir):
+    if not os.path.isdir(frontend_dir):
         return
     target_app.mount(
         "/",
-        StaticFiles(pypeconfig.frontend_dir, html=True),
+        StaticFiles(frontend_dir, html=True),
         name="frontend",
     )
 
@@ -316,7 +316,9 @@ async def startup_event() -> None:
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
             if inspect.iscoroutinefunction(version.setup):
-                await version.setup()
+                # Since setup may, but does not have to be async, we need to
+                # silence mypy here.
+                await version.setup()  # type: ignore
             else:
                 version.setup()
             if (not restart_requested) and version.restart_requested:
@@ -329,11 +331,12 @@ async def startup_event() -> None:
             description="Server restart requested during addon setup",
         )
 
-    await update_event(
-        start_event,
-        status="finished",
-        description="Server started",
-    )
+    if start_event is not None:
+        await update_event(
+            start_event,
+            status="finished",
+            description="Server started",
+        )
     logging.goodnews("Server is now ready to connect")
 
 

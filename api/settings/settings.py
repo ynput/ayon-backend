@@ -1,11 +1,10 @@
-from fastapi import Depends, APIRouter
+from fastapi import APIRouter, Depends
 
 from openpype.addons import AddonLibrary
-from openpype.api import dep_current_user, ResponseFactory
+from openpype.api import ResponseFactory, dep_current_user
 from openpype.entities import UserEntity
 from openpype.settings import BaseSettingsModel
 from openpype.types import OPModel
-
 
 router = APIRouter(
     tags=["Addons"],
@@ -23,7 +22,7 @@ class GetProductionSettingsResponse(OPModel):
 
 @router.get("/settings/production")
 async def get_production_settings(
-     user: UserEntity = Depends(dep_current_user),
+    user: UserEntity = Depends(dep_current_user),
 ):
     """Return all addon settings for the project."""
 

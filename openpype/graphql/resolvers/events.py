@@ -14,9 +14,8 @@ from openpype.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
-from openpype.types import validate_name, validate_name_list, validate_user_name_list
+from openpype.types import validate_name_list, validate_user_name_list
 from openpype.utils import SQLTool
-
 
 
 async def get_events(

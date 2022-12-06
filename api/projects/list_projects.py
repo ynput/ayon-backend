@@ -9,7 +9,7 @@ from projects.router import router
 from openpype.api import dep_current_user
 from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel, NAME_REGEX
+from openpype.types import NAME_REGEX, Field, OPModel
 from openpype.utils import SQLTool
 
 

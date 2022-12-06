@@ -18,7 +18,7 @@ from openpype.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
-from openpype.types import validate_name, validate_name_list
+from openpype.types import validate_name_list
 from openpype.utils import SQLTool
 
 

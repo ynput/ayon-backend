@@ -65,6 +65,7 @@ FIELD_FACORIES = {
 
 class EnumFieldDefinition(BaseModel):
     """Enum field definition."""
+
     value: str
     label: str
 
