@@ -23,6 +23,11 @@ class PypeConfig(BaseModel):
         description="Path to the directory containing the API modules.",
     )
 
+    frontend_dir: str = Field(
+        default="/frontend",
+        description="Path to the directory containing the frontend files.",
+    )
+
     auth_pass_pepper: str = Field(
         default="supersecretpasswordpepper",
         description="A secret string used to salt the password hash.",

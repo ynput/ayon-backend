@@ -66,6 +66,12 @@ class AuthStaticFiles(StaticFiles):
 logging.user = "server"
 
 
+@app.exception_handler(404)
+async def custom_404_handler(_, __):
+    """Redirect 404s to frontend."""
+    return fastapi.responses.RedirectResponse("/")
+
+
 async def user_name_from_request(request: fastapi.Request) -> str:
     """Get user from request"""
 
@@ -195,6 +201,17 @@ async def ws_endpoint(websocket: WebSocket) -> None:
 #
 # REST endpoints
 #
+
+
+def init_frontend(target_app: fastapi.FastAPI) -> None:
+    """Initialize frontend endpoints."""
+    if not os.path.isdir(pypeconfig.frontend_dir):
+        return
+    target_app.mount(
+        "/",
+        StaticFiles(pypeconfig.frontend_dir, html=True),
+        name="frontend",
+    )
 
 
 def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
