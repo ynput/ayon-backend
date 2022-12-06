@@ -13,4 +13,3 @@ while true; do
     echo "Server terminated with code $return_code. Waiting before respawn." >&2
     sleep 5
 done
-
