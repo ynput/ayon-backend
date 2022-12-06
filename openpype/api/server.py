@@ -203,17 +203,6 @@ async def ws_endpoint(websocket: WebSocket) -> None:
 #
 
 
-def init_frontend(target_app: fastapi.FastAPI) -> None:
-    """Initialize frontend endpoints."""
-    if not os.path.isdir(pypeconfig.frontend_dir):
-        return
-    target_app.mount(
-        "/",
-        StaticFiles(pypeconfig.frontend_dir, html=True),
-        name="frontend",
-    )
-
-
 def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
     """Register API modules to the server"""
 
@@ -235,6 +224,17 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
     for route in app.routes:
         if isinstance(route, fastapi.routing.APIRoute):
             route.operation_id = route.name
+
+
+def init_frontend(target_app: fastapi.FastAPI) -> None:
+    """Initialize frontend endpoints."""
+    if not os.path.isdir(pypeconfig.frontend_dir):
+        return
+    target_app.mount(
+        "/",
+        StaticFiles(pypeconfig.frontend_dir, html=True),
+        name="frontend",
+    )
 
 
 def init_addons(target_app: fastapi.FastAPI) -> None:
@@ -263,6 +263,7 @@ def init_addons(target_app: fastapi.FastAPI) -> None:
 
 
 init_api(app, pypeconfig.api_modules_dir)
+init_frontend(app, pypeconfig.frontend_dir)
 init_addons(app)
 
 
