@@ -9,10 +9,11 @@ from openpype.addons.definition import ServerAddonDefinition
 # from openpype.addons.utils import classes_from_module, import_module
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
+from openpype.config import pypeconfig
 
 
 class AddonLibrary:
-    ADDONS_DIR = "addons"
+    ADDONS_DIR = pypeconfig.addons_dir
     _instance = None
 
     @classmethod
@@ -24,8 +25,13 @@ class AddonLibrary:
     def __init__(self) -> None:
         self.data = {}
         self.restart_requested = False
-        for addon_name in os.listdir(self.ADDONS_DIR):
-            addon_dir = os.path.join(self.ADDONS_DIR, addon_name)
+        addons_dir = self.get_addons_dir()
+        if addons_dir is None:
+            logging.error(f"Addons directory does not exist: {addons_dir}")
+            return None
+
+        for addon_name in os.listdir(addons_dir):
+            addon_dir = os.path.join(addons_dir, addon_name)
             if not os.path.isdir(addon_dir):
                 continue
 
@@ -42,11 +48,12 @@ class AddonLibrary:
             if definition.restart_requested:
                 self.restart_requested = True
 
-        # TODO: It cannot be here! Causes recursive recursion,
-        # which causes a recursion while recursing.
-        # for addon_name, addon in self.data.items():
-        #     for version in addon.versions.values():
-        #         version.setup()
+    def get_addons_dir(self) -> str | None:
+        for d in [pypeconfig.addons_dir, "addons"]:
+            if not os.path.isdir(d):
+                continue
+            return d
+        return None
 
     @classmethod
     def addon(cls, name: str, version: str) -> BaseServerAddon:

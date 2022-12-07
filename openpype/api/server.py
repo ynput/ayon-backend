@@ -230,11 +230,7 @@ def init_frontend(target_app: fastapi.FastAPI, frontend_dir: str) -> None:
     """Initialize frontend endpoints."""
     if not os.path.isdir(frontend_dir):
         return
-    target_app.mount(
-        "/",
-        StaticFiles(frontend_dir, html=True),
-        name="frontend",
-    )
+    target_app.mount("/", StaticFiles(directory=frontend_dir, html=True))
 
 
 def init_addons(target_app: fastapi.FastAPI) -> None:

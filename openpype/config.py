@@ -23,6 +23,11 @@ class PypeConfig(BaseModel):
         description="Path to the directory containing the API modules.",
     )
 
+    addons_dir: str = Field(
+        default="/addons",
+        description="Path to the directory containing the addons.",
+    )
+
     frontend_dir: str = Field(
         default="/frontend",
         description="Path to the directory containing the frontend files.",
