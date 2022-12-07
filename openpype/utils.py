@@ -163,9 +163,11 @@ class SQLTool:
 
         list(['a', 'b', 'c']) becomes str("('a', 'b', 'c')")
         Also provided list elements must be valid entity IDs
+
+        Null values will be ignored.
         """
-        assert all([EntityID.parse(id, allow_nulls=True) for id in ids])
-        return "(" + (", ".join([f"'{id}'" for id in ids])) + ")"
+        parsed = [EntityID.parse(id, allow_nulls=True) for id in ids]
+        return "(" + (", ".join([f"'{id}'" for id in parsed if id is not None])) + ")"
 
     @staticmethod
     def conditions(
