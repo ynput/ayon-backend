@@ -90,12 +90,13 @@ def parse_folder_attrib_data(
 
     if not data:
         return FolderAttribType()
-    for key in FolderAttribType.__dataclass_fields__.keys():  # type: ignore
+    expected_keys = list(FolderAttribType.__dataclass_fields__.keys())
+    for key in expected_keys:  # type: ignore
         if key in data:
             if attr_limit == "all" or key in attr_limit:
                 continue
             del data[key]
-    return FolderAttribType(**data)
+    return FolderAttribType(**{k: data[k] for k in expected_keys if k in data})
 
 
 def folder_from_record(project_name: str, record: dict, context: dict) -> FolderNode:
