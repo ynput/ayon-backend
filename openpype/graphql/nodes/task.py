@@ -81,13 +81,13 @@ def parse_task_attrib_data(
 
     if not data:
         return TaskAttribType()
-    valid_keys = list(TaskAttribType.__dataclass_fields__.keys())  # type: ignore
-    for key in valid_keys:
+    expected_keys = list(TaskAttribType.__dataclass_fields__.keys())  # type: ignore
+    for key in expected_keys:
         if key in data:
             if attr_limit == "all" or key in attr_limit:
                 continue
             del data[key]
-    return TaskAttribType(**{k: v for k, v in data.items() if k in valid_keys})
+    return TaskAttribType(**{k: data[k] for k in expected_keys if k in data})
 
 
 def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode:

@@ -35,7 +35,8 @@ def parse_attrib_data(
     if not data:
         return target_type()
     result = {}
-    for key in target_type.__dataclass_fields__.keys():
+    expected_keys = target_type.__dataclass_fields__.keys()
+    for key in expected_keys:
         if key in data:
             if attr_limit == "all" or key in attr_limit:
                 result[key] = data[key]
