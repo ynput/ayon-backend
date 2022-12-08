@@ -102,7 +102,10 @@ class Messaging(BackgroundTask):
         for client_id, client in list(self.clients.items()):
             if not client.is_valid:
                 if not client.disconnected:
-                    await client.sock.close(code=1000)
+                    try:
+                        await client.sock.close(code=1000)
+                    except RuntimeError:
+                        pass
                 to_rm.append(client_id)
         for client_id in to_rm:
             with suppress(KeyError):
