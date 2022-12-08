@@ -67,8 +67,28 @@ logging.user = "server"
 
 
 @app.exception_handler(404)
-async def custom_404_handler(_, __):
+async def custom_404_handler(request: fastapi.Request, _):
     """Redirect 404s to frontend."""
+    logging.error(f"404 {request.method} {request.url.path}")
+
+    if request.url.path.startswith("/api"):
+        return fastapi.responses.JSONResponse(
+            status_code=404,
+            content=ErrorResponse(
+                code=404,
+                detail=f"API endpoint {request.url.path} not found",
+            ).dict(),
+        )
+
+    elif request.url.path.startswith("/addons"):
+        return fastapi.responses.JSONResponse(
+            status_code=404,
+            content=ErrorResponse(
+                code=404,
+                detail=f"Addon endpoint {request.url.path} not found",
+            ).dict(),
+        )
+
     return fastapi.responses.RedirectResponse("/")
 
 
@@ -226,6 +246,31 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
             route.operation_id = route.name
 
 
+def init_addons(target_app: fastapi.FastAPI) -> None:
+    """Serve static files for addon frontends."""
+    for addon_name, addon_definition in AddonLibrary.items():
+        for version in addon_definition.versions:
+            addon = addon_definition.versions[version]
+            if (fedir := addon.get_frontend_dir()) is not None:
+                logging.debug(f"Initializing frontend dir {addon_name}:{version}")
+                target_app.mount(
+                    f"/addons/{addon_name}/{version}/frontend/",
+                    StaticFiles(directory=fedir, html=True),
+                )
+            if (resdir := addon.get_public_dir()) is not None:
+                logging.debug(f"Initializing public dir for {addon_name}:{version}")
+                target_app.mount(
+                    f"/addons/{addon_name}/{version}/public/",
+                    StaticFiles(directory=resdir),
+                )
+            if (resdir := addon.get_private_dir()) is not None:
+                logging.debug(f"Initializing private dir for {addon_name}:{version}")
+                target_app.mount(
+                    f"/addons/{addon_name}/{version}/private/",
+                    AuthStaticFiles(directory=resdir),
+                )
+
+
 def init_frontend(target_app: fastapi.FastAPI, frontend_dir: str) -> None:
     """Initialize frontend endpoints."""
     if not os.path.isdir(frontend_dir):
@@ -233,34 +278,9 @@ def init_frontend(target_app: fastapi.FastAPI, frontend_dir: str) -> None:
     target_app.mount("/", StaticFiles(directory=frontend_dir, html=True))
 
 
-def init_addons(target_app: fastapi.FastAPI) -> None:
-    """Serve static files for addon frontends."""
-    for addon_name, addon_definition in AddonLibrary.items():
-        for version in addon_definition.versions:
-            addon = addon_definition.versions[version]
-            if (fedir := addon.get_frontend_dir()) is not None:
-                logging.debug(f"Initializing frontend dir for {addon_name} {version}")
-                target_app.mount(
-                    f"/addons/{addon_name}/{version}/frontend",
-                    StaticFiles(directory=fedir, html=True),
-                )
-            if (resdir := addon.get_public_dir()) is not None:
-                logging.debug(f"Initializing public dir for {addon_name} {version}")
-                target_app.mount(
-                    f"/addons/{addon_name}/{version}/public",
-                    StaticFiles(directory=resdir),
-                )
-            if (resdir := addon.get_private_dir()) is not None:
-                logging.debug(f"Initializing private dir for {addon_name} {version}")
-                target_app.mount(
-                    f"/addons/{addon_name}/{version}/private",
-                    AuthStaticFiles(directory=resdir),
-                )
-
-
 init_api(app, pypeconfig.api_modules_dir)
-init_frontend(app, pypeconfig.frontend_dir)
 init_addons(app)
+init_frontend(app, pypeconfig.frontend_dir)
 
 
 #
@@ -278,6 +298,11 @@ async def startup_event() -> None:
         - connects to the database
         - loads roles
     """
+
+    # Save the process PID
+    with open("/var/run/ayon.pid", "w") as f:
+        f.write(str(os.getpid()))
+
     retry_interval = 5
 
     while True:

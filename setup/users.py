@@ -50,24 +50,19 @@ async def deploy_users(
                 del data["roles"][project_name]
 
         res = await Postgres.fetch("SELECT * FROM users WHERE name = $1", name)
-        if res:
-            logging.info(f"Updating user {user['name']}")
-            await Postgres.execute(
-                "UPDATE users SET data = $1, attrib = $2 WHERE name = $3",
-                data,
-                attrib,
-                name,
-            )
+        if res and not user.get("forceUpdate"):
+            logging.info(f"{user['name']} already exists. skipping")
+            continue
 
-        else:
-            logging.info(f"Creating user {user['name']}")
-
-            await Postgres.execute(
-                """
-                INSERT INTO public.users (name, active, attrib, data)
-                VALUES ($1, TRUE,  $2, $3)
-                """,
-                name,
-                attrib,
-                data,
-            )
+        logging.info(f"Saving user {user['name']}")
+        await Postgres.execute(
+            """
+            INSERT INTO public.users (name, active, attrib, data)
+            VALUES ($1, TRUE,  $2, $3)
+            ON CONFLICT (name) DO UPDATE
+            SET active = TRUE, attrib = $2, data = $3
+            """,
+            name,
+            attrib,
+            data,
+        )

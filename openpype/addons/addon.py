@@ -7,6 +7,8 @@ except ModuleNotFoundError:
 
 from typing import TYPE_CHECKING, Any, Callable, Literal, Type
 
+from nxtools import logging
+
 from openpype.exceptions import NotFoundException, OpenPypeException
 from openpype.lib.postgres import Postgres
 from openpype.settings import BaseSettingsModel, apply_overrides
@@ -32,6 +34,7 @@ class BaseServerAddon:
         self.addon_dir = addon_dir
         self.endpoints = []
         self.restart_requested = False
+        logging.info(f"Initializing addon {self.name} v{self.version} in {addon_dir}")
         self.initialize()
 
     def __repr__(self) -> str:

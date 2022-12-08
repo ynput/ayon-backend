@@ -51,7 +51,7 @@ class PypeConfig(BaseModel):
     redis_url: str = Field(
         default="redis://redis/",
         description="Connection string for Redis.",
-        example="redis://studio:password123@redis.example.com:6379",
+        example="redis://user:password123@redis.example.com:6379",
     )
 
     redis_channel: str = Field(
@@ -62,7 +62,7 @@ class PypeConfig(BaseModel):
     postgres_url: str = Field(
         default="postgres://pypeusr:pypepass@postgres/pype",
         description="Connection string for Postgres.",
-        example="postgres://studio:password123@postgres.example.com:5432/openpype",
+        example="postgres://user:password123@postgres.example.com:5432/ayon",
     )
 
     discord_client_id: str | None = Field(
@@ -97,15 +97,16 @@ class PypeConfig(BaseModel):
 
 def load_config() -> PypeConfig:
     """Load configuration"""
-    env_prefix = "openpype_"
+    env_prefixes = ["openpype_", "ayon_"]
     env_data = {}
     for key, value in dict(os.environ).items():
-        if not key.lower().startswith(env_prefix):
-            continue
+        for prefix in env_prefixes:
+            if not key.lower().startswith(prefix):
+                continue
 
-        key = key.lower().removeprefix(env_prefix)
-        if key in PypeConfig.__fields__:
-            env_data[key] = value
+            key = key.lower().removeprefix(prefix)
+            if key in PypeConfig.__fields__:
+                env_data[key] = value
 
     return PypeConfig(**env_data)
 

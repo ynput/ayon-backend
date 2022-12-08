@@ -90,8 +90,8 @@ def parse_folder_attrib_data(
 
     if not data:
         return FolderAttribType()
-    expected_keys = list(FolderAttribType.__dataclass_fields__.keys())
-    for key in expected_keys:  # type: ignore
+    expected_keys = list(FolderAttribType.__dataclass_fields__.keys())  # type: ignore
+    for key in expected_keys:
         if key in data:
             if attr_limit == "all" or key in attr_limit:
                 continue

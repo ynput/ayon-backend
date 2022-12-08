@@ -17,7 +17,7 @@ class SystemMetrics:
 
     def status(self):
         mem = psutil.virtual_memory()
-        mem_usage = 100 * ((mem.total - mem.available)/mem.total)
+        mem_usage = 100 * ((mem.total - mem.available) / mem.total)
         return {
             "cpu_usage": psutil.cpu_percent(),
             "memory_usage": mem_usage,

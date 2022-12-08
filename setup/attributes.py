@@ -181,8 +181,6 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
 
 
 async def deploy_attributes() -> None:
-    await Postgres.execute("DELETE FROM public.attributes")
-
     position = 0
     for name, tdata in DEFAULT_ATTRIBUTES.items():
         try:
@@ -231,6 +229,12 @@ async def deploy_attributes() -> None:
                 (name, position, scope, builtin, data)
             VALUES
                 ($1, $2, $3, TRUE, $4)
+            ON CONFLICT (name) DO UPDATE
+            SET
+                position = EXCLUDED.position,
+                scope = EXCLUDED.scope,
+                builtin = EXCLUDED.builtin,
+                data = EXCLUDED.data
             """,
             name,
             position,

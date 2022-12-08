@@ -5,11 +5,11 @@ from nxtools import log_traceback, logging
 
 from openpype.addons.addon import BaseServerAddon
 from openpype.addons.definition import ServerAddonDefinition
+from openpype.config import pypeconfig
 
 # from openpype.addons.utils import classes_from_module, import_module
 from openpype.exceptions import NotFoundException
 from openpype.lib.postgres import Postgres
-from openpype.config import pypeconfig
 
 
 class AddonLibrary:

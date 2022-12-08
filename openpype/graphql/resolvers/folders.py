@@ -178,7 +178,7 @@ async def get_folders(
             pids_set.remove("root")
             lconds.append("folders.parent_id IS NULL")
         if None in pids_set:
-            pids_set.remove(None)
+            pids_set.remove(None)  # type: ignore
             lconds.append("folders.parent_id IS NULL")
         if pids_set:
             sql_conditions.append(
