@@ -21,6 +21,7 @@ from openpype.config import pypeconfig
 from openpype.events import dispatch_event, update_event
 from openpype.exceptions import OpenPypeException, UnauthorizedException
 from openpype.graphql import router as graphql_router
+from openpype.helpers.thumbnail_cleaner import thumbnail_cleaner
 from openpype.lib.postgres import Postgres
 
 # This needs to be imported first!
@@ -319,6 +320,7 @@ async def startup_event() -> None:
     await Roles.load()
     log_collector.start()
     messaging.start()
+    thumbnail_cleaner.start()
 
     logging.info("Setting up addons")
     start_event = await dispatch_event("server.started", finished=False)
@@ -367,6 +369,7 @@ async def shutdown_event() -> None:
     logging.info("Server is shutting down")
 
     await log_collector.shutdown()
+    await thumbnail_cleaner.shutdown()
     await messaging.shutdown()
     await Postgres.shutdown()
 
