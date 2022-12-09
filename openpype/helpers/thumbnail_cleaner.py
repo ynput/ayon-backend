@@ -2,6 +2,7 @@ import asyncio
 import time
 
 from nxtools import logging
+
 from openpype.background import BackgroundTask
 from openpype.lib.postgres import Postgres
 

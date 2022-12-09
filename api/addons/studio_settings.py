@@ -1,6 +1,6 @@
 from typing import Any
 
-from addons.router import router, route_meta
+from addons.router import route_meta, router
 from fastapi import Depends, Response
 from nxtools import logging
 from pydantic.error_wrappers import ValidationError
@@ -98,9 +98,7 @@ async def set_addon_studio_settings(
     return Response(status_code=204)
 
 
-@router.get(
-    "/{addon_name}/{version}/overrides", **route_meta
-)
+@router.get("/{addon_name}/{version}/overrides", **route_meta)
 async def get_addon_studio_overrides(
     addon_name: str,
     version: str,
@@ -117,9 +115,7 @@ async def get_addon_studio_overrides(
     return list_overrides(settings, overrides)
 
 
-@router.delete(
-    "/{addon_name}/{version}/overrides", **route_meta
-)
+@router.delete("/{addon_name}/{version}/overrides", **route_meta)
 async def delete_addon_studio_overrides(
     addon_name: str,
     version: str,
@@ -146,9 +142,7 @@ async def delete_addon_studio_overrides(
     return Response(status_code=204)
 
 
-@router.post(
-    "/{addon_name}/{version}/overrides", **route_meta
-)
+@router.post("/{addon_name}/{version}/overrides", **route_meta)
 async def modify_overrides(
     payload: ModifyOverridesRequestModel,
     addon_name: str,

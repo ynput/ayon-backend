@@ -6,8 +6,8 @@ from typing import Any, Deque, Type
 from nxtools import logging
 from pydantic import BaseModel
 
-from openpype.exceptions import OpenPypeException
 from openpype.entities.models.generator import EnumFieldDefinition
+from openpype.exceptions import OpenPypeException
 from openpype.types import camelize
 from openpype.utils import json_dumps, json_loads
 

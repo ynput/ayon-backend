@@ -1,6 +1,6 @@
 from typing import Any
 
-from addons.router import router, route_meta
+from addons.router import route_meta, router
 from fastapi import APIRouter, Depends, Query, Request
 from nxtools import logging
 
