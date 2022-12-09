@@ -7,6 +7,7 @@ from nxtools import logging
 from pydantic import BaseModel
 
 from openpype.exceptions import OpenPypeException
+from openpype.entities.models.generator import EnumFieldDefinition
 from openpype.types import camelize
 from openpype.utils import json_dumps, json_loads
 
@@ -99,7 +100,26 @@ async def postprocess_settings_schema(  # noqa
                 del prop[key]
 
         if field := model.__fields__.get(name):
-            if enum_resolver := field.field_info.extra.get("enum_resolver"):
+            enum_values = []
+            enum_labels = {}
+            is_enum = False
+            if enum := field.field_info.extra.get("enum"):
+                is_enum = True
+                for item in enum:
+                    if isinstance(item, EnumFieldDefinition):
+                        enum_values.append(item.value)
+                        enum_labels[item.value] = item.label
+                    elif type(item) is str:
+                        enum_values.append(item)
+                    elif type(item) is dict:
+                        if "value" not in item or "label" not in item:
+                            logging.warning(f"Invalid enumerator item: {item}")
+                            continue
+                        enum_values.append(item["value"])
+                        enum_labels[item["value"]] = item["label"]
+
+            elif enum_resolver := field.field_info.extra.get("enum_resolver"):
+                is_enum = True
                 try:
                     enum_values, enum_labels = await process_enum(
                         enum_resolver, context
@@ -107,9 +127,8 @@ async def postprocess_settings_schema(  # noqa
                 except OpenPypeException as e:
                     prop["placeholder"] = e.detail
                     prop["disabled"] = True
-                    enum_values = []
-                    enum_labels = {}
 
+            if is_enum:
                 if prop.get("items"):
                     prop["items"]["enum"] = enum_values
                 else:
