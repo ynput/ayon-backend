@@ -1,6 +1,6 @@
 from typing import Any
 
-from addons.router import router
+from addons.router import router, route_meta
 from fastapi import APIRouter, Depends, Query, Request
 from nxtools import logging
 
@@ -93,6 +93,7 @@ class AddonList(OPModel):
     "",
     response_model=AddonList,
     response_model_exclude_none=True,
+    **route_meta,
 )
 async def list_addons(
     request: Request,
@@ -155,7 +156,7 @@ class AddonConfigRequest(OPModel):
     versions: dict[str, AddonVersionConfig] | None = Field(None)
 
 
-@router.post("")
+@router.post("", **route_meta)
 async def configure_addons(
     payload: AddonConfigRequest,
     user: UserEntity = Depends(dep_current_user),

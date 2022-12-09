@@ -1,6 +1,6 @@
 from typing import Any
 
-from addons.router import router
+from addons.router import router, route_meta
 from fastapi import Depends, Response
 from nxtools import logging
 from pydantic.error_wrappers import ValidationError
@@ -23,7 +23,7 @@ from openpype.settings import (
 from .common import ModifyOverridesRequestModel, pin_override, remove_override
 
 
-@router.get("/{addon_name}/{version}/schema")
+@router.get("/{addon_name}/{version}/schema", **route_meta)
 async def get_addon_settings_schema(addon_name: str, version: str):
     """Return the JSON schema of the addon settings."""
 
@@ -42,9 +42,7 @@ async def get_addon_settings_schema(addon_name: str, version: str):
     return schema
 
 
-@router.get(
-    "/{addon_name}/{version}/settings",
-)
+@router.get("/{addon_name}/{version}/settings", **route_meta)
 async def get_addon_studio_settings(
     addon_name: str,
     version: str,
@@ -57,9 +55,7 @@ async def get_addon_studio_settings(
     return await addon.get_studio_settings()
 
 
-@router.post(
-    "/{addon_name}/{version}/settings",
-)
+@router.post("/{addon_name}/{version}/settings", **route_meta)
 async def set_addon_studio_settings(
     payload: dict[str, Any],
     addon_name: str,
@@ -103,7 +99,7 @@ async def set_addon_studio_settings(
 
 
 @router.get(
-    "/{addon_name}/{version}/overrides",
+    "/{addon_name}/{version}/overrides", **route_meta
 )
 async def get_addon_studio_overrides(
     addon_name: str,
@@ -122,7 +118,7 @@ async def get_addon_studio_overrides(
 
 
 @router.delete(
-    "/{addon_name}/{version}/overrides",
+    "/{addon_name}/{version}/overrides", **route_meta
 )
 async def delete_addon_studio_overrides(
     addon_name: str,
@@ -151,7 +147,7 @@ async def delete_addon_studio_overrides(
 
 
 @router.post(
-    "/{addon_name}/{version}/overrides",
+    "/{addon_name}/{version}/overrides", **route_meta
 )
 async def modify_overrides(
     payload: ModifyOverridesRequestModel,

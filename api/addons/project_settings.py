@@ -1,6 +1,6 @@
 from typing import Any
 
-from addons.router import router
+from addons.router import router, route_meta
 from fastapi import Depends, Response
 from nxtools import logging
 from pydantic.error_wrappers import ValidationError
@@ -23,7 +23,7 @@ from openpype.settings import (
 from .common import ModifyOverridesRequestModel, pin_override, remove_override
 
 
-@router.get("/{addon_name}/{version}/schema/{project_name}")
+@router.get("/{addon_name}/{version}/schema/{project_name}", **route_meta)
 async def get_addon_settings_schema(
     addon_name: str,
     version: str,
@@ -50,7 +50,7 @@ async def get_addon_settings_schema(
     return schema
 
 
-@router.get("/{addon_name}/{version}/settings/{project_name}")
+@router.get("/{addon_name}/{version}/settings/{project_name}", **route_meta)
 async def get_addon_project_settings(
     addon_name: str,
     version: str,
@@ -62,7 +62,7 @@ async def get_addon_project_settings(
     return await addon.get_project_settings(project_name)
 
 
-@router.get("/{addon_name}/{version}/overrides/{project_name}")
+@router.get("/{addon_name}/{version}/overrides/{project_name}", **route_meta)
 async def get_addon_project_overrides(
     addon_name: str,
     version: str,
@@ -87,7 +87,7 @@ async def get_addon_project_overrides(
     return result
 
 
-@router.post("/{addon_name}/{version}/settings/{project_name}")
+@router.post("/{addon_name}/{version}/settings/{project_name}", **route_meta)
 async def set_addon_project_settings(
     payload: dict[str, Any],
     addon_name: str,
@@ -135,7 +135,7 @@ async def set_addon_project_settings(
 
 
 @router.delete(
-    "/{addon_name}/{version}/overrides/{project_name}",
+    "/{addon_name}/{version}/overrides/{project_name}", **route_meta
 )
 async def delete_addon_project_overrides(
     addon_name: str,
@@ -171,7 +171,7 @@ async def delete_addon_project_overrides(
 
 
 @router.post(
-    "/{addon_name}/{version}/overrides/{project_name}",
+    "/{addon_name}/{version}/overrides/{project_name}", **route_meta
 )
 async def modify_overrides(
     payload: ModifyOverridesRequestModel,
