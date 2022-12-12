@@ -51,6 +51,8 @@ class FolderEntity(ProjectLevelEntity):
                 f.active as active,
                 f.created_at as created_at,
                 f.updated_at as updated_at,
+                f.status as status,
+                f.tags as tags,
                 h.path as path,
                 ia.attrib AS inherited_attrib,
                 p.attrib AS project_attrib

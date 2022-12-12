@@ -6,10 +6,17 @@ import random
 import threading
 import time
 import uuid
+import json
 from typing import Any, Callable
 
 import orjson
 from pydantic import Field
+
+
+def json_serializer(obj: Any):
+    if issubclass(obj, tuple):
+        return list[obj]
+    return obj
 
 
 def json_loads(data: str) -> Any:
@@ -19,7 +26,9 @@ def json_loads(data: str) -> Any:
 
 def json_dumps(data: Any, *, default: Callable[[Any], Any] | None = None) -> str:
     """Dump JSON data."""
-    return orjson.dumps(data, default=default).decode()
+    return json.dumps(data)
+    # TODO: orjson does not support namedtuples correclty. we need to support is as list
+    # return orjson.dumps(data, default=default).decode()
 
 
 def hash_data(data: Any) -> str:
@@ -93,6 +102,7 @@ def parse_access_token(authorization: str) -> str | None:
     if len(token) != 64:
         return None
     return token
+
 
 def parse_api_key(authorization: str) -> str | None:
     if (not authorization) or type(authorization) != str:

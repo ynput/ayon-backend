@@ -43,6 +43,8 @@ class TaskEntity(ProjectLevelEntity):
                 t.active as active,
                 t.created_at as created_at,
                 t.updated_at as updated_at,
+                t.status as status,
+                t.tags as tags,
                 ia.attrib AS inherited_attrib
             FROM project_{project_name}.tasks as t
             LEFT JOIN

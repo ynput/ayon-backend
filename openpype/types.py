@@ -5,6 +5,7 @@ __all__ = [
 
 import re
 from typing import Literal, Tuple
+from collections import namedtuple
 
 from pydantic import BaseModel, Field
 
@@ -36,7 +37,8 @@ TopLevelEntityType = Literal[
     "user",
 ]
 
-ColorWithAlpha = Tuple[float, float, float, float]
+
+
 
 ENTITY_ID_REGEX = r"^[0-f]{32}$"
 ENTITY_ID_EXAMPLE = "c10d5bc73dcab7da4cba0f3e0b3c0aea"
@@ -93,3 +95,25 @@ class OPModel(BaseModel):
         alias_generator = camelize
         json_loads = json_loads
         json_dumps = json_dumps
+
+
+#
+# Color types (for settings)
+#
+
+# ColorWithAlpha is deprecated
+ColorWithAlpha = Tuple[float, float, float, float]
+
+
+class ColorRGB_hex(str):
+    pass
+
+
+class ColorRGBA_hex(str):
+    pass
+
+
+ColorRGB_uint8 = namedtuple("ColorRGB_uint8", ["r", "g", "b"])
+ColorRGBA_uint8 = namedtuple("ColorRGBA_uint8", ["r", "g", "b", "a"])
+ColorRGB_float = namedtuple("ColorRGB_float", ["r", "g", "b"])
+ColorRGBA_float = namedtuple("ColorRGBA_float", ["r", "g", "b", "a"])

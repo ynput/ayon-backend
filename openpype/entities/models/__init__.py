@@ -238,7 +238,11 @@ class ModelSet:
     def _generate_post_model(self) -> Type[BaseModel]:
         """Generate the post model."""
         model_name = f"{self.entity_name.capitalize()}PostModel"
-        fields = [f for f in self.fields if not f.get("dynamic")]
+        fields = [
+            f
+            for f in (self.fields + self._project_level_fields)
+            if not f.get("dynamic")
+        ]
         return generate_model(
             model_name, fields + self._common_fields, EntityModelConfig
         )
@@ -247,7 +251,7 @@ class ModelSet:
         """Generate the patch model."""
         model_name = f"{self.entity_name.capitalize()}PatchModel"
         fields = []
-        for original_field in self.fields:
+        for original_field in self.fields + self._project_level_fields:
             if original_field.get("dynamic"):
                 continue
             field = copy.deepcopy(original_field)

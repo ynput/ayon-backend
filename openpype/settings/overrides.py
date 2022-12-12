@@ -129,6 +129,14 @@ def list_overrides(
                             "inGroup": True,
                         }
 
+        elif isinstance(child, tuple):
+            result[path] = {
+                "path": chcrumbs,
+                "value": override[name] if name in override else list(child),
+                "level": level if name in override else "default",
+                "inGroup": in_group,
+            }
+
         elif name in override:
             result[path] = {
                 "path": chcrumbs,

@@ -154,8 +154,38 @@ async def postprocess_settings_schema(  # noqa
 
             # Support for VERY CUSTOM widgets, which would be otherwise
             # redered as arrays or objects.
-            if prop.get("widget") in ["color_with_alpha"]:
-                prop["type"] = "string"
+            if inspect.isclass(field.type_):
+                match field.type_.__name__:
+                    case "ColorRGB_hex":
+                        prop["type"] = "string"
+                        prop["widget"] = "color"
+                        prop["colorFormat"] = "hex"
+                        prop["colorAlpha"] = False
+                    case "ColorRGBA_hex":
+                        prop["type"] = "string"
+                        prop["widget"] = "color"
+                        prop["colorFormat"] = "hex"
+                        prop["colorAlpha"] = True
+                    case "ColorRGB_float":
+                        prop["type"] = "string"
+                        prop["widget"] = "color"
+                        prop["colorFormat"] = "float"
+                        prop["colorAlpha"] = False
+                    case "ColorRGBA_float":
+                        prop["type"] = "string"
+                        prop["widget"] = "color"
+                        prop["colorFormat"] = "float"
+                        prop["colorAlpha"] = True
+                    case "ColorRGB_uint8":
+                        prop["type"] = "string"
+                        prop["widget"] = "color"
+                        prop["colorFormat"] = "uint8"
+                        prop["colorAlpha"] = False
+                    case "ColorRGBA_uint8":
+                        prop["type"] = "string"
+                        prop["widget"] = "color"
+                        prop["colorFormat"] = "uint8"
+                        prop["colorAlpha"] = True
 
     if not is_top_level:
         return
