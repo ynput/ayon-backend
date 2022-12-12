@@ -110,6 +110,7 @@ async def dep_current_user_optional(
     x_as_user: str | None = Header(None),  # TODO: at least validate against a regex
     x_api_key: str | None = Header(None),  # TODO: some validation here
     access_token: str | None = Depends(dep_access_token),
+    api_key: str | None = Depends(dep_api_key),
 ) -> UserEntity | None:
     try:
         user = await dep_current_user(
@@ -118,6 +119,7 @@ async def dep_current_user_optional(
             x_as_user=x_as_user,
             x_api_key=x_api_key,
             access_token=access_token,
+            api_key=api_key,
         )
     except UnauthorizedException:
         return None
