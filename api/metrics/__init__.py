@@ -1,9 +1,11 @@
 import time
 
 import psutil
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
 
+from openpype.api import dep_current_user
+from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
 from openpype.lib.redis import Redis
 
@@ -34,7 +36,9 @@ metrics = SystemMetrics()
     "/metrics",
     response_class=PlainTextResponse,
 )
-async def get_system_metrics():
+async def get_system_metrics(
+    user: UserEntity = Depends(dep_current_user),
+):
     result = ""
     async for record in Postgres.iterate("SELECT name FROM users"):
         name = record["name"]

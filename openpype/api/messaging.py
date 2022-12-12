@@ -34,7 +34,7 @@ class Client:
     def user_name(self) -> str | None:
         if self.user is None:
             return None
-        return self.user.name
+        return self.user["login"]
 
     async def authorize(self, access_token: str, topics: list[str]) -> bool:
         session_data = await Session.check(access_token, None)
@@ -42,12 +42,6 @@ class Client:
             self.topics = [*topics, *ALWAYS_SUBSCRIBE] if "*" not in topics else ["*"]
             self.authorized = True
             self.user = session_data.user
-            # logging.info(
-            #     "Authorized connection",
-            #     session_data.user.name,
-            #     "topics:",
-            #     self.topics,
-            # )
             return True
         return False
 
@@ -79,7 +73,6 @@ class Client:
         if self.disconnected:
             return False
         if not self.authorized and (time.time() - self.created_at > 3):
-            # logging.info("Removing unauthorized client")
             return False
         return True
 
@@ -102,10 +95,8 @@ class Messaging(BackgroundTask):
         for client_id, client in list(self.clients.items()):
             if not client.is_valid:
                 if not client.disconnected:
-                    try:
+                    with suppress(RuntimeError):
                         await client.sock.close(code=1000)
-                    except RuntimeError:
-                        pass
                 to_rm.append(client_id)
         for client_id in to_rm:
             with suppress(KeyError):

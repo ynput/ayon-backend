@@ -372,14 +372,4 @@ async def shutdown_event() -> None:
     await thumbnail_cleaner.shutdown()
     await messaging.shutdown()
     await Postgres.shutdown()
-
-    # tasks = []
-    # for task in asyncio.all_tasks():
-    #     task.cancel()
-    #     tasks.append(task)
-    #
-    # while not all(task.done() for task in tasks):
-    #     await asyncio.sleep(0.1)
-    #     print("Waiting for tasks to finish")
-
     logging.info("Server stopped", handlers=None)
