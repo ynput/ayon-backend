@@ -94,6 +94,17 @@ def parse_access_token(authorization: str) -> str | None:
         return None
     return token
 
+def parse_api_key(authorization: str) -> str | None:
+    if (not authorization) or type(authorization) != str:
+        return None
+    try:
+        ttype, token = authorization.split()
+    except ValueError:
+        return None
+    if ttype.lower() != "apikey":
+        return None
+    return token
+
 
 class EntityID:
     META = {

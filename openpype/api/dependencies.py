@@ -14,13 +14,25 @@ from openpype.exceptions import (
 from openpype.lib.postgres import Postgres
 from openpype.lib.redis import Redis
 from openpype.types import USER_NAME_REGEX
-from openpype.utils import EntityID, json_dumps, json_loads, parse_access_token
+from openpype.utils import (
+    EntityID,
+    json_dumps,
+    json_loads,
+    parse_access_token,
+    parse_api_key,
+)
 
 
 async def dep_access_token(authorization: str = Header(None)) -> str | None:
     """Parse and return an access token provided in the authorisation header."""
     access_token = parse_access_token(authorization)
     return access_token
+
+
+async def dep_api_key(authorization: str = Header(None)) -> str | None:
+    """Parse and return an api key provided in the authorisation header."""
+    api_key = parse_api_key(authorization)
+    return api_key
 
 
 async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
@@ -40,6 +52,7 @@ async def dep_current_user(
     x_as_user: str | None = Header(None),  # TODO: at least validate against a regex
     x_api_key: str | None = Header(None),  # TODO: some validation here
     access_token: str | None = Depends(dep_access_token),
+    api_key: str | None = Depends(dep_api_key),
 ) -> UserEntity:
     """Return the currently logged-in user.
 
@@ -53,9 +66,9 @@ async def dep_current_user(
     or the user is not permitted to access the endpoint.
     """
 
-    if x_api_key:
-        hashed_key = hash_password(x_api_key)
-        if (session_data := await Session.check(x_api_key, x_forwarded_for)) is None:
+    if api_key := x_api_key or api_key:
+        hashed_key = hash_password(api_key)
+        if (session_data := await Session.check(api_key, x_forwarded_for)) is None:
             result = await Postgres.fetch(
                 "SELECT * FROM users WHERE data->>'apiKey' = $1 LIMIT 1",
                 hashed_key,
@@ -65,7 +78,7 @@ async def dep_current_user(
                     f"Invalid API key {hashed_key}",
                 )
             user = UserEntity.from_record(result[0])
-            session_data = await Session.create(user, x_forwarded_for, token=x_api_key)
+            session_data = await Session.create(user, x_forwarded_for, token=api_key)
 
     elif access_token is None:
         raise UnauthorizedException("Access token is missing")
