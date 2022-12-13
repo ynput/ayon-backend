@@ -70,9 +70,9 @@ logging.user = "server"
 @app.exception_handler(404)
 async def custom_404_handler(request: fastapi.Request, _):
     """Redirect 404s to frontend."""
-    logging.error(f"404 {request.method} {request.url.path}")
 
     if request.url.path.startswith("/api"):
+        logging.error(f"404 {request.method} {request.url.path}")
         return fastapi.responses.JSONResponse(
             status_code=404,
             content=ErrorResponse(
@@ -82,6 +82,7 @@ async def custom_404_handler(request: fastapi.Request, _):
         )
 
     elif request.url.path.startswith("/addons"):
+        logging.error(f"404 {request.method} {request.url.path}")
         return fastapi.responses.JSONResponse(
             status_code=404,
             content=ErrorResponse(
@@ -90,7 +91,17 @@ async def custom_404_handler(request: fastapi.Request, _):
             ).dict(),
         )
 
-    return fastapi.responses.RedirectResponse("/")
+    index_path = os.path.join(pypeconfig.frontend_dir, "index.html")
+    if os.path.exists(index_path):
+        return fastapi.responses.FileResponse(
+            index_path, status_code=200, media_type="text/html"
+        )
+
+    logging.error(f"404 {request.method} {request.url.path}")
+    return fastapi.responses.JSONResponse(
+        status_code=404,
+        content=ErrorResponse(code=404, detail=f"Not found {request.url.path}").dict(),
+    )
 
 
 async def user_name_from_request(request: fastapi.Request) -> str:
