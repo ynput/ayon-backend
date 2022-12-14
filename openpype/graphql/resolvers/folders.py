@@ -42,10 +42,10 @@ async def get_folders(
             """
         ),
     ] = None,
+    parent_ids: Annotated[list[str] | None, argdesc("List of parent ids.")] = None,
     attributes: Annotated[
         list[AtrributeFilterInput] | None, argdesc("Filter by a list of attributes")
     ] = None,
-    parent_ids: Annotated[list[str] | None, argdesc("List of parent ids.")] = None,
     folder_types: Annotated[
         list[str] | None, argdesc("List of folder types to filter by")
     ] = None,
@@ -236,7 +236,7 @@ async def get_folders(
 
     if attributes:
         for attribute_input in attributes:
-            if not attribute_library.is_valid('folder', attribute_input.name):
+            if not attribute_library.is_valid("folder", attribute_input.name):
                 continue
             values = [v.replace("'", "''") for v in attribute_input.values]
             sql_conditions.append(
@@ -268,7 +268,6 @@ async def get_folders(
         {pagination}
     """
 
-    print(query)
 
     return await resolve(
         FoldersConnection,

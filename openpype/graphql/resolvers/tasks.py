@@ -2,6 +2,7 @@ from typing import Annotated
 
 from strawberry.types import Info
 
+from openpype.entities.core import attribute_library
 from openpype.graphql.connections import TasksConnection
 from openpype.graphql.edges import TaskEdge
 from openpype.graphql.nodes.task import TaskNode
@@ -18,6 +19,7 @@ from openpype.graphql.resolvers.common import (
     create_pagination,
     get_has_links_conds,
     resolve,
+    AtrributeFilterInput,
 )
 from openpype.types import validate_name_list
 from openpype.utils import SQLTool
@@ -38,6 +40,9 @@ async def get_tasks(
         list[str] | None, argdesc("List of parent folder IDs to filter by")
     ] = None,
     #    name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
+    attributes: Annotated[
+        list[AtrributeFilterInput] | None, argdesc("Filter by a list of attributes")
+    ] = None,
     names: Annotated[list[str] | None, argdesc("List of names to filter by")] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
@@ -109,11 +114,23 @@ async def get_tasks(
             f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
         )
 
+    if attributes:
+        for attribute_input in attributes:
+            if not attribute_library.is_valid("task", attribute_input.name):
+                continue
+            values = [v.replace("'", "''") for v in attribute_input.values]
+            sql_conditions.append(
+                f"""
+                (coalesce(pf.attrib, '{{}}'::jsonb ) || tasks.attrib)
+                ->>'{attribute_input.name}' IN {SQLTool.array(values)}
+                """
+            )
+
     #
     # Joins
     #
 
-    if "attrib" in fields:
+    if ("attrib" in fields) or attributes:
         sql_columns.append("pf.attrib as parent_folder_attrib")
         sql_joins.append(
             f"""
