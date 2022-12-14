@@ -35,6 +35,7 @@ class TaskEntity(ProjectLevelEntity):
             SELECT
                 t.id as id,
                 t.name as name,
+                t.label as label,
                 t.task_type as task_type,
                 t.assignees as assignees,
                 t.folder_id as folder_id,
@@ -96,6 +97,16 @@ class TaskEntity(ProjectLevelEntity):
     #
     # Properties
     #
+
+    @property
+    def label(self):
+        """Return the label of the folder."""
+        return self.label or self.name
+
+    @label.setter
+    def label(self, value):
+        """Set the label of the folder."""
+        self.label = value
 
     @property
     def folder_id(self) -> str:

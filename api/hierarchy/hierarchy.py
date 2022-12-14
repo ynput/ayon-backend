@@ -34,6 +34,7 @@ if not TYPE_CHECKING:
 class HierarchyFolderModel(OPModel):
     id: str = EntityID.field("folder")
     name: str = Field(..., example="Tree", title="Folder name")
+    label: str = Field(..., example="Tree", title="Folder label")
     folderType: str | None = Field(example="AssetBuild", title="Folder type")
     hasSubsets: bool
     hasTasks: bool
@@ -97,6 +98,7 @@ async def get_folder_hierarchy(
             folders.parent_id,
             folders.folder_type,
             folders.name,
+            folders.label,
             hierarchy.path as path,
             COUNT (subsets.id) AS subset_count,
             COUNT (tasks.id) AS task_count
@@ -123,6 +125,7 @@ async def get_folder_hierarchy(
             "id": row["id"],
             "parentId": row["parent_id"],
             "name": row["name"],
+            "label": row["label"] or row["name"],
             "folderType": row["folder_type"],
             "parents": row["path"].split("/")[:-1],
             "hasSubsets": not not row["subset_count"],

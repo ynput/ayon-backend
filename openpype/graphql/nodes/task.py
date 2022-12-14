@@ -23,6 +23,7 @@ class TaskAttribType:
 
 @strawberry.type
 class TaskNode(BaseNode):
+    label: str | None
     task_type: str
     assignees: list[str]
     folder_id: str
@@ -111,6 +112,7 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
         project_name=project_name,
         id=record["id"],
         name=record["name"],
+        label=record["label"],
         task_type=record["task_type"],
         assignees=record["assignees"],
         folder_id=record["folder_id"],

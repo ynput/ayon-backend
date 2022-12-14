@@ -35,6 +35,7 @@ async def folder_loader(keys: list[KeyType]) -> list[dict | None]:
         SELECT
             folders.id AS id,
             folders.name AS name,
+            folders.label AS label,
             folders.active AS active,
             folders.folder_type AS folder_type,
             folders.parent_id AS parent_id,
@@ -105,6 +106,7 @@ async def task_loader(keys: list[KeyType]) -> list[dict | None]:
         SELECT
             tasks.id AS id,
             tasks.name AS name,
+            tasks.label AS label,
             tasks.folder_id AS folder_id,
             tasks.task_type AS task_type,
             tasks.assignees AS assignees,

@@ -18,7 +18,8 @@ class FolderAttribType:
 
 @strawberry.type
 class FolderNode(BaseNode):
-    folder_type: str | None
+    label: str | None
+    folder_type: str
     parent_id: str | None
     thumbnail_id: str | None
     path: str | None
@@ -105,6 +106,7 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         project_name=project_name,
         id=record["id"],
         name=record["name"],
+        label=record["label"],
         active=record["active"],
         folder_type=record["folder_type"],
         parent_id=record["parent_id"],

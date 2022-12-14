@@ -60,6 +60,7 @@ async def get_tasks(
     sql_columns = [
         "tasks.id AS id",
         "tasks.name AS name",
+        "tasks.label AS label",
         "tasks.folder_id AS folder_id",
         "tasks.task_type AS task_type",
         "tasks.assignees AS assignees",
@@ -128,6 +129,7 @@ async def get_tasks(
             [
                 "folders.id AS _folder_id",
                 "folders.name AS _folder_name",
+                "folders.label AS _folder_label",
                 "folders.folder_type AS _folder_folder_type",
                 "folders.thumbnail_id AS _folder_thumbnail_id",
                 "folders.parent_id AS _folder_parent_id",

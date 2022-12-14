@@ -113,6 +113,7 @@ async def get_subsets(
             [
                 "folders.id AS _folder_id",
                 "folders.name AS _folder_name",
+                "folders.label AS _folder_label",
                 "folders.folder_type AS _folder_folder_type",
                 "folders.parent_id AS _folder_parent_id",
                 "folders.thumbnail_id AS _folder_thumbnail_id",

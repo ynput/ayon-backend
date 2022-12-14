@@ -2,6 +2,7 @@ from typing import Annotated
 
 from strawberry.types import Info
 
+from openpype.entities.core import attribute_library
 from openpype.graphql.connections import FoldersConnection
 from openpype.graphql.edges import FolderEdge
 from openpype.graphql.nodes.folder import FolderNode
@@ -18,6 +19,7 @@ from openpype.graphql.resolvers.common import (
     create_pagination,
     get_has_links_conds,
     resolve,
+    AtrributeFilterInput,
 )
 from openpype.types import validate_name, validate_name_list
 from openpype.utils import EntityID, SQLTool
@@ -39,6 +41,9 @@ async def get_folders(
             Use 'root' to get top level folders.
             """
         ),
+    ] = None,
+    attributes: Annotated[
+        list[AtrributeFilterInput] | None, argdesc("Filter by a list of attributes")
     ] = None,
     parent_ids: Annotated[list[str] | None, argdesc("List of parent ids.")] = None,
     folder_types: Annotated[
@@ -77,6 +82,7 @@ async def get_folders(
     sql_columns = [
         "folders.id AS id",
         "folders.name AS name",
+        "folders.label AS label",
         "folders.active AS active",
         "folders.folder_type AS folder_type",
         "folders.status AS status",
@@ -228,6 +234,18 @@ async def get_folders(
         # TODO: sanitize
         sql_conditions.append(f"hierarchy.path ~ '{path_ex}'")
 
+    if attributes:
+        for attribute_input in attributes:
+            if not attribute_library.is_valid('folder', attribute_input.name):
+                continue
+            values = [v.replace("'", "''") for v in attribute_input.values]
+            sql_conditions.append(
+                f"""
+                (pr.attrib || coalesce(ex.attrib, '{{}}'::jsonb ) || folders.attrib)
+                ->>'{attribute_input.name}' IN {SQLTool.array(values)}
+                """
+            )
+
     #
     # Pagination
     #
@@ -249,6 +267,8 @@ async def get_folders(
         {SQLTool.conditions(sql_having).replace("WHERE", "HAVING", 1)}
         {pagination}
     """
+
+    print(query)
 
     return await resolve(
         FoldersConnection,

@@ -11,7 +11,7 @@ See .generator.FieldDefinition model for more information on specifiing
 field parameters.
 """
 
-from openpype.types import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, NAME_REGEX
+from openpype.types import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, NAME_REGEX, LABEL_REGEX
 
 project_fields = [
     # Name is not here, since it's added by ModelSet class
@@ -88,6 +88,13 @@ folder_fields = [
         "example": "bush",
     },
     {
+        "name": "label",
+        "type": "string",
+        "title": "Folder label",
+        "example": "bush",
+        "regex": LABEL_REGEX,
+    },
+    {
         "name": "folder_type",
         "type": "string",
         "required": False,
@@ -128,6 +135,13 @@ task_fields = [
         "title": "Folder ID",
         "regex": NAME_REGEX,
         "example": "modeling",
+    },
+    {
+        "name": "label",
+        "type": "string",
+        "title": "Task label",
+        "regex": LABEL_REGEX,
+        "example": "Modeling of a model",
     },
     {
         "name": "task_type",

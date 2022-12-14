@@ -23,6 +23,12 @@ class HasLinksFilter(Enum):
     BOTH = "both"
 
 
+@strawberry.input
+class AtrributeFilterInput:
+    name: str
+    values: list[str]
+
+
 def argdesc(description: str) -> StrawberryArgumentAnnotation:
     description = "\n".join([line.strip() for line in description.split("\n")])
     return strawberry.argument(description=description)

@@ -32,6 +32,10 @@ class AttributeLibrary:
         loop.run_until_complete(self.load())
         loop.close()
 
+    def is_valid(self, entity_type: str, attribute: str) -> bool:
+        """Check if attribute is valid for entity type."""
+        return attribute in [k["name"] for k in self.data[entity_type]]
+
     async def load(self) -> None:
         query = "SELECT name, scope, data from public.attributes"
         await Postgres.connect()

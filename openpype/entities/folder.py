@@ -43,6 +43,7 @@ class FolderEntity(ProjectLevelEntity):
             SELECT
                 f.id as id,
                 f.name as name,
+                f.label as label,
                 f.folder_type as folder_type,
                 f.parent_id as parent_id,
                 f.thumbnail_id as thumbnail_id,
@@ -267,6 +268,16 @@ class FolderEntity(ProjectLevelEntity):
     #
     # Properties
     #
+
+    @property
+    def label(self):
+        """Return the label of the folder."""
+        return self.label or self.name
+
+    @label.setter
+    def label(self, value):
+        """Set the label of the folder."""
+        self.label = value
 
     @property
     def parent_id(self) -> str | None:

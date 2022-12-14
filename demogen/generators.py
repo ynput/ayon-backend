@@ -55,8 +55,10 @@ async def gen_assets(parent):
 
     for i, name in enumerate(names):
         name_slug = f"{i:02d}_{name}"  # + slugify(name, separator="_")
+        label = f"{i:02d} {name.replace('_', ' ').title()}"
         yield {
             "name": name_slug,
+            "label": label,
             "folder_type": "Asset",
             "_version_count": 5,
             "_subsets": parent.get("_leaf_subsets", []),
