@@ -146,6 +146,8 @@ class FolderEntity(ProjectLevelEntity):
                     folder_type=self.folder_type,
                     parent_id=self.parent_id,
                     thumbnail_id=self.thumbnail_id,
+                    status=self.status,
+                    tags=self.tags,
                     attrib=attrib,
                     updated_at=time.time(),
                 )

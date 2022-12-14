@@ -315,6 +315,15 @@ class ProjectLevelEntity(BaseEntity):
         self._payload.status = value
 
     @property
+    def tags(self) -> list[str]:
+        return self._payload.tags
+
+    @tags.setter
+    def tags(self, value: list[str]):
+        self._payload.tags = value
+
+
+    @property
     def entity_subtype(self) -> str | None:
         """Return the entity subtype.
 
