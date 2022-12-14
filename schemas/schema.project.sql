@@ -49,6 +49,7 @@ CREATE TABLE folders(
     id UUID NOT NULL PRIMARY KEY,
 
     name VARCHAR NOT NULL,
+    label VARCHAR,
     folder_type VARCHAR NOT NULL REFERENCES folder_types(name) ON UPDATE CASCADE,
     parent_id UUID REFERENCES folders(id),
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
@@ -115,6 +116,7 @@ CREATE TABLE tasks(
     id UUID NOT NULL PRIMARY KEY,
 
     name VARCHAR NOT NULL,
+    label VARCHAR,
     folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
     task_type VARCHAR REFERENCES task_types(name) ON UPDATE CASCADE,
     assignees VARCHAR[] NOT NULL DEFAULT '{}',
