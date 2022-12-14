@@ -23,12 +23,11 @@ class Postgres:
     Transaction = asyncpg.transaction.Transaction
 
     @classmethod
-    @property
     def acquire(cls) -> asyncpg.Connection:
         """Acquire a connection from the pool."""
         if cls.pool is None:
             raise ConnectionError
-        return cls.pool.acquire
+        return cls.pool.acquire()
 
     @classmethod
     async def init_connection(self, conn) -> None:

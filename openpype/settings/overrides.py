@@ -50,7 +50,7 @@ def apply_overrides(
 def list_overrides(
     obj: BaseSettingsModel,
     override: dict[str, Any],
-    crumbs: list[str] = None,
+    crumbs: list[str] | None = None,
     level: str = "studio",
     in_group: bool = False,
 ) -> dict[str, Any]:
@@ -151,7 +151,7 @@ def list_overrides(
 def extract_overrides(
     default: BaseSettingsModel,
     overriden: BaseSettingsModel,
-    existing: dict[str, Any] = None,
+    existing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {}
 

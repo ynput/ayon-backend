@@ -60,7 +60,12 @@ class ModelSet:
 
     """
 
-    def __init__(self, entity_name: str, attributes: list = None, has_id: bool = True):
+    def __init__(
+        self,
+        entity_name: str,
+        attributes: list[dict[str, Any]] | None = None,
+        has_id: bool = True,
+    ):
         """Initialize the model set."""
         self.entity_name = entity_name
         self.fields: list[Any] = FIELD_LISTS[entity_name]

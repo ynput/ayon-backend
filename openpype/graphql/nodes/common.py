@@ -55,7 +55,7 @@ class BaseNode:
         direction: str | None = None,
         link_type: str | None = None,
         first: int = 100,
-        after: str = None,
+        after: str | None = None,
     ) -> LinksConnection:
         resolver = info.context["links_resolver"]
         return await resolver(

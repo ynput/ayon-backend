@@ -13,13 +13,13 @@ from openpype.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
+    AtrributeFilterInput,
     FieldInfo,
     argdesc,
     create_folder_access_list,
     create_pagination,
     get_has_links_conds,
     resolve,
-    AtrributeFilterInput,
 )
 from openpype.types import validate_name, validate_name_list
 from openpype.utils import EntityID, SQLTool
@@ -267,7 +267,6 @@ async def get_folders(
         {SQLTool.conditions(sql_having).replace("WHERE", "HAVING", 1)}
         {pagination}
     """
-
 
     return await resolve(
         FoldersConnection,

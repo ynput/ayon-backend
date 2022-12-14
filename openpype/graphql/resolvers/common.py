@@ -152,7 +152,7 @@ async def resolve(
     query: str,
     first: int | None = None,
     last: int | None = None,
-    context: dict = None,
+    context: dict[str, Any] | None = None,
     order_by: str = "id",
 ) -> R:
     """Return a connection object from a query."""

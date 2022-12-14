@@ -144,7 +144,7 @@ async def update_project(
     project.patch(patch_data)
     await project.save()
 
-    dispatch_event(
+    await dispatch_event(
         "entity.update",
         sender=x_sender,
         project=project_name,

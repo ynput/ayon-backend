@@ -22,7 +22,7 @@ class ProjectLevelEntity(BaseEntity):
         payload: dict[str, Any],
         exists: bool = False,
         validate: bool = True,
-        own_attrib: list[str] = None,
+        own_attrib: list[str] | None = None,
     ) -> None:
         """Return a new entity instance from given data.
 

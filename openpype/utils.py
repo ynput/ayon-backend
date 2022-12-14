@@ -2,21 +2,15 @@
 
 import asyncio
 import hashlib
+import json
 import random
 import threading
 import time
 import uuid
-import json
 from typing import Any, Callable
 
 import orjson
 from pydantic import Field
-
-
-def json_serializer(obj: Any):
-    if issubclass(obj, tuple):
-        return list[obj]
-    return obj
 
 
 def json_loads(data: str) -> Any:
@@ -117,6 +111,7 @@ def parse_api_key(authorization: str) -> str | None:
 
 
 class EntityID:
+    example: str = "af10c8f0e9b111e9b8f90242ac130003"
     META = {
         "example": "af10c8f0e9b111e9b8f90242ac130003",
         "min_length": 32,
@@ -142,11 +137,6 @@ class EntityID:
             if len(entity_id) == 32:
                 return entity_id
         raise ValueError(f"Invalid entity ID {entity_id}")
-
-    @classmethod
-    @property
-    def example(cls) -> Any:
-        return cls.META["example"]
 
     @classmethod
     def field(cls, name: str = "entity") -> Field:
