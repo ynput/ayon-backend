@@ -221,13 +221,20 @@ class ProjectLevelEntity(BaseEntity):
             )
             fields["attrib"] = attrib
 
-            await transaction.execute(
-                *SQLTool.update(
-                    f"project_{self.project_name}.{self.entity_type}s",
-                    f"WHERE id = '{self.id}'",
-                    **fields,
+            try:
+                await transaction.execute(
+                    *SQLTool.update(
+                        f"project_{self.project_name}.{self.entity_type}s",
+                        f"WHERE id = '{self.id}'",
+                        **fields,
+                    )
                 )
-            )
+            except Postgres.ForeignKeyViolationError as e:
+                raise ConstraintViolationException(e.detail)
+
+            except Postgres.UniqueViolationError as e:
+                raise ConstraintViolationException(e.detail)
+
             if commit:
                 await self.commit(transaction)
             return True
@@ -321,7 +328,6 @@ class ProjectLevelEntity(BaseEntity):
     @tags.setter
     def tags(self, value: list[str]):
         self._payload.tags = value
-
 
     @property
     def entity_subtype(self) -> str | None:

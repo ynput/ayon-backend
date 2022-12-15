@@ -138,20 +138,26 @@ class FolderEntity(ProjectLevelEntity):
                 """
             )
 
-            await transaction.execute(
-                *SQLTool.update(
-                    f"project_{self.project_name}.{self.entity_type}s",
-                    f"WHERE id = '{self.id}'",
-                    name=self.name,
-                    folder_type=self.folder_type,
-                    parent_id=self.parent_id,
-                    thumbnail_id=self.thumbnail_id,
-                    status=self.status,
-                    tags=self.tags,
-                    attrib=attrib,
-                    updated_at=time.time(),
+            try:
+                await transaction.execute(
+                    *SQLTool.update(
+                        f"project_{self.project_name}.{self.entity_type}s",
+                        f"WHERE id = '{self.id}'",
+                        name=self.name,
+                        folder_type=self.folder_type,
+                        parent_id=self.parent_id,
+                        thumbnail_id=self.thumbnail_id,
+                        status=self.status,
+                        tags=self.tags,
+                        attrib=attrib,
+                        updated_at=time.time(),
+                    )
                 )
-            )
+            except Postgres.ForeignKeyViolationError as e:
+                raise ConstraintViolationException(e.detail)
+
+            except Postgres.UniqueViolationError as e:
+                raise ConstraintViolationException(e.detail)
 
         else:
             # Create a new entity

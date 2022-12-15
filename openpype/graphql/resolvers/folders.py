@@ -186,9 +186,7 @@ async def get_folders(
             lconds.append("folders.parent_id IS NULL")
 
         if pids_set:
-            lconds.append(
-                f"folders.parent_id IN {SQLTool.id_array(list(pids_set))}"
-            )
+            lconds.append(f"folders.parent_id IN {SQLTool.id_array(list(pids_set))}")
 
         if lconds:
             sql_conditions.append(f"({ ' OR '.join(lconds) })")
