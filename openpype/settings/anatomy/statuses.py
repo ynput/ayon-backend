@@ -28,11 +28,11 @@ class Status(BaseSettingsModel):
 
 
 default_statuses = [
-    Status(name="Not ready", color="#cacaca", state="not_started"),
-    Status(name="Ready to start", color="#cc99ff", state="not_started"),
+    Status(name="Not ready", color="#434a56", state="not_started"),
+    Status(name="Ready to start", color="#bababa", state="not_started"),
     Status(name="In progress", color="#3498db", state="in_progress"),
-    Status(name="Pending review", color="#f1c40f", state="in_progress"),
-    Status(name="Approved", color="#1cbc90", state="done"),
-    Status(name="On hold", color="#e74c3c", state="blocked"),
-    Status(name="Omitted", color="#0099ff", state="blocked"),
+    Status(name="Pending review", color="#ff9b0a", state="in_progress"),
+    Status(name="Approved", color="#00f0b4", state="done"),
+    Status(name="On hold", color="#fa6e46", state="blocked"),
+    Status(name="Omitted", color="#cb1a1a", state="blocked"),
 ]
