@@ -1,5 +1,4 @@
 #!/bin/bash
-
 echo "Starting the backend"
 python -m setup --ensure-installed
 
