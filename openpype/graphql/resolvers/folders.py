@@ -182,7 +182,7 @@ async def get_folders(
         lconds = []
         if "root" in pids_set or None in pids_set:
             pids_set.discard("root")
-            pids_set.discard(None)
+            pids_set.discard(None)  # type: ignore
             lconds.append("folders.parent_id IS NULL")
 
         if pids_set:

@@ -13,9 +13,10 @@ repos:
       language: system
       types: [python]
 
-    - id: mypy
-      name: mypy
-      entry: poetry run mypy .
-      language: system
-      types: [python]
+    # TODO: make this work
+    # - id: mypy
+    #   name: mypy
+    #   entry: poetry run mypy .
+    #   language: system
+    #   types: [python]
 
