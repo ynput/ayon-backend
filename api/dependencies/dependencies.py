@@ -18,6 +18,7 @@ router = APIRouter(
     responses={
         401: ResponseFactory.error(401),
         403: ResponseFactory.error(403),
+        404: ResponseFactory.error(404),
     },
 )
 
@@ -72,7 +73,7 @@ class DependencyPackage(OPModel):
     )
     sources: list[dict[str, Any]] = Field(
         default_factory=list,
-        title="Sources",
+        title="Package sources",
         description="List of sources from which the package was downloaded",
         example=[
             {
@@ -154,6 +155,10 @@ async def download_dependency_package(
     package_name: str = Path(...),
     platform: Platform = Path(...),
 ):
+    """Download dependency package.
+
+    Use this endpoint to download dependency package stored on the server.
+    """
 
     res = await Postgres.fetch(
         """

@@ -16,30 +16,39 @@ from openpype.entities import UserEntity
 from openpype.exceptions import UnauthorizedException
 from openpype.types import Field, OPModel
 
-#
-# Router
-#
-
-
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
 )
 
 
-#
-# [POST] /auth/login
-#
-
-
 class LoginRequestModel(OPModel):
-    name: str = Field(..., description="Username", example="admin")
-    password: str = Field(..., description="Password", example="SecretPassword.123")
+    name: str = Field(
+        ...,
+        title="User name",
+        description="Username",
+        example="admin",
+    )
+    password: str = Field(
+        ...,
+        title="Password",
+        description="Password",
+        example="SecretPassword.123",
+    )
 
 
 class LoginResponseModel(OPModel):
-    detail: str = "Logged in as NAME"
-    token: str = "ACCESS_TOKEN"
+    detail: str = Field(
+        ...,
+        title="Response detail",
+        description="Text description, which may be displayed to the user",
+        example="Logged in as USERNAME",
+    )
+    token: str = Field(
+        ...,
+        title="Access token",
+        example="ACCESS_TOKEN",
+    )
     user: UserEntity.model.main_model  # type: ignore
 
 
@@ -51,8 +60,14 @@ class LoginResponseModel(OPModel):
 async def login(login: LoginRequestModel):
     """Login using name/password credentials.
 
-    Check provided credentials and return an access token
-    for secure requests and the user information.
+    Returns access token and user information. The token is used for
+    authentication in other endpoints. It is valid for 24 hours,
+    but it is extended automatically when the user is active.
+
+    Token may be revoked by calling the logout endpoint or using
+    session manager.
+
+    Returns 401 response if the credentials are invalid.
     """
 
     if not (session := await PasswordAuth.login(login.name, login.password)):
@@ -72,7 +87,12 @@ async def login(login: LoginRequestModel):
 
 
 class LogoutResponseModel(OPModel):
-    detail: str = "Logged out"
+    detail: str = Field(
+        ...,
+        title="Response detail",
+        description="Text description, which may be displayed to the user",
+        example="Logged out",
+    )
 
 
 @router.post(

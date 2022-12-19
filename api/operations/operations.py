@@ -146,13 +146,13 @@ async def process_operations(
     can_fail: bool = False,
     transaction=None,
 ) -> OperationsResponseModel:
-    """Process a list of operations. Return a response model.
+    """Process a list of operations.
 
     This is separated from the endpoint so the endpoint can
     run this operation within or without a transaction context.
 
-    This function shouldn't raise any exceptions, instead it should
-    return a response model with success=False and error set.
+    This function should not raise an exception. If an operation
+    fails, success=False is returned.
     """
 
     result: list[OperationResponseModel] = []
@@ -229,10 +229,13 @@ async def operations(
     processing continues and all operations are committed.
 
     The response contains the list of operations with their success status.
-    In case of failure, the error message is provided for each operation (TODO).
+    In case of failure, the error message is provided for each operation.
 
-    The endpoint should never return an error status code - if so, something is
-    very wrong (or the request is malformed).
+    This endpoint normally does not return error response, unless there is
+    a problem with the request itself or an unhandled exception.
+    Do not rely on a status code to determine if the operation was successful.
+
+    Always check the `success` field of the response.
     """
 
     if payload.can_fail:

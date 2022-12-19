@@ -21,7 +21,8 @@ tags_meta = [
     {
         "name": "Authentication",
         "description": """
-Authentication endpoints
+Authentication endpoints. Most of the endpoints require authentication.
+This is done by passing `Authorization` header with `Bearer <token>` value.
         """,
     },
     {

@@ -1,3 +1,7 @@
 __all__ = ["router"]
 
-from events.events import router
+from . import enroll, events
+from .router import router
+
+assert events
+assert enroll

@@ -74,7 +74,7 @@ async def get_folder_hierarchy(
         example="AssetBuild,Shot,Sequence",
     ),
 ):
-    """Return a hierarchy of a project."""
+    """Return a folder hierarchy of a project."""
 
     start_time = time.time()
 
