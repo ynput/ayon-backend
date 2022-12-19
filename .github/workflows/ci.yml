@@ -7,20 +7,20 @@ jobs:
     runs-on: ubuntu-latest
     container: python:3.10-bullseye
 
-    services:
-      postgres:
-        image: postgres
-        env:
-          POSTGRES_USER: pypeusr
-          POSTGRES_PASSWORD: pypepass
-          POSTGRES_DB: pype
-        ports:
-          - "5432:5432"
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    #services:
+    #  postgres:
+    #    image: postgres
+    #    env:
+    #      POSTGRES_USER: pypeusr
+    #      POSTGRES_PASSWORD: pypepass
+    #      POSTGRES_DB: pype
+    #    ports:
+    #      - "5432:5432"
+    #    options: >-
+    #      --health-cmd pg_isready
+    #      --health-interval 10s
+    #      --health-timeout 5s
+    #      --health-retries 5
 
     steps:
       - uses: actions/checkout@v1
@@ -30,7 +30,7 @@ jobs:
       - name: Set up Python 3.10
         uses: actions/setup-python@v2.2.1
         with:
-          python-version: 3.10.8
+          python-version: 3.10.9
 
       - name: Install Poetry
         uses: snok/install-poetry@v1
@@ -59,5 +59,5 @@ jobs:
       - name: Run setup
         run: poetry run python -m setup --with-schema
 
-      - name: Test with pytest
-        run: poetry run pytest
+      #- name: Test with pytest
+      #  run: poetry run pytest
