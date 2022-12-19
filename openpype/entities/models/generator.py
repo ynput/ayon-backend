@@ -10,11 +10,14 @@ from typing import Any, List, Literal, Optional, Type, TypeVar, Union
 
 from pydantic import BaseModel, Field, create_model
 
+from openpype.types import AttributeType
+
 C = TypeVar("C", bound=type)
 
 #
 # Field types
 #
+
 
 FIELD_TYPES = {
     "string": str,
@@ -78,16 +81,7 @@ class FieldDefinition(BaseModel):
     required: bool = Field(title="Required field", default=False)
 
     # This is rather stupid, but typing.Literal
-    # does not allow argument unpacking :-(
-    type: Literal[
-        "string",
-        "integer",
-        "float",
-        "boolean",
-        "list_of_strings",
-        "list_of_any",
-        "dict",
-    ] = Field(default="string", title="Field data type")
+    type: AttributeType = Field(default="string", title="Field data type")
     submodel: Optional[Any]
 
     # Descriptive

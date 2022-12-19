@@ -8,7 +8,12 @@ from openpype.api.dependencies import dep_attribute_name, dep_current_user
 from openpype.entities import UserEntity
 from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
-from openpype.types import OPModel
+from openpype.types import (
+    AttributeType,
+    OPModel,
+    ProjectLevelEntityType,
+    TopLevelEntityType,
+)
 from openpype.utils import SQLTool
 
 #
@@ -26,22 +31,75 @@ router = APIRouter(
 )
 
 
+class AttributeEnumItem(OPModel):
+    """Attribute enum item."""
+
+    value: Any = Field(..., title="Enum value")
+    label: str = Field(..., title="Enum label")
+
+
 class AttributeData(OPModel):
-    type: str
-    title: str | None = Field(None, title="Nice field title")
-    description: str | None = Field(None, title="Field description")
-    example: Any = Field(None, title="Field example")
-    default: Any = Field(None, title="Field default value")
+    type: AttributeType = Field(
+        ...,
+        title="Type",
+        description="Type of attribute value",
+        example="string",
+    )
+    title: str | None = Field(
+        None,
+        title="Title",
+        description="Nice, human readable title of the attribute",
+        example="My attribute",
+    )
+    description: str | None = Field(
+        None,
+        title="Field description",
+        example="Value of my attribute",
+    )
+    example: Any = Field(
+        None,
+        title="Field example",
+        description="Example value of the field.",
+        example="value1",
+    )
+    default: Any = Field(
+        None,
+        title="Field default value",
+        description="Default value for the attribute. Do not set for list types.",
+    )
     gt: int | float | None = Field(None, title="Greater than")
     ge: int | float | None = Field(None, title="Geater or equal")
     lt: int | float | None = Field(None, title="Less")
     le: int | float | None = Field(None, title="Less or equal")
     min_length: int | None = Field(None, title="Minimum length")
     max_length: int | None = Field(None, title="Maximum length")
-    min_items: int | None = Field(None, title="Minimum items")
-    max_items: int | None = Field(None, title="Maximum items")
-    regex: int | None = Field(None, title="Field regex")
-    enum: list[dict[str, Any]] | None = Field(None, title="Field enum")
+    min_items: int | None = Field(
+        None,
+        title="Minimum items",
+        description="Minimum number of items in list type.",
+    )
+    max_items: int | None = Field(
+        None,
+        title="Maximum items",
+        description="Only for list types. Maximum number of items in the list.",
+    )
+    regex: str | None = Field(
+        None,
+        title="Field regex",
+        description="Only for string types. The value must match this regex.",
+        example="^[a-zA-Z0-9_]+$",
+    )
+
+    enum: list[AttributeEnumItem] | None = Field(
+        None,
+        title="Field enum",
+        description="List of enum items used for displaying select/multiselect widgets",
+        example=[
+            {"value": "value1", "label": "Value 1"},
+            {"value": "value2", "label": "Value 2"},
+            {"value": "value3", "label": "Value 3"},
+        ],
+    )
 
 
 class AttributeNameModel(OPModel):
@@ -49,6 +107,7 @@ class AttributeNameModel(OPModel):
         ...,
         name="Attribute name",
         regex="^[a-zA-Z0-9]{2,30}$",
+        example="my_attribute",
     )
 
 
@@ -57,9 +116,19 @@ class AttributePutModel(OPModel):
         ...,
         title="Positon",
         description="Default order",
+        example=12,
     )
-    scope: list[str]
-    builtin: bool
+    scope: list[ProjectLevelEntityType | TopLevelEntityType] = Field(
+        default_factory=list,
+        title="Scope",
+        description="List of entity types the attribute is available on",
+        example=["folder", "task"],
+    )
+    builtin: bool = Field(
+        ...,
+        title="Builtin",
+        description="Is attribute builtin. Built-in attributes cannot be removed.",
+    )
     data: AttributeData
 
 

@@ -177,6 +177,17 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
             {"value": "test3", "label": "Test 3"},
         ],
     },
+    "testList": {
+        "scope": "P, F, V, R, T",
+        "type": "list_of_strings",
+        "title": "Test LoS",
+        "default": ["test1"],
+        "enum": [
+            {"value": "test1", "label": "Test 1"},
+            {"value": "test2", "label": "Test 2"},
+            {"value": "test3", "label": "Test 3"},
+        ],
+    },
 }
 
 
