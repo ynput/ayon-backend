@@ -114,6 +114,17 @@ CREATE TABLE IF NOT EXISTS public.addon_versions(
   staging_version VARCHAR
 );
 
+
+CREATE TABLE IF NOT EXISTS public.addon_data(
+  addon_name VARCHAR NOT NULL,
+  addon_version VARCHAR NOT NULL,
+  staging BOOL NOT NULL DEFAULT FALSE,
+  key VARCHAR NOT NULL,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  PRIMARY KEY (addon_name, addon_version, staging, key)
+);
+
+
 --------------
 -- SERVICES --
 --------------
