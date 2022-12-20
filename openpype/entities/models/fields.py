@@ -11,16 +11,27 @@ See .generator.FieldDefinition model for more information on specifiing
 field parameters.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from openpype.types import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, LABEL_REGEX, NAME_REGEX
 
 
 class RepresentationFile(BaseModel):
-    name: str
-    size: int
-    status: str
-    whatever: str
+    id: str = Field(
+        ...,
+        title="Representation file ID",
+        description="Unique (within the representation) ID of the file",
+    )
+    path: str = Field(
+        ...,
+        title="Representation file path",
+        description="Path to the file",
+    )
+    size: int = Field(0, title="File size", description="Size of the file in bytes")
+    hash: str | None = Field(None, title="Hash of the file")
+    hash_type: Literal["md5", "sha1", "sha256"] = Field("md5")
 
 
 project_fields = [

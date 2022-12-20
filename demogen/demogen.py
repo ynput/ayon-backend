@@ -1,5 +1,6 @@
 import asyncio
 import enum
+import hashlib
 import random
 import time
 from typing import Any
@@ -23,22 +24,9 @@ from setup.attributes import DEFAULT_ATTRIBUTES
 VERSIONS_PER_SUBSET = 5
 
 
-class StateEnum(enum.IntEnum):
-    """
-    -1 : State is not available
-    0 : Transfer in progress
-    1 : File is queued for Transfer
-    2 : Transfer failed
-    3 : Tranfer is paused
-    4 : File/representation is fully synchronized
-    """
-
-    NOT_AVAILABLE = -1
-    IN_PROGRESS = 0
-    QUEUED = 1
-    FAILED = 2
-    PAUSED = 3
-    SYNCED = 4
+def get_random_md5():
+    """Get random md5 hash."""
+    return hashlib.md5(str(random.random()).encode("utf-8")).hexdigest()
 
 
 class DemoGen:
@@ -306,7 +294,7 @@ class DemoGen:
             "folder": folder.name,
         }
 
-        files = {}
+        files = []
         if "{frame}" in kwargs["attrib"]["template"]:
             frame_start = folder.attrib.frameStart
             frame_end = folder.attrib.frameEnd
@@ -316,11 +304,14 @@ class DemoGen:
         for i in range(frame_start, frame_end + 1):
             fid = create_uuid()
             fpath = kwargs["attrib"]["template"].format(frame=f"{i:06d}", **context)
-            files[fid] = {
-                "path": fpath,
-                "size": random.randint(1_000_000, 10_000_000),
-                "hash": fid,
-            }
+            files.append(
+                {
+                    "id": fid,
+                    "path": fpath,
+                    "size": random.randint(1_000_000, 10_000_000),
+                    "hash": get_random_md5(),
+                }
+            )
 
         #
         # Save the representation
@@ -332,8 +323,8 @@ class DemoGen:
                 "version_id": version.id,
                 "tags": self.get_entity_tags(),
                 "status": self.get_entity_status(),
+                "files": files,
                 "data": {
-                    "files": files,
                     "context": context,
                 },
                 **kwargs,
@@ -342,78 +333,4 @@ class DemoGen:
         )
         await representation.save(conn)
 
-        #
-        # Save sync state of the files
-        #
-
-        sites = ["local", "remote"] + [f"user{j:02d}" for j in range(1, 5)]
-
-        priority = random.choice([0, 0, 0, 10, 50, 100])
-
-        for site_name in sites:
-
-            if site_name == "local" and random.choice([True] * 4 + [False]):
-                continue
-
-            fdata: dict[str, Any] = {"files": {}}
-            for fid, file in files.items():
-                status: StateEnum
-
-                if site_name == "remote":
-                    status = StateEnum.SYNCED
-                else:
-                    status = StateEnum(random.choice([-1, 0, 2, 3, 4]))
-                fsize = {
-                    StateEnum.NOT_AVAILABLE: 0,
-                    StateEnum.FAILED: 0,
-                    StateEnum.IN_PROGRESS: random.randint(0, file["size"]),
-                    StateEnum.PAUSED: random.randint(0, file["size"]),
-                    StateEnum.QUEUED: 0,
-                    StateEnum.SYNCED: file["size"],
-                }[status]
-
-                fdata["files"][fid] = {
-                    "status": status,
-                    "timestamp": int(time.time())
-                    if status
-                    in [
-                        StateEnum.SYNCED,
-                        StateEnum.PAUSED,
-                        StateEnum.IN_PROGRESS,
-                        StateEnum.FAILED,
-                    ]
-                    else 0,
-                    "size": fsize,
-                }
-                if status == StateEnum.FAILED:
-                    excuse = random.choice(
-                        [
-                            "Resonant Kernel Incompatibility"
-                            "Nullified Handler Problem",
-                            "Severe Warming Infection",
-                            "Insufficient Kernel Flag",
-                            "Outmoded Protocol Problem",
-                            "Unregistered Peripheral Rejection",
-                        ]
-                    )
-                    fdata["files"][fid].update(
-                        {
-                            "message": f"Transfer failed: {excuse}",
-                            "retries": random.randint(1, 4),
-                        }
-                    )
-
-            await conn.execute(
-                f"""
-                INSERT INTO project_{self.project_name}.files
-                    (representation_id, site_name, status, priority, data)
-                VALUES
-                    ($1, $2, $3, $4, $5)
-                """,
-                representation.id,
-                site_name,
-                status,
-                priority,
-                fdata,
-            )
         return representation

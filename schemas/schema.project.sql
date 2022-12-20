@@ -255,28 +255,6 @@ CREATE TABLE workfiles(
 );
 
 -----------
--- FILES --
------------
-
--- This table doesn't represent entities, but state of file synchronisation 
--- across sites. Each row represnts a representation on a location
--- so there should be max representations*locations rows and
--- they don't have a python counterpart derived from BaseEntity class.
-
-
-CREATE TABLE files (
-    representation_id UUID NOT NULL REFERENCES representations(id) ON DELETE CASCADE,
-    site_name VARCHAR NOT NULL,
-    status INTEGER NOT NULL DEFAULT -1,
-    priority INTEGER NOT NULL DEFAULT 50,
-    data JSONB NOT NULL DEFAULT '{}'::JSONB,
-    PRIMARY KEY (representation_id, site_name)
-);
-
-CREATE INDEX file_status_idx ON files(status);
-CREATE INDEX file_priority_idx ON files(priority desc);
-
------------
 -- LINKS --
 -----------
 
