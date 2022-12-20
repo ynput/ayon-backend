@@ -89,6 +89,12 @@ class PypeConfig(BaseModel):
         example="123456789012345678",
     )
 
+    motd: str | None = Field(
+        default=None,
+        description="Message of the day",
+        example="Welcome to Ayon!",
+    )
+
 
 #
 # Load configuration from environment variables

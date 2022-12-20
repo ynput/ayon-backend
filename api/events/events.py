@@ -5,7 +5,7 @@ from fastapi import Depends, Response
 from openpype.api.dependencies import dep_current_user, dep_event_id
 from openpype.entities import UserEntity
 from openpype.events import EventModel, dispatch_event, update_event
-from openpype.exceptions import NotFoundException
+from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 
@@ -14,6 +14,8 @@ from .router import router
 #
 # Models
 #
+
+normal_user_topic_whitelist = []
 
 
 class DispatchEventRequestModel(OPModel):
@@ -102,6 +104,11 @@ async def post_event(
     request: DispatchEventRequestModel,
     user: UserEntity = Depends(dep_current_user),
 ) -> DispatchEventResponseModel:
+
+    if not user.is_manager:
+        if request.topic not in normal_user_topic_whitelist:
+            raise ForbiddenException("Not allowed to update this event")
+
     event_id = await dispatch_event(
         request.topic,
         sender=request.sender,
@@ -161,6 +168,10 @@ async def update_existing_event(
     event_id: str = Depends(dep_event_id),
 ):
     """Update existing event."""
+
+    if not user.is_manager:
+        if payload.topic not in normal_user_topic_whitelist:
+            raise ForbiddenException("Not allowed to update this event")
 
     await update_event(
         event_id,

@@ -49,7 +49,8 @@ async def get_task(
     status_code=201,
     response_model=EntityIdResponse,
     responses={
-        409: ResponseFactory.error(409, "Coflict"),
+        # TODO: check - will this happen only when the folderId is invalid?
+        409: ResponseFactory.error(409, "Specified folder does not exist"),
     },
 )
 async def create_task(

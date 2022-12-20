@@ -8,19 +8,25 @@ from openpype.types import Field, OPModel
 
 router = APIRouter(tags=["Anatomy"], prefix="/anatomy")
 
-VERSION = "4.0.0"
-
-# TODO: define fields properly
+VERSION = "1.0.0"
 
 
 class AnatomyPresetListItem(OPModel):
-    name: str = Field(...)
-    primary: bool
-    version: str
+    name: str = Field(..., title="Name of the preset")
+    primary: bool = Field(..., title="Is this preset primary")
+    version: str = Field(..., title="Version of the anatomy model")
 
 
 class AnatomyPresetListModel(OPModel):
-    presets: list[AnatomyPresetListItem]
+    version: str = Field(
+        ...,
+        title="Model version",
+        description="Anatomy model version currently used in Ayon",
+    )
+    presets: list[AnatomyPresetListItem] = Field(
+        default_factory=list,
+        title="List of anatomy presets",
+    )
 
 
 @router.get("/schema")
@@ -44,10 +50,12 @@ async def get_anatomy_presets() -> AnatomyPresetListModel:
     async for row in Postgres.iterate(query):
         presets.append(
             AnatomyPresetListItem(
-                name=row["name"], primary=row["is_primary"], version=row["version"]
+                name=row["name"],
+                primary=row["is_primary"],
+                version=row["version"],
             )
         )
-    return AnatomyPresetListModel(presets=presets)
+    return AnatomyPresetListModel(version=VERSION, presets=presets)
 
 
 @router.get(
@@ -63,8 +71,8 @@ async def get_anatomy_preset(preset_name: str):
         tpl = Anatomy()
         return tpl
 
-    query = "SELECT * FROM anatomy_presets WHERE name = $1"
-    async for row in Postgres.iterate(query, preset_name):
+    query = "SELECT * FROM anatomy_presets WHERE name = $1 AND version = $2"
+    async for row in Postgres.iterate(query, preset_name, VERSION):
         tpl = Anatomy(**row["data"])
         return tpl
 
