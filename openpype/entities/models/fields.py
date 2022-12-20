@@ -11,7 +11,17 @@ See .generator.FieldDefinition model for more information on specifiing
 field parameters.
 """
 
+from pydantic import BaseModel, Field
+
 from openpype.types import ENTITY_ID_EXAMPLE, ENTITY_ID_REGEX, LABEL_REGEX, NAME_REGEX
+
+
+class RepresentationFile(BaseModel):
+    name: str
+    size: int
+    status: str
+    whatever: str
+
 
 project_fields = [
     # Name is not here, since it's added by ModelSet class
@@ -260,6 +270,12 @@ representation_fields = [
         "description": "ID of the parent version",
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
+    },
+    {
+        "name": "files",
+        "list_of_submodels": RepresentationFile,
+        "title": "Files",
+        "description": "List of files",
     },
 ]
 

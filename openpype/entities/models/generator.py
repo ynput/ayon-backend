@@ -80,9 +80,9 @@ class FieldDefinition(BaseModel):
     name: str = Field(title="Name of the field")
     required: bool = Field(title="Required field", default=False)
 
-    # This is rather stupid, but typing.Literal
     type: AttributeType = Field(default="string", title="Field data type")
     submodel: Optional[Any]
+    list_of_submodels: Optional[Any]
 
     # Descriptive
     title: Optional[str] = Field(title="Nice field title")
@@ -153,6 +153,8 @@ def generate_model(
 
         if fdef.submodel:
             field["default_factory"] = fdef.submodel
+        elif fdef.list_of_submodels:
+            field["default_factory"] = list
         elif fdef.factory:
             field["default_factory"] = FIELD_FACORIES[fdef.factory]
         elif fdef.default is not None:
@@ -168,6 +170,8 @@ def generate_model(
 
         if fdef.submodel:
             ftype = fdef.submodel
+        elif fdef.list_of_submodels:
+            ftype = List[fdef.list_of_submodels]
         elif fdef.type in FIELD_TYPES:
             if fdef.required:
                 ftype = FIELD_TYPES[fdef.type]
