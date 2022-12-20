@@ -6,7 +6,7 @@
 Login using Oauth2 is implemented in the oauth module.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import Depends
 
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_access_token
@@ -16,10 +16,7 @@ from openpype.entities import UserEntity
 from openpype.exceptions import UnauthorizedException
 from openpype.types import Field, OPModel
 
-router = APIRouter(
-    prefix="/auth",
-    tags=["Authentication"],
-)
+from .router import router
 
 
 class LoginRequestModel(OPModel):

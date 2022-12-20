@@ -1,15 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import Depends
 
-from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user
 from openpype.entities import UserEntity
 from openpype.exceptions import ForbiddenException
 
-router = APIRouter(
-    prefix="/sessions",
-    tags=["Sessions"],
-    responses={401: ResponseFactory.error(401)},
-)
+from .router import router
 
 
 @router.get("")

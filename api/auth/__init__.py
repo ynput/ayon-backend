@@ -1,3 +1,6 @@
-__all__ = ["router"]
+from . import auth, sessions
+from .router import router
 
-from auth.auth import router
+assert router
+assert auth
+assert sessions

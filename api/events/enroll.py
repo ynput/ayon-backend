@@ -106,8 +106,6 @@ async def enroll(
     ):
 
         if row["target_status"] is not None:
-
-            print(sender, row["target_sender"])
             if row["target_sender"] != sender:
                 if payload.sequential:
                     return Response(status_code=204)
