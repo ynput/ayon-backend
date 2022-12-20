@@ -88,7 +88,7 @@ async def login(login: LoginRequestModel):
 
 class LogoutResponseModel(OPModel):
     detail: str = Field(
-        ...,
+        "Logged out",
         title="Response detail",
         description="Text description, which may be displayed to the user",
         example="Logged out",
