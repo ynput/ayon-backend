@@ -215,6 +215,7 @@ CREATE TABLE representations(
     name VARCHAR NOT NULL,
 
     version_id UUID NOT NULL REFERENCES versions(id) ON DELETE CASCADE,
+    files JSONB NOT NULL DEFAULT '[]'::JSONB,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
