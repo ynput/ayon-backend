@@ -1,7 +1,7 @@
 import time
 
 from attributes.attributes import AttributeModel, get_attribute_list
-from fastapi import APIRouter, Depends
+from fastapi import Depends
 
 from openpype.api import dep_current_user_optional
 from openpype.api.metadata import VERSION
@@ -9,7 +9,8 @@ from openpype.config import pypeconfig
 from openpype.entities import UserEntity
 from openpype.types import Field, OPModel
 
-router = APIRouter(prefix="/info", tags=["Site info"])
+from .router import router
+
 BOOT_TIME = time.time()
 
 
@@ -40,7 +41,12 @@ async def get_additional_info(user: UserEntity):
     }
 
 
-@router.get("", response_model=InfoResponseModel, response_model_exclude_none=True)
+@router.get(
+    "/info",
+    response_model=InfoResponseModel,
+    response_model_exclude_none=True,
+    tags=["System"],
+)
 async def get_site_info(
     current_user: UserEntity | None = Depends(dep_current_user_optional),
 ):

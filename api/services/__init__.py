@@ -1,3 +1,6 @@
-__all__ = ["router"]
+from . import hosts, services
+from .router import router
 
-from services.services import router
+assert router
+assert hosts
+assert services

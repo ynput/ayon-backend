@@ -1,9 +1,8 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, Path, Response
+from fastapi import Depends, Path, Response
 
 from openpype.addons import AddonLibrary
-from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user
 from openpype.entities import UserEntity
 from openpype.exceptions import ForbiddenException, NotFoundException
@@ -11,11 +10,7 @@ from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 from openpype.utils import SQLTool
 
-router = APIRouter(
-    prefix="/services",
-    tags=["Services"],
-    responses={401: ResponseFactory.error(401)},
-)
+from .router import router
 
 
 class ServiceDataModel(OPModel):
@@ -39,7 +34,7 @@ class ServiceListModel(OPModel):
     services: list[ServiceModel] = Field(default_factory=list)
 
 
-@router.get("", response_model=ServiceListModel)
+@router.get("/services", response_model=ServiceListModel, tags=["Services"])
 async def list_services(user: UserEntity = Depends(dep_current_user)):
 
     query = "SELECT * FROM services ORDER BY name ASC"
@@ -62,7 +57,7 @@ class SpawnServiceRequestModel(OPModel):
     hostname: str
 
 
-@router.put("/{name}", response_class=Response)
+@router.put("/services/{name}", response_class=Response, tags=["Services"])
 async def spawn_service(
     payload: SpawnServiceRequestModel,
     name: str = Path(...),
@@ -107,7 +102,7 @@ async def spawn_service(
     return Response(status_code=201)
 
 
-@router.delete("/{name}", response_class=Response)
+@router.delete("/services/{name}", response_class=Response, tags=["Services"])
 async def delete_service(
     name: str = Path(...),
     user: UserEntity = Depends(dep_current_user),
@@ -125,7 +120,7 @@ class PatchServiceRequestModel(OPModel):
     should_run: bool | None = Field(None)
 
 
-@router.patch("/{name}", response_class=Response)
+@router.patch("/services/{name}", response_class=Response, tags=["Services"])
 async def patch_service(
     payload: PatchServiceRequestModel,
     name: str = Path(...),

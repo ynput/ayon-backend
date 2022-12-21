@@ -7,7 +7,7 @@ from openpype.settings import BaseSettingsModel
 from openpype.types import OPModel
 
 router = APIRouter(
-    tags=["Addons"],
+    tags=["Addon settings"],
     responses={
         401: ResponseFactory.error(401),
         403: ResponseFactory.error(403),

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import Depends, Response
 from nxtools import logging
 
 from openpype.api import dep_current_user
@@ -6,13 +6,14 @@ from openpype.entities import UserEntity
 from openpype.events import dispatch_event
 from openpype.exceptions import ForbiddenException
 
-router = APIRouter(
-    prefix="/system",
-    tags=["System"],
-)
+from . import info, metrics
+from .router import router
+
+assert info
+assert metrics
 
 
-@router.post("/restart", response_class=Response)
+@router.post("/system/restart", response_class=Response, tags=["System"])
 async def request_server_restart(user: UserEntity = Depends(dep_current_user)):
     if not user.is_manager:
         raise ForbiddenException(

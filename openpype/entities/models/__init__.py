@@ -166,6 +166,7 @@ class ModelSet:
                 "type": "string",
                 "title": f"{self.entity_name.capitalize()} status",
                 "description": f"Status of the {self.entity_name}",
+                "example": "In progress",
                 "required": False,  # It is required in the DB, but not in the model
             },
             {
@@ -245,23 +246,21 @@ class ModelSet:
         model_name = f"{self.entity_name.capitalize()}PostModel"
         fields = [
             f
-            for f in (self.fields + self._project_level_fields)
+            for f in (self.fields + self._project_level_fields + self._common_fields)
             if not f.get("dynamic")
         ]
-        return generate_model(
-            model_name, fields + self._common_fields, EntityModelConfig
-        )
+        return generate_model(model_name, fields, EntityModelConfig)
 
     def _generate_patch_model(self) -> Type[BaseModel]:
         """Generate the patch model."""
         model_name = f"{self.entity_name.capitalize()}PatchModel"
         fields = []
-        for original_field in self.fields + self._project_level_fields:
+        for original_field in (
+            self.fields + self._project_level_fields + self._common_fields
+        ):
             if original_field.get("dynamic"):
                 continue
             field = copy.deepcopy(original_field)
             field["required"] = False
             fields.append(field)
-        return generate_model(
-            model_name, fields + self._common_fields, EntityModelConfig
-        )
+        return generate_model(model_name, fields, EntityModelConfig)

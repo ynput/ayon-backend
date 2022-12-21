@@ -171,6 +171,7 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "type": "string",
         "title": "Test enum",
         "default": "test1",
+        "example": "test1",
         "enum": [
             {"value": "test1", "label": "Test 1"},
             {"value": "test2", "label": "Test 2"},
@@ -182,6 +183,7 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "type": "list_of_strings",
         "title": "Test LoS",
         "default": ["test1"],
+        "example": ["test1", "test2"],
         "enum": [
             {"value": "test1", "label": "Test 1"},
             {"value": "test2", "label": "Test 2"},

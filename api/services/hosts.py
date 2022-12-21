@@ -1,35 +1,38 @@
 import time
 
-from fastapi import APIRouter, Depends
+from fastapi import Depends
 from services.services import ServiceModel, list_services
 
-from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user
 from openpype.entities import UserEntity
 from openpype.exceptions import ForbiddenException
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 
-router = APIRouter(
-    prefix="/hosts",
-    tags=["Hosts"],
-    responses={401: ResponseFactory.error(401)},
-)
+from .router import router
 
 
 class HostHealthModel(OPModel):
-    cpu: float = Field(0, title="CPU utilization", ge=0, le=100)
-    mem: float = Field(0, title="RAM utilization", ge=0, le=100)
+    cpu: float = Field(0, title="CPU utilization", ge=0, le=100, example=0.5)
+    mem: float = Field(0, title="RAM utilization", ge=0, le=100, example=42)
 
 
 class HostModel(OPModel):
-    name: str
-    last_seen: int
-    health: HostHealthModel
+    name: str = Field(..., title="Host name", example="my-host")
+    last_seen: int = Field(..., title="Last seen timestamp", example=123456789)
+    health: HostHealthModel = Field(
+        default_factory=HostHealthModel,
+        title="Host health",
+        example={"cpu": 0.5, "mem": 42},
+    )
 
 
 class HostListResponseModel(OPModel):
-    hosts: list[HostModel]
+    hosts: list[HostModel] = Field(
+        default_factory=list,
+        title="Hosts",
+        description="List of registered hosts",
+    )
 
 
 class HeartbeatRequestModel(OPModel):
@@ -38,6 +41,7 @@ class HeartbeatRequestModel(OPModel):
     services: list[str] = Field(
         default_factory=list,
         title="List of running services",
+        example=["ftrack-processor", "ftrack-event-server"],
     )
 
 
@@ -48,8 +52,14 @@ class HeartbeatResponseModel(OPModel):
     )
 
 
-@router.get("", response_model=HostListResponseModel)
+@router.get("/hosts", response_model=HostListResponseModel, tags=["Services"])
 async def list_hosts(user: UserEntity = Depends(dep_current_user)):
+    """Return a list of all hosts.
+
+    A host is an instance of Ayon Service Host (ASH) that is capable of
+    running addon services. A host record in the database is created
+    automatically when the host sends a heartbeat to the API.
+    """
     return HostListResponseModel(
         hosts=[
             HostModel(**row) async for row in Postgres.iterate("SELECT * FROM hosts")
@@ -57,11 +67,19 @@ async def list_hosts(user: UserEntity = Depends(dep_current_user)):
     )
 
 
-@router.post("/heartbeat", response_model=HeartbeatResponseModel)
+@router.post(
+    "/hosts/heartbeat", response_model=HeartbeatResponseModel, tags=["Services"]
+)
 async def host_heartbeat(
     payload: HeartbeatRequestModel,
     user: UserEntity = Depends(dep_current_user),
 ):
+    """Send a heartbeat from a host.
+
+    This endpoint is called by ASH to send a heartbeat to the API. The
+    heartbeat contains information about the host, its health and the
+    state of its services
+    """
 
     if not user.is_service:
         raise ForbiddenException("Only services have hearts to beat")

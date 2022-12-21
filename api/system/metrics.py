@@ -1,7 +1,7 @@
 import time
 
 import psutil
-from fastapi import APIRouter, Depends
+from fastapi import Depends
 from fastapi.responses import PlainTextResponse
 
 from openpype.api import dep_current_user
@@ -9,7 +9,7 @@ from openpype.entities import UserEntity
 from openpype.lib.postgres import Postgres
 from openpype.lib.redis import Redis
 
-router = APIRouter(prefix="", include_in_schema=False)
+from .router import router
 
 
 class SystemMetrics:
@@ -35,6 +35,7 @@ metrics = SystemMetrics()
 @router.get(
     "/metrics",
     response_class=PlainTextResponse,
+    tags=["System"],
 )
 async def get_system_metrics(
     user: UserEntity = Depends(dep_current_user),
