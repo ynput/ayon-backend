@@ -15,7 +15,7 @@ from .router import router
 # Models
 #
 
-normal_user_topic_whitelist = []
+normal_user_topic_whitelist: list[str] = []
 
 
 class DispatchEventRequestModel(OPModel):

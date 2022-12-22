@@ -7,6 +7,7 @@ from openpype.entities import VersionEntity
 from openpype.graphql.nodes.common import BaseNode
 from openpype.graphql.resolvers.representations import get_representations
 from openpype.graphql.utils import lazy_type, parse_attrib_data
+from openpype.utils import get_nickname
 
 if TYPE_CHECKING:
     from openpype.graphql.connections import RepresentationsConnection
@@ -75,6 +76,11 @@ class VersionNode(BaseNode):
 def version_from_record(project_name: str, record: dict, context: dict) -> VersionNode:
     """Construct a version node from a DB row."""
 
+    current_user = context["user"]
+    author = record["author"]
+    if current_user.is_guest and author is not None:
+        author = get_nickname(author)
+
     return VersionNode(  # type: ignore
         project_name=project_name,
         id=record["id"],
@@ -83,7 +89,7 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
         subset_id=record["subset_id"],
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
-        author=record["author"],
+        author=author,
         status=record["status"],
         tags=record["tags"],
         attrib=parse_attrib_data(

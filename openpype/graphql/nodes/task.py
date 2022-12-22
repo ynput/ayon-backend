@@ -8,6 +8,7 @@ from openpype.graphql.nodes.common import BaseNode
 from openpype.graphql.resolvers.versions import get_versions
 from openpype.graphql.resolvers.workfiles import get_workfiles
 from openpype.graphql.utils import lazy_type
+from openpype.utils import get_nickname
 
 if TYPE_CHECKING:
     from openpype.graphql.connections import VersionsConnection, WorkfilesConnection
@@ -108,13 +109,24 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
     else:
         folder = None
 
+    current_user = context["user"]
+    assignees: list[str] = []
+    if current_user.is_guest:
+        for assignee in record["assignees"]:
+            if assignee == current_user.name:
+                assignees.append(assignee)
+            else:
+                assignees.append(get_nickname(assignee))
+    else:
+        assignees = record["assignees"]
+
     return TaskNode(
         project_name=project_name,
         id=record["id"],
         name=record["name"],
         label=record["label"],
         task_type=record["task_type"],
-        assignees=record["assignees"],
+        assignees=assignees,
         folder_id=record["folder_id"],
         status=record["status"],
         tags=record["tags"],

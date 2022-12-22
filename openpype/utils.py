@@ -1,6 +1,7 @@
 """A set of commonly used functions."""
 
 import asyncio
+import functools
 import hashlib
 import json
 import random
@@ -9,6 +10,7 @@ import time
 import uuid
 from typing import Any, Callable
 
+import codenamize
 import orjson
 from pydantic import Field
 
@@ -108,6 +110,22 @@ def parse_api_key(authorization: str) -> str | None:
     if ttype.lower() != "apikey":
         return None
     return token
+
+
+@functools.lru_cache(maxsize=128)
+def obscure(text: str):
+    obscured = ""
+    for c in text:
+        if c == " ":
+            obscured += c
+        else:
+            obscured += "*"
+    return obscured.lower()
+
+
+@functools.lru_cache(maxsize=128)
+def get_nickname(text: str):
+    return codenamize.codenamize(text, 1)
 
 
 class EntityID:

@@ -27,6 +27,7 @@ FIELD_TYPES = {
     "list_of_strings": List[str],
     "list_of_integers": List[int],
     "list_of_any": List[Any],
+    "list_of_submodels": List[Any],
     "dict": dict,
 }
 
@@ -83,7 +84,6 @@ class FieldDefinition(BaseModel):
     type: AttributeType = Field(default="string", title="Field data type")
     submodel: Optional[Any]
     list_of_submodels: Optional[Any]
-
     # Descriptive
     title: Optional[str] = Field(title="Nice field title")
     description: Optional[str] = Field(title="Field description")
@@ -171,7 +171,8 @@ def generate_model(
         if fdef.submodel:
             ftype = fdef.submodel
         elif fdef.list_of_submodels:
-            ftype = List[fdef.list_of_submodels]
+            assert fdef.list_of_submodels
+            ftype = List[fdef.list_of_submodels]  # type: ignore
         elif fdef.type in FIELD_TYPES:
             if fdef.required:
                 ftype = FIELD_TYPES[fdef.type]

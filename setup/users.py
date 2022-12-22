@@ -21,7 +21,7 @@ async def deploy_users(
             if key in user:
                 attrib[key] = user[key]
 
-        for key in ["isManager", "isAdmin", "isService"]:
+        for key in ["isManager", "isAdmin", "isService", "isGuest"]:
             if key in user:
                 data[key] = user[key]
 

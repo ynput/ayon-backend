@@ -20,6 +20,7 @@ toml = "^0.10.2"
 types-toml = "^0.10.8"
 psutil = "^5.9.4"
 pre-commit = "^2.20.0"
+codenamize = "^1.2.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"

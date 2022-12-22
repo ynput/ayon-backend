@@ -118,6 +118,10 @@ class UserEntity(TopLevelEntity):
         return self._payload.data.get("isAdmin", False)
 
     @property
+    def is_guest(self) -> bool:
+        return self._payload.data.get("isGuest", False)
+
+    @property
     def is_manager(self) -> bool:
         data = self._payload.data
         return (

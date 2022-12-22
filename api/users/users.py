@@ -8,6 +8,7 @@ from openpype.entities import UserEntity
 from openpype.exceptions import ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
+from openpype.utils import get_nickname, obscure
 
 #
 # Router
@@ -89,6 +90,17 @@ async def get_user(
     if user.is_manager:
         return result.payload
 
+    if (
+        user.is_guest
+        and user.name != result.name
+        and result.data.get("createdBy") != user.name
+    ):
+        result.name = get_nickname(result.name)
+        if result.attrib.email:
+            result.attrib.email = obscure(result.attrib.email)
+        if result.attrib.fullName:
+            result.attrib.fullName = obscure(result.attrib.fullName)
+
     # To normal users, show only colleague's name
     return {"name": result.name}
 
@@ -115,6 +127,10 @@ async def create_user(
 
     if not user.is_manager:
         raise ForbiddenException
+
+    if user.is_guest:
+        put_data.data["isGuest"] = True
+    put_data.data["createdBy"] = user.name
 
     try:
         nuser = await UserEntity.load(user_name)
@@ -164,12 +180,30 @@ async def patch_user(
     if user_name == user.name and (not user.is_manager):
         # Normal users can only patch their attributes
         # (such as full name and email)
-        payload.data = None
+        payload.data = {}
         payload.active = None
     elif not user.is_manager:
         raise ForbiddenException
 
+    payload.data["updatedBy"] = user.name
     target_user = await UserEntity.load(user_name)
+
+    if user.is_guest:
+        # Guests can only modify themselves and users they created
+        if (
+            target_user.name != user.name
+            or target_user.data.get("createdBy") != user.name
+        ):
+            raise ForbiddenException("Guests can only modify themself and their guests")
+        # user cannot change any user's guest status
+        payload.data.pop("isGuest", None)
+
+    if not user.is_admin:
+        target_user.data.pop("isAdmin", None)
+        target_user.data.pop("isManager", None)
+    if not user.is_manager:
+        target_user.data.pop("isManager", None)
+
     target_user.patch(payload)
     await target_user.save()
 
