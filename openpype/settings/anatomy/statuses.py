@@ -19,7 +19,7 @@ def get_state_enum():
 class Status(BaseSettingsModel):
     _layout: str = "compact"
     name: str = Field(..., title="Name", min_length=1, max_length=100)
-    short_name: str = Field("", title="Short name")
+    shortName: str = Field("", title="Short name")
     state: State = Field("not_started", title="State", enum_resolver=get_state_enum)
     icon: str = Field("", title="Icon", widget="icon")
     color: str = Field("#cacaca", title="Color", widget="color")
@@ -32,49 +32,49 @@ class Status(BaseSettingsModel):
 default_statuses = [
     Status(
         name="Not ready",
-        short_name="NRD",
+        shortName="NRD",
         icon="fiber_new",
         color="#434a56",
         state="not_started",
     ),
     Status(
         name="Ready to start",
-        short_name="RDY",
+        shortName="RDY",
         icon="timer",
         color="#bababa",
         state="not_started",
     ),
     Status(
         name="In progress",
-        short_name="PRG",
+        shortName="PRG",
         icon="play_arrow",
         color="#3498db",
         state="in_progress",
     ),
     Status(
         name="Pending review",
-        short_name="RVW",
+        shortName="RVW",
         icon="visibility",
         color="#ff9b0a",
         state="in_progress",
     ),
     Status(
         name="Approved",
-        short_name="APP",
+        shortName="APP",
         icon="task_alt",
         color="#00f0b4",
         state="done",
     ),
     Status(
         name="On hold",
-        short_name="HLD",
+        shortName="HLD",
         icon="back_hand",
         color="#fa6e46",
         state="blocked",
     ),
     Status(
         name="Omitted",
-        short_name="OMT",
+        shortName="OMT",
         icon="block",
         color="#cb1a1a",
         state="blocked",
