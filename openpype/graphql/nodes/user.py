@@ -41,7 +41,7 @@ def user_from_record(record: dict, context: dict) -> UserNode:
     if (
         current_user.is_guest
         and current_user.name != name
-        and current_user.name != data.get("createdBy")
+        and current_user.name != data.created_by
     ):
         name = get_nickname(name)
         if attrib.email:

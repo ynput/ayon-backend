@@ -113,3 +113,19 @@ class BaseEntity:
     @updated_at.setter
     def updated_at(self, value: float) -> None:
         self._payload.updated_at = value
+
+    @property
+    def created_by(self) -> str | None:
+        return self._payload.data.get("createdBy")
+
+    @created_by.setter
+    def created_by(self, value: str) -> None:
+        self._payload.data["createdBy"] = value
+
+    @property
+    def updated_by(self) -> str | None:
+        return self._payload.data.get("updatedBy")
+
+    @updated_by.setter
+    def updated_by(self, value: str) -> None:
+        self._payload.data["updatedBy"] = value

@@ -138,6 +138,7 @@ class ModelSet:
             {
                 "name": "data",
                 "type": "dict",
+                "factory": "dict",
                 "title": f"{self.entity_name.capitalize()} auxiliary data",
             },
             {

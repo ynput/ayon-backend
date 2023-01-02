@@ -130,12 +130,12 @@ async def create_user(
 
     if user.is_guest:
         put_data.data["isGuest"] = True
-    put_data.data["createdBy"] = user.name
 
     try:
         nuser = await UserEntity.load(user_name)
     except NotFoundException:
         nuser = UserEntity(put_data.dict() | {"name": user_name})
+        nuser.created_by = user.name
     else:
         return Response(status_code=409)
 
