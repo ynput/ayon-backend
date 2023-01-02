@@ -4,7 +4,7 @@ from nxtools import logging
 
 from openpype.entities.core import ProjectLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
-from openpype.exceptions import NotFoundException, OpenPypeException
+from openpype.exceptions import AyonException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.types import ProjectLevelEntityType
 from openpype.utils import EntityID
@@ -89,7 +89,7 @@ class TaskEntity(ProjectLevelEntity):
                 """
             )
             if not res:
-                raise OpenPypeException("No task types defined")
+                raise AyonException("No task types defined")
             self.folder_type = res[0]["name"]
 
         return await super().save(transaction=transaction)

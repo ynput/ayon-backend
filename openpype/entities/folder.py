@@ -7,10 +7,10 @@ from openpype.access.utils import ensure_entity_access
 from openpype.entities.core import ProjectLevelEntity, attribute_library
 from openpype.entities.models import ModelSet
 from openpype.exceptions import (
+    AyonException,
     ConstraintViolationException,
     ForbiddenException,
     NotFoundException,
-    OpenPypeException,
 )
 from openpype.lib.postgres import Postgres
 from openpype.types import ProjectLevelEntityType
@@ -116,7 +116,7 @@ class FolderEntity(ProjectLevelEntity):
                 """
             )
             if not res:
-                raise OpenPypeException("No folder types defined")
+                raise AyonException("No folder types defined")
             self.folder_type = res[0]["name"]
 
         attrib = {}

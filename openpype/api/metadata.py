@@ -1,19 +1,19 @@
-VERSION = "0.0.1"
+VERSION = "1.0.0"
 
 app_meta = {
-    "title": "OpenPype server",
+    "title": "Ayon server",
     "description": "Open VFX and Animation pipeline server",
     "version": VERSION,
     "contact": {
-        "name": "Pype Club",
-        "email": "info@pype.club",
-        "url": "https://openpype.io",
+        "name": "Ynput",
+        "email": "info@ynput.io",
+        "url": "https://ynput.io",
     },
     "license_info": {
-        "name": "MIT License",
-        "url": "https://opensource.org/licenses/MIT",
+        "name": "Apache License 2.0",
+        "url": "http://www.apache.org/licenses/",
     },
-    "terms_of_service": "https://pype.club/terms",
+    "terms_of_service": "https://ynput.io/terms-of-service",
 }
 
 

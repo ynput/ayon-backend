@@ -1,10 +1,10 @@
-from openpype.exceptions import OpenPypeException
+from openpype.exceptions import AyonException
 from openpype.lib.postgres import Postgres
 
 
 async def folder_types_enum(project_name: str | None = None):
     if project_name is None:
-        raise OpenPypeException("Only available in project context")
+        raise AyonException("Only available in project context")
 
     return [
         row["name"]
@@ -20,7 +20,7 @@ async def folder_types_enum(project_name: str | None = None):
 
 async def task_types_enum(project_name: str | None = None):
     if project_name is None:
-        raise OpenPypeException("Only available in project context")
+        raise AyonException("Only available in project context")
 
     return [
         row["name"]

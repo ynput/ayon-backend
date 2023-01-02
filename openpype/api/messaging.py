@@ -10,7 +10,7 @@ from nxtools import log_traceback, logging
 from openpype.api.system import restart_server
 from openpype.auth.session import Session
 from openpype.background import BackgroundTask
-from openpype.config import pypeconfig
+from openpype.config import ayonconfig
 from openpype.lib.redis import Redis
 from openpype.utils import json_dumps, json_loads
 
@@ -104,7 +104,7 @@ class Messaging(BackgroundTask):
 
     async def run(self) -> None:
         self.pubsub = await Redis.pubsub()
-        await self.pubsub.subscribe(pypeconfig.redis_channel)
+        await self.pubsub.subscribe(ayonconfig.redis_channel)
         last_msg = time.time()
 
         while True:

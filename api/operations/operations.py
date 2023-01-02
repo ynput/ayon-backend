@@ -14,7 +14,7 @@ from openpype.entities import (
     VersionEntity,
 )
 from openpype.entities.core import ProjectLevelEntity
-from openpype.exceptions import OpenPypeException
+from openpype.exceptions import AyonException
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel, ProjectLevelEntityType
 from openpype.utils import create_uuid
@@ -169,7 +169,7 @@ async def process_operations(
             result.append(response)
             if entity.entity_type not in [e.entity_type for e in to_commit]:
                 to_commit.append(entity)
-        except OpenPypeException as e:
+        except AyonException as e:
             result.append(
                 OperationResponseModel(
                     success=False,

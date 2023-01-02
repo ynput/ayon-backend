@@ -1,5 +1,4 @@
 import asyncio
-import enum
 import hashlib
 import random
 import time

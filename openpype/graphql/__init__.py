@@ -68,7 +68,7 @@ async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> d
 
 @strawberry.type
 class Query:
-    """OpenPype GraphQL Query."""
+    """Ayon GraphQL Query."""
 
     project: ProjectNode = strawberry.field(
         description="Get a project by name",

@@ -7,7 +7,7 @@ from nxtools import logging
 from openpype.api import ResponseFactory
 from openpype.api.dependencies import dep_current_user
 from openpype.entities import UserEntity
-from openpype.exceptions import ForbiddenException, NotFoundException, OpenPypeException
+from openpype.exceptions import AyonException, ForbiddenException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.types import Field, OPModel
 from openpype.utils import dict_exclude
@@ -233,14 +233,14 @@ async def upload_dependency_package(
 
     file_size = os.path.getsize(file_path)
     if file_size != expected_size:
-        raise OpenPypeException(
+        raise AyonException(
             "Uploaded file has different size than expected"
             f"expected: {expected_size}, got: {file_size}"
         )
 
     checksum = md5sum(file_path)
     if checksum != expected_checksum:
-        raise OpenPypeException(
+        raise AyonException(
             "Uploaded file has different checksum than expected."
             f"expected: {expected_checksum}, got: {checksum}"
         )

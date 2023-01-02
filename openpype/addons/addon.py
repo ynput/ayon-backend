@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Type
 
 from nxtools import logging
 
-from openpype.exceptions import NotFoundException, OpenPypeException
+from openpype.exceptions import AyonException, NotFoundException
 from openpype.lib.postgres import Postgres
 from openpype.settings import BaseSettingsModel, apply_overrides
 
@@ -173,7 +173,7 @@ class BaseServerAddon:
         try:
             return toml.load(open(pyproject_path))
         except Exception:
-            raise OpenPypeException("Unable to parse pyproject.toml")
+            raise AyonException("Unable to parse pyproject.toml")
 
     #
     # Settings

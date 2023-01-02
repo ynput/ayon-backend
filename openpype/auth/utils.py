@@ -1,4 +1,4 @@
-from openpype.config import pypeconfig
+from openpype.config import ayonconfig
 from openpype.utils import create_hash, hash_data
 
 
@@ -12,9 +12,9 @@ def ensure_password_complexity(password: str) -> bool:
     When auth_pass_complex is set to True, the password is also checked
     whether it contains letters, numbers and special characters.
     """
-    if len(password) < pypeconfig.auth_pass_min_length:
+    if len(password) < ayonconfig.auth_pass_min_length:
         return False
-    if pypeconfig.auth_pass_complex:
+    if ayonconfig.auth_pass_complex:
         # Ensure password has digits, letters and special characters
         if not any(c.isalpha() for c in password):
             return False
@@ -29,7 +29,7 @@ def hash_password(password: str, salt: str = "") -> str:
     """Create a hash string from a given password and salt,
     and pepper from the config.
     """
-    return hash_data(f"{password}:{salt}:{pypeconfig.auth_pass_pepper}")
+    return hash_data(f"{password}:{salt}:{ayonconfig.auth_pass_pepper}")
 
 
 def create_password(password: str) -> str:

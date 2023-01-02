@@ -3,7 +3,7 @@ from typing import Any
 import aioredis
 import aioredis.client
 
-from openpype.config import pypeconfig
+from openpype.config import ayonconfig
 
 
 class Redis:
@@ -13,7 +13,7 @@ class Redis:
     @classmethod
     async def connect(cls) -> None:
         """Create a Redis connection pool"""
-        cls.redis_pool = aioredis.from_url(pypeconfig.redis_url)
+        cls.redis_pool = aioredis.from_url(ayonconfig.redis_url)
         cls.connected = True
 
     @classmethod
@@ -65,7 +65,7 @@ class Redis:
         if not cls.connected:
             await cls.connect()
         if channel is None:
-            channel = pypeconfig.redis_channel
+            channel = ayonconfig.redis_channel
         await cls.redis_pool.publish(channel, message)
 
     @classmethod

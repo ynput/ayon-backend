@@ -4,7 +4,7 @@ import asyncpg
 import asyncpg.pool
 import asyncpg.transaction
 
-from openpype.config import pypeconfig
+from openpype.config import ayonconfig
 from openpype.utils import EntityID, json_dumps, json_loads
 
 
@@ -52,7 +52,7 @@ class Postgres:
             print("Unable to connect to Postgres while shutting down.")
             return
         cls.pool = await asyncpg.create_pool(
-            pypeconfig.postgres_url, init=cls.init_connection
+            ayonconfig.postgres_url, init=cls.init_connection
         )
 
     @classmethod

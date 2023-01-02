@@ -5,7 +5,7 @@ from fastapi import Depends
 
 from openpype.api import dep_current_user_optional
 from openpype.api.metadata import VERSION
-from openpype.config import pypeconfig
+from openpype.config import ayonconfig
 from openpype.entities import UserEntity
 from openpype.types import Field, OPModel
 
@@ -20,7 +20,7 @@ def get_uptime():
 
 class InfoResponseModel(OPModel):
     motd: str | None = Field(
-        pypeconfig.motd,
+        ayonconfig.motd,
         title="Message of the day",
         description="Instance specific message to be displayed in the login page",
     )

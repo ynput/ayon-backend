@@ -7,7 +7,7 @@ need for access control.
 
 from typing import Any, NewType
 
-from openpype.exceptions import OpenPypeException
+from openpype.exceptions import AyonException
 from openpype.lib.postgres import Postgres
 from openpype.utils import SQLTool
 
@@ -18,7 +18,7 @@ KeysType = NewType("KeysType", list[KeyType])
 def get_project_name(keys: list[KeyType]) -> str:
     project_names = set(k[0] for k in keys)
     if len(project_names) != 1:
-        raise OpenPypeException("Data loaders cannot perform cross-project requests")
+        raise AyonException("Data loaders cannot perform cross-project requests")
     return project_names.pop()
 
 

@@ -17,9 +17,9 @@ from openpype.api.messaging import Messaging
 from openpype.api.metadata import app_meta, tags_meta
 from openpype.api.responses import ErrorResponse
 from openpype.auth.session import Session
-from openpype.config import pypeconfig
+from openpype.config import ayonconfig
 from openpype.events import dispatch_event, update_event
-from openpype.exceptions import OpenPypeException, UnauthorizedException
+from openpype.exceptions import AyonException, UnauthorizedException
 from openpype.graphql import router as graphql_router
 from openpype.helpers.thumbnail_cleaner import thumbnail_cleaner
 from openpype.lib.postgres import Postgres
@@ -50,7 +50,7 @@ class AuthStaticFiles(StaticFiles):
         if access_token:
             try:
                 session_data = await Session.check(access_token, None)
-            except OpenPypeException:
+            except AyonException:
                 pass
             else:
                 if session_data:
@@ -91,7 +91,7 @@ async def custom_404_handler(request: fastapi.Request, _):
             ).dict(),
         )
 
-    index_path = os.path.join(pypeconfig.frontend_dir, "index.html")
+    index_path = os.path.join(ayonconfig.frontend_dir, "index.html")
     if os.path.exists(index_path):
         return fastapi.responses.FileResponse(
             index_path, status_code=200, media_type="text/html"
@@ -112,7 +112,7 @@ async def user_name_from_request(request: fastapi.Request) -> str:
         return "anonymous"
     try:
         session_data = await Session.check(access_token, None)
-    except OpenPypeException:
+    except AyonException:
         return "anonymous"
     if not session_data:
         return "anonymous"
@@ -121,10 +121,10 @@ async def user_name_from_request(request: fastapi.Request) -> str:
     return user_name
 
 
-@app.exception_handler(OpenPypeException)
-async def openpype_exception_handler(
+@app.exception_handler(AyonException)
+async def ayon_exception_handler(
     request: fastapi.Request,
-    exc: OpenPypeException,
+    exc: AyonException,
 ) -> fastapi.responses.JSONResponse:
     user_name = await user_name_from_request(request)
 
@@ -290,9 +290,9 @@ def init_frontend(target_app: fastapi.FastAPI, frontend_dir: str) -> None:
     target_app.mount("/", StaticFiles(directory=frontend_dir, html=True))
 
 
-init_api(app, pypeconfig.api_modules_dir)
+init_api(app, ayonconfig.api_modules_dir)
 init_addons(app)
-init_frontend(app, pypeconfig.frontend_dir)
+init_frontend(app, ayonconfig.frontend_dir)
 
 
 #

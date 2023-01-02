@@ -5,7 +5,7 @@ from nxtools import log_traceback, logging
 
 from openpype.addons.addon import BaseServerAddon
 from openpype.addons.definition import ServerAddonDefinition
-from openpype.config import pypeconfig
+from openpype.config import ayonconfig
 
 # from openpype.addons.utils import classes_from_module, import_module
 from openpype.exceptions import NotFoundException
@@ -13,7 +13,7 @@ from openpype.lib.postgres import Postgres
 
 
 class AddonLibrary:
-    ADDONS_DIR = pypeconfig.addons_dir
+    ADDONS_DIR = ayonconfig.addons_dir
     _instance = None
 
     @classmethod
@@ -49,7 +49,7 @@ class AddonLibrary:
                 self.restart_requested = True
 
     def get_addons_dir(self) -> str | None:
-        for d in [pypeconfig.addons_dir, "addons"]:
+        for d in [ayonconfig.addons_dir, "addons"]:
             if not os.path.isdir(d):
                 continue
             return d

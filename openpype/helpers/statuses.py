@@ -1,4 +1,4 @@
-from openpype.exceptions import OpenPypeException
+from openpype.exceptions import AyonException
 from openpype.lib.postgres import Postgres
 
 
@@ -28,4 +28,4 @@ async def get_default_status_for_entity(
 
         return name
 
-    raise OpenPypeException("No default status available")
+    raise AyonException("No default status available")

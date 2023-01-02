@@ -4,7 +4,7 @@ from nxtools import logging
 from yaoauth2 import OAuth2Data, YAOAuth2
 
 from openpype.auth.session import Session
-from openpype.config import pypeconfig
+from openpype.config import ayonconfig
 from openpype.entities import UserEntity
 from openpype.exceptions import UnauthorizedException
 from openpype.lib.postgres import Postgres
@@ -52,18 +52,18 @@ oauth2.config.login_response_model = LoginResponseModel
 oauth2.config.enable_redirect_endpoint = False
 
 
-if pypeconfig.discord_client_id:
+if ayonconfig.discord_client_id:
     oauth2.add_provider(
         name="discord",
-        client_id=pypeconfig.discord_client_id,
-        client_secret=pypeconfig.discord_client_secret,
+        client_id=ayonconfig.discord_client_id,
+        client_secret=ayonconfig.discord_client_secret,
     )
 
-if pypeconfig.google_client_id:
+if ayonconfig.google_client_id:
     oauth2.add_provider(
         name="google",
-        client_id=pypeconfig.google_client_id,
-        client_secret=pypeconfig.google_client_secret,
+        client_id=ayonconfig.google_client_id,
+        client_secret=ayonconfig.google_client_secret,
     )
 
 #

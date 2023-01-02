@@ -5,7 +5,7 @@ import os
 from pydantic import BaseModel, Field
 
 
-class PypeConfig(BaseModel):
+class AyonConfig(BaseModel):
     """Server configuration"""
 
     http_listen_address: str = Field(
@@ -101,7 +101,7 @@ class PypeConfig(BaseModel):
 #
 
 
-def load_config() -> PypeConfig:
+def load_config() -> AyonConfig:
     """Load configuration"""
     env_prefixes = ["openpype_", "ayon_"]
     env_data = {}
@@ -111,10 +111,10 @@ def load_config() -> PypeConfig:
                 continue
 
             key = key.lower().removeprefix(prefix)
-            if key in PypeConfig.__fields__:
+            if key in AyonConfig.__fields__:
                 env_data[key] = value
 
-    return PypeConfig(**env_data)
+    return AyonConfig(**env_data)
 
 
-pypeconfig = load_config()
+ayonconfig = load_config()
