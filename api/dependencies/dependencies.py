@@ -98,7 +98,9 @@ async def list_dependency_packages():
     """Return a list of dependency packages"""
 
     packages: list[DependencyPackage] = []
-    async for row in Postgres.iterate("SELECT * FROM dependency_packages"):
+    async for row in Postgres.iterate(
+        "SELECT * FROM dependency_packages ORDER BY name ASC"
+    ):
         data = row["data"]
         if os.path.exists(
             file_path := get_package_file_path(row["name"], row["platform"])
@@ -113,8 +115,13 @@ async def list_dependency_packages():
             DependencyPackage(name=row["name"], platform=row["platform"], **data)
         )
 
-    result = DependencyPackageList(packages=packages, production_package="idk. TODO")
-    print(result.dict())
+    production_package = None
+    if packages:
+        production_package = packages[-1].name
+
+    result = DependencyPackageList(
+        packages=packages, production_package=production_package
+    )
     return result
 
 
