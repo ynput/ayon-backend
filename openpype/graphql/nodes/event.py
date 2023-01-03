@@ -1,5 +1,7 @@
 import strawberry
 
+from openpype.utils import get_nickname, obscure
+
 
 @strawberry.type
 class EventNode:
@@ -18,6 +20,15 @@ class EventNode:
 
 
 def event_from_record(record: dict, context: dict) -> EventNode:
+    current_user = context["user"]
+    record = dict(record)
+
+    if current_user.is_guest and record["user_name"] != current_user.name:
+        if record["user_name"]:
+            record["user_name"] = get_nickname(record["user_name"])
+        if record["description"]:
+            record["description"] = obscure(record["description"])
+
     return EventNode(
         id=record["id"],
         hash=record["hash"],

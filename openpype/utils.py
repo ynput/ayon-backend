@@ -120,7 +120,7 @@ def obscure(text: str):
             obscured += c
         else:
             obscured += "*"
-    return obscured.lower()
+    return obscured
 
 
 @functools.lru_cache(maxsize=128)

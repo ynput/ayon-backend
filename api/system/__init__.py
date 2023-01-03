@@ -19,6 +19,10 @@ async def request_server_restart(user: UserEntity = Depends(dep_current_user)):
         raise ForbiddenException(
             "Only managers and administrators can restart the server"
         )
+
+    if user.is_guest:
+        raise ForbiddenException("Guests cannot restart the server")
+
     logging.info(f"{user.name} requested server restart", user=user.name)
     await dispatch_event("server.restart_requested", user=user.name)
     return Response(status_code=204)

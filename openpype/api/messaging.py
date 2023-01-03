@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import time
 import uuid
 from contextlib import suppress
@@ -12,7 +13,7 @@ from openpype.auth.session import Session
 from openpype.background import BackgroundTask
 from openpype.config import ayonconfig
 from openpype.lib.redis import Redis
-from openpype.utils import json_dumps, json_loads
+from openpype.utils import get_nickname, json_dumps, json_loads, obscure
 
 ALWAYS_SUBSCRIBE = [
     "server.started",
@@ -34,7 +35,11 @@ class Client:
     def user_name(self) -> str | None:
         if self.user is None:
             return None
-        return self.user["login"]
+        return self.user.name
+
+    @property
+    def is_guest(self) -> bool:
+        return self.user.data.get("isGuest", False)
 
     async def authorize(self, access_token: str, topics: list[str]) -> bool:
         session_data = await Session.check(access_token, None)
@@ -126,7 +131,18 @@ class Messaging(BackgroundTask):
                 for client_id, client in self.clients.items():
                     for topic in client.topics:
                         if topic == "*" or message["topic"].startswith(topic):
-                            await client.send(message)
+                            if (
+                                client.is_guest
+                                and message.get("user") != client.user_name
+                            ):
+                                m = copy.deepcopy(message)
+                                if m.get("user"):
+                                    m["user"] = get_nickname(m["user"])
+                                if m.get("description"):
+                                    m["description"] = obscure(m["description"])
+                                await client.send(m)
+                            else:
+                                await client.send(message)
                             break
 
                 if message["topic"] == "server.restart_requested":
