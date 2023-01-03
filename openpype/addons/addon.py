@@ -182,40 +182,75 @@ class BaseServerAddon:
     def get_settings_model(self) -> Type[BaseSettingsModel] | None:
         return self.settings_model
 
-    async def get_studio_overrides(self) -> dict[str, Any]:
+    async def get_studio_overrides(self, snapshot: int | None = None) -> dict[str, Any]:
         """Load the studio overrides from the database."""
 
-        res = await Postgres.fetch(
-            f"""
-            SELECT data FROM settings
-            WHERE addon_name = '{self.definition.name}'
-            AND addon_version = '{self.version}'
-            ORDER BY snapshot_time DESC LIMIT 1
-            """
-        )
+        if snapshot is None:
+            query = (
+                """
+                SELECT data FROM settings
+                WHERE addon_name = $1 AND addon_version = $2
+                ORDER BY snapshot_time DESC LIMIT 1
+                """,
+                self.definition.name,
+                self.version,
+            )
+        else:
+            query = (
+                """
+                SELECT data FROM settings
+                WHERE addon_name = $1 AND addon_version = $2 AND snapshot_time = $3
+                """,
+                self.definition.name,
+                self.version,
+                snapshot,
+            )
+        res = await Postgres.fetch(*query)
         if res:
             return dict(res[0]["data"])
         return {}
 
-    async def get_project_overrides(self, project_name: str) -> dict[str, Any]:
+    async def get_project_overrides(
+        self,
+        project_name: str,
+        snapshot: int | None = None,
+    ) -> dict[str, Any]:
         """Load the project overrides from the database."""
 
-        try:
-            res = await Postgres.fetch(
+        if snapshot is None:
+            query = (
                 f"""
                 SELECT data FROM project_{project_name}.settings
-                WHERE addon_name = '{self.definition.name}'
-                AND addon_version = '{self.version}'
+                WHERE addon_name = $1 AND addon_version = $2 AND project_name = $3
                 ORDER BY snapshot_time DESC LIMIT 1
-                """
+                """,
+                self.definition.name,
+                self.version,
+                project_name,
             )
+        else:
+            query = (
+                f"""
+                SELECT data FROM project_{project_name}.settings
+                WHERE addon_name = $1 AND addon_version = $2 AND snapshot_time = $3
+                """,
+                self.definition.name,
+                self.version,
+                snapshot,
+            )
+
+        try:
+            res = await Postgres.fetch(*query)
         except Postgres.UndefinedTableError:
             raise NotFoundException(f"Project {project_name} does not exists")
         if res:
             return dict(res[0]["data"])
         return {}
 
-    async def get_studio_settings(self) -> BaseSettingsModel | None:
+    async def get_studio_settings(
+        self,
+        snapshot: int | None = None,
+    ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio overrides.
 
         You shouldn't override this method, unless absolutely necessary.
@@ -224,13 +259,17 @@ class BaseServerAddon:
         settings = await self.get_default_settings()
         if settings is None:
             return None  # this addon has no settings at all
-        overrides = await self.get_studio_overrides()
+        overrides = await self.get_studio_overrides(snapshot=snapshot)
         if overrides:
             settings = apply_overrides(settings, overrides)
 
         return settings
 
-    async def get_project_settings(self, project_name: str) -> BaseSettingsModel | None:
+    async def get_project_settings(
+        self,
+        project_name: str,
+        snapshot: int | None = None,
+    ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio and project overrides.
 
         You shouldn't override this method, unless absolutely necessary.
@@ -239,10 +278,12 @@ class BaseServerAddon:
         settings = await self.get_studio_settings()
         if settings is None:
             return None  # this addon has no settings at all
-        studio_overrides = await self.get_studio_overrides()
+        studio_overrides = await self.get_studio_overrides(snapshot=snapshot)
         if studio_overrides:
             settings = apply_overrides(settings, studio_overrides)
-        project_overrides = await self.get_project_overrides(project_name)
+        project_overrides = await self.get_project_overrides(
+            project_name, snapshot=snapshot
+        )
         if project_overrides:
             settings = apply_overrides(settings, project_overrides)
         return settings

@@ -28,6 +28,7 @@ async def get_addon_settings_schema(
     addon_name: str,
     version: str,
     project_name: str = Depends(dep_project_name),
+    user: UserEntity = Depends(dep_current_user),
 ):
     """Return the JSON schema of the addon settings."""
 
@@ -55,8 +56,8 @@ async def get_addon_project_settings(
     addon_name: str,
     version: str,
     project_name: str,
+    user: UserEntity = Depends(dep_current_user),
 ):
-    # TODO: enable authentication
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
     return await addon.get_project_settings(project_name)
@@ -67,8 +68,8 @@ async def get_addon_project_overrides(
     addon_name: str,
     version: str,
     project_name: str,
+    user: UserEntity = Depends(dep_current_user),
 ):
-    # TODO: enable authentication
     addon = AddonLibrary.addon(addon_name, version)
     studio_settings = await addon.get_studio_settings()
     if studio_settings is None:
@@ -138,13 +139,11 @@ async def set_addon_project_settings(
 async def delete_addon_project_overrides(
     addon_name: str,
     version: str,
-    #    user: UserEntity = Depends(dep_current_user),
+    user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
-    # TODO: enable authentication
-
-    #    if not user.is_manager:
-    #        raise ForbiddenException
+    if not user.is_manager:
+        raise ForbiddenException
 
     logging.info(
         f"Deleting {project_name} project overrides for {addon_name} {version}"

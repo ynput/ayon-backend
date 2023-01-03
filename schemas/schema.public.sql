@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS public.settings(
   addon_version VARCHAR NOT NULL,
   staging BOOL NOT NULL DEFAULT FALSE,
   snapshot_time BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
+  created_by VARCHAR,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (addon_name, addon_version, snapshot_time, staging)
 );

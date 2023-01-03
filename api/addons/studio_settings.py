@@ -1,7 +1,7 @@
 from typing import Any
 
 from addons.router import route_meta, router
-from fastapi import Depends, Response
+from fastapi import Depends, Query, Response
 from nxtools import logging
 from pydantic.error_wrappers import ValidationError
 
@@ -24,7 +24,11 @@ from .common import ModifyOverridesRequestModel, pin_override, remove_override
 
 
 @router.get("/{addon_name}/{version}/schema", **route_meta)
-async def get_addon_settings_schema(addon_name: str, version: str):
+async def get_addon_settings_schema(
+    addon_name: str,
+    version: str,
+    user: UserEntity = Depends(dep_current_user),
+):
     """Return the JSON schema of the addon settings."""
 
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
@@ -46,13 +50,14 @@ async def get_addon_settings_schema(addon_name: str, version: str):
 async def get_addon_studio_settings(
     addon_name: str,
     version: str,
+    snapshot: int | None = Query(None),
     user: UserEntity = Depends(dep_current_user),
 ):
     """Return the settings (including studio overrides) of the given addon."""
 
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
-    return await addon.get_studio_settings()
+    return await addon.get_studio_settings(snapshot=snapshot)
 
 
 @router.post("/{addon_name}/{version}/settings", **route_meta)
@@ -102,17 +107,28 @@ async def set_addon_studio_settings(
 async def get_addon_studio_overrides(
     addon_name: str,
     version: str,
+    snapshot: int | None = Query(None),
     user: UserEntity = Depends(dep_current_user),
 ):
     if not user.is_manager:
         raise ForbiddenException
 
     addon = AddonLibrary.addon(addon_name, version)
-    settings = await addon.get_studio_settings()
+    settings = await addon.get_studio_settings(snapshot=snapshot)
     if settings is None:
         return {}
-    overrides = await addon.get_studio_overrides()
+    overrides = await addon.get_studio_overrides(snapshot=snapshot)
     return list_overrides(settings, overrides)
+
+
+@router.get("/{addon_name}/{version}/snapshots", **route_meta)
+async def get_addon_studio_snapshots(
+    addon_name: str,
+    version: str,
+    user: UserEntity = Depends(dep_current_user),
+):
+    # TODO
+    pass
 
 
 @router.delete("/{addon_name}/{version}/overrides", **route_meta)
@@ -121,6 +137,8 @@ async def delete_addon_studio_overrides(
     version: str,
     user: UserEntity = Depends(dep_current_user),
 ):
+    # TODO: Selectable snapshot
+
     if not user.is_manager:
         raise ForbiddenException
 
@@ -128,13 +146,12 @@ async def delete_addon_studio_overrides(
     _ = AddonLibrary.addon(addon_name, version)
 
     logging.info(f"Deleting overrides for {addon_name} {version}")
-    # we don't use versioned settings at the moment.
-    # in the future, insert an empty dict instead
     await Postgres.execute(
         """
         DELETE FROM settings
         WHERE addon_name = $1
         AND addon_version = $2
+        ODER BY snapshot_time DESC LIMIT 1
         """,
         addon_name,
         version,
