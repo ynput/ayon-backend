@@ -3,18 +3,18 @@ from typing import Any
 from fastapi import APIRouter, Depends, Response
 from pydantic import Field
 
-from openpype.api import ResponseFactory
-from openpype.api.dependencies import dep_attribute_name, dep_current_user
-from openpype.entities import UserEntity
-from openpype.exceptions import ForbiddenException, NotFoundException
-from openpype.lib.postgres import Postgres
-from openpype.types import (
+from ayon_server.api import ResponseFactory
+from ayon_server.api.dependencies import dep_attribute_name, dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import (
     AttributeType,
     OPModel,
     ProjectLevelEntityType,
     TopLevelEntityType,
 )
-from openpype.utils import SQLTool
+from ayon_server.utils import SQLTool
 
 #
 # Router

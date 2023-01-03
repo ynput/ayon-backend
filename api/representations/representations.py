@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, Response
 from nxtools import logging
 
-from openpype.api.dependencies import (
+from ayon_server.api.dependencies import (
     dep_current_user,
     dep_project_name,
     dep_representation_id,
 )
-from openpype.api.responses import EntityIdResponse, ResponseFactory
-from openpype.entities import RepresentationEntity, UserEntity
+from ayon_server.api.responses import EntityIdResponse, ResponseFactory
+from ayon_server.entities import RepresentationEntity, UserEntity
 
 router = APIRouter(
     tags=["Representations"],

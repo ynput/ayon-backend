@@ -2,19 +2,19 @@ from typing import Any
 
 from fastapi import Depends, Path, Response
 
-from openpype.addons import AddonLibrary
-from openpype.api.dependencies import dep_current_user
-from openpype.entities import UserEntity
-from openpype.exceptions import ForbiddenException, NotFoundException
-from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel
-from openpype.utils import SQLTool
+from ayon_server.addons import AddonLibrary
+from ayon_server.api.dependencies import dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
+from ayon_server.utils import SQLTool
 
 from .router import router
 
 
 class ServiceDataModel(OPModel):
-    image: str | None = Field(None, example="openpype/ftrack-addon-collector:2.0.0")
+    image: str | None = Field(None, example="ayon/ftrack-addon-leecher:2.0.0")
     env: dict[str, Any] = Field(default_factory=dict)
 
 

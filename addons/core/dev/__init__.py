@@ -1,5 +1,6 @@
-from openpype.addons import BaseServerAddon
-from .settings import CoreSettings, DEFAULT_VALUES
+from ayon_server.addons import BaseServerAddon
+
+from .settings import DEFAULT_VALUES, CoreSettings
 
 
 class CoreAddon(BaseServerAddon):

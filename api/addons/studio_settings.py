@@ -5,16 +5,16 @@ from fastapi import Depends, Query, Response
 from nxtools import logging
 from pydantic.error_wrappers import ValidationError
 
-from openpype.addons import AddonLibrary
-from openpype.api.dependencies import dep_current_user
-from openpype.entities import UserEntity
-from openpype.exceptions import (
+from ayon_server.addons import AddonLibrary
+from ayon_server.api.dependencies import dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
     NotFoundException,
 )
-from openpype.lib.postgres import Postgres
-from openpype.settings import (
+from ayon_server.lib.postgres import Postgres
+from ayon_server.settings import (
     extract_overrides,
     list_overrides,
     postprocess_settings_schema,

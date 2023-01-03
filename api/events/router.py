@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from openpype.api import ResponseFactory
+from ayon_server.api import ResponseFactory
 
 router = APIRouter(
     prefix="",

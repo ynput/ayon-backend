@@ -1,6 +1,6 @@
 from typing import Any
 
-from openpype.lib.postgres import Postgres
+from ayon_server.lib.postgres import Postgres
 
 
 async def deploy_roles(roles: list[dict[str, Any]]) -> None:

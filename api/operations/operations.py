@@ -4,8 +4,8 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends
 from nxtools import log_traceback
 
-from openpype.api.dependencies import dep_current_user, dep_project_name
-from openpype.entities import (
+from ayon_server.api.dependencies import dep_current_user, dep_project_name
+from ayon_server.entities import (
     FolderEntity,
     RepresentationEntity,
     SubsetEntity,
@@ -13,11 +13,11 @@ from openpype.entities import (
     UserEntity,
     VersionEntity,
 )
-from openpype.entities.core import ProjectLevelEntity
-from openpype.exceptions import AyonException
-from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel, ProjectLevelEntityType
-from openpype.utils import create_uuid
+from ayon_server.entities.core import ProjectLevelEntity
+from ayon_server.exceptions import AyonException
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel, ProjectLevelEntityType
+from ayon_server.utils import create_uuid
 
 router = APIRouter(tags=["Projects"])
 

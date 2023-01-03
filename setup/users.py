@@ -2,8 +2,8 @@ from typing import Any
 
 from nxtools import logging
 
-from openpype.auth.utils import create_password, hash_password
-from openpype.lib.postgres import Postgres
+from ayon_server.auth.utils import create_password, hash_password
+from ayon_server.lib.postgres import Postgres
 
 
 async def deploy_users(

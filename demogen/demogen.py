@@ -6,8 +6,7 @@ from typing import Any
 
 from nxtools import logging
 
-from demogen.generators import generators
-from openpype.entities import (
+from ayon_server.entities import (
     FolderEntity,
     ProjectEntity,
     RepresentationEntity,
@@ -16,8 +15,9 @@ from openpype.entities import (
     VersionEntity,
     WorkfileEntity,
 )
-from openpype.lib.postgres import Postgres
-from openpype.utils import create_uuid, dict_exclude
+from ayon_server.lib.postgres import Postgres
+from ayon_server.utils import create_uuid, dict_exclude
+from demogen.generators import generators
 from setup.attributes import DEFAULT_ATTRIBUTES
 
 VERSIONS_PER_SUBSET = 5

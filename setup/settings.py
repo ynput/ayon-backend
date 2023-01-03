@@ -2,7 +2,7 @@ from typing import Any
 
 from nxtools import logging
 
-from openpype.lib.postgres import Postgres
+from ayon_server.lib.postgres import Postgres
 
 
 async def deploy_settings(settings: dict[str, Any], addons: dict[str, str]) -> None:

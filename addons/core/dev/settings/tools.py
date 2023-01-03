@@ -1,9 +1,6 @@
 from pydantic import Field, validator
-from openpype.settings import (
-    BaseSettingsModel,
-    normalize_name,
-    ensure_unique_names,
-)
+
+from ayon_server.settings import BaseSettingsModel, ensure_unique_names, normalize_name
 
 
 class FamiliesSmartSelectModel(BaseSettingsModel):
@@ -28,12 +25,10 @@ class SubsetNameProfile(BaseSettingsModel):
 class CreatorToolModel(BaseSettingsModel):
     # TODO this was dynamic dictionary '{name: task_names}'
     families_smart_select: list[FamiliesSmartSelectModel] = Field(
-        default_factory=list,
-        title="Families Smart Select"
+        default_factory=list, title="Families Smart Select"
     )
     subset_name_profiles: list[SubsetNameProfile] = Field(
-        default_factory=list,
-        title="Subset name profiles"
+        default_factory=list, title="Subset name profiles"
     )
 
     @validator("families_smart_select")
@@ -60,9 +55,7 @@ class LastWorkfileOnStartupProfile(BaseSettingsModel):
     task_types: list[str] = Field(default_factory=list, title="Task types")
     task_names: list[str] = Field(default_factory=list, title="Task names")
     enabled: bool = Field(True, title="Enabled")
-    use_last_published_workfile: bool = Field(
-        True, title="Use last published workfile"
-    )
+    use_last_published_workfile: bool = Field(True, title="Use last published workfile")
 
 
 class WorkfilesToolOnStartupProfile(BaseSettingsModel):
@@ -94,24 +87,19 @@ class WorkfilesLockProfile(BaseSettingsModel):
 
 class WorkfilesToolModel(BaseSettingsModel):
     workfile_template_profiles: list[WorkfileTemplateProfile] = Field(
-        default_factory=list,
-        title="Workfile template profiles"
+        default_factory=list, title="Workfile template profiles"
     )
     last_workfile_on_startup: list[LastWorkfileOnStartupProfile] = Field(
-        default_factory=list,
-        title="Open last workfiles on launch"
+        default_factory=list, title="Open last workfiles on launch"
     )
     open_workfile_tool_on_startup: list[WorkfilesToolOnStartupProfile] = Field(
-        default_factory=list,
-        title="Open workfile tool on launch"
+        default_factory=list, title="Open workfile tool on launch"
     )
     extra_folders: list[ExtraWorkFoldersProfile] = Field(
-        default_factory=list,
-        title="Extra work folders"
+        default_factory=list, title="Extra work folders"
     )
     workfile_lock_profiles: list[WorkfilesLockProfile] = Field(
-        default_factory=list,
-        title="Workfile lock profiles"
+        default_factory=list, title="Workfile lock profiles"
     )
 
 
@@ -149,7 +137,7 @@ def published_families():
         "workfile",
         "xgen",
         "yetiRig",
-        "yeticache"
+        "yeticache",
     ]
 
 
@@ -161,15 +149,13 @@ class LoaderFamilyFilterProfile(BaseSettingsModel):
     task_types: list[str] = Field(default_factory=list, title="Task types")
     is_include: bool = Field(True, title="Exclude / Include")
     template_publish_families: list[str] = Field(
-        default_factory=list,
-        enum_resolver=published_families
+        default_factory=list, enum_resolver=published_families
     )
 
 
 class LoaderToolModel(BaseSettingsModel):
     family_filter_profiles: list[LoaderFamilyFilterProfile] = Field(
-        default_factory=list,
-        title="Family filtering"
+        default_factory=list, title="Family filtering"
     )
 
 
@@ -186,69 +172,30 @@ class PublishTemplateNameProfile(BaseSettingsModel):
 
 class PublishToolModel(BaseSettingsModel):
     template_name_profiles: list[PublishTemplateNameProfile] = Field(
-        default_factory=list,
-        title="Template name profiles"
+        default_factory=list, title="Template name profiles"
     )
     hero_template_name_profiles: list[PublishTemplateNameProfile] = Field(
-        default_factory=list,
-        title="Hero template name profiles"
+        default_factory=list, title="Hero template name profiles"
     )
 
 
 class GlobalToolsModel(BaseSettingsModel):
-    creator: CreatorToolModel = Field(
-        default_factory=CreatorToolModel,
-        title="Creator"
-    )
+    creator: CreatorToolModel = Field(default_factory=CreatorToolModel, title="Creator")
     Workfiles: WorkfilesToolModel = Field(
-        default_factory=WorkfilesToolModel,
-        title="Workfiles"
+        default_factory=WorkfilesToolModel, title="Workfiles"
     )
-    loader: LoaderToolModel = Field(
-        default_factory=LoaderToolModel,
-        title="Loader"
-    )
-    publish: PublishToolModel = Field(
-        default_factory=PublishToolModel,
-        title="Publish"
-    )
+    loader: LoaderToolModel = Field(default_factory=LoaderToolModel, title="Loader")
+    publish: PublishToolModel = Field(default_factory=PublishToolModel, title="Publish")
 
 
 DEFAULT_TOOLS_VALUES = {
     "creator": {
         "families_smart_select": [
-            {
-                "name": "Render",
-                "task_names": [
-                    "light",
-                    "render"
-                ]
-            },
-            {
-                "name": "Model",
-                "task_names": [
-                    "model"
-                ]
-            },
-            {
-                "name": "Layout",
-                "task_names": [
-                    "layout"
-                ]
-            },
-            {
-                "name": "Look",
-                "task_names": [
-                    "look"
-                ]
-            },
-            {
-                "name": "Rig",
-                "task_names": [
-                    "rigging",
-                    "rig"
-                ]
-            }
+            {"name": "Render", "task_names": ["light", "render"]},
+            {"name": "Model", "task_names": ["model"]},
+            {"name": "Layout", "task_names": ["layout"]},
+            {"name": "Look", "task_names": ["look"]},
+            {"name": "Rig", "task_names": ["rigging", "rig"]},
         ],
         "subset_name_profiles": [
             {
@@ -256,98 +203,63 @@ DEFAULT_TOOLS_VALUES = {
                 "hosts": [],
                 "task_types": [],
                 "tasks": [],
-                "template": "{family}{variant}"
+                "template": "{family}{variant}",
             },
             {
-                "families": [
-                    "workfile"
-                ],
+                "families": ["workfile"],
                 "hosts": [],
                 "task_types": [],
                 "tasks": [],
-                "template": "{family}{Task}"
-            },
-            {
-                "families": [
-                    "render"
-                ],
-                "hosts": [],
-                "task_types": [],
-                "tasks": [],
-                "template": "{family}{Task}{Variant}"
-            },
-            {
-                "families": [
-                    "renderLayer",
-                    "renderPass"
-                ],
-                "hosts": [
-                    "tvpaint"
-                ],
-                "task_types": [],
-                "tasks": [],
-                "template": "{family}{Task}_{Renderlayer}_{Renderpass}"
-            },
-            {
-                "families": [
-                    "review",
-                    "workfile"
-                ],
-                "hosts": [
-                    "aftereffects",
-                    "tvpaint"
-                ],
-                "task_types": [],
-                "tasks": [],
-                "template": "{family}{Task}"
+                "template": "{family}{Task}",
             },
             {
                 "families": ["render"],
-                "hosts": [
-                    "aftereffects"
-                ],
+                "hosts": [],
                 "task_types": [],
                 "tasks": [],
-                "template": "{family}{Task}{Composition}{Variant}"
+                "template": "{family}{Task}{Variant}",
             },
             {
-                "families": [
-                    "staticMesh"
-                ],
-                "hosts": [
-                    "maya"
-                ],
+                "families": ["renderLayer", "renderPass"],
+                "hosts": ["tvpaint"],
                 "task_types": [],
                 "tasks": [],
-                "template": "S_{asset}{variant}"
+                "template": "{family}{Task}_{Renderlayer}_{Renderpass}",
             },
             {
-                "families": [
-                    "skeletalMesh"
-                ],
-                "hosts": [
-                    "maya"
-                ],
+                "families": ["review", "workfile"],
+                "hosts": ["aftereffects", "tvpaint"],
                 "task_types": [],
                 "tasks": [],
-                "template": "SK_{asset}{variant}"
-            }
-        ]
+                "template": "{family}{Task}",
+            },
+            {
+                "families": ["render"],
+                "hosts": ["aftereffects"],
+                "task_types": [],
+                "tasks": [],
+                "template": "{family}{Task}{Composition}{Variant}",
+            },
+            {
+                "families": ["staticMesh"],
+                "hosts": ["maya"],
+                "task_types": [],
+                "tasks": [],
+                "template": "S_{asset}{variant}",
+            },
+            {
+                "families": ["skeletalMesh"],
+                "hosts": ["maya"],
+                "task_types": [],
+                "tasks": [],
+                "template": "SK_{asset}{variant}",
+            },
+        ],
     },
     "Workfiles": {
         "workfile_template_profiles": [
-            {
-                "task_types": [],
-                "hosts": [],
-                "workfile_template": "work"
-            },
-            {
-                "task_types": [],
-                "hosts": [
-                    "unreal"
-                ],
-                "workfile_template": "unreal"
-            }
+            {"task_types": [], "hosts": [], "workfile_template": "work"},
+            {"task_types": [], "hosts": ["unreal"], "workfile_template": "unreal"},
         ],
         "last_workfile_on_startup": [
             {
@@ -355,32 +267,19 @@ DEFAULT_TOOLS_VALUES = {
                 "task_types": [],
                 "tasks": [],
                 "enabled": True,
-                "use_last_published_workfile": False
+                "use_last_published_workfile": False,
             }
         ],
         "open_workfile_tool_on_startup": [
-            {
-                "hosts": [],
-                "task_types": [],
-                "tasks": [],
-                "enabled": False
-            }
+            {"hosts": [], "task_types": [], "tasks": [], "enabled": False}
         ],
         "extra_folders": [],
-        "workfile_lock_profiles": []
+        "workfile_lock_profiles": [],
     },
     "loader": {
         "family_filter_profiles": [
-            {
-                "hosts": [],
-                "task_types": [],
-                "is_include": True,
-                "filter_families": []
-            }
+            {"hosts": [], "task_types": [], "is_include": True, "filter_families": []}
         ]
     },
-    "publish": {
-        "template_name_profiles": [],
-        "hero_template_name_profiles": []
-    }
+    "publish": {"template_name_profiles": [], "hero_template_name_profiles": []},
 }

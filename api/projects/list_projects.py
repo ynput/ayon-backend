@@ -6,11 +6,11 @@ from typing import List, Literal, Optional
 from fastapi import Depends, Query
 from projects.router import router
 
-from openpype.api import dep_current_user
-from openpype.entities import UserEntity
-from openpype.lib.postgres import Postgres
-from openpype.types import NAME_REGEX, Field, OPModel
-from openpype.utils import SQLTool
+from ayon_server.api import dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import NAME_REGEX, Field, OPModel
+from ayon_server.utils import SQLTool
 
 
 class ListProjectsItemModel(OPModel):

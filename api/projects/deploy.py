@@ -1,12 +1,12 @@
 from fastapi import Depends, Response
 from projects.router import router
 
-from openpype.api import ResponseFactory, dep_current_user
-from openpype.entities import UserEntity
-from openpype.exceptions import ForbiddenException
-from openpype.helpers.deploy_project import create_project_from_anatomy
-from openpype.settings.anatomy import Anatomy
-from openpype.types import Field, OPModel
+from ayon_server.api import ResponseFactory, dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import ForbiddenException
+from ayon_server.helpers.deploy_project import create_project_from_anatomy
+from ayon_server.settings.anatomy import Anatomy
+from ayon_server.types import Field, OPModel
 
 
 class DeployProjectRequestModel(OPModel):

@@ -1,14 +1,18 @@
 from fastapi import APIRouter, Depends, Path, Response
 from nxtools import logging
 
-from openpype.api import ResponseFactory
-from openpype.api.dependencies import dep_access_token, dep_current_user, dep_user_name
-from openpype.auth.session import Session
-from openpype.entities import UserEntity
-from openpype.exceptions import ForbiddenException, NotFoundException
-from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel
-from openpype.utils import get_nickname, obscure
+from ayon_server.api import ResponseFactory
+from ayon_server.api.dependencies import (
+    dep_access_token,
+    dep_current_user,
+    dep_user_name,
+)
+from ayon_server.auth.session import Session
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
+from ayon_server.utils import get_nickname, obscure
 
 #
 # Router
@@ -192,9 +196,11 @@ async def patch_user(
         # Guests can only modify themselves and users they created
         if (
             target_user.name != user.name
-            or target_user.data.get("createdBy") != user.name
+            and target_user.data.get("createdBy") != user.name
         ):
-            raise ForbiddenException("Guests can only modify themself and their guests")
+            raise ForbiddenException(
+                "Guests can only modify themselves and their guests"
+            )
         # user cannot change any user's guest status
         payload.data.pop("isGuest", None)
 

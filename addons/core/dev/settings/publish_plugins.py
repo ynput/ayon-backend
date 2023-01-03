@@ -1,9 +1,6 @@
 from pydantic import Field, validator
-from openpype.settings import (
-    BaseSettingsModel,
-    normalize_name,
-    ensure_unique_names,
-)
+
+from ayon_server.settings import BaseSettingsModel, ensure_unique_names, normalize_name
 
 
 class MultiplatformStr(BaseSettingsModel):
@@ -21,28 +18,20 @@ class ValidateBaseModel(BaseSettingsModel):
 
 class CollectAnatomyInstanceDataModel(BaseSettingsModel):
     _isGroup = True
-    follow_workfile_version: bool = Field(
-        True, title="Collect Anatomy Instance Data"
-    )
+    follow_workfile_version: bool = Field(True, title="Collect Anatomy Instance Data")
 
 
 class CollectAudioModel(BaseSettingsModel):
     _isGroup = True
     enabled: bool = Field(True)
-    audio_subset_name: str = Field(
-        "", title="Name of audio variant"
-    )
+    audio_subset_name: str = Field("", title="Name of audio variant")
 
 
 class CollectSceneVersionModel(BaseSettingsModel):
     _isGroup = True
-    hosts: list[str] = Field(
-        default_factory=list,
-        title="Host names"
-    )
+    hosts: list[str] = Field(default_factory=list, title="Host names")
     skip_hosts_headless_publish: list[str] = Field(
-        default_factory=list,
-        title="Skip for host if headless publish"
+        default_factory=list, title="Skip for host if headless publish"
     )
 
 
@@ -69,14 +58,8 @@ class ValidateIntentModel(BaseSettingsModel):
 
 class ExtractThumbnailFFmpegModel(BaseSettingsModel):
     _layout = "expanded"
-    input: list[str] = Field(
-        default_factory=list,
-        title="FFmpeg input arguments"
-    )
-    output: list[str] = Field(
-        default_factory=list,
-        title="FFmpeg input arguments"
-    )
+    input: list[str] = Field(default_factory=list, title="FFmpeg input arguments")
+    output: list[str] = Field(default_factory=list, title="FFmpeg input arguments")
 
 
 class ExtractThumbnailModel(BaseSettingsModel):
@@ -89,38 +72,20 @@ class ExtractThumbnailModel(BaseSettingsModel):
 
 # --- [START] Extract Review ---
 class ExtractReviewFFmpegModel(BaseSettingsModel):
-    video_filters: list[str] = Field(
-        default_factory=list,
-        title="Video filters"
-    )
-    audio_filters: list[str] = Field(
-        default_factory=list,
-        title="Audio filters"
-    )
-    input: list[str] = Field(
-        default_factory=list,
-        title="Input arguments"
-    )
-    output: list[str] = Field(
-        default_factory=list,
-        title="Output arguments"
-    )
+    video_filters: list[str] = Field(default_factory=list, title="Video filters")
+    audio_filters: list[str] = Field(default_factory=list, title="Audio filters")
+    input: list[str] = Field(default_factory=list, title="Input arguments")
+    output: list[str] = Field(default_factory=list, title="Output arguments")
 
 
 def extract_review_filter_enum():
     return [
-        {
-            "value": "everytime",
-            "label": "Always"
-        },
-        {
-            "value": "single_frame",
-            "label": "Only if input has 1 image frame"
-        },
+        {"value": "everytime", "label": "Always"},
+        {"value": "single_frame", "label": "Only if input has 1 image frame"},
         {
             "value": "multi_frame",
-            "label": "Only if input is video or sequence of frames"
-        }
+            "label": "Only if input is video or sequence of frames",
+        },
     ]
 
 
@@ -134,36 +99,22 @@ class ExtractReviewFilterModel(BaseSettingsModel):
             "Use output <b>always</b> / only if input <b>is 1 frame</b>"
             " image / only if has <b>2+ frames</b> or <b>is video</b>"
         ),
-        enum_resolver=extract_review_filter_enum
+        enum_resolver=extract_review_filter_enum,
     )
 
 
 class ExtractReviewLetterBox(BaseSettingsModel):
     enabled: bool = Field(True)
-    ratio: float = Field(
-        0.0,
-        title="Ratio",
-        ge=0.0,
-        le=10000.0
-    )
+    ratio: float = Field(0.0, title="Ratio", ge=0.0, le=10000.0)
     # TODO color should have alpha
     fill_color: str = Field(
         "",
         title="Fill Color",
         widget="color",
     )
-    line_thickness: int = Field(
-        0,
-        title="Line Thickness",
-        ge=0,
-        le=1000
-    )
+    line_thickness: int = Field(0, title="Line Thickness", ge=0, le=1000)
     # TODO color should have alpha
-    line_color: str = Field(
-        "",
-        title="Line Color",
-        widget="color"
-    )
+    line_color: str = Field("", title="Line Color", widget="color")
 
 
 class ExtractReviewOutputDefModel(BaseSettingsModel):
@@ -172,23 +123,19 @@ class ExtractReviewOutputDefModel(BaseSettingsModel):
     ext: str = Field("", title="Output extension")
     # TODO use some different source of tags
     tags: list[str] = Field(default_factory=list, title="Tags")
-    burnins: list[str] = Field(
-        default_factory=list, title="Link to a burnin by name"
-    )
+    burnins: list[str] = Field(default_factory=list, title="Link to a burnin by name")
     ffmpeg_args: ExtractReviewFFmpegModel = Field(
-        default_factory=ExtractReviewFFmpegModel,
-        title="FFmpeg arguments"
+        default_factory=ExtractReviewFFmpegModel, title="FFmpeg arguments"
     )
     filter: ExtractReviewFilterModel = Field(
-        default_factory=ExtractReviewFilterModel,
-        title="Additional output filtering"
+        default_factory=ExtractReviewFilterModel, title="Additional output filtering"
     )
     overscan_crop: str = Field(
         "",
         title="Overscan crop",
         description=(
             "Crop input overscan. See the documentation for more information."
-        )
+        ),
     )
     overscan_color: str = Field(
         "",
@@ -197,7 +144,7 @@ class ExtractReviewOutputDefModel(BaseSettingsModel):
         description=(
             "Overscan color is used when input aspect ratio is not"
             " same as output aspect ratio."
-        )
+        ),
     )
     output_width: int = Field(
         0,
@@ -207,7 +154,7 @@ class ExtractReviewOutputDefModel(BaseSettingsModel):
         description=(
             "Width and Height must be both set to higher"
             " value than 0 else source resolution is used."
-        )
+        ),
     )
     output_height: int = Field(
         0,
@@ -221,7 +168,7 @@ class ExtractReviewOutputDefModel(BaseSettingsModel):
         description=(
             "Rescale input when it's pixel aspect ratio is not 1."
             " Usefull for anamorph reviews."
-        )
+        ),
     )
     bg_color: str = Field(
         "",
@@ -233,8 +180,7 @@ class ExtractReviewOutputDefModel(BaseSettingsModel):
         title="Background color",
     )
     letter_box: ExtractReviewLetterBox = Field(
-        default_factory=ExtractReviewLetterBox,
-        title="Letter Box"
+        default_factory=ExtractReviewLetterBox, title="Letter Box"
     )
 
     @validator("name")
@@ -245,13 +191,9 @@ class ExtractReviewOutputDefModel(BaseSettingsModel):
 
 class ExtractReviewProfileModel(BaseSettingsModel):
     _layout = "expanded"
-    families: list[str] = Field(
-        default_factory=list, title="Families"
-    )
+    families: list[str] = Field(default_factory=list, title="Families")
     # TODO use hosts enum
-    hosts: list[str] = Field(
-        default_factory=list, title="Host names"
-    )
+    hosts: list[str] = Field(default_factory=list, title="Host names")
     outputs: list[ExtractReviewOutputDefModel] = Field(
         default_factory=list, title="Output Definitions"
     )
@@ -266,43 +208,29 @@ class ExtractReviewModel(BaseSettingsModel):
     _isGroup = True
     enabled: bool = Field(True)
     profiles: list[ExtractReviewProfileModel] = Field(
-        default_factory=list,
-        title="Profiles"
+        default_factory=list, title="Profiles"
     )
+
+
 # --- [END] Extract Review ---
 
 
 # --- [Start] Extract Burnin ---
 class ExtractBurninOptionsModel(BaseSettingsModel):
     font_size: int = Field(0, ge=0, title="Font size")
-    font_color: str = Field(
-        "",
-        widget="color",
-        title="Font color"
-    )
-    bg_color: str = Field(
-        "",
-        widget="color",
-        title="Background color"
-    )
+    font_color: str = Field("", widget="color", title="Font color")
+    bg_color: str = Field("", widget="color", title="Background color")
     x_offset: int = Field(0, title="X Offset")
     y_offset: int = Field(0, title="Y Offset")
     bg_padding: int = Field(0, title="Padding around text")
     font_filepath: MultiplatformStr = Field(
-        default_factory=MultiplatformStr,
-        title="Font file path"
+        default_factory=MultiplatformStr, title="Font file path"
     )
 
 
 class ExtractBurninDefFilter(BaseSettingsModel):
-    families: list[str] = Field(
-        default_factory=list,
-        title="Families"
-    )
-    tags: list[str] = Field(
-        default_factory=list,
-        title="Tags"
-    )
+    families: list[str] = Field(default_factory=list, title="Families")
+    tags: list[str] = Field(default_factory=list, title="Tags")
 
 
 class ExtractBurninDef(BaseSettingsModel):
@@ -316,8 +244,7 @@ class ExtractBurninDef(BaseSettingsModel):
     BOTTOM_CENTERED: str = Field("", topic="Bottom Centered")
     BOTTOM_RIGHT: str = Field("", topic="Bottom Right")
     filter: ExtractBurninDefFilter = Field(
-        default_factory=ExtractBurninDefFilter,
-        title="Additional filtering"
+        default_factory=ExtractBurninDefFilter, title="Additional filtering"
     )
 
     @validator("name")
@@ -328,18 +255,9 @@ class ExtractBurninDef(BaseSettingsModel):
 
 class ExtractBurninProfile(BaseSettingsModel):
     _layout = "expanded"
-    families: list[str] = Field(
-        default_factory=list,
-        title="Families"
-    )
-    hosts: list[str] = Field(
-        default_factory=list,
-        title="Host names"
-    )
-    burnins: list[ExtractBurninDef] = Field(
-        default_factory=list,
-        title="Burnins"
-    )
+    families: list[str] = Field(default_factory=list, title="Families")
+    hosts: list[str] = Field(default_factory=list, title="Host names")
+    burnins: list[ExtractBurninDef] = Field(default_factory=list, title="Burnins")
 
     @validator("burnins")
     def validate_unique_outputs(cls, value):
@@ -352,13 +270,11 @@ class ExtractBurninModel(BaseSettingsModel):
     _isGroup = True
     enabled: bool = Field(True)
     options: ExtractBurninOptionsModel = Field(
-        default_factory=ExtractBurninOptionsModel,
-        title="Burnin formatting options"
+        default_factory=ExtractBurninOptionsModel, title="Burnin formatting options"
     )
-    profiles: list[ExtractBurninProfile] = Field(
-        default_factory=list,
-        title="Profiles"
-    )
+    profiles: list[ExtractBurninProfile] = Field(default_factory=list, title="Profiles")
+
+
 # --- [END] Extract Burnin ---
 
 
@@ -392,8 +308,7 @@ class PreIntegrateThumbnailsModel(BaseSettingsModel):
     _isGroup = True
     enabled: bool = Field(True)
     integrate_profiles: list[PreIntegrateThumbnailsProfile] = Field(
-        default_factory=list,
-        title="Integrate profiles"
+        default_factory=list, title="Integrate profiles"
     )
 
 
@@ -417,8 +332,7 @@ class IntegrateSubsetGroupModel(BaseSettingsModel):
 
     _isGroup = True
     subset_grouping_profiles: list[IntegrateSubsetGroupProfile] = Field(
-        default_factory=list,
-        title="Subset group profiles"
+        default_factory=list, title="Subset group profiles"
     )
 
 
@@ -437,10 +351,7 @@ class IntegrateHeroVersionModel(BaseSettingsModel):
 
 class CleanUpModel(BaseSettingsModel):
     _isGroup = True
-    patterns: list[str] = Field(
-        default_factory=list,
-        title="Patterns (regex)"
-    )
+    patterns: list[str] = Field(default_factory=list, title="Patterns (regex)")
     remove_temp_renders: bool = Field(False, title="Remove Temp renders")
 
 
@@ -452,69 +363,50 @@ class CleanUpFarmModel(BaseSettingsModel):
 class PublishPuginsModel(BaseSettingsModel):
     CollectAnatomyInstanceData: CollectAnatomyInstanceDataModel = Field(
         default_factory=CollectAnatomyInstanceDataModel,
-        title="Collect Anatomy Instance Data"
+        title="Collect Anatomy Instance Data",
     )
     CollectAudio: CollectAudioModel = Field(
-        default_factory=CollectAudioModel,
-        title="Collect Audio"
+        default_factory=CollectAudioModel, title="Collect Audio"
     )
     CollectSceneVersion: CollectSceneVersionModel = Field(
-        default_factory=CollectSceneVersionModel,
-        title="Collect Version from Workfile"
+        default_factory=CollectSceneVersionModel, title="Collect Version from Workfile"
     )
     ValidateEditorialAssetName: ValidateBaseModel = Field(
-        default_factory=ValidateBaseModel,
-        title="Validate Editorial Asset Name"
+        default_factory=ValidateBaseModel, title="Validate Editorial Asset Name"
     )
     ValidateVersion: ValidateBaseModel = Field(
-        default_factory=ValidateBaseModel,
-        title="Validate Version"
+        default_factory=ValidateBaseModel, title="Validate Version"
     )
     ValidateIntent: ValidateIntentModel = Field(
-        default_factory=ValidateIntentModel,
-        title="Validate Intent"
+        default_factory=ValidateIntentModel, title="Validate Intent"
     )
     ExtractThumbnail: ExtractThumbnailModel = Field(
-        default_factory=ExtractThumbnailModel,
-        title="Extract Thumbnail"
+        default_factory=ExtractThumbnailModel, title="Extract Thumbnail"
     )
     ExtractReview: ExtractReviewModel = Field(
-        default_factory=ExtractReviewModel,
-        title="Extract Review"
+        default_factory=ExtractReviewModel, title="Extract Review"
     )
     ExtractBurnin: ExtractBurninModel = Field(
-        default_factory=ExtractBurninModel,
-        title="Extract Burnin"
+        default_factory=ExtractBurninModel, title="Extract Burnin"
     )
     IntegrateSubsetGroup: IntegrateSubsetGroupModel = Field(
-        default_factory=IntegrateSubsetGroupModel,
-        title="Integrate Subset Group"
+        default_factory=IntegrateSubsetGroupModel, title="Integrate Subset Group"
     )
     # TODO these keys have been removed
     # IntegrateAssetNew
     # IntegrateAsset
     IntegrateHeroVersion: IntegrateHeroVersionModel = Field(
-        default_factory=IntegrateHeroVersionModel,
-        title="Integrate Hero Version"
+        default_factory=IntegrateHeroVersionModel, title="Integrate Hero Version"
     )
-    CleanUp: CleanUpModel = Field(
-        default_factory=CleanUpModel,
-        title="Clean Up"
-    )
+    CleanUp: CleanUpModel = Field(default_factory=CleanUpModel, title="Clean Up")
     CleanUpFarm: CleanUpFarmModel = Field(
-        default_factory=CleanUpFarmModel,
-        title="Clean Up Farm"
+        default_factory=CleanUpFarmModel, title="Clean Up Farm"
     )
 
 
 DEFAULT_PUBLISH_VALUES = {
-    "CollectAnatomyInstanceData": {
-        "follow_workfile_version": False
-    },
-    "CollectAudio": {
-        "enabled": False,
-        "audio_subset_name": "audioMain"
-    },
+    "CollectAnatomyInstanceData": {"follow_workfile_version": False},
+    "CollectAudio": {"enabled": False, "audio_subset_name": "audioMain"},
     "CollectSceneVersion": {
         "hosts": [
             "aftereffects",
@@ -528,32 +420,16 @@ DEFAULT_PUBLISH_VALUES = {
             "nuke",
             "photoshop",
             "resolve",
-            "tvpaint"
+            "tvpaint",
         ],
-        "skip_hosts_headless_publish": []
+        "skip_hosts_headless_publish": [],
     },
-    "ValidateEditorialAssetName": {
-        "enabled": True,
-        "optional": False,
-        "active": True
-    },
-    "ValidateVersion": {
-        "enabled": True,
-        "optional": False,
-        "active": True
-    },
-    "ValidateIntent": {
-        "enabled": False,
-        "profiles": []
-    },
+    "ValidateEditorialAssetName": {"enabled": True, "optional": False, "active": True},
+    "ValidateVersion": {"enabled": True, "optional": False, "active": True},
+    "ValidateIntent": {"enabled": False, "profiles": []},
     "ExtractThumbnail": {
         "enabled": True,
-        "ffmpeg_args": {
-            "input": [
-                "-apply_trc gamma22"
-            ],
-            "output": []
-        }
+        "ffmpeg_args": {"input": ["-apply_trc gamma22"], "output": []},
     },
     "ExtractReview": {
         "enabled": True,
@@ -565,25 +441,19 @@ DEFAULT_PUBLISH_VALUES = {
                     {
                         "name": "png",
                         "ext": "png",
-                        "tags": [
-                            "ftrackreview"
-                        ],
+                        "tags": ["ftrackreview"],
                         "burnins": [],
                         "ffmpeg_args": {
                             "video_filters": [],
                             "audio_filters": [],
                             "input": [],
-                            "output": []
+                            "output": [],
                         },
                         "filter": {
-                            "families": [
-                                "render",
-                                "review",
-                                "ftrack"
-                            ],
+                            "families": ["render", "review", "ftrack"],
                             "subsets": [],
                             "custom_tags": [],
-                            "single_frame_filter": "single_frame"
+                            "single_frame_filter": "single_frame",
                         },
                         "overscan_crop": "",
                         "overscan_color": "#000000",
@@ -596,38 +466,25 @@ DEFAULT_PUBLISH_VALUES = {
                             "ratio": 0.0,
                             "fill_color": "#000000",
                             "line_thickness": 0,
-                            "line_color": "#ff0000"
-                        }
+                            "line_color": "#ff0000",
+                        },
                     },
                     {
                         "name": "h264",
                         "ext": "mp4",
-                        "tags": [
-                            "burnin",
-                            "ftrackreview"
-                        ],
+                        "tags": ["burnin", "ftrackreview"],
                         "burnins": [],
                         "ffmpeg_args": {
                             "video_filters": [],
                             "audio_filters": [],
-                            "input": [
-                                "-apply_trc gamma22"
-                            ],
-                            "output": [
-                                "-pix_fmt yuv420p",
-                                "-crf 18",
-                                "-intra"
-                            ]
+                            "input": ["-apply_trc gamma22"],
+                            "output": ["-pix_fmt yuv420p", "-crf 18", "-intra"],
                         },
                         "filter": {
-                            "families": [
-                                "render",
-                                "review",
-                                "ftrack"
-                            ],
+                            "families": ["render", "review", "ftrack"],
                             "subsets": [],
                             "custom_tags": [],
-                            "single_frame_filter": "multi_frame"
+                            "single_frame_filter": "multi_frame",
                         },
                         "overscan_crop": "",
                         "overscan_color": "#000000",
@@ -640,12 +497,12 @@ DEFAULT_PUBLISH_VALUES = {
                             "ratio": 0.0,
                             "fill_color": "#000000",
                             "line_thickness": 0,
-                            "line_color": "#ff0000"
-                        }
-                    }
-                ]
+                            "line_color": "#ff0000",
+                        },
+                    },
+                ],
             }
-        ]
+        ],
     },
     "ExtractBurnin": {
         "enabled": True,
@@ -656,11 +513,7 @@ DEFAULT_PUBLISH_VALUES = {
             "x_offset": 5,
             "y_offset": 5,
             "bg_padding": 5,
-            "font_filepath": {
-                "windows": "",
-                "darwin": "",
-                "linux": ""
-            }
+            "font_filepath": {"windows": "", "darwin": "", "linux": ""},
         },
         "profiles": [
             {
@@ -675,28 +528,16 @@ DEFAULT_PUBLISH_VALUES = {
                         "BOTTOM_LEFT": "{username}",
                         "BOTTOM_CENTERED": "{asset}",
                         "BOTTOM_RIGHT": "{frame_start}-{current_frame}-{frame_end}",
-                        "filter": {
-                            "families": [],
-                            "tags": []
-                        }
+                        "filter": {"families": [], "tags": []},
                     }
-                ]
+                ],
             }
-        ]
+        ],
     },
-    "PreIntegrateThumbnails": {
-        "enabled": True,
-        "integrate_profiles": []
-    },
+    "PreIntegrateThumbnails": {"enabled": True, "integrate_profiles": []},
     "IntegrateSubsetGroup": {
         "subset_grouping_profiles": [
-            {
-                "families": [],
-                "hosts": [],
-                "task_types": [],
-                "tasks": [],
-                "template": ""
-            }
+            {"families": [], "hosts": [], "task_types": [], "tasks": [], "template": ""}
         ]
     },
     "IntegrateHeroVersion": {
@@ -712,14 +553,9 @@ DEFAULT_PUBLISH_VALUES = {
             "setdress",
             "layout",
             "mayaScene",
-            "simpleUnrealTexture"
-        ]
+            "simpleUnrealTexture",
+        ],
     },
-    "CleanUp": {
-        "paterns": [],
-        "remove_temp_renders": False
-    },
-    "CleanUpFarm": {
-        "enabled": False
-    }
+    "CleanUp": {"paterns": [], "remove_temp_renders": False},
+    "CleanUpFarm": {"enabled": False},
 }

@@ -8,13 +8,13 @@ Login using Oauth2 is implemented in the oauth module.
 
 from fastapi import Depends
 
-from openpype.api import ResponseFactory
-from openpype.api.dependencies import dep_access_token
-from openpype.auth.password import PasswordAuth
-from openpype.auth.session import Session
-from openpype.entities import UserEntity
-from openpype.exceptions import UnauthorizedException
-from openpype.types import Field, OPModel
+from ayon_server.api import ResponseFactory
+from ayon_server.api.dependencies import dep_access_token
+from ayon_server.auth.password import PasswordAuth
+from ayon_server.auth.session import Session
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import UnauthorizedException
+from ayon_server.types import Field, OPModel
 
 from .router import router
 

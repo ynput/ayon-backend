@@ -3,11 +3,11 @@ import time
 from attributes.attributes import AttributeModel, get_attribute_list
 from fastapi import Depends
 
-from openpype.api import dep_current_user_optional
-from openpype.api.metadata import VERSION
-from openpype.config import ayonconfig
-from openpype.entities import UserEntity
-from openpype.types import Field, OPModel
+from ayon_server.api import dep_current_user_optional
+from ayon_server.api.metadata import VERSION
+from ayon_server.config import ayonconfig
+from ayon_server.entities import UserEntity
+from ayon_server.types import Field, OPModel
 
 from .router import router
 

@@ -1,10 +1,12 @@
 import json
-from pydantic import Field, validator
-from openpype.settings import BaseSettingsModel
-from openpype.exceptions import BadRequestException
 
-from .publish_plugins import PublishPuginsModel, DEFAULT_PUBLISH_VALUES
-from .tools import GlobalToolsModel, DEFAULT_TOOLS_VALUES
+from pydantic import Field, validator
+
+from ayon_server.exceptions import BadRequestException
+from ayon_server.settings import BaseSettingsModel
+
+from .publish_plugins import DEFAULT_PUBLISH_VALUES, PublishPuginsModel
+from .tools import DEFAULT_TOOLS_VALUES, GlobalToolsModel
 
 
 class MultiplatformStrList(BaseSettingsModel):
@@ -17,35 +19,22 @@ class CoreSettings(BaseSettingsModel):
     studio_name: str = Field("", title="Studio name")
     studio_code: str = Field("", title="Studio code")
     environments: str = Field("{}", widget="textarea")
-    tools: GlobalToolsModel = Field(
-        default_factory=GlobalToolsModel,
-        title="Tools"
-    )
+    tools: GlobalToolsModel = Field(default_factory=GlobalToolsModel, title="Tools")
     publish: PublishPuginsModel = Field(
-        default_factory=PublishPuginsModel,
-        title="Publish plugins"
+        default_factory=PublishPuginsModel, title="Publish plugins"
     )
     project_plugins: MultiplatformStrList = Field(
         default_factory=MultiplatformStrList,
         title="Additional Project Plugin Paths",
     )
     project_folder_structure: str = Field(
-        "{}",
-        widget="textarea",
-        title="Project folder structure",
-        section="---"
+        "{}", widget="textarea", title="Project folder structure", section="---"
     )
     project_environments: str = Field(
-        "{}",
-        widget="textarea",
-        title="Project environments",
-        section="---"
+        "{}", widget="textarea", title="Project environments", section="---"
     )
 
-    @validator(
-        "environments",
-        "project_folder_structure",
-        "project_environments")
+    @validator("environments", "project_folder_structure", "project_environments")
     def validate_json(cls, value):
         if not value.strip():
             return "{}"
@@ -56,9 +45,7 @@ class CoreSettings(BaseSettingsModel):
             success = False
 
         if not success:
-            raise BadRequestException(
-                "Environment's can't be parsed as json object"
-            )
+            raise BadRequestException("Environment's can't be parsed as json object")
         return value
 
 
@@ -69,10 +56,6 @@ DEFAULT_VALUES = {
     "tools": DEFAULT_TOOLS_VALUES,
     "publish": DEFAULT_PUBLISH_VALUES,
     "project_folder_structure": "{}",
-    "project_plugins": {
-        "windows": [],
-        "darwin": [],
-        "linux": []
-    },
-    "project_environments": "{}"
+    "project_plugins": {"windows": [], "darwin": [], "linux": []},
+    "project_environments": "{}",
 }

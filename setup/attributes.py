@@ -2,7 +2,7 @@ from typing import Any
 
 from nxtools import logging
 
-from openpype.lib.postgres import Postgres
+from ayon_server.lib.postgres import Postgres
 
 # The following parameters may be used:
 # name, scope, type, title, default, example,
@@ -107,7 +107,7 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "scope": "U",
         "type": "string",
         "title": "E-Mail",
-        "example": "jane.doe@openpype.cloud",
+        "example": "jane.doe@ayon.cloud",
     },
     "avatarUrl": {
         "scope": "U",

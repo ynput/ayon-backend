@@ -3,23 +3,23 @@ from typing import Any
 from fastapi import APIRouter, Depends, Response
 from nxtools import logging
 
-from openpype.api.dependencies import (
+from ayon_server.api.dependencies import (
     dep_current_user,
     dep_link_id,
     dep_link_type,
     dep_project_name,
 )
-from openpype.api.responses import EntityIdResponse, ResponseFactory
-from openpype.entities import UserEntity
-from openpype.exceptions import (
+from ayon_server.api.responses import EntityIdResponse, ResponseFactory
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import (
     BadRequestException,
     ConstraintViolationException,
     ForbiddenException,
     NotFoundException,
 )
-from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel
-from openpype.utils import EntityID
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
+from ayon_server.utils import EntityID
 
 router = APIRouter(
     tags=["Links"],

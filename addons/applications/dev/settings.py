@@ -1,8 +1,9 @@
 import json
+
 from pydantic import Field, validator
 
-from openpype.settings import BaseSettingsModel, ensure_unique_names
-from openpype.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException
+from ayon_server.settings import BaseSettingsModel, ensure_unique_names
 
 
 def validate_json_dict(value):
@@ -15,9 +16,7 @@ def validate_json_dict(value):
         success = False
 
     if not success:
-        raise BadRequestException(
-            "Environment's can't be parsed as json object"
-        )
+        raise BadRequestException("Environment's can't be parsed as json object")
     return value
 
 
@@ -110,9 +109,7 @@ class ToolGroupModel(BaseSettingsModel):
     name: str = Field("", title="Name")
     label: str = Field("", title="Label")
     environment: str = Field("{}", title="Environments", widget="textarea")
-    variants: list[ToolVariantModel] = Field(
-        default_factory=ToolVariantModel
-    )
+    variants: list[ToolVariantModel] = Field(default_factory=ToolVariantModel)
 
     @validator("environment")
     def validate_json(cls, value):
@@ -128,19 +125,20 @@ class ApplicationsSettings(BaseSettingsModel):
     """Applications settings"""
 
     maya: AppGroupWithPython = Field(
-        default_factory=AppGroupWithPython, title="Autodesk Maya")
+        default_factory=AppGroupWithPython, title="Autodesk Maya"
+    )
     flame: AppGroupWithPython = Field(
-        default_factory=AppGroupWithPython, title="Autodesk Flame")
-    nuke: AppGroupWithPython = Field(
-        default_factory=AppGroupWithPython, title="Nuke")
+        default_factory=AppGroupWithPython, title="Autodesk Flame"
+    )
+    nuke: AppGroupWithPython = Field(default_factory=AppGroupWithPython, title="Nuke")
     aftereffects: AppGroup = Field(
-        default_factory=AppGroupWithPython, title="Adobe After Effects")
+        default_factory=AppGroupWithPython, title="Adobe After Effects"
+    )
     photoshop: AppGroup = Field(
-        default_factory=AppGroupWithPython, title="Adobe Photoshop")
-    tvpaint: AppGroup = Field(
-        default_factory=AppGroupWithPython, title="TVPaint")
-    harmony: AppGroup = Field(
-        default_factory=AppGroupWithPython, title="Harmony")
+        default_factory=AppGroupWithPython, title="Adobe Photoshop"
+    )
+    tvpaint: AppGroup = Field(default_factory=AppGroupWithPython, title="TVPaint")
+    harmony: AppGroup = Field(default_factory=AppGroupWithPython, title="Harmony")
     additional_apps: list[AdditionalAppGroup] = Field(
         default_factory=list, title="Additional Applications"
     )
@@ -153,8 +151,7 @@ class ApplicationsSettings(BaseSettingsModel):
 
 class ApplicationsAddonSettings(BaseSettingsModel):
     applications: ApplicationsSettings = Field(
-        default_factory=ApplicationsSettings,
-        title="Applications"
+        default_factory=ApplicationsSettings, title="Applications"
     )
     tool_groups: list[ToolGroupModel] = Field(default_factory=list)
 

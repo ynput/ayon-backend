@@ -4,13 +4,13 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Path, Request, Response
 from nxtools import logging
 
-from openpype.api import ResponseFactory
-from openpype.api.dependencies import dep_current_user
-from openpype.entities import UserEntity
-from openpype.exceptions import AyonException, ForbiddenException, NotFoundException
-from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel
-from openpype.utils import dict_exclude
+from ayon_server.api import ResponseFactory
+from ayon_server.api.dependencies import dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundException
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
+from ayon_server.utils import dict_exclude
 
 router = APIRouter(
     prefix="/dependencies",
@@ -78,11 +78,11 @@ class DependencyPackage(OPModel):
         example=[
             {
                 "type": "server",
-                "filename": "win_openpype_package_1.0.0.zip",
+                "filename": "win_ayon_package_1.0.0.zip",
             },
             {
                 "type": "http",
-                "url": "https://example.com/win_openpype_package_1.0.0.zip",
+                "url": "https://example.com/win_ayon_package_1.0.0.zip",
             },
         ],
     )

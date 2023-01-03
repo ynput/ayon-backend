@@ -4,12 +4,12 @@ from typing import TYPE_CHECKING, ForwardRef, Optional
 from fastapi import APIRouter, Depends, Query, Response
 from hierarchy.solver import HierarchyResolver
 
-from openpype.access.utils import folder_access_list
-from openpype.api import ResponseFactory, dep_current_user, dep_project_name
-from openpype.entities import UserEntity
-from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel
-from openpype.utils import EntityID, SQLTool
+from ayon_server.access.utils import folder_access_list
+from ayon_server.api import ResponseFactory, dep_current_user, dep_project_name
+from ayon_server.entities import UserEntity
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
+from ayon_server.utils import EntityID, SQLTool
 
 #
 # Router

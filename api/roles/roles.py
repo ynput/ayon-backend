@@ -3,18 +3,22 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, Response
 from nxtools import log_traceback
 
-from openpype.access.permissions import Permissions
-from openpype.access.roles import Roles
-from openpype.api import ResponseFactory
-from openpype.api.dependencies import dep_current_user, dep_project_name, dep_role_name
-from openpype.entities import UserEntity
-from openpype.exceptions import (
+from ayon_server.access.permissions import Permissions
+from ayon_server.access.roles import Roles
+from ayon_server.api import ResponseFactory
+from ayon_server.api.dependencies import (
+    dep_current_user,
+    dep_project_name,
+    dep_role_name,
+)
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import (
     ConstraintViolationException,
     ForbiddenException,
     NotFoundException,
 )
-from openpype.lib.postgres import Postgres
-from openpype.settings import postprocess_settings_schema
+from ayon_server.lib.postgres import Postgres
+from ayon_server.settings import postprocess_settings_schema
 
 #
 # Router

@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, Response
 from nxtools import logging
 
-from openpype.api.dependencies import (
+from ayon_server.api.dependencies import (
     dep_current_user,
     dep_project_name,
     dep_workfile_id,
 )
-from openpype.api.responses import EntityIdResponse, ResponseFactory
-from openpype.entities import UserEntity, WorkfileEntity
+from ayon_server.api.responses import EntityIdResponse, ResponseFactory
+from ayon_server.entities import UserEntity, WorkfileEntity
 
 router = APIRouter(
     tags=["Workfiles"],

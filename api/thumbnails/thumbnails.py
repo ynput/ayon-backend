@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request, Response
 
-from openpype.api import ResponseFactory
-from openpype.api.dependencies import (
+from ayon_server.api import ResponseFactory
+from ayon_server.api.dependencies import (
     dep_current_user,
     dep_folder_id,
     dep_project_name,
@@ -10,14 +10,14 @@ from openpype.api.dependencies import (
     dep_version_id,
     dep_workfile_id,
 )
-from openpype.entities.folder import FolderEntity
-from openpype.entities.user import UserEntity
-from openpype.entities.version import VersionEntity
-from openpype.entities.workfile import WorkfileEntity
-from openpype.exceptions import BadRequestException, ForbiddenException
-from openpype.lib.postgres import Postgres
-from openpype.types import OPModel
-from openpype.utils import EntityID
+from ayon_server.entities.folder import FolderEntity
+from ayon_server.entities.user import UserEntity
+from ayon_server.entities.version import VersionEntity
+from ayon_server.entities.workfile import WorkfileEntity
+from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import OPModel
+from ayon_server.utils import EntityID
 
 #
 # Router

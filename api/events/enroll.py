@@ -1,12 +1,12 @@
 from fastapi import Depends, Response
 from pydantic import Field
 
-from openpype.api.dependencies import dep_current_user
-from openpype.entities import UserEntity
-from openpype.events import dispatch_event
-from openpype.lib.postgres import Postgres
-from openpype.types import OPModel
-from openpype.utils import hash_data
+from ayon_server.api.dependencies import dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.events import dispatch_event
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import OPModel
+from ayon_server.utils import hash_data
 
 from .router import router
 
@@ -24,7 +24,7 @@ class EnrollRequestModel(OPModel):
     target_topic: str = Field(
         ...,
         title="Target topic",
-        example="ftrack.sync_to_openpype",
+        example="ftrack.sync_to_ayon",
     )
     sender: str = Field(
         ...,
@@ -35,7 +35,7 @@ class EnrollRequestModel(OPModel):
         None,
         title="Description",
         description="Short, human readable description of the target event",
-        example="Sync Ftrack project to OpenPype",
+        example="Sync Ftrack project to Ayon",
     )
     sequential: bool = Field(
         False,

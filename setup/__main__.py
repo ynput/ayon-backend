@@ -5,14 +5,14 @@ from typing import Any
 import asyncpg
 from nxtools import critical_error, log_traceback, logging
 
-from openpype.lib.postgres import Postgres
-from openpype.utils import json_loads
+from ayon_server.lib.postgres import Postgres
+from ayon_server.utils import json_loads
 from setup.attributes import deploy_attributes
 from setup.roles import deploy_roles
 from setup.settings import deploy_settings
 from setup.users import deploy_users
 
-# Defaults which should allow OpenPype to run out of the box
+# Defaults which should allow Ayon server to run out of the box
 
 DATA: dict[str, Any] = {
     "addons": {},
@@ -21,19 +21,19 @@ DATA: dict[str, Any] = {
         {
             "name": "admin",
             "password": "admin",
-            "fullName": "OpenPype admin",
+            "fullName": "Ayon admin",
             "isAdmin": True,
         },
         {
             "name": "manager",
             "password": "manager",
-            "fullName": "OpenPype manager",
+            "fullName": "Ayon manager",
             "isManager": True,
         },
         {
             "name": "user",
             "password": "user",
-            "fullName": "OpenPype user",
+            "fullName": "Ayon user",
             "defaultRoles": ["viewer"],
         },
     ],

@@ -2,12 +2,12 @@ from typing import Any
 
 from fastapi import Depends, Response
 
-from openpype.api.dependencies import dep_current_user, dep_event_id
-from openpype.entities import UserEntity
-from openpype.events import EventModel, dispatch_event, update_event
-from openpype.exceptions import ForbiddenException, NotFoundException
-from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel
+from ayon_server.api.dependencies import dep_current_user, dep_event_id
+from ayon_server.entities import UserEntity
+from ayon_server.events import EventModel, dispatch_event, update_event
+from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
 
 from .router import router
 

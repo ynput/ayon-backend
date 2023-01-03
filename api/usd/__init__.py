@@ -2,9 +2,9 @@ import time
 
 from fastapi import APIRouter
 
-from openpype.api import ResponseFactory
-from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel
+from ayon_server.api import ResponseFactory
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
 
 #
 # Router

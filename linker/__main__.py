@@ -4,8 +4,8 @@ import sys
 
 from nxtools import critical_error, log_traceback
 
+from ayon_server.lib.postgres import Postgres
 from linker.linker import make_links
-from openpype.lib.postgres import Postgres
 
 
 async def create_link_type(project_name: str, link_type_name: str) -> None:

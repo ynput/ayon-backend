@@ -3,12 +3,12 @@ from typing import Any
 from fastapi import Depends, Header, Response
 from projects.router import router
 
-from openpype.api import ResponseFactory, dep_current_user, dep_project_name
-from openpype.entities import ProjectEntity, UserEntity
-from openpype.events import dispatch_event
-from openpype.exceptions import ForbiddenException
-from openpype.helpers.deploy_project import anatomy_to_project_data
-from openpype.settings.anatomy import Anatomy
+from ayon_server.api import ResponseFactory, dep_current_user, dep_project_name
+from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.events import dispatch_event
+from ayon_server.exceptions import ForbiddenException
+from ayon_server.helpers.deploy_project import anatomy_to_project_data
+from ayon_server.settings.anatomy import Anatomy
 
 
 def dict2list(src) -> list[dict[str, Any]]:

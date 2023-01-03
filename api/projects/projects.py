@@ -2,16 +2,16 @@ from fastapi import Depends, Header, Response
 from nxtools import logging
 from projects.router import router
 
-from openpype.api import (
+from ayon_server.api import (
     ResponseFactory,
     dep_current_user,
     dep_new_project_name,
     dep_project_name,
 )
-from openpype.entities import ProjectEntity, UserEntity
-from openpype.events import dispatch_event
-from openpype.exceptions import ForbiddenException, NotFoundException
-from openpype.lib.postgres import Postgres
+from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.events import dispatch_event
+from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.lib.postgres import Postgres
 
 #
 # [GET]

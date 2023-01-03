@@ -3,12 +3,12 @@ __all__ = ["router"]
 from nxtools import logging
 from yaoauth2 import OAuth2Data, YAOAuth2
 
-from openpype.auth.session import Session
-from openpype.config import ayonconfig
-from openpype.entities import UserEntity
-from openpype.exceptions import UnauthorizedException
-from openpype.lib.postgres import Postgres
-from openpype.types import OPModel
+from ayon_server.auth.session import Session
+from ayon_server.config import ayonconfig
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import UnauthorizedException
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import OPModel
 
 
 class LoginResponseModel(OPModel):

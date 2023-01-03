@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "openpype-server"
-version = "4.0.0"
+name = "ayon_server"
+version = "1.0.0"
 description = ""
-authors = ["Martastain <martas@imm.cz>"]
+authors = ["Ynput.io <info@ynput.io>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"

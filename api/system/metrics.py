@@ -4,10 +4,10 @@ import psutil
 from fastapi import Depends
 from fastapi.responses import PlainTextResponse
 
-from openpype.api import dep_current_user
-from openpype.entities import UserEntity
-from openpype.lib.postgres import Postgres
-from openpype.lib.redis import Redis
+from ayon_server.api import dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 
 from .router import router
 

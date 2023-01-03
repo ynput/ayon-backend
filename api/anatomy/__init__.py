@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Response
 
-from openpype.exceptions import NotFoundException
-from openpype.lib.postgres import Postgres
-from openpype.settings import postprocess_settings_schema
-from openpype.settings.anatomy import Anatomy
-from openpype.types import Field, OPModel
+from ayon_server.exceptions import NotFoundException
+from ayon_server.lib.postgres import Postgres
+from ayon_server.settings import postprocess_settings_schema
+from ayon_server.settings.anatomy import Anatomy
+from ayon_server.types import Field, OPModel
 
 router = APIRouter(tags=["Anatomy"], prefix="/anatomy")
 

@@ -2,11 +2,11 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Response
 
-from openpype.api.dependencies import dep_current_user, dep_project_name, dep_task_id
-from openpype.api.responses import EntityIdResponse, ResponseFactory
-from openpype.entities import TaskEntity, UserEntity
-from openpype.exceptions import ForbiddenException
-from openpype.types import Field, OPModel
+from ayon_server.api.dependencies import dep_current_user, dep_project_name, dep_task_id
+from ayon_server.api.responses import EntityIdResponse, ResponseFactory
+from ayon_server.entities import TaskEntity, UserEntity
+from ayon_server.exceptions import ForbiddenException
+from ayon_server.types import Field, OPModel
 
 router = APIRouter(
     tags=["Tasks"],

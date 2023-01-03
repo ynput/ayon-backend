@@ -1,10 +1,10 @@
 from fastapi import Depends, Response
 from nxtools import logging
 
-from openpype.api import dep_current_user
-from openpype.entities import UserEntity
-from openpype.events import dispatch_event
-from openpype.exceptions import ForbiddenException
+from ayon_server.api import dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.events import dispatch_event
+from ayon_server.exceptions import ForbiddenException
 
 from . import info, metrics
 from .router import router

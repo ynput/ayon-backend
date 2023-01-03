@@ -1,7 +1,7 @@
 import json
 import os
 
-from openpype.addons import BaseServerAddon
+from ayon_server.addons import BaseServerAddon
 
 from .settings import ApplicationsAddonSettings
 

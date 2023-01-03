@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends
 
-from openpype.addons import AddonLibrary
-from openpype.api import ResponseFactory, dep_current_user
-from openpype.entities import UserEntity
-from openpype.settings import BaseSettingsModel
-from openpype.types import OPModel
+from ayon_server.addons import AddonLibrary
+from ayon_server.api import ResponseFactory, dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.settings import BaseSettingsModel
+from ayon_server.types import OPModel
 
 router = APIRouter(
     tags=["Addon settings"],

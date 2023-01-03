@@ -1,12 +1,16 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
 from nxtools import logging
 
-from openpype.api.dependencies import dep_current_user, dep_folder_id, dep_project_name
-from openpype.api.responses import EntityIdResponse, ResponseFactory
-from openpype.entities import FolderEntity, UserEntity
-from openpype.events import dispatch_event
-from openpype.exceptions import ForbiddenException
-from openpype.lib.postgres import Postgres
+from ayon_server.api.dependencies import (
+    dep_current_user,
+    dep_folder_id,
+    dep_project_name,
+)
+from ayon_server.api.responses import EntityIdResponse, ResponseFactory
+from ayon_server.entities import FolderEntity, UserEntity
+from ayon_server.events import dispatch_event
+from ayon_server.exceptions import ForbiddenException
+from ayon_server.lib.postgres import Postgres
 
 router = APIRouter(
     tags=["Folders"],

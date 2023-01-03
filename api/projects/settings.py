@@ -1,11 +1,11 @@
 from fastapi import Depends
 from projects.router import router
 
-from openpype.addons import AddonLibrary
-from openpype.api import dep_current_user, dep_project_name
-from openpype.entities import UserEntity
-from openpype.settings import BaseSettingsModel
-from openpype.types import OPModel
+from ayon_server.addons import AddonLibrary
+from ayon_server.api import dep_current_user, dep_project_name
+from ayon_server.entities import UserEntity
+from ayon_server.settings import BaseSettingsModel
+from ayon_server.types import OPModel
 
 
 class GetProjectSettingsResponse(OPModel):

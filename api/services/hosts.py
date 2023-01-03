@@ -3,11 +3,11 @@ import time
 from fastapi import Depends
 from services.services import ServiceModel, list_services
 
-from openpype.api.dependencies import dep_current_user
-from openpype.entities import UserEntity
-from openpype.exceptions import ForbiddenException
-from openpype.lib.postgres import Postgres
-from openpype.types import Field, OPModel
+from ayon_server.api.dependencies import dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import ForbiddenException
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
 
 from .router import router
 
