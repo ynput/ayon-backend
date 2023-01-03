@@ -221,12 +221,11 @@ class BaseServerAddon:
             query = (
                 f"""
                 SELECT data FROM project_{project_name}.settings
-                WHERE addon_name = $1 AND addon_version = $2 AND project_name = $3
+                WHERE addon_name = $1 AND addon_version = $2
                 ORDER BY snapshot_time DESC LIMIT 1
                 """,
                 self.definition.name,
                 self.version,
-                project_name,
             )
         else:
             query = (
