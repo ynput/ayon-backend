@@ -31,6 +31,10 @@ class AddonLibrary:
             return None
 
         for addon_name in os.listdir(addons_dir):
+            # ignore hidden directories (such as .git)
+            if addon_name.startswith("."):
+                continue
+
             addon_dir = os.path.join(addons_dir, addon_name)
             if not os.path.isdir(addon_dir):
                 continue

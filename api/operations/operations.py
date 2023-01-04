@@ -1,7 +1,7 @@
 from contextlib import suppress
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Header
 from nxtools import log_traceback
 
 from ayon_server.api.dependencies import dep_current_user, dep_project_name
@@ -14,6 +14,8 @@ from ayon_server.entities import (
     VersionEntity,
 )
 from ayon_server.entities.core import ProjectLevelEntity
+from ayon_server.events import dispatch_event
+from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
@@ -98,10 +100,13 @@ async def process_operation(
     user: UserEntity,
     operation: OperationModel,
     transaction=None,
-) -> tuple[ProjectLevelEntity, OperationResponseModel]:
+) -> tuple[ProjectLevelEntity, list[dict[str, Any]], OperationResponseModel]:
     """Process a single operation. Raise an exception on error."""
 
     entity_class = get_entity_class(operation.entity_type)
+
+    # Data for the event triggered after successful operation
+    events: list[dict[str, Any]] | None = None
 
     if operation.type == "create":
         payload = entity_class.model.post_model(**operation.data)
@@ -111,7 +116,7 @@ async def process_operation(
         entity = entity_class(project_name, payload_dict)
         await entity.ensure_create_access(user)
         await entity.save(transaction=transaction)
-        print(f"created {entity_class.__name__} {entity.id} {entity.name}")
+        # print(f"created {entity_class.__name__} {entity.id} {entity.name}")
 
     elif operation.type == "update":
         payload = entity_class.model.patch_model(**operation.data)
@@ -122,20 +127,25 @@ async def process_operation(
             transaction=transaction,
         )
         await entity.ensure_update_access(user)
+        events = build_pl_entity_change_events(entity, payload)
         entity.patch(payload)
         await entity.save(transaction=transaction)
-        print(f"updated {entity_class.__name__} {entity.id}")
+        # print(f"updated {entity_class.__name__} {entity.id}")
 
     elif operation.type == "delete":
         entity = await entity_class.load(project_name, operation.entity_id)
         await entity.ensure_delete_access(user)
         await entity.delete(transaction=transaction)
 
-    return entity, OperationResponseModel(
-        success=True,
-        id=operation.id,
-        type=operation.type,
-        entity_id=entity.id,
+    return (
+        entity,
+        events,
+        OperationResponseModel(
+            success=True,
+            id=operation.id,
+            type=operation.type,
+            entity_id=entity.id,
+        ),
     )
 
 
@@ -145,7 +155,7 @@ async def process_operations(
     operations: list[OperationModel],
     can_fail: bool = False,
     transaction=None,
-) -> OperationsResponseModel:
+) -> tuple[list[dict[str, Any]], OperationsResponseModel]:
     """Process a list of operations.
 
     This is separated from the endpoint so the endpoint can
@@ -158,18 +168,23 @@ async def process_operations(
     result: list[OperationResponseModel] = []
     to_commit: list[ProjectLevelEntity] = []
 
+    events: list[dict[str, Any]] = []
+
     for i, operation in enumerate(operations):
         try:
-            entity, response = await process_operation(
+            entity, evt, response = await process_operation(
                 project_name,
                 user,
                 operation,
                 transaction=transaction,
             )
+            if evt:
+                events.extend(evt)
             result.append(response)
             if entity.entity_type not in [e.entity_type for e in to_commit]:
                 to_commit.append(entity)
         except AyonException as e:
+            print(e)
             result.append(
                 OperationResponseModel(
                     success=False,
@@ -203,7 +218,7 @@ async def process_operations(
         for entity in to_commit:
             await entity.commit(transaction=transaction)
 
-    return OperationsResponseModel(operations=result, success=success)
+    return events, OperationsResponseModel(operations=result, success=success)
 
 
 #
@@ -217,8 +232,10 @@ async def process_operations(
 )
 async def operations(
     payload: OperationsRequestModel,
+    background_tasks: BackgroundTasks,
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
+    x_sender: str | None = Header(None),
 ):
     """
     Process multiple operations (create / update / delete) in a single request.
@@ -239,7 +256,7 @@ async def operations(
     """
 
     if payload.can_fail:
-        response = await process_operations(
+        events, response = await process_operations(
             project_name,
             user,
             payload.operations,
@@ -253,7 +270,7 @@ async def operations(
     with suppress(RollbackException):
         async with Postgres.acquire() as conn:
             async with conn.transaction():
-                response = await process_operations(
+                events, response = await process_operations(
                     project_name,
                     user,
                     payload.operations,
@@ -261,6 +278,15 @@ async def operations(
                 )
 
                 if not response.success:
+                    events = []
                     raise RollbackException()
+
+    for event in events:
+        background_tasks.add_task(
+            dispatch_event,
+            sender=x_sender,
+            user=user.name,
+            **event,
+        )
 
     return response

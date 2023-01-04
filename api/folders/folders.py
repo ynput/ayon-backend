@@ -9,6 +9,7 @@ from ayon_server.api.dependencies import (
 from ayon_server.api.responses import EntityIdResponse, ResponseFactory
 from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.events import dispatch_event
+from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 
@@ -116,23 +117,38 @@ async def update_folder(
                         f"Cannot update {key} folder with published versions"
                     )
 
+            events = build_pl_entity_change_events(
+                folder,
+                post_data,
+                user,
+                x_sender,
+            )
+
             folder.patch(post_data)
             await folder.save(transaction=conn)
             await folder.commit(conn)
 
-            background_tasks.add_task(
-                dispatch_event,
-                "entity.update",
-                sender=x_sender,
-                project=project_name,
-                user=user.name,
-                description=f"Updated {folder.path}",
-                summary={
-                    "entityType": "folder",
-                    "ids": [folder.id],
-                    "parents": [folder.parent_id],
-                },
-            )
+            for event in events:
+                background_tasks.add_task(
+                    dispatch_event,
+                    sender=x_sender,
+                    user=user.name,
+                    **event,
+                )
+
+            # background_tasks.add_task(
+            #     dispatch_event,
+            #     "entity.update",
+            #     sender=x_sender,
+            #     project=project_name,
+            #     user=user.name,
+            #     description=f"Updated {folder.path}",
+            #     summary={
+            #         "entityType": "folder",
+            #         "ids": [folder.id],
+            #         "parents": [folder.parent_id],
+            #     },
+            # )
 
     return Response(status_code=204)
 
