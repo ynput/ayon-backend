@@ -103,16 +103,15 @@ class AyonConfig(BaseModel):
 
 def load_config() -> AyonConfig:
     """Load configuration"""
-    env_prefixes = ["openpype_", "ayon_"]
+    prefix = "ayon_"
     env_data = {}
     for key, value in dict(os.environ).items():
-        for prefix in env_prefixes:
-            if not key.lower().startswith(prefix):
-                continue
+        if not key.lower().startswith(prefix):
+            continue
 
-            key = key.lower().removeprefix(prefix)
-            if key in AyonConfig.__fields__:
-                env_data[key] = value
+        key = key.lower().removeprefix(prefix)
+        if key in AyonConfig.__fields__:
+            env_data[key] = value
 
     return AyonConfig(**env_data)
 
