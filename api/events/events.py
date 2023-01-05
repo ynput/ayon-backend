@@ -137,7 +137,7 @@ async def get_event(
     query = "SELECT * FROM events WHERE id = $1", event_id
 
     if user.is_guest:
-        raise ForbiddenException("Guests are not allowed to get events")
+        raise ForbiddenException("Guests are not allowed to get events this way")
 
     event: EventModel | None = None
     async for record in Postgres.iterate(*query):

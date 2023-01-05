@@ -26,7 +26,7 @@ def event_from_record(record: dict, context: dict) -> EventNode:
     if current_user.is_guest and record["user_name"] != current_user.name:
         if record["user_name"]:
             record["user_name"] = get_nickname(record["user_name"])
-        if record["description"]:
+        if record["topic"].startswith("log") and record["description"]:
             record["description"] = obscure(record["description"])
 
     return EventNode(

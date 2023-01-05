@@ -128,6 +128,7 @@ class Messaging(BackgroundTask):
                 else:
                     message = json_loads(raw_message["data"])
 
+                # TODO: much much smarter logic here
                 for client_id, client in self.clients.items():
                     for topic in client.topics:
                         if topic == "*" or message["topic"].startswith(topic):
@@ -138,12 +139,11 @@ class Messaging(BackgroundTask):
                                 m = copy.deepcopy(message)
                                 if m.get("user"):
                                     m["user"] = get_nickname(m["user"])
-                                if m.get("description"):
+                                if message["topic"].startswith("log"):
                                     m["description"] = obscure(m["description"])
                                 await client.send(m)
                             else:
                                 await client.send(message)
-                            break
 
                 if message["topic"] == "server.restart_requested":
                     restart_server()
