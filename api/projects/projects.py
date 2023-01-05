@@ -145,15 +145,11 @@ async def update_project(
     await project.save()
 
     await dispatch_event(
-        "entity.update",
+        "entity.project.changed",
         sender=x_sender,
         project=project_name,
         user=user.name,
         description=f"Updated project {project_name}",
-        summary={
-            "entityType": "project",
-            "name": project_name,
-        },
     )
     logging.info(f"[PATCH] Updated project {project.name}", user=user.name)
     return Response(status_code=204)

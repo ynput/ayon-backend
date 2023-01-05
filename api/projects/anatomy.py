@@ -77,15 +77,11 @@ async def set_project_anatomy(
     await project.save()
 
     await dispatch_event(
-        "entity.update",
+        "entity.project.changed",
         sender=x_sender,
         project=project_name,
         user=user.name,
-        description=f"Updated project {project_name} anatomy",
-        summary={
-            "entityType": "project",
-            "name": project_name,
-        },
+        description=f"Project {project_name} anatomy has been changed",
     )
 
     return Response(status_code=204)

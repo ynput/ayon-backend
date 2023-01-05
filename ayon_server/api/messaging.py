@@ -29,6 +29,7 @@ class Client:
         self.disconnected = False
         self.authorized = False
         self.created_at = time.time()
+        self.project_name = None
         self.user = None
 
     @property
@@ -41,12 +42,18 @@ class Client:
     def is_guest(self) -> bool:
         return self.user.data.get("isGuest", False)
 
-    async def authorize(self, access_token: str, topics: list[str]) -> bool:
+    async def authorize(
+        self,
+        access_token: str,
+        topics: list[str],
+        project: str | None = None,
+    ) -> bool:
         session_data = await Session.check(access_token, None)
         if session_data:
             self.topics = [*topics, *ALWAYS_SUBSCRIBE] if "*" not in topics else ["*"]
             self.authorized = True
             self.user = session_data.user
+            self.project_name = project
             return True
         return False
 
@@ -130,6 +137,11 @@ class Messaging(BackgroundTask):
 
                 # TODO: much much smarter logic here
                 for client_id, client in self.clients.items():
+
+                    if client.project_name is not None:
+                        if message.get("project", None) != client.project_name:
+                            continue
+
                     for topic in client.topics:
                         if topic == "*" or message["topic"].startswith(topic):
                             if (

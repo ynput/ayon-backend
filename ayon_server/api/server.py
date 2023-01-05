@@ -220,6 +220,7 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                 await client.authorize(
                     message.get("token"),
                     topics=message.get("subscribe", []),
+                    project=message.get("project"),
                 )
     except WebSocketDisconnect:
         # NOTE: Too noisy
