@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
 from nxtools import logging
 
 from ayon_server.api.dependencies import (
@@ -8,6 +8,8 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EntityIdResponse, ResponseFactory
 from ayon_server.entities import SubsetEntity, UserEntity
+from ayon_server.events import dispatch_event
+from ayon_server.events.patch import build_pl_entity_change_events
 
 router = APIRouter(
     tags=["Subsets"],
@@ -79,16 +81,31 @@ async def create_subset(
 )
 async def update_subset(
     post_data: SubsetEntity.model.patch_model,  # type: ignore
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     subset_id: str = Depends(dep_subset_id),
+    x_sender: str | None = Header(default=None),
 ):
     """Patch (partially update) a subset."""
 
     subset = await SubsetEntity.load(project_name, subset_id)
     await subset.ensure_update_access(user)
+    events = build_pl_entity_change_events(
+        subset,
+        post_data,
+        user,
+        x_sender,
+    )
     subset.patch(post_data)
     await subset.save()
+    for event in events:
+        background_tasks.add_task(
+            dispatch_event,
+            sender=x_sender,
+            user=user.name,
+            **event,
+        )
     return Response(status_code=204)
 
 

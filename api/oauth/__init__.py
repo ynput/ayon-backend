@@ -25,7 +25,8 @@ async def login_callback(data: OAuth2Data) -> LoginResponseModel:
         data.user.email,
     )
     if not res:
-        raise UnauthorizedException(f"User with email {data.user.email} was not found.")
+        # TODO: log the email somewhere safe (event payload)
+        raise UnauthorizedException("Attempted login with unknown email")
 
     user = UserEntity.from_record(res[0])
 

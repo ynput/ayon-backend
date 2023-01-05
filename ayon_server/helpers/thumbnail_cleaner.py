@@ -16,7 +16,7 @@ async def clear_thumbnails(project_name: str) -> None:
     Delete only thumbnails older than 24 hours.
     """
 
-    logging.info(f"Clearing unused thumbnails in {project_name}")
+    logging.debug(f"Clearing unused thumbnails in {project_name}")
 
     query = f"""
 

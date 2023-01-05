@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
 from nxtools import logging
 
 from ayon_server.api.dependencies import (
@@ -8,6 +8,8 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EntityIdResponse, ResponseFactory
 from ayon_server.entities import RepresentationEntity, UserEntity
+from ayon_server.events import dispatch_event
+from ayon_server.events.patch import build_pl_entity_change_events
 
 router = APIRouter(
     tags=["Representations"],
@@ -81,16 +83,31 @@ async def create_representation(
 )
 async def update_representation(
     post_data: RepresentationEntity.model.patch_model,  # type: ignore
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     representation_id: str = Depends(dep_representation_id),
+    x_sender: str | None = Header(default=None),
 ):
     """Patch (partially update) a representation."""
 
     representation = await RepresentationEntity.load(project_name, representation_id)
     await representation.ensure_update_access(user)
+    events = build_pl_entity_change_events(
+        representation,
+        post_data,
+        user,
+        x_sender,
+    )
     representation.patch(post_data)
     await representation.save()
+    for event in events:
+        background_tasks.add_task(
+            dispatch_event,
+            sender=x_sender,
+            user=user.name,
+            **event,
+        )
     return Response(status_code=204)
 
 

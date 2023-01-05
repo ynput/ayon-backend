@@ -3,23 +3,88 @@ from typing import Any
 from pydantic import BaseModel
 
 from ayon_server.entities.core import ProjectLevelEntity
-from ayon_server.events.base import create_id
+
+EventData = dict[str, Any]
+
+
+def get_tags_description(entity_desc: str, list1: list[str], list2: list[str]) -> str:
+    """Return a human readable description of the changes in tags
+
+    Martin:
+
+    create a function which takes two lists of strings
+    as arguments and return a human-readable description of
+    changes between the first one and the second one.
+
+    ChatGPT:
+
+    Sure, here is a function that will do that:
+    """
+    added = set(list2) - set(list1)
+    removed = set(list1) - set(list2)
+
+    description = ""
+    if added:
+        what = entity_desc + (" tag " if len(added) == 1 else " tags ")
+        description += f"Added {what}" + ", ".join(added) + ". "
+    if removed:
+        if added:
+            what = ""
+        else:
+            what = entity_desc + (" tag " if len(removed) == 1 else " tags ")
+        description += f"Removed {what} " + ", ".join(removed) + ". "
+
+    return description.strip()
 
 
 def build_pl_entity_change_events(
     original_entity: ProjectLevelEntity,
     patch: BaseModel,
-) -> list[dict[str, Any]]:
+) -> list[EventData]:
+    """Return a list of events triggered by a patch on a project level entity.
 
-    patch_data = patch.dict(exclude_none=True)
+    This should be called in every operation that updates a project level entity,
+    after source entity is loaded and validated against the ACL, but BEFORE the
+    entity is patched and saved.
 
-    result: list[EventModel] = []
+    Result is a list of dicts, which is - after successful operation - passed as
+    kwargs to the dispatch_event function along with `sender` and `user` args
+    (which originate from the request).
+
+    Since multiple events can be triggered by a single operation, the list can
+    contain multiple dicts. Each dict contains the following keys:
+
+    - topic
+    - summary (contains `entityId` and `parentId`)
+    - description - human readable description of the event
+    - project - name of the project the entity belongs to
+    - payload (if needed)
+
+    """
+
+    patch_data = patch.dict(exclude_unset=True)
+    entity_type = original_entity.entity_type
+
+    match entity_type:
+        case "folder":
+            parent_id = original_entity.parent_id
+        case "subset" | "task":
+            parent_id = original_entity.folder_id
+        case "version":
+            parent_id = original_entity.subset_id
+        case "representation":
+            parent_id = original_entity.version_id
+        case "workfile":
+            parent_id = original_entity.task_id
+        case _:
+            # This should never happen
+            parent_id = None
+
+    result: list[EventData] = []
     common_data = {
         "project": original_entity.project_name,
-        "summary": {"entityId": original_entity.id},
+        "summary": {"entityId": original_entity.id, "parentId": parent_id},
     }
-
-    entity_type = original_entity.entity_type
 
     if (new_name := patch_data.get("name")) is not None:
         if new_name != original_entity.name:
@@ -28,7 +93,6 @@ def build_pl_entity_change_events(
             )
             result.append(
                 {
-                    # "hash": create_id(),
                     "topic": f"entity.{entity_type}.renamed",
                     "description": description,
                     **common_data,
@@ -42,11 +106,39 @@ def build_pl_entity_change_events(
             )
             result.append(
                 {
-                    # "hash": create_id(),
                     "topic": f"entity.{entity_type}.status_changed",
                     "description": description,
                     **common_data,
                 }
             )
+
+    if (new_tags := patch_data.get("tags")) is not None:
+        if new_tags != original_entity.tags:
+            description = get_tags_description(
+                f"{entity_type} {original_entity.name}",
+                original_entity.tags,
+                patch.tags,
+            )
+            if description:
+                result.append(
+                    {
+                        "topic": f"entity.{entity_type}.tags_changed",
+                        "description": description,
+                        **common_data,
+                    }
+                )
+
+    if new_attributes := patch_data.get("attrib", {}):
+        attr_list = ", ".join(new_attributes.keys())
+        description = (
+            f"Changed {entity_type} {original_entity.name} attributes: {attr_list}"
+        )
+        result.append(
+            {
+                "topic": f"entity.{entity_type}.attrib_changed",
+                "description": description,
+                **common_data,
+            }
+        )
 
     return result

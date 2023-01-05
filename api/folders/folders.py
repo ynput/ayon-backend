@@ -128,27 +128,13 @@ async def update_folder(
             await folder.save(transaction=conn)
             await folder.commit(conn)
 
-            for event in events:
-                background_tasks.add_task(
-                    dispatch_event,
-                    sender=x_sender,
-                    user=user.name,
-                    **event,
-                )
-
-            # background_tasks.add_task(
-            #     dispatch_event,
-            #     "entity.update",
-            #     sender=x_sender,
-            #     project=project_name,
-            #     user=user.name,
-            #     description=f"Updated {folder.path}",
-            #     summary={
-            #         "entityType": "folder",
-            #         "ids": [folder.id],
-            #         "parents": [folder.parent_id],
-            #     },
-            # )
+    for event in events:
+        background_tasks.add_task(
+            dispatch_event,
+            sender=x_sender,
+            user=user.name,
+            **event,
+        )
 
     return Response(status_code=204)
 

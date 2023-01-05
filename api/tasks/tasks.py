@@ -1,10 +1,12 @@
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
 
 from ayon_server.api.dependencies import dep_current_user, dep_project_name, dep_task_id
 from ayon_server.api.responses import EntityIdResponse, ResponseFactory
 from ayon_server.entities import TaskEntity, UserEntity
+from ayon_server.events import dispatch_event
+from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.types import Field, OPModel
 
@@ -81,16 +83,31 @@ async def create_task(
 )
 async def update_task(
     post_data: TaskEntity.model.patch_model,  # type: ignore
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     task_id: str = Depends(dep_task_id),
+    x_sender: str | None = Header(default=None),
 ):
     """Patch (partially update) a task."""
 
     task = await TaskEntity.load(project_name, task_id)
     await task.ensure_update_access(user)
+    events = build_pl_entity_change_events(
+        task,
+        post_data,
+        user,
+        x_sender,
+    )
     task.patch(post_data)
     await task.save()
+    for event in events:
+        background_tasks.add_task(
+            dispatch_event,
+            sender=x_sender,
+            user=user.name,
+            **event,
+        )
     return Response(status_code=204)
 
 

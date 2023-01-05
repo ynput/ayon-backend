@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
 from nxtools import logging
 
 from ayon_server.api.dependencies import (
@@ -8,6 +8,8 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EntityIdResponse, ResponseFactory
 from ayon_server.entities import UserEntity, VersionEntity
+from ayon_server.events import dispatch_event
+from ayon_server.events.patch import build_pl_entity_change_events
 
 router = APIRouter(
     tags=["Versions"],
@@ -82,16 +84,31 @@ async def create_version(
 )
 async def update_version(
     post_data: VersionEntity.model.patch_model,  # type: ignore
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     version_id: str = Depends(dep_version_id),
+    x_sender: str | None = Header(default=None),
 ):
     """Patch (partially update) a version."""
 
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_update_access(user)
+    events = build_pl_entity_change_events(
+        version,
+        post_data,
+        user,
+        x_sender,
+    )
     version.patch(post_data)
     await version.save()
+    for event in events:
+        background_tasks.add_task(
+            dispatch_event,
+            sender=x_sender,
+            user=user.name,
+            **event,
+        )
     return Response(status_code=204)
 
 
