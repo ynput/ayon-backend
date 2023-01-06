@@ -77,8 +77,7 @@ async def dep_current_user(
                     f"Invalid API key {hashed_key}",
                 )
             user = UserEntity.from_record(result[0])
-            client_info = get_client_info(request)
-            session_data = await Session.create(user, client_info, token=api_key)
+            session_data = await Session.create(user, request, token=api_key)
 
     elif access_token is None:
         raise UnauthorizedException("Access token is missing")

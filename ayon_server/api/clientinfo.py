@@ -9,7 +9,7 @@ import user_agents
 from fastapi import Request
 from pydantic import BaseModel, Field
 
-from ayon_server import config
+from ayon_server.config import ayonconfig
 
 
 class LocationInfo(BaseModel):
@@ -36,10 +36,10 @@ def get_real_ip(request: Request) -> str:
 
 
 def geo_lookup(ip: str):
-    if not os.path.exists(config.geoip_db_path):
+    if not os.path.exists(ayonconfig.geoip_db_path):
         return None
 
-    with geoip2.database.Reader(config.geoip_db_path) as reader:
+    with geoip2.database.Reader(ayonconfig.geoip_db_path) as reader:
         try:
             response = reader.city(ip)
         except geoip2.errors.AddressNotFoundError:
@@ -58,7 +58,7 @@ def is_internal_ip(ip: str) -> bool:
         if ipaddress.IPv4Address(ip).is_private:
             return True
 
-    with contextlib.supress(ValueError):
+    with contextlib.suppress(ValueError):
         if ipaddress.IPv6Address(ip).is_private:
             return True
     return False
