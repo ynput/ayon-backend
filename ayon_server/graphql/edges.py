@@ -4,7 +4,6 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.graphql.types import BaseEdge
-from ayon_server.graphql.utils import lazy_type
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.event import EventNode

@@ -1,8 +1,6 @@
 import asyncio
 import time
 
-from nxtools import logging
-
 from ayon_server.background import BackgroundTask
 from ayon_server.lib.postgres import Postgres
 

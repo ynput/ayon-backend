@@ -1,7 +1,6 @@
 import contextlib
 import ipaddress
 import os
-from typing import Any
 
 import geoip2
 import geoip2.database
@@ -64,15 +63,15 @@ def is_internal_ip(ip: str) -> bool:
     return False
 
 
-def get_ua_data(request):
+def get_ua_data(request) -> AgentInfo | None:
     if (ua_string := request.headers.get("user-agent")) is None:
-        return {}
+        return None
     ua = user_agents.parse(ua_string)
-    return {
-        "platform": ua.os.family,
-        "client": ua.browser.family,
-        "device": ua.device.family,
-    }
+    return AgentInfo(
+        platform=ua.os.family,
+        client=ua.browser.family,
+        device=ua.device.family,
+    )
 
 
 def get_prefed_languages(request: Request) -> list[str]:
@@ -90,7 +89,7 @@ def get_prefed_languages(request: Request) -> list[str]:
     return languages
 
 
-def get_client_info(request: Request) -> dict[str, Any]:
+def get_client_info(request: Request) -> ClientInfo:
     ip = get_real_ip(request)
     if is_internal_ip(ip):
         location = None
