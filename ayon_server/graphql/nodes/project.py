@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 import strawberry
+from strawberry import LazyType
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.graphql.resolvers.folders import get_folder, get_folders
@@ -30,6 +31,20 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.task import TaskNode
     from ayon_server.graphql.nodes.version import VersionNode
     from ayon_server.graphql.nodes.workfile import WorkfileNode
+else:
+    FoldersConnection = LazyType["FoldersConnection", "..connections"]
+    RepresentationsConnection = LazyType["RepresentationsConnection", "..connections"]
+    SubsetsConnection = LazyType["SubsetsConnection", "..connections"]
+    TasksConnection = LazyType["TasksConnection", "..connections"]
+    VersionsConnection = LazyType["VersionsConnection", "..connections"]
+    WorkfilesConnection = LazyType["WorkfilesConnection", "..connections"]
+
+    FolderNode = LazyType["FolderNode", ".folder"]
+    RepresentationNode = LazyType["RepresentationNode", ".representation"]
+    SubsetNode = LazyType["SubsetNode", ".subset"]
+    TaskNode = LazyType["TaskNode", ".task"]
+    VersionNode = LazyType["VersionNode", ".version"]
+    WorkfileNode = LazyType["WorkfileNode", ".workfile"]
 
 
 @strawberry.type
@@ -62,62 +77,62 @@ class ProjectNode:
     created_at: int
     updated_at: int
 
-    folder: "FolderNode" = strawberry.field(
+    folder: FolderNode = strawberry.field(
         resolver=get_folder,
         description=get_folder.__doc__,
     )
 
-    folders: "FoldersConnection" = strawberry.field(
+    folders: FoldersConnection = strawberry.field(
         resolver=get_folders,
         description=get_folders.__doc__,
     )
 
-    task: "TaskNode" = strawberry.field(
+    task: TaskNode = strawberry.field(
         resolver=get_task,
         description=get_task.__doc__,
     )
 
-    tasks: "TasksConnection" = strawberry.field(
+    tasks: TasksConnection = strawberry.field(
         resolver=get_tasks,
         description=get_tasks.__doc__,
     )
 
-    subset: "SubsetNode" = strawberry.field(
+    subset: SubsetNode = strawberry.field(
         resolver=get_subset,
         description=get_subset.__doc__,
     )
 
-    subsets: "SubsetsConnection" = strawberry.field(
+    subsets: SubsetsConnection = strawberry.field(
         resolver=get_subsets,
         description=get_subsets.__doc__,
     )
 
-    version: "VersionNode" = strawberry.field(
+    version: VersionNode = strawberry.field(
         resolver=get_version,
         description=get_version.__doc__,
     )
 
-    versions: "VersionsConnection" = strawberry.field(
+    versions: VersionsConnection = strawberry.field(
         resolver=get_versions,
         description=get_versions.__doc__,
     )
 
-    representation: "RepresentationNode" = strawberry.field(
+    representation: RepresentationNode = strawberry.field(
         resolver=get_representation,
         description=get_representation.__doc__,
     )
 
-    representations: "RepresentationsConnection" = strawberry.field(
+    representations: RepresentationsConnection = strawberry.field(
         resolver=get_representations,
         description=get_representations.__doc__,
     )
 
-    workfile: "WorkfileNode" = strawberry.field(
+    workfile: WorkfileNode = strawberry.field(
         resolver=get_workfile,
         description=get_workfile.__doc__,
     )
 
-    workfiles: "WorkfilesConnection" = strawberry.field(
+    workfiles: WorkfilesConnection = strawberry.field(
         resolver=get_workfiles,
         description=get_workfiles.__doc__,
     )

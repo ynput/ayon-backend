@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Any, Literal
 
 import strawberry
+from strawberry import LazyType
 
 from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.graphql.nodes.common import BaseNode
@@ -9,6 +10,9 @@ from ayon_server.graphql.resolvers.tasks import get_tasks
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import SubsetsConnection, TasksConnection
+else:
+    SubsetsConnection = LazyType["SubsetsConnection", "..connections"]
+    TasksConnection = LazyType["TasksConnection", "..connections"]
 
 
 @FolderEntity.strawberry_attrib()
@@ -34,12 +38,12 @@ class FolderNode(BaseNode):
     subset_count: int = strawberry.field(default=0)
     task_count: int = strawberry.field(default=0)
 
-    subsets: "SubsetsConnection" = strawberry.field(
+    subsets: SubsetsConnection = strawberry.field(
         resolver=get_subsets,
         description=get_subsets.__doc__,
     )
 
-    tasks: "TasksConnection" = strawberry.field(
+    tasks: TasksConnection = strawberry.field(
         resolver=get_tasks,
         description=get_tasks.__doc__,
     )

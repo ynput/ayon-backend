@@ -91,12 +91,7 @@ async def update_subset(
 
     subset = await SubsetEntity.load(project_name, subset_id)
     await subset.ensure_update_access(user)
-    events = build_pl_entity_change_events(
-        subset,
-        post_data,
-        user,
-        x_sender,
-    )
+    events = build_pl_entity_change_events(subset, post_data)
     subset.patch(post_data)
     await subset.save()
     for event in events:

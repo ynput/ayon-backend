@@ -93,12 +93,7 @@ async def update_task(
 
     task = await TaskEntity.load(project_name, task_id)
     await task.ensure_update_access(user)
-    events = build_pl_entity_change_events(
-        task,
-        post_data,
-        user,
-        x_sender,
-    )
+    events = build_pl_entity_change_events(task, post_data)
     task.patch(post_data)
     await task.save()
     for event in events:

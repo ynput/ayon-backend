@@ -94,12 +94,7 @@ async def update_version(
 
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_update_access(user)
-    events = build_pl_entity_change_events(
-        version,
-        post_data,
-        user,
-        x_sender,
-    )
+    events = build_pl_entity_change_events(version, post_data)
     version.patch(post_data)
     await version.save()
     for event in events:

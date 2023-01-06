@@ -1,20 +1,22 @@
 from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import strawberry
+from strawberry import LazyType
 from strawberry.types import Info
 
 from ayon_server.entities import TaskEntity, UserEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
-from ayon_server.graphql.utils import lazy_type
 from ayon_server.utils import get_nickname
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import VersionsConnection, WorkfilesConnection
     from ayon_server.graphql.nodes.folder import FolderNode
 else:
-    FolderNode = lazy_type("FolderNode", ".nodes.folder")
+    FolderNode = LazyType["FolderNode", ".folder"]
+    VersionsConnection = LazyType["VersionsConnection", "..connections"]
+    WorkfilesConnection = LazyType["WorkfilesConnection", "..connections"]
 
 
 @TaskEntity.strawberry_attrib()

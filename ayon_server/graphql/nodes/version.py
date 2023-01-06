@@ -1,12 +1,13 @@
 from typing import TYPE_CHECKING, Optional
 
 import strawberry
+from strawberry import LazyType
 from strawberry.types import Info
 
 from ayon_server.entities import VersionEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.representations import get_representations
-from ayon_server.graphql.utils import lazy_type, parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import get_nickname
 
 if TYPE_CHECKING:
@@ -14,8 +15,9 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.subset import SubsetNode
     from ayon_server.graphql.nodes.task import TaskNode
 else:
-    SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
-    TaskNode = lazy_type("TaskNode", ".nodes.task")
+    RepresentationsConnection = LazyType["RepresentationsConnection", "..connections"]
+    SubsetNode = LazyType["SubsetNode", ".subset"]
+    TaskNode = LazyType["TaskNode", ".task"]
 
 
 @VersionEntity.strawberry_attrib()

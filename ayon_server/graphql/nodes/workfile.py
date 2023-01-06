@@ -2,16 +2,17 @@ import os
 from typing import TYPE_CHECKING
 
 import strawberry
+from strawberry import LazyType
 from strawberry.types import Info
 
 from ayon_server.entities import WorkfileEntity
 from ayon_server.graphql.nodes.common import BaseNode
-from ayon_server.graphql.utils import lazy_type, parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.task import TaskNode
 else:
-    TaskNode = lazy_type("TaskNode", ".nodes.task")
+    TaskNode = LazyType["TaskNode", ".task"]
 
 
 @WorkfileEntity.strawberry_attrib()

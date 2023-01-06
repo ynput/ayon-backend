@@ -93,12 +93,7 @@ async def update_representation(
 
     representation = await RepresentationEntity.load(project_name, representation_id)
     await representation.ensure_update_access(user)
-    events = build_pl_entity_change_events(
-        representation,
-        post_data,
-        user,
-        x_sender,
-    )
+    events = build_pl_entity_change_events(representation, post_data)
     representation.patch(post_data)
     await representation.save()
     for event in events:

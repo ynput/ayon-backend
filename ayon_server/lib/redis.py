@@ -1,7 +1,7 @@
 from typing import Any
 
-import aioredis
-import aioredis.client
+from redis import asyncio as aioredis
+from redis.client import PubSub
 
 from ayon_server.config import ayonconfig
 
@@ -53,7 +53,7 @@ class Redis:
         await cls.redis_pool.incr(f"{namespace}-{key}")
 
     @classmethod
-    async def pubsub(cls) -> aioredis.client.PubSub:
+    async def pubsub(cls) -> PubSub:
         """Create a Redis pubsub connection"""
         if not cls.connected:
             await cls.connect()

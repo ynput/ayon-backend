@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 import strawberry
+from strawberry import LazyType
 
 from ayon_server.graphql.types import BaseEdge
 from ayon_server.graphql.utils import lazy_type
@@ -16,67 +17,78 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.version import VersionNode
     from ayon_server.graphql.nodes.workfile import WorkfileNode
 else:
-    ProjectNode = lazy_type("ProjectNode", ".nodes.project")
-    UserNode = lazy_type("UserNode", ".nodes.user")
-    FolderNode = lazy_type("FolderNode", ".nodes.folder")
-    TaskNode = lazy_type("TaskNode", ".nodes.task")
-    SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
-    VersionNode = lazy_type("VersionNode", ".nodes.version")
-    RepresentationNode = lazy_type("RepresentationNode", ".nodes.representation")
-    EventNode = lazy_type("EventNode", ".nodes.event")
-    WorkfileNode = lazy_type("WorkfileNode", ".nodes.workfile")
-    BaseNode = lazy_type("BaseNode", ".nodes.common")
+    # ProjectNode = lazy_type("ProjectNode", ".nodes.project")
+    # UserNode = lazy_type("UserNode", ".nodes.user")
+    # FolderNode = lazy_type("FolderNode", ".nodes.folder")
+    # TaskNode = lazy_type("TaskNode", ".nodes.task")
+    # SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
+    # VersionNode = lazy_type("VersionNode", ".nodes.version")
+    # RepresentationNode = lazy_type("RepresentationNode", ".nodes.representation")
+    # EventNode = lazy_type("EventNode", ".nodes.event")
+    # WorkfileNode = lazy_type("WorkfileNode", ".nodes.workfile")
+    # BaseNode = lazy_type("BaseNode", ".nodes.common")
+
+    ProjectNode = LazyType["ProjectNode", ".nodes.project"]
+    UserNode = LazyType["UserNode", ".nodes.user"]
+    FolderNode = LazyType["FolderNode", ".nodes.folder"]
+    TaskNode = LazyType["TaskNode", ".nodes.task"]
+    SubsetNode = LazyType["SubsetNode", ".nodes.subset"]
+    VersionNode = LazyType["VersionNode", ".nodes.version"]
+    RepresentationNode = LazyType["RepresentationNode", ".nodes.representation"]
+    EventNode = LazyType["EventNode", ".nodes.event"]
+    WorkfileNode = LazyType["WorkfileNode", ".nodes.workfile"]
+    BaseNode = LazyType["BaseNode", ".nodes.common"]
 
 
 @strawberry.type
 class ProjectEdge(BaseEdge):
-    node: "ProjectNode" = strawberry.field(description="The project node")
+    node: ProjectNode = strawberry.field(description="The project node")
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class UserEdge(BaseEdge):
-    node: "UserNode" = strawberry.field(description="The user node")
+    node: UserNode = strawberry.field(description="The user node")
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class FolderEdge(BaseEdge):
-    node: "FolderNode" = strawberry.field(description="The folder node")
+    node: FolderNode = strawberry.field(description="The folder node")
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class TaskEdge(BaseEdge):
-    node: "TaskNode" = strawberry.field(description="The task node")
+    node: TaskNode = strawberry.field(description="The task node")
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class SubsetEdge(BaseEdge):
-    node: "SubsetNode" = strawberry.field(description="Subset node")
+    node: SubsetNode = strawberry.field(description="Subset node")
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class VersionEdge(BaseEdge):
-    node: "VersionNode" = strawberry.field(description="Version node")
+    node: VersionNode = strawberry.field(description="Version node")
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class RepresentationEdge(BaseEdge):
-    node: "RepresentationNode" = strawberry.field(description="Representation node")
+    node: RepresentationNode = strawberry.field(description="Representation node")
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class WorkfileEdge(BaseEdge):
-    node: "WorkfileNode" = strawberry.field(description="Workfile node")
+    node: WorkfileNode = strawberry.field(description="Workfile node")
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class EventEdge(BaseEdge):
-    node: "EventNode" = strawberry.field(description="Event node")
+    node: EventNode = strawberry.field(description="Event node")
     cursor: str | None = strawberry.field(default=None)

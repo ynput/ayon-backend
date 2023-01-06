@@ -94,12 +94,7 @@ async def update_workfile(
 
     workfile = await WorkfileEntity.load(project_name, workfile_id)
     await workfile.ensure_update_access(user)
-    events = build_pl_entity_change_events(
-        workfile,
-        post_data,
-        user,
-        x_sender,
-    )
+    events = build_pl_entity_change_events(workfile, post_data)
     workfile.patch(post_data)
     await workfile.save()
     for event in events:

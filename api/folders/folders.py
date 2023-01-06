@@ -117,12 +117,7 @@ async def update_folder(
                         f"Cannot update {key} folder with published versions"
                     )
 
-            events = build_pl_entity_change_events(
-                folder,
-                post_data,
-                user,
-                x_sender,
-            )
+            events = build_pl_entity_change_events(folder, post_data)
 
             folder.patch(post_data)
             await folder.save(transaction=conn)

@@ -1,20 +1,22 @@
 from typing import TYPE_CHECKING, Any, Optional
 
 import strawberry
+from strawberry import LazyType
 from strawberry.types import Info
 
 from ayon_server.entities import SubsetEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
-from ayon_server.graphql.utils import lazy_type, parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import VersionsConnection
     from ayon_server.graphql.nodes.folder import FolderNode
     from ayon_server.graphql.nodes.version import VersionNode
 else:
-    FolderNode = lazy_type("FolderNode", ".nodes.folder")
-    VersionNode = lazy_type("VersionNode", ".nodes.version")
+    FolderNode = LazyType["FolderNode", ".folder"]
+    VersionNode = LazyType["VersionNode", ".version"]
+    VersionsConnection = LazyType["VersionsConnection", "..connections"]
 
 
 @strawberry.type
@@ -46,7 +48,7 @@ class SubsetNode(BaseNode):
 
     # GraphQL specifics
 
-    versions: "VersionsConnection" = strawberry.field(
+    versions: VersionsConnection = strawberry.field(
         resolver=get_versions,
         description=get_versions.__doc__,
     )

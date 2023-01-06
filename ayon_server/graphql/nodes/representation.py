@@ -2,17 +2,18 @@ import enum
 from typing import TYPE_CHECKING, Any
 
 import strawberry
+from strawberry import LazyType
 from strawberry.types import Info
 
 from ayon_server.entities import RepresentationEntity
 from ayon_server.graphql.nodes.common import BaseNode
-from ayon_server.graphql.utils import lazy_type, parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.version import VersionNode
 else:
-    VersionNode = lazy_type("VersionNode", ".nodes.version")
+    VersionNode = LazyType["VersionNode", ".version"]
 
 
 class StatusEnum(enum.IntEnum):
