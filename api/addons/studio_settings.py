@@ -160,7 +160,7 @@ async def delete_addon_studio_overrides(
 
 
 @router.post("/{addon_name}/{version}/overrides", **route_meta)
-async def modify_overrides(
+async def modify_studio_overrides(
     payload: ModifyOverridesRequestModel,
     addon_name: str,
     version: str,

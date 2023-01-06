@@ -6,7 +6,7 @@
 Login using Oauth2 is implemented in the oauth module.
 """
 
-from fastapi import Depends
+from fastapi import Depends, Request
 
 from ayon_server.api import ResponseFactory
 from ayon_server.api.dependencies import dep_access_token
@@ -54,7 +54,7 @@ class LoginResponseModel(OPModel):
     response_model=LoginResponseModel,
     responses={401: ResponseFactory.error(401, "Unable to log in")},
 )
-async def login(login: LoginRequestModel):
+async def login(request: Request, login: LoginRequestModel):
     """Login using name/password credentials.
 
     Returns access token and user information. The token is used for
@@ -67,7 +67,7 @@ async def login(login: LoginRequestModel):
     Returns 401 response if the credentials are invalid.
     """
 
-    if not (session := await PasswordAuth.login(login.name, login.password)):
+    if not (session := await PasswordAuth.login(login.name, login.password, request)):
         # We don't need to be too verbose about the bad credentials
         raise UnauthorizedException("Invalid login/password")
 

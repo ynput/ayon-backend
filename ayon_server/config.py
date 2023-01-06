@@ -95,6 +95,11 @@ class AyonConfig(BaseModel):
         example="Welcome to Ayon!",
     )
 
+    geoip_db_path: str = Field(
+        default="/storage/GeoLite2-City.mmdb",
+        description="Path to the GeoIP database",
+    )
+
 
 #
 # Load configuration from environment variables

@@ -1,3 +1,4 @@
+from fastapi import Request
 from nxtools import logging
 
 from ayon_server.auth.session import Session, SessionModel
@@ -12,7 +13,12 @@ from ayon_server.lib.postgres import Postgres
 
 class PasswordAuth:
     @classmethod
-    async def login(cls, name: str, password: str) -> SessionModel | None:
+    async def login(
+        cls,
+        name: str,
+        password: str,
+        request: Request | None = None,
+    ) -> SessionModel | None:
         """Login using username/password credentials.
 
         Return a SessionModel object if the credentials are valid.
@@ -45,7 +51,7 @@ class PasswordAuth:
         if pass_hash != hash_password(password, pass_salt):
             return None
 
-        return await Session.create(user)
+        return await Session.create(user, request)
 
     @classmethod
     async def change_password(cls, name: str, password: str) -> None:

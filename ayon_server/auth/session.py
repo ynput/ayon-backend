@@ -2,8 +2,10 @@ __all__ = ["Session"]
 
 import time
 
+from fastapi import Request
 from nxtools import logging
 
+from ayon_server.api.clientinfo import ClientInfo, get_client_info, get_real_ip
 from ayon_server.entities import UserEntity
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
@@ -15,8 +17,8 @@ class SessionModel(OPModel):
     token: str
     created: float
     last_used: float
-    ip: str | None = None
     is_service: bool = False
+    client_info: ClientInfo | None = None
 
 
 class Session:
@@ -29,7 +31,7 @@ class Session:
         return time.time() - session.last_used > ttl
 
     @classmethod
-    async def check(cls, token: str, ip: str | None) -> SessionModel | None:
+    async def check(cls, token: str, request: Request | None) -> SessionModel | None:
         """Return a session corresponding to a given access token.
 
         Return None if the token is invalid.
@@ -48,9 +50,17 @@ class Session:
             await Redis.delete(cls.ns, token)
             return None
 
-        if ip and session.ip and session.ip != ip:
-            # TODO: log this?
-            return None
+        if request:
+            if not session.client_info:
+                session.client_info = get_client_info(request)
+            else:
+                if session.client_info.ip != get_real_ip(request):
+                    logging.warning(
+                        "Session IP mismatch: %s != %s",
+                        session.client_info.ip,
+                        request.client.host,
+                    )
+                    return None
 
         # extend normal tokens validity, but not service tokens.
         # they should be validated against db forcefully every 10 minutes or so
@@ -71,7 +81,7 @@ class Session:
     async def create(
         cls,
         user: UserEntity,
-        ip: str | None = None,
+        request: Request | None = None,
         token: str | None = None,
     ) -> SessionModel:
         """Create a new session for a given user."""
@@ -84,13 +94,18 @@ class Session:
             created=time.time(),
             last_used=time.time(),
             is_service=is_service,
-            ip=ip,
+            client_info=get_client_info(request) if request else None,
         )
         await Redis.set(cls.ns, token, session.json())
         return session
 
     @classmethod
-    async def update(cls, token: str, user: UserEntity) -> None:
+    async def update(
+        cls,
+        token: str,
+        user: UserEntity,
+        client_info: ClientInfo | None = None,
+    ) -> None:
         """Update a session with new user data."""
         data = await Redis.get(cls.ns, token)
         if not data:
@@ -99,6 +114,8 @@ class Session:
 
         session = SessionModel(**json_loads(data))
         session.user = user.dict()
+        if client_info is not None:
+            session.client_info = client_info
         session.last_used = time.time()
         await Redis.set(cls.ns, token, session.json())
 

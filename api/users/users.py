@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Path, Response
 from nxtools import logging
 
 from ayon_server.api import ResponseFactory
+from ayon_server.api.clientinfo import ClientInfo
 from ayon_server.api.dependencies import (
     dep_access_token,
     dep_current_user,
@@ -315,9 +316,9 @@ async def change_user_name(
 
 class UserSessionModel(OPModel):
     token: str
-    ip: str | None
     is_service: bool
     last_used: int
+    client_info: ClientInfo | None = None
 
 
 class UserSessionsResponseModel(OPModel):
@@ -336,7 +337,7 @@ async def get_user_sessions(
         sessions=[
             UserSessionModel(
                 token=session.token,
-                ip=session.ip,
+                client_info=session.client_info,
                 is_service=session.is_service,
                 last_used=session.last_used,
             )

@@ -48,7 +48,6 @@ async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
 
 async def dep_current_user(
     request: Request,
-    x_forwarded_for: str = Header(None, include_in_schema=False),
     x_as_user: str | None = Header(None),  # TODO: at least validate against a regex
     x_api_key: str | None = Header(None),  # TODO: some validation here
     access_token: str | None = Depends(dep_access_token),
@@ -68,7 +67,7 @@ async def dep_current_user(
 
     if api_key := x_api_key or api_key:
         hashed_key = hash_password(api_key)
-        if (session_data := await Session.check(api_key, x_forwarded_for)) is None:
+        if (session_data := await Session.check(api_key, request)) is None:
             result = await Postgres.fetch(
                 "SELECT * FROM users WHERE data->>'apiKey' = $1 LIMIT 1",
                 hashed_key,
@@ -78,12 +77,13 @@ async def dep_current_user(
                     f"Invalid API key {hashed_key}",
                 )
             user = UserEntity.from_record(result[0])
-            session_data = await Session.create(user, x_forwarded_for, token=api_key)
+            client_info = get_client_info(request)
+            session_data = await Session.create(user, client_info, token=api_key)
 
     elif access_token is None:
         raise UnauthorizedException("Access token is missing")
     else:
-        session_data = await Session.check(access_token, x_forwarded_for)
+        session_data = await Session.check(access_token, request)
 
     if not session_data:
         raise UnauthorizedException("Invalid access token")
@@ -106,7 +106,6 @@ async def dep_current_user(
 
 async def dep_current_user_optional(
     request: Request,
-    x_forwarded_for: str = Header(None, include_in_schema=False),
     x_as_user: str | None = Header(None),  # TODO: at least validate against a regex
     x_api_key: str | None = Header(None),  # TODO: some validation here
     access_token: str | None = Depends(dep_access_token),
@@ -115,7 +114,6 @@ async def dep_current_user_optional(
     try:
         user = await dep_current_user(
             request=request,
-            x_forwarded_for=x_forwarded_for,
             x_as_user=x_as_user,
             x_api_key=x_api_key,
             access_token=access_token,
