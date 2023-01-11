@@ -311,11 +311,19 @@ CREATE TABLE addon_versions(
   staging_version VARCHAR
 );
 
-CREATE TABLE IF NOT EXISTS public.addon_data(
+CREATE TABLE IF NOT EXISTS addon_data(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
   staging BOOL NOT NULL DEFAULT FALSE,
   key VARCHAR NOT NULL,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (addon_name, addon_version, staging, key)
+);
+
+
+CREATE TABLE IF NOT EXISTS custom_roots(
+  machine_ident VARCHAR NOT NULL REFERENCES public.machines(ident) ON DELETE CASCADE,
+  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  PRIMARY KEY (machine_ident, user_name)
 );

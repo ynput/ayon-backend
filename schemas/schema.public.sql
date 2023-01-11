@@ -148,6 +148,13 @@ CREATE TABLE IF NOT EXISTS public.services(
   data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
+
+CREATE TABLE IF NOT EXISTS public.machines(
+  ident VARCHAR NOT NULL PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+
 ------------------
 -- Dependencies --
 ------------------
