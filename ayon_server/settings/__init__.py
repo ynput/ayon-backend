@@ -4,6 +4,8 @@
 __all__ = [
     "BaseSettingsModel",
     "Field",
+    "MultiplatformPathModel",
+    "MultiplatformPathListModel",
     "TemplateWorkfileOptions",
     "apply_overrides",
     "list_overrides",
@@ -19,7 +21,11 @@ from pydantic import Field
 
 from ayon_server.settings.common import BaseSettingsModel, postprocess_settings_schema
 from ayon_server.settings.enum import folder_types_enum, task_types_enum
-from ayon_server.settings.models import TemplateWorkfileOptions
+from ayon_server.settings.models import (
+    MultiplatformPathModel,
+    MultiplatformPathListModel,
+    TemplateWorkfileOptions,
+)
 from ayon_server.settings.overrides import (
     apply_overrides,
     extract_overrides,

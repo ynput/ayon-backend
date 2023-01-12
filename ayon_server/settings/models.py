@@ -3,10 +3,16 @@ from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.enum import task_types_enum
 
 
-class PathModel(BaseSettingsModel):
+class MultiplatformPathModel(BaseSettingsModel):
     windows: str = Field("", title="Windows")
     macos: str = Field("", title="MacOS")
     linux: str = Field("", title="Linux")
+
+
+class MultiplatformPathListModel(BaseSettingsModel):
+    windows: list[str] = Field(default_factory=list, title="Windows")
+    macos: list[str] = Field(default_factory=list, title="MacOS")
+    linux: list[str] = Field(default_factory=list, title="Linux")
 
 
 class CustomTemplateModel(BaseSettingsModel):
@@ -19,7 +25,10 @@ class CustomTemplateModel(BaseSettingsModel):
     # label:
     # Absolute path to workfile template or Ayon Anatomy text is accepted.
 
-    path: PathModel = Field(default_factory=PathModel, title="Path")
+    path: MultiplatformPathModel = Field(
+        default_factory=MultiplatformPathModel,
+        title="Path"
+    )
 
 
 class ContextModel(BaseSettingsModel):
