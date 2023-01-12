@@ -6,6 +6,7 @@ __all__ = [
     "Field",
     "MultiplatformPathModel",
     "MultiplatformPathListModel",
+    "TemplateWorkfileBaseOptions",
     "TemplateWorkfileOptions",
     "apply_overrides",
     "list_overrides",
@@ -25,6 +26,7 @@ from ayon_server.settings.models import (
     MultiplatformPathModel,
     MultiplatformPathListModel,
     TemplateWorkfileOptions,
+    TemplateWorkfileBaseOptions
 )
 from ayon_server.settings.overrides import (
     apply_overrides,

@@ -58,6 +58,17 @@ class ProfileModel(BaseSettingsModel):
     )
 
 
+class TemplateWorkfileBaseOptions(BaseSettingsModel):
+    create_first_version: bool = Field(
+        False,
+        title="Create first workfile",
+    )
+    custom_templates: list[CustomTemplateModel] = Field(
+        default_factory=list,
+        title="Custom templates",
+    )
+
+
 class TemplateWorkfileOptions(BaseSettingsModel):
     create_first_version: bool = Field(
         False,
