@@ -37,8 +37,9 @@ class HierarchyFolderModel(OPModel):
     label: str = Field(..., example="Tree", title="Folder label")
     status: str = Field(..., example="Tree", title="Folder status")
     folderType: str | None = Field(example="AssetBuild", title="Folder type")
-    hasSubsets: bool
+    # hasSubsets: bool
     hasTasks: bool
+    taskNames: list[str] = Field(example=["Modeling", "Rigging"], title="Task names")
     parents: list[str]
     children: list[HierarchyFolderModel] = Field(
         default_factory=list,
@@ -92,6 +93,9 @@ async def get_folder_hierarchy(
     if access_list is not None:
         conds.append(f"path like ANY ('{{ {','.join(access_list)} }}')")
 
+    # TODO: eventually solve subset_count too. ATM it clashes with the
+    # task names list (group by hell), which is more important.
+
     plain_result = []
     query = f"""
         SELECT
@@ -102,18 +106,19 @@ async def get_folder_hierarchy(
             folders.label,
             folders.status,
             hierarchy.path as path,
-            COUNT (subsets.id) AS subset_count,
-            COUNT (tasks.id) AS task_count
+            -- COUNT (subsets.id) AS subset_count,
+            COUNT (tasks.id) AS task_count,
+            array_agg(tasks.name) AS task_names
         FROM
             project_{project_name}.folders AS folders
         INNER JOIN
             project_{project_name}.hierarchy AS hierarchy
         ON
             folders.id = hierarchy.id
-        LEFT JOIN
-            project_{project_name}.subsets AS subsets
-        ON
-            subsets.folder_id = folders.id
+        -- LEFT JOIN
+        --     project_{project_name}.subsets AS subsets
+        -- ON
+        --     subsets.folder_id = folders.id
         LEFT JOIN
             project_{project_name}.tasks AS tasks
         ON
@@ -131,8 +136,9 @@ async def get_folder_hierarchy(
             "status": row["status"],
             "folderType": row["folder_type"],
             "parents": row["path"].split("/")[:-1],
-            "hasSubsets": not not row["subset_count"],
+            # "hasSubsets": not not row["subset_count"],
             "hasTasks": not not row["task_count"],
+            "taskNames": row["task_names"] if row["task_count"] else [],
         }
         if types:
             plain_result.append(d)
