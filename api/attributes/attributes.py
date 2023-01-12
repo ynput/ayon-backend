@@ -206,7 +206,7 @@ async def set_attribute_list(
             attr.name,
             attr.position,
             attr.scope,
-            attr.data.dict(),
+            attr.data.dict(exclude_none=True),
         )
 
     return Response(status_code=204)
@@ -253,7 +253,7 @@ async def set_attribute_config(
         attribute_name,
         payload.position,
         payload.scope,
-        payload.data.dict(),
+        payload.data.dict(exclude_none=True),
     )
     return Response(status_code=204)
 
