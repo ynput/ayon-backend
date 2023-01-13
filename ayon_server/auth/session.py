@@ -51,7 +51,13 @@ class Session:
             return None
 
         if request:
-            if not session.client_info:
+            if (
+                not session.client_info
+                or session.client_info.machine_ident
+                != request.headers.get("x-ayon-client-id")
+            ):
+                # print(request.path)
+                # print(request.headers)
                 session.client_info = get_client_info(request)
                 session.last_used = time.time()
                 await Redis.set(cls.ns, token, session.json())

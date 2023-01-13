@@ -28,6 +28,7 @@ class ClientInfo(BaseModel):
     languages: list[str] = Field(default_factory=list)
     location: LocationInfo | None = Field(None)
     agent: AgentInfo | None = Field(None)
+    machine_ident: str | None = Field(None)
 
 
 def get_real_ip(request: Request) -> str:
@@ -63,15 +64,35 @@ def is_internal_ip(ip: str) -> bool:
     return False
 
 
+def parse_ayon_headers(request: Request) -> dict[str, str]:
+    headers = {}
+    result = {}
+    for header in ["x-ayon-platform", "x-ayon-version", "x-ayon-hostname"]:
+        headers[header] = request.headers.get(header)
+
+    if headers.get("x-ayon-platform"):
+        result["platform"] = headers.get("x-ayon-platform")
+    if headers.get("x-ayon-version"):
+        result["client"] = f"Ayon client {headers.get('x-ayon-version')}"
+    if headers.get("x-ayon-hostname"):
+        result["device"] = headers.get("x-ayon-hostname")
+    if headers.get("x-ayon-client-id"):
+        result["machine_ident"] = headers.get("x-ayon-client-id")
+    return result
+
+
 def get_ua_data(request) -> AgentInfo | None:
-    if (ua_string := request.headers.get("user-agent")) is None:
-        return None
-    ua = user_agents.parse(ua_string)
-    return AgentInfo(
-        platform=ua.os.family,
-        client=ua.browser.family,
-        device=ua.device.family,
-    )
+    if ayon_headers := parse_ayon_headers(request):
+        return AgentInfo(**ayon_headers)
+
+    elif ua_string := request.headers.get("user-agent"):
+        ua = user_agents.parse(ua_string)
+        return AgentInfo(
+            platform=ua.os.family.lower(),
+            client=ua.browser.family,
+            device=ua.device.family,
+        )
+    return None
 
 
 def get_prefed_languages(request: Request) -> list[str]:
