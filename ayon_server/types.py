@@ -4,8 +4,7 @@ __all__ = [
 ]
 
 import re
-from collections import namedtuple
-from typing import Literal, Tuple
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, Field
 
@@ -109,19 +108,68 @@ class OPModel(BaseModel):
 # Color types (for settings)
 #
 
-# ColorWithAlpha is deprecated
-ColorWithAlpha = Tuple[float, float, float, float]
-
 
 class ColorRGB_hex(str):
+    """Color in RGB hex format.
+
+    Example: #ff0000
+    """
+
     pass
 
 
 class ColorRGBA_hex(str):
+    """Color in RGBA hex format.
+
+    Example: #ff0000ff
+    """
+
     pass
 
 
-ColorRGB_uint8 = namedtuple("ColorRGB_uint8", ["r", "g", "b"])
-ColorRGBA_uint8 = namedtuple("ColorRGBA_uint8", ["r", "g", "b", "a"])
-ColorRGB_float = namedtuple("ColorRGB_float", ["r", "g", "b"])
-ColorRGBA_float = namedtuple("ColorRGBA_float", ["r", "g", "b", "a"])
+class ColorRGB_uint8(NamedTuple):
+    """Color in RGB uint8 format.
+
+    Example: (255, 0, 0)
+    """
+
+    r: int
+    g: int
+    b: int
+
+
+class ColorRGBA_uint8(NamedTuple):
+    """Color in RGBA uint8 format.
+    Alpha is specified as float in range 0.0 - 1.0
+
+    Example: (255, 0, 0, 1.0)
+    """
+
+    r: int
+    g: int
+    b: int
+    a: float
+
+
+class ColorRGB_float(NamedTuple):
+    """Color in RGB float format.
+
+    Example: (1.0, 0.0, 0.0)
+    """
+
+    r: float
+    g: float
+    b: float
+
+
+class ColorRGBA_float(NamedTuple):
+    """Color in RGBA float format.
+    Alpha is specified as float in range 0.0 - 1.0
+
+    Example: (1.0, 0.0, 0.0, 1.0)
+    """
+
+    r: float
+    g: float
+    b: float
+    a: float

@@ -1,15 +1,9 @@
-from typing import Any
-
-from fastapi import Depends, Header, Path, Response
+from fastapi import Depends, Path, Response
 from projects.router import router
 
 from ayon_server.api import ResponseFactory, dep_current_user, dep_project_name
 from ayon_server.entities import ProjectEntity, UserEntity
-from ayon_server.events import dispatch_event
-from ayon_server.exceptions import ForbiddenException
-from ayon_server.helpers.deploy_project import anatomy_to_project_data
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import OPModel
 
 
 @router.get(
@@ -27,7 +21,11 @@ async def get_project_roots_overrides(
     a dictionary with root names as keys and root paths as values.
     """
 
-    query = f"SELECT machine_ident, data FROM project_{project_name}.custom_roots WHERE user_name = $1"
+    query = f"""
+        SELECT machine_ident, data
+        FROM project_{project_name}.custom_roots
+        WHERE user_name = $1
+    """
 
     result: dict[str, dict[str, str]] = {}
 
@@ -35,7 +33,6 @@ async def get_project_roots_overrides(
         machine_ident = row["machine_ident"]
         result[machine_ident] = row["data"]
 
-    print(result)
     return result
 
 

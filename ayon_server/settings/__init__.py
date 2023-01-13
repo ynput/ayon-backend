@@ -23,10 +23,10 @@ from pydantic import Field
 from ayon_server.settings.common import BaseSettingsModel, postprocess_settings_schema
 from ayon_server.settings.enum import folder_types_enum, task_types_enum
 from ayon_server.settings.models import (
-    MultiplatformPathModel,
     MultiplatformPathListModel,
+    MultiplatformPathModel,
+    TemplateWorkfileBaseOptions,
     TemplateWorkfileOptions,
-    TemplateWorkfileBaseOptions
 )
 from ayon_server.settings.overrides import (
     apply_overrides,

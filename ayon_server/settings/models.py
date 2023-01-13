@@ -26,8 +26,7 @@ class CustomTemplateModel(BaseSettingsModel):
     # Absolute path to workfile template or Ayon Anatomy text is accepted.
 
     path: MultiplatformPathModel = Field(
-        default_factory=MultiplatformPathModel,
-        title="Path"
+        default_factory=MultiplatformPathModel, title="Path"
     )
 
 

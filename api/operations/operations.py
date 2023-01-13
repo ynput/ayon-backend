@@ -1,5 +1,5 @@
 from contextlib import suppress
-from typing import Any, Literal
+from typing import Any, Literal, Type
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header
 from nxtools import log_traceback
@@ -85,7 +85,7 @@ class OperationsResponseModel(OPModel):
 #
 
 
-def get_entity_class(entity_type: ProjectLevelEntityType):
+def get_entity_class(entity_type: ProjectLevelEntityType) -> Type[ProjectLevelEntity]:
     return {
         "folder": FolderEntity,
         "task": TaskEntity,
@@ -100,7 +100,7 @@ async def process_operation(
     user: UserEntity,
     operation: OperationModel,
     transaction=None,
-) -> tuple[ProjectLevelEntity, list[dict[str, Any]], OperationResponseModel]:
+) -> tuple[ProjectLevelEntity, list[dict[str, Any]] | None, OperationResponseModel]:
     """Process a single operation. Raise an exception on error."""
 
     entity_class = get_entity_class(operation.entity_type)
@@ -120,6 +120,7 @@ async def process_operation(
 
     elif operation.type == "update":
         payload = entity_class.model.patch_model(**operation.data)
+        assert operation.entity_id is not None, "entity_id is required for update"
         entity = await entity_class.load(
             project_name,
             operation.entity_id,
@@ -133,6 +134,7 @@ async def process_operation(
         # print(f"updated {entity_class.__name__} {entity.id}")
 
     elif operation.type == "delete":
+        assert operation.entity_id is not None, "entity_id is required for delete"
         entity = await entity_class.load(project_name, operation.entity_id)
         await entity.ensure_delete_access(user)
         await entity.delete(transaction=transaction)
@@ -178,7 +180,7 @@ async def process_operations(
                 operation,
                 transaction=transaction,
             )
-            if evt:
+            if evt is not None:
                 events.extend(evt)
             result.append(response)
             if entity.entity_type not in [e.entity_type for e in to_commit]:

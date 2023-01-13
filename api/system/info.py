@@ -4,7 +4,6 @@ from typing import Literal
 
 from attributes.attributes import AttributeModel, get_attribute_list
 from fastapi import Depends, Request
-from nxtools import log_traceback
 from pydantic import ValidationError
 
 from ayon_server.api import dep_current_user_optional

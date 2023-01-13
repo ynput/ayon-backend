@@ -12,6 +12,7 @@ from ayon_server.api.system import restart_server
 from ayon_server.auth.session import Session
 from ayon_server.background import BackgroundTask
 from ayon_server.config import ayonconfig
+from ayon_server.entities import UserEntity
 from ayon_server.lib.redis import Redis
 from ayon_server.utils import get_nickname, json_dumps, json_loads, obscure
 
@@ -22,15 +23,19 @@ ALWAYS_SUBSCRIBE = [
 
 
 class Client:
+    id: str
+    sock: WebSocket
+    topics: list[str] = []
+    disconnected: bool = False
+    authorized: bool = False
+    created_at: float
+    project_name: str | None = None
+    user: UserEntity | None = None
+
     def __init__(self, sock: WebSocket):
         self.id = str(uuid.uuid1())
         self.sock: WebSocket = sock
-        self.topics: list[str] = []
-        self.disconnected = False
-        self.authorized = False
         self.created_at = time.time()
-        self.project_name = None
-        self.user = None
 
     @property
     def user_name(self) -> str | None:
@@ -40,6 +45,9 @@ class Client:
 
     @property
     def is_guest(self) -> bool:
+        if self.user is None:
+            # This should never happen, but just in case and to make mypy happy
+            return True
         return self.user.data.get("isGuest", False)
 
     async def authorize(
@@ -49,7 +57,7 @@ class Client:
         project: str | None = None,
     ) -> bool:
         session_data = await Session.check(access_token, None)
-        if session_data:
+        if session_data is not None:
             self.topics = [*topics, *ALWAYS_SUBSCRIBE] if "*" not in topics else ["*"]
             self.authorized = True
             self.user = session_data.user

@@ -185,8 +185,10 @@ class BaseServerAddon:
     async def get_studio_overrides(self, snapshot: int | None = None) -> dict[str, Any]:
         """Load the studio overrides from the database."""
 
+        query: list[Any]
+
         if snapshot is None:
-            query = (
+            query = [
                 """
                 SELECT data FROM settings
                 WHERE addon_name = $1 AND addon_version = $2
@@ -194,9 +196,9 @@ class BaseServerAddon:
                 """,
                 self.definition.name,
                 self.version,
-            )
+            ]
         else:
-            query = (
+            query = [
                 """
                 SELECT data FROM settings
                 WHERE addon_name = $1 AND addon_version = $2 AND snapshot_time = $3
@@ -204,7 +206,7 @@ class BaseServerAddon:
                 self.definition.name,
                 self.version,
                 snapshot,
-            )
+            ]
         res = await Postgres.fetch(*query)
         if res:
             return dict(res[0]["data"])
@@ -217,8 +219,10 @@ class BaseServerAddon:
     ) -> dict[str, Any]:
         """Load the project overrides from the database."""
 
+        query: list[Any]
+
         if snapshot is None:
-            query = (
+            query = [
                 f"""
                 SELECT data FROM project_{project_name}.settings
                 WHERE addon_name = $1 AND addon_version = $2
@@ -226,9 +230,9 @@ class BaseServerAddon:
                 """,
                 self.definition.name,
                 self.version,
-            )
+            ]
         else:
-            query = (
+            query = [
                 f"""
                 SELECT data FROM project_{project_name}.settings
                 WHERE addon_name = $1 AND addon_version = $2 AND snapshot_time = $3
@@ -236,7 +240,7 @@ class BaseServerAddon:
                 self.definition.name,
                 self.version,
                 snapshot,
-            )
+            ]
 
         try:
             res = await Postgres.fetch(*query)
