@@ -23,7 +23,7 @@ def get_uptime():
 
 
 class MachineInfo(OPModel):
-    ident: str = Field(..., title="Machine identifier")
+    id: str = Field(..., title="Machine identifier")
     platform: Literal["linux", "windows", "darwin"] = Field(...)
     hostname: str = Field(..., title="Machine hostname")
     version: str = Field(..., title="Ayon version")
@@ -52,7 +52,7 @@ async def get_additional_info(user: UserEntity, request: Request):
     current_machine = None
     with contextlib.suppress(ValidationError):
         current_machine = MachineInfo(
-            ident=request.headers.get("x-ayon-client-id"),
+            id=request.headers.get("x-ayon-machine-id"),
             platform=request.headers.get("x-ayon-platform"),
             hostname=request.headers.get("x-ayon-hostname"),
             version=request.headers.get("x-ayon-version"),
@@ -61,9 +61,9 @@ async def get_additional_info(user: UserEntity, request: Request):
 
     machines = []
     async for row in Postgres.iterate("SELECT ident, data FROM machines"):
-        machine = MachineInfo(ident=row["ident"], **row["data"])
+        machine = MachineInfo(id=row["ident"], **row["data"])
 
-        if current_machine and machine.ident == current_machine.ident:
+        if current_machine and machine.id == current_machine.id:
             current_machine.users = list(set(current_machine.users + machine.users))
             continue
 
@@ -74,7 +74,7 @@ async def get_additional_info(user: UserEntity, request: Request):
 
     if current_machine:
         mdata = current_machine.dict()
-        mid = mdata.pop("ident")
+        mid = mdata.pop("id")
         await Postgres.execute(
             """
             INSERT INTO machines (ident, data)
