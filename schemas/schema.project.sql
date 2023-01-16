@@ -305,6 +305,15 @@ CREATE TABLE settings(
   PRIMARY KEY (addon_name, addon_version, snapshot_time, staging)
 );
 
+CREATE TABLE local_settings(
+  addon_name VARCHAR NOT NULL,
+  addon_version VARCHAR NOT NULL,
+  machine_ident VARCHAR REFERENCES public.machines(ident) ON DELETE CASCADE,
+  user_name VARCHAR REFERENCES public.users(name) ON DELETE CASCADE,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  PRIMARY KEY (addon_name, addon_version, machine_ident, user_name)
+);
+
 CREATE TABLE addon_versions(
   name VARCHAR NOT NULL PRIMARY KEY,
   production_version VARCHAR,
