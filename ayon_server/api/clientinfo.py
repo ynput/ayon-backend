@@ -65,19 +65,19 @@ def is_internal_ip(ip: str) -> bool:
 
 
 def parse_ayon_headers(request: Request) -> dict[str, str]:
-    headers = {}
-    result = {}
+    headers: dict[str, str] = {}
+    result: dict[str, str] = {}
     for header in ["x-ayon-platform", "x-ayon-version", "x-ayon-hostname"]:
         headers[header] = request.headers.get(header)
 
     if headers.get("x-ayon-platform"):
-        result["platform"] = headers.get("x-ayon-platform")
+        result["platform"] = headers["x-ayon-platform"]
     if headers.get("x-ayon-version"):
-        result["client"] = f"Ayon client {headers.get('x-ayon-version')}"
+        result["client"] = f"Ayon client {headers['x-ayon-version']}"
     if headers.get("x-ayon-hostname"):
-        result["device"] = headers.get("x-ayon-hostname")
+        result["device"] = headers["x-ayon-hostname"]
     if headers.get("x-ayon-machine-id"):
-        result["machine_id"] = headers.get("x-ayon-machine-id")
+        result["machine_id"] = headers["x-ayon-machine-id"]
     return result
 
 
