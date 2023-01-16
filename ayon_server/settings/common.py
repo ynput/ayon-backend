@@ -137,11 +137,17 @@ async def postprocess_settings_schema(  # noqa
                     prop["enumLabels"] = enum_labels
                 prop["uniqueItems"] = True
 
+            scope = field.field_info.extra.get("scope")
+            if scope is None or (type(scope) != list):
+                prop["scope"] = ["project", "studio"]
+            else:
+                # TODO assert scope is valid (contains 'project', 'studio' and/or 'local')
+                prop["scope"] = scope
+
             for extra_field_name in (
                 "section",
                 "widget",
                 "layout",
-                "scope",
                 "tags",
                 "placeholder",
                 "required_items",
