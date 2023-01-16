@@ -57,8 +57,10 @@ async def get_task(
 )
 async def create_task(
     post_data: TaskEntity.model.post_model,  # type: ignore
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
+    x_sender: str | None = Header(default=None),
 ):
     """Create a new task.
 
@@ -67,7 +69,18 @@ async def create_task(
 
     task = TaskEntity(project_name=project_name, payload=post_data.dict())
     # TODO: how to solve access control?
+    event = {
+        "topic": "entity.task.created",
+        "description": f"Task {task.name} created",
+        "summary": {"entityId": task.id, "parentId": task.parent_id},
+    }
     await task.save()
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return EntityIdResponse(id=task.id)
 
 
@@ -117,14 +130,27 @@ async def update_task(
     status_code=204,
 )
 async def delete_task(
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     task_id: str = Depends(dep_task_id),
+    x_sender: str | None = Header(default=None),
 ):
     """Delete a task."""
 
     task = await TaskEntity.load(project_name, task_id)
+    event = {
+        "topic": "entity.task.deleted",
+        "description": f"Task {task.name} deleted",
+        "summary": {"entityId": task.id, "parentId": task.parent_id},
+    }
     await task.delete()
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return Response(status_code=204)
 
 

@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS public.machines(
 -- Dependencies --
 ------------------
 
-CREATE TABLE public.dependency_packages(
+CREATE TABLE IF NOT EXISTS public.dependency_packages(
   name VARCHAR NOT NULL,
   platform VARCHAR NOT NULL,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,

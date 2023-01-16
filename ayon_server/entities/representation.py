@@ -18,3 +18,7 @@ class RepresentationEntity(ProjectLevelEntity):
     @version_id.setter
     def version_id(self, value: str):
         self._payload.version_id = value
+
+    @property
+    def parent_id(self) -> str:
+        return self.version_id

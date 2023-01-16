@@ -20,6 +20,10 @@ class SubsetEntity(ProjectLevelEntity):
         self._payload.folder_id = value
 
     @property
+    def parent_id(self) -> str:
+        return self.folder_id
+
+    @property
     def family(self) -> str:
         return self._payload.family
 

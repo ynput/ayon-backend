@@ -64,21 +64,7 @@ def build_pl_entity_change_events(
 
     patch_data = patch.dict(exclude_unset=True)
     entity_type = original_entity.entity_type
-
-    match entity_type:
-        case "folder":
-            parent_id = original_entity.parent_id  # type: ignore
-        case "subset" | "task":
-            parent_id = original_entity.folder_id  # type: ignore
-        case "version":
-            parent_id = original_entity.subset_id  # type: ignore
-        case "representation":
-            parent_id = original_entity.version_id  # type: ignore
-        case "workfile":
-            parent_id = original_entity.task_id  # type: ignore
-        case _:
-            # This should never happen
-            parent_id = None
+    parent_id = original_entity.parent_id
 
     result: list[EventData] = []
     common_data = {

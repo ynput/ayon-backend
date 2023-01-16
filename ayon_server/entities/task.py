@@ -117,6 +117,10 @@ class TaskEntity(ProjectLevelEntity):
         self._payload.folder_id = value
 
     @property
+    def parent_id(self) -> str:
+        return self.folder_id
+
+    @property
     def task_type(self) -> str:
         return self._payload.task_type
 

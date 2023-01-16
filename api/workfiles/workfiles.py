@@ -57,8 +57,10 @@ async def get_workfile(
 )
 async def create_workfile(
     post_data: WorkfileEntity.model.post_model,  # type: ignore
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
+    x_sender: str | None = Header(default=None),
 ):
     """Create a new version.
 
@@ -67,8 +69,18 @@ async def create_workfile(
 
     workfile = WorkfileEntity(project_name=project_name, payload=post_data.dict())
     await workfile.ensure_create_access(user)
+    event = {
+        "topic": "entity.workfile.created",
+        "description": f"Workfile {workfile.name} created",
+        "summary": {"entityId": workfile.id, "parentId": workfile.parent_id},
+    }
     await workfile.save()
-    logging.info(f"[POST] Created workfile {workfile.name}", user=user.name)
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return EntityIdResponse(id=workfile.id)
 
 
@@ -118,14 +130,26 @@ async def update_workfile(
     status_code=204,
 )
 async def delete_workfile(
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     workfile_id: str = Depends(dep_workfile_id),
+    x_sender: str | None = Header(default=None),
 ):
     """Delete a workfile."""
 
     workfile = await WorkfileEntity.load(project_name, workfile_id)
     await workfile.ensure_delete_access(user)
+    event = {
+        "topic": "entity.workfile.deleted",
+        "description": f"Workfile {workfile.name} deleted",
+        "summary": {"entityId": workfile.id, "parentId": workfile.parent_id},
+    }
     await workfile.delete()
-    logging.info(f"[DELETE] Deleted workfile {workfile.name}", user=user.name)
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return Response(status_code=204)

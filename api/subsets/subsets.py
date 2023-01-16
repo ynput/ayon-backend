@@ -57,15 +57,27 @@ async def get_subset(
 )
 async def create_subset(
     post_data: SubsetEntity.model.post_model,  # type: ignore
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
+    x_sender: str | None = Header(default=None),
 ):
     """Create a new subset."""
 
     subset = SubsetEntity(project_name=project_name, payload=post_data.dict())
     await subset.ensure_create_access(user)
+    event = {
+        "topic": "entity.subset.created",
+        "description": f"Subset {subset.name} created",
+        "summary": {"entityId": subset.id, "parentId": subset.parent_id},
+    }
     await subset.save()
-    logging.info(f"[POST] Created subset {subset.name}", user=user.name)
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return EntityIdResponse(id=subset.id)
 
 
@@ -115,14 +127,26 @@ async def update_subset(
     status_code=204,
 )
 async def delete_subset(
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     subset_id: str = Depends(dep_subset_id),
+    x_sender: str | None = Header(default=None),
 ):
     """Delete a subset."""
 
     subset = await SubsetEntity.load(project_name, subset_id)
     await subset.ensure_delete_access(user)
+    event = {
+        "topic": "entity.subset.deleted",
+        "description": f"Subset {subset.name} deleted",
+        "summary": {"entityId": subset.id, "parentId": subset.parent_id},
+    }
     await subset.delete()
-    logging.info(f"[DELETE] Deleted subset {subset.name}", user=user.name)
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return Response(status_code=204)

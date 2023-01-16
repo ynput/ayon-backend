@@ -72,6 +72,10 @@ class VersionEntity(ProjectLevelEntity):
         self._payload.subset_id = value
 
     @property
+    def parent_id(self) -> str:
+        return self.subset_id
+
+    @property
     def task_id(self) -> str:
         return self._payload.task_id
 

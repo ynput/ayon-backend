@@ -1,5 +1,4 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
-from nxtools import logging
 
 from ayon_server.api.dependencies import (
     dep_current_user,
@@ -57,8 +56,10 @@ async def get_representation(
 )
 async def create_representation(
     post_data: RepresentationEntity.model.post_model,  # type: ignore
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
+    x_sender: str | None = Header(default=None),
 ):
     """Create a new representation."""
 
@@ -66,8 +67,21 @@ async def create_representation(
         project_name=project_name, payload=post_data.dict()
     )
     await representation.ensure_create_access(user)
+    event = {
+        "topic": "entity.representation.created",
+        "description": f"Representation {representation.name} created",
+        "summary": {
+            "entityId": representation.id,
+            "parentId": representation.parent_id,
+        },
+    }
     await representation.save()
-    logging.info(f"[POST] Created representation {representation.name}", user=user.name)
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return EntityIdResponse(id=representation.id)
 
 
@@ -117,16 +131,29 @@ async def update_representation(
     status_code=204,
 )
 async def delete_representation(
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     representation_id: str = Depends(dep_representation_id),
+    x_sender: str | None = Header(default=None),
 ):
     """Delete a representation."""
 
     representation = await RepresentationEntity.load(project_name, representation_id)
     await representation.ensure_delete_access(user)
+    event = {
+        "topic": "entity.representation.deleted",
+        "description": f"Representation {representation.name} deleted",
+        "summary": {
+            "entityId": representation.id,
+            "parentId": representation.parent_id,
+        },
+    }
     await representation.delete()
-    logging.info(
-        f"[DELETE] Deleted representation {representation.name}", user=user.name
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
     )
     return Response(status_code=204)

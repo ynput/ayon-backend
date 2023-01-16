@@ -39,6 +39,10 @@ class WorkfileEntity(ProjectLevelEntity):
         self._payload.task_id = value
 
     @property
+    def parent_id(self) -> str:
+        return self.task_id
+
+    @property
     def thumbnail_id(self) -> str:
         return self._payload.thumbnail_id
 

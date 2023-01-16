@@ -1,5 +1,4 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
-from nxtools import logging
 
 from ayon_server.api.dependencies import (
     dep_current_user,
@@ -58,15 +57,27 @@ async def get_folder(
 )
 async def create_folder(
     post_data: FolderEntity.model.post_model,  # type: ignore
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
+    x_sender: str | None = Header(default=None),
 ):
     """Create a new folder."""
 
     folder = FolderEntity(project_name=project_name, payload=post_data.dict())
     await folder.ensure_create_access(user)
+    event = {
+        "topic": "entity.folder.created",
+        "description": f"Folder {folder.name} created",
+        "summary": {"entityId": folder.id, "parentId": folder.parent_id},
+    }
     await folder.save()
-    logging.info(f"[POST] Created folder {folder.name}", user=user.name)
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return EntityIdResponse(id=folder.id)
 
 
@@ -145,14 +156,26 @@ async def update_folder(
     status_code=204,
 )
 async def delete_folder(
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     folder_id: str = Depends(dep_folder_id),
+    x_sender: str | None = Header(default=None),
 ):
     """Delete a folder."""
 
     folder = await FolderEntity.load(project_name, folder_id)
     await folder.ensure_delete_access(user)
+    event = {
+        "topic": "entity.folder.deleted",
+        "description": f"Folder {folder.name} deleted",
+        "summary": {"entityId": folder.id, "parentId": folder.parent_id},
+    }
     await folder.delete()
-    logging.info(f"[DELETE] Deleted folder {folder.name}", user=user.name)
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return Response(status_code=204)

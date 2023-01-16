@@ -71,8 +71,11 @@ class OperationResponseModel(OPModel):
     type: OperationType = Field(..., title="Operation type")
     success: bool = Field(..., title="Operation success")
     error: str | None = Field(None, title="Error message")
-    # entity_id is optional for the cases create operation fails
-    entity_id: str | None = Field(None, title="Entity ID")
+    entity_id: str | None = Field(
+        None,
+        title="Entity ID",
+        description="`None` if type is `create` and the operation fails.",
+    )
 
 
 class OperationsResponseModel(OPModel):
@@ -115,6 +118,13 @@ async def process_operation(
             payload_dict["id"] = operation.entity_id
         entity = entity_class(project_name, payload_dict)
         await entity.ensure_create_access(user)
+        events = [
+            {
+                "topic": f"entity.{operation.entity_type}.created",
+                "summary": {"entityId": entity.id, "parentId": entity.parent_id},
+                "description": f"{operation.entity_type.capitalize()} {entity.name} deleted",
+            }
+        ]
         await entity.save(transaction=transaction)
         # print(f"created {entity_class.__name__} {entity.id} {entity.name}")
 
@@ -137,6 +147,13 @@ async def process_operation(
         assert operation.entity_id is not None, "entity_id is required for delete"
         entity = await entity_class.load(project_name, operation.entity_id)
         await entity.ensure_delete_access(user)
+        events = [
+            {
+                "topic": f"entity.{operation.entity_type}.deleted",
+                "summary": {"entityId": entity.id, "parentId": entity.parent_id},
+                "description": f"{operation.entity_type.capitalize()} {entity.name} deleted",
+            }
+        ]
         await entity.delete(transaction=transaction)
 
     return (

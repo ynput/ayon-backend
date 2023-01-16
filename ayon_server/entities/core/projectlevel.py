@@ -312,6 +312,17 @@ class ProjectLevelEntity(BaseEntity):
         self._payload.id = value
 
     @property
+    def parent_id(self) -> str | None:
+        """Return the parent id.
+
+        Return None if the entity does not have a parent.
+        In case of tasks and subsets, this is the folder id,
+        in case of folders, this is the parent folder id,
+        and so on...
+        """
+        raise NotImplementedError
+
+    @property
     def status(self) -> str:
         """Return the entity status."""
         return self._payload.status

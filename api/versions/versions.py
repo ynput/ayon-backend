@@ -1,5 +1,4 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
-from nxtools import logging
 
 from ayon_server.api.dependencies import (
     dep_current_user,
@@ -57,8 +56,10 @@ async def get_version(
 )
 async def create_version(
     post_data: VersionEntity.model.post_model,  # type: ignore
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
+    x_sender: str | None = Header(default=None),
 ):
     """Create a new version.
 
@@ -67,8 +68,18 @@ async def create_version(
 
     version = VersionEntity(project_name=project_name, payload=post_data.dict())
     await version.ensure_create_access(user)
+    event = {
+        "topic": "entity.version.created",
+        "description": f"Version {version.name} created",
+        "summary": {"entityId": version.id, "parentId": version.parent_id},
+    }
     await version.save()
-    logging.info(f"[POST] Created version {version.name}", user=user.name)
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return EntityIdResponse(id=version.id)
 
 
@@ -118,14 +129,26 @@ async def update_version(
     status_code=204,
 )
 async def delete_version(
+    background_tasks: BackgroundTasks,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     version_id: str = Depends(dep_version_id),
+    x_sender: str | None = Header(default=None),
 ):
     """Delete a version."""
 
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_delete_access(user)
+    event = {
+        "topic": "entity.version.deleted",
+        "description": f"Version {version.name} deleted",
+        "summary": {"entityId": version.id, "parentId": version.parent_id},
+    }
     await version.delete()
-    logging.info(f"[DELETE] Deleted version {version.name}", user=user.name)
+    background_tasks.add_task(
+        dispatch_event,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return Response(status_code=204)
