@@ -76,6 +76,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS unique_creation_order ON events(creation_order
 -- Settings --
 --------------
 
+CREATE TABLE IF NOT EXISTS public.sites(
+  id VARCHAR NOT NULL PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+
 CREATE TABLE IF NOT EXISTS public.roles(
     name VARCHAR NOT NULL PRIMARY KEY, 
     data JSONB NOT NULL DEFAULT '{}'::JSONB
@@ -108,6 +114,16 @@ CREATE TABLE IF NOT EXISTS public.settings(
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (addon_name, addon_version, snapshot_time, staging)
 );
+
+CREATE TABLE IF NOT EXISTS public.site_settings(
+  addon_name VARCHAR NOT NULL,
+  addon_version VARCHAR NOT NULL,
+  site_id VARCHAR NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
+  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  PRIMARY KEY (addon_name, addon_version, site_id, user_name)
+);
+
 
 CREATE TABLE IF NOT EXISTS public.addon_versions(
   name VARCHAR NOT NULL PRIMARY KEY,
@@ -148,11 +164,6 @@ CREATE TABLE IF NOT EXISTS public.services(
   data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
-
-CREATE TABLE IF NOT EXISTS public.machines(
-  ident VARCHAR NOT NULL PRIMARY KEY,
-  data JSONB NOT NULL DEFAULT '{}'::JSONB
-);
 
 
 ------------------

@@ -53,8 +53,7 @@ class Session:
         if request:
             if (
                 not session.client_info
-                or session.client_info.machine_id
-                != request.headers.get("x-ayon-machine-id")
+                or session.client_info.site_id != request.headers.get("x-ayon-site-id")
             ):
                 session.client_info = get_client_info(request)
                 session.last_used = time.time()

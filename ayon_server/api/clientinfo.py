@@ -28,7 +28,7 @@ class ClientInfo(BaseModel):
     languages: list[str] = Field(default_factory=list)
     location: LocationInfo | None = Field(None)
     agent: AgentInfo | None = Field(None)
-    machine_id: str | None = Field(None)
+    site_id: str | None = Field(None)
 
 
 def get_real_ip(request: Request) -> str:
@@ -76,8 +76,8 @@ def parse_ayon_headers(request: Request) -> dict[str, str]:
         result["client"] = f"Ayon client {headers['x-ayon-version']}"
     if headers.get("x-ayon-hostname"):
         result["device"] = headers["x-ayon-hostname"]
-    if headers.get("x-ayon-machine-id"):
-        result["machine_id"] = headers["x-ayon-machine-id"]
+    if headers.get("x-ayon-site-id"):
+        result["site_id"] = headers["x-ayon-site-id"]
     return result
 
 

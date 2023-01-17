@@ -134,10 +134,10 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "type": "string",
         "title": "Comment",
     },
-    "machine": {
+    "site": {
         "scope": "V",
         "type": "string",
-        "title": "Machine",
+        "title": "Site",
         "example": "workstation42",
     },
     "families": {

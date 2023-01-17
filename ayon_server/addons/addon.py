@@ -25,6 +25,7 @@ class BaseServerAddon:
     definition: "ServerAddonDefinition"
     endpoints: list[dict[str, Any]]
     settings_model: Type[BaseSettingsModel] | None = None
+    site_settings_model: Type[BaseSettingsModel] | None = None
     frontend_scopes: dict[str, Any] = {}
     services: dict[str, Any] = {}
 
@@ -182,6 +183,9 @@ class BaseServerAddon:
     def get_settings_model(self) -> Type[BaseSettingsModel] | None:
         return self.settings_model
 
+    def get_site_settings_model(self) -> Type[BaseSettingsModel] | None:
+        return self.site_settings_model
+
     async def get_studio_overrides(self, snapshot: int | None = None) -> dict[str, Any]:
         """Load the studio overrides from the database."""
 
@@ -289,6 +293,24 @@ class BaseServerAddon:
         )
         if project_overrides:
             settings = apply_overrides(settings, project_overrides)
+        return settings
+
+    async def get_project_site_settings(
+        self,
+        project_name: str,
+        user_name: str,
+        site_id: str,
+        snapshot: int | None = None,
+    ) -> BaseSettingsModel | None:
+        settings = await self.get_project_settings(project_name, snapshot=snapshot)
+        if settings is None:
+            return None
+        site_overrides = await self.get_site_overrides(
+            project_name, user_name, site_id, snapshot=snapshot
+        )
+        if site_overrides:
+            settings = apply_overrides(settings, site_overrides)
+        # TODO
         return settings
 
     #

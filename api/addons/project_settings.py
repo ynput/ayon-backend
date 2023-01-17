@@ -1,7 +1,7 @@
 from typing import Any
 
 from addons.router import route_meta, router
-from fastapi import Depends, Response
+from fastapi import Depends, Path, Response
 from nxtools import logging
 from pydantic.error_wrappers import ValidationError
 

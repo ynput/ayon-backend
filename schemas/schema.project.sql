@@ -305,13 +305,13 @@ CREATE TABLE settings(
   PRIMARY KEY (addon_name, addon_version, snapshot_time, staging)
 );
 
-CREATE TABLE local_settings(
+CREATE TABLE project_site_settings(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
-  machine_ident VARCHAR REFERENCES public.machines(ident) ON DELETE CASCADE,
+  site_id VARCHAR REFERENCES public.sites(id) ON DELETE CASCADE,
   user_name VARCHAR REFERENCES public.users(name) ON DELETE CASCADE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  PRIMARY KEY (addon_name, addon_version, machine_ident, user_name)
+  PRIMARY KEY (addon_name, addon_version, site_id, user_name)
 );
 
 CREATE TABLE addon_versions(
@@ -331,8 +331,8 @@ CREATE TABLE IF NOT EXISTS addon_data(
 
 
 CREATE TABLE IF NOT EXISTS custom_roots(
-  machine_ident VARCHAR NOT NULL REFERENCES public.machines(ident) ON DELETE CASCADE,
+  site_id VARCHAR NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
   user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  PRIMARY KEY (machine_ident, user_name)
+  PRIMARY KEY (site_id, user_name)
 );

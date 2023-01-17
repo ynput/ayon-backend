@@ -4,7 +4,7 @@ from addons.router import route_meta, router
 from fastapi import APIRouter, Depends, Query, Request
 from nxtools import logging
 
-from addons import project_settings, studio_settings
+from addons import project_settings, site_settings, studio_settings
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import dep_current_user
 from ayon_server.entities import UserEntity
@@ -12,6 +12,7 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
+assert site_settings
 assert studio_settings
 assert project_settings
 
