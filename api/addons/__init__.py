@@ -63,6 +63,7 @@ class ClientSourceInfo(OPModel):
 
 class VersionInfo(OPModel):
     has_settings: bool = Field(default=False)
+    has_site_settings: bool = Field(default=False)
     frontend_scopes: dict[str, Any] = Field(default_factory=dict)
     client_pyproject: dict[str, Any] | None = Field(None)
     client_source_info: list[ClientSourceInfo] | None = Field(None)
@@ -119,6 +120,7 @@ async def list_addons(
         for version, addon in definition.versions.items():
             vinf = {
                 "has_settings": bool(addon.get_settings_model()),
+                "has_site_settings": bool(addon.get_site_settings_model()),
                 "frontend_scopes": addon.frontend_scopes,
             }
             if details:
