@@ -141,14 +141,13 @@ class BaseServerAddon:
         """Returns information on local copy of the client code."""
         if (pdir := self.get_private_dir()) is None:
             return None
-        if base_url is None:
-            base_url = ""
-        local_path = os.path.join(pdir, "client.zip")
+        filename = "client.zip"
+        local_path = os.path.join(pdir, filename)
         if not os.path.exists(local_path):
             return None
         return {
-            "type": "http",
-            "path": f"{base_url}/addons/{self.name}/{self.version}/private/client.zip",
+            "type": "server",
+            "filename": filename
         }
 
     async def get_client_source_info(
