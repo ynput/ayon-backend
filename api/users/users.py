@@ -12,7 +12,7 @@ from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import Field, OPModel
+from ayon_server.types import USER_NAME_REGEX, Field, OPModel
 from ayon_server.utils import get_nickname, obscure
 
 #
@@ -266,6 +266,7 @@ class ChangeUserNameRequestModel(OPModel):
         ...,
         description="New user name",
         example="EvenBetterUser",
+        regex=USER_NAME_REGEX,
     )
 
 
@@ -282,28 +283,28 @@ async def change_user_name(
     if not user.is_manager:
         raise ForbiddenException
 
-    # TODO: Run all this in a transaction
+    async with Postgres.acquire() as conn:
+        async with conn.transaction():
 
-    await Postgres.execute(
-        "UPDATE users SET name = $1 WHERE name = $2",
-        patch_data.new_name,
-        user_name,
-    )
+            await conn.execute(
+                "UPDATE users SET name = $1 WHERE name = $2",
+                patch_data.new_name,
+                user_name,
+            )
 
-    # Update tasks assignees - since assignees is an array,
-    # it won't update automatically (there's no foreign key)
+            # Update tasks assignees - since assignees is an array,
+            # it won't update automatically (there's no foreign key)
 
-    project_names = [
-        row["name"] async for row in Postgres.iterate("SELECT name FROM projects")
-    ]
+            projects = await conn.fetch("SELECT name FROM projects")
+            project_names = [row["name"] for row in projects]
 
-    for project_name in project_names:
-        query = f"""
-            UPDATE project_{project_name}.tasks SET
-            assignees = array_replace(assignees, '{user_name}', '{patch_data.new_name}')
-            WHERE '{user_name}' = ANY(assignees)
-        """
-        await Postgres.execute(query)
+            for project_name in project_names:
+                query = f"""
+                    UPDATE project_{project_name}.tasks SET
+                    assignees = array_replace(assignees, '{user_name}', '{patch_data.new_name}')
+                    WHERE '{user_name}' = ANY(assignees)
+                """
+                await conn.execute(query)
 
     # TODO: Force the user to log out (e.g. invalidate all sessions)
     return Response(status_code=204)
