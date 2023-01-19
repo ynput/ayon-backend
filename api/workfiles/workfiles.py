@@ -1,5 +1,4 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
-from nxtools import logging
 
 from ayon_server.api.dependencies import (
     dep_current_user,

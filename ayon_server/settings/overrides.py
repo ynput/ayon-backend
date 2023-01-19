@@ -63,7 +63,7 @@ def list_overrides(
                 "path": path,  // list of parent keys and the current key
                 "type": type,  // type of the field: branch, leaf, group, array
                 "value": value, // value of the field (only present on leaves)
-                "level": level, // source of the override: studio or project
+                "level": level, // source of the override: studio, project or site
             }
         }
 

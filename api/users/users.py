@@ -301,7 +301,11 @@ async def change_user_name(
             for project_name in project_names:
                 query = f"""
                     UPDATE project_{project_name}.tasks SET
-                    assignees = array_replace(assignees, '{user_name}', '{patch_data.new_name}')
+                    assignees = array_replace(
+                        assignees,
+                        '{user_name}',
+                        '{patch_data.new_name}'
+                    )
                     WHERE '{user_name}' = ANY(assignees)
                 """
                 await conn.execute(query)

@@ -141,7 +141,7 @@ async def postprocess_settings_schema(  # noqa
             if scope is None or (type(scope) != list):
                 prop["scope"] = ["project", "studio"]
             else:
-                # TODO assert scope is valid (contains 'project', 'studio' and/or 'local')
+                # TODO assert scope is valid ('project', 'studio' and/or 'site')
                 prop["scope"] = scope
 
             for extra_field_name in (

@@ -118,11 +118,12 @@ async def process_operation(
             payload_dict["id"] = operation.entity_id
         entity = entity_class(project_name, payload_dict)
         await entity.ensure_create_access(user)
+        description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
         events = [
             {
                 "topic": f"entity.{operation.entity_type}.created",
                 "summary": {"entityId": entity.id, "parentId": entity.parent_id},
-                "description": f"{operation.entity_type.capitalize()} {entity.name} deleted",
+                "description": description,
             }
         ]
         await entity.save(transaction=transaction)
@@ -147,11 +148,12 @@ async def process_operation(
         assert operation.entity_id is not None, "entity_id is required for delete"
         entity = await entity_class.load(project_name, operation.entity_id)
         await entity.ensure_delete_access(user)
+        description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
         events = [
             {
                 "topic": f"entity.{operation.entity_type}.deleted",
                 "summary": {"entityId": entity.id, "parentId": entity.parent_id},
-                "description": f"{operation.entity_type.capitalize()} {entity.name} deleted",
+                "description": description,
             }
         ]
         await entity.delete(transaction=transaction)

@@ -186,6 +186,8 @@ class BaseServerAddon:
     def get_site_settings_model(self) -> Type[BaseSettingsModel] | None:
         return self.site_settings_model
 
+    # Load overrides from the database
+
     async def get_studio_overrides(self, snapshot: int | None = None) -> dict[str, Any]:
         """Load the studio overrides from the database."""
 
@@ -254,6 +256,32 @@ class BaseServerAddon:
             return dict(res[0]["data"])
         return {}
 
+    async def get_project_site_overrides(
+        self,
+        project_name: str,
+        user_name: str,
+        site_id: str,
+    ) -> dict[str, Any]:
+        """Load the site overrides from the database."""
+
+        res = await Postgres.fetch(
+            f"""
+            SELECT data FROM project_{project_name}.project_site_settings
+            WHERE addon_name = $1 AND addon_version = $2
+            AND project_name = $3 AND user_name = $4 AND machine_id = $5
+            """,
+            self.definition.name,
+            self.version,
+            project_name,
+            user_name,
+            site_id,
+        )
+        if res:
+            return dict(res[0]["data"] or {})
+        return {}
+
+    # Get settings and apply the overrides
+
     async def get_studio_settings(
         self,
         snapshot: int | None = None,
@@ -285,9 +313,13 @@ class BaseServerAddon:
         settings = await self.get_studio_settings()
         if settings is None:
             return None  # this addon has no settings at all
-        studio_overrides = await self.get_studio_overrides(snapshot=snapshot)
-        if studio_overrides:
-            settings = apply_overrides(settings, studio_overrides)
+
+        # TODO: remove if nothing breaks
+        # Why was this here? Did copilot write this?
+        # studio_overrides = await self.get_studio_overrides(snapshot=snapshot)
+        # if studio_overrides:
+        #     settings = apply_overrides(settings, studio_overrides)
+
         project_overrides = await self.get_project_overrides(
             project_name, snapshot=snapshot
         )
@@ -302,15 +334,20 @@ class BaseServerAddon:
         site_id: str,
         snapshot: int | None = None,
     ) -> BaseSettingsModel | None:
+        """Return the addon settings with the studio, project and site overrides.
+
+        You shouldn't override this method, unless absolutely necessary.
+        """
         settings = await self.get_project_settings(project_name, snapshot=snapshot)
         if settings is None:
             return None
-        site_overrides = await self.get_site_overrides(
-            project_name, user_name, site_id, snapshot=snapshot
+        site_overrides = await self.get_project_site_overrides(
+            project_name, user_name, site_id
         )
         if site_overrides:
             settings = apply_overrides(settings, site_overrides)
         # TODO
+        # me after 3 days: do what?
         return settings
 
     #

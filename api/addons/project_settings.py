@@ -29,6 +29,7 @@ async def get_addon_settings_schema(
     version: str,
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
+    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
 ):
     """Return the JSON schema of the addon settings."""
 
@@ -43,6 +44,8 @@ async def get_addon_settings_schema(
 
     context = {
         "project_name": project_name,
+        "site_id": site,
+        "user_name": user.name,
     }
 
     schema = model.schema()
@@ -57,9 +60,14 @@ async def get_addon_project_settings(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
+    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
 ):
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
+
+    if site:
+        return await addon.get_project_site_settings(project_name, user.name, site)
+
     return await addon.get_project_settings(project_name)
 
 
@@ -69,6 +77,7 @@ async def get_addon_project_overrides(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
+    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
 ):
     addon = AddonLibrary.addon(addon_name, version)
     studio_settings = await addon.get_studio_settings()
@@ -85,6 +94,16 @@ async def get_addon_project_overrides(
     ).items():
         result[k] = v
 
+    if site:
+        site_overrides = await addon.get_project_site_overrides(
+            project_name, user.name, site
+        )
+        site_settings = await addon.get_project_site_settings(
+            project_name, user.name, site
+        )
+        for k, v in list_overrides(site_settings, site_overrides, level="site").items():
+            result[k] = v
+
     return result
 
 
@@ -95,17 +114,55 @@ async def set_addon_project_settings(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
+    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
 ):
     """Set the studio overrides of the given addon."""
 
-    if not user.is_manager:
-        raise ForbiddenException
-
     addon = AddonLibrary.addon(addon_name, version)
-    original = await addon.get_project_settings(project_name)
-    existing = await addon.get_project_overrides(project_name)
     model = addon.get_settings_model()
-    if (original is None) or (model is None):
+    if model is None:
+        raise BadRequestException(f"Addon {addon_name} has no settings")
+
+    if not site:
+        if not user.is_manager:
+            raise ForbiddenException
+
+        original = await addon.get_project_settings(project_name)
+        existing = await addon.get_project_overrides(project_name)
+        if original is None:
+            # This addon does not have settings
+            return Response(status_code=400)
+        try:
+            data = extract_overrides(original, model(**payload), existing)
+        except ValidationError:
+            raise BadRequestException
+
+        await Postgres.execute(
+            f"""
+            DELETE FROM project_{project_name}.settings
+            WHERE addon_name = $1 AND addon_version = $2
+            """,
+            addon_name,
+            version,
+        )
+
+        await Postgres.execute(
+            f"""
+            INSERT INTO project_{project_name}.settings
+            (addon_name, addon_version, data)
+            VALUES ($1, $2, $3)
+            """,
+            addon_name,
+            version,
+            data,
+        )
+        return Response(status_code=204)
+
+    # site settings
+
+    original = await addon.get_project_site_settings(project_name, user.name, site)
+    existing = await addon.get_project_site_overrides(project_name, user.name, site)
+    if original is None:
         # This addon does not have settings
         return Response(status_code=400)
     try:
@@ -113,23 +170,18 @@ async def set_addon_project_settings(
     except ValidationError:
         raise BadRequestException
 
-    # Do not use versioning during the development (causes headaches)
     await Postgres.execute(
         f"""
-        DELETE FROM project_{project_name}.settings
-        WHERE addon_name = $1 AND addon_version = $2
+        INSERT INTO project_{project_name}.project_site_settings
+        (addon_name, addon_version, site_id, user_name, data)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (addon_name, addon_version, site_id, user_name)
+        DO UPDATE SET data = $5
         """,
         addon_name,
         version,
-    )
-
-    await Postgres.execute(
-        f"""
-        INSERT INTO project_{project_name}.settings (addon_name, addon_version, data)
-        VALUES ($1, $2, $3)
-        """,
-        addon_name,
-        version,
+        site,
+        user.name,
         data,
     )
     return Response(status_code=204)
@@ -141,28 +193,43 @@ async def delete_addon_project_overrides(
     version: str,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
+    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
 ):
-    if not user.is_manager:
-        raise ForbiddenException
-
-    logging.info(
-        f"Deleting {project_name} project overrides for {addon_name} {version}"
-    )
-
     # Ensure the addon and the project exist
     _ = AddonLibrary.addon(addon_name, version)
     _ = ProjectEntity.load(project_name)
 
-    # we don't use versioned settings at the moment.
-    # in the future, insert an empty dict instead
+    if not site:
+        if not user.is_manager:
+            raise ForbiddenException
+
+        # we don't use versioned settings at the moment.
+        # in the future, insert an empty dict instead
+        await Postgres.execute(
+            f"""
+            DELETE FROM project_{project_name}.settings
+            WHERE addon_name = $1
+            AND addon_version = $2
+            """,
+            addon_name,
+            version,
+        )
+        return Response(status_code=204)
+
+    # site settings
+
     await Postgres.execute(
         f"""
-        DELETE FROM project_{project_name}.settings
+        DELETE FROM project_{project_name}.project_site_settings
         WHERE addon_name = $1
         AND addon_version = $2
+        AND site_id = $3
+        AND user_name = $4
         """,
         addon_name,
         version,
+        site,
+        user.name,
     )
     return Response(status_code=204)
 
@@ -174,7 +241,15 @@ async def modify_project_overrides(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
+    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
 ):
+
+    if site:
+        raise NotImplementedError(
+            "Pinning and removing overrides of project site settings"
+            " is not yet implemented. Sorry."
+        )
+
     if not user.is_manager:
         raise ForbiddenException
 
