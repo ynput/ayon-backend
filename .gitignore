@@ -3,3 +3,5 @@ __pycache__
 /poetry.lock
 /addons/
 /openpype/trigger.py
+
+.python-version
