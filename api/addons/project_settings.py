@@ -1,7 +1,7 @@
 from typing import Any
 
 from addons.router import route_meta, router
-from fastapi import Depends, Path, Response
+from fastapi import Depends, Query, Response
 from nxtools import logging
 from pydantic.error_wrappers import ValidationError
 
@@ -12,6 +12,7 @@ from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
     NotFoundException,
+    NotImplementedException,
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import (
@@ -29,7 +30,7 @@ async def get_addon_settings_schema(
     version: str,
     project_name: str = Depends(dep_project_name),
     user: UserEntity = Depends(dep_current_user),
-    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
+    site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
     """Return the JSON schema of the addon settings."""
 
@@ -60,7 +61,7 @@ async def get_addon_project_settings(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
-    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
+    site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
@@ -77,7 +78,7 @@ async def get_addon_project_overrides(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
-    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
+    site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
     addon = AddonLibrary.addon(addon_name, version)
     studio_settings = await addon.get_studio_settings()
@@ -114,7 +115,7 @@ async def set_addon_project_settings(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
-    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
+    site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
     """Set the studio overrides of the given addon."""
 
@@ -193,11 +194,11 @@ async def delete_addon_project_overrides(
     version: str,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
-    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
+    site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
     # Ensure the addon and the project exist
     _ = AddonLibrary.addon(addon_name, version)
-    _ = ProjectEntity.load(project_name)
+    _ = await ProjectEntity.load(project_name)
 
     if not site:
         if not user.is_manager:
@@ -241,11 +242,11 @@ async def modify_project_overrides(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
-    site: str | None = Path(None, regex="^[a-z0-9-]+$"),
+    site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
 
     if site:
-        raise NotImplementedError(
+        raise NotImplementedException(
             "Pinning and removing overrides of project site settings"
             " is not yet implemented. Sorry."
         )

@@ -85,3 +85,10 @@ class NothingToDoException(AyonException):
 
     detail: str = "Nothing to do"
     status: int = 404
+
+
+class NotImplementedException(AyonException):
+    """Exception raised when a feature is not implemented."""
+
+    detail: str = "Not implemented"
+    status: int = 501

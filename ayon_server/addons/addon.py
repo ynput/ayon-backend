@@ -268,11 +268,10 @@ class BaseServerAddon:
             f"""
             SELECT data FROM project_{project_name}.project_site_settings
             WHERE addon_name = $1 AND addon_version = $2
-            AND project_name = $3 AND user_name = $4 AND machine_id = $5
+            AND user_name = $3 AND site_id = $4
             """,
             self.definition.name,
             self.version,
-            project_name,
             user_name,
             site_id,
         )
