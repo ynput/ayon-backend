@@ -5,14 +5,14 @@ from ayon_server.settings.enum import task_types_enum
 
 class MultiplatformPathModel(BaseSettingsModel):
     windows: str = Field("", title="Windows")
-    macos: str = Field("", title="MacOS")
     linux: str = Field("", title="Linux")
+    darwin: str = Field("", title="MacOS")
 
 
 class MultiplatformPathListModel(BaseSettingsModel):
     windows: list[str] = Field(default_factory=list, title="Windows")
-    macos: list[str] = Field(default_factory=list, title="MacOS")
     linux: list[str] = Field(default_factory=list, title="Linux")
+    darwin: list[str] = Field(default_factory=list, title="MacOS")
 
 
 class CustomTemplateModel(BaseSettingsModel):
