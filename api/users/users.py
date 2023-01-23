@@ -206,10 +206,18 @@ async def patch_user(
         payload.data.pop("isGuest", None)
 
     if not user.is_admin:
-        target_user.data.pop("isAdmin", None)
-        target_user.data.pop("isManager", None)
+        # Non-admins cannot change any user's admin status
+        payload.data.pop("isAdmin", None)
+    elif target_user.name == user.name:
+        # Admins cannot demote themselves
+        payload.data.pop("isAdmin", None)
+
     if not user.is_manager:
-        target_user.data.pop("isManager", None)
+        # Non-managers cannot change any user's manager status
+        payload.data.pop("isManager", None)
+    elif target_user.name == user.name:
+        # Managers cannot demote themselves
+        payload.data.pop("isManager", None)
 
     target_user.patch(payload)
     await target_user.save()
