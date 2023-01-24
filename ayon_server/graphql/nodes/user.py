@@ -24,6 +24,7 @@ class UserNode:
     is_service: bool
     is_guest: bool
     has_password: bool
+    apiKeyPreview: str | None
 
 
 def user_from_record(record: dict, context: dict) -> UserNode:
@@ -62,6 +63,7 @@ def user_from_record(record: dict, context: dict) -> UserNode:
         is_guest=is_guest,
         has_password=bool(data.get("password")),
         default_roles=data.get("defaultRoles", []),
+        apiKeyPreview=data.get("apiKeyPreview"),
     )
 
 

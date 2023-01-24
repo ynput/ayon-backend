@@ -10,7 +10,11 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
-from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import USER_NAME_REGEX, Field, OPModel
 from ayon_server.utils import get_nickname, obscure
@@ -235,10 +239,17 @@ async def patch_user(
 
 
 class ChangePasswordRequestModel(OPModel):
-    password: str = Field(
-        ...,
+    password: str | None = Field(
+        None,
         description="New password",
         example="5up3r5ecr3t_p455W0rd.123",
+    )
+    api_key: str | None = Field(
+        None,
+        title="API Key",
+        description="API Key to set to a service user",
+        example="1cb4f6a89012a4b6d8a01ee4f67ae0fb",
+        regex=r"^[0-9a-f]{32}$",
     )
 
 
@@ -252,16 +263,32 @@ async def change_password(
     user: UserEntity = Depends(dep_current_user),
     user_name: str = Depends(dep_user_name),
 ) -> Response:
-    if (user_name != user.name) and not (user.is_manager):
-        # Users can only change their own password
-        # Managers can change any password
-        raise ForbiddenException
 
-    target_user = await UserEntity.load(user_name)
-    target_user.set_password(patch_data.password)
+    if patch_data.password is not None:
+        if (user_name != user.name) and not (user.is_manager):
+            # Users can only change their own password
+            # Managers can change any password
+            raise ForbiddenException
 
-    await target_user.save()
-    return Response(status_code=204)
+        target_user = await UserEntity.load(user_name)
+        target_user.set_password(patch_data.password)
+
+        await target_user.save()
+        return Response(status_code=204)
+
+    elif patch_data.api_key is not None:
+        if not user.is_admin:
+            raise ForbiddenException
+
+        target_user = await UserEntity.load(user_name)
+        if not target_user.is_service:
+            raise BadRequestException(f"{user_name} is not a service account")
+        target_user.set_api_key(patch_data.api_key)
+
+        await target_user.save()
+        return Response(status_code=204)
+
+    raise BadRequestException("No password or API key provided")
 
 
 #

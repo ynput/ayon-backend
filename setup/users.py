@@ -30,8 +30,11 @@ async def deploy_users(
             data["password"] = create_password(user["password"])
 
         if "apiKey" in user:
+            api_key = user["apiKey"]
             logging.debug(f"Creating api key for user {name}")
-            data["apiKey"] = hash_password(user["apiKey"])
+            api_key_preview = api_key[:4] + "***" + api_key[-4:]
+            data["apiKey"] = hash_password(api_key)
+            data["apiKeyPreview"] = api_key_preview
 
         data["defaultRoles"] = user.get("defaultRoles", [])
 

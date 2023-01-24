@@ -1,8 +1,14 @@
 """User entity."""
 
+import re
+
 from ayon_server.access.permissions import Permissions
 from ayon_server.access.roles import Roles
-from ayon_server.auth.utils import create_password, ensure_password_complexity
+from ayon_server.auth.utils import (
+    create_password,
+    ensure_password_complexity,
+    hash_password,
+)
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
@@ -150,3 +156,17 @@ class UserEntity(TopLevelEntity):
             raise LowPasswordComplexityException
         hashed_password = create_password(password)
         self._payload.data["password"] = hashed_password
+
+    def set_api_key(self, api_key: str | None) -> None:
+        """Set user api key."""
+
+        if api_key is None:
+            self._payload.data.pop("apiKey", None)
+            self._payload.data.pop("apiKeyPreview", None)
+            return
+
+        assert re.match(r"^[a-zA-Z0-9]{32}$", api_key)
+        api_key_preview = api_key[:4] + "***" + api_key[-4:]
+
+        self._payload.data["apiKey"] = hash_password(api_key)
+        self._payload.data["apiKeyPreview"] = api_key_preview
