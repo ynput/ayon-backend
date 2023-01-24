@@ -23,7 +23,7 @@ class Status(BaseSettingsModel):
     state: State = Field("not_started", title="State", enum_resolver=get_state_enum)
     icon: str = Field("", title="Icon", widget="icon")
     color: str = Field("#cacaca", title="Color", widget="color")
-    original_name: str | None = Field(None, scope="hidden")  # Used for renaming
+    original_name: str | None = Field(None, scope=[])  # Used for renaming
 
     def __hash__(self):
         return hash(self.name)

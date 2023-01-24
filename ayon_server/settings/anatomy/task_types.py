@@ -11,7 +11,7 @@ class TaskType(BaseSettingsModel):
     original_name: str | None = Field(
         None,
         title="Original name",
-        scope="hidden",
+        scope=[],
     )  # Used for renaming
 
 
