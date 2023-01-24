@@ -9,6 +9,12 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Type
 
 from nxtools import logging
 
+from ayon_server.addons.models import (
+    FilesystemSourceInfo,
+    HttpSourceInfo,
+    ServerSourceInfo,
+    SourceInfo,
+)
 from ayon_server.exceptions import AyonException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, apply_overrides
@@ -137,7 +143,7 @@ class BaseServerAddon:
     def get_local_client_info(
         self,
         base_url: str | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> ServerSourceInfo | None:
         """Returns information on local copy of the client code."""
         if (pdir := self.get_private_dir()) is None:
             return None
@@ -145,15 +151,12 @@ class BaseServerAddon:
         local_path = os.path.join(pdir, filename)
         if not os.path.exists(local_path):
             return None
-        return {
-            "type": "server",
-            "filename": filename
-        }
+        return ServerSourceInfo(filename=filename)
 
     async def get_client_source_info(
         self,
         base_url: str | None = None,
-    ) -> list[dict[str, Any]] | None:
+    ) -> list[SourceInfo] | None:
         """Return a list of locations from where the client part of
         the addon can be downloaded.
         """
