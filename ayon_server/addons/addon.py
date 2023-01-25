@@ -145,10 +145,7 @@ class BaseServerAddon:
         local_path = os.path.join(pdir, filename)
         if not os.path.exists(local_path):
             return None
-        return {
-            "type": "server",
-            "filename": filename
-        }
+        return {"type": "server", "filename": filename}
 
     async def get_client_source_info(
         self,

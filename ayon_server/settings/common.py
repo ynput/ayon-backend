@@ -129,10 +129,10 @@ async def postprocess_settings_schema(  # noqa
                     prop["disabled"] = True
 
             if is_enum:
-                if prop.get("items"):
-                    prop["items"]["enum"] = enum_values
-                else:
-                    prop["enum"] = enum_values
+                if not "items" in prop:
+                    prop["items"] = {"type": "string"}
+                prop["items"]["enum"] = enum_values
+                prop.pop("enum", None)
                 if enum_labels:
                     prop["enumLabels"] = enum_labels
                 prop["uniqueItems"] = True
