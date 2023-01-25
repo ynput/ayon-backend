@@ -1,6 +1,7 @@
 from typing import Any
 
-from ayon_server.entities.project import ProjectEntity
+from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 
 
@@ -54,13 +55,46 @@ async def create_project_from_anatomy(
     anatomy: Anatomy,
     library: bool = False,
 ) -> None:
-    """Deploy a project."""
+    """Deploy a project.
+
+    Create a new project with the given name and code, and deploy the
+    given anatomy to it. Assing the project to all users with
+    defaultRoles.
+
+    This is a preffered way of creating a new project, as it will
+    create all the necessary data in the database.
+    """
     project = ProjectEntity(
         payload={
             "name": name,
             "code": code,
             "library": library,
             **anatomy_to_project_data(anatomy),
-        }
+        },
     )
-    await project.save()
+
+    async with Postgres.acquire() as conn:
+        async with conn.transaction():
+
+            await project.save(transaction=conn)
+
+            # Assign the new project to all users with default roles
+
+            # TBD: limit to active users only?
+            # NOTE: we need to use explicit public here, because the
+            # previous statement in the transaction scopes the transaction
+            # to the project schema.
+            query = """
+                SELECT u.* FROM public.users AS u
+                WHERE jsonb_array_length(data->'defaultRoles')::boolean
+                FOR UPDATE OF u
+            """
+
+            users = await conn.fetch(query)
+
+            for row in users:
+                user = UserEntity.from_record(row)
+                roles = user.data.get("roles", {})
+                roles[project.name] = user.data["defaultRoles"]
+                user.data["roles"] = roles
+                await user.save(transaction=conn)
