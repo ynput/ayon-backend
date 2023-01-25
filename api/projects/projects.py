@@ -88,6 +88,12 @@ async def create_project(
 
     This is different from the rest of the entities, which use POST
     requests to create new entities with a unique ID.
+
+    Important: this endpoint only creates a project entity. It does
+    not handle creating its anatomy and assigning users to the project,
+    so it should be used only in special cases, when you need a granular
+    control over a project creation process. Use `Deploy project`
+    ([POST] /api/projects) for general usage.
     """
 
     if not user.is_manager:

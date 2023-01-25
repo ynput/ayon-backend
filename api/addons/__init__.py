@@ -6,6 +6,7 @@ from nxtools import logging
 
 from addons import project_settings, site_settings, studio_settings
 from ayon_server.addons import AddonLibrary
+from ayon_server.addons.models import SourceInfo
 from ayon_server.api.dependencies import dep_current_user
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
@@ -56,17 +57,12 @@ def register_addon_endpoints():
 register_addon_endpoints()
 
 
-class ClientSourceInfo(OPModel):
-    type: str
-    path: str
-
-
 class VersionInfo(OPModel):
     has_settings: bool = Field(default=False)
     has_site_settings: bool = Field(default=False)
     frontend_scopes: dict[str, Any] = Field(default_factory=dict)
     client_pyproject: dict[str, Any] | None = Field(None)
-    client_source_info: list[ClientSourceInfo] | None = Field(None)
+    client_source_info: list[SourceInfo] | None = Field(None)
     services: dict[str, Any] | None = Field(None)
 
 
@@ -125,9 +121,18 @@ async def list_addons(
             }
             if details:
                 vinf["client_pyproject"] = await addon.get_client_pyproject()
-                vinf["client_source_info"] = await addon.get_client_source_info(
-                    base_url=base_url
-                )
+
+                source_info = await addon.get_client_source_info(base_url=base_url)
+                if source_info is None:
+                    pass
+
+                elif not all([isinstance(x, SourceInfo) for x in source_info]):
+                    logging.error(f"Invalid source info for {addon.name} {version}")
+                    source_info = [
+                        x for x in source_info if isinstance(x, SourceInfo)
+                    ]
+                vinf["client_source_info"] = source_info
+
                 vinf["services"] = addon.services or None
             versions[version] = VersionInfo(**vinf)
 

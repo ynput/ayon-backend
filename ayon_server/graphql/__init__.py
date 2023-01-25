@@ -111,6 +111,7 @@ class Query:
             is_guest=False,  # TODO
             default_roles=user.data.get("defaultRoles", []),
             has_password=bool(user.data.get("password")),
+            apiKeyPreview=user.data.get("apiKeyPreview"),
         )
 
 
