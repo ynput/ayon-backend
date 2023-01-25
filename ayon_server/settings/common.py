@@ -129,10 +129,14 @@ async def postprocess_settings_schema(  # noqa
                     prop["disabled"] = True
 
             if is_enum:
-                if prop.get("items"):
-                    prop["items"]["enum"] = enum_values
-                else:
-                    prop["enum"] = enum_values
+                if not "items" in prop:
+                    prop["items"] = {"type": "string"}
+                # props.items.enum is for multiselect
+                prop["items"]["enum"] = enum_values
+                # while props.enum is for single-select. maybe just add a condition
+                # here to de-duplicate data?
+                prop["enum"] = enum_values
+                # enum labels are our own, so it will live here
                 if enum_labels:
                     prop["enumLabels"] = enum_labels
                 prop["uniqueItems"] = True
