@@ -128,8 +128,8 @@ async def list_addons(
 
                 elif not all([isinstance(x, SourceInfo) for x in source_info]):
                     logging.error(f"Invalid source info for {addon.name} {version}")
-                else:
-                    vinf["client_source_info"] = source_info
+                    source_info = []
+                vinf["client_source_info"] = source_info
 
                 vinf["services"] = addon.services or None
             versions[version] = VersionInfo(**vinf)
