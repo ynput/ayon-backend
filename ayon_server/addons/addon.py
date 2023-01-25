@@ -9,12 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Type
 
 from nxtools import logging
 
-from ayon_server.addons.models import (
-    FilesystemSourceInfo,
-    HttpSourceInfo,
-    ServerSourceInfo,
-    SourceInfo,
-)
+from ayon_server.addons.models import ServerSourceInfo, SourceInfo
 from ayon_server.exceptions import AyonException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, apply_overrides
