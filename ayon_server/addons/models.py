@@ -8,13 +8,14 @@ class ClientSourceInfo(OPModel):
 
 
 class PathDefinition(OPModel):
-    plaform: str
-    path: str
+    windows: str
+    linux: str
+    darwin: str
 
 
 class FilesystemSourceInfo(ClientSourceInfo):
     type: Literal["filesystem"] = Field("filesystem")
-    paths: list[PathDefinition] = Field(default_factory=list)
+    path: PathDefinition = Field(default_factory=PathDefinition)
 
 
 class ServerSourceInfo(ClientSourceInfo):
