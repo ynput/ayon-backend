@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 
-from ayon_server.exceptions import NotFoundException
+from ayon_server.api.dependencies import dep_current_user
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import postprocess_settings_schema
 from ayon_server.settings.anatomy import Anatomy
@@ -30,7 +32,9 @@ class AnatomyPresetListModel(OPModel):
 
 
 @router.get("/schema")
-async def get_anatomy_schema():
+async def get_anatomy_schema(
+    user: UserEntity = Depends(dep_current_user),
+):
     """Returns the anatomy JSON schema.
 
     The schema is used to display the anatomy preset editor form.
@@ -42,7 +46,9 @@ async def get_anatomy_schema():
 
 
 @router.get("/presets")
-async def get_anatomy_presets() -> AnatomyPresetListModel:
+async def get_anatomy_presets(
+    user: UserEntity = Depends(dep_current_user),
+) -> AnatomyPresetListModel:
     """Return a list of stored anatomy presets."""
 
     presets = []
@@ -62,7 +68,10 @@ async def get_anatomy_presets() -> AnatomyPresetListModel:
     "/presets/{preset_name}",
     response_model=Anatomy,
 )
-async def get_anatomy_preset(preset_name: str):
+async def get_anatomy_preset(
+    preset_name: str,
+    user: UserEntity = Depends(dep_current_user),
+):
     """Returns the anatomy preset with the given name.
 
     Use `_` character as a preset name to return the default preset.
@@ -80,8 +89,15 @@ async def get_anatomy_preset(preset_name: str):
 
 
 @router.put("/presets/{preset_name}")
-async def update_anatomy_preset(preset_name: str, preset: Anatomy):
+async def update_anatomy_preset(
+    preset_name: str,
+    preset: Anatomy,
+    user: UserEntity = Depends(dep_current_user),
+):
     """Create/update an anatomy preset with the given name."""
+
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can update anatomy presets.")
 
     await Postgres.execute(
         """
@@ -99,8 +115,14 @@ async def update_anatomy_preset(preset_name: str, preset: Anatomy):
 
 
 @router.post("/presets/{preset_name}/primary")
-async def set_primary_preset(preset_name: str):
+async def set_primary_preset(
+    preset_name: str,
+    user: UserEntity = Depends(dep_current_user),
+):
     """Set the given preset as the primary preset."""
+
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can set primary preset.")
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
@@ -125,8 +147,14 @@ async def set_primary_preset(preset_name: str):
 
 
 @router.delete("/presets/{preset_name}")
-async def delete_anatomy_preset(preset_name: str):
+async def delete_anatomy_preset(
+    preset_name: str,
+    user: UserEntity = Depends(dep_current_user),
+):
     """Delete the anatomy preset with the given name."""
+
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can set primary preset.")
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
