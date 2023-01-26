@@ -110,6 +110,17 @@ async def list_projects(
         """,
     ):
         count = row["count"]
+
+        # TODO: skipping projects based on permissions
+        # breaks the pagination. Remove pagination completely?
+        # Or rather use graphql-like approach with cursor?
+        if not user.is_manager:
+            roles = user.data.get("roles", {})
+            if type(roles) is not dict:
+                continue
+            if not roles.get(row["name"]):
+                continue
+
         projects.append(
             ListProjectsItemModel(
                 name=row["name"],
