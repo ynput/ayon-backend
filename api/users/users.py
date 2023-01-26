@@ -192,10 +192,13 @@ async def patch_user(
         payload.data = {}
         payload.active = None
     elif not user.is_manager:
-        raise ForbiddenException
+        raise ForbiddenException("Only managers can modify other users")
 
     payload.data["updatedBy"] = user.name
     target_user = await UserEntity.load(user_name)
+
+    if target_user.is_admin and (not user.is_admin):
+        raise ForbiddenException("Admins can only be modified by other admins")
 
     if user.is_guest:
         # Guests can only modify themselves and users they created
