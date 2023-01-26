@@ -227,8 +227,15 @@ async def patch_user(
     await target_user.save()
 
     # TODO: reload service accounts too?
-    if access_token and (user_name == user.name):
-        await Session.update(access_token, target_user)
+    # if access_token and (user_name == user.name):
+    #    await Session.update(access_token, target_user)
+
+    async for session in Session.list(user_name):
+        token = session.token
+        if not target_user.active:
+            await Session.delete(token)
+        else:
+            await Session.update(token, target_user)
 
     return Response(status_code=204)
 
