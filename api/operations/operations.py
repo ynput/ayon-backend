@@ -118,7 +118,7 @@ async def process_operation(
             payload_dict["id"] = operation.entity_id
         entity = entity_class(project_name, payload_dict)
         await entity.ensure_create_access(user)
-        description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
+        description = f"{operation.entity_type.capitalize()} {entity.name} created"
         events = [
             {
                 "topic": f"entity.{operation.entity_type}.created",
