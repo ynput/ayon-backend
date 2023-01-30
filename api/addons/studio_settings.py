@@ -151,7 +151,7 @@ async def delete_addon_studio_overrides(
         DELETE FROM settings
         WHERE addon_name = $1
         AND addon_version = $2
-        ODER BY snapshot_time DESC LIMIT 1
+        -- ORDER BY snapshot_time DESC LIMIT 1
         """,
         addon_name,
         version,
