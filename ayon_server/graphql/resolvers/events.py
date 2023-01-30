@@ -25,6 +25,7 @@ async def get_events(
     projects: Annotated[list[str] | None, argdesc("List of projects")] = None,
     users: Annotated[list[str] | None, argdesc("List of users")] = None,
     states: Annotated[list[str] | None, argdesc("List of states")] = None,
+    includeLogs: Annotated[bool, argdesc("Include logs in the response")] = False,
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
@@ -56,6 +57,9 @@ async def get_events(
         before,
     )
     sql_conditions.extend(paging_conds)
+
+    if not includeLogs:
+        sql_conditions.append("NOT topic LIKE 'log.%'")
 
     query = f"""
         SELECT * FROM events
