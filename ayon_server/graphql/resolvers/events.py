@@ -14,7 +14,7 @@ from ayon_server.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
-from ayon_server.types import validate_name_list, validate_user_name_list
+from ayon_server.types import TOPIC_REGEX, validate_name_list, validate_user_name_list
 from ayon_server.utils import SQLTool
 
 
@@ -36,7 +36,7 @@ async def get_events(
     sql_conditions = []
 
     if topics:
-        validate_name_list(topics)
+        validate_name_list(topics, TOPIC_REGEX)
         sql_conditions.append(f"topic IN {SQLTool.array(topics)}")
     if projects:
         validate_name_list(projects)

@@ -7,7 +7,7 @@ from ayon_server.entities import UserEntity
 from ayon_server.events import EventModel, dispatch_event, update_event
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import Field, OPModel
+from ayon_server.types import NAME_REGEX, TOPIC_REGEX, Field, OPModel
 
 from .router import router
 
@@ -24,6 +24,7 @@ class DispatchEventRequestModel(OPModel):
         title="Topic",
         description="Topic of the event",
         example="log.info",
+        regex=TOPIC_REGEX,
     )
     sender: str | None = Field(
         None,
@@ -39,6 +40,7 @@ class DispatchEventRequestModel(OPModel):
         title="Project name",
         description="Name of the project if the event belong to one.",
         example="MyProject",
+        regex=NAME_REGEX,
     )
     depends_on: str | None = Field(
         None,

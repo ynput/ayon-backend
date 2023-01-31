@@ -49,14 +49,15 @@ AttributeType = Literal[
 ENTITY_ID_REGEX = r"^[0-f]{32}$"
 ENTITY_ID_EXAMPLE = "c10d5bc73dcab7da4cba0f3e0b3c0aea"
 NAME_REGEX = r"^[a-zA-Z0-9_]{2,64}$"
+TOPIC_REGEX = r"^[a-zA-Z0-9_\.]{2,64}$"
 LABEL_REGEX = r"^[^';]*$"
 USER_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
 
 
-def validate_name(name: str) -> None:
+def validate_name(name: str, regex: str = NAME_REGEX) -> None:
     """Validate name."""
-    if not re.match(NAME_REGEX, name):
-        raise BadRequestException(f"Name '{name}' does not match regex '{NAME_REGEX}'")
+    if not re.match(regex, name):
+        raise BadRequestException(f"Name '{name}' does not match regex '{regex}'")
 
 
 def validate_user_name(name: str) -> None:
@@ -67,10 +68,10 @@ def validate_user_name(name: str) -> None:
         )
 
 
-def validate_name_list(names: list) -> None:
+def validate_name_list(names: list, regex: str = NAME_REGEX) -> None:
     """Validate list of names."""
     for name in names:
-        validate_name(name)
+        validate_name(name, regex)
 
 
 def validate_user_name_list(names: list) -> None:
