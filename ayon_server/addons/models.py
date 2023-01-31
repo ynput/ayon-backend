@@ -27,6 +27,7 @@ class ServerSourceInfo(ClientSourceInfo):
 class HttpSourceInfo(ClientSourceInfo):
     type: Literal["http"] = Field("http")
     url: str
+    filename: str | None = Field(None)
     headers: dict[str, str] | None = Field(None)
 
 
