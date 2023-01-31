@@ -1,6 +1,9 @@
+from pydantic import validator
+
 from ayon_server.settings import Field
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.enum import task_types_enum
+from ayon_server.settings.validators import ensure_unique_names
 
 
 class MultiplatformPathModel(BaseSettingsModel):
@@ -44,10 +47,7 @@ class TemplateWorkfileBaseOptions(BaseSettingsModel):
 # --- Host 'imageio' models ---
 class ImageIOConfigModel(BaseSettingsModel):
     enabled: bool = Field(False)
-    ocio_config: list[str] = Field(
-        defaul_factory=list,
-        title="Config path"
-    )
+    ocio_config: list[str] = Field(defaul_factory=list, title="Config path")
 
 
 class ImageIOFileRuleModel(BaseSettingsModel):
@@ -59,10 +59,7 @@ class ImageIOFileRuleModel(BaseSettingsModel):
 
 class ImageIOFileRulesModel(BaseSettingsModel):
     enabled: bool = Field(False)
-    rules: list[ImageIOFileRuleModel] = Field(
-        default_factory=list,
-        title="Rules"
-    )
+    rules: list[ImageIOFileRuleModel] = Field(default_factory=list, title="Rules")
 
     @validator("rules")
     def validate_unique_outputs(cls, value):
@@ -73,10 +70,8 @@ class ImageIOFileRulesModel(BaseSettingsModel):
 # Base model that can be used as is if host does not need any custom fields
 class ImageIOBaseModel(BaseSettingsModel):
     ocio_config: ImageIOConfigModel = Field(
-        default_factory=ImageIOConfigModel,
-        title="OCIO config"
+        default_factory=ImageIOConfigModel, title="OCIO config"
     )
     file_rules: ImageIOFileRulesModel = Field(
-        default_factory=ImageIOFileRulesModel,
-        title="File Rules"
+        default_factory=ImageIOFileRulesModel, title="File Rules"
     )
