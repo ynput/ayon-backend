@@ -7,7 +7,9 @@ __all__ = [
     "MultiplatformPathModel",
     "MultiplatformPathListModel",
     "TemplateWorkfileBaseOptions",
-    "TemplateWorkfileOptions",
+    "ImageIOConfigModel",
+    "ImageIOFileRulesModel",
+    "ImageIOBaseModel",
     "apply_overrides",
     "list_overrides",
     "extract_overrides",
@@ -26,7 +28,9 @@ from ayon_server.settings.models import (
     MultiplatformPathListModel,
     MultiplatformPathModel,
     TemplateWorkfileBaseOptions,
-    TemplateWorkfileOptions,
+    ImageIOConfigModel,
+    ImageIOFileRulesModel,
+    ImageIOBaseModel,
 )
 from ayon_server.settings.overrides import (
     apply_overrides,

@@ -30,33 +30,6 @@ class CustomTemplateModel(BaseSettingsModel):
     )
 
 
-class ContextModel(BaseSettingsModel):
-    _layout = "expanded"
-
-    subsset_name_filter: list[str] = Field(
-        default_factory=list, title="Subset name filters"
-    )
-    families: list[str] = Field(default_factory=list, title="Families")
-    repre_names: list[str] = Field(default_factory=list, title="Repre names")
-    loaders: list[str] = Field(default_factory=list, title="Loaders")
-
-
-class ProfileModel(BaseSettingsModel):
-    task_types: list[str] = Field(
-        default_factory=list, title="Task types", enum_resolver=task_types_enum
-    )
-
-    tasks: list[str] = Field(default_factory=list, title="Task names")
-
-    current_context: list[ContextModel] = Field(
-        default_factory=list, title="""**Current context**"""
-    )
-
-    linked_assets: list[ContextModel] = Field(
-        default_factory=list, title="""**Linked Assets/Shots**"""
-    )
-
-
 class TemplateWorkfileBaseOptions(BaseSettingsModel):
     create_first_version: bool = Field(
         False,
@@ -68,17 +41,42 @@ class TemplateWorkfileBaseOptions(BaseSettingsModel):
     )
 
 
-class TemplateWorkfileOptions(BaseSettingsModel):
-    create_first_version: bool = Field(
-        False,
-        title="Create first workfile",
+# --- Host 'imageio' models ---
+class ImageIOConfigModel(BaseSettingsModel):
+    enabled: bool = Field(False)
+    ocio_config: list[str] = Field(
+        defaul_factory=list,
+        title="Config path"
     )
-    custom_templates: list[CustomTemplateModel] = Field(
+
+
+class ImageIOFileRuleModel(BaseSettingsModel):
+    name: str = Field("", title="Rule name")
+    pattern: str = Field("", title="Regex pattern")
+    colorspace: str = Field("", title="Colorspace name")
+    ext: str = Field("", title="File extension")
+
+
+class ImageIOFileRulesModel(BaseSettingsModel):
+    enabled: bool = Field(False)
+    rules: list[ImageIOFileRuleModel] = Field(
         default_factory=list,
-        title="Custom templates",
+        title="Rules"
     )
-    builder_on_start: bool = Field(False, title="Run Builder Profiles on first launch")
-    profiles: list[ProfileModel] = Field(
-        default_factory=list,
-        title="Profiles",
+
+    @validator("rules")
+    def validate_unique_outputs(cls, value):
+        ensure_unique_names(value)
+        return value
+
+
+# Base model that can be used as is if host does not need any custom fields
+class ImageIOBaseModel(BaseSettingsModel):
+    ocio_config: ImageIOConfigModel = Field(
+        default_factory=ImageIOConfigModel,
+        title="OCIO config"
+    )
+    file_rules: ImageIOFileRulesModel = Field(
+        default_factory=ImageIOFileRulesModel,
+        title="File Rules"
     )
