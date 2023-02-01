@@ -124,6 +124,7 @@ async def process_operation(
                 "topic": f"entity.{operation.entity_type}.created",
                 "summary": {"entityId": entity.id, "parentId": entity.parent_id},
                 "description": description,
+                "project": project_name,
             }
         ]
         await entity.save(transaction=transaction)
@@ -154,6 +155,7 @@ async def process_operation(
                 "topic": f"entity.{operation.entity_type}.deleted",
                 "summary": {"entityId": entity.id, "parentId": entity.parent_id},
                 "description": description,
+                "project": project_name,
             }
         ]
         await entity.delete(transaction=transaction)
