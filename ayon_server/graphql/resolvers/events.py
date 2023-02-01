@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from nxtools import slugify
 from strawberry.types import Info
 
 from ayon_server.graphql.connections import EventsConnection
@@ -25,6 +26,7 @@ async def get_events(
     projects: Annotated[list[str] | None, argdesc("List of projects")] = None,
     users: Annotated[list[str] | None, argdesc("List of users")] = None,
     states: Annotated[list[str] | None, argdesc("List of states")] = None,
+    filter: str | None = None,
     includeLogs: Annotated[bool, argdesc("Include logs in the response")] = False,
     first: ARGFirst = None,
     after: ARGAfter = None,
@@ -47,6 +49,21 @@ async def get_events(
     if states:
         validate_name_list(states)
         sql_conditions.append(f"status IN {SQLTool.array(states)}")
+
+    if filter:
+        elms = slugify(filter, make_set=True)
+        search_cols = ["topic", "project_name", "user_name", "description"]
+        lconds = []
+        for elm in elms:
+            if len(elm) < 3:
+                continue
+
+            lconds.append(
+                f"""({' OR '.join([f"{col} LIKE '%{elm}%'" for col in search_cols])})"""
+            )
+
+        if lconds:
+            sql_conditions.extend(lconds)
 
     order_by = "creation_order"
     pagination, paging_conds = create_pagination(
