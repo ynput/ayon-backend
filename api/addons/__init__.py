@@ -154,8 +154,8 @@ async def list_addons(
 
 
 class AddonVersionConfig(OPModel):
-    productionVersion: str | None = Field(None)
-    stagingVersion: str | None = Field(None)
+    production_version: str | None = Field(None)
+    staging_version: str | None = Field(None)
 
 
 class AddonConfigRequest(OPModel):
@@ -172,14 +172,29 @@ async def configure_addons(
 
     if payload.versions:
         for name, version_config in payload.versions.items():
+            new_versions = version_config.dict(exclude_none=False, exclude_unset=True)
+            if not new_versions:
+                continue
+
+            sets = []
+            if "production_version" in new_versions:
+                sets.append(f"production_version = $1")
+
+            if "staging_version" in new_versions:
+                sets.append(f"staging_version = $2")
+
+            if not sets:
+                continue
+
+            query = f"""
+                INSERT INTO addon_versions (name, production_version, staging_version)
+                VALUES ($3, $1, $2)
+                ON CONFLICT (name) DO UPDATE SET {", ".join(sets)}
+            """
+
             await Postgres.execute(
-                """
-                INSERT INTO addon_versions
-                (name, production_version, staging_version) VALUES ($1, $2, $3)
-                ON CONFLICT (name)
-                DO UPDATE SET production_version = $2, staging_version = $3
-                """,
+                query,
+                new_versions.get("production_version"),
+                new_versions.get("staging_version"),
                 name,
-                version_config.productionVersion,
-                version_config.stagingVersion,
             )

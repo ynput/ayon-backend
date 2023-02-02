@@ -19,6 +19,7 @@ async def remove_override(
     addon_name: str,
     addon_version: str,
     path: list[str],
+    variant: str = "production",
     project_name: str | None = None,
 ):
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
@@ -28,10 +29,10 @@ async def remove_override(
 
     if project_name:
         scope = f"project_{project_name}."
-        overrides = await addon.get_project_overrides(project_name)
+        overrides = await addon.get_project_overrides(project_name, variant=variant)
     else:
-        scope = ""
-        overrides = await addon.get_studio_overrides()
+        scope = "public."
+        overrides = await addon.get_studio_overrides(variant=variant)
 
     try:
         dict_remove_path(overrides, path)
@@ -39,21 +40,17 @@ async def remove_override(
         log_traceback()
         return
 
-    # Do not use versioning during the development (causes headaches)
-
-    await Postgres.execute(
-        f"DELETE FROM {scope}settings WHERE addon_name = $1 AND addon_version = $2",
-        addon_name,
-        addon_version,
-    )
-
     await Postgres.execute(
         f"""
-        INSERT INTO {scope}settings (addon_name, addon_version, data)
-        VALUES ($1, $2, $3)
+        INSERT INTO {scope}settings
+            (addon_name, addon_version, variant, data)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (addon_name, addon_version, variant)
+        DO UPDATE SET data = $4
         """,
         addon_name,
         addon_version,
+        variant,
         overrides,
     )
 
@@ -62,6 +59,7 @@ async def pin_override(
     addon_name: str,
     addon_version: str,
     path: list[str],
+    variant: str = "production",
     project_name: str | None = None,
 ):
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
@@ -69,12 +67,12 @@ async def pin_override(
 
     if project_name:
         scope = f"project_{project_name}."
-        overrides = await addon.get_project_overrides(project_name)
-        settings = await addon.get_project_settings(project_name)
+        overrides = await addon.get_project_overrides(project_name, variant=variant)
+        settings = await addon.get_project_settings(project_name, variant=variant)
     else:
         scope = ""
-        overrides = await addon.get_studio_overrides()
-        settings = await addon.get_studio_settings()
+        overrides = await addon.get_studio_overrides(variant=variant)
+        settings = await addon.get_studio_settings(variant=variant)
 
     c_field = settings
     c_overr = overrides
@@ -120,10 +118,14 @@ async def pin_override(
 
     await Postgres.execute(
         f"""
-        INSERT INTO {scope}settings (addon_name, addon_version, data)
-        VALUES ($1, $2, $3)
+        INSERT INTO {scope}settings 
+            (addon_name, addon_version, variant, data)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (addon_name, addon_version, variant)
+        DO UPDATE SET data = $4
         """,
         addon_name,
         addon_version,
+        variant,
         overrides,
     )

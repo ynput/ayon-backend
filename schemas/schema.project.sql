@@ -298,11 +298,9 @@ CREATE TABLE IF NOT EXISTS roles(
 CREATE TABLE settings(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
-  staging BOOL NOT NULL DEFAULT FALSE,
-  snapshot_time BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
-  created_by VARCHAR,
+  variant VARCHAR NOT NULL DEFAULT 'production',
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  PRIMARY KEY (addon_name, addon_version, snapshot_time, staging)
+  PRIMARY KEY (addon_name, addon_version, variant)
 );
 
 CREATE TABLE project_site_settings(
@@ -323,10 +321,9 @@ CREATE TABLE addon_versions(
 CREATE TABLE IF NOT EXISTS addon_data(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
-  staging BOOL NOT NULL DEFAULT FALSE,
   key VARCHAR NOT NULL,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  PRIMARY KEY (addon_name, addon_version, staging, key)
+  PRIMARY KEY (addon_name, addon_version, key)
 );
 
 

@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS public.projects(
     updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS projectname_idx ON public.projects (LOWER(name));
+CREATE UNIQUE INDEX IF NOT EXISTS projectname_idx ON public.projects(LOWER(name));
 CREATE UNIQUE INDEX IF NOT EXISTS projectcode_idx ON public.projects(LOWER(code));
 
 -- Users
@@ -108,11 +108,9 @@ CREATE TABLE IF NOT EXISTS public.anatomy_presets(
 CREATE TABLE IF NOT EXISTS public.settings(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
-  staging BOOL NOT NULL DEFAULT FALSE,
-  snapshot_time BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM CURRENT_TIMESTAMP),
-  created_by VARCHAR,
+  variant VARCHAR NOT NULL DEFAULT 'production',
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  PRIMARY KEY (addon_name, addon_version, snapshot_time, staging)
+  PRIMARY KEY (addon_name, addon_version, variant)
 );
 
 CREATE TABLE IF NOT EXISTS public.site_settings(
@@ -135,10 +133,9 @@ CREATE TABLE IF NOT EXISTS public.addon_versions(
 CREATE TABLE IF NOT EXISTS public.addon_data(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
-  staging BOOL NOT NULL DEFAULT FALSE,
   key VARCHAR NOT NULL,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  PRIMARY KEY (addon_name, addon_version, staging, key)
+  PRIMARY KEY (addon_name, addon_version, key)
 );
 
 
