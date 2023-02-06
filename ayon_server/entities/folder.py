@@ -121,6 +121,8 @@ class FolderEntity(ProjectLevelEntity):
 
         attrib = {}
         for key in self.own_attrib:
+            if not hasattr(self, key):
+                continue
             if (value := getattr(self.attrib, key)) is not None:
                 attrib[key] = value
 
