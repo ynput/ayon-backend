@@ -1,7 +1,7 @@
-from typing import Any
+from typing import Any, Literal
 
 from addons.router import route_meta, router
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from nxtools import logging
 
 from addons import project_settings, site_settings, studio_settings
@@ -9,7 +9,11 @@ from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import SourceInfo
 from ayon_server.api.dependencies import dep_current_user
 from ayon_server.entities import UserEntity
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import (
+    AyonException,
+    BadRequestException,
+    ForbiddenException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
@@ -153,12 +157,108 @@ async def list_addons(
 #
 
 
+AddonEnvironment = Literal["production", "staging"]
+
+
+def semver_sort_key(item):
+    parts = item.split(".")
+    for i in range(len(parts)):
+        if not parts[i].isdigit():
+            parts[i:] = ["".join(parts[i:])]
+            break
+    parts = [int(part) if part.isdigit() else part for part in parts]
+    return parts
+
+
+async def copy_addon_variant(
+    addon_name: str,
+    copy_from: AddonEnvironment,
+    copy_to: AddonEnvironment,
+):
+    """Copy addon settings from one variant to another."""
+
+    res = await Postgres.fetch(
+        "SELECT * FROM addon_versions WHERE name = $1", addon_name
+    )
+    if not res:
+        raise AyonException("Addon environment not found")
+
+    source_version = res[0][f"{copy_from}_version"]
+
+    if not source_version:
+        raise AyonException("Source environment not set")
+
+    # Get the settings
+
+    source_settings = await Postgres.fetch(
+        """
+        SELECT addon_version, data FROM settings
+        WHERE addon_name = $1 AND variant = $2
+        """,
+        addon_name,
+        copy_from,
+    )
+
+    if source_version not in [x["addon_version"] for x in source_settings]:
+        source_settings.append({"addon_version": source_version, "data": {}})
+
+    source_settings.sort(
+        key=lambda x: semver_sort_key(x["addon_version"]),
+        reverse=True,
+    )
+
+    target_settings = {}
+
+    for settings in source_settings:
+        target_settings = settings["data"]
+        if settings["addon_version"] == source_version:
+            break
+
+    # store the settings
+
+    await Postgres.execute(
+        """
+        INSERT INTO settings (addon_name, addon_version, variant, data)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (addon_name, addon_version, variant) DO UPDATE
+        SET data = $4
+        """,
+        addon_name,
+        source_version,
+        copy_to,
+        target_settings,
+    )
+
+    # update the active version
+
+    await Postgres.execute(
+        f"""
+        UPDATE addon_versions
+        SET {copy_to}_version = $1
+        WHERE name = $2
+        """,
+        source_version,
+        addon_name,
+    )
+
+
 class AddonVersionConfig(OPModel):
     production_version: str | None = Field(None)
     staging_version: str | None = Field(None)
 
 
+class VariantCopyRequest(OPModel):
+    addon_name: str = Field(..., description="Addon name")
+    copy_from: AddonEnvironment = Field(
+        ..., description="Source variant", example="production"
+    )
+    copy_to: AddonEnvironment = Field(
+        ..., description="Destination variant", example="staging"
+    )
+
+
 class AddonConfigRequest(OPModel):
+    copy_variant: VariantCopyRequest | None = Field(None)
     versions: dict[str, AddonVersionConfig] | None = Field(None)
 
 
@@ -170,6 +270,14 @@ async def configure_addons(
     if not user.is_manager:
         raise ForbiddenException
 
+    if payload.copy_variant is not None:
+        await copy_addon_variant(
+            addon_name=payload.copy_variant.addon_name,
+            copy_from=payload.copy_variant.copy_from,
+            copy_to=payload.copy_variant.copy_to,
+        )
+        return Response(status_code=204)
+
     if payload.versions:
         for name, version_config in payload.versions.items():
             new_versions = version_config.dict(exclude_none=False, exclude_unset=True)
@@ -178,10 +286,10 @@ async def configure_addons(
 
             sets = []
             if "production_version" in new_versions:
-                sets.append(f"production_version = $1")
+                sets.append("production_version = $1")
 
             if "staging_version" in new_versions:
-                sets.append(f"staging_version = $2")
+                sets.append("staging_version = $2")
 
             if not sets:
                 continue
@@ -198,3 +306,6 @@ async def configure_addons(
                 new_versions.get("staging_version"),
                 name,
             )
+        return Response(status_code=204)
+
+    raise BadRequestException("Unsupported request")
