@@ -185,32 +185,15 @@ class BaseServerAddon:
 
     # Load overrides from the database
 
-    async def get_studio_overrides(self, snapshot: int | None = None) -> dict[str, Any]:
+    async def get_studio_overrides(self, variant: str = "production") -> dict[str, Any]:
         """Load the studio overrides from the database."""
 
-        query: list[Any]
+        query = """
+            SELECT data FROM settings
+            WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
+            """
 
-        if snapshot is None:
-            query = [
-                """
-                SELECT data FROM settings
-                WHERE addon_name = $1 AND addon_version = $2
-                ORDER BY snapshot_time DESC LIMIT 1
-                """,
-                self.definition.name,
-                self.version,
-            ]
-        else:
-            query = [
-                """
-                SELECT data FROM settings
-                WHERE addon_name = $1 AND addon_version = $2 AND snapshot_time = $3
-                """,
-                self.definition.name,
-                self.version,
-                snapshot,
-            ]
-        res = await Postgres.fetch(*query)
+        res = await Postgres.fetch(query, self.definition.name, self.version, variant)
         if res:
             return dict(res[0]["data"])
         return {}
@@ -218,35 +201,19 @@ class BaseServerAddon:
     async def get_project_overrides(
         self,
         project_name: str,
-        snapshot: int | None = None,
+        variant: str = "production",
     ) -> dict[str, Any]:
         """Load the project overrides from the database."""
 
-        query: list[Any]
-
-        if snapshot is None:
-            query = [
-                f"""
-                SELECT data FROM project_{project_name}.settings
-                WHERE addon_name = $1 AND addon_version = $2
-                ORDER BY snapshot_time DESC LIMIT 1
-                """,
-                self.definition.name,
-                self.version,
-            ]
-        else:
-            query = [
-                f"""
-                SELECT data FROM project_{project_name}.settings
-                WHERE addon_name = $1 AND addon_version = $2 AND snapshot_time = $3
-                """,
-                self.definition.name,
-                self.version,
-                snapshot,
-            ]
+        query = f"""
+            SELECT data FROM project_{project_name}.settings
+            WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
+            """
 
         try:
-            res = await Postgres.fetch(*query)
+            res = await Postgres.fetch(
+                query, self.definition.name, self.version, variant
+            )
         except Postgres.UndefinedTableError:
             raise NotFoundException(f"Project {project_name} does not exists")
         if res:
@@ -280,7 +247,7 @@ class BaseServerAddon:
 
     async def get_studio_settings(
         self,
-        snapshot: int | None = None,
+        variant: str = "production",
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio overrides.
 
@@ -290,7 +257,7 @@ class BaseServerAddon:
         settings = await self.get_default_settings()
         if settings is None:
             return None  # this addon has no settings at all
-        overrides = await self.get_studio_overrides(snapshot=snapshot)
+        overrides = await self.get_studio_overrides(variant=variant)
         if overrides:
             settings = apply_overrides(settings, overrides)
 
@@ -299,7 +266,7 @@ class BaseServerAddon:
     async def get_project_settings(
         self,
         project_name: str,
-        snapshot: int | None = None,
+        variant: str = "production",
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio and project overrides.
 
@@ -310,14 +277,8 @@ class BaseServerAddon:
         if settings is None:
             return None  # this addon has no settings at all
 
-        # TODO: remove if nothing breaks
-        # Why was this here? Did copilot write this?
-        # studio_overrides = await self.get_studio_overrides(snapshot=snapshot)
-        # if studio_overrides:
-        #     settings = apply_overrides(settings, studio_overrides)
-
         project_overrides = await self.get_project_overrides(
-            project_name, snapshot=snapshot
+            project_name, variant=variant
         )
         if project_overrides:
             settings = apply_overrides(settings, project_overrides)
@@ -328,13 +289,13 @@ class BaseServerAddon:
         project_name: str,
         user_name: str,
         site_id: str,
-        snapshot: int | None = None,
+        variant: str = "production",
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio, project and site overrides.
 
         You shouldn't override this method, unless absolutely necessary.
         """
-        settings = await self.get_project_settings(project_name, snapshot=snapshot)
+        settings = await self.get_project_settings(project_name, variant=variant)
         if settings is None:
             return None
         site_overrides = await self.get_project_site_overrides(
@@ -342,8 +303,6 @@ class BaseServerAddon:
         )
         if site_overrides:
             settings = apply_overrides(settings, site_overrides)
-        # TODO
-        # me after 3 days: do what?
         return settings
 
     #
