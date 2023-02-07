@@ -1,4 +1,4 @@
-from fastapi import Depends
+from fastapi import Depends, Query
 
 from ayon_server.api.dependencies import dep_current_user, dep_project_name
 from ayon_server.entities import ProjectEntity, UserEntity
@@ -160,10 +160,15 @@ async def get_project_health(
     )
 
 
-@router.get("/activity")
+class ActivityResponseModel(OPModel):
+    activity: list[int] = Field(..., description="Activity per day normalized to 0-100")
+
+
+@router.get("/activity", response_model=ActivityResponseModel)
 async def get_project_activity(
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
+    days: int = Query(50, description="Number of days to retrieve activity for"),
 ):
 
     import hashlib
@@ -174,8 +179,8 @@ async def get_project_activity(
         hash_object = hashlib.sha256(input_string.encode())
         hex_dig = hash_object.hexdigest()
         hash_list = []
-        for i in range(50):
+        for i in range(days):
             hash_list.append(int(hex_dig[i % 64], 16) % 100)
         return hash_list
 
-    return string_to_hash_list(project_name)
+    return ActivityResponseModel(activity=string_to_hash_list(project_name))
