@@ -88,6 +88,7 @@ class Health(OPModel):
 
 @router.get("/health", response_model=Health)
 async def get_project_health(
+    user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
 
@@ -161,6 +162,7 @@ async def get_project_health(
 
 @router.get("/activity")
 async def get_project_activity(
+    user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
 
