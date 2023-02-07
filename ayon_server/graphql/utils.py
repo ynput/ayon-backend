@@ -1,7 +1,9 @@
+from datetime import datetime
 from typing import Literal, Type
 
 import strawberry
 
+from ayon_server.entities.core import attribute_library
 from ayon_server.entities.user import UserEntity
 
 
@@ -39,7 +41,10 @@ def parse_attrib_data(
     for key in expected_keys:
         if key in data:
             if attr_limit == "all" or key in attr_limit:
-                result[key] = data[key]
+                value = data[key]
+                if attribute_library.by_name(key)["type"] == "datetime":
+                    value = datetime.fromisoformat(value)
+                result[key] = value
     return target_type(**result)
 
 

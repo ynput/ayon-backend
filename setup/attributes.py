@@ -190,6 +190,12 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
             {"value": "test3", "label": "Test 3"},
         ],
     },
+    "testDatetime": {
+        "scope": "P, F, V, R, T",
+        "type": "datetime",
+        "example": "2021-01-01T00:00:00+00:00",
+        "title": "Test datetime",
+    },
 }
 
 
@@ -215,11 +221,13 @@ async def deploy_attributes() -> None:
             continue
 
         if tdata["type"] not in [
+            "string",
             "integer",
             "float",
-            "string",
             "boolean",
+            "datetime",
             "list_of_strings",
+            "list_of_integers",
         ]:
             logging.error(f"Unknown type sepecified on {name}. Skipping.")
             continue

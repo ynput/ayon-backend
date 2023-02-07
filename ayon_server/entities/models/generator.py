@@ -6,6 +6,7 @@ since Python 3.10 syntax does not work with Strawberry yet.
 
 import time
 import uuid
+from datetime import datetime
 from typing import Any, List, Literal, Optional, Type, TypeVar, Union
 
 from pydantic import BaseModel, Field, create_model
@@ -24,6 +25,7 @@ FIELD_TYPES = {
     "integer": int,
     "float": float,
     "boolean": bool,
+    "datetime": datetime,
     "list_of_strings": List[str],
     "list_of_integers": List[int],
     "list_of_any": List[Any],
@@ -46,10 +48,16 @@ def current_timestamp() -> int:
     return int(time.time())
 
 
+def current_time() -> datetime:
+    """Return current time."""
+    return datetime.now()
+
+
 FIELD_FACORIES = {
     "list": list,
     "dict": dict,
     "now": current_timestamp,
+    "time": current_time,
     "uuid": new_id,
 }
 
@@ -91,7 +99,7 @@ class FieldDefinition(BaseModel):
 
     # Default value
     default: Optional[Any] = Field(title="Field default value")
-    factory: Optional[Literal["list", "dict", "now", "uuid"]] = Field(
+    factory: Optional[Literal["list", "dict", "now", "uuid", "time"]] = Field(
         title="Default factory",
         description="Name of the function to be used to create default values",
     )

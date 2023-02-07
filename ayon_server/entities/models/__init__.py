@@ -1,6 +1,7 @@
 """Dynamic entity models generation."""
 
 import copy
+import datetime
 from typing import Any, Type
 
 from pydantic import BaseModel
@@ -22,6 +23,7 @@ from ayon_server.types import (
     NAME_REGEX,
     USER_NAME_REGEX,
 )
+from ayon_server.utils import json_dumps
 
 FIELD_LISTS: dict[str, list[Any]] = {
     "project": project_fields,

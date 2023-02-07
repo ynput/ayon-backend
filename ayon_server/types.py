@@ -41,7 +41,9 @@ AttributeType = Literal[
     "integer",
     "float",
     "boolean",
+    "datetime",
     "list_of_strings",
+    "list_of_integers",
     "list_of_any",
     "dict",
 ]

@@ -1,9 +1,11 @@
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import FolderEntity, UserEntity
+from ayon_server.entities.core import attribute_library
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.subsets import get_subsets
 from ayon_server.graphql.resolvers.tasks import get_tasks
@@ -95,13 +97,17 @@ def parse_folder_attrib_data(
 
     if not data:
         return FolderAttribType()
+    result = {}
     expected_keys = list(FolderAttribType.__dataclass_fields__.keys())  # type: ignore
     for key in expected_keys:
         if key in data:
             if attr_limit == "all" or key in attr_limit:
-                continue
-            del data[key]
-    return FolderAttribType(**{k: data[k] for k in expected_keys if k in data})
+                value = data[key]
+                if attribute_library.by_name(key)["type"] == "datetime":
+                    value = datetime.fromisoformat(value)
+                result[key] = value
+    print(data)
+    return FolderAttribType(**result)
 
 
 def folder_from_record(project_name: str, record: dict, context: dict) -> FolderNode:
