@@ -161,7 +161,11 @@ async def get_project_health(
 
 
 class ActivityResponseModel(OPModel):
-    activity: list[int] = Field(..., description="Activity per day normalized to 0-100")
+    activity: list[int] = Field(
+        ...,
+        description="Activity per day normalized to 0-100",
+        example=[0, 0, 0, 1, 12, 34, 32, 24, 25, 56, 18],
+    )
 
 
 @router.get("/activity", response_model=ActivityResponseModel)
