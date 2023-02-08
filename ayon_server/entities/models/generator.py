@@ -161,10 +161,7 @@ def generate_model(
 
         if fdef.submodel:
             field["default_factory"] = fdef.submodel
-        # TODO: this should make factories of lists obsolete
-        elif fdef.type.startswith("list_of_"):
-            field["default_factory"] = list
-        elif fdef.list_of_submodels:
+        elif fdef.type.startswith("list_of_") and fdef.required:
             field["default_factory"] = list
         elif fdef.factory:
             field["default_factory"] = FIELD_FACORIES[fdef.factory]
