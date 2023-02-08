@@ -1,6 +1,7 @@
 """A set of commonly used functions."""
 
 import asyncio
+import datetime
 import functools
 import hashlib
 import json
@@ -8,11 +9,11 @@ import random
 import threading
 import time
 import uuid
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 import codenamize
 import orjson
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 
 def json_loads(data: str) -> Any:
@@ -20,11 +21,24 @@ def json_loads(data: str) -> Any:
     return orjson.loads(data)
 
 
+def json_default_handler(value: Any) -> Any:
+    if isinstance(value, NamedTuple):
+        return json.dumps(list(value))
+
+    if isinstance(value, BaseModel):
+        return json.dumps(value.dict())
+
+    if isinstance(value, datetime.datetime):
+        return value.isoformat()
+
+    raise TypeError(f"Type {type(value)} is not JSON serializable")
+
+
 def json_dumps(data: Any, *, default: Callable[[Any], Any] | None = None) -> str:
     """Dump JSON data."""
-    return json.dumps(data)
+    # return json.dumps(data)
     # TODO: orjson does not support namedtuples correclty. we need to support is as list
-    # return orjson.dumps(data, default=default).decode()
+    return orjson.dumps(data, default=json_default_handler).decode()
 
 
 def hash_data(data: Any) -> str:

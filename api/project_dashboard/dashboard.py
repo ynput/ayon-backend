@@ -29,21 +29,14 @@ async def get_project_entity_counts(
     """Retrieve entity counts for a given project."""
 
     counts = {}
-    for entity in [
-        "folders",
-        "subsets",
-        "versions",
-        "representations",
-        "tasks",
-        "workfiles",
-    ]:
+    for entity_type in ProjectLevelEntityType.__args__:
         res = await Postgres.fetch(
             f"""
             SELECT COUNT(id)
-            FROM project_{project_name}.{entity}
+            FROM project_{project_name}.{entity_type}s
             """
         )
-        counts[entity] = res[0][0]
+        counts[f"{entity_type}s"] = res[0][0]
 
     return EntityCounts(**counts)
 

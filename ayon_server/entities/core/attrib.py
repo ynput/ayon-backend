@@ -1,5 +1,6 @@
 import asyncio
 import collections
+import functools
 import threading
 from typing import Any, DefaultDict
 
@@ -51,6 +52,15 @@ class AttributeLibrary:
 
     def __getitem__(self, key) -> list[dict[str, Any]]:
         return self.data[key]
+
+    @functools.cache
+    def by_name(self, name: str) -> dict[str, Any]:
+        """Return attribute definition by name."""
+        for entity_type in self.data:
+            for attr in self.data[entity_type]:
+                if attr["name"] == name:
+                    return attr
+        raise KeyError(f"Attribute {name} not found")
 
 
 attribute_library = AttributeLibrary()

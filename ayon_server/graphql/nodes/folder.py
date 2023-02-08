@@ -1,12 +1,13 @@
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING
 
 import strawberry
 from strawberry import LazyType
 
-from ayon_server.entities import FolderEntity, UserEntity
+from ayon_server.entities import FolderEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.subsets import get_subsets
 from ayon_server.graphql.resolvers.tasks import get_tasks
+from ayon_server.graphql.utils import parse_attrib_data
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import SubsetsConnection, TasksConnection
@@ -70,40 +71,6 @@ class FolderNode(BaseNode):
 #
 
 
-def parse_folder_attrib_data(
-    own_attrib: dict[str, Any] | None,
-    inherited_attrib: dict[str, Any] | None,
-    project_attrib: dict[str, Any] | None,
-    user: UserEntity,
-    project_name: str | None = None,
-) -> FolderAttribType:
-
-    attr_limit: list[str] | Literal["all"] = []
-
-    if user.is_manager:
-        attr_limit = "all"
-    elif (perms := user.permissions(project_name)) is None:
-        attr_limit = []  # This shouldn't happen
-    elif perms.attrib_read.enabled:
-        attr_limit = perms.attrib_read.attributes
-
-    data = project_attrib or {}
-    if inherited_attrib is not None:
-        data.update(inherited_attrib)
-    if own_attrib is not None:
-        data.update(own_attrib)
-
-    if not data:
-        return FolderAttribType()
-    expected_keys = list(FolderAttribType.__dataclass_fields__.keys())  # type: ignore
-    for key in expected_keys:
-        if key in data:
-            if attr_limit == "all" or key in attr_limit:
-                continue
-            del data[key]
-    return FolderAttribType(**{k: data[k] for k in expected_keys if k in data})
-
-
 def folder_from_record(project_name: str, record: dict, context: dict) -> FolderNode:
     """Construct a folder node from a DB row."""
     return FolderNode(
@@ -117,12 +84,13 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         thumbnail_id=record["thumbnail_id"],
         status=record["status"],
         tags=record["tags"],
-        attrib=parse_folder_attrib_data(
+        attrib=parse_attrib_data(
+            FolderAttribType,
             record["attrib"],
-            record["inherited_attributes"],
-            record["project_attributes"],
             user=context["user"],
             project_name=project_name,
+            project_attrib=record["project_attributes"],
+            inherited_attrib=record["inherited_attributes"],
         ),
         created_at=record["created_at"],
         updated_at=record["updated_at"],

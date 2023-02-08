@@ -16,17 +16,6 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.version import VersionNode
     from ayon_server.graphql.nodes.workfile import WorkfileNode
 else:
-    # ProjectNode = lazy_type("ProjectNode", ".nodes.project")
-    # UserNode = lazy_type("UserNode", ".nodes.user")
-    # FolderNode = lazy_type("FolderNode", ".nodes.folder")
-    # TaskNode = lazy_type("TaskNode", ".nodes.task")
-    # SubsetNode = lazy_type("SubsetNode", ".nodes.subset")
-    # VersionNode = lazy_type("VersionNode", ".nodes.version")
-    # RepresentationNode = lazy_type("RepresentationNode", ".nodes.representation")
-    # EventNode = lazy_type("EventNode", ".nodes.event")
-    # WorkfileNode = lazy_type("WorkfileNode", ".nodes.workfile")
-    # BaseNode = lazy_type("BaseNode", ".nodes.common")
-
     ProjectNode = LazyType["ProjectNode", ".nodes.project"]
     UserNode = LazyType["UserNode", ".nodes.user"]
     FolderNode = LazyType["FolderNode", ".nodes.folder"]
