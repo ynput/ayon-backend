@@ -1,5 +1,5 @@
-import time
 import uuid
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import Field
@@ -52,8 +52,8 @@ class EventModel(OPModel):
     description: str = Field(...)
     summary: dict[str, Any] = Field(default_factory=dict)
     payload: dict[str, Any] = Field(default_factory=dict)
-    created_at: float = Field(default_factory=time.time)
-    updated_at: float = Field(default_factory=time.time)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
 
 
 async def dispatch_event(
@@ -154,7 +154,7 @@ async def update_event(
     store: bool = True,
 ):
 
-    new_data: dict[str, Any] = {"updated_at": time.time()}
+    new_data: dict[str, Any] = {"updated_at": datetime.now()}
 
     if sender is not None:
         new_data["sender"] = sender
@@ -208,8 +208,8 @@ async def update_event(
             "summary": data["summary"],
             "status": data["status"],
             "sender": data["sender"],
-            "createdAt": float(data["created_at"]),
-            "updatedAt": float(data["updated_at"]),
+            "createdAt": data["created_at"],
+            "updatedAt": data["updated_at"],
         }
         if progress is not None:
             message["progress"] = progress

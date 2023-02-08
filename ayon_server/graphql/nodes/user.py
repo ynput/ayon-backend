@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import strawberry
 
 from ayon_server.entities import UserEntity
@@ -14,8 +16,8 @@ class UserAttribType:
 class UserNode:
     name: str
     active: bool
-    created_at: int
-    updated_at: int
+    created_at: datetime
+    updated_at: datetime
     attrib: UserAttribType
     roles: str
     default_roles: list[str]

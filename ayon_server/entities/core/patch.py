@@ -1,5 +1,5 @@
 import copy
-import time
+from datetime import datetime
 
 from nxtools import logging
 from pydantic import BaseModel
@@ -40,7 +40,7 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
             update_data[key] = value
 
     if "updated_at" in original.__fields__:
-        update_data["updated_at"] = int(time.time())
+        update_data["updated_at"] = datetime.now()
 
     updated_model = original.copy(update=update_data, deep=True)
     return updated_model

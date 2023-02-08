@@ -1,4 +1,4 @@
-import time
+from datetime import datetime
 
 from fastapi import Depends
 from services.services import ServiceModel, list_services
@@ -19,7 +19,9 @@ class HostHealthModel(OPModel):
 
 class HostModel(OPModel):
     name: str = Field(..., title="Host name", example="my-host")
-    last_seen: int = Field(..., title="Last seen timestamp", example=123456789)
+    last_seen: datetime = Field(
+        ..., title="Last seen time", example=datetime.now().isoformat()
+    )
     health: HostHealthModel = Field(
         default_factory=HostHealthModel,
         title="Host health",
@@ -84,7 +86,7 @@ async def host_heartbeat(
     if not user.is_service:
         raise ForbiddenException("Only services have hearts to beat")
 
-    now = time.time()
+    now = datetime.now()
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
@@ -98,7 +100,7 @@ async def host_heartbeat(
                     health = $3
                 """,
                 payload.hostname,
-                time.time(),
+                now,
                 payload.health.dict(),
             )
 

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import strawberry
 from strawberry.types import Info
 
@@ -45,8 +47,8 @@ class BaseNode:
     name: str = strawberry.field()
 
     active: bool = strawberry.field()
-    created_at: int = strawberry.field()
-    updated_at: int = strawberry.field()
+    created_at: datetime = strawberry.field()
+    updated_at: datetime = strawberry.field()
 
     @strawberry.field
     async def links(

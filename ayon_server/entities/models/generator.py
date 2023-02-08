@@ -43,11 +43,6 @@ def new_id() -> str:
     return str(uuid.uuid1()).replace("-", "")
 
 
-def current_timestamp() -> int:
-    """Return current unix timestamp."""
-    return int(time.time())
-
-
 def current_time() -> datetime:
     """Return current time."""
     return datetime.now()
@@ -56,8 +51,7 @@ def current_time() -> datetime:
 FIELD_FACORIES = {
     "list": list,
     "dict": dict,
-    "now": current_timestamp,
-    "time": current_time,
+    "now": current_time,
     "uuid": new_id,
 }
 
