@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Type
+from typing import Any, Literal, Type
 
 import strawberry
 
@@ -19,9 +19,11 @@ def parse_json_data(target_type, data):
 
 def parse_attrib_data(
     target_type,
-    data: dict,
+    own_attrib: dict[str, Any],
     user: UserEntity,
     project_name: str | None = None,
+    inherited_attrib: dict[str, Any] | None = None,
+    project_attrib: dict[str, Any] | None = None,
 ):
     """ACL agnostic attribute list parser"""
 
@@ -33,6 +35,12 @@ def parse_attrib_data(
         attr_limit = []  # This shouldn't happen
     elif perms.attrib_read.enabled:
         attr_limit = perms.attrib_read.attributes
+
+    data = project_attrib or {}
+    if inherited_attrib is not None:
+        data.update(inherited_attrib)
+    if own_attrib is not None:
+        data.update(own_attrib)
 
     if not data:
         return target_type()
@@ -46,13 +54,3 @@ def parse_attrib_data(
                     value = datetime.fromisoformat(value)
                 result[key] = value
     return target_type(**result)
-
-
-def lazy_type(name: str, module: str) -> Type[strawberry.LazyType]:
-    """Create a lazy type for the given module and name.
-
-    When used, module path must be relative
-    to THIS file (root of the graphql module)
-    e.g. `.nodes.node` or `.connection`
-    """
-    return strawberry.LazyType[name, module]  # type: ignore
