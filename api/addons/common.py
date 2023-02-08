@@ -118,7 +118,7 @@ async def pin_override(
 
     await Postgres.execute(
         f"""
-        INSERT INTO {scope}settings 
+        INSERT INTO {scope}settings
             (addon_name, addon_version, variant, data)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (addon_name, addon_version, variant)

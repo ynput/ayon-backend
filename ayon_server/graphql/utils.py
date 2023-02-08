@@ -1,7 +1,5 @@
 from datetime import datetime
-from typing import Any, Literal, Type
-
-import strawberry
+from typing import Any, Literal
 
 from ayon_server.entities.core import attribute_library
 from ayon_server.entities.user import UserEntity
