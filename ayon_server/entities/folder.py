@@ -1,4 +1,4 @@
-import time
+from datetime import datetime
 from typing import Any
 
 from nxtools import logging
@@ -152,7 +152,7 @@ class FolderEntity(ProjectLevelEntity):
                         status=self.status,
                         tags=self.tags,
                         attrib=attrib,
-                        updated_at=time.time(),
+                        updated_at=datetime.now(),
                     )
                 )
             except Postgres.ForeignKeyViolationError as e:

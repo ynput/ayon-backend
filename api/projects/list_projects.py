@@ -1,6 +1,6 @@
 """[GET] /projects (List projects)"""
 
-import time
+from datetime import datetime
 from typing import List, Literal, Optional
 
 from fastapi import Depends, Query
@@ -16,8 +16,8 @@ from ayon_server.utils import SQLTool
 class ListProjectsItemModel(OPModel):
     name: str = Field(..., title="Project name")
     code: str = Field(..., title="Project code")
-    createdAt: int = Field(..., title="Creation time")
-    updatedAt: int = Field(..., title="Last modified time")
+    createdAt: datetime = Field(..., title="Creation time")
+    updatedAt: datetime = Field(..., title="Last modified time")
 
 
 class ListProjectsResponseModel(OPModel):
@@ -32,8 +32,8 @@ class ListProjectsResponseModel(OPModel):
             ListProjectsItemModel(
                 name="Example project",
                 code="ex",
-                createdAt=int(time.time()),
-                updatedAt=int(time.time()),
+                createdAt=datetime.now().isoformat(),
+                updatedAt=datetime.now().isoformat(),
             )
         ],
     )

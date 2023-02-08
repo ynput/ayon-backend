@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import strawberry
 
 from ayon_server.utils import get_nickname, obscure
@@ -15,8 +17,8 @@ class EventNode:
     status: str
     retries: int
     description: str
-    created_at: float
-    updated_at: float
+    created_at: datetime
+    updated_at: datetime
 
 
 def event_from_record(record: dict, context: dict) -> EventNode:

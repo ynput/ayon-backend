@@ -1,5 +1,4 @@
 import asyncio
-import time
 
 from ayon_server.background import BackgroundTask
 from ayon_server.lib.postgres import Postgres
@@ -19,7 +18,7 @@ async def clear_thumbnails(project_name: str) -> None:
     query = f"""
 
     DELETE FROM project_{project_name}.thumbnails
-        WHERE created_at < $1
+        WHERE created_at < 'yesterday'::timestamp
         AND id NOT IN (
             SELECT thumbnail_id FROM project_{project_name}.folders
             UNION
@@ -29,7 +28,7 @@ async def clear_thumbnails(project_name: str) -> None:
         )
     """
 
-    await Postgres.execute(query, time.time() - 24 * 3600)
+    await Postgres.execute(query)
 
 
 class ThumbnailCleaner(BackgroundTask):

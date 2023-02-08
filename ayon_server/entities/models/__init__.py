@@ -214,21 +214,19 @@ class ModelSet:
         post_fields: list[dict[str, Any]] = [
             {
                 "name": "created_at",
-                "type": "integer",
+                "type": "datetime",
                 "factory": "now",
                 "title": "Created at",
-                "description": "Timestamp of creation",
-                "example": 1605849600,
-                "gt": 0,
+                "description": "Time of creation",
+                "example": "2023-01-01T00:00:00+00:00",
             },
             {
                 "name": "updated_at",
-                "type": "integer",
+                "type": "datetime",
                 "factory": "now",
                 "title": "Updated at",
-                "description": "Timestamp of last update",
-                "example": 1605849600,
-                "gt": 0,
+                "description": "Time of last update",
+                "example": "2023-01-01T00:00:00+00:00",
             },
         ]
 

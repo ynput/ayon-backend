@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import strawberry
@@ -74,8 +75,8 @@ class ProjectNode:
     attrib: ProjectAttribType
     active: bool
     library: bool
-    created_at: int
-    updated_at: int
+    created_at: datetime
+    updated_at: datetime
 
     folder: FolderNode = strawberry.field(
         resolver=get_folder,
