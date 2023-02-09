@@ -2,7 +2,8 @@ from typing import Any, Literal
 
 from addons.router import route_meta, router
 from fastapi import APIRouter, Depends, Query, Request, Response
-from nxtools import logging
+from fastapi.routing import APIRoute
+from nxtools import logging, slugify
 
 from addons import project_settings, site_settings, studio_settings
 from ayon_server.addons import AddonLibrary
@@ -45,6 +46,7 @@ def register_addon_endpoints():
             for endpoint in addon.endpoints:
                 path = endpoint["path"].lstrip("/")
                 first_element = path.split("/")[0]
+                # TODO: site settings? other routes?
                 if first_element in ["settings", "schema", "overrides"]:
                     logging.error(f"Unable to assing path to endpoint: {path}")
                     continue
@@ -55,6 +57,13 @@ def register_addon_endpoints():
                     methods=[endpoint["method"]],
                     name=endpoint["name"],
                 )
+            for route in addon_router.routes:
+                if isinstance(route, APIRoute):
+                    route.has_own_op_id = True
+                    route.operation_id = slugify(
+                        f"{addon_name}_{version}_{route.name}",
+                        separator="_",
+                    )
             router.include_router(addon_router)
 
 

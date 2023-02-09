@@ -256,7 +256,8 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
     # Use endpoints function names as operation_ids
     for route in app.routes:
         if isinstance(route, fastapi.routing.APIRoute):
-            route.operation_id = route.name
+            if route.operation_id is None:
+                route.operation_id = route.name
 
 
 def init_addons(target_app: fastapi.FastAPI) -> None:
