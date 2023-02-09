@@ -183,10 +183,13 @@ class SQLTool:
     """SQL query construction helpers."""
 
     @staticmethod
-    def array(elements: list[str] | list[int], curly=False) -> str:
+    def array(elements: list[str] | list[int], curly=False, nobraces=False) -> str:
         """Return a SQL-friendly list string."""
-        start = "'{" if curly else "("
-        end = "}'" if curly else ")"
+        if nobraces:
+            start = end = ""
+        else:
+            start = "'{" if curly else "("
+            end = "}'" if curly else ")"
         return (
             start
             + (

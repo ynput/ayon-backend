@@ -15,7 +15,11 @@ from ayon_server.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
-from ayon_server.types import TOPIC_REGEX, validate_name_list, validate_user_name_list
+from ayon_server.types import (
+    validate_name_list,
+    validate_topic_list,
+    validate_user_name_list,
+)
 from ayon_server.utils import SQLTool
 
 
@@ -38,16 +42,18 @@ async def get_events(
     sql_conditions = []
 
     if topics:
-        validate_name_list(topics, TOPIC_REGEX)
-        sql_conditions.append(f"topic IN {SQLTool.array(topics)}")
+        topics = validate_topic_list(topics)
+        sql_conditions.append(
+            f"topic LIKE ANY(array[{SQLTool.array(topics, nobraces=True)}])"
+        )
     if projects:
-        validate_name_list(projects)
+        projects = validate_name_list(projects)
         sql_conditions.append(f"project_name IN {SQLTool.array(projects)}")
     if users:
-        validate_user_name_list(users)
+        users = validate_user_name_list(users)
         sql_conditions.append(f"user_name IN {SQLTool.array(users)}")
     if states:
-        validate_name_list(states)
+        states = validate_name_list(states)
         sql_conditions.append(f"status IN {SQLTool.array(states)}")
 
     if filter:

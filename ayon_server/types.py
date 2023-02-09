@@ -51,7 +51,7 @@ AttributeType = Literal[
 ENTITY_ID_REGEX = r"^[0-f]{32}$"
 ENTITY_ID_EXAMPLE = "c10d5bc73dcab7da4cba0f3e0b3c0aea"
 NAME_REGEX = r"^[a-zA-Z0-9_]{2,64}$"
-TOPIC_REGEX = r"^[a-zA-Z0-9_\.]{2,64}$"
+TOPIC_REGEX = r"^[a-zA-Z0-9_\.\*]{2,64}$"
 LABEL_REGEX = r"^[^';]*$"
 USER_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
 
@@ -62,24 +62,35 @@ def validate_name(name: str, regex: str = NAME_REGEX) -> None:
         raise BadRequestException(f"Name '{name}' does not match regex '{regex}'")
 
 
-def validate_user_name(name: str) -> None:
+def validate_user_name(name: str) -> str:
     """Validate user name."""
     if not re.match(USER_NAME_REGEX, name):
         raise BadRequestException(
             f"User name '{name}' does not match regex '{USER_NAME_REGEX}'"
         )
+    return name
 
 
-def validate_name_list(names: list, regex: str = NAME_REGEX) -> None:
+def validate_name_list(names: list, regex: str = NAME_REGEX) -> list[str]:
     """Validate list of names."""
-    for name in names:
-        validate_name(name, regex)
+    return [validate_name(name, regex) for name in names]
 
 
-def validate_user_name_list(names: list) -> None:
+def validate_user_name_list(names: list) -> list[str]:
     """Validate list of user names."""
-    for name in names:
-        validate_user_name(name)
+    return [validate_user_name(name) for name in names]
+
+
+def validate_topic_list(topics: list) -> list[str]:
+    """Validate list of topics."""
+    result = []
+    for topic in topics:
+        if not re.match(TOPIC_REGEX, topic):
+            raise BadRequestException(
+                f"Topic '{topic}' does not match regex '{TOPIC_REGEX}'"
+            )
+        result.append(topic.replace("*", "%"))
+    return result
 
 
 #
