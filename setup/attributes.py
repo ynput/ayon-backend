@@ -166,36 +166,44 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "type": "string",
         "title": "File extension",
     },
-    "testEnum": {
-        "scope": "P, F, V, R, T",
-        "type": "string",
-        "title": "Test enum",
-        "default": "test1",
-        "example": "test1",
-        "enum": [
-            {"value": "test1", "label": "Test 1"},
-            {"value": "test2", "label": "Test 2"},
-            {"value": "test3", "label": "Test 3"},
-        ],
-    },
-    "testList": {
-        "scope": "P, F, V, R, T",
-        "type": "list_of_strings",
-        "title": "Test LoS",
-        "default": ["test1"],
-        "example": ["test1", "test2"],
-        "enum": [
-            {"value": "test1", "label": "Test 1"},
-            {"value": "test2", "label": "Test 2"},
-            {"value": "test3", "label": "Test 3"},
-        ],
-    },
-    "testDatetime": {
-        "scope": "P, F, V, R, T",
+    "startDate": {
+        "scope": "P, F, T",
         "type": "datetime",
         "example": "2021-01-01T00:00:00+00:00",
-        "title": "Test datetime",
+        "title": "Start date",
+        "description": "Date and time when the project or task or asset was started",
     },
+    "endDate": {
+        "scope": "P, F, T",
+        "type": "datetime",
+        "example": "2021-01-01T00:00:00+00:00",
+        "title": "End date",
+        "description": "Deadline date and time",
+    },
+    # "testEnum": {
+    #     "scope": "P, F, V, R, T",
+    #     "type": "string",
+    #     "title": "Test enum",
+    #     "default": "test1",
+    #     "example": "test1",
+    #     "enum": [
+    #         {"value": "test1", "label": "Test 1"},
+    #         {"value": "test2", "label": "Test 2"},
+    #         {"value": "test3", "label": "Test 3"},
+    #     ],
+    # },
+    # "testList": {
+    #     "scope": "P, F, V, R, T",
+    #     "type": "list_of_strings",
+    #     "title": "Test LoS",
+    #     "default": ["test1"],
+    #     "example": ["test1", "test2"],
+    #     "enum": [
+    #         {"value": "test1", "label": "Test 1"},
+    #         {"value": "test2", "label": "Test 2"},
+    #         {"value": "test3", "label": "Test 3"},
+    #     ],
+    # },
 }
 
 

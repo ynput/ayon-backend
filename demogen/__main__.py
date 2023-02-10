@@ -1,10 +1,12 @@
 import asyncio
+import datetime
 import json
 import random
 import sys
 
 from nxtools import critical_error, log_traceback, logging
 
+from ayon_server.entities import ProjectEntity
 from ayon_server.helpers.deploy_project import create_project_from_anatomy
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
@@ -40,6 +42,20 @@ def generate_tags() -> list[Tag]:
     return tags
 
 
+def random_datetime(days_offset: int) -> datetime.datetime:
+    """Return a random datetime in a given range
+
+    Negative offset means that the date will be in the past,
+    positive offset means that the date will be in the future.
+    """
+    now = datetime.datetime.now()
+    if days_offset >= 0:
+        random_offset = random.randint(0, days_offset)
+    else:
+        random_offset = random.randint(days_offset, 0)
+    return now + datetime.timedelta(days=random_offset)
+
+
 async def main() -> None:
     data = sys.stdin.read()
     if not data:
@@ -52,9 +68,11 @@ async def main() -> None:
         critical_error("Invalid project data provided")
 
     anatomy = Anatomy()
-
     anatomy.tags = generate_tags()
-
+    anatomy.attributes = ProjectEntity.model.attrib_model(
+        startDate=random_datetime(-30),
+        endDate=random_datetime(90),
+    )
     project_name = project_template["name"]
     project_hierarchy = project_template["hierarchy"]
 
@@ -71,7 +89,7 @@ async def main() -> None:
         anatomy=anatomy,
     )
 
-    demo = DemoGen(validate=True)
+    demo = DemoGen()
     await demo.populate(project_name, project_hierarchy)
 
 

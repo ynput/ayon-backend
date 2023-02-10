@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import hashlib
 import random
 import time
@@ -28,15 +29,26 @@ def get_random_md5():
     return hashlib.md5(str(random.random()).encode("utf-8")).hexdigest()
 
 
+def random_datetime_interval(start, end):
+    delta = end - start
+    int_delta = delta.total_seconds()
+    # subtract 86400 seconds (1 day) to ensure the interval lasts at least one day
+    random_offset = random.uniform(0, int_delta - 86400)
+    interval_start = start + datetime.timedelta(seconds=random_offset)
+    interval_end = interval_start + datetime.timedelta(days=1)
+    if interval_end > end:
+        return (start, start + datetime.timedelta(days=1))
+    return (interval_start, interval_end)
+
+
 class DemoGen:
-    def __init__(self, validate: bool = True):
+    def __init__(self):
         self.folder_count = 0
         self.subset_count = 0
         self.version_count = 0
         self.representation_count = 0
         self.task_count = 0
         self.workfile_count = 0
-        self.validate = validate
 
     async def populate(
         self,
@@ -127,7 +139,6 @@ class DemoGen:
         folder = FolderEntity(
             project_name=self.project_name,
             payload=payload,
-            validate=self.validate,
         )
         await folder.save(conn)
         folder.parents = parents  # type: ignore
@@ -186,7 +197,6 @@ class DemoGen:
         subset = SubsetEntity(
             project_name=self.project_name,
             payload=payload,
-            validate=self.validate,
         )
         await subset.save(conn)
 
@@ -212,7 +222,6 @@ class DemoGen:
                     "tags": self.get_entity_tags(),
                     "status": self.get_entity_status(),
                 },
-                validate=self.validate,
             )
             await version.save(conn)
 
@@ -230,15 +239,24 @@ class DemoGen:
         **kwargs: Any,
     ) -> TaskEntity:
         self.task_count += 1
+
+        start_date, end_date = random_datetime_interval(
+            self.project.attrib.startDate,
+            self.project.attrib.endDate,
+        )
+
         payload = {**kwargs}
         payload["folder_id"] = folder.id
         payload["attrib"] = folder.attrib.dict()
         payload["tags"] = self.get_entity_tags()
         payload["status"] = self.get_entity_status()
+        payload["attrib"] = TaskEntity.model.attrib_model(
+            startDate=start_date,
+            endDate=end_date,
+        )
         task = TaskEntity(
             project_name=self.project_name,
             payload=payload,
-            validate=self.validate,
         )
         await task.save(conn)
 
@@ -258,7 +276,6 @@ class DemoGen:
                     "tags": self.get_entity_tags(),
                     "status": self.get_entity_status(),
                 },
-                validate=self.validate,
             )
             await workfile.save(conn)
             self.workfile_count += 1
@@ -328,7 +345,6 @@ class DemoGen:
                 },
                 **kwargs,
             },
-            validate=self.validate,
         )
         await representation.save(conn)
 

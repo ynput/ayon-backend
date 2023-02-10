@@ -73,7 +73,6 @@ class TaskEntity(ProjectLevelEntity):
                 return cls.from_record(
                     project_name=project_name,
                     payload=payload,
-                    validate=False,
                     own_attrib=own_attrib,
                 )
         except Postgres.UndefinedTableError:

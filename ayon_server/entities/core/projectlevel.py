@@ -21,7 +21,7 @@ class ProjectLevelEntity(BaseEntity):
         project_name: str,
         payload: dict[str, Any],
         exists: bool = False,
-        validate: bool = True,
+        validate: bool = True,  # deprecated
         own_attrib: list[str] | None = None,
     ) -> None:
         """Return a new entity instance from given data.
@@ -33,23 +33,17 @@ class ProjectLevelEntity(BaseEntity):
         """
 
         attrib_dict = payload.get("attrib", {})
+        if isinstance(attrib_dict, BaseModel):
+            attrib_dict = attrib_dict.dict()
         if own_attrib is None:
             self.own_attrib = list(attrib_dict.keys())
         else:
             self.own_attrib = own_attrib
 
-        if validate:
-            self._payload = self.model.main_model(
-                **dict_exclude(payload, ["own_attrib"]),
-                own_attrib=self.own_attrib,
-            )
-        else:
-            attrib = self.model.attrib_model.construct(**attrib_dict)
-            self._payload = self.model.main_model.construct(
-                **dict_exclude(payload, ["attrib", "own_attrib"]),
-                attrib=attrib,
-                own_attrib=self.own_attrib,
-            )
+        self._payload = self.model.main_model(
+            **dict_exclude(payload, ["own_attrib"]),
+            own_attrib=self.own_attrib,
+        )
 
         self.exists = exists
         self.project_name = project_name
@@ -59,7 +53,7 @@ class ProjectLevelEntity(BaseEntity):
         cls,
         project_name: str,
         payload: dict[str, Any],
-        validate: bool = False,
+        validate: bool = False,  # deprecated
         own_attrib: list[str] | None = None,
     ):
         """Return an entity instance based on a DB record.
@@ -68,8 +62,6 @@ class ProjectLevelEntity(BaseEntity):
         # because it accepts a DB row data and de-serializes JSON fields
         and reformats ids.
 
-        By default it does not validate the data, sice it is assumed the
-        correct format is stored in the database.
         """
         parsed = {}
         for key in cls.model.main_model.__fields__:
@@ -80,7 +72,6 @@ class ProjectLevelEntity(BaseEntity):
             project_name,
             parsed,
             exists=True,
-            validate=validate,
             own_attrib=own_attrib,
         )
 
@@ -178,7 +169,7 @@ class ProjectLevelEntity(BaseEntity):
             """
 
         async for record in Postgres.iterate(query, entity_id):
-            return cls.from_record(project_name, record, validate=False)
+            return cls.from_record(project_name, record)
         raise NotFoundException("Entity not found")
 
     #

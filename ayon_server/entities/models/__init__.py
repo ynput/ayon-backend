@@ -45,7 +45,11 @@ class AttribModelConfig:
     own entity attributes and which are inherited).
     """
 
-    allow_mutation = False
+    # On the other hand, in demogen, we need to be able to
+    # set attributes on the fly, so we need to allow it.
+    # TODO: How to handle this situation?
+
+    # allow_mutation = False
 
 
 class ModelSet:

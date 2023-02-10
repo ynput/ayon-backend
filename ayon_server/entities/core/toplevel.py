@@ -11,44 +11,39 @@ class TopLevelEntity(BaseEntity):
         self,
         payload: dict[str, Any],
         exists: bool = False,
-        validate: bool = True,
+        validate: bool = True,  # deprecated
     ) -> None:
         """Return a new entity instance from given data."""
 
         attrib_dict = payload.get("attrib", {})
+        if isinstance(attrib_dict, BaseModel):
+            attrib_dict = attrib_dict.dict()
         self.own_attrib = list(attrib_dict.keys())
 
-        if validate:
-            self._payload = self.model.main_model(
-                **dict_exclude(payload, ["own_attrib"]),
-                own_attrib=self.own_attrib,
-            )
-        else:
-            attrib = self.model.attrib_model.construct(**payload.get("attrib", {}))
-            self._payload = self.model.main_model.construct(
-                **dict_exclude(payload, ["attrib", "own_attrib"]),
-                attrib=attrib,
-                own_attrib=self.own_attrib,
-            )
+        self._payload = self.model.main_model(
+            **dict_exclude(payload, ["own_attrib"]),
+            own_attrib=self.own_attrib,
+        )
         self.exists = exists
 
     @classmethod
-    def from_record(cls, payload: dict[str, Any], validate: bool = True):
+    def from_record(
+        cls,
+        payload: dict[str, Any],
+        validate: bool = True,  # deprecated
+    ):
         """Return an entity instance based on a DB record.
 
         This factory method differs from the default constructor,
         # because it accepts a DB row data and de-serializes JSON fields
         and reformats ids.
-
-        By default it does not validate the data, sice it is assumed the
-        correct format is stored in the database.
         """
         parsed = {}
         for key in cls.model.main_model.__fields__:
             if key not in payload:
                 continue  # there are optional keys too
             parsed[key] = payload[key]
-        return cls(parsed, exists=True, validate=validate)
+        return cls(parsed, exists=True)
 
     def as_user(self, user):
         # TODO

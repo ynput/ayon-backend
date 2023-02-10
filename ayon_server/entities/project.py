@@ -152,7 +152,7 @@ class ProjectEntity(TopLevelEntity):
             "statuses": statuses,
             "tags": tags,
         }
-        return cls.from_record(payload=payload, validate=False)
+        return cls.from_record(payload=payload)
 
     #
     # Save

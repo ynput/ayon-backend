@@ -46,6 +46,9 @@ async def get_events(
         sql_conditions.append(
             f"topic LIKE ANY(array[{SQLTool.array(topics, nobraces=True)}])"
         )
+    elif not includeLogs:
+        sql_conditions.append("NOT topic LIKE 'log.%'")
+
     if projects:
         projects = validate_name_list(projects)
         sql_conditions.append(f"project_name IN {SQLTool.array(projects)}")
@@ -80,9 +83,6 @@ async def get_events(
         before,
     )
     sql_conditions.extend(paging_conds)
-
-    if not includeLogs:
-        sql_conditions.append("NOT topic LIKE 'log.%'")
 
     query = f"""
         SELECT * FROM events

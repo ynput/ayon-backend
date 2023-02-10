@@ -8,6 +8,7 @@ from ayon_server.entities import TaskEntity, UserEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
+from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import get_nickname
 
 if TYPE_CHECKING:
@@ -132,11 +133,12 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
         folder_id=record["folder_id"],
         status=record["status"],
         tags=record["tags"],
-        attrib=parse_task_attrib_data(
+        attrib=parse_attrib_data(
+            TaskAttribType,
             record["attrib"],
-            record["parent_folder_attrib"],
             user=context["user"],
             project_name=project_name,
+            inherited_attrib=record["parent_folder_attrib"],
         ),
         active=record["active"],
         created_at=record["created_at"],
