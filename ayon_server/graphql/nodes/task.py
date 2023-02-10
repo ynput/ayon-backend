@@ -62,39 +62,6 @@ class TaskNode(BaseNode):
         )
 
 
-def parse_task_attrib_data(
-    task_attrib: dict[str, Any] | None,
-    parent_folder_attrib: dict[str, Any] | None,
-    user: UserEntity,
-    project_name: str | None = None,
-) -> TaskAttribType:
-
-    attr_limit: list[str] | Literal["all"] = []
-
-    if user.is_manager:
-        attr_limit = "all"
-    elif (perms := user.permissions(project_name)) is None:
-        attr_limit = []  # This shouldn't happen
-    elif perms.attrib_read.enabled:
-        attr_limit = perms.attrib_read.attributes
-
-    data: dict[str, Any] = {}
-    if parent_folder_attrib is not None:
-        data |= parent_folder_attrib
-    if task_attrib is not None:
-        data |= task_attrib
-
-    if not data:
-        return TaskAttribType()
-    expected_keys = list(TaskAttribType.__dataclass_fields__.keys())  # type: ignore
-    for key in expected_keys:
-        if key in data:
-            if attr_limit == "all" or key in attr_limit:
-                continue
-            del data[key]
-    return TaskAttribType(**{k: data[k] for k in expected_keys if k in data})
-
-
 def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode:
     """Construct a task node from a DB row."""
     if context:

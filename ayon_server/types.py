@@ -56,10 +56,11 @@ LABEL_REGEX = r"^[^';]*$"
 USER_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
 
 
-def validate_name(name: str, regex: str = NAME_REGEX) -> None:
+def validate_name(name: str, regex: str = NAME_REGEX) -> str:
     """Validate name."""
     if not re.match(regex, name):
         raise BadRequestException(f"Name '{name}' does not match regex '{regex}'")
+    return name
 
 
 def validate_user_name(name: str) -> str:
