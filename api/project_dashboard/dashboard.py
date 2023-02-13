@@ -1,3 +1,5 @@
+import datetime
+
 from fastapi import Depends, Query
 
 from ayon_server.api.dependencies import dep_current_user, dep_project_name
@@ -47,8 +49,10 @@ async def get_project_entity_counts(
 
 
 class HealthCompletion(OPModel):
-    percentage: float = Field(
-        ..., description="Percentage of tasks completed", example=0.5
+    percentage: int = Field(
+        ...,
+        description="Percentage of tasks completed",
+        example=69,
     )
     behind: int = Field(
         ...,
@@ -56,7 +60,9 @@ class HealthCompletion(OPModel):
         example=5,
     )
     ahead: int = Field(
-        ..., description="Number of days tasks are completed before due date", example=3
+        ...,
+        description="Number of days tasks are completed before due date",
+        example=3,
     )
 
 
@@ -69,7 +75,6 @@ class HealthTasks(OPModel):
     total: int = Field(..., description="Total number of tasks", example=100)
     completed: int = Field(..., description="Number of completed tasks", example=50)
     overdue: int = Field(..., description="Number of overdue tasks", example=10)
-    upcoming: int = Field(..., description="Number of upcoming tasks", example=40)
 
 
 class Health(OPModel):
@@ -81,7 +86,7 @@ class Health(OPModel):
 
 @router.get("/health", response_model=Health)
 async def get_project_health(
-    user: UserEntity = Depends(dep_current_user),
+    # user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
 
@@ -91,37 +96,50 @@ async def get_project_health(
     # Statuses
     #
 
-    query = f"""
-        SELECT status, count(status) as count
-        FROM project_{project_name}.tasks GROUP BY status
-    """
-    res = await Postgres.fetch(query)
-    statuses = {row["status"]: row["count"] for row in res}
+    completed_statuses = [
+        p["name"] for p in project.statuses if p.get("state") == "done"
+    ]
+    now = datetime.datetime.now()
 
-    #
-    # Tasks
-    #
-
-    total_tasks = sum(statuses.values())
+    total_tasks = 0
     completed_tasks = 0
-    overdue_tasks = 0
-    upcoming_tasks = 0
-    for status in project.statuses:
-        if status.get("state") == "done":
-            completed_tasks += statuses.get(status["name"], 0)
+    ahead = datetime.timedelta()
+    behind = datetime.timedelta()
+    late_tasks = 0
+    statuses = {}
 
-        if status.get("state") == "in_progress":
-            # TODO: Check if task is overdue
-            overdue_tasks += statuses.get(status["name"], 0)
+    query = f"SELECT status, attrib FROM project_{project_name}.tasks"
+    async for row in Postgres.iterate(query):
+        status = row["status"]
+        attrib = row["attrib"]
 
-        if status.get("state") in ("in_progress", "blocked"):
-            upcoming_tasks += statuses.get(status["name"], 0)
+        statuses[status] = statuses.get(status, 0) + 1
+
+        try:
+            end_date = datetime.datetime.fromisoformat(attrib.get("endDate"))
+        except (TypeError, ValueError):
+            end_date = None
+
+        total_tasks += 1
+
+        if status in completed_statuses:
+            completed_tasks += 1
+
+            if end_date and end_date > now:
+                # Completed before due date
+                ahead += end_date - now
+            continue
+
+        if end_date and end_date < now:
+            # Overdue
+            behind += now - end_date
+            late_tasks += 1
+            continue
 
     tasks = {
         "total": total_tasks,
         "completed": completed_tasks,
-        "overdue": overdue_tasks,
-        "upcoming": upcoming_tasks,
+        "overdue": late_tasks,
     }
 
     #
@@ -131,8 +149,8 @@ async def get_project_health(
     percentage = ((completed_tasks / total_tasks) if total_tasks else 0) * 100
     completion = {
         "percentage": percentage,
-        "behind": 0,
-        "ahead": 0,
+        "behind": behind.days,
+        "ahead": ahead.days,
     }
 
     #
@@ -161,23 +179,73 @@ class ActivityResponseModel(OPModel):
     )
 
 
+def get_midnight_dates(number_of_days: int):
+    today = datetime.datetime.now().date()
+    dates = [today - datetime.timedelta(days=i) for i in range(number_of_days)]
+    return [
+        datetime.datetime.combine(date, datetime.datetime.min.time()) for date in dates
+    ]
+
+
+def normalize_list(numbers, threshold=100):
+    max_value = max(numbers)
+    if max_value > threshold:
+        scale_factor = threshold / max_value
+        return [int(value * scale_factor) for value in numbers]
+    else:
+        return numbers
+
+
 @router.get("/activity", response_model=ActivityResponseModel)
 async def get_project_activity(
-    user: UserEntity = Depends(dep_current_user),
+    # user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     days: int = Query(50, description="Number of days to retrieve activity for"),
 ):
 
-    import hashlib
+    activity = {k: 0 for k in get_midnight_dates(days)}
 
-    # TODO!
+    query = f"""
+        SELECT date_trunc('day', created_at::timestamptz at time zone 'utc') AS day, count(*)
+        FROM events
+        WHERE created_at >= NOW()::timestamptz at time zone 'utc' - INTERVAL '30 days'
+        AND project_name = $1 AND topic LIKE 'entity.%'
+        GROUP BY day
+        ORDER BY day DESC;
+    """
 
-    def string_to_hash_list(input_string):
-        hash_object = hashlib.sha256(input_string.encode())
-        hex_dig = hash_object.hexdigest()
-        hash_list = []
-        for i in range(days):
-            hash_list.append(int(hex_dig[i % 64], 16) % 100)
-        return hash_list
+    async for row in Postgres.iterate(query, project_name):
+        activity[row["day"]] = row["count"]
 
-    return ActivityResponseModel(activity=string_to_hash_list(project_name))
+    result = [activity[k] for k in sorted(activity.keys())]
+    result = normalize_list(result)
+
+    return ActivityResponseModel(activity=result)
+
+
+class UsersResponseModel(OPModel):
+    counts: dict[str, int] = Field(
+        ...,
+        description="Number of users per role",
+        example={"artist": 1, "viewer": 2},
+    )
+
+
+@router.get("/users", response_model=UsersResponseModel)
+async def get_project_users(
+    project_name: str = Depends(dep_project_name),
+):
+
+    result = {}
+
+    query = f"SELECT data FROM users"
+    async for row in Postgres.iterate(query):
+        roles = row["data"].get("roles", {})
+        if not roles:
+            continue
+
+        project_roles = roles.get(project_name, [])
+        for role in project_roles:
+            result[role] = result.get(role, 0) + 1
+
+    return UsersResponseModel(counts=result)

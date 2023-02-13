@@ -90,8 +90,11 @@ class DemoGen:
         tags = [tag["name"] for tag in self.project.tags]
         return random.sample(tags, random.randint(0, 5))
 
-    def get_entity_status(self):
+    def get_entity_status(self, done=False):
         """return a random status for entity"""
+        statuses = list(self.project.statuses)
+        if done:
+            statuses = [s for s in statuses if s["state"] == "done"]
         status = random.choice(self.project.statuses)
         return status["name"]
 
@@ -245,11 +248,16 @@ class DemoGen:
             self.project.attrib.endDate,
         )
 
+        if end_date < datetime.datetime.now():
+            status = self.get_entity_status(done=True)
+        else:
+            status = self.get_entity_status()
+
         payload = {**kwargs}
         payload["folder_id"] = folder.id
         payload["attrib"] = folder.attrib.dict()
         payload["tags"] = self.get_entity_tags()
-        payload["status"] = self.get_entity_status()
+        payload["status"] = status
         payload["attrib"] = TaskEntity.model.attrib_model(
             startDate=start_date,
             endDate=end_date,
