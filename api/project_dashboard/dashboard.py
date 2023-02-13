@@ -86,7 +86,7 @@ class Health(OPModel):
 
 @router.get("/health", response_model=Health)
 async def get_project_health(
-    # user: UserEntity = Depends(dep_current_user),
+    user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
 
@@ -198,7 +198,7 @@ def normalize_list(numbers, threshold=100):
 
 @router.get("/activity", response_model=ActivityResponseModel)
 async def get_project_activity(
-    # user: UserEntity = Depends(dep_current_user),
+    user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
     days: int = Query(50, description="Number of days to retrieve activity for"),
 ):
@@ -233,6 +233,7 @@ class UsersResponseModel(OPModel):
 
 @router.get("/users", response_model=UsersResponseModel)
 async def get_project_users(
+    user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
 
