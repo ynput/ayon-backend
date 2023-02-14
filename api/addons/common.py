@@ -108,14 +108,6 @@ async def pin_override(
             c_overr[key] = c_field
         break
 
-    # Do not use versioning during the development (causes headaches)
-
-    await Postgres.execute(
-        f"DELETE FROM {scope}settings WHERE addon_name = $1 AND addon_version = $2",
-        addon_name,
-        addon_version,
-    )
-
     await Postgres.execute(
         f"""
         INSERT INTO {scope}settings

@@ -183,6 +183,7 @@ async def copy_addon_variant(
     addon_name: str,
     copy_from: AddonEnvironment,
     copy_to: AddonEnvironment,
+    project_name: str | None = None,
 ):
     """Copy addon settings from one variant to another."""
 
@@ -259,10 +260,14 @@ class AddonVersionConfig(OPModel):
 class VariantCopyRequest(OPModel):
     addon_name: str = Field(..., description="Addon name")
     copy_from: AddonEnvironment = Field(
-        ..., description="Source variant", example="production"
+        ...,
+        description="Source variant",
+        example="production",
     )
     copy_to: AddonEnvironment = Field(
-        ..., description="Destination variant", example="staging"
+        ...,
+        description="Destination variant",
+        example="staging",
     )
 
 

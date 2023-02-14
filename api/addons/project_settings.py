@@ -61,6 +61,7 @@ async def get_addon_project_settings(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
+    variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
@@ -69,7 +70,7 @@ async def get_addon_project_settings(
     if site:
         return await addon.get_project_site_settings(project_name, user.name, site)
 
-    return await addon.get_project_settings(project_name)
+    return await addon.get_project_settings(project_name, variant=variant)
 
 
 @router.get("/{addon_name}/{version}/overrides/{project_name}", **route_meta)
@@ -78,15 +79,16 @@ async def get_addon_project_overrides(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
+    variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
     addon = AddonLibrary.addon(addon_name, version)
-    studio_settings = await addon.get_studio_settings()
+    studio_settings = await addon.get_studio_settings(variant=variant)
     if studio_settings is None:
         return {}
-    studio_overrides = await addon.get_studio_overrides()
-    project_settings = await addon.get_project_settings(project_name)
-    project_overrides = await addon.get_project_overrides(project_name)
+    studio_overrides = await addon.get_studio_overrides(variant=variant)
+    project_settings = await addon.get_project_settings(project_name, variant=variant)
+    project_overrides = await addon.get_project_overrides(project_name, variant=variant)
 
     result = list_overrides(studio_settings, studio_overrides, level="studio")
 
@@ -115,6 +117,7 @@ async def set_addon_project_settings(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
+    variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
     """Set the studio overrides of the given addon."""
@@ -140,21 +143,15 @@ async def set_addon_project_settings(
 
         await Postgres.execute(
             f"""
-            DELETE FROM project_{project_name}.settings
-            WHERE addon_name = $1 AND addon_version = $2
-            """,
-            addon_name,
-            version,
-        )
-
-        await Postgres.execute(
-            f"""
             INSERT INTO project_{project_name}.settings
-            (addon_name, addon_version, data)
-            VALUES ($1, $2, $3)
+            (addon_name, addon_version, variant, data)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (addon_name, addon_version, variant) DO UPDATE
+            SET data = $4
             """,
             addon_name,
             version,
+            variant,
             data,
         )
         return Response(status_code=204)
@@ -194,6 +191,7 @@ async def delete_addon_project_overrides(
     version: str,
     user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
+    variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
     # Ensure the addon and the project exist
@@ -204,16 +202,16 @@ async def delete_addon_project_overrides(
         if not user.is_manager:
             raise ForbiddenException
 
-        # we don't use versioned settings at the moment.
-        # in the future, insert an empty dict instead
         await Postgres.execute(
             f"""
             DELETE FROM project_{project_name}.settings
             WHERE addon_name = $1
             AND addon_version = $2
+            AND variant = $3
             """,
             addon_name,
             version,
+            variant,
         )
         return Response(status_code=204)
 
@@ -242,6 +240,7 @@ async def modify_project_overrides(
     version: str,
     project_name: str,
     user: UserEntity = Depends(dep_current_user),
+    variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
 
@@ -255,7 +254,19 @@ async def modify_project_overrides(
         raise ForbiddenException
 
     if payload.action == "delete":
-        await remove_override(addon_name, version, payload.path, project_name)
+        await remove_override(
+            addon_name,
+            version,
+            payload.path,
+            project_name=project_name,
+            variant=variant,
+        )
     elif payload.action == "pin":
-        await pin_override(addon_name, version, payload.path, project_name)
+        await pin_override(
+            addon_name,
+            version,
+            payload.path,
+            project_name=project_name,
+            variant=variant,
+        )
     return Response(status_code=204)
