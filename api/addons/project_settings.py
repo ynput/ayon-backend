@@ -261,7 +261,7 @@ async def modify_project_overrides(
                 payload.path,
             )
 
-        if payload.action == "pin":
+        elif payload.action == "pin":
             await pin_site_override(
                 addon_name,
                 version,
@@ -270,6 +270,8 @@ async def modify_project_overrides(
                 user.name,
                 payload.path,
             )
+
+        return Response(status_code=204)
 
     if not user.is_manager:
         raise ForbiddenException

@@ -175,4 +175,54 @@ async def pin_site_override(
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
-    pass
+    overrides = await addon.get_project_site_overrides(project_name, user_name, site_id)
+    settings = await addon.get_project_site_settings(project_name, user_name, site_id)
+
+    c_field = settings
+    c_overr = overrides
+
+    for i, key in enumerate(path):
+        if key not in c_field.__fields__:
+            raise KeyError(f"{key} is not present in {c_field}")
+
+        c_field = getattr(c_field, key)
+        is_group = False
+        if isinstance(c_field, BaseSettingsModel):
+            is_group = c_field._isGroup
+        else:
+            is_group = True
+
+        if not is_group:
+            if key not in c_overr:
+                c_overr[key] = {}
+            c_overr = c_overr[key]
+            continue
+
+        if isinstance(c_field, BaseSettingsModel):
+            c_overr[key] = c_field.dict()
+        elif isinstance(c_field, list):
+            val = []
+            for r in c_field:
+                if isinstance(r, BaseSettingsModel):
+                    val.append(r.dict())
+                else:
+                    val.append(r)
+            c_overr[key] = val
+        else:
+            c_overr[key] = c_field
+        break
+
+    await Postgres.execute(
+        f"""
+        INSERT INTO project_{project_name}.project_site_settings
+            (addon_name, addon_version, site_id, user_name, data)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (addon_name, addon_version, site_id, user_name)
+        DO UPDATE SET data = $5
+        """,
+        addon_name,
+        addon_version,
+        site_id,
+        user_name,
+        overrides,
+    )
