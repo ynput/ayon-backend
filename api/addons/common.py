@@ -121,3 +121,58 @@ async def pin_override(
         variant,
         overrides,
     )
+
+
+# Site overrides
+# They are slightly different so we rather duplicate some code than
+# make it more complex
+
+
+async def remove_site_override(
+    addon_name: str,
+    addon_version: str,
+    project_name: str,
+    site_id: str,
+    user_name: str,
+    path: list[str],
+):
+    if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
+        raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
+
+    overrides = await addon.get_project_site_overrides(project_name, user_name, site_id)
+
+    try:
+        dict_remove_path(overrides, path)
+    except KeyError:
+        log_traceback()
+        return
+
+    await Postgres.execute(
+        f"""
+        INSERT INTO project_{project_name}.project_site_settings
+            (addon_name, addon_version, site_id, user_name, data)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (addon_name, addon_version, site_id, user_name)
+        DO UPDATE SET data = $5
+        """,
+        addon_name,
+        addon_version,
+        site_id,
+        user_name,
+        overrides,
+    )
+
+
+async def pin_site_override(
+    addon_name: str,
+    addon_version: str,
+    project_name: str,
+    site_id: str,
+    user_name: str,
+    path: list[str],
+):
+
+    if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
+        raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
+
+    pass

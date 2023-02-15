@@ -21,7 +21,13 @@ from ayon_server.settings import (
     postprocess_settings_schema,
 )
 
-from .common import ModifyOverridesRequestModel, pin_override, remove_override
+from .common import (
+    ModifyOverridesRequestModel,
+    pin_override,
+    pin_site_override,
+    remove_override,
+    remove_site_override,
+)
 
 
 @router.get("/{addon_name}/{version}/schema/{project_name}", **route_meta)
@@ -245,10 +251,25 @@ async def modify_project_overrides(
 ):
 
     if site:
-        raise NotImplementedException(
-            "Pinning and removing overrides of project site settings"
-            " is not yet implemented. Sorry."
-        )
+        if payload.action == "delete":
+            await remove_site_override(
+                addon_name,
+                version,
+                project_name,
+                site,
+                user.name,
+                payload.path,
+            )
+
+        if payload.action == "pin":
+            await pin_site_override(
+                addon_name,
+                version,
+                project_name,
+                site,
+                user.name,
+                payload.path,
+            )
 
     if not user.is_manager:
         raise ForbiddenException
