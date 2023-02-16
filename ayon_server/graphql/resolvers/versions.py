@@ -216,7 +216,6 @@ async def get_versions(
         first,
         last,
         context=info.context,
-        order_by=order_by,
     )
 
 

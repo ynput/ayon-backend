@@ -8,8 +8,6 @@ from strawberry.types import Info
 from ayon_server.access.utils import folder_access_list
 from ayon_server.graphql.types import PageInfo
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import validate_name
-from ayon_server.utils import EntityID
 
 DEFAULT_PAGE_SIZE = 100
 
@@ -34,7 +32,7 @@ def argdesc(description: str) -> StrawberryArgumentAnnotation:
     return strawberry.argument(description=description)
 
 
-def sortdesc(sort_options: dict[str, str]) -> str:
+def sortdesc(sort_options: dict[str, str]) -> StrawberryArgumentAnnotation:
     """Return a textual description for sorting argument"""
     description = f"Sort by one of {', '.join(sort_options.keys())}"
     return strawberry.argument(description=description)
@@ -115,7 +113,14 @@ def create_pagination(
     after: str | None = None,
     last: int | None = None,
     before: str | None = None,
-) -> tuple[str, list[str]]:
+) -> tuple[str, list[str], str]:
+    """
+    Create pagination query and arguments.
+    returns a tuple of
+      - pagination query (ORDER BY... part of the query)
+      - additional conditions (WHERE... part of the query)
+      - cursor (to add to SELECT... part of the query)
+    """
     pagination = ""
     sql_conditions = []
 
@@ -161,7 +166,6 @@ async def resolve(
     first: int | None = None,
     last: int | None = None,
     context: dict[str, Any] | None = None,
-    order_by: list[str] = ["id"],
 ) -> R:
     """Return a connection object from a query."""
 

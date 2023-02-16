@@ -304,7 +304,6 @@ async def get_folders(
         first,
         last,
         context=info.context,
-        order_by=order_by,
     )
 
 

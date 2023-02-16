@@ -71,7 +71,6 @@ async def get_projects(
         first,
         last,
         context=info.context,
-        order_by="name",
     )
 
 

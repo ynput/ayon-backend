@@ -99,5 +99,4 @@ async def get_events(
         first,
         last,
         context=info.context,
-        order_by="creation_order",
     )

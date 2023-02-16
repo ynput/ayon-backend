@@ -76,7 +76,6 @@ async def get_users(
         first,
         last,
         context=info.context,
-        order_by="name",
     )
 
 

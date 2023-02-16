@@ -259,7 +259,6 @@ async def get_tasks(
         first,
         last,
         context=info.context,
-        order_by=order_by,
     )
 
 

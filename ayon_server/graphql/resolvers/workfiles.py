@@ -150,7 +150,6 @@ async def get_workfiles(
         first,
         last,
         context=info.context,
-        order_by=order_by,
     )
 
 

@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated
 
 from strawberry.types import Info
 
@@ -242,7 +242,6 @@ async def get_subsets(
         first,
         last,
         context=info.context,
-        order_by=order_by,
     )
 
 
