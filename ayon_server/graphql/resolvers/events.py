@@ -74,8 +74,8 @@ async def get_events(
         if lconds:
             sql_conditions.extend(lconds)
 
-    order_by = "creation_order"
-    pagination, paging_conds = create_pagination(
+    order_by = ["creation_order"]
+    pagination, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
@@ -85,7 +85,7 @@ async def get_events(
     sql_conditions.extend(paging_conds)
 
     query = f"""
-        SELECT * FROM events
+        SELECT {cursor}, * FROM events
         {SQLTool.conditions(sql_conditions)}
         {pagination}
     """

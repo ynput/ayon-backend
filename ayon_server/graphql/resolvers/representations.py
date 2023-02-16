@@ -18,7 +18,7 @@ from ayon_server.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
-from ayon_server.types import validate_name, validate_name_list
+from ayon_server.types import validate_name, validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 
 
@@ -37,6 +37,9 @@ async def get_representations(
     ] = None,
     # name: Annotated[str | None, argdesc("Text string to filter name by")] = None,
     names: Annotated[list[str] | None, argdesc("List of names to filter")] = None,
+    statuses: Annotated[
+        list[str] | None, argdesc("List of statuses to filter by")
+    ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
 ) -> RepresentationsConnection:
@@ -82,6 +85,10 @@ async def get_representations(
     if names is not None:
         validate_name_list(names)
         sql_conditions.append(f"name IN {SQLTool.array(names)}")
+
+    if statuses:
+        validate_status_list(statuses)
+        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
 
     if tags:
         validate_name_list(tags)
@@ -159,8 +166,10 @@ async def get_representations(
     # Pagination
     #
 
-    order_by = "representations.creation_order"
-    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    order_by = ["representations.creation_order"]
+    pagination, paging_conds, cursor = create_pagination(
+        order_by, first, after, last, before
+    )
     sql_conditions.extend(paging_conds)
 
     #
@@ -168,7 +177,7 @@ async def get_representations(
     #
 
     query = f"""
-        SELECT {', '.join(sql_columns)}
+        SELECT {cursor}, {', '.join(sql_columns)}
         FROM project_{project_name}.representations
         {' '.join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}

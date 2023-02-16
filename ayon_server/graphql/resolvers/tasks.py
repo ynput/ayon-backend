@@ -20,9 +20,18 @@ from ayon_server.graphql.resolvers.common import (
     create_pagination,
     get_has_links_conds,
     resolve,
+    sortdesc,
 )
-from ayon_server.types import validate_name_list
+from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
+
+SORT_OPTIONS = {
+    "name": "tasks.name",
+    "status": "tasks.status",
+    "createdAt": "tasks.created_at",
+    "updatedAt": "tasks.updated_at",
+    "taskType": "tasks.folder_type",
+}
 
 
 async def get_tasks(
@@ -44,8 +53,12 @@ async def get_tasks(
         list[AtrributeFilterInput] | None, argdesc("Filter by a list of attributes")
     ] = None,
     names: Annotated[list[str] | None, argdesc("List of names to filter by")] = None,
+    statuses: Annotated[
+        list[str] | None, argdesc("List of statuses to filter by")
+    ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
+    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
 
@@ -101,6 +114,9 @@ async def get_tasks(
         validate_name_list(task_types)
         sql_conditions.append(f"tasks.task_type IN {SQLTool.array(task_types)}")
 
+    if statuses:
+        validate_status_list(statuses)
+        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
     if tags:
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
@@ -209,8 +225,17 @@ async def get_tasks(
     # Pagination
     #
 
-    order_by = "tasks.creation_order"
-    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    order_by = ["tasks.creation_order"]
+    if sort_by is not None:
+        if sort_by in SORT_OPTIONS:
+            order_by.insert(0, SORT_OPTIONS[sort_by])
+        elif sort_by.startswith("attrib."):
+            order_by.insert(0, f"tasks.attrib->>'{sort_by[7:]}'")
+        else:
+            raise ValueError(f"Invalid sort_by value: {sort_by}")
+    pagination, paging_conds, cursor = create_pagination(
+        order_by, first, after, last, before
+    )
     sql_conditions.extend(paging_conds)
 
     #
@@ -218,7 +243,7 @@ async def get_tasks(
     #
 
     query = f"""
-        SELECT {", ".join(sql_columns)}
+        SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.tasks AS tasks
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}

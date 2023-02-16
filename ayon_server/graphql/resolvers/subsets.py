@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from strawberry.types import Info
 
@@ -18,9 +18,17 @@ from ayon_server.graphql.resolvers.common import (
     create_pagination,
     get_has_links_conds,
     resolve,
+    sortdesc,
 )
-from ayon_server.types import validate_name_list
+from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
+
+SORT_OPTIONS = {
+    "name": "subsets.name",
+    "family": "subsets.family",
+    "createdAt": "subsets.created_at",
+    "updatedAt": "subsets.updated_at",
+}
 
 
 async def get_subsets(
@@ -38,8 +46,12 @@ async def get_subsets(
     families: Annotated[
         list[str] | None, argdesc("List of families to filter by")
     ] = None,
+    statuses: Annotated[
+        list[str] | None, argdesc("List of statuses to filter by")
+    ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
+    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> SubsetsConnection:
     """Return a list of subsets."""
 
@@ -84,6 +96,9 @@ async def get_subsets(
         validate_name_list(families)
         sql_conditions.append(f"subsets.family IN {SQLTool.array(families)}")
 
+    if statuses:
+        validate_status_list(statuses)
+        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
     if tags:
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
@@ -192,8 +207,18 @@ async def get_subsets(
     # Pagination
     #
 
-    order_by = "subsets.creation_order"
-    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    order_by = ["subsets.creation_order"]
+    if sort_by is not None:
+        if sort_by in SORT_OPTIONS:
+            order_by.insert(0, SORT_OPTIONS[sort_by])
+        elif sort_by.startswith("attrib."):
+            order_by.insert(0, f"subsets.attrib->>'{sort_by[7:]}'")
+        else:
+            raise ValueError(f"Invalid sort_by value: {sort_by}")
+
+    pagination, paging_conds, cursor = create_pagination(
+        order_by, first, after, last, before
+    )
     sql_conditions.extend(paging_conds)
 
     #
@@ -201,7 +226,7 @@ async def get_subsets(
     #
 
     query = f"""
-        SELECT {", ".join(sql_columns)}
+        SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.subsets
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}

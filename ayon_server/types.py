@@ -77,6 +77,12 @@ def validate_name_list(names: list, regex: str = NAME_REGEX) -> list[str]:
     return [validate_name(name, regex) for name in names]
 
 
+def validate_status_list(statuses: list) -> list[str]:
+    """Validate list of statuses."""
+    regex = r"^[a-zA-Z0-9_ \-]{2,64}$"
+    return [validate_name(status, regex) for status in statuses]
+
+
 def validate_user_name_list(names: list) -> list[str]:
     """Validate list of user names."""
     return [validate_user_name(name) for name in names]

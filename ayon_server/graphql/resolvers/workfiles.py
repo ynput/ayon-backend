@@ -18,7 +18,7 @@ from ayon_server.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
-from ayon_server.types import validate_name_list
+from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 
 
@@ -35,6 +35,9 @@ async def get_workfiles(
     task_ids: Annotated[
         list[str] | None,
         argdesc("List of parent task IDs"),
+    ] = None,
+    statuses: Annotated[
+        list[str] | None, argdesc("List of statuses to filter by")
     ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
@@ -90,6 +93,9 @@ async def get_workfiles(
             get_has_links_conds(project_name, "workfiles.id", has_links)
         )
 
+    if statuses:
+        validate_status_list(statuses)
+        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
     if tags:
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
@@ -117,8 +123,10 @@ async def get_workfiles(
     # Pagination
     #
 
-    order_by = "workfiles.creation_order"
-    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    order_by = ["workfiles.creation_order"]
+    pagination, paging_conds, cursor = create_pagination(
+        order_by, first, after, last, before
+    )
     sql_conditions.extend(paging_conds)
 
     #
@@ -126,7 +134,7 @@ async def get_workfiles(
     #
 
     query = f"""
-        SELECT {", ".join(sql_columns)}
+        SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.workfiles AS workfiles
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}

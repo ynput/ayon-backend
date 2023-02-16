@@ -17,9 +17,17 @@ from ayon_server.graphql.resolvers.common import (
     create_pagination,
     get_has_links_conds,
     resolve,
+    sortdesc,
 )
-from ayon_server.types import validate_name_list
+from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
+
+SORT_OPTIONS = {
+    "version": "versions.version",
+    "status": "versions.status",
+    "createdAt": "versions.created_at",
+    "updatedAt": "versions.updated_at",
+}
 
 
 async def get_versions(
@@ -32,6 +40,9 @@ async def get_versions(
     ids: ARGIds = None,
     version: int | None = None,
     versions: list[int] | None = None,
+    statuses: Annotated[
+        list[str] | None, argdesc("List of statuses to filter by")
+    ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     subset_ids: Annotated[
         list[str] | None,
@@ -58,6 +69,7 @@ async def get_versions(
         argdesc("List hero versions. If hero does not exist, list latest"),
     ] = False,
     has_links: ARGHasLinks = None,
+    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> VersionsConnection:
     """Return a list of versions."""
 
@@ -101,6 +113,9 @@ async def get_versions(
     if authors:
         validate_name_list(authors)
         sql_conditions.append(f"author IN {SQLTool.array(authors)}")
+    if statuses:
+        validate_status_list(statuses)
+        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
     if tags:
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
@@ -167,8 +182,17 @@ async def get_versions(
     # Pagination
     #
 
-    order_by = "versions.creation_order"
-    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    order_by = ["versions.creation_order"]
+    if sort_by is not None:
+        if sort_by in SORT_OPTIONS:
+            order_by.insert(0, SORT_OPTIONS[sort_by])
+        elif sort_by.startswith("attrib."):
+            order_by.insert(0, f"versions.attrib->>'{sort_by[7:]}'")
+        else:
+            raise ValueError(f"Invalid sort_by value: {sort_by}")
+    pagination, paging_conds, cursor = create_pagination(
+        order_by, first, after, last, before
+    )
     sql_conditions.extend(paging_conds)
 
     #
@@ -176,7 +200,7 @@ async def get_versions(
     #
 
     query = f"""
-        SELECT {", ".join(sql_columns)}
+        SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.versions AS versions
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}

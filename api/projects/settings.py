@@ -35,8 +35,6 @@ async def get_project_settings(
         except KeyError:
             continue
 
-        print("PRODVER", addon_name, production_version)
-
         try:
             active_addon = library.addon(addon_name, production_version)
         except Exception:

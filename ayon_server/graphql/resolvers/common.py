@@ -34,6 +34,12 @@ def argdesc(description: str) -> StrawberryArgumentAnnotation:
     return strawberry.argument(description=description)
 
 
+def sortdesc(sort_options: dict[str, str]) -> str:
+    """Return a textual description for sorting argument"""
+    description = f"Sort by one of {', '.join(sort_options.keys())}"
+    return strawberry.argument(description=description)
+
+
 ARGFirst = Annotated[int | None, argdesc("Pagination: first")]
 ARGAfter = Annotated[str | None, argdesc("Pagination: first")]
 ARGLast = Annotated[int | None, argdesc("Pagination: last")]
@@ -104,7 +110,7 @@ async def create_folder_access_list(root, info) -> list[str] | None:
 
 
 def create_pagination(
-    order_by: str,
+    order_by: list[str],
     first: int | None = None,
     after: str | None = None,
     last: int | None = None,
@@ -113,32 +119,34 @@ def create_pagination(
     pagination = ""
     sql_conditions = []
 
+    assert order_by, "Order by must not be empty"
+
+    cursor: str  # put to SELECT clause (should be 'SOMETHING as cursor')
+
+    if len(order_by) == 1:
+        cursor = f"{order_by[0]}::text"
+    else:
+        ccols = [f"{col}::text" for col in order_by]
+        cursor = f"({'||'.join(ccols)})"
+
     if not (last or first):
         first = 100
 
-    if order_by.endswith("id"):
-        # should raise value error in case of invalid cursor
-        if after:
-            after = f"'{EntityID.parse(after)}'"
-        elif before:
-            before = f"'{EntityID.parse(after)}'"
-    elif order_by == "name":
-        if after:
-            validate_name(after)
-            after = f"'{after}'"
-        elif before:
-            validate_name(before)
-            before = f"'{before}'"
+    if after:
+        curval = after
+
+    elif before:
+        curval = before
 
     if first:
-        pagination += f"ORDER BY {order_by} ASC LIMIT {first}"
+        pagination += f"ORDER BY cursor ASC LIMIT {first}"
         if after:
-            sql_conditions.append(f"{order_by} > {after}")
+            sql_conditions.append(f"{cursor} > '{curval}'")
     elif last:
-        pagination += f"ORDER BY {order_by} DESC LIMIT {last}"
+        pagination += f"ORDER BY cursor DESC LIMIT {last}"
         if before:
-            sql_conditions.append(f"{order_by} < {before}")
-    return pagination, sql_conditions
+            sql_conditions.append(f"{cursor} < '{curval}'")
+    return pagination, sql_conditions, f"{cursor} AS cursor"
 
 
 R = TypeVar("R")
@@ -153,7 +161,7 @@ async def resolve(
     first: int | None = None,
     last: int | None = None,
     context: dict[str, Any] | None = None,
-    order_by: str = "id",
+    order_by: list[str] = ["id"],
 ) -> R:
     """Return a connection object from a query."""
 
@@ -173,9 +181,7 @@ async def resolve(
             node = node_type.from_record(project_name, record, context=context)
         else:
             node = node_type.from_record(record, context=context)
-        cursor = record[order_by.split(".")[-1]]
-        if order_by.endswith("id"):
-            cursor = EntityID.parse(cursor)
+        cursor = record["cursor"]
         edges.append(edge_type(node=node, cursor=cursor))
 
     has_next_page = False

@@ -20,9 +20,18 @@ from ayon_server.graphql.resolvers.common import (
     create_pagination,
     get_has_links_conds,
     resolve,
+    sortdesc,
 )
-from ayon_server.types import validate_name, validate_name_list
+from ayon_server.types import validate_name, validate_name_list, validate_status_list
 from ayon_server.utils import EntityID, SQLTool
+
+SORT_OPTIONS = {
+    "name": "folders.name",
+    "status": "folders.status",
+    "createdAt": "folders.created_at",
+    "updatedAt": "folders.updated_at",
+    "folderType": "folders.folder_type",
+}
 
 
 async def get_folders(
@@ -49,6 +58,9 @@ async def get_folders(
     folder_types: Annotated[
         list[str] | None, argdesc("List of folder types to filter by")
     ] = None,
+    statuses: Annotated[
+        list[str] | None, argdesc("List of statuses to filter by")
+    ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     paths: Annotated[list[str] | None, argdesc("List of paths to filter by")] = None,
     path_ex: Annotated[str | None, argdesc("Match paths by regular expression")] = None,
@@ -69,6 +81,7 @@ async def get_folders(
         bool | None, argdesc("Whether to filter by folders with tasks")
     ] = None,
     has_links: ARGHasLinks = None,
+    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> FoldersConnection:
     """Return a list of folders."""
 
@@ -203,6 +216,10 @@ async def get_folders(
         validate_name_list(names)
         sql_conditions.append(f"folders.name in {SQLTool.array(names)}")
 
+    if statuses:
+        validate_status_list(statuses)
+        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
+
     if tags:
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
@@ -249,8 +266,19 @@ async def get_folders(
     # Pagination
     #
 
-    order_by = "folders.creation_order"
-    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    order_by = ["folders.creation_order"]
+
+    if sort_by is not None:
+        if sort_by in SORT_OPTIONS:
+            order_by.insert(0, SORT_OPTIONS[sort_by])
+        elif sort_by.startswith("attrib."):
+            order_by.insert(0, f"folders.attrib->>'{sort_by[7:]}'")
+        else:
+            raise ValueError(f"Invalid sort_by value: {sort_by}")
+
+    pagination, paging_conds, cursor = create_pagination(
+        order_by, first, after, last, before
+    )
     sql_conditions.extend(paging_conds)
 
     #
@@ -258,7 +286,7 @@ async def get_folders(
     #
 
     query = f"""
-        SELECT {", ".join(sql_columns)}
+        SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.folders AS folders
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}

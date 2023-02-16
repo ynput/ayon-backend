@@ -51,8 +51,10 @@ async def get_users(
     # Pagination
     #
 
-    order_by = "name"
-    pagination, paging_conds = create_pagination(order_by, first, after, last, before)
+    order_by = ["name"]
+    pagination, paging_conds, cursor = create_pagination(
+        order_by, first, after, last, before
+    )
     sql_conditions.extend(paging_conds)
 
     #
@@ -60,7 +62,7 @@ async def get_users(
     #
 
     query = f"""
-        SELECT * FROM users
+        SELECT {cursor}, * FROM users
         {SQLTool.conditions(sql_conditions)}
         {pagination}
     """
