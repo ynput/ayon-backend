@@ -17,11 +17,11 @@ async def deploy_users(
         attrib = {}
         data: dict[str, Any] = {}
 
-        for key in ["fullName", "email"]:
+        for key in ("fullName", "email"):
             if key in user:
                 attrib[key] = user[key]
 
-        for key in ["isManager", "isAdmin", "isService", "isGuest"]:
+        for key in ("isManager", "isAdmin", "isService", "isGuest"):
             if key in user:
                 data[key] = user[key]
 

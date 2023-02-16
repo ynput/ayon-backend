@@ -4,7 +4,6 @@ Warning! We need to use typing.List in the models,
 since Python 3.10 syntax does not work with Strawberry yet.
 """
 
-import time
 import uuid
 from datetime import datetime
 from typing import Any, List, Literal, Optional, Type, TypeVar, Union

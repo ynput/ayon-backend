@@ -112,11 +112,11 @@ async def update_folder(
             )
 
             await folder.ensure_update_access(user)
-            has_versions = not not (await folder.get_versions(conn))
+            has_versions = bool(await folder.get_versions(conn))
 
             # If the folder has versions, we can't update the name,
             # folder_type or change the hierarchy
-            for key in ["name", "folder_type", "parent_id"]:
+            for key in ("name", "folder_type", "parent_id"):
                 old_value = folder.payload.dict(exclude_none=True).get(key)
                 new_value = post_data.dict(exclude_none=None).get(key)
 

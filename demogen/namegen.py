@@ -331,11 +331,7 @@ class Gibberish:
     ) -> list[str]:
         """Returns a list of ``wordcount`` pseudo-words."""
         return [
-            self.generate_word(
-                vowel_consonant_repeats=vowel_consonant_repeats
-                if vowel_consonant_repeats
-                else choice(range(1, 4))
-            )
+            self.generate_word(vowel_consonant_repeats=vowel_consonant_repeats)
             for _ in range(wordcount)
         ]
 

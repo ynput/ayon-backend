@@ -48,8 +48,8 @@ class InfoResponseModel(OPModel):
 
 
 async def get_additional_info(user: UserEntity, request: Request):
+    current_site: SiteInfo | None = None
 
-    current_site = None
     with contextlib.suppress(ValidationError):
         current_site = SiteInfo(
             id=request.headers.get("x-ayon-site-id"),

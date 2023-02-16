@@ -1,10 +1,10 @@
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Optional
 
 import strawberry
 from strawberry import LazyType
 from strawberry.types import Info
 
-from ayon_server.entities import TaskEntity, UserEntity
+from ayon_server.entities import TaskEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles

@@ -55,14 +55,9 @@ class LogCollector(BackgroundTask):
             message = parse_log_message(record)
             await dispatch_event(
                 message["topic"],
-                sender=None,
-                project=None,
-                user=None,
+                # user=None, (TODO: implement this?)
                 description=message["description"],
-                summary=None,
                 payload=message["payload"],
-                finished=True,
-                store=True,
             )
         except Exception:
             # This actually should not happen, but if it does,

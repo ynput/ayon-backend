@@ -248,7 +248,7 @@ async def deploy_attributes() -> None:
         if enum := tdata.get("enum"):
             data["enum"] = enum
 
-        for key in ["default", "example", "regex", "description", "gt", "lt"]:
+        for key in ("default", "example", "regex", "description", "gt", "lt"):
             if (value := tdata.get(key)) is not None:
                 data[key] = value
 

@@ -136,8 +136,7 @@ async def get_folder_hierarchy(
             "status": row["status"],
             "folderType": row["folder_type"],
             "parents": row["path"].split("/")[:-1],
-            # "hasSubsets": not not row["subset_count"],
-            "hasTasks": not not row["task_count"],
+            "hasTasks": bool(row["task_count"]),
             "taskNames": row["task_names"] if row["task_count"] else [],
         }
         if types:

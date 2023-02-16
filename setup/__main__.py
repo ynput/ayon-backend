@@ -1,5 +1,6 @@
 import asyncio
 import sys
+from pathlib import Path
 from typing import Any
 
 import asyncpg
@@ -98,14 +99,11 @@ async def main(force: bool | None = None) -> None:
 
     if ("--with-schema" in sys.argv) or (not has_schema):
         logging.info("(re)creating database schema")
-        schema = None
 
-        with open("schemas/schema.drop.sql", "r") as f:
-            schema = f.read()
+        schema = Path("schemas/schema.drop.sql").read_text()
         await Postgres.execute(schema)
 
-        with open("schemas/schema.public.sql", "r") as f:
-            schema = f.read()
+        schema = Path("schemas/schema.public.sql", "r").read_text()
         await Postgres.execute(schema)
 
     # This is something we can do every time.

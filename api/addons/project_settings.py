@@ -12,7 +12,6 @@ from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
     NotFoundException,
-    NotImplementedException,
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import (

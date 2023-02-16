@@ -1,4 +1,5 @@
 import datetime
+from typing import get_args
 
 from fastapi import Depends, Query
 
@@ -30,8 +31,8 @@ async def get_project_entity_counts(
 ):
     """Retrieve entity counts for a given project."""
 
-    counts = {}
-    for entity_type in ProjectLevelEntityType.__args__:
+    counts: dict[str, int] = {}
+    for entity_type in get_args(ProjectLevelEntityType):
         res = await Postgres.fetch(
             f"""
             SELECT COUNT(id)
@@ -106,7 +107,7 @@ async def get_project_health(
     ahead = datetime.timedelta()
     behind = datetime.timedelta()
     late_tasks = 0
-    statuses = {}
+    statuses: dict[str, int] = {}
 
     query = f"SELECT status, attrib FROM project_{project_name}.tasks"
     async for row in Postgres.iterate(query):
@@ -192,8 +193,7 @@ def normalize_list(numbers, threshold=100):
     if max_value > threshold:
         scale_factor = threshold / max_value
         return [int(value * scale_factor) for value in numbers]
-    else:
-        return numbers
+    return numbers
 
 
 @router.get("/activity", response_model=ActivityResponseModel)
@@ -205,10 +205,14 @@ async def get_project_activity(
 
     activity = {k: 0 for k in get_midnight_dates(days)}
 
-    query = f"""
-        SELECT date_trunc('day', created_at::timestamptz at time zone 'utc') AS day, count(*)
-        FROM events
-        WHERE created_at >= NOW()::timestamptz at time zone 'utc' - INTERVAL '30 days'
+    query = """
+        SELECT
+            date_trunc('day', created_at::timestamptz at time zone 'utc') AS day,
+            count(*)
+        FROM
+            events
+        WHERE
+            created_at >= NOW()::TIMESTAMPTZ AT TIME ZONE 'utc' - INTERVAL '30 days'
         AND project_name = $1 AND topic LIKE 'entity.%'
         GROUP BY day
         ORDER BY day DESC;
@@ -237,9 +241,10 @@ async def get_project_users(
     project_name: str = Depends(dep_project_name),
 ):
 
-    result = {}
+    result: dict[str, int] = {}
 
-    query = f"SELECT data FROM users"
+    # TODO: do the filtering in the query, save microseconds.
+    query = "SELECT data FROM users WHERE active IS TRUE"
     async for row in Postgres.iterate(query):
         roles = row["data"].get("roles", {})
         if not roles:

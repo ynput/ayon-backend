@@ -41,7 +41,7 @@ async def query_entities(
 
     if type(version) is int:
         conditions.append(f"v.version = {version}")
-    elif version in ["hero", "latest"]:
+    elif version in ("hero", "latest"):
         # TODO: hero's not implemented yet
         conditions.append("v.id = l.ids[array_upper(l.ids, 1)]")
 
@@ -69,10 +69,14 @@ async def query_entities(
         else:
             raise ValueError(f"Unknown entity type: {entity_type}")
 
-    cols.append("h.path as path")
-    cols.append("s.name as subset_name")
-    cols.append("s.family as subset_family")
-    cols.append("v.version as version")
+    cols.extend(
+        [
+            "h.path as path",
+            "s.name as subset_name",
+            "s.family as subset_family",
+            "v.version as version",
+        ]
+    )
 
     query = f"""
         SELECT {", ".join(cols)}
