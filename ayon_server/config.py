@@ -77,6 +77,12 @@ class AyonConfig(BaseModel):
         example="123456789012345678",
     )
 
+    discord_guilds: str | None = Field(
+        default=None,
+        description="Discord guilds",
+        example="123456789012345678, 123456789012345678",
+    )
+
     google_client_id: str | None = Field(
         default=None,
         description="Google client ID (for OAuth).",
