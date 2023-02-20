@@ -113,6 +113,7 @@ def create_pagination(
     after: str | None = None,
     last: int | None = None,
     before: str | None = None,
+    need_cursor: bool = True,
 ) -> tuple[str, list[str], str]:
     """
     Create pagination query and arguments.
@@ -128,8 +129,8 @@ def create_pagination(
 
     cursor: str  # put to SELECT clause (should be 'SOMETHING as cursor')
 
-    if len(order_by) == 1:
-        cursor = f"{order_by[0]}::text"
+    if len(order_by) == 1 or not need_cursor:
+        cursor = f"{order_by[0]}"
     else:
         ccols = [f"{col}::text" for col in order_by]
         cursor = f"({'||'.join(ccols)})"

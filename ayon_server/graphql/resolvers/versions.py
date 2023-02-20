@@ -12,6 +12,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
+    FieldInfo,
     argdesc,
     create_folder_access_list,
     create_pagination,
@@ -190,8 +191,21 @@ async def get_versions(
             order_by.insert(0, f"versions.attrib->>'{sort_by[7:]}'")
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
+
+    paging_fields = FieldInfo(info, "versions")
+    need_cursor = paging_fields.has_any(
+        "versions.pageInfo.startCursor",
+        "versions.pageInfo.endCursor",
+        "versions.edges.cursor",
+    )
+
     pagination, paging_conds, cursor = create_pagination(
-        order_by, first, after, last, before
+        order_by,
+        first,
+        after,
+        last,
+        before,
+        need_cursor=need_cursor,
     )
     sql_conditions.extend(paging_conds)
 

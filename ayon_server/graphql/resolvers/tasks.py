@@ -233,8 +233,21 @@ async def get_tasks(
             order_by.insert(0, f"tasks.attrib->>'{sort_by[7:]}'")
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
+
+    paging_fields = FieldInfo(info, "tasks")
+    need_cursor = paging_fields.has_any(
+        "tasks.pageInfo.startCursor",
+        "tasks.pageInfo.endCursor",
+        "tasks.edges.cursor",
+    )
+
     pagination, paging_conds, cursor = create_pagination(
-        order_by, first, after, last, before
+        order_by,
+        first,
+        after,
+        last,
+        before,
+        need_cursor=need_cursor,
     )
     sql_conditions.extend(paging_conds)
 

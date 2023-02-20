@@ -11,6 +11,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
+    FieldInfo,
     argdesc,
     create_pagination,
     resolve,
@@ -74,6 +75,13 @@ async def get_events(
         if lconds:
             sql_conditions.extend(lconds)
 
+    paging_fields = FieldInfo(info, "events")
+    need_cursor = paging_fields.has_any(
+        "events.pageInfo.startCursor",
+        "events.pageInfo.endCursor",
+        "events.edges.cursor",
+    )
+
     order_by = ["creation_order"]
     pagination, paging_conds, cursor = create_pagination(
         order_by,
@@ -81,6 +89,7 @@ async def get_events(
         after,
         last,
         before,
+        need_cursor=need_cursor,
     )
     sql_conditions.extend(paging_conds)
 

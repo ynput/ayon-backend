@@ -12,14 +12,23 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
+    FieldInfo,
     argdesc,
     create_folder_access_list,
     create_pagination,
     get_has_links_conds,
     resolve,
+    sortdesc,
 )
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
+
+SORT_OPTIONS = {
+    "name": "workfiles.name",
+    "status": "workfiles.status",
+    "createdAt": "workfiles.created_at",
+    "updatedAt": "workfiles.updated_at",
+}
 
 
 async def get_workfiles(
@@ -41,6 +50,7 @@ async def get_workfiles(
     ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
+    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> WorkfilesConnection:
     """Return a list of workfiles."""
 
@@ -124,8 +134,29 @@ async def get_workfiles(
     #
 
     order_by = ["workfiles.creation_order"]
+
+    if sort_by is not None:
+        if sort_by in SORT_OPTIONS:
+            order_by.insert(0, SORT_OPTIONS[sort_by])
+        elif sort_by.startswith("attrib."):
+            order_by.insert(0, f"workfiles.attrib->>'{sort_by[7:]}'")
+        else:
+            raise ValueError(f"Invalid sort_by value: {sort_by}")
+
+    paging_fields = FieldInfo(info, "workfiles")
+    need_cursor = paging_fields.has_any(
+        "workfiles.pageInfo.startCursor",
+        "workfiles.pageInfo.endCursor",
+        "workfiles.edges.cursor",
+    )
+
     pagination, paging_conds, cursor = create_pagination(
-        order_by, first, after, last, before
+        order_by,
+        first,
+        after,
+        last,
+        before,
+        need_cursor=need_cursor,
     )
     sql_conditions.extend(paging_conds)
 

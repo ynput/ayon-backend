@@ -216,8 +216,20 @@ async def get_subsets(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
+    paging_fields = FieldInfo(info, "subsets")
+    need_cursor = paging_fields.has_any(
+        "subsets.pageInfo.startCursor",
+        "subsets.pageInfo.endCursor",
+        "subsets.edges.cursor",
+    )
+
     pagination, paging_conds, cursor = create_pagination(
-        order_by, first, after, last, before
+        order_by,
+        first,
+        after,
+        last,
+        before,
+        need_cursor=need_cursor,
     )
     sql_conditions.extend(paging_conds)
 

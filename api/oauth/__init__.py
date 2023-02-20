@@ -1,6 +1,5 @@
 __all__ = ["router"]
 
-import json
 from typing import Any
 
 import httpx
@@ -13,8 +12,6 @@ from ayon_server.exceptions import UnauthorizedException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
 from yaoauth2 import OAuth2Data, YAOAuth2
-
-print(ayonconfig)
 
 
 class LoginResponseModel(OPModel):
