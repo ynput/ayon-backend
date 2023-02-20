@@ -14,6 +14,8 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
 from yaoauth2 import OAuth2Data, YAOAuth2
 
+print(ayonconfig)
+
 
 class LoginResponseModel(OPModel):
     detail: str = "Logged in as NAME"
@@ -41,6 +43,8 @@ async def check_discord_data(data: OAuth2Data) -> dict[str, Any]:
                 result["discordGuilds"] = guild
 
         if not result.get("discordGuilds"):
+            if not await oauth2.revoke_token(data.provider, data.access_token):
+                logging.warning("Unable to revoke oauth token.")
             raise UnauthorizedException("You are not in any of the required guilds")
 
     async with httpx.AsyncClient() as client:
@@ -62,7 +66,7 @@ async def login_callback(data: OAuth2Data) -> LoginResponseModel:
         user_name = ex_data["discordProfile"]["username"]
         user_discriminator = ex_data["discordProfile"]["discriminator"]
 
-        avatar_url = f"https://cdn.discordapp.com/avatars/"
+        avatar_url = "https://cdn.discordapp.com/avatars/"
         avatar_url += ex_data["discordProfile"]["id"]
         avatar_url += f"/{ex_data['discordProfile']['avatar']}.png"
 
@@ -79,15 +83,22 @@ async def login_callback(data: OAuth2Data) -> LoginResponseModel:
         ex_attrib = None
 
     res = await Postgres.fetch(
-        """
-        SELECT * FROM public.users WHERE attrib->>'email' = $1
-        """,
+        "SELECT * FROM public.users WHERE attrib->>'email' = $1",
         data.user.email,
     )
     if not res:
 
-        # TODO: another condition for "allow creating new users"
-        if ex_data.get("discordGuilds"):
+        if ayonconfig.oauth_create_users:
+
+            nroles = ayonconfig.oauth_create_users.split(",")
+            nroles = [role.strip() for role in nroles]
+            if "admin" in nroles:
+                ex_data["isAdmin"] = True
+            if "manager" in nroles:
+                ex_data["isManager"] = True
+            if "guest" in nroles:
+                ex_data["isGuest"] = True
+
             user = UserEntity(
                 payload={
                     "name": ex_name,
@@ -100,6 +111,8 @@ async def login_callback(data: OAuth2Data) -> LoginResponseModel:
 
         else:
             # TODO: log the email somewhere safe (event payload)
+            if not await oauth2.revoke_token(data.provider, data.access_token):
+                logging.warning("Unable to revoke oauth token.")
             raise UnauthorizedException("Attempted login with unknown email")
 
     else:
@@ -107,7 +120,7 @@ async def login_callback(data: OAuth2Data) -> LoginResponseModel:
 
         # Update the user data with the new data from the provider
         if ex_data:
-            user.data = ex_data
+            user.data.update(ex_data)
 
         if ex_attrib:
             attrib = user.payload.attrib.dict()
