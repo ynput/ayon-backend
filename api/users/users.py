@@ -274,7 +274,9 @@ async def change_password(
     user_name: str = Depends(dep_user_name),
 ) -> Response:
 
-    if patch_data.password is not None:
+    patch_data_dict = patch_data.dict(exclude_unset=True)
+
+    if "password" in patch_data_dict:
         if (user_name != user.name) and not (user.is_manager):
             # Users can only change their own password
             # Managers can change any password
@@ -286,7 +288,7 @@ async def change_password(
         await target_user.save()
         return Response(status_code=204)
 
-    elif patch_data.api_key is not None:
+    elif "api_key" in patch_data_dict:
         if not user.is_admin:
             raise ForbiddenException
 
