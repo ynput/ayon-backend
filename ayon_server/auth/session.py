@@ -59,11 +59,10 @@ class Session:
                 session.last_used = time.time()
                 await Redis.set(cls.ns, token, session.json())
             else:
-                if session.client_info.ip != get_real_ip(request):
+                real_ip = get_real_ip(request)
+                if session.client_info.ip != real_ip:
                     logging.warning(
-                        "Session IP mismatch: %s != %s",
-                        session.client_info.ip,
-                        request.client.host,
+                        f"Session IP mismatch. Stored: {session.client_info.ip}, current: {real_ip}"
                     )
                     return None
 
