@@ -15,7 +15,7 @@ from ayon_server.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
-from ayon_server.types import validate_name
+from ayon_server.types import validate_user_name
 from ayon_server.utils import SQLTool
 
 
@@ -44,7 +44,7 @@ async def get_users(
 
     sql_conditions = []
     if name is not None:
-        validate_name(name)
+        validate_user_name(name)
         sql_conditions.append(f"users.name ILIKE '{name}'")
 
     #
