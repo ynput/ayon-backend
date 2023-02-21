@@ -1,7 +1,8 @@
-from fastapi import Depends, Query, Response
+from fastapi import Depends, Response
 
 from ayon_server.api.dependencies import dep_current_user, dep_project_name
 from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.exceptions import NotFoundException
 
 from .models import TeamListItemModel, TeamMemberModel, TeamModel, TeamPutModel
 from .router import router
@@ -60,6 +61,104 @@ async def save_team(
     new_team_data = team.dict(exclude_unset=True)
     new_team_data["name"] = team_name
     existing_teams.append(new_team_data)
+
+    project.data["teams"] = existing_teams
+    await project.save()
+    return Response(status_code=204)
+
+
+@router.put("/{team_name}/members/{member_name}")
+async def save_team_member(
+    team_name: str,
+    member_name: str,
+    member: TeamMemberModel,
+    project_name: str = Depends(dep_project_name),
+    current_user: UserEntity = Depends(dep_current_user),
+):
+    """Save a team member."""
+    project = await ProjectEntity.load(project_name)
+    existing_teams = project.data.get("teams", [])
+
+    # Find existing team
+    existing_team = next(
+        (
+            existing_team
+            for existing_team in existing_teams
+            if existing_team["name"] == team_name
+        ),
+        None,
+    )
+    if not existing_team:
+        raise NotFoundException("Team not found")
+
+    # Remove existing member with the same name
+    existing_team["members"] = [
+        existing_member
+        for existing_member in existing_team["members"]
+        if existing_member["name"] != member_name
+    ]
+
+    # Add new member
+    new_member_data = member.dict(exclude_unset=True)
+    new_member_data["name"] = member_name
+    existing_team["members"].append(new_member_data)
+
+    project.data["teams"] = existing_teams
+    await project.save()
+    return Response(status_code=204)
+
+
+@router.delete("/{team_name}")
+async def delete_team(
+    team_name: str,
+    project_name: str = Depends(dep_project_name),
+    current_user: UserEntity = Depends(dep_current_user),
+):
+    """Delete a team."""
+    project = await ProjectEntity.load(project_name)
+    existing_teams = project.data.get("teams", [])
+
+    # Remove existing team with the same name
+    existing_teams = [
+        existing_team
+        for existing_team in existing_teams
+        if existing_team["name"] != team_name
+    ]
+
+    project.data["teams"] = existing_teams
+    await project.save()
+    return Response(status_code=204)
+
+
+@router.delete("/{team_name}/members/{member_name}")
+async def delete_team_member(
+    team_name: str,
+    member_name: str,
+    project_name: str = Depends(dep_project_name),
+    current_user: UserEntity = Depends(dep_current_user),
+):
+    """Delete a team member."""
+    project = await ProjectEntity.load(project_name)
+    existing_teams = project.data.get("teams", [])
+
+    # Find existing team
+    existing_team = next(
+        (
+            existing_team
+            for existing_team in existing_teams
+            if existing_team["name"] == team_name
+        ),
+        None,
+    )
+    if not existing_team:
+        raise NotFoundException("Team not found")
+
+    # Remove existing member with the same name
+    existing_team["members"] = [
+        existing_member
+        for existing_member in existing_team["members"]
+        if existing_member["name"] != member_name
+    ]
 
     project.data["teams"] = existing_teams
     await project.save()
