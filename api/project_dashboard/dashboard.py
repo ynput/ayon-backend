@@ -242,7 +242,7 @@ class UsersResponseModel(OPModel):
 
 @router.get("/users", response_model=UsersResponseModel)
 async def get_project_users(
-    # user: UserEntity = Depends(dep_current_user),
+    user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
     team_members: list[str] = []
