@@ -15,11 +15,9 @@ async def get_teams(
 ) -> list[TeamListItemModel]:
     """Get all teams in a project."""
     project = await ProjectEntity.load(project_name)
-
     teams: list[TeamListItemModel] = []
     for team_data in project.data.get("teams", []):
         team = TeamModel(**team_data)
-
         team_item = TeamListItemModel(
             name=team.name,
             member_count=len(team.members),
@@ -33,9 +31,7 @@ async def get_teams(
                 if member.leader
             ],
         )
-
         teams.append(team_item)
-
     return teams
 
 

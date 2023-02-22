@@ -228,7 +228,12 @@ async def get_project_activity(
 
 
 class UsersResponseModel(OPModel):
-    counts: dict[str, int] = Field(
+    team_size_active: int = Field(0, description="Number of active team members")
+    team_size_total: int = Field(0, description="Total number of team members")
+    users_with_access_active: int = Field(0, description="Number of active users")
+    users_with_access_total: int = Field(0, description="Total number of users")
+
+    roles: dict[str, int] = Field(
         ...,
         description="Number of users per role",
         example={"artist": 1, "viewer": 2},
@@ -237,21 +242,47 @@ class UsersResponseModel(OPModel):
 
 @router.get("/users", response_model=UsersResponseModel)
 async def get_project_users(
-    user: UserEntity = Depends(dep_current_user),
+    # user: UserEntity = Depends(dep_current_user),
     project_name: str = Depends(dep_project_name),
 ):
+    team_members: list[str] = []
+    project = await ProjectEntity.load(project_name)
+    for team_data in project.data.get("teams", []):
+        for member in team_data.get("members", []):
+            team_members.append(member["name"])
 
-    result: dict[str, int] = {}
+    role_counts: dict[str, int] = {}
+    team_size_active = 0
+    team_size_total = 0
+    users_with_access_active = 0
+    users_with_access_total = 0
 
     # TODO: do the filtering in the query, save microseconds.
-    query = "SELECT data FROM users WHERE active IS TRUE"
+    query = "SELECT name, data, active FROM users"
     async for row in Postgres.iterate(query):
+        if row["name"] in team_members:
+            team_size_total += 1
+            if row["active"]:
+                team_size_active += 1
+
         roles = row["data"].get("roles", {})
-        if not roles:
+        project_roles = roles.get(project_name, [])
+
+        if row["data"].get("isAdmin") or row["data"].get("isManager") or project_roles:
+            if row["active"]:
+                users_with_access_active += 1
+            users_with_access_total += 1
+
+        if not project_roles:
             continue
 
-        project_roles = roles.get(project_name, [])
         for role in project_roles:
-            result[role] = result.get(role, 0) + 1
+            role_counts[role] = role_counts.get(role, 0) + 1
 
-    return UsersResponseModel(counts=result)
+    return UsersResponseModel(
+        team_size_active=team_size_active,
+        team_size_total=team_size_total,
+        users_with_access_active=users_with_access_active,
+        users_with_access_total=users_with_access_total,
+        roles=role_counts,
+    )
