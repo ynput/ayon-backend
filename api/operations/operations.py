@@ -70,7 +70,8 @@ class OperationResponseModel(OPModel):
     id: str = Field(..., title="Operation ID")
     type: OperationType = Field(..., title="Operation type")
     success: bool = Field(..., title="Operation success")
-    error: str | None = Field(None, title="Error message")
+    detail: str | None = Field(None, title="Error message")
+    entity_type: ProjectLevelEntityType = Field(..., title="Entity type")
     entity_id: str | None = Field(
         None,
         title="Entity ID",
@@ -168,6 +169,7 @@ async def process_operation(
             id=operation.id,
             type=operation.type,
             entity_id=entity.id,
+            entity_type=operation.entity_type,
         ),
     )
 
@@ -213,8 +215,9 @@ async def process_operations(
                     success=False,
                     id=operation.id,
                     type=operation.type,
-                    error=e.detail,
+                    detail=e.detail,
                     entity_id=operation.entity_id,
+                    entity_type=operation.entity_type,
                 )
             )
             if not can_fail:
@@ -226,8 +229,9 @@ async def process_operations(
                     success=False,
                     id=operation.id,
                     type=operation.type,
-                    error=str(exc),
+                    detail=str(exc),
                     entity_id=operation.entity_id,
+                    entity_type=operation.entity_type,
                 )
             )
 
