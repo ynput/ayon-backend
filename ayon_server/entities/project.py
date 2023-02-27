@@ -62,8 +62,8 @@ async def aux_table_update(conn, table: str, update_data: list[dict[str, Any]]):
     # Delete the rest
     if old_data:
         old_keys = list(old_data.keys())
-        query = f"DELETE FROM {table} WHERE name IN {SQLTool.array(old_keys)}"
-        await conn.execute(query)
+        query = f"DELETE FROM {table} WHERE name = ANY($1)"
+        await conn.execute(query, old_keys)
 
 
 class ProjectEntity(TopLevelEntity):

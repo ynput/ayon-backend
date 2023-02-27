@@ -14,7 +14,6 @@ from ayon_server.types import (
     ProjectLevelEntityType,
     TopLevelEntityType,
 )
-from ayon_server.utils import SQLTool
 
 #
 # Router
@@ -184,8 +183,9 @@ async def set_attribute_list(
             f"""
             DELETE FROM attributes
             WHERE builtin IS NOT TRUE
-            AND name NOT IN {SQLTool.array(new_names)}
-            """
+            AND NOT name = ANY($1)
+            """,
+            new_names,
         )
 
     for attr in new_attributes:
