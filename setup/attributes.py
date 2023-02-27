@@ -124,6 +124,16 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "type": "string",
         "title": "Intent",
     },
+    "machine": {
+        "scope": "V",
+        "type": "string",
+        "title": "Machine",
+    },
+    "source": {
+        "scope": "V",
+        "type": "string",
+        "title": "Source",
+    },
     "source": {
         "scope": "V",
         "type": "string",
