@@ -173,7 +173,7 @@ CREATE TABLE versions(
     subset_id UUID NOT NULL REFERENCES subsets(id) ON DELETE CASCADE,
     task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
-    author VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    author VARCHAR, -- REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -207,8 +207,6 @@ CREATE UNIQUE INDEX version_list_id ON version_list (subset_id);
 ---------------------
 -- REPRESENTATIONS --
 ---------------------
-
--- List of files is stored in `data` column ( {"files" : [ ... ]})
 
 CREATE TABLE representations(
     id UUID NOT NULL PRIMARY KEY,

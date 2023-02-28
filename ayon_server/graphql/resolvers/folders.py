@@ -276,7 +276,7 @@ async def get_folders(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, "folders")
+    paging_fields = FieldInfo(info, ["folders"])
     need_cursor = paging_fields.has_any(
         "folders.pageInfo.startCursor",
         "folders.pageInfo.endCursor",

@@ -143,7 +143,7 @@ async def get_workfiles(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, "workfiles")
+    paging_fields = FieldInfo(info, ["workfiles"])
     need_cursor = paging_fields.has_any(
         "workfiles.pageInfo.startCursor",
         "workfiles.pageInfo.endCursor",

@@ -75,7 +75,7 @@ async def get_events(
         if lconds:
             sql_conditions.extend(lconds)
 
-    paging_fields = FieldInfo(info, "events")
+    paging_fields = FieldInfo(info, ["events"])
     need_cursor = paging_fields.has_any(
         "events.pageInfo.startCursor",
         "events.pageInfo.endCursor",

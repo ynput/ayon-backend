@@ -75,7 +75,7 @@ async def login_callback(data: OAuth2Data) -> LoginResponseModel:
         }
 
     else:
-        ex_data = None
+        ex_data = {}
         ex_name = None
         ex_attrib = None
 

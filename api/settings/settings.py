@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query
 
@@ -18,7 +18,7 @@ router = APIRouter(
 
 
 class AddonSettingsResponse(OPModel):
-    settings: dict[str, BaseSettingsModel] = Field(
+    settings: dict[str, dict[str, Any]] = Field(
         ...,
         title="Addon settings",
         description="Addon settings for each active addon",
@@ -90,7 +90,7 @@ async def get_all_addons_settings(
                 versions[addon_name] = addon_version
                 continue
 
-        settings = await active_addon.get_studio_settings()
+        settings = await active_addon.get_studio_settings(variant=variant)
         if settings is None:
             continue
         result[addon_name] = settings

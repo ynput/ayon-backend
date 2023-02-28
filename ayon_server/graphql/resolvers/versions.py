@@ -192,7 +192,7 @@ async def get_versions(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, "versions")
+    paging_fields = FieldInfo(info, ["versions"])
     need_cursor = paging_fields.has_any(
         "versions.pageInfo.startCursor",
         "versions.pageInfo.endCursor",

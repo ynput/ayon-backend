@@ -180,7 +180,7 @@ async def set_attribute_list(
     # Delete deleted
     if payload.delete_missing:
         await Postgres.execute(
-            f"""
+            """
             DELETE FROM attributes
             WHERE builtin IS NOT TRUE
             AND NOT name = ANY($1)

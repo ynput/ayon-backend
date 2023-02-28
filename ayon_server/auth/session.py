@@ -62,7 +62,8 @@ class Session:
                 real_ip = get_real_ip(request)
                 if session.client_info.ip != real_ip:
                     logging.warning(
-                        f"Session IP mismatch. Stored: {session.client_info.ip}, current: {real_ip}"
+                        "Session IP mismatch. "
+                        f"Stored: {session.client_info.ip}, current: {real_ip}"
                     )
                     return None
 

@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS public.users(
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS username_idx ON public.projects (LOWER(name));
+CREATE UNIQUE INDEX IF NOT EXISTS username_idx ON public.users (LOWER(name));
 
 ------------
 -- Events --
@@ -39,12 +39,8 @@ CREATE TABLE IF NOT EXISTS public.events(
   hash VARCHAR NOT NULL,
   topic VARCHAR NOT NULL,
   sender VARCHAR,
-  project_name VARCHAR REFERENCES public.projects(name)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  user_name VARCHAR REFERENCES public.users(name) 
-    ON DELETE CASCADE 
-    ON UPDATE CASCADE,
+  project_name VARCHAR, -- REFERENCES public.projects(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  user_name VARCHAR, -- REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
   depends_on UUID REFERENCES public.events(id),
   status VARCHAR NOT NULL
     DEFAULT 'finished'

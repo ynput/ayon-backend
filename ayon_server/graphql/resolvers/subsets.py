@@ -216,7 +216,7 @@ async def get_subsets(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, "subsets")
+    paging_fields = FieldInfo(info, ["subsets"])
     need_cursor = paging_fields.has_any(
         "subsets.pageInfo.startCursor",
         "subsets.pageInfo.endCursor",

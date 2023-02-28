@@ -134,11 +134,6 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "type": "string",
         "title": "Source",
     },
-    "source": {
-        "scope": "V",
-        "type": "string",
-        "title": "Source",
-    },
     "comment": {
         "scope": "V",
         "type": "string",
