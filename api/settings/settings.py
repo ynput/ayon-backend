@@ -6,7 +6,6 @@ from ayon_server.addons import AddonLibrary
 from ayon_server.api import ResponseFactory, dep_current_user
 from ayon_server.entities import UserEntity
 from ayon_server.lib.postgres import Postgres
-from ayon_server.settings import BaseSettingsModel
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
 router = APIRouter(
@@ -107,11 +106,13 @@ async def get_all_site_settings(
         "production",
         title="Settings variant",
     ),
-    site: str = Query(None, regex=NAME_REGEX),
+    site: str | None = Query(None, regex=NAME_REGEX),
 ) -> AddonSettingsResponse:
     """Return site settings for all enabled addons.
 
     Those are 'global' site settings (from addon.site_settings_model)
+    with no project overrides. When site is not specified, it will
+    return the default settings provided by the model.
     """
 
     library = AddonLibrary.getinstance()
