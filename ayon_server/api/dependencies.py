@@ -13,7 +13,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.types import USER_NAME_REGEX
+from ayon_server.types import NAME_REGEX, USER_NAME_REGEX
 from ayon_server.utils import (
     EntityID,
     json_dumps,
@@ -48,7 +48,7 @@ async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
 
 async def dep_current_user(
     request: Request,
-    x_as_user: str | None = Header(None),  # TODO: at least validate against a regex
+    x_as_user: str | None = Header(None, regex=USER_NAME_REGEX),
     x_api_key: str | None = Header(None),  # TODO: some validation here
     access_token: str | None = Depends(dep_access_token),
     api_key: str | None = Depends(dep_api_key),
@@ -105,7 +105,7 @@ async def dep_current_user(
 
 async def dep_current_user_optional(
     request: Request,
-    x_as_user: str | None = Header(None),  # TODO: at least validate against a regex
+    x_as_user: str | None = Header(None, regex=USER_NAME_REGEX),
     x_api_key: str | None = Header(None),  # TODO: some validation here
     access_token: str | None = Depends(dep_access_token),
     api_key: str | None = Depends(dep_api_key),
@@ -127,7 +127,7 @@ async def dep_attribute_name(
     attribute_name: str = Path(
         ...,
         title="Attribute name",
-        regex=r"^[0-9a-zA-Z_]*$",
+        regex=NAME_REGEX,
     )
 ) -> str:
     return attribute_name
@@ -137,7 +137,7 @@ async def dep_new_project_name(
     project_name: str = Path(
         ...,
         title="Project name",
-        regex=r"^[0-9a-zA-Z_]*$",
+        regex=NAME_REGEX,
     )
 ) -> str:
     """Validate and return a project name.
@@ -153,7 +153,7 @@ async def dep_project_name(
     project_name: str = Path(
         ...,
         title="Project name",
-        regex=r"^[0-9a-zA-Z_]*$",
+        regex=NAME_REGEX,
     )
 ) -> str:
     """Validate and return a project name specified in an endpoint path.
@@ -194,7 +194,7 @@ async def dep_role_name(
     role_name: str = Path(
         ...,
         title="Role name",
-        regex=r"^[0-9a-zA-Z_]*$",
+        regex=NAME_REGEX,
     )
 ) -> str:
     """Validate and return a role name specified in an endpoint path."""

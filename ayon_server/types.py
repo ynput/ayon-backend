@@ -50,7 +50,9 @@ AttributeType = Literal[
 
 ENTITY_ID_REGEX = r"^[0-f]{32}$"
 ENTITY_ID_EXAMPLE = "c10d5bc73dcab7da4cba0f3e0b3c0aea"
-NAME_REGEX = r"^[a-zA-Z0-9_-]{2,64}$"
+# NAME_REGEX = r"^[a-zA-Z0-9_-]{2,64}$"
+NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
+STATUS_REGEX = r"^[a-zA-Z0-9_ \-]{2,64}$"
 TOPIC_REGEX = r"^[a-zA-Z0-9_\.\*]{2,64}$"
 LABEL_REGEX = r"^[^';]*$"
 USER_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
@@ -79,7 +81,7 @@ def validate_name_list(names: list, regex: str = NAME_REGEX) -> list[str]:
 
 def validate_status_list(statuses: list) -> list[str]:
     """Validate list of statuses."""
-    regex = r"^[a-zA-Z0-9_ \-]{2,64}$"
+    regex = STATUS_REGEX
     return [validate_name(status, regex) for status in statuses]
 
 
