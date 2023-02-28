@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from ayon_server.addons import AddonLibrary
 from ayon_server.api import ResponseFactory, dep_current_user
 from ayon_server.entities import UserEntity
+from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
@@ -53,7 +54,7 @@ async def get_all_addons_settings(
 
     active_versions = await library.get_active_versions()
 
-    result: dict[str, BaseSettingsModel] = {}
+    result: dict[str, dict[str, Any]] = {}
     versions: dict[str, str] = {}
 
     for addon_name, addon in library.items():
@@ -94,6 +95,65 @@ async def get_all_addons_settings(
         if settings is None:
             continue
         result[addon_name] = settings
+        versions[addon_name] = addon_version
+
+    return AddonSettingsResponse(settings=result, versions=versions)
+
+
+@router.get("/settings/addons/siteSettings")
+async def get_all_site_settings(
+    user: UserEntity = Depends(dep_current_user),
+    variant: Literal["production", "staging"] = Query(
+        "production",
+        title="Settings variant",
+    ),
+    site: str = Query(None, regex=NAME_REGEX),
+) -> AddonSettingsResponse:
+    """Return site settings for all enabled addons.
+
+    Those are 'global' site settings (from addon.site_settings_model)
+    """
+
+    library = AddonLibrary.getinstance()
+
+    active_versions = await library.get_active_versions()
+
+    result: dict[str, dict[str, Any]] = {}
+    versions: dict[str, str] = {}
+
+    for addon_name, addon in library.items():
+        if addon_name not in active_versions:
+            continue
+        try:
+            addon_version = active_versions[addon_name][variant]
+        except KeyError:
+            continue
+
+        if not addon_version:
+            continue
+
+        try:
+            active_addon = library.addon(addon_name, addon_version)
+        except Exception:
+            continue
+
+        site_settings_model = active_addon.get_site_settings_model()
+        if site_settings_model is None:
+            continue
+
+        data = {}
+        query = """
+            SELECT data FROM site_settings
+            WHERE site_id = $1 AND addon_name = $2
+            AND addon_version = $3 AND user_name = $4
+        """
+        async for row in Postgres.iterate(
+            query, site, addon_name, addon_version, user.name
+        ):
+            data = row["data"]
+            break
+
+        result[addon_name] = site_settings_model(**data)
         versions[addon_name] = addon_version
 
     return AddonSettingsResponse(settings=result, versions=versions)
