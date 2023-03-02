@@ -3,7 +3,7 @@ __all__ = ["router"]
 from typing import Any
 
 import httpx
-from nxtools import logging
+from nxtools import logging, slugify
 
 from ayon_server.auth.session import Session
 from ayon_server.config import ayonconfig
@@ -67,6 +67,7 @@ async def login_callback(data: OAuth2Data) -> LoginResponseModel:
         avatar_url += ex_data["discordProfile"]["id"]
         avatar_url += f"/{ex_data['discordProfile']['avatar']}.png"
 
+        user_name = slugify(user_name, separator=".")
         ex_name = f"{user_name}.{user_discriminator}"
         ex_attrib = {
             "fullName": user_name,
