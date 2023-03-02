@@ -2,6 +2,7 @@ import enum
 from typing import TYPE_CHECKING, Any
 
 import strawberry
+from nxtools import get_base_name
 from strawberry import LazyType
 from strawberry.types import Info
 
@@ -38,15 +39,11 @@ class SyncStatusType:
 @strawberry.type
 class FileNode:
     id: str
+    name: str
     path: str
-    hash: str
-    size: int
-    local_status: SyncStatusType | None
-    remote_status: SyncStatusType | None
-
-    @strawberry.field
-    def base_name(self) -> str:
-        return self.path.split("/")[-1]
+    hash: str | None = None
+    size: int = 0
+    hash_type: str = "md5"
 
 
 @RepresentationEntity.strawberry_attrib()
@@ -80,16 +77,6 @@ class RepresentationNode(BaseNode):
         description="Files in the representation",
     )
 
-    local_status: SyncStatusType | None = strawberry.field(
-        default=None,
-        description="Sync status of the representation on the local site",
-    )
-
-    remote_status: SyncStatusType | None = strawberry.field(
-        default=None,
-        description="Sync status of the representation on the remote site",
-    )
-
     context: str | None = strawberry.field(
         default=None,
         description="JSON serialized context data",
@@ -97,65 +84,16 @@ class RepresentationNode(BaseNode):
 
 
 def parse_files(
-    files: dict,
-    local_files: dict[str, Any],
-    remote_files: dict[str, Any],
+    files: list[dict[str, Any]],
 ) -> list[FileNode]:
     """Parse the files from a representation."""
     result: list[FileNode] = []
 
-    if type(files) is not dict:
-        return result
-
-    for fid, fdata in files.items():
-        file_size = fdata.get("size")
-        local_file = local_files.get(fid)
-        remote_file = remote_files.get(fid)
-
-        if local_file:
-            local_status = SyncStatusType(**local_file, total_size=file_size)
-        else:
-            local_status = SyncStatusType(status=StatusEnum.NOT_AVAILABLE)
-
-        if remote_file:
-            remote_status = SyncStatusType(**remote_file, total_size=file_size)
-        else:
-            remote_status = SyncStatusType(status=StatusEnum.NOT_AVAILABLE)
-
-        result.append(
-            FileNode(
-                id=fid,
-                path=fdata.get("path"),
-                size=fdata.get("size"),
-                hash=fdata.get("hash"),
-                local_status=local_status,
-                remote_status=remote_status,
-            )
-        )
+    for fdata in files:
+        if not "name" in fdata:
+            fdata["name"] = get_base_name(fdata["path"])
+        result.append(FileNode(**fdata))
     return result
-
-
-def get_overal_status(status, files, site_files):
-    size = 0
-    total_size = 0
-    timestamp = 0
-    if type(files) is not dict:
-        return SyncStatusType(status=StatusEnum.NOT_AVAILABLE)
-
-    for f in files.values():
-        total_size += f["size"]
-    for f in site_files.values():
-        size += f["size"]
-        timestamp = max(timestamp, f["timestamp"])
-
-    return SyncStatusType(
-        status=status if status is not None else StatusEnum.NOT_AVAILABLE,
-        size=size,
-        total_size=total_size,
-        timestamp=timestamp
-        # message ?
-        # retries ?
-    )
 
 
 def representation_from_record(
@@ -164,20 +102,6 @@ def representation_from_record(
     """Construct a representation node from a DB row."""
 
     data = record.get("data") or {}
-    files = data.get("files", {})
-
-    local_data: dict[str, Any] = {}
-    remote_data: dict[str, Any] = {}
-    local_files = {}
-    remote_files = {}
-
-    if "local_data" in record:
-        local_data = record["local_data"] or {}
-        local_files = local_data.get("files", {})
-
-    if "remote_data" in record:
-        remote_data = record["remote_data"] or {}
-        remote_files = remote_data.get("files", {})
 
     return RepresentationNode(
         project_name=project_name,
@@ -196,11 +120,7 @@ def representation_from_record(
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         context=json_dumps(data.get("context", {})),
-        files=parse_files(files, local_files, remote_files),
-        local_status=get_overal_status(record.get("local_status"), files, local_files),
-        remote_status=get_overal_status(
-            record.get("remote_status"), files, remote_files
-        ),
+        files=parse_files(record.get("files", [])),
     )
 
 

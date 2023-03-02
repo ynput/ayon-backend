@@ -1,3 +1,4 @@
+import datetime
 from typing import Annotated
 
 from nxtools import slugify
@@ -31,6 +32,8 @@ async def get_events(
     projects: Annotated[list[str] | None, argdesc("List of projects")] = None,
     users: Annotated[list[str] | None, argdesc("List of users")] = None,
     states: Annotated[list[str] | None, argdesc("List of states")] = None,
+    older_than: Annotated[str | None, argdesc("Timestamp")] = None,
+    newer_than: Annotated[str | None, argdesc("Timestamp")] = None,
     filter: str | None = None,
     includeLogs: Annotated[bool, argdesc("Include logs in the response")] = False,
     first: ARGFirst = None,
@@ -59,6 +62,14 @@ async def get_events(
     if states:
         states = validate_name_list(states)
         sql_conditions.append(f"status IN {SQLTool.array(states)}")
+
+    if older_than:
+        _ = datetime.datetime.fromisoformat(older_than)
+        sql_conditions.append(f"created_at < '{older_than}'")
+
+    if newer_than:
+        _ = datetime.datetime.fromisoformat(newer_than)
+        sql_conditions.append(f"created_at > '{newer_than}'")
 
     if filter:
         elms = slugify(filter, make_set=True)

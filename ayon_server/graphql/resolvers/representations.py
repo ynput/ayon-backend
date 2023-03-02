@@ -62,6 +62,7 @@ async def get_representations(
         "representations.created_at AS created_at",
         "representations.updated_at AS updated_at",
         "representations.creation_order AS creation_order",
+        "representations.files AS files",  # TODO: query conditionally
         "representations.data AS data",
     ]
 
@@ -123,42 +124,6 @@ async def get_representations(
                 INNER JOIN project_{project_name}.hierarchy AS hierarchy
                 ON hierarchy.id = subsets.folder_id
                 """,
-            ]
-        )
-
-    #
-    # Files
-    #
-
-    if local_site is not None:
-        validate_name(local_site)
-        sql_joins.append(
-            f"""
-            LEFT JOIN project_{project_name}.files as local_files
-            ON local_files.representation_id = id
-            AND local_files.site_name = '{local_site}'
-            """
-        )
-        sql_columns.extend(
-            [
-                "local_files.data AS local_data",
-                "local_files.status AS local_status",
-            ]
-        )
-
-    if remote_site is not None:
-        validate_name(remote_site)
-        sql_joins.append(
-            f"""
-            LEFT JOIN project_{project_name}.files as remote_files
-            ON remote_files.representation_id = id
-            AND remote_files.site_name = '{remote_site}'
-            """
-        )
-        sql_columns.extend(
-            [
-                "remote_files.data AS remote_data",
-                "remote_files.status AS remote_status",
             ]
         )
 
