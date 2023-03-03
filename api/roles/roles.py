@@ -9,6 +9,7 @@ from ayon_server.api import ResponseFactory
 from ayon_server.api.dependencies import (
     dep_current_user,
     dep_project_name,
+    dep_project_name_or_underscore,
     dep_role_name,
 )
 from ayon_server.entities import UserEntity
@@ -45,7 +46,7 @@ async def get_role_schema():
 @router.get("/{project_name}")
 async def get_roles(
     user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    project_name: str = Depends(dep_project_name_or_underscore),
 ):
     """Get a list of roles for a given project"""
 
@@ -76,7 +77,7 @@ async def get_roles(
 async def get_role(
     user: UserEntity = Depends(dep_current_user),
     role_name: str = Depends(dep_role_name),
-    project_name: str = Depends(dep_project_name),
+    project_name: str = Depends(dep_project_name_or_underscore),
 ):
     """Get a role definition"""
     return Roles.combine([role_name], project_name)
@@ -92,7 +93,7 @@ async def save_role(
     data: Permissions = Body(..., description="Set of role permissions"),
     user: UserEntity = Depends(dep_current_user),
     role_name: str = Depends(dep_role_name),
-    project_name: str = Depends(dep_project_name),
+    project_name: str = Depends(dep_project_name_or_underscore),
 ):
     """Create or update a user role.
 
@@ -133,7 +134,7 @@ async def save_role(
 async def delete_role(
     user: UserEntity = Depends(dep_current_user),
     role_name: str = Depends(dep_role_name),
-    project_name: str = Depends(dep_project_name),
+    project_name: str = Depends(dep_project_name_or_underscore),
 ):
     """Delete a user role"""
 

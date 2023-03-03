@@ -162,9 +162,6 @@ async def dep_project_name(
     If the name is specified using wrong letter case, it is corrected
     to match the database record.
     """
-    if project_name == "_":
-        # Wildcard project name
-        return project_name
 
     project_list: list[str]
     project_list_data = await Redis.get("global", "project_list")
@@ -181,6 +178,14 @@ async def dep_project_name(
         if project_name.lower() == pn.lower():
             return pn
     raise NotFoundException(f"Project {project_name} not found")
+
+
+async def dep_project_name_or_underscore(
+    project_name: str = Path(..., title="Project name")
+) -> str:
+    if project_name == "_":
+        return project_name
+    return await dep_project_name(project_name)
 
 
 async def dep_user_name(
