@@ -4,6 +4,7 @@ import inspect
 import os
 import pathlib
 import sys
+import traceback
 
 import fastapi
 from fastapi.exceptions import RequestValidationError
@@ -67,6 +68,23 @@ class AuthStaticFiles(StaticFiles):
 logging.user = "server"
 
 
+async def user_name_from_request(request: fastapi.Request) -> str:
+    """Get user from request"""
+
+    access_token = parse_access_token(request.headers.get("Authorization"))
+    if not access_token:
+        return "anonymous"
+    try:
+        session_data = await Session.check(access_token, None)
+    except AyonException:
+        return "anonymous"
+    if not session_data:
+        return "anonymous"
+    user_name = session_data.user.name
+    assert type(user_name) is str
+    return user_name
+
+
 @app.exception_handler(404)
 async def custom_404_handler(request: fastapi.Request, _):
     """Redirect 404s to frontend."""
@@ -104,23 +122,6 @@ async def custom_404_handler(request: fastapi.Request, _):
     )
 
 
-async def user_name_from_request(request: fastapi.Request) -> str:
-    """Get user from request"""
-
-    access_token = parse_access_token(request.headers.get("Authorization"))
-    if not access_token:
-        return "anonymous"
-    try:
-        session_data = await Session.check(access_token, None)
-    except AyonException:
-        return "anonymous"
-    if not session_data:
-        return "anonymous"
-    user_name = session_data.user.name
-    assert type(user_name) is str
-    return user_name
-
-
 @app.exception_handler(AyonException)
 async def ayon_exception_handler(
     request: fastapi.Request,
@@ -139,23 +140,6 @@ async def ayon_exception_handler(
     )
 
 
-@app.exception_handler(AssertionError)
-async def assertion_error_handler(
-    request: fastapi.Request,
-    exc: AssertionError,
-) -> fastapi.responses.JSONResponse:
-    user_name = await user_name_from_request(request)
-
-    path = f"[{request.method.upper()}]"
-    path += f" {request.url.path.removeprefix('/api')}"
-    message = exc.args[0] if exc.args else "Assertion failed"
-    logging.error(f"{path}: {message}", user=user_name)
-    return fastapi.responses.JSONResponse(
-        status_code=500,
-        content=ErrorResponse(code=500, detail=message).dict(),
-    )
-
-
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc) -> fastapi.responses.JSONResponse:
     logging.error(f"Validation error\n{exc}")
@@ -166,19 +150,54 @@ async def validation_exception_handler(request, exc) -> fastapi.responses.JSONRe
     )
 
 
+@app.exception_handler(AssertionError)
+async def assertion_exception_handler(request: fastapi.Request, exc: AssertionError):
+    user_name = await user_name_from_request(request)
+    path = f"[{request.method.upper()}]"
+    path += f" {request.url.path.removeprefix('/api')}"
+
+    tb = traceback.extract_tb(exc.__traceback__)
+    fname, line_no, func, _ = tb[-1]
+    logging.error(f"{path}: {exc}", user=user_name)
+
+    return fastapi.responses.JSONResponse(
+        status_code=500,
+        content={
+            "code": 500,
+            "detail": str(exc),
+            "path": path,
+            "file": fname,
+            "function": func,
+            "line": line_no,
+        },
+    )
+
+
 @app.exception_handler(Exception)
-async def all_exception_handler(
+async def unhandled_exception_handler(
     request: fastapi.Request,
     exc: Exception,
 ) -> fastapi.responses.JSONResponse:
     user_name = await user_name_from_request(request)
     path = f"[{request.method.upper()}]"
     path += f" {request.url.path.removeprefix('/api')}"
+
+    tb = traceback.extract_tb(exc.__traceback__)
+    fname, line_no, func, _ = tb[-1]
+
     logging.error(f"{path}: UNHANDLED EXCEPTION", user=user_name)
     logging.error(exc)
     return fastapi.responses.JSONResponse(
         status_code=500,
-        content=ErrorResponse(code=500, detail="Internal server error").dict(),
+        content={
+            "code": 500,
+            "detail": "Internal server error",
+            "traceback": f"{exc}",
+            "path": path,
+            "file": fname,
+            "function": func,
+            "line": line_no,
+        },
     )
 
 

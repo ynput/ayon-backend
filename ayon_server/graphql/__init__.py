@@ -1,8 +1,13 @@
+import os
+import traceback
+
 import strawberry
 from fastapi import Depends
+from graphql import GraphQLError
+from nxtools import logging
 from strawberry.dataloader import DataLoader
 from strawberry.fastapi import GraphQLRouter
-from strawberry.types import Info
+from strawberry.types import ExecutionContext, Info
 
 from ayon_server.api.dependencies import dep_current_user
 from ayon_server.entities import UserEntity
@@ -115,9 +120,23 @@ class Query:
         )
 
 
-schema = strawberry.Schema(query=Query)
+class AyonSchema(strawberry.Schema):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def process_errors(self, errors: list[GraphQLError], ctx: ExecutionContext):
+        for error in errors:
+            tb = traceback.extract_tb(error.__traceback__)
+            fname, line_no, func, msg = tb[-1]
+            # strip cwd from fname
+            fname = fname.replace(os.getcwd(), "")
+            path = "/".join(error.path)
+            message = error.message
+            logging.error(f"GraphQL: {fname}:{line_no} ({path}) {message}")
+
+
 router = GraphQLRouter(
-    schema=schema,
+    schema=AyonSchema(query=Query),
     graphiql=False,
     context_getter=graphql_get_context,
 )
