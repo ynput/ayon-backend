@@ -265,17 +265,24 @@ class ProjectLevelEntity(BaseEntity):
 
         commit = not transaction
         transaction = transaction or Postgres
-        res = await transaction.fetch(
-            f"""
-            WITH deleted AS (
-                DELETE FROM project_{self.project_name}.{self.entity_type}s
-                WHERE id=$1
-                RETURNING *
-            ) SELECT count(*) FROM deleted;
-            """,
-            self.id,
-        )
-        count = res[0]["count"]
+        try:
+            res = await transaction.fetch(
+                f"""
+                WITH deleted AS (
+                    DELETE FROM project_{self.project_name}.{self.entity_type}s
+                    WHERE id=$1
+                    RETURNING *
+                ) SELECT count(*) FROM deleted;
+                """,
+                self.id,
+            )
+            count = res[0]["count"]
+        except Postgres.ForeignKeyViolationError as e:
+            detail = f"Unable to delete {self.entity_type} {self.id}"
+            if self.entity_type == "folder":
+                _ = e  # TODO: use this
+                detail = "Unable to delete a folder with subsets or tasks."
+            raise ConstraintViolationException(detail)
 
         if commit:
             await self.commit(transaction)

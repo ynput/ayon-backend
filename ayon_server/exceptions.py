@@ -1,3 +1,5 @@
+from typing import Any
+
 from nxtools import logging
 
 
@@ -6,16 +8,18 @@ class AyonException(Exception):
 
     detail: str = "Error"
     status: int = 500
+    extra: dict[str, Any]
 
     def __init__(
         self,
         detail: str | None = None,
         log: bool | str = False,
+        **kwargs,
     ) -> None:
 
         if detail is not None:
             self.detail = detail
-
+        self.extra = kwargs
         if log is True:
             logging.error(f"EXCEPTION: {self.status} {self.detail}")
         elif type(log) is str:

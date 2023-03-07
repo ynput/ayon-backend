@@ -93,20 +93,22 @@ async def custom_404_handler(request: fastapi.Request, _):
         logging.error(f"404 {request.method} {request.url.path}")
         return fastapi.responses.JSONResponse(
             status_code=404,
-            content=ErrorResponse(
-                code=404,
-                detail=f"API endpoint {request.url.path} not found",
-            ).dict(),
+            content={
+                "code": 404,
+                "detail": f"API endpoint {request.url.path} not found",
+                "path": request.url.path,
+            },
         )
 
     elif request.url.path.startswith("/addons"):
         logging.error(f"404 {request.method} {request.url.path}")
         return fastapi.responses.JSONResponse(
             status_code=404,
-            content=ErrorResponse(
-                code=404,
-                detail=f"Addon endpoint {request.url.path} not found",
-            ).dict(),
+            content={
+                "code": 404,
+                "detail": f"Addon endpoint {request.url.path} not found",
+                "path": request.url.path,
+            },
         )
 
     index_path = os.path.join(ayonconfig.frontend_dir, "index.html")
@@ -118,7 +120,11 @@ async def custom_404_handler(request: fastapi.Request, _):
     logging.error(f"404 {request.method} {request.url.path}")
     return fastapi.responses.JSONResponse(
         status_code=404,
-        content=ErrorResponse(code=404, detail=f"Not found {request.url.path}").dict(),
+        content={
+            "code": 404,
+            "detail": f"File {request.url.path} not found",
+            "path": request.url.path,
+        },
     )
 
 
@@ -136,7 +142,12 @@ async def ayon_exception_handler(
 
     return fastapi.responses.JSONResponse(
         status_code=exc.status,
-        content=ErrorResponse(code=exc.status, detail=exc.detail).dict(),
+        content={
+            "code": exc.status,
+            "detail": exc.detail,
+            "path": request.url.path,
+            **exc.extra,
+        },
     )
 
 
@@ -158,19 +169,20 @@ async def assertion_exception_handler(request: fastapi.Request, exc: AssertionEr
 
     tb = traceback.extract_tb(exc.__traceback__)
     fname, line_no, func, _ = tb[-1]
-    logging.error(f"{path}: {exc}", user=user_name)
 
-    return fastapi.responses.JSONResponse(
-        status_code=500,
-        content={
+    detail = str(exc)
+    payload = (
+        {
             "code": 500,
-            "detail": str(exc),
             "path": path,
             "file": fname,
             "function": func,
             "line": line_no,
         },
     )
+
+    logging.error(detail, user=user_name, **payload)
+    return fastapi.responses.JSONResponse(status_code=500, content=payload)
 
 
 @app.exception_handler(Exception)
