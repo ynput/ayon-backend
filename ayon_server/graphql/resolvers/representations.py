@@ -18,7 +18,7 @@ from ayon_server.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
-from ayon_server.types import validate_name, validate_name_list, validate_status_list
+from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 
 

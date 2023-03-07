@@ -64,14 +64,11 @@ async def get_anatomy_presets(
     return AnatomyPresetListModel(version=VERSION, presets=presets)
 
 
-@router.get(
-    "/presets/{preset_name}",
-    response_model=Anatomy,
-)
+@router.get("/presets/{preset_name}")
 async def get_anatomy_preset(
     preset_name: str,
     user: UserEntity = Depends(dep_current_user),
-):
+) -> Anatomy:
     """Returns the anatomy preset with the given name.
 
     Use `_` character as a preset name to return the default preset.
@@ -79,12 +76,10 @@ async def get_anatomy_preset(
     if preset_name == "_":
         tpl = Anatomy()
         return tpl
-
     query = "SELECT * FROM anatomy_presets WHERE name = $1 AND version = $2"
     async for row in Postgres.iterate(query, preset_name, VERSION):
         tpl = Anatomy(**row["data"])
         return tpl
-
     raise NotFoundException(f"Anatomy preset {preset_name} not found.")
 
 
@@ -111,7 +106,7 @@ async def update_anatomy_preset(
         preset.dict(),
         preset.dict(),
     )
-    return Response(status_code=200)
+    return Response(status_code=204)
 
 
 @router.post("/presets/{preset_name}/primary")
@@ -143,7 +138,7 @@ async def set_primary_preset(
                     preset_name,
                 )
 
-    return Response(status_code=200)
+    return Response(status_code=204)
 
 
 @router.delete("/presets/{preset_name}")
@@ -166,4 +161,4 @@ async def delete_anatomy_preset(
                 preset_name,
             )
 
-    return Response(status_code=200)
+    return Response(status_code=204)

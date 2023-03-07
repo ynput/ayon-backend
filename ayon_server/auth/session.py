@@ -1,6 +1,7 @@
 __all__ = ["Session"]
 
 import time
+from typing import AsyncGenerator
 
 from fastapi import Request
 from nxtools import logging
@@ -129,7 +130,9 @@ class Session:
         await Redis.delete(cls.ns, token)
 
     @classmethod
-    async def list(cls, user_name: str | None = None):
+    async def list(
+        cls, user_name: str | None = None
+    ) -> AsyncGenerator[SessionModel, None]:
         """List active sessions for all or given user
 
         Additionally, this function also removes expired sessions

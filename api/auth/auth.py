@@ -49,12 +49,8 @@ class LoginResponseModel(OPModel):
     user: UserEntity.model.main_model  # type: ignore
 
 
-@router.post(
-    "/login",
-    response_model=LoginResponseModel,
-    responses={401: ResponseFactory.error(401, "Unable to log in")},
-)
-async def login(request: Request, login: LoginRequestModel):
+@router.post("/login", responses={401: ResponseFactory.error(401, "Unable to log in")})
+async def login(request: Request, login: LoginRequestModel) -> LoginResponseModel:
     """Login using name/password credentials.
 
     Returns access token and user information. The token is used for
@@ -92,12 +88,8 @@ class LogoutResponseModel(OPModel):
     )
 
 
-@router.post(
-    "/logout",
-    response_model=LogoutResponseModel,
-    responses={401: ResponseFactory.error(401, "Not logged in")},
-)
-async def logout(access_token: str = Depends(dep_access_token)):
+@router.post("/logout", responses={401: ResponseFactory.error(401, "Not logged in")})
+async def logout(access_token: str = Depends(dep_access_token)) -> LogoutResponseModel:
     """Log out the current user."""
     await Session.delete(access_token)
     return LogoutResponseModel()

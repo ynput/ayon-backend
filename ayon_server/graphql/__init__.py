@@ -124,13 +124,20 @@ class AyonSchema(strawberry.Schema):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def process_errors(self, errors: list[GraphQLError], ctx: ExecutionContext):
+    def process_errors(
+        self,
+        errors: list[GraphQLError],
+        execution_context: ExecutionContext | None,
+    ) -> None:
         for error in errors:
             tb = traceback.extract_tb(error.__traceback__)
             fname, line_no, func, msg = tb[-1]
             # strip cwd from fname
             fname = fname.replace(os.getcwd(), "")
-            path = "/".join(error.path)
+            if error.path:
+                path = "/".join([str(k) for k in error.path])
+            else:
+                path = ""
             message = error.message
             logging.error(f"GraphQL: {fname}:{line_no} ({path}) {message}")
 

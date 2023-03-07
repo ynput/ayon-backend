@@ -90,7 +90,7 @@ def parse_files(
     result: list[FileNode] = []
 
     for fdata in files:
-        if not "name" in fdata:
+        if "name" not in fdata:
             fdata["name"] = get_base_name(fdata["path"])
         result.append(FileNode(**fdata))
     return result

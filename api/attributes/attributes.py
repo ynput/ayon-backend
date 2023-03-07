@@ -151,8 +151,10 @@ class SetAttributeListModel(GetAttributeListModel):
     )
 
 
-@router.get("", response_model=GetAttributeListModel)
-async def get_attribute_list(user: UserEntity = Depends(dep_current_user)):
+@router.get("")
+async def get_attribute_list(
+    user: UserEntity = Depends(dep_current_user),
+) -> GetAttributeListModel:
     """Return a list of attributes and their configuration."""
 
     query = "SELECT * FROM attributes ORDER BY position"

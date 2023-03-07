@@ -8,7 +8,6 @@ from ayon_server.access.roles import Roles
 from ayon_server.api import ResponseFactory
 from ayon_server.api.dependencies import (
     dep_current_user,
-    dep_project_name,
     dep_project_name_or_underscore,
     dep_role_name,
 )
