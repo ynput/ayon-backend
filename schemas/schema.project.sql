@@ -51,7 +51,7 @@ CREATE TABLE folders(
     name VARCHAR NOT NULL,
     label VARCHAR,
     folder_type VARCHAR NOT NULL REFERENCES folder_types(name) ON UPDATE CASCADE,
-    parent_id UUID REFERENCES folders(id),
+    parent_id UUID REFERENCES folders(id) ON DELETE CASCADE,
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -117,7 +117,7 @@ CREATE TABLE tasks(
 
     name VARCHAR NOT NULL,
     label VARCHAR,
-    folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+    folder_id UUID NOT NULL REFERENCES folders(id),
     task_type VARCHAR REFERENCES task_types(name) ON UPDATE CASCADE,
     assignees VARCHAR[] NOT NULL DEFAULT '{}',
 
@@ -144,7 +144,7 @@ CREATE TABLE subsets(
     id UUID NOT NULL PRIMARY KEY,
     name VARCHAR NOT NULL,
 
-    folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+    folder_id UUID NOT NULL REFERENCES folders(id),
     family VARCHAR NOT NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
