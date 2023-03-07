@@ -127,7 +127,7 @@ class AyonSchema(strawberry.Schema):
     def process_errors(
         self,
         errors: list[GraphQLError],
-        execution_context: ExecutionContext | None,
+        execution_context: ExecutionContext | None = None,
     ) -> None:
         for error in errors:
             tb = traceback.extract_tb(error.__traceback__)

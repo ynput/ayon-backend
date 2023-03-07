@@ -4,6 +4,7 @@ from typing import Any
 
 import httpx
 from nxtools import logging, slugify
+from yaoauth2 import OAuth2Data, YAOAuth2
 
 from ayon_server.auth.session import Session
 from ayon_server.config import ayonconfig
@@ -11,7 +12,6 @@ from ayon_server.entities import UserEntity
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
-from yaoauth2 import OAuth2Data, YAOAuth2
 
 
 class LoginResponseModel(OPModel):
