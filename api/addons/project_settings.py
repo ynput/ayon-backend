@@ -30,7 +30,7 @@ from .common import (
 
 
 @router.get("/{addon_name}/{version}/schema/{project_name}", **route_meta)
-async def get_addon_settings_schema(
+async def get_addon_project_settings_schema(
     addon_name: str,
     version: str,
     project_name: str = Depends(dep_project_name),
