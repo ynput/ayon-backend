@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
+from fastapi import BackgroundTasks, Depends, Header, Response
 
 from ayon_server.api.dependencies import (
     dep_current_user,
@@ -10,13 +10,7 @@ from ayon_server.entities import RepresentationEntity, UserEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
 
-router = APIRouter(
-    tags=["Representations"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403),
-    },
-)
+from .router import router
 
 #
 # [GET]
