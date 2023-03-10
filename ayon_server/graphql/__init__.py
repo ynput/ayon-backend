@@ -131,6 +131,8 @@ class AyonSchema(strawberry.Schema):
     ) -> None:
         for error in errors:
             tb = traceback.extract_tb(error.__traceback__)
+            if not tb:
+                continue
             fname, line_no, func, msg = tb[-1]
             # strip cwd from fname
             fname = fname.replace(os.getcwd(), "")

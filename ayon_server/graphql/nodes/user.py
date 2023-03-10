@@ -51,6 +51,7 @@ def user_from_record(record: dict, context: dict) -> UserNode:
             attrib.email = obscure(attrib.email)
         if attrib.fullName:
             attrib.fullName = name
+        attrib.avatarUrl = None
 
     return UserNode(
         name=name,

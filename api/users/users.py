@@ -109,6 +109,7 @@ async def get_user(
             result.attrib.email = obscure(result.attrib.email)
         if result.attrib.fullName:
             result.attrib.fullName = obscure(result.attrib.fullName)
+        result.attrib.avatarUrl = None
 
     # To normal users, show only colleague's name
     return {"name": result.name}
