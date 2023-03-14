@@ -7,7 +7,9 @@ from pydantic.error_wrappers import ValidationError
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import dep_current_user, dep_project_name
+from ayon_server.config import ayonconfig
 from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.events import dispatch_event
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -159,6 +161,28 @@ async def set_addon_project_settings(
             variant,
             data,
         )
+
+        if ayonconfig.audit_trail:
+            payload = {
+                "originalValue": existing,
+                "newValue": data,
+            }
+        else:
+            payload = None
+
+        await dispatch_event(
+            topic="settings.changed",
+            description=f"{addon_name}:{version} project overrides changed",
+            summary={
+                "addon_name": addon_name,
+                "addon_version": version,
+                "variant": variant,
+            },
+            user=user.name,
+            project=project_name,
+            payload=payload,
+        )
+
         return Response(status_code=204)
 
     # site settings
@@ -218,6 +242,19 @@ async def delete_addon_project_overrides(
             version,
             variant,
         )
+
+        await dispatch_event(
+            topic="settings.deleted",
+            description=f"{addon_name}:{version} project overrides deleted",
+            summary={
+                "addon_name": addon_name,
+                "addon_version": version,
+                "variant": variant,
+            },
+            user=user.name,
+            project=project_name,
+        )
+
         return Response(status_code=204)
 
     # site settings

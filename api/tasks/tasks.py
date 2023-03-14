@@ -73,6 +73,7 @@ async def create_task(
         "topic": "entity.task.created",
         "description": f"Task {task.name} created",
         "summary": {"entityId": task.id, "parentId": task.parent_id},
+        "project": project_name,
     }
     await task.save()
     background_tasks.add_task(
@@ -143,6 +144,7 @@ async def delete_task(
         "topic": "entity.task.deleted",
         "description": f"Task {task.name} deleted",
         "summary": {"entityId": task.id, "parentId": task.parent_id},
+        "project": project_name,
     }
     await task.delete()
     background_tasks.add_task(
@@ -208,5 +210,7 @@ async def assign_users_to_task(
 
     task.assignees = assignees
     await task.save()
+
+    # TODO: trigger event
 
     return Response(status_code=204)

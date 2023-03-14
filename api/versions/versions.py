@@ -72,6 +72,7 @@ async def create_version(
         "topic": "entity.version.created",
         "description": f"Version {version.name} created",
         "summary": {"entityId": version.id, "parentId": version.parent_id},
+        "project": project_name,
     }
     await version.save()
     background_tasks.add_task(
@@ -143,6 +144,7 @@ async def delete_version(
         "topic": "entity.version.deleted",
         "description": f"Version {version.name} deleted",
         "summary": {"entityId": version.id, "parentId": version.parent_id},
+        "project": project_name,
     }
     await version.delete()
     background_tasks.add_task(

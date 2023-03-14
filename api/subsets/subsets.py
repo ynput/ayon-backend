@@ -69,6 +69,7 @@ async def create_subset(
         "topic": "entity.subset.created",
         "description": f"Subset {subset.name} created",
         "summary": {"entityId": subset.id, "parentId": subset.parent_id},
+        "project": project_name,
     }
     await subset.save()
     background_tasks.add_task(
@@ -140,6 +141,7 @@ async def delete_subset(
         "topic": "entity.subset.deleted",
         "description": f"Subset {subset.name} deleted",
         "summary": {"entityId": subset.id, "parentId": subset.parent_id},
+        "project": project_name,
     }
     await subset.delete()
     background_tasks.add_task(

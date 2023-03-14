@@ -114,6 +114,11 @@ class AyonConfig(BaseModel):
         description="Path to the GeoIP database",
     )
 
+    audit_trail: bool = Field(
+        default=True,
+        description="Enable audit trail",
+    )
+
 
 #
 # Load configuration from environment variables

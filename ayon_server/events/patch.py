@@ -2,6 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ayon_server.config import ayonconfig
 from ayon_server.entities.core import ProjectLevelEntity
 
 EventData = dict[str, Any]
@@ -84,6 +85,12 @@ def build_pl_entity_change_events(
                     **common_data,
                 }
             )
+            if ayonconfig.audit_trail:
+                payload = {
+                    "oldValue": original_entity.name,
+                    "newValue": new_name,
+                }
+                result[-1]["payload"] = payload
 
     if (new_status := patch_data.get("status")) is not None:
         if new_status != original_entity.status:
@@ -97,6 +104,12 @@ def build_pl_entity_change_events(
                     **common_data,
                 }
             )
+            if ayonconfig.audit_trail:
+                payload = {
+                    "oldValue": original_entity.status,
+                    "newValue": new_status,
+                }
+                result[-1]["payload"] = payload
 
     if (new_tags := patch_data.get("tags")) is not None:
         if new_tags != original_entity.tags:
@@ -113,6 +126,12 @@ def build_pl_entity_change_events(
                         **common_data,
                     }
                 )
+                if ayonconfig.audit_trail:
+                    payload = {
+                        "oldValue": original_entity.tags,
+                        "newValue": new_tags,
+                    }
+                    result[-1]["payload"] = payload
 
     if new_attributes := patch_data.get("attrib", {}):
         attr_list = ", ".join(new_attributes.keys())
@@ -126,5 +145,13 @@ def build_pl_entity_change_events(
                 **common_data,
             }
         )
+        if ayonconfig.audit_trail:
+            payload = {
+                "oldValue": {
+                    k: original_entity.attrib[k] for k in new_attributes.keys()
+                },
+                "newValue": new_attributes,
+            }
+            result[-1]["payload"] = payload
 
     return result

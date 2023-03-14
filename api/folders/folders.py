@@ -6,6 +6,7 @@ from ayon_server.api.dependencies import (
     dep_project_name,
 )
 from ayon_server.api.responses import EntityIdResponse, ResponseFactory
+from ayon_server.config import ayonconfig
 from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
@@ -70,7 +71,13 @@ async def create_folder(
         "topic": "entity.folder.created",
         "description": f"Folder {folder.name} created",
         "summary": {"entityId": folder.id, "parentId": folder.parent_id},
+        "project": project_name,
     }
+    if ayonconfig.audit_trail:
+        event["payload"] = {
+            "newValue": folder.payload.dict(exclude_none=True),
+        }
+
     await folder.save()
     background_tasks.add_task(
         dispatch_event,
@@ -170,7 +177,13 @@ async def delete_folder(
         "topic": "entity.folder.deleted",
         "description": f"Folder {folder.name} deleted",
         "summary": {"entityId": folder.id, "parentId": folder.parent_id},
+        "project": project_name,
     }
+    if ayonconfig.audit_trail:
+        event["payload"] = {
+            "originalValue": folder.payload.dict(exclude_none=True),
+        }
+
     await folder.delete()
     background_tasks.add_task(
         dispatch_event,

@@ -2,12 +2,13 @@ from typing import Any
 
 from addons.router import route_meta, router
 from fastapi import Depends, Query, Response
-from nxtools import logging
 from pydantic.error_wrappers import ValidationError
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import dep_current_user
+from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
+from ayon_server.events import dispatch_event
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -37,7 +38,6 @@ async def get_addon_settings_schema(
     model = addon.get_settings_model()
 
     if model is None:
-        logging.error(f"No settings schema for addon {addon_name}")
         return {}
 
     schema = model.schema()
@@ -99,6 +99,25 @@ async def set_addon_studio_settings(
         variant,
         data,
     )
+    if ayonconfig.audit_trail:
+        payload = {
+            "originalValue": existing,
+            "newValue": data,
+        }
+    else:
+        payload = None
+
+    await dispatch_event(
+        topic="settings.changed",
+        description=f"{addon_name}:{addon_version} studio overrides changed",
+        summary={
+            "addon_name": addon_name,
+            "addon_version": addon_version,
+            "variant": variant,
+        },
+        user=user.name,
+        payload=payload,
+    )
     return Response(status_code=204)
 
 
@@ -135,7 +154,6 @@ async def delete_addon_studio_overrides(
     # Ensure addon exists
     _ = AddonLibrary.addon(addon_name, addon_version)
 
-    logging.info(f"Deleting {variant} studio settings of {addon_name} {addon_version}")
     await Postgres.execute(
         """
         DELETE FROM settings
@@ -146,6 +164,16 @@ async def delete_addon_studio_overrides(
         addon_name,
         addon_version,
         variant,
+    )
+    await dispatch_event(
+        topic="settings.deleted",
+        description=f"{addon_name}:{addon_version} studio overrides deleted",
+        summary={
+            "addon_name": addon_name,
+            "addon_version": addon_version,
+            "variant": variant,
+        },
+        user=user.name,
     )
     return Response(status_code=204)
 

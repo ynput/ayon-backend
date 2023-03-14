@@ -68,6 +68,7 @@ async def create_representation(
             "entityId": representation.id,
             "parentId": representation.parent_id,
         },
+        "project": project_name,
     }
     await representation.save()
     background_tasks.add_task(
@@ -142,6 +143,7 @@ async def delete_representation(
             "entityId": representation.id,
             "parentId": representation.parent_id,
         },
+        "project": project_name,
     }
     await representation.delete()
     background_tasks.add_task(

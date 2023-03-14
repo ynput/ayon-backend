@@ -72,6 +72,7 @@ async def create_workfile(
         "topic": "entity.workfile.created",
         "description": f"Workfile {workfile.name} created",
         "summary": {"entityId": workfile.id, "parentId": workfile.parent_id},
+        "project": project_name,
     }
     await workfile.save()
     background_tasks.add_task(
@@ -143,6 +144,7 @@ async def delete_workfile(
         "topic": "entity.workfile.deleted",
         "description": f"Workfile {workfile.name} deleted",
         "summary": {"entityId": workfile.id, "parentId": workfile.parent_id},
+        "project": project_name,
     }
     await workfile.delete()
     background_tasks.add_task(

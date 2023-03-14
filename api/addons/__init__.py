@@ -226,6 +226,8 @@ async def copy_addon_variant(
 
     # store the settings
 
+    # TODO: Emit change event
+
     await Postgres.execute(
         """
         INSERT INTO settings (addon_name, addon_version, variant, data)
