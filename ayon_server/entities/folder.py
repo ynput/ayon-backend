@@ -74,9 +74,17 @@ class FolderEntity(ProjectLevelEntity):
 
         try:
             async for record in Postgres.iterate(query, entity_id, project_name):
-                attrib = record["project_attrib"] or {}
+                attrib: dict[str, Any] = {}
+
+                for key, value in record.get("project_attrib", {}).items():
+                    if key in attribute_library.inheritable_attributes():
+                        attrib[key] = value
+
                 if (ia := record["inherited_attrib"]) is not None:
-                    attrib.update(ia)
+                    for key, value in ia.items():
+                        if key in attribute_library.inheritable_attributes():
+                            attrib[key] = value
+
                 elif record["parent_id"] is not None:
                     logging.warning(
                         f"Folder {record['path']} does not have inherited attributes."
@@ -221,9 +229,13 @@ class FolderEntity(ProjectLevelEntity):
             parent_path = "/".join(row["path"].split("/")[:-1])
             attr: dict[str, Any] = {}
             if (inherited := row["inherited_attrib"]) is not None:
-                attr |= inherited
+                for key, value in inherited.items():
+                    if key in attribute_library.inheritable_attributes():
+                        attr[key] = value
             elif not row["parent_id"]:
-                attr |= row["project_attrib"]
+                for key, value in row["project_attrib"].items():
+                    if key in attribute_library.inheritable_attributes():
+                        attr[key] = value
             elif parent_path in cache:
                 attr |= cache[parent_path]
             else:

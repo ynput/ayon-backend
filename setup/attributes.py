@@ -185,6 +185,14 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "title": "End date",
         "description": "Deadline date and time",
     },
+    "description": {
+        "scope": "P, F, T, S, V, R, W",
+        "type": "string",
+        "example": "A very nice entity",
+        "title": "Description",
+        "description": "Textual description of the entity",
+        "inherit": False,
+    },
     # "testEnum": {
     #     "scope": "P, F, V, R, T",
     #     "type": "string",
@@ -253,7 +261,15 @@ async def deploy_attributes() -> None:
         if enum := tdata.get("enum"):
             data["enum"] = enum
 
-        for key in ("default", "example", "regex", "description", "gt", "lt"):
+        for key in (
+            "default",
+            "example",
+            "regex",
+            "description",
+            "gt",
+            "lt",
+            "inherit",
+        ):
             if (value := tdata.get(key)) is not None:
                 data[key] = value
 

@@ -54,6 +54,15 @@ class AttributeLibrary:
         return self.data[key]
 
     @functools.cache
+    def inheritable_attributes(self) -> list[str]:
+        result = set()
+        for entity_type in self.data:
+            for attr in self.data[entity_type]:
+                if attr.get("inherit", True):
+                    result.add(attr["name"])
+        return list(result)
+
+    @functools.cache
     def by_name(self, name: str) -> dict[str, Any]:
         """Return attribute definition by name."""
         for entity_type in self.data:

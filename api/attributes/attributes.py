@@ -99,6 +99,11 @@ class AttributeData(OPModel):
             {"value": "value3", "label": "Value 3"},
         ],
     )
+    inherit: bool = Field(
+        True,
+        title="Inherit",
+        description="Inherit the attribute value from the parent entity.",
+    )
 
 
 class AttributeNameModel(OPModel):

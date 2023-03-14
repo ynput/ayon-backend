@@ -61,7 +61,9 @@ class TaskEntity(ProjectLevelEntity):
             async for record in Postgres.iterate(query, entity_id):
                 attrib: dict[str, Any] = {}
                 if (ia := record["inherited_attrib"]) is not None:
-                    attrib |= ia
+                    for key, value in ia.items():
+                        if key in attribute_library.inheritable_attributes():
+                            attrib[key] = value
                 elif record["parent_id"] is not None:
                     logging.warning(
                         f"Task {record['id']} does not have inherited attributes."

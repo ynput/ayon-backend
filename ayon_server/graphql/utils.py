@@ -1,3 +1,4 @@
+import functools
 from datetime import datetime
 from typing import Any, Literal
 
@@ -34,11 +35,26 @@ def parse_attrib_data(
     elif perms.attrib_read.enabled:
         attr_limit = perms.attrib_read.attributes
 
-    data = project_attrib or {}
+    data = own_attrib or {}
     if inherited_attrib is not None:
-        data.update(inherited_attrib)
-    if own_attrib is not None:
-        data.update(own_attrib)
+        for key in attribute_library.inheritable_attributes():
+            if data.get(key) is not None:
+                continue
+            if key in inherited_attrib:
+                data[key] = inherited_attrib[key]
+
+    if project_attrib is not None:
+        for key in attribute_library.inheritable_attributes():
+            if data.get(key) is not None:
+                continue
+            if key in project_attrib:
+                data[key] = project_attrib[key]
+
+    # data = project_attrib or {}
+    # if inherited_attrib is not None:
+    #     data.update(inherited_attrib)
+    # if own_attrib is not None:
+    #     data.update(own_attrib)
 
     if not data:
         return target_type()
