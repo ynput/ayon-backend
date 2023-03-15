@@ -8,6 +8,20 @@ from ayon_server.entities.core import ProjectLevelEntity
 EventData = dict[str, Any]
 
 
+ADDITIONAL_COLUMNS = {
+    "data": "data_changed",
+    "label": "label_changed",
+    "folder_type": "type_changed",
+    "task_type": "type_changed",
+    "thumbnail_id": "thumbnail_changed",
+    "active": "active_changed",
+    "assignees": "assignees_changed",
+    "family": "family_changed",
+    "author": "author_changed",
+    "files": "files_changed",
+}
+
+
 def get_tags_description(entity_desc: str, list1: list[str], list2: list[str]) -> str:
     """Return a human readable description of the changes in tags
 
@@ -154,5 +168,24 @@ def build_pl_entity_change_events(
                 "newValue": new_attributes,
             }
             result[-1]["payload"] = payload
+
+    for column_name, topic_name in ADDITIONAL_COLUMNS.items():
+        if not hasattr(original_entity, column_name):
+            continue
+        if column_name in patch_data:
+            description = f"Changed {entity_type} {original_entity.name} {column_name}"
+            result.append(
+                {
+                    "topic": f"entity.{entity_type}.{topic_name}",
+                    "description": description,
+                    **common_data,
+                }
+            )
+            if ayonconfig.audit_trail:
+                payload = {
+                    "oldValue": getattr(original_entity, column_name),
+                    "newValue": patch_data[column_name],
+                }
+                result[-1]["payload"] = payload
 
     return result

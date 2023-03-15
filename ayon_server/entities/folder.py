@@ -293,12 +293,12 @@ class FolderEntity(ProjectLevelEntity):
     @property
     def label(self):
         """Return the label of the folder."""
-        return self.label or self.name
+        return self._payload.label or self.name
 
     @label.setter
     def label(self, value):
         """Set the label of the folder."""
-        self.label = value
+        self._payload.label = value
 
     @property
     def parent_id(self) -> str | None:
