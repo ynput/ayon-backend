@@ -148,7 +148,8 @@ def build_pl_entity_change_events(
         if ayonconfig.audit_trail:
             payload = {
                 "oldValue": {
-                    k: original_entity.attrib[k] for k in new_attributes.keys()
+                    k: original_entity.attrib.dict().get(k)
+                    for k in new_attributes.keys()
                 },
                 "newValue": new_attributes,
             }
