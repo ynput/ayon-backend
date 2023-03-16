@@ -55,6 +55,25 @@ class EventModel(OPModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
+    @classmethod
+    def from_row(cls, row):
+        return cls(
+            id=row["id"],
+            hash=row["hash"],
+            topic=row["topic"],
+            project=row["project_name"],
+            user=row["user_name"],
+            sender=row["sender"],
+            depends_on=row["depends_on"],
+            status=row["status"],
+            retries=row["retries"],
+            description=row["description"],
+            payload=row["payload"],
+            summary=row["summary"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
 
 async def dispatch_event(
     topic: str,

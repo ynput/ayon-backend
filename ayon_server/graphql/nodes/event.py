@@ -2,7 +2,7 @@ from datetime import datetime
 
 import strawberry
 
-from ayon_server.utils import get_nickname, obscure
+from ayon_server.utils import get_nickname, json_dumps, obscure
 
 
 @strawberry.type
@@ -17,6 +17,7 @@ class EventNode:
     status: str
     retries: int
     description: str
+    summary: str
     created_at: datetime
     updated_at: datetime
 
@@ -42,6 +43,7 @@ def event_from_record(record: dict, context: dict) -> EventNode:
         status=record["status"],
         retries=record["retries"],
         description=record["description"],
+        summary=json_dumps(record["summary"]),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

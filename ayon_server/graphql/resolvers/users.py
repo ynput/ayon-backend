@@ -27,7 +27,14 @@ async def get_users(
         argdesc(
             """
             The name of the user to retrieve.
-            If not provided, all users will be returned.
+            """
+        ),
+    ] = None,
+    names: Annotated[
+        list[str] | None,
+        argdesc(
+            """
+            The names of the users to retrieve.
             """
         ),
     ] = None,
@@ -46,6 +53,11 @@ async def get_users(
     if name is not None:
         validate_user_name(name)
         sql_conditions.append(f"users.name ILIKE '{name}'")
+
+    if names is not None:
+        for name in names:
+            validate_user_name(name)
+        sql_conditions.append(f"users.name IN {SQLTool.array(names)}")
 
     #
     # Pagination
