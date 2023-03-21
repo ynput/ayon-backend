@@ -109,6 +109,11 @@ class AyonConfig(BaseModel):
         example="Welcome to Ayon!",
     )
 
+    motd_path: str | None = Field(
+        default="/storage/motd.md",
+        description="Path to the MOTD file",
+    )
+
     geoip_db_path: str = Field(
         default="/storage/GeoLite2-City.mmdb",
         description="Path to the GeoIP database",
@@ -136,6 +141,11 @@ def load_config() -> AyonConfig:
         key = key.lower().removeprefix(prefix)
         if key in AyonConfig.__fields__:
             env_data[key] = value
+
+    if env_data.get("motd") is None and env_data.get("motd_path") is not None:
+        if os.path.exists(env_data["motd_path"]):
+            with open(env_data["motd_path"], "r") as motd_file:
+                env_data["motd"] = motd_file.read()
 
     return AyonConfig(**env_data)
 

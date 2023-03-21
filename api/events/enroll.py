@@ -118,7 +118,7 @@ async def enroll(
                 id=row["target_id"],
                 depends_on=row["source_id"],
                 status=row["target_status"],
-                hash="target_hash",
+                hash=row["target_hash"],
             )
 
         # Target event does not exist yet. Create a new one
