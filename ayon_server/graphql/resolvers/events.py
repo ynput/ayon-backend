@@ -32,6 +32,7 @@ async def get_events(
     projects: Annotated[list[str] | None, argdesc("List of projects")] = None,
     users: Annotated[list[str] | None, argdesc("List of users")] = None,
     states: Annotated[list[str] | None, argdesc("List of states")] = None,
+    has_children: Annotated[bool | None, argdesc("Has children")] = None,
     older_than: Annotated[str | None, argdesc("Timestamp")] = None,
     newer_than: Annotated[str | None, argdesc("Timestamp")] = None,
     filter: str | None = None,
@@ -70,6 +71,12 @@ async def get_events(
     if newer_than:
         _ = datetime.datetime.fromisoformat(newer_than)
         sql_conditions.append(f"created_at > '{newer_than}'")
+
+    if has_children is not None:
+        if has_children:
+            sql_conditions.append("id IN (SELECT depends_on FROM events)")
+        else:
+            sql_conditions.append("id NOT IN (SELECT depends_on FROM events)")
 
     if filter:
         elms = slugify(filter, make_set=True)

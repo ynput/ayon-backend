@@ -1,4 +1,3 @@
-import functools
 from datetime import datetime
 from typing import Any, Literal
 
@@ -49,12 +48,6 @@ def parse_attrib_data(
                 continue
             if key in project_attrib:
                 data[key] = project_attrib[key]
-
-    # data = project_attrib or {}
-    # if inherited_attrib is not None:
-    #     data.update(inherited_attrib)
-    # if own_attrib is not None:
-    #     data.update(own_attrib)
 
     if not data:
         return target_type()

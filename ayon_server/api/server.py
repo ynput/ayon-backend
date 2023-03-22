@@ -327,6 +327,10 @@ def init_frontend(target_app: fastapi.FastAPI, frontend_dir: str) -> None:
     target_app.mount("/", StaticFiles(directory=frontend_dir, html=True))
 
 
+if os.path.isdir("/storage/static"):  # TODO: Make this configurable
+    app.mount("/static", StaticFiles(directory="/storage/static"), name="static")
+
+
 init_api(app, ayonconfig.api_modules_dir)
 init_addons(app)
 init_frontend(app, ayonconfig.frontend_dir)

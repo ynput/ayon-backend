@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi import Depends, Response
+from nxtools import logging
 
 from ayon_server.api.dependencies import dep_current_user, dep_event_id
 from ayon_server.entities import UserEntity
@@ -79,7 +80,12 @@ class DispatchEventRequestModel(OPModel):
 
 class UpdateEventRequestModel(OPModel):
     sender: str | None = None
-    project_name: str | None = None
+    project_name: str | None = Field(
+        None,
+        title="Project name",
+        deprecated="Deprecated use 'project' instead",
+    )
+    project: str | None = Field(None, title="Project name")
     status: str | None = None
     description: str | None = None
     summary: dict[str, Any] | None = None
@@ -178,10 +184,14 @@ async def update_existing_event(
         if payload.topic not in normal_user_topic_whitelist:
             raise ForbiddenException("Not allowed to update this event")
 
+    if payload.project_name:
+        logging.warning(
+            "Patching event with projectName is deprecated. Use 'project' instead."
+        )
     await update_event(
         event_id,
         payload.sender,
-        payload.project_name,
+        payload.project_name or payload.project,
         payload.status,
         payload.description,
         payload.summary,

@@ -36,6 +36,8 @@ class InfoResponseModel(OPModel):
         title="Message of the day",
         description="Instance specific message to be displayed in the login page",
     )
+    login_page_background: str | None = Field(default=ayonconfig.login_page_background)
+    login_page_brand: str | None = Field(default=ayonconfig.login_page_brand)
     version: str = Field(
         VERSION,
         title="Ayon version",
