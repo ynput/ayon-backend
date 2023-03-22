@@ -1,27 +1,40 @@
 from ayon_server.config import ayonconfig
+from ayon_server.exceptions import LowPasswordComplexityException
 from ayon_server.utils import create_hash, hash_data
 
 
-def ensure_password_complexity(password: str) -> bool:
+def validate_password(password: str) -> None:
     """
-    Ensure password complexity.
-
     Simple password policy which checks whether the given password's
     lenght is greater or equal to auth_pass_min_length config value.
 
     When auth_pass_complex is set to True, the password is also checked
     whether it contains letters, numbers and special characters.
+
     """
     if len(password) < ayonconfig.auth_pass_min_length:
-        return False
+        raise LowPasswordComplexityException(
+            "Password must be at least "
+            f"{ayonconfig.auth_pass_min_length} characters long"
+        )
     if ayonconfig.auth_pass_complex:
         # Ensure password has digits, letters and special characters
         if not any(c.isalpha() for c in password):
-            return False
+            raise LowPasswordComplexityException("Password must contain letters")
         if not any(c.isdigit() for c in password):
-            return False
+            raise LowPasswordComplexityException("Password must contain digits")
         if not any(c in ".-!@#$%^&*()_+" for c in password):
-            return False
+            raise LowPasswordComplexityException(
+                "Password must contain special characters"
+            )
+    return True
+
+
+def ensure_password_complexity(password: str) -> bool:
+    try:
+        validate_password(password)
+    except LowPasswordComplexityException:
+        return False
     return True
 
 

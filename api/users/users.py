@@ -9,6 +9,7 @@ from ayon_server.api.dependencies import (
     dep_user_name,
 )
 from ayon_server.auth.session import Session
+from ayon_server.auth.utils import validate_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
@@ -302,6 +303,22 @@ async def change_password(
         return Response(status_code=204)
 
     raise BadRequestException("No password or API key provided")
+
+
+class CheckPasswordRequestModel(OPModel):
+    password: str = Field(..., title="Password", example="5up3r5ecr3t_p455W0rd.123")
+
+
+@router.post("/{user_name}/check_password", status_code=204)
+async def check_password(
+    post_data: CheckPasswordRequestModel,
+    user: UserEntity = Depends(dep_current_user),
+    user_name: str = Depends(dep_user_name),
+) -> Response:
+
+    validate_password(post_data.password)
+
+    return Response(status_code=204)
 
 
 #

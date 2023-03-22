@@ -83,7 +83,7 @@ class UpdateEventRequestModel(OPModel):
     project_name: str | None = Field(
         None,
         title="Project name",
-        deprecated="Deprecated use 'project' instead",
+        description="Deprecated use 'project' instead",
     )
     project: str | None = Field(None, title="Project name")
     status: str | None = None
