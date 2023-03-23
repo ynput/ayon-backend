@@ -1,6 +1,6 @@
 """Request dependencies."""
 
-from fastapi import Depends, Header, Path, Request
+from fastapi import Depends, Header, Path, Query, Request
 
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
@@ -23,10 +23,17 @@ from ayon_server.utils import (
 )
 
 
-async def dep_access_token(authorization: str = Header(None)) -> str | None:
+async def dep_access_token(
+    authorization: str | None = Header(None),
+    token: str | None = Query(None),
+) -> str | None:
     """Parse and return an access token provided in the authorisation header."""
-    access_token = parse_access_token(authorization)
-    return access_token
+    if authorization is not None:
+        return parse_access_token(authorization)
+    elif token is not None:
+        return token
+    else:
+        return None
 
 
 async def dep_api_key(authorization: str = Header(None)) -> str | None:
