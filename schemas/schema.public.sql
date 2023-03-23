@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS public.addon_data(
 
 CREATE TABLE IF NOT EXISTS public.hosts(
   name VARCHAR NOT NULL PRIMARY KEY,
-  last_seen NUMERIC,
+  last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   health JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 

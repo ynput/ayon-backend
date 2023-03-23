@@ -54,8 +54,6 @@ def get_fake_thumbnail():
     response.content = base64.b64decode(base64_string)
     response.headers["Content-Type"] = "image/png"
     response.headers["Cache-Control"] = f"max-age={3600*24}"
-    response.headers["X-Thumbnail-Id"] = "fake"
-    response.headers["X-Thumbnail-Time"] = "0"
     return response
 
 

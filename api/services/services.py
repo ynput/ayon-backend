@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from fastapi import Depends, Path, Response
@@ -26,7 +27,7 @@ class ServiceModel(OPModel):
     service: str = Field(..., example="collector")
     should_run: bool = Field(...)
     is_running: bool = Field(...)
-    last_seen: int | None = Field(None)
+    last_seen: datetime | None = Field(None)
     data: ServiceDataModel = Field(default_factory=ServiceDataModel)
 
 
