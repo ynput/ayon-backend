@@ -1,3 +1,5 @@
+import base64
+
 from fastapi import APIRouter, Depends, Request, Response
 
 from ayon_server.api import ResponseFactory
@@ -14,7 +16,11 @@ from ayon_server.entities.folder import FolderEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.entities.version import VersionEntity
 from ayon_server.entities.workfile import WorkfileEntity
-from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.exceptions import (
+    AyonException,
+    BadRequestException,
+    ForbiddenException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
 from ayon_server.utils import EntityID
@@ -42,6 +48,17 @@ responses = {
 }
 
 
+def get_fake_thumbnail():
+    base64_string = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="  # noqa
+    response = Response(status_code=203)
+    response.content = base64.b64decode(base64_string)
+    response.headers["Content-Type"] = "image/png"
+    response.headers["Cache-Control"] = f"max-age={3600*24}"
+    response.headers["X-Thumbnail-Id"] = "fake"
+    response.headers["X-Thumbnail-Time"] = "0"
+    return response
+
+
 async def store_thumbnail(
     project_name: str,
     thumbnail_id: str,
@@ -59,6 +76,14 @@ async def store_thumbnail(
         RETURNING id
     """
     await Postgres.execute(query, thumbnail_id, mime, payload)
+    for entity_type in ["workfiles", "versions", "folders"]:
+        await Postgres.execute(
+            f"""
+            UPDATE project_{project_name}.{entity_type}
+            SET updated_at = NOW() WHERE thumbnail_id = $1",
+            """,
+            thumbnail_id,
+        )
 
 
 async def retrieve_thumbnail(project_name: str, thumbnail_id: str | None) -> Response:
@@ -72,9 +97,10 @@ async def retrieve_thumbnail(project_name: str, thumbnail_id: str | None) -> Res
                 headers={
                     "X-Thumbnail-Id": thumbnail_id,
                     "X-Thumbnail-Time": str(record.get("created_at", 0)),
+                    "Cache-Control": f"max-age={3600*24}",
                 },
             )
-    return Response(status_code=204)
+    return get_fake_thumbnail()
 
 
 #
@@ -206,8 +232,11 @@ async def get_folder_thumbnail(
     project_name: str = Depends(dep_project_name),
     folder_id: str = Depends(dep_folder_id),
 ):
-    folder = await FolderEntity.load(project_name, folder_id)
-    await folder.ensure_read_access(user)
+    try:
+        folder = await FolderEntity.load(project_name, folder_id)
+        await folder.ensure_read_access(user)
+    except AyonException:
+        return get_fake_thumbnail()
     return await retrieve_thumbnail(project_name, folder.thumbnail_id)
 
 
@@ -255,8 +284,11 @@ async def get_version_thumbnail(
     project_name: str = Depends(dep_project_name),
     version_id: str = Depends(dep_version_id),
 ):
-    version = await VersionEntity.load(project_name, version_id)
-    await version.ensure_read_access(user)
+    try:
+        version = await VersionEntity.load(project_name, version_id)
+        await version.ensure_read_access(user)
+    except AyonException:
+        return get_fake_thumbnail()
     return await retrieve_thumbnail(project_name, version.thumbnail_id)
 
 
@@ -304,6 +336,9 @@ async def get_workfile_thumbnail(
     project_name: str = Depends(dep_project_name),
     workfile_id: str = Depends(dep_workfile_id),
 ):
-    workfile = await WorkfileEntity.load(project_name, workfile_id)
-    await workfile.ensure_read_access(user)
+    try:
+        workfile = await WorkfileEntity.load(project_name, workfile_id)
+        await workfile.ensure_read_access(user)
+    except AyonException:
+        return get_fake_thumbnail()
     return await retrieve_thumbnail(project_name, workfile.thumbnail_id)
