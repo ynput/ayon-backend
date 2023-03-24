@@ -22,6 +22,15 @@ class SessionModel(OPModel):
     client_info: ClientInfo | None = None
 
 
+def is_local_ip(ip: str) -> bool:
+    return (
+        ip.startswith("127.")
+        or ip.startswith("10.")
+        or ip.startswith("192.168.")
+        or ip.startswith("172.")
+    )
+
+
 class Session:
     ttl = 24 * 3600
     ns = "session"
@@ -61,12 +70,14 @@ class Session:
                 await Redis.set(cls.ns, token, session.json())
             else:
                 real_ip = get_real_ip(request)
-                if session.client_info.ip != real_ip:
-                    logging.warning(
-                        "Session IP mismatch. "
-                        f"Stored: {session.client_info.ip}, current: {real_ip}"
-                    )
-                    return None
+                if not is_local_ip(real_ip):
+                    if session.client_info.ip != real_ip:
+                        logging.warning(
+                            "Session IP mismatch. "
+                            f"Stored: {session.client_info.ip}, current: {real_ip}"
+                        )
+                        await Redis.delete(cls.ns, token)
+                        return None
 
         # extend normal tokens validity, but not service tokens.
         # they should be validated against db forcefully every 10 minutes or so
