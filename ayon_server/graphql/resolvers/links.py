@@ -66,6 +66,7 @@ async def get_links(
 
         edges.append(
             LinkEdge(
+                id=row["id"],
                 project_name=project_name,
                 direction=direction,
                 entity_id=entity_id,

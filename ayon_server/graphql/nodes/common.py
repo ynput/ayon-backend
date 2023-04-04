@@ -8,6 +8,7 @@ from ayon_server.graphql.types import BaseConnection, BaseEdge
 
 @strawberry.type
 class LinkEdge(BaseEdge):
+    id: str = strawberry.field()
     project_name: str = strawberry.field()
     entity_type: str = strawberry.field()
     entity_id: str = strawberry.field()
@@ -28,6 +29,9 @@ class LinkEdge(BaseEdge):
         elif self.entity_type == "subset":
             loader = info.context["subset_loader"]
             parser = info.context["subset_from_record"]
+        elif self.entity_type == "task":
+            loader = info.context["task_loader"]
+            parser = info.context["task_from_record"]
         else:
             raise ValueError
         record = await loader.load((self.project_name, self.entity_id))
