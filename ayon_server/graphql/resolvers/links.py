@@ -13,9 +13,9 @@ async def get_links(
     root,
     info: Info,
     direction: Literal["in", "out"] | None,
-    link_type: str,
+    link_types: list[str],
     first: int,
-    after: str | None,
+    after: str,
 ) -> LinksConnection:
 
     project_name = root.project_name
@@ -30,6 +30,12 @@ async def get_links(
         sql_conditions.append(f"input_id = '{root.id}'")
     else:
         sql_conditions.append(f"(input_id = '{root.id}' or output_id = '{root.id}')")
+
+    type_conditions = []
+    for lt in link_types:
+        type_conditions.append(f"link_name LIKE '{lt}|%'")
+    if type_conditions:
+        sql_conditions.append(f"({' or '.join(type_conditions)})")
 
     if after is not None and after.isdigit():
         sql_conditions.append(f"id > {after}")
