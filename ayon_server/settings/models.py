@@ -47,7 +47,7 @@ class TemplateWorkfileBaseOptions(BaseSettingsModel):
 # --- Host 'imageio' models ---
 class ImageIOConfigModel(BaseSettingsModel):
     enabled: bool = Field(False)
-    ocio_config: list[str] = Field(default_factory=list, title="Config path")
+    filepath: list[str] = Field(default_factory=list, title="Config path")
 
 
 class ImageIOFileRuleModel(BaseSettingsModel):
