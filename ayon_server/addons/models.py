@@ -31,4 +31,12 @@ class HttpSourceInfo(ClientSourceInfo):
     headers: dict[str, str] | None = Field(None)
 
 
+class SSOOption(OPModel):
+    name: str = Field(...)
+    title: str | None = Field(None)
+    url: str = Field(...)
+    args: dict[str, str] = Field(default_factory=dict)
+    callback: str = Field(...)
+
+
 SourceInfo = FilesystemSourceInfo | ServerSourceInfo | HttpSourceInfo

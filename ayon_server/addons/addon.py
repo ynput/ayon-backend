@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Type
 
 from nxtools import logging
 
-from ayon_server.addons.models import ServerSourceInfo, SourceInfo
+from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
 from ayon_server.exceptions import AyonException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, apply_overrides
@@ -337,3 +337,6 @@ class BaseServerAddon:
     ) -> dict[str, Any]:
         """Convert project overrides from a previous version."""
         return overrides
+
+    async def get_sso_options(self, base_url: str) -> list[SSOOption] | None:
+        return None

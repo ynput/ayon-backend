@@ -4,25 +4,14 @@ from typing import Any
 
 import httpx
 from nxtools import logging, slugify
-from pydantic import Field
 from yaoauth2 import OAuth2Data, YAOAuth2
 
+from ayon_server.auth.models import LoginResponseModel
 from ayon_server.auth.session import Session
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import OPModel
-
-
-class LoginResponseModel(OPModel):
-    detail: str | None = Field(None, example="Logged in as NAME")
-    error: str | None = Field(None, example="Unauthorized")
-    token: str | None = Field(None, title="Access token", example="TOKEN")
-    user: UserEntity.model.main_model | None = Field(  # type: ignore
-        None,
-        title="User data",
-    )
 
 
 async def check_discord_data(data: OAuth2Data) -> dict[str, Any]:

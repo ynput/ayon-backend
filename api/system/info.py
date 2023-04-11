@@ -1,11 +1,13 @@
 import contextlib
 import time
 from typing import Literal
+from urllib.parse import urlparse
 
 from attributes.attributes import AttributeModel, get_attribute_list
 from fastapi import Depends, Request
 from pydantic import ValidationError
 
+from ayon_server.addons import AddonLibrary, SSOOption
 from ayon_server.api import dep_current_user_optional
 from ayon_server.api.metadata import VERSION
 from ayon_server.config import ayonconfig
@@ -47,6 +49,40 @@ class InfoResponseModel(OPModel):
     user: UserEntity.model.main_model | None = Field(None)  # type: ignore
     attributes: list[AttributeModel] | None = Field(None)
     sites: list[SiteInfo] = Field(default_factory=list)
+    sso_options: list[SSOOption] = Field(default_factory=list)
+
+
+async def get_sso_options(request: Request) -> list[SSOOption]:
+
+    referer = request.headers.get("referer")
+    if referer:
+        parsed_url = urlparse(referer)
+        base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+    else:
+        base_url = "http://localhost:5000"
+
+    result = []
+    library = AddonLibrary.getinstance()
+    active_versions = await library.get_active_versions()
+
+    for name, definition in library.data.items():
+        vers = active_versions.get(definition.name, {})
+        production_version = vers.get("production", None)
+        if not production_version:
+            continue
+
+        try:
+            addon = definition[production_version]
+        except KeyError:
+            continue
+
+        options = await addon.get_sso_options(base_url)
+        if not options:
+            continue
+
+        result.extend(options)
+
+    return result
 
 
 async def get_additional_info(user: UserEntity, request: Request):
@@ -117,5 +153,8 @@ async def get_site_info(
     additional_info = {}
     if current_user:
         additional_info = await get_additional_info(current_user, request)
+    else:
+        sso_options = await get_sso_options(request)
+        additional_info = {"sso_options": sso_options}
     user_payload = current_user.payload if (current_user is not None) else None
     return InfoResponseModel(user=user_payload, **additional_info)

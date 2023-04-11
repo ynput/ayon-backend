@@ -10,9 +10,9 @@ from fastapi import Depends, Request
 
 from ayon_server.api import ResponseFactory
 from ayon_server.api.dependencies import dep_access_token
+from ayon_server.auth.models import LoginResponseModel
 from ayon_server.auth.password import PasswordAuth
 from ayon_server.auth.session import Session
-from ayon_server.entities import UserEntity
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.types import Field, OPModel
 
@@ -32,21 +32,6 @@ class LoginRequestModel(OPModel):
         description="Password",
         example="SecretPassword.123",
     )
-
-
-class LoginResponseModel(OPModel):
-    detail: str = Field(
-        ...,
-        title="Response detail",
-        description="Text description, which may be displayed to the user",
-        example="Logged in as USERNAME",
-    )
-    token: str = Field(
-        ...,
-        title="Access token",
-        example="ACCESS_TOKEN",
-    )
-    user: UserEntity.model.main_model  # type: ignore
 
 
 @router.post("/login", responses={401: ResponseFactory.error(401, "Unable to log in")})
