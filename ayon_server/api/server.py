@@ -175,15 +175,13 @@ async def assertion_exception_handler(request: fastapi.Request, exc: AssertionEr
     fname, line_no, func, _ = tb[-1]
 
     detail = str(exc)
-    payload = (
-        {
-            "code": 500,
-            "path": path,
-            "file": fname,
-            "function": func,
-            "line": line_no,
-        },
-    )
+    payload = {
+        "code": 500,
+        "path": path,
+        "file": fname,
+        "function": func,
+        "line": line_no,
+    }
 
     logging.error(detail, user=user_name, **payload)
     return fastapi.responses.JSONResponse(status_code=500, content=payload)

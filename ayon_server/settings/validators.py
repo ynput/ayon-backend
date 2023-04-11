@@ -11,7 +11,7 @@ def normalize_name(
     allowed_chars: Optional[str] = None,
     replacement: Optional[str] = None,
     escape_unicode: bool = True,
-    strip: bool = True
+    strip: bool = True,
 ) -> str:
     """Normalize string value.
 
