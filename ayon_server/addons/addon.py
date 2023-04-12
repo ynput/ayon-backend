@@ -29,6 +29,7 @@ class BaseServerAddon:
     site_settings_model: Type[BaseSettingsModel] | None = None
     frontend_scopes: dict[str, Any] = {}
     services: dict[str, Any] = {}
+    system: bool = False  # Hide settings for non-admins
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str):
         assert self.name and self.version

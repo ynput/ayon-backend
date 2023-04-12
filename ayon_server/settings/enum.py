@@ -32,3 +32,11 @@ async def task_types_enum(project_name: str | None = None):
             """
         )
     ]
+
+
+async def secrets_enum(project_name: str | None = None) -> list[str]:
+    """Return a list of all sercrets (only names)."""
+    return [
+        row["name"]
+        async for row in Postgres.iterate("SELECT name FROM secrets ORDER BY name")
+    ]

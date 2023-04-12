@@ -100,16 +100,12 @@ class AddonList(OPModel):
     addons: list[AddonListItem] = Field(..., description="List of available addons")
 
 
-@router.get(
-    "",
-    response_model=AddonList,
-    response_model_exclude_none=True,
-    **route_meta,
-)
+@router.get("", response_model_exclude_none=True, **route_meta)
 async def list_addons(
     request: Request,
     details: bool = Query(False, title="Show details"),
-):
+    user: UserEntity = Depends(dep_current_user),
+) -> AddonList:
     """List all available addons."""
 
     base_url = f"{request.url.scheme}://{request.url.netloc}"
@@ -127,6 +123,10 @@ async def list_addons(
         vers = active_versions.get(definition.name, {})
         versions = {}
         for version, addon in definition.versions.items():
+
+            if addon.system and not user.is_admin:
+                continue
+
             vinf = {
                 "has_settings": bool(addon.get_settings_model()),
                 "has_site_settings": bool(addon.get_site_settings_model()),
@@ -146,6 +146,9 @@ async def list_addons(
 
                 vinf["services"] = addon.services or None
             versions[version] = VersionInfo(**vinf)
+
+        if not versions:
+            continue
 
         result.append(
             AddonListItem(

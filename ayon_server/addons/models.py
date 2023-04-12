@@ -34,6 +34,9 @@ class HttpSourceInfo(ClientSourceInfo):
 class SSOOption(OPModel):
     name: str = Field(...)
     title: str | None = Field(None)
+    icon: str | None = Field(None)
+    color: str = Field("#47b7da")
+    text_color: str = Field("#ffffff")
     url: str = Field(...)
     args: dict[str, str] = Field(default_factory=dict)
     callback: str = Field(...)

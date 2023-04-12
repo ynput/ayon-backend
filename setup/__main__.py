@@ -103,8 +103,8 @@ async def main(force: bool | None = None) -> None:
         schema = Path("schemas/schema.drop.sql").read_text()
         await Postgres.execute(schema)
 
-        schema = Path("schemas/schema.public.sql").read_text()
-        await Postgres.execute(schema)
+    schema = Path("schemas/schema.public.sql").read_text()
+    await Postgres.execute(schema)
 
     # This is something we can do every time.
     await deploy_attributes()
@@ -134,6 +134,17 @@ async def main(force: bool | None = None) -> None:
         await deploy_users(users, projects)
         await deploy_roles(roles)
         await deploy_settings(settings, addons)
+
+        for name, value in DATA.get("secrets", {}).items():
+            await Postgres.execute(
+                """
+                INSERT INTO secrets (name, value)
+                VALUES ($1, $2)
+                ON CONFLICT (name) DO UPDATE SET value = $2
+                """,
+                name,
+                value,
+            )
 
     logging.goodnews("Setup is finished")
 

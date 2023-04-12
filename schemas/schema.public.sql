@@ -132,6 +132,11 @@ CREATE TABLE IF NOT EXISTS public.addon_data(
   PRIMARY KEY (addon_name, addon_version, key)
 );
 
+CREATE TABLE IF NOT EXISTS public.secrets(
+  name VARCHAR NOT NULL PRIMARY KEY,
+  value VARCHAR NOT NULL
+);
+
 
 --------------
 -- SERVICES --
