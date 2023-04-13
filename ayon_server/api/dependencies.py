@@ -213,6 +213,17 @@ async def dep_role_name(
     return role_name
 
 
+async def dep_secret_name(
+    secret_name: str = Path(
+        ...,
+        title="Secret name",
+        regex=NAME_REGEX,
+    )
+) -> str:
+    """Validate and return a secret name specified in an endpoint path."""
+    return secret_name
+
+
 async def dep_folder_id(
     folder_id: str = Path(..., title="Folder ID", **EntityID.META)
 ) -> str:

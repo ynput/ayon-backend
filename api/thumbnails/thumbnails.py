@@ -78,7 +78,7 @@ async def store_thumbnail(
         await Postgres.execute(
             f"""
             UPDATE project_{project_name}.{entity_type}
-            SET updated_at = NOW() WHERE thumbnail_id = $1",
+            SET updated_at = NOW() WHERE thumbnail_id = $1
             """,
             thumbnail_id,
         )
