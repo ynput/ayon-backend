@@ -27,7 +27,6 @@ def validate_password(password: str) -> None:
             raise LowPasswordComplexityException(
                 "Password must contain special characters"
             )
-    return True
 
 
 def ensure_password_complexity(password: str) -> bool:

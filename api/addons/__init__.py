@@ -1,15 +1,14 @@
 from typing import Any, Literal
 
 from addons.router import route_meta, router
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Query, Request, Response
 from fastapi.routing import APIRoute
 from nxtools import logging, slugify
 
 from addons import project_settings, site_settings, studio_settings
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import SourceInfo
-from ayon_server.api.dependencies import dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
@@ -103,8 +102,8 @@ class AddonList(OPModel):
 @router.get("", response_model_exclude_none=True, **route_meta)
 async def list_addons(
     request: Request,
+    user: CurrentUser,
     details: bool = Query(False, title="Show details"),
-    user: UserEntity = Depends(dep_current_user),
 ) -> AddonList:
     """List all available addons."""
 
@@ -284,7 +283,7 @@ class AddonConfigRequest(OPModel):
 @router.post("", **route_meta)
 async def configure_addons(
     payload: AddonConfigRequest,
-    user: UserEntity = Depends(dep_current_user),
+    user: CurrentUser,
 ):
     if not user.is_manager:
         raise ForbiddenException

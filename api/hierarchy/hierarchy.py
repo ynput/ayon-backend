@@ -1,25 +1,16 @@
 import time
-from typing import TYPE_CHECKING, ForwardRef, Optional
+from typing import TYPE_CHECKING, ForwardRef
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Query
 from hierarchy.solver import HierarchyResolver
 
 from ayon_server.access.utils import folder_access_list
-from ayon_server.api import ResponseFactory, dep_current_user, dep_project_name
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID, SQLTool
 
-#
-# Router
-#
-
-
-router = APIRouter(
-    tags=["Folders"],
-    responses={401: ResponseFactory.error(401), 403: ResponseFactory.error(403)},
-)
+router = APIRouter(tags=["Folders"])
 
 
 #
@@ -56,13 +47,10 @@ class HierarchyResponseModel(OPModel):
     hierarchy: list[HierarchyFolderModel]
 
 
-@router.get(
-    "/projects/{project_name}/hierarchy",
-    response_model=HierarchyResponseModel,
-)
+@router.get("/projects/{project_name}/hierarchy")
 async def get_folder_hierarchy(
-    project_name: str = Depends(dep_project_name),
-    user: UserEntity = Depends(dep_current_user),
+    project_name: ProjectName,
+    user: CurrentUser,
     search: str = Query(
         "",
         title="Search query",
@@ -75,7 +63,7 @@ async def get_folder_hierarchy(
         description="Comma separated list of folder_types to show",
         example="AssetBuild,Shot,Sequence",
     ),
-):
+) -> HierarchyResponseModel:
     """Return a folder hierarchy of a project."""
 
     start_time = time.time()
@@ -164,48 +152,48 @@ async def get_folder_hierarchy(
 # TODO: Use a list of changes to allow modification of multiple folders at once
 #
 
-
-class HierarchyChangeModel(OPModel):
-    id: Optional[str] = EntityID.field("folder")
-    children: list[str] = Field(default_factory=list, example=[])
-
-
-@router.post(
-    "/projects/{project_name}/hierarchy",
-    status_code=204,
-    response_class=Response,
-)
-async def change_hierarchy(
-    body: HierarchyChangeModel,
-    project_name: str = Depends(dep_project_name),
-    user: UserEntity = Depends(dep_current_user),
-):
-    """
-    Change the hierarchy of a project.
-
-    Set a folder as a parent of another folder(s)
-    """
-
-    # TODO: Error handling
-
-    children = [ch for ch in body.children if ch != body.id]
-
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                f"""
-                UPDATE project_{project_name}.folders SET
-                parent_id = $1
-                WHERE id IN {SQLTool.id_array(children)}
-                """,
-                body.id,
-            )
-
-            await conn.execute(
-                f"""
-                REFRESH MATERIALIZED VIEW CONCURRENTLY
-                project_{project_name}.hierarchy
-                """
-            )
-
-    return Response(status_code=204)
+#
+# class HierarchyChangeModel(OPModel):
+#     id: Optional[str] = EntityID.field("folder")
+#     children: list[str] = Field(default_factory=list, example=[])
+#
+#
+# @router.post(
+#     "/projects/{project_name}/hierarchy",
+#     status_code=204,
+#     response_class=Response,
+# )
+# async def change_hierarchy(
+#     body: HierarchyChangeModel,
+#     project_name: str = Depends(dep_project_name),
+#     user: UserEntity = Depends(dep_current_user),
+# ):
+#     """
+#     Change the hierarchy of a project.
+#
+#     Set a folder as a parent of another folder(s)
+#     """
+#
+#     # TODO: Error handling
+#
+#     children = [ch for ch in body.children if ch != body.id]
+#
+#     async with Postgres.acquire() as conn:
+#         async with conn.transaction():
+#             await conn.execute(
+#                 f"""
+#                 UPDATE project_{project_name}.folders SET
+#                 parent_id = $1
+#                 WHERE id IN {SQLTool.id_array(children)}
+#                 """,
+#                 body.id,
+#             )
+#
+#             await conn.execute(
+#                 f"""
+#                 REFRESH MATERIALIZED VIEW CONCURRENTLY
+#                 project_{project_name}.hierarchy
+#                 """
+#             )
+#
+#     return Response(status_code=204)

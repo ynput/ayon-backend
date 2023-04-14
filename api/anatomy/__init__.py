@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, Response
+from typing import Any
 
-from ayon_server.api.dependencies import dep_current_user
-from ayon_server.entities import UserEntity
+from fastapi import APIRouter
+
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import postprocess_settings_schema
@@ -32,9 +34,7 @@ class AnatomyPresetListModel(OPModel):
 
 
 @router.get("/schema")
-async def get_anatomy_schema(
-    user: UserEntity = Depends(dep_current_user),
-):
+async def get_anatomy_schema(user: CurrentUser) -> dict[str, Any]:
     """Returns the anatomy JSON schema.
 
     The schema is used to display the anatomy preset editor form.
@@ -46,9 +46,7 @@ async def get_anatomy_schema(
 
 
 @router.get("/presets")
-async def get_anatomy_presets(
-    user: UserEntity = Depends(dep_current_user),
-) -> AnatomyPresetListModel:
+async def get_anatomy_presets(user: CurrentUser) -> AnatomyPresetListModel:
     """Return a list of stored anatomy presets."""
 
     presets = []
@@ -65,10 +63,7 @@ async def get_anatomy_presets(
 
 
 @router.get("/presets/{preset_name}")
-async def get_anatomy_preset(
-    preset_name: str,
-    user: UserEntity = Depends(dep_current_user),
-) -> Anatomy:
+async def get_anatomy_preset(preset_name: str, user: CurrentUser) -> Anatomy:
     """Returns the anatomy preset with the given name.
 
     Use `_` character as a preset name to return the default preset.
@@ -83,12 +78,10 @@ async def get_anatomy_preset(
     raise NotFoundException(f"Anatomy preset {preset_name} not found.")
 
 
-@router.put("/presets/{preset_name}")
+@router.put("/presets/{preset_name}", status_code=204)
 async def update_anatomy_preset(
-    preset_name: str,
-    preset: Anatomy,
-    user: UserEntity = Depends(dep_current_user),
-):
+    preset_name: str, preset: Anatomy, user: CurrentUser
+) -> EmptyResponse:
     """Create/update an anatomy preset with the given name."""
 
     if not user.is_manager:
@@ -106,14 +99,11 @@ async def update_anatomy_preset(
         preset.dict(),
         preset.dict(),
     )
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
-@router.post("/presets/{preset_name}/primary")
-async def set_primary_preset(
-    preset_name: str,
-    user: UserEntity = Depends(dep_current_user),
-):
+@router.post("/presets/{preset_name}/primary", status_code=204)
+async def set_primary_preset(preset_name: str, user: CurrentUser) -> EmptyResponse:
     """Set the given preset as the primary preset."""
 
     if not user.is_manager:
@@ -137,15 +127,11 @@ async def set_primary_preset(
                     """,
                     preset_name,
                 )
+    return EmptyResponse()
 
-    return Response(status_code=204)
 
-
-@router.delete("/presets/{preset_name}")
-async def delete_anatomy_preset(
-    preset_name: str,
-    user: UserEntity = Depends(dep_current_user),
-):
+@router.delete("/presets/{preset_name}", status_code=204)
+async def delete_anatomy_preset(preset_name: str, user: CurrentUser) -> EmptyResponse:
     """Delete the anatomy preset with the given name."""
 
     if not user.is_manager:
@@ -161,4 +147,4 @@ async def delete_anatomy_preset(
                 preset_name,
             )
 
-    return Response(status_code=204)
+    return EmptyResponse()

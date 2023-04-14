@@ -1,16 +1,13 @@
-"""API endpoints related to an user authentication.
+"""API endpoints related to a user authentication. (excluding SSO)
 
  - Login using username/password credentials
  - Logout (revoke access token)
-
-Login using Oauth2 is implemented in the oauth module.
 """
 
-from fastapi import Depends, Request
+from fastapi import Request
 
-from ayon_server.api import ResponseFactory
-from ayon_server.api.dependencies import dep_access_token
-from ayon_server.auth.models import LoginResponseModel
+from ayon_server.api.dependencies import AccessToken
+from ayon_server.auth.models import LoginResponseModel, LogoutResponseModel
 from ayon_server.auth.password import PasswordAuth
 from ayon_server.auth.session import Session
 from ayon_server.exceptions import UnauthorizedException
@@ -34,7 +31,7 @@ class LoginRequestModel(OPModel):
     )
 
 
-@router.post("/login", responses={401: ResponseFactory.error(401, "Unable to log in")})
+@router.post("/login")
 async def login(request: Request, login: LoginRequestModel) -> LoginResponseModel:
     """Login using name/password credentials.
 
@@ -59,22 +56,8 @@ async def login(request: Request, login: LoginRequestModel) -> LoginResponseMode
     )
 
 
-#
-# [POST] /auth/logout
-#
-
-
-class LogoutResponseModel(OPModel):
-    detail: str = Field(
-        "Logged out",
-        title="Response detail",
-        description="Text description, which may be displayed to the user",
-        example="Logged out",
-    )
-
-
-@router.post("/logout", responses={401: ResponseFactory.error(401, "Not logged in")})
-async def logout(access_token: str = Depends(dep_access_token)) -> LogoutResponseModel:
+@router.post("/logout")
+async def logout(access_token: AccessToken) -> LogoutResponseModel:
     """Log out the current user."""
     await Session.delete(access_token)
     return LogoutResponseModel()

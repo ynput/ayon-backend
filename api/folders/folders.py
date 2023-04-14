@@ -1,44 +1,27 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
+from fastapi import APIRouter, BackgroundTasks, Header
 
-from ayon_server.api.dependencies import (
-    dep_current_user,
-    dep_folder_id,
-    dep_project_name,
-)
-from ayon_server.api.responses import EntityIdResponse, ResponseFactory
+from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
+from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.config import ayonconfig
-from ayon_server.entities import FolderEntity, UserEntity
+from ayon_server.entities import FolderEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 
-router = APIRouter(
-    tags=["Folders"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403),
-    },
-)
+router = APIRouter(prefix="/projects/{project_name}/folders", tags=["Folders"])
 
 #
 # [GET]
 #
 
 
-@router.get(
-    "/projects/{project_name}/folders/{folder_id}",
-    response_model=FolderEntity.model.main_model,
-    response_model_exclude_none=True,
-    responses={
-        404: ResponseFactory.error(404, "Project not found"),
-    },
-)
+@router.get("/{folder_id}", response_model_exclude_none=True)
 async def get_folder(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    folder_id: str = Depends(dep_folder_id),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    folder_id: FolderID,
+) -> FolderEntity.model.main_model:  # type: ignore
     """Retrieve a folder by its ID."""
 
     folder = await FolderEntity.load(project_name, folder_id)
@@ -51,18 +34,14 @@ async def get_folder(
 #
 
 
-@router.post(
-    "/projects/{project_name}/folders",
-    status_code=201,
-    response_model=EntityIdResponse,
-)
+@router.post("", status_code=201)
 async def create_folder(
     post_data: FolderEntity.model.post_model,  # type: ignore
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    user: CurrentUser,
+    project_name: ProjectName,
     x_sender: str | None = Header(default=None),
-):
+) -> EntityIdResponse:
     """Create a new folder."""
 
     folder = FolderEntity(project_name=project_name, payload=post_data.dict())
@@ -93,19 +72,15 @@ async def create_folder(
 #
 
 
-@router.patch(
-    "/projects/{project_name}/folders/{folder_id}",
-    status_code=204,
-    response_class=Response,
-)
+@router.patch("/{folder_id}", status_code=204)
 async def update_folder(
     post_data: FolderEntity.model.patch_model,  # type: ignore
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    folder_id: str = Depends(dep_folder_id),
+    user: CurrentUser,
+    project_name: ProjectName,
+    folder_id: FolderID,
     x_sender: str | None = Header(default=None),
-):
+) -> EmptyResponse:
     """Patch (partially update) a folder.
 
     Once there is a version published, the folder's name and hierarchy
@@ -149,7 +124,7 @@ async def update_folder(
             **event,
         )
 
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 #
@@ -157,18 +132,14 @@ async def update_folder(
 #
 
 
-@router.delete(
-    "/projects/{project_name}/folders/{folder_id}",
-    response_class=Response,
-    status_code=204,
-)
+@router.delete("/{folder_id}", status_code=204)
 async def delete_folder(
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    folder_id: str = Depends(dep_folder_id),
+    user: CurrentUser,
+    project_name: ProjectName,
+    folder_id: FolderID,
     x_sender: str | None = Header(default=None),
-):
+) -> EmptyResponse:
     """Delete a folder."""
 
     folder = await FolderEntity.load(project_name, folder_id)
@@ -191,4 +162,4 @@ async def delete_folder(
         user=user.name,
         **event,
     )
-    return Response(status_code=204)
+    return EmptyResponse()

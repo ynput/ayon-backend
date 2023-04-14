@@ -1,11 +1,10 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter
 from pydantic import Field
 
-from ayon_server.api import ResponseFactory
-from ayon_server.api.dependencies import dep_attribute_name, dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import AttributeName, CurrentUser
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import (
@@ -15,19 +14,7 @@ from ayon_server.types import (
     TopLevelEntityType,
 )
 
-#
-# Router
-#
-
-
-router = APIRouter(
-    prefix="/attributes",
-    tags=["Attributes"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403),
-    },
-)
+router = APIRouter(prefix="/attributes", tags=["Attributes"])
 
 
 class AttributeEnumItem(OPModel):
@@ -157,9 +144,7 @@ class SetAttributeListModel(GetAttributeListModel):
 
 
 @router.get("")
-async def get_attribute_list(
-    user: UserEntity = Depends(dep_current_user),
-) -> GetAttributeListModel:
+async def get_attribute_list(user: CurrentUser) -> GetAttributeListModel:
     """Return a list of attributes and their configuration."""
 
     query = "SELECT * FROM attributes ORDER BY position"
@@ -169,11 +154,10 @@ async def get_attribute_list(
     return GetAttributeListModel(attributes=attributes)
 
 
-@router.put("", response_class=Response)
+@router.put("", status_code=204)
 async def set_attribute_list(
-    payload: SetAttributeListModel,
-    user: UserEntity = Depends(dep_current_user),
-):
+    payload: SetAttributeListModel, user: CurrentUser
+) -> EmptyResponse:
     """
     Set the attribute configuration for all (or a subset of) attributes
     """
@@ -216,14 +200,13 @@ async def set_attribute_list(
             attr.data.dict(exclude_none=True),
         )
 
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
-@router.get("/{attribute_name}", response_model=AttributeModel)
+@router.get("/{attribute_name}")
 async def get_attribute_config(
-    user: UserEntity = Depends(dep_current_user),
-    attribute_name: str = Depends(dep_attribute_name),
-):
+    user: CurrentUser, attribute_name: AttributeName
+) -> AttributeModel:
     """Return the configuration for a single attribute."""
 
     query = "SELECT * FROM attributes WHERE name = $1"
@@ -232,12 +215,10 @@ async def get_attribute_config(
     raise NotFoundException(f"Attribute {attribute_name} not found")
 
 
-@router.put("/{attribute_name}", response_class=Response)
+@router.put("/{attribute_name}", status_code=204)
 async def set_attribute_config(
-    payload: AttributePutModel,
-    user: UserEntity = Depends(dep_current_user),
-    attribute_name: str = Depends(dep_attribute_name),
-):
+    payload: AttributePutModel, user: CurrentUser, attribute_name: AttributeName
+) -> EmptyResponse:
     """Update attribute configuration"""
 
     if not user.is_admin:
@@ -262,17 +243,16 @@ async def set_attribute_config(
         payload.scope,
         payload.data.dict(exclude_none=True),
     )
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
-@router.delete("/{attribute_name}", response_class=Response)
+@router.delete("/{attribute_name}", status_code=204)
 async def delete_attribute(
-    user: UserEntity = Depends(dep_current_user),
-    attribute_name: str = Depends(dep_attribute_name),
-):
+    user: CurrentUser, attribute_name: AttributeName
+) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only administrators are allowed to delete attributes")
 
     query = "DELETE FROM attributes WHERE name = $1"
     await Postgres.iterate(query, attribute_name)
-    return Response(status_code=204)
+    return EmptyResponse()

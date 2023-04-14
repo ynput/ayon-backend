@@ -1,14 +1,16 @@
 from typing import Any
 
-from fastapi import Depends, Header, Response
-from projects.router import router
+from fastapi import Header
 
-from ayon_server.api import ResponseFactory, dep_current_user, dep_project_name
-from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.api.responses import EmptyResponse
+from ayon_server.entities import ProjectEntity
 from ayon_server.events import dispatch_event
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.deploy_project import anatomy_to_project_data
 from ayon_server.settings.anatomy import Anatomy
+
+from .router import router
 
 
 def dict2list(src) -> list[dict[str, Any]]:
@@ -23,16 +25,8 @@ def process_aux_table(src: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
-@router.get(
-    "/projects/{project_name}/anatomy",
-    response_model=Anatomy,
-    response_model_exclude_none=True,
-    responses={404: ResponseFactory.error(404, "Project not found")},
-)
-async def get_project_anatomy(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-):
+@router.get("/projects/{project_name}/anatomy", response_model_exclude_none=True)
+async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> Anatomy:
     """Retrieve a project anatomy."""
 
     project = await ProjectEntity.load(project_name)
@@ -56,13 +50,13 @@ async def get_project_anatomy(
     )
 
 
-@router.post("/projects/{project_name}/anatomy", response_class=Response)
+@router.post("/projects/{project_name}/anatomy", status_code=204)
 async def set_project_anatomy(
     payload: Anatomy,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    user: CurrentUser,
+    project_name: ProjectName,
     x_sender: str | None = Header(default=None),
-):
+) -> EmptyResponse:
     """Set a project anatomy."""
 
     if not user.is_manager:
@@ -84,4 +78,4 @@ async def set_project_anatomy(
         description=f"Project {project_name} anatomy has been changed",
     )
 
-    return Response(status_code=204)
+    return EmptyResponse()

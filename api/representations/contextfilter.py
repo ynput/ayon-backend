@@ -1,7 +1,4 @@
-from fastapi import Depends
-
-from ayon_server.api.dependencies import dep_current_user, dep_project_name
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ENTITY_ID_EXAMPLE, Field, OPModel
 from ayon_server.utils import SQLTool
@@ -67,8 +64,8 @@ def build_filter_condition(req):
 @router.post("/projects/{project_name}/repreContextFilter")
 async def representation_context_filter(
     request: LookupRequestModel,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    user: CurrentUser,
+    project_name: ProjectName,
 ) -> LookupResponseModel:
     """Return representation IDs matching the given criteria."""
 

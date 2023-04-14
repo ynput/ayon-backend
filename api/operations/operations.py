@@ -1,10 +1,10 @@
 from contextlib import suppress
 from typing import Any, Literal, Type
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header
+from fastapi import APIRouter, BackgroundTasks, Header
 from nxtools import log_traceback
 
-from ayon_server.api.dependencies import dep_current_user, dep_project_name
+from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.entities import (
     FolderEntity,
     RepresentationEntity,
@@ -260,8 +260,8 @@ async def process_operations(
 async def operations(
     payload: OperationsRequestModel,
     background_tasks: BackgroundTasks,
-    project_name: str = Depends(dep_project_name),
-    user: UserEntity = Depends(dep_current_user),
+    project_name: ProjectName,
+    user: CurrentUser,
     x_sender: str | None = Header(None),
 ):
     """

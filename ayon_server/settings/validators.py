@@ -20,7 +20,7 @@ def normalize_name(
         allowed_chars (Optional[str]): String with allowed characters.
             Pass '.' or '*' to allow any characters. Default 'a-zA-Z0-9-_ '.
             Regex special characters must be escaped to make them work. e.g.
-            to allow dash ('-') an escaped '\-' must be passed.
+            to allow dash ('-') an escaped '\\-' must be passed.
         replacement (Optional[str]): Replacement of characters that do not match
             allowed characters. By default, is used empty string ''.
         escape_unicode (Optional[bool]): Escape unicode characters from string.
@@ -45,7 +45,7 @@ def normalize_name(
         name = name.strip()
 
     if escape_unicode:
-        name: str = unidecode.unidecode(name)
+        name = unidecode.unidecode(name)
 
     if allowed_chars not in ("*", "."):
         allower_chars_regex = f"[^{allowed_chars}]"

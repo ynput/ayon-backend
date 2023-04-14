@@ -6,11 +6,12 @@ from ayon_server.entities import UserEntity
 from ayon_server.events import dispatch_event
 from ayon_server.exceptions import ForbiddenException
 
-from . import info, metrics
+from . import info, metrics, secrets
 from .router import router
 
 assert info
 assert metrics
+assert secrets
 
 
 @router.post("/system/restart", response_class=Response, tags=["System"])

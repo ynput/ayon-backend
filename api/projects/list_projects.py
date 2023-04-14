@@ -1,13 +1,12 @@
 """[GET] /projects (List projects)"""
 
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Literal
 
-from fastapi import Depends, Query
+from fastapi import Query
 from projects.router import router
 
-from ayon_server.api import dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 from ayon_server.utils import SQLTool
@@ -25,7 +24,7 @@ class ListProjectsResponseModel(OPModel):
     count: int = Field(
         0, description="Total count of projects (regardless the pagination)", example=1
     )
-    projects: List[ListProjectsItemModel] = Field(
+    projects: list[ListProjectsItemModel] = Field(
         [],
         description="List of projects",
         example=[
@@ -39,12 +38,9 @@ class ListProjectsResponseModel(OPModel):
     )
 
 
-@router.get(
-    "/projects",
-    response_model=ListProjectsResponseModel,
-)
+@router.get("/projects")
 async def list_projects(
-    user: UserEntity = Depends(dep_current_user),
+    user: CurrentUser,
     page: int = Query(1, title="Page", ge=1),
     length: int = Query(
         50,
@@ -52,12 +48,14 @@ async def list_projects(
         description="If not provided, the result will not be limited",
         ge=1,
     ),
-    library: Optional[bool] = Query(
+    library: bool
+    | None = Query(
         None,
         title="Show library projects",
         description="If not provided, return projects regardless the flag",
     ),
-    active: Optional[bool] = Query(
+    active: bool
+    | None = Query(
         None,
         title="Show active projects",
         description="If not provided, return projects regardless the flag",
@@ -65,16 +63,17 @@ async def list_projects(
     order: Literal["name", "createdAt", "updatedAt"] = Query(
         "name", title="Attribute to order the list by"
     ),
-    desc: Optional[bool] = Query(False, title="Sort in descending order"),
-    name: Optional[str] = Query(
-        "",
+    desc: bool = Query(False, title="Sort in descending order"),
+    name: str
+    | None = Query(
+        None,
         title="Filter by name",
         description="""Limit the result to project with the matching name,
         or its part. % character may be used as a wildcard""",
         example="forest",
         regex=NAME_REGEX,
     ),
-):
+) -> ListProjectsResponseModel:
     """
     Return a list of available projects.
     """

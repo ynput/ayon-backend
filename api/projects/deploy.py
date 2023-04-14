@@ -1,8 +1,7 @@
-from fastapi import Depends, Response
 from projects.router import router
 
-from ayon_server.api import ResponseFactory, dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.deploy_project import create_project_from_anatomy
 from ayon_server.settings.anatomy import Anatomy
@@ -16,19 +15,10 @@ class DeployProjectRequestModel(OPModel):
     library: bool = Field(False, description="Library project")
 
 
-@router.post(
-    "/projects",
-    response_class=Response,
-    status_code=201,
-    responses={
-        201: {"content": "", "description": "Project created"},
-        409: ResponseFactory.error(409, "Project already exists"),
-    },
-)
+@router.post("/projects", status_code=201)
 async def deploy_project(
-    payload: DeployProjectRequestModel,
-    user: UserEntity = Depends(dep_current_user),
-):
+    payload: DeployProjectRequestModel, user: CurrentUser
+) -> EmptyResponse:
     """Create a new project using the provided anatomy object.
 
     Main purpose is to take an anatomy object and transform its contents
@@ -45,4 +35,4 @@ async def deploy_project(
         library=payload.library,
     )
 
-    return Response(status_code=201)
+    return EmptyResponse()

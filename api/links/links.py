@@ -1,16 +1,10 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter
 from nxtools import logging
 
-from ayon_server.api.dependencies import (
-    dep_current_user,
-    dep_link_id,
-    dep_link_type,
-    dep_project_name,
-)
-from ayon_server.api.responses import EntityIdResponse, ResponseFactory
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser, LinkID, LinkType, ProjectName
+from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.exceptions import (
     BadRequestException,
     ConstraintViolationException,
@@ -21,16 +15,10 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID
 
-router = APIRouter(
-    tags=["Links"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403),
-    },
-)
+router = APIRouter(tags=["Links"])
 
 
-class LinkType(OPModel):
+class LinkTypeModel(OPModel):
     name: str = Field(..., description="Name of the link type")
     link_type: str = Field(..., description="Type of the link")
     input_type: str = Field(..., description="Input entity type")
@@ -42,7 +30,7 @@ class LinkType(OPModel):
 
 
 class LinkTypeListResponse(OPModel):
-    types: list[dict[str, Any]] = Field(
+    types: list[LinkTypeModel] = Field(
         ...,
         description="List of link types",
         example=[
@@ -68,38 +56,30 @@ class CreateLinkTypeRequestModel(OPModel):
     data: dict[str, Any] = Field(default_factory=dict, description="Link data")
 
 
-@router.get(
-    "/projects/{project_name}/links/types",
-    response_model=LinkTypeListResponse,
-)
+@router.get("/projects/{project_name}/links/types")
 async def list_link_types(
-    project_name: str = Depends(dep_project_name),
-    current_user: UserEntity = Depends(dep_current_user),
+    project_name: ProjectName, current_user: CurrentUser
 ) -> LinkTypeListResponse:
     """List all link types"""
 
-    types: list[LinkType] = []
+    types: list[LinkTypeModel] = []
     query = f"""
         SELECT name, input_type, output_type, link_type, data
         FROM project_{project_name}.link_types
         """
     async for row in Postgres.iterate(query):
-        types.append(LinkType(**row))
+        types.append(LinkTypeModel(**row))
 
     return LinkTypeListResponse(types=types)
 
 
-@router.put(
-    "/projects/{project_name}/links/types/{link_type}",
-    status_code=201,
-    response_class=Response,
-)
+@router.put("/projects/{project_name}/links/types/{link_type}", status_code=204)
 async def create_link_type(
-    project_name: str = Depends(dep_project_name),
-    current_user: UserEntity = Depends(dep_current_user),
-    link_type: tuple[str, str, str] = Depends(dep_link_type),
-    request_model: CreateLinkTypeRequestModel = Depends(),
-):
+    project_name: ProjectName,
+    current_user: CurrentUser,
+    link_type: LinkType,
+    request_model: CreateLinkTypeRequestModel,
+) -> EmptyResponse:
     """Create new link type"""
 
     if not current_user.is_manager:
@@ -119,7 +99,7 @@ async def create_link_type(
         request_model.data,
     )
 
-    return Response(status_code=201)
+    return EmptyResponse()
 
 
 @router.delete(
@@ -127,10 +107,10 @@ async def create_link_type(
     status_code=204,
 )
 async def delete_link_type(
-    project_name: str = Depends(dep_project_name),
-    current_user: UserEntity = Depends(dep_current_user),
-    link_type: tuple[str, str, str] = Depends(dep_link_type),
-):
+    project_name: ProjectName,
+    current_user: CurrentUser,
+    link_type: LinkType,
+) -> EmptyResponse:
     """Delete link type"""
 
     if not current_user.is_manager:
@@ -142,7 +122,7 @@ async def delete_link_type(
         """
     await Postgres.execute(query, f"{link_type[0]}|{link_type[1]}|{link_type[2]}")
 
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 #
@@ -162,19 +142,10 @@ class CreateLinkRequestModel(OPModel):
     )
 
 
-@router.post(
-    "/projects/{project_name}/links",
-    status_code=201,
-    response_model=EntityIdResponse,
-    responses={
-        409: ResponseFactory.error(409, "Coflict"),
-    },
-)
+@router.post("/projects/{project_name}/links")
 async def create_entity_link(
-    post_data: CreateLinkRequestModel,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-):
+    post_data: CreateLinkRequestModel, user: CurrentUser, project_name: ProjectName
+) -> EntityIdResponse:
     """Create a new entity link."""
 
     link_type, input_type, output_type = post_data.link.split("|")
@@ -246,16 +217,10 @@ async def create_entity_link(
 #
 
 
-@router.delete(
-    "/projects/{project_name}/links/{link_id}",
-    response_class=Response,
-    status_code=204,
-)
+@router.delete("/projects/{project_name}/links/{link_id}", status_code=204)
 async def delete_entity_link(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    link_id: str = Depends(dep_link_id),
-):
+    user: CurrentUser, project_name: ProjectName, link_id: LinkID
+) -> EmptyResponse:
     """Delete a link.
 
     Normal users can only delete links they created.
@@ -275,4 +240,4 @@ async def delete_entity_link(
         link_id,
     )
 
-    return Response(status_code=204)
+    return EmptyResponse()
