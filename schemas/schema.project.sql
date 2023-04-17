@@ -226,6 +226,7 @@ CREATE TABLE representations(
 );
 
 CREATE INDEX representation_parent_idx ON representations(version_id);
+CREATE UNIQUE INDEX representation_unique_name_on_version ON representations (version_id, name) WHERE (active IS TRUE);
 CREATE UNIQUE INDEX representation_creation_order_idx ON representations(creation_order);
 
 ---------------
