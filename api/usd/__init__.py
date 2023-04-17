@@ -2,7 +2,6 @@ import time
 
 from fastapi import APIRouter
 
-from ayon_server.api import ResponseFactory
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
@@ -30,10 +29,7 @@ class ResolveResponseModel(OPModel):
     time: float
 
 
-@router.post(
-    "/resolve",
-    responses={401: ResponseFactory.error(401, "Unable to log in")},
-)
+@router.post("/resolve")
 async def resolve(request: ResolveRequestModel):
 
     start_time = time.monotonic()

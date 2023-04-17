@@ -1,22 +1,12 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
+from fastapi import APIRouter, BackgroundTasks, Header
 
-from ayon_server.api.dependencies import (
-    dep_current_user,
-    dep_project_name,
-    dep_workfile_id,
-)
-from ayon_server.api.responses import EntityIdResponse, ResponseFactory
-from ayon_server.entities import UserEntity, WorkfileEntity
+from ayon_server.api.dependencies import CurrentUser, ProjectName, WorkfileID
+from ayon_server.api.responses import EmptyResponse, EntityIdResponse
+from ayon_server.entities import WorkfileEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
 
-router = APIRouter(
-    tags=["Workfiles"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403),
-    },
-)
+router = APIRouter(tags=["Workfiles"])
 
 #
 # [GET]
@@ -24,16 +14,13 @@ router = APIRouter(
 
 
 @router.get(
-    "/projects/{project_name}/workfiles/{workfile_id}",
-    response_model=WorkfileEntity.model.main_model,
-    response_model_exclude_none=True,
-    responses={404: ResponseFactory.error(404, "Versions not found")},
+    "/projects/{project_name}/workfiles/{workfile_id}", response_model_exclude_none=True
 )
 async def get_workfile(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    workfile_id: str = Depends(dep_workfile_id),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    workfile_id: WorkfileID,
+) -> WorkfileEntity.model.main_model:  # type: ignore
     """Retrieve a version by its ID."""
 
     workfile = await WorkfileEntity.load(project_name, workfile_id)
@@ -46,21 +33,14 @@ async def get_workfile(
 #
 
 
-@router.post(
-    "/projects/{project_name}/workfiles",
-    status_code=201,
-    response_model=EntityIdResponse,
-    responses={
-        409: ResponseFactory.error(409, "Conflict"),
-    },
-)
+@router.post("/projects/{project_name}/workfiles", status_code=201)
 async def create_workfile(
     post_data: WorkfileEntity.model.post_model,  # type: ignore
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    user: CurrentUser,
+    project_name: ProjectName,
     x_sender: str | None = Header(default=None),
-):
+) -> EntityIdResponse:
     """Create a new version.
 
     Use a POST request to create a new version (with a new id).
@@ -89,19 +69,15 @@ async def create_workfile(
 #
 
 
-@router.patch(
-    "/projects/{project_name}/workfiles/{workfile_id}",
-    status_code=204,
-    response_class=Response,
-)
+@router.patch("/projects/{project_name}/workfiles/{workfile_id}")
 async def update_workfile(
     post_data: WorkfileEntity.model.patch_model,  # type: ignore
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    workfile_id: str = Depends(dep_workfile_id),
+    user: CurrentUser,
+    project_name: ProjectName,
+    workfile_id: WorkfileID,
     x_sender: str | None = Header(default=None),
-):
+) -> EmptyResponse:
     """Patch (partially update) a workfile."""
 
     workfile = await WorkfileEntity.load(project_name, workfile_id)
@@ -116,7 +92,7 @@ async def update_workfile(
             user=user.name,
             **event,
         )
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 #
@@ -124,18 +100,14 @@ async def update_workfile(
 #
 
 
-@router.delete(
-    "/projects/{project_name}/workfiles/{workfile_id}",
-    response_class=Response,
-    status_code=204,
-)
+@router.delete("/projects/{project_name}/workfiles/{workfile_id}")
 async def delete_workfile(
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    workfile_id: str = Depends(dep_workfile_id),
+    user: CurrentUser,
+    project_name: ProjectName,
+    workfile_id: WorkfileID,
     x_sender: str | None = Header(default=None),
-):
+) -> EmptyResponse:
     """Delete a workfile."""
 
     workfile = await WorkfileEntity.load(project_name, workfile_id)
@@ -153,4 +125,4 @@ async def delete_workfile(
         user=user.name,
         **event,
     )
-    return Response(status_code=204)
+    return EmptyResponse()

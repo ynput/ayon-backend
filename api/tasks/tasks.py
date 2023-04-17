@@ -1,22 +1,16 @@
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
+from fastapi import APIRouter, BackgroundTasks, Header
 
-from ayon_server.api.dependencies import dep_current_user, dep_project_name, dep_task_id
-from ayon_server.api.responses import EntityIdResponse, ResponseFactory
-from ayon_server.entities import TaskEntity, UserEntity
+from ayon_server.api.dependencies import CurrentUser, ProjectName, TaskID
+from ayon_server.api.responses import EmptyResponse, EntityIdResponse
+from ayon_server.entities import TaskEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.types import Field, OPModel
 
-router = APIRouter(
-    tags=["Tasks"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403),
-    },
-)
+router = APIRouter(tags=["Tasks"])
 
 #
 # [GET]
@@ -25,15 +19,13 @@ router = APIRouter(
 
 @router.get(
     "/projects/{project_name}/tasks/{task_id}",
-    response_model=TaskEntity.model.main_model,
     response_model_exclude_none=True,
-    responses={404: ResponseFactory.error(404, "Tasks not found")},
 )
 async def get_task(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    task_id: str = Depends(dep_task_id),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    task_id: TaskID,
+) -> TaskEntity.model.main_model:  # type: ignore
     """Retrieve a task by its ID."""
 
     task = await TaskEntity.load(project_name, task_id)
@@ -50,18 +42,14 @@ async def get_task(
     "/projects/{project_name}/tasks",
     status_code=201,
     response_model=EntityIdResponse,
-    responses={
-        # TODO: check - will this happen only when the folderId is invalid?
-        409: ResponseFactory.error(409, "Specified folder does not exist"),
-    },
 )
 async def create_task(
     post_data: TaskEntity.model.post_model,  # type: ignore
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    user: CurrentUser,
+    project_name: ProjectName,
     x_sender: str | None = Header(default=None),
-):
+) -> EntityIdResponse:
     """Create a new task.
 
     Use a POST request to create a new task (with a new id).
@@ -90,19 +78,15 @@ async def create_task(
 #
 
 
-@router.patch(
-    "/projects/{project_name}/tasks/{task_id}",
-    status_code=204,
-    response_class=Response,
-)
+@router.patch("/projects/{project_name}/tasks/{task_id}")
 async def update_task(
     post_data: TaskEntity.model.patch_model,  # type: ignore
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    task_id: str = Depends(dep_task_id),
+    user: CurrentUser,
+    project_name: ProjectName,
+    task_id: TaskID,
     x_sender: str | None = Header(default=None),
-):
+) -> EmptyResponse:
     """Patch (partially update) a task."""
 
     task = await TaskEntity.load(project_name, task_id)
@@ -117,7 +101,7 @@ async def update_task(
             user=user.name,
             **event,
         )
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 #
@@ -125,16 +109,12 @@ async def update_task(
 #
 
 
-@router.delete(
-    "/projects/{project_name}/tasks/{task_id}",
-    response_class=Response,
-    status_code=204,
-)
+@router.delete("/projects/{project_name}/tasks/{task_id}")
 async def delete_task(
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    task_id: str = Depends(dep_task_id),
+    user: CurrentUser,
+    project_name: ProjectName,
+    task_id: TaskID,
     x_sender: str | None = Header(default=None),
 ):
     """Delete a task."""
@@ -153,7 +133,7 @@ async def delete_task(
         user=user.name,
         **event,
     )
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 #
@@ -176,17 +156,13 @@ class AssignUsersRequestModel(OPModel):
     )
 
 
-@router.post(
-    "/projects/{project_name}/tasks/{task_id}/assign",
-    status_code=204,
-    response_class=Response,
-)
+@router.post("/projects/{project_name}/tasks/{task_id}/assign")
 async def assign_users_to_task(
     post_data: AssignUsersRequestModel,  # type: ignore
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    task_id: str = Depends(dep_task_id),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    task_id: TaskID,
+) -> EmptyResponse:
     """Change the list of users assigned to a task."""
 
     if not user.is_manager and post_data.users != [user.name]:
@@ -213,4 +189,4 @@ async def assign_users_to_task(
 
     # TODO: trigger event
 
-    return Response(status_code=204)
+    return EmptyResponse()

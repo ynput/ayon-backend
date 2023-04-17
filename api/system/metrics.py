@@ -1,11 +1,9 @@
 import time
 
 import psutil
-from fastapi import Depends
 from fastapi.responses import PlainTextResponse
 
-from ayon_server.api import dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 
@@ -32,14 +30,8 @@ class SystemMetrics:
 metrics = SystemMetrics()
 
 
-@router.get(
-    "/metrics",
-    response_class=PlainTextResponse,
-    tags=["System"],
-)
-async def get_system_metrics(
-    user: UserEntity = Depends(dep_current_user),
-):
+@router.get("/metrics", tags=["System"])
+async def get_system_metrics(user: CurrentUser) -> PlainTextResponse:
     result = ""
     async for record in Postgres.iterate("SELECT name FROM users"):
         name = record["name"]

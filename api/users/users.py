@@ -1,18 +1,16 @@
-from fastapi import APIRouter, Depends, Path, Response
+from fastapi import APIRouter, Path
 from nxtools import logging
 
 from ayon_server.api import ResponseFactory
 from ayon_server.api.clientinfo import ClientInfo
-from ayon_server.api.dependencies import (
-    dep_access_token,
-    dep_current_user,
-    dep_user_name,
-)
+from ayon_server.api.dependencies import AccessToken, CurrentUser, UserName
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import validate_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
+    ConflictException,
     ForbiddenException,
     NotFoundException,
 )
@@ -56,13 +54,9 @@ async def list_users():
 #
 
 
-@router.get(
-    "/me",
-    response_model=UserEntity.model.main_model,
-    response_model_exclude_none=True,
-)
+@router.get("/me", response_model_exclude_none=True)
 async def get_current_user(
-    user: UserEntity = Depends(dep_current_user),
+    user: CurrentUser,
 ) -> UserEntity.model.main_model:  # type: ignore
     """
     Return the current user information (based on the Authorization header).
@@ -77,14 +71,9 @@ async def get_current_user(
 #
 
 
-@router.get(
-    "/{user_name}",
-    response_model=UserEntity.model.main_model,
-    response_model_exclude_none=True,
-)
+@router.get("/{user_name}", response_model_exclude_none=True)
 async def get_user(
-    user: UserEntity = Depends(dep_current_user),
-    user_name: str = Depends(dep_user_name),
+    user: CurrentUser, user_name: UserName
 ) -> UserEntity.model.main_model | dict[str, str]:  # type: ignore
     """
     Return the current user information (based on the Authorization header).
@@ -120,20 +109,12 @@ class NewUserModel(UserEntity.model.post_model):  # type: ignore
     password: str | None = Field(None, description="Password for the new user")
 
 
-@router.put(
-    "/{user_name}",
-    response_class=Response,
-    status_code=201,
-    responses={
-        201: {"content": "", "description": "User created"},
-        409: ResponseFactory.error(409, "User already exists"),
-    },
-)
+@router.put("/{user_name}")
 async def create_user(
     put_data: NewUserModel,
-    user: UserEntity = Depends(dep_current_user),
-    user_name: str = Depends(dep_user_name),
-) -> Response:
+    user: CurrentUser,
+    user_name: UserName,
+) -> EmptyResponse:
     """Create a new user."""
 
     if not user.is_manager:
@@ -148,23 +129,16 @@ async def create_user(
         nuser = UserEntity(put_data.dict() | {"name": user_name})
         nuser.created_by = user.name
     else:
-        return Response(status_code=409)
+        raise ConflictException("User already exists")
 
     if put_data.password:
         nuser.set_password(put_data.password)
     await nuser.save()
-    return Response(status_code=201)
+    return EmptyResponse()
 
 
-@router.delete(
-    "/{user_name}",
-    response_class=Response,
-    status_code=204,
-)
-async def delete_user(
-    user: UserEntity = Depends(dep_current_user),
-    user_name: str = Depends(dep_user_name),
-) -> Response:
+@router.delete("/{user_name}")
+async def delete_user(user: CurrentUser, user_name: UserName) -> EmptyResponse:
     logging.info(f"[DELETE] /users/{user_name}")
     if not user.is_manager:
         raise ForbiddenException
@@ -172,20 +146,16 @@ async def delete_user(
     target_user = await UserEntity.load(user_name)
     await target_user.delete()
 
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
-@router.patch(
-    "/{user_name}",
-    response_class=Response,
-    status_code=204,
-)
+@router.patch("/{user_name}")
 async def patch_user(
     payload: UserEntity.model.patch_model,  # type: ignore
-    user: UserEntity = Depends(dep_current_user),
-    user_name: str = Depends(dep_user_name),
-    access_token: str | None = Depends(dep_access_token),
-) -> Response:
+    user: CurrentUser,
+    user_name: UserName,
+    access_token: AccessToken,
+) -> EmptyResponse:
     logging.info(f"[PATCH] /users/{user_name}")
 
     if user_name == user.name and (not user.is_manager):
@@ -242,7 +212,7 @@ async def patch_user(
         else:
             await Session.update(token, target_user)
 
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 #
@@ -265,16 +235,12 @@ class ChangePasswordRequestModel(OPModel):
     )
 
 
-@router.patch(
-    "/{user_name}/password",
-    status_code=204,
-    response_class=Response,
-)
+@router.patch("/{user_name}/password")
 async def change_password(
     patch_data: ChangePasswordRequestModel,
-    user: UserEntity = Depends(dep_current_user),
-    user_name: str = Depends(dep_user_name),
-) -> Response:
+    user: CurrentUser,
+    user_name: UserName,
+) -> EmptyResponse:
 
     patch_data_dict = patch_data.dict(exclude_unset=True)
 
@@ -282,17 +248,17 @@ async def change_password(
         if (user_name != user.name) and not (user.is_manager):
             # Users can only change their own password
             # Managers can change any password
-            raise ForbiddenException
+            raise ForbiddenException()
 
         target_user = await UserEntity.load(user_name)
         target_user.set_password(patch_data.password)
 
         await target_user.save()
-        return Response(status_code=204)
+        return EmptyResponse()
 
     elif "api_key" in patch_data_dict:
         if not user.is_admin:
-            raise ForbiddenException
+            raise ForbiddenException()
 
         target_user = await UserEntity.load(user_name)
         if not target_user.is_service:
@@ -300,7 +266,7 @@ async def change_password(
         target_user.set_api_key(patch_data.api_key)
 
         await target_user.save()
-        return Response(status_code=204)
+        return EmptyResponse()
 
     raise BadRequestException("No password or API key provided")
 
@@ -309,16 +275,14 @@ class CheckPasswordRequestModel(OPModel):
     password: str = Field(..., title="Password", example="5up3r5ecr3t_p455W0rd.123")
 
 
-@router.post("/{user_name}/check_password", status_code=204)
+@router.post("/{user_name}/check_password")
 async def check_password(
     post_data: CheckPasswordRequestModel,
-    user: UserEntity = Depends(dep_current_user),
-    user_name: str = Depends(dep_user_name),
-) -> Response:
-
+    user: CurrentUser,
+    user_name: UserName,
+) -> EmptyResponse:
     validate_password(post_data.password)
-
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 #
@@ -335,16 +299,12 @@ class ChangeUserNameRequestModel(OPModel):
     )
 
 
-@router.patch(
-    "/{user_name}/rename",
-    status_code=204,
-    response_class=Response,
-)
+@router.patch("/{user_name}/rename")
 async def change_user_name(
     patch_data: ChangeUserNameRequestModel,
-    user: UserEntity = Depends(dep_current_user),
-    user_name: str = Depends(dep_user_name),
-) -> Response:
+    user: CurrentUser,
+    user_name: UserName,
+) -> EmptyResponse:
     if not user.is_manager:
         raise ForbiddenException
 
@@ -376,7 +336,7 @@ async def change_user_name(
                 await conn.execute(query)
 
     # TODO: Force the user to log out (e.g. invalidate all sessions)
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 #
@@ -395,11 +355,10 @@ class UserSessionsResponseModel(OPModel):
     sessions: list[UserSessionModel]
 
 
-@router.get("/{user_name}/sessions", response_model=UserSessionsResponseModel)
+@router.get("/{user_name}/sessions")
 async def get_user_sessions(
-    current_user: UserEntity = Depends(dep_current_user),
-    user_name: str = Depends(dep_user_name),
-):
+    current_user: CurrentUser, user_name: UserName
+) -> UserSessionsResponseModel:
     if (not current_user.is_manager) and (current_user.name != user_name):
         raise ForbiddenException("You are not allowed to list other users' sessions")
 
@@ -416,12 +375,12 @@ async def get_user_sessions(
     )
 
 
-@router.delete("/{user_name}/sessions/{session_id}", response_class=Response)
+@router.delete("/{user_name}/sessions/{session_id}")
 async def delete_user_session(
-    current_user: UserEntity = Depends(dep_current_user),
-    user_name: str = Depends(dep_user_name),
+    current_user: CurrentUser,
+    user_name: UserName,
     session_id: str = Path(...),
-):
+) -> EmptyResponse:
     session = await Session.check(session_id, None)
     if not session:
         raise NotFoundException("Requested session id does not exist")
@@ -430,7 +389,7 @@ async def delete_user_session(
             "You are not allowed to delete sessions which don't belong to you"
         )
     await Session.delete(session_id)
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 #
@@ -460,16 +419,12 @@ class AssignRolesRequestModel(OPModel):
     )
 
 
-@router.patch(
-    "/{user_name}/roles",
-    status_code=204,
-    response_class=Response,
-)
+@router.patch("/{user_name}/roles")
 async def assign_user_roles(
     patch_data: AssignRolesRequestModel,
-    user: UserEntity = Depends(dep_current_user),
-    user_name: str = Depends(dep_user_name),
-) -> Response:
+    user: CurrentUser,
+    user_name: UserName,
+) -> EmptyResponse:
     if not user.is_manager:
         raise ForbiddenException("You are not permitted to assign user roles")
 
@@ -488,4 +443,4 @@ async def assign_user_roles(
     target_user.data["roles"] = role_set
     await target_user.save()
 
-    return Response(status_code=204)
+    return EmptyResponse()
