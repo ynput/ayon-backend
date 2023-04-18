@@ -1,10 +1,10 @@
 import datetime
 from typing import get_args
 
-from fastapi import Depends, Query
+from fastapi import Query
 
-from ayon_server.api.dependencies import dep_current_user, dep_project_name
-from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.entities import ProjectEntity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 
@@ -24,11 +24,10 @@ class EntityCounts(OPModel):
     workfiles: int = Field(..., description="Number of workfiles", example=190)
 
 
-@router.get("/entities", response_model=EntityCounts)
+@router.get("/entities")
 async def get_project_entity_counts(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-):
+    user: CurrentUser, project_name: ProjectName
+) -> EntityCounts:
     """Retrieve entity counts for a given project."""
 
     counts: dict[str, int] = {}
@@ -85,11 +84,11 @@ class Health(OPModel):
     statuses: dict[str, int] = Field(..., description="Task status statistics")
 
 
-@router.get("/health", response_model=Health)
+@router.get("/health")
 async def get_project_health(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+) -> Health:
 
     project = await ProjectEntity.load(project_name)
 
@@ -196,12 +195,12 @@ def normalize_list(numbers, threshold=100):
     return numbers
 
 
-@router.get("/activity", response_model=ActivityResponseModel)
+@router.get("/activity")
 async def get_project_activity(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    user: CurrentUser,
+    project_name: ProjectName,
     days: int = Query(50, description="Number of days to retrieve activity for"),
-):
+) -> ActivityResponseModel:
 
     activity = {k: 0 for k in get_midnight_dates(days)}
 
@@ -240,11 +239,10 @@ class UsersResponseModel(OPModel):
     )
 
 
-@router.get("/users", response_model=UsersResponseModel)
+@router.get("/users")
 async def get_project_users(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-):
+    user: CurrentUser, project_name: ProjectName
+) -> UsersResponseModel:
     team_members: list[str] = []
     project = await ProjectEntity.load(project_name)
     for team_data in project.data.get("teams", []):

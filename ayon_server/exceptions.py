@@ -63,6 +63,13 @@ class NotFoundException(AyonException):
     status: int = 404
 
 
+class ConflictException(AyonException):
+    """Exception raised when a resource already exists."""
+
+    detail: str = "Conflict"
+    status: int = 409
+
+
 class ConstraintViolationException(AyonException):
     """Exception raised when a DB constraint is violated."""
 

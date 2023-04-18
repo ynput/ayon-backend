@@ -1,20 +1,13 @@
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api import ResponseFactory, dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
-router = APIRouter(
-    tags=["Addon settings"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403),
-    },
-)
+router = APIRouter(tags=["Addon settings"])
 
 
 class AddonSettingsResponse(OPModel):
@@ -39,7 +32,7 @@ class AddonSettingsResponse(OPModel):
 
 @router.get("/settings/addons")
 async def get_all_addons_settings(
-    user: UserEntity = Depends(dep_current_user),
+    user: CurrentUser,
     variant: Literal["production", "staging"] = Query(
         "production",
         title="Settings variant",
@@ -101,7 +94,7 @@ async def get_all_addons_settings(
 
 @router.get("/settings/addons/siteSettings")
 async def get_all_site_settings(
-    user: UserEntity = Depends(dep_current_user),
+    user: CurrentUser,
     variant: Literal["production", "staging"] = Query(
         "production",
         title="Settings variant",

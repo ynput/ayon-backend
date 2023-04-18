@@ -1,19 +1,18 @@
 import base64
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Request, Response
 
-from ayon_server.api import ResponseFactory
 from ayon_server.api.dependencies import (
-    dep_current_user,
-    dep_folder_id,
-    dep_project_name,
-    dep_thumbnail_content_type,
-    dep_thumbnail_id,
-    dep_version_id,
-    dep_workfile_id,
+    CurrentUser,
+    FolderID,
+    ProjectName,
+    ThumbnailContentType,
+    ThumbnailID,
+    VersionID,
+    WorkfileID,
 )
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities.folder import FolderEntity
-from ayon_server.entities.user import UserEntity
 from ayon_server.entities.version import VersionEntity
 from ayon_server.entities.workfile import WorkfileEntity
 from ayon_server.exceptions import (
@@ -35,17 +34,6 @@ router = APIRouter(
 
 #
 # Common
-
-# Do not put responses directly to the router, it will be applied to all
-# endpoints in the system since this router has no prefix.
-# It cannot have prefix because thumbnail endpoints are used in different
-# routers with different prefixes.
-
-responses = {
-    401: ResponseFactory.error(401),
-    403: ResponseFactory.error(403),
-    404: ResponseFactory.error(404),
-}
 
 
 def get_fake_thumbnail():
@@ -110,17 +98,13 @@ class CreateThumbnailResponseModel(OPModel):
     id: str
 
 
-@router.post(
-    "/projects/{project_name}/thumbnails",
-    response_model=CreateThumbnailResponseModel,
-    responses=responses,
-)
+@router.post("/projects/{project_name}/thumbnails")
 async def create_thumbnail(
     request: Request,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    content_type: str = Depends(dep_thumbnail_content_type),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    content_type: ThumbnailContentType,
+) -> CreateThumbnailResponseModel:
     """Create a thumbnail.
 
     This endpoint is used to create a thumbnail not associated with any entity.
@@ -135,16 +119,15 @@ async def create_thumbnail(
 
 @router.put(
     "/projects/{project_name}/thumbnails/{thumbnail_id}",
-    responses=responses,
     response_class=Response,
 )
 async def update_thumbnail(
     request: Request,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    thumbnail_id: str = Depends(dep_thumbnail_id),
-    content_type: str = Depends(dep_thumbnail_content_type),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    thumbnail_id: ThumbnailID,
+    content_type: ThumbnailContentType,
+) -> EmptyResponse:
     """Create or update a thumbnail with a specific ID.
 
     This endpoint is used to create or update a thumbnail by its ID.
@@ -156,19 +139,18 @@ async def update_thumbnail(
         raise ForbiddenException("Only managers can update arbitrary thumbnails")
     payload = await request.body()
     await store_thumbnail(project_name, thumbnail_id, content_type, payload)
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 @router.get(
     "/projects/{project_name}/thumbnails/{thumbnail_id}",
     response_class=Response,
-    responses=responses,
 )
 async def get_thumbnail(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    thumbnail_id: str = Depends(dep_thumbnail_id),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    thumbnail_id: ThumbnailID,
+) -> Response:
     """Get a thumbnail by its ID.
 
     This endpoint is used to retrieve a thumbnail by its ID.
@@ -186,19 +168,14 @@ async def get_thumbnail(
 #
 
 
-@router.post(
-    "/projects/{project_name}/folders/{folder_id}/thumbnail",
-    status_code=201,
-    response_class=Response,
-    responses=responses,
-)
+@router.post("/projects/{project_name}/folders/{folder_id}/thumbnail")
 async def create_folder_thumbnail(
     request: Request,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    folder_id: str = Depends(dep_folder_id),
-    content_type: str = Depends(dep_thumbnail_content_type),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    folder_id: FolderID,
+    content_type: ThumbnailContentType,
+) -> EmptyResponse:
     """Create a new thumbnail for a folder.
 
     Returns a thumbnail ID, which is also saved into the entity
@@ -217,19 +194,15 @@ async def create_folder_thumbnail(
     )
     folder.thumbnail_id = thumbnail_id
     await folder.save()
-    return Response(status_code=201)
+    return EmptyResponse()
 
 
-@router.get(
-    "/projects/{project_name}/folders/{folder_id}/thumbnail",
-    response_class=Response,
-    responses=responses,
-)
+@router.get("/projects/{project_name}/folders/{folder_id}/thumbnail")
 async def get_folder_thumbnail(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    folder_id: str = Depends(dep_folder_id),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    folder_id: FolderID,
+) -> Response:
     try:
         folder = await FolderEntity.load(project_name, folder_id)
         await folder.ensure_read_access(user)
@@ -243,19 +216,14 @@ async def get_folder_thumbnail(
 #
 
 
-@router.post(
-    "/projects/{project_name}/versions/{version_id}/thumbnail",
-    status_code=201,
-    response_class=Response,
-    responses=responses,
-)
+@router.post("/projects/{project_name}/versions/{version_id}/thumbnail")
 async def create_version_thumbnail(
     request: Request,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    version_id: str = Depends(dep_version_id),
-    content_type: str = Depends(dep_thumbnail_content_type),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    version_id: VersionID,
+    content_type: ThumbnailContentType,
+) -> Response:
     payload = await request.body()
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_update_access(user)
@@ -272,16 +240,12 @@ async def create_version_thumbnail(
     return Response(status_code=201)
 
 
-@router.get(
-    "/projects/{project_name}/versions/{version_id}/thumbnail",
-    response_class=Response,
-    responses=responses,
-)
+@router.get("/projects/{project_name}/versions/{version_id}/thumbnail")
 async def get_version_thumbnail(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    version_id: str = Depends(dep_version_id),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    version_id: VersionID,
+) -> Response:
     try:
         version = await VersionEntity.load(project_name, version_id)
         await version.ensure_read_access(user)
@@ -295,19 +259,14 @@ async def get_version_thumbnail(
 #
 
 
-@router.post(
-    "/projects/{project_name}/workfiles/{workfile_id}/thumbnail",
-    status_code=201,
-    response_class=Response,
-    responses=responses,
-)
+@router.post("/projects/{project_name}/workfiles/{workfile_id}/thumbnail")
 async def create_workfile_thumbnail(
     request: Request,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    workfile_id: str = Depends(dep_workfile_id),
-    content_type: str = Depends(dep_thumbnail_content_type),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    workfile_id: WorkfileID,
+    content_type: ThumbnailContentType,
+) -> Response:
     payload = await request.body()
     workfile = await WorkfileEntity.load(project_name, workfile_id)
     await workfile.ensure_update_access(user)
@@ -326,14 +285,10 @@ async def create_workfile_thumbnail(
 
 @router.get(
     "/projects/{project_name}/workfiles/{workfile_id}/thumbnail",
-    response_class=Response,
-    responses=responses,
 )
 async def get_workfile_thumbnail(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    workfile_id: str = Depends(dep_workfile_id),
-):
+    user: CurrentUser, project_name: ProjectName, workfile_id: WorkfileID
+) -> Response:
     try:
         workfile = await WorkfileEntity.load(project_name, workfile_id)
         await workfile.ensure_read_access(user)

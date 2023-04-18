@@ -1,5 +1,7 @@
 """Request dependencies."""
 
+from typing import Annotated
+
 from fastapi import Depends, Header, Path, Query, Request
 
 from ayon_server.auth.session import Session
@@ -36,10 +38,16 @@ async def dep_access_token(
         return None
 
 
+AccessToken = Annotated[str, Depends(dep_access_token)]
+
+
 async def dep_api_key(authorization: str = Header(None)) -> str | None:
     """Parse and return an api key provided in the authorisation header."""
     api_key = parse_api_key(authorization)
     return api_key
+
+
+ApiKey = Annotated[str, Depends(dep_api_key)]
 
 
 async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
@@ -51,6 +59,9 @@ async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
     if content_type not in ["image/png", "image/jpeg"]:
         raise UnsupportedMediaException("Thumbnail must be in png or jpeg format")
     return content_type
+
+
+ThumbnailContentType = Annotated[str, Depends(dep_thumbnail_content_type)]
 
 
 async def dep_current_user(
@@ -110,6 +121,9 @@ async def dep_current_user(
     return user
 
 
+CurrentUser = Annotated[UserEntity, Depends(dep_current_user)]
+
+
 async def dep_current_user_optional(
     request: Request,
     x_as_user: str | None = Header(None, regex=USER_NAME_REGEX),
@@ -130,6 +144,9 @@ async def dep_current_user_optional(
     return user
 
 
+CurrentUserOptional = Annotated[UserEntity | None, Depends(dep_current_user_optional)]
+
+
 async def dep_attribute_name(
     attribute_name: str = Path(
         ...,
@@ -138,6 +155,9 @@ async def dep_attribute_name(
     )
 ) -> str:
     return attribute_name
+
+
+AttributeName = Annotated[str, Depends(dep_attribute_name)]
 
 
 async def dep_new_project_name(
@@ -154,6 +174,9 @@ async def dep_new_project_name(
     request to create a new project.
     """
     return project_name
+
+
+NewProjectName = Annotated[str, Depends(dep_new_project_name)]
 
 
 async def dep_project_name(
@@ -187,6 +210,9 @@ async def dep_project_name(
     raise NotFoundException(f"Project {project_name} not found")
 
 
+ProjectName = Annotated[str, Depends(dep_project_name)]
+
+
 async def dep_project_name_or_underscore(
     project_name: str = Path(..., title="Project name")
 ) -> str:
@@ -195,11 +221,17 @@ async def dep_project_name_or_underscore(
     return await dep_project_name(project_name)
 
 
+ProjectNameOrUnderscore = Annotated[str, Depends(dep_project_name_or_underscore)]
+
+
 async def dep_user_name(
     user_name: str = Path(..., title="User name", regex=USER_NAME_REGEX)
 ) -> str:
     """Validate and return a user name specified in an endpoint path."""
     return user_name
+
+
+UserName = Annotated[str, Depends(dep_user_name)]
 
 
 async def dep_role_name(
@@ -213,6 +245,9 @@ async def dep_role_name(
     return role_name
 
 
+RoleName = Annotated[str, Depends(dep_role_name)]
+
+
 async def dep_secret_name(
     secret_name: str = Path(
         ...,
@@ -224,11 +259,17 @@ async def dep_secret_name(
     return secret_name
 
 
+SecretName = Annotated[str, Depends(dep_secret_name)]
+
+
 async def dep_folder_id(
     folder_id: str = Path(..., title="Folder ID", **EntityID.META)
 ) -> str:
     """Validate and return a folder id specified in an endpoint path."""
     return folder_id
+
+
+FolderID = Annotated[str, Depends(dep_folder_id)]
 
 
 async def dep_subset_id(
@@ -238,11 +279,17 @@ async def dep_subset_id(
     return subset_id
 
 
+SubsetID = Annotated[str, Depends(dep_subset_id)]
+
+
 async def dep_version_id(
     version_id: str = Path(..., title="Version ID", **EntityID.META)
 ) -> str:
     """Validate and return  a version id specified in an endpoint path."""
     return version_id
+
+
+VersionID = Annotated[str, Depends(dep_version_id)]
 
 
 async def dep_representation_id(
@@ -252,11 +299,17 @@ async def dep_representation_id(
     return representation_id
 
 
+RepresentationID = Annotated[str, Depends(dep_representation_id)]
+
+
 async def dep_task_id(
     task_id: str = Path(..., title="Task ID", **EntityID.META)
 ) -> str:
     """Validate and return a task id specified in an endpoint path."""
     return task_id
+
+
+TaskID = Annotated[str, Depends(dep_task_id)]
 
 
 async def dep_workfile_id(
@@ -266,11 +319,17 @@ async def dep_workfile_id(
     return workfile_id
 
 
+WorkfileID = Annotated[str, Depends(dep_workfile_id)]
+
+
 async def dep_thumbnail_id(
     thumbnail_id: str = Path(..., title="Thumbnail ID", **EntityID.META)
 ) -> str:
     """Validate and return a thumbnail id specified in an endpoint path."""
     return thumbnail_id
+
+
+ThumbnailID = Annotated[str, Depends(dep_thumbnail_id)]
 
 
 async def dep_event_id(
@@ -280,11 +339,17 @@ async def dep_event_id(
     return event_id
 
 
+EventID = Annotated[str, Depends(dep_event_id)]
+
+
 async def dep_link_id(
     link_id: str = Path(..., title="Link ID", **EntityID.META)
 ) -> str:
     """Validate and return a link id specified in an endpoint path."""
     return link_id
+
+
+LinkID = Annotated[str, Depends(dep_link_id)]
 
 
 async def dep_link_type(
@@ -313,3 +378,6 @@ async def dep_link_type(
         )
 
     return (name, input_type, output_type)
+
+
+LinkType = Annotated[tuple[str, str, str], Depends(dep_link_type)]

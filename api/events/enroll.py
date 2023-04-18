@@ -1,8 +1,7 @@
-from fastapi import Depends, Response
 from pydantic import Field
 
-from ayon_server.api.dependencies import dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.events import dispatch_event
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
@@ -52,16 +51,19 @@ class EnrollResponseModel(OPModel):
     status: str = Field("pending")
 
 
-@router.post("/enroll", response_model=EnrollResponseModel)
+@router.post("/enroll")
 async def enroll(
     payload: EnrollRequestModel,
-    current_user: UserEntity = Depends(dep_current_user),
-):
+    current_user: CurrentUser,
+) -> EnrollResponseModel | EmptyResponse:
     """Enroll for a new job.
 
     Enroll for a new job by providing a source topic and target topic.
     Used by workers to get a new job to process. If there is no job
     available, request returns 204 (no content).
+
+    Non-error response is returned because having nothing to do is not an error
+    and we don't want to spam the logs.
     """
     sender = payload.sender
 
@@ -108,7 +110,7 @@ async def enroll(
         if row["target_status"] is not None:
             if row["target_sender"] != sender:
                 if payload.sequential:
-                    return Response(status_code=204)
+                    return EmptyResponse()
                 continue
 
             # TODO: handle restarting own jobs
@@ -138,6 +140,6 @@ async def enroll(
                 id=new_id, hash=new_hash, depends_on=row["source_id"]
             )
         elif payload.sequential:
-            return Response(status_code=204)
+            return EmptyResponse()
 
-    return Response(status_code=204)
+    return EmptyResponse()

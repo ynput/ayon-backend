@@ -12,3 +12,12 @@ class LoginResponseModel(OPModel):
         None,
         title="User data",
     )
+
+
+class LogoutResponseModel(OPModel):
+    detail: str = Field(
+        "Logged out",
+        title="Response detail",
+        description="Text description, which may be displayed to the user",
+        example="Logged out",
+    )

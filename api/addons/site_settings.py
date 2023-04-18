@@ -1,12 +1,12 @@
 from typing import Any
 
 from addons.router import route_meta, router
-from fastapi import Depends, Query, Response
+from fastapi import Query
 from nxtools import logging
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.common import postprocess_settings_schema
@@ -16,8 +16,8 @@ from ayon_server.settings.common import postprocess_settings_schema
 async def get_addon_site_settings_schema(
     addon_name: str,
     version: str,
-    user: UserEntity = Depends(dep_current_user),
-):
+    user: CurrentUser,
+) -> dict[str, Any]:
     """Return the JSON schema of the addon site settings."""
 
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
@@ -43,9 +43,9 @@ async def get_addon_site_settings_schema(
 async def get_addon_site_settings(
     addon_name: str,
     version: str,
+    user: CurrentUser,
     site: str = Query(...),
-    user: UserEntity = Depends(dep_current_user),
-):
+) -> dict[str, Any]:
     """Return the JSON schema of the addon site settings."""
 
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
@@ -69,14 +69,14 @@ async def get_addon_site_settings(
     return model(**data)
 
 
-@router.put("/{addon_name}/{version}/siteSettings", **route_meta)
+@router.put("/{addon_name}/{version}/siteSettings", status_code=204, **route_meta)
 async def set_addon_site_settings(
     payload: dict[str, Any],
     addon_name: str,
     version: str,
+    user: CurrentUser,
     site: str = Query(..., title="Site ID", regex="^[a-z0-9-]+$"),
-    user: UserEntity = Depends(dep_current_user),
-):
+) -> EmptyResponse:
 
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
@@ -103,4 +103,4 @@ async def set_addon_site_settings(
         data.dict(),
     )
 
-    return Response(status_code=204)
+    return EmptyResponse()

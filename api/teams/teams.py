@@ -1,7 +1,6 @@
-from fastapi import Depends, Response
-
-from ayon_server.api.dependencies import dep_current_user, dep_project_name
-from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.api.responses import EmptyResponse
+from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import NotFoundException
 
 from .models import TeamListItemModel, TeamMemberModel, TeamModel, TeamPutModel
@@ -10,8 +9,7 @@ from .router import router
 
 @router.get("")
 async def get_teams(
-    project_name: str = Depends(dep_project_name),
-    current_user: UserEntity = Depends(dep_current_user),
+    project_name: ProjectName, current_user: CurrentUser
 ) -> list[TeamListItemModel]:
     """Get all teams in a project."""
     project = await ProjectEntity.load(project_name)
@@ -39,9 +37,9 @@ async def get_teams(
 async def save_team(
     team_name: str,
     team: TeamPutModel,
-    project_name: str = Depends(dep_project_name),
-    current_user: UserEntity = Depends(dep_current_user),
-):
+    project_name: ProjectName,
+    current_user: CurrentUser,
+) -> EmptyResponse:
     """Save a team."""
     project = await ProjectEntity.load(project_name)
     existing_teams = project.data.get("teams", [])
@@ -60,7 +58,7 @@ async def save_team(
 
     project.data["teams"] = existing_teams
     await project.save()
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 @router.put("/{team_name}/members/{member_name}")
@@ -68,9 +66,9 @@ async def save_team_member(
     team_name: str,
     member_name: str,
     member: TeamMemberModel,
-    project_name: str = Depends(dep_project_name),
-    current_user: UserEntity = Depends(dep_current_user),
-):
+    project_name: ProjectName,
+    current_user: CurrentUser,
+) -> EmptyResponse:
     """Save a team member."""
     project = await ProjectEntity.load(project_name)
     existing_teams = project.data.get("teams", [])
@@ -101,15 +99,13 @@ async def save_team_member(
 
     project.data["teams"] = existing_teams
     await project.save()
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 @router.delete("/{team_name}")
 async def delete_team(
-    team_name: str,
-    project_name: str = Depends(dep_project_name),
-    current_user: UserEntity = Depends(dep_current_user),
-):
+    team_name: str, project_name: ProjectName, current_user: CurrentUser
+) -> EmptyResponse:
     """Delete a team."""
     project = await ProjectEntity.load(project_name)
     existing_teams = project.data.get("teams", [])
@@ -123,16 +119,16 @@ async def delete_team(
 
     project.data["teams"] = existing_teams
     await project.save()
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 @router.delete("/{team_name}/members/{member_name}")
 async def delete_team_member(
     team_name: str,
     member_name: str,
-    project_name: str = Depends(dep_project_name),
-    current_user: UserEntity = Depends(dep_current_user),
-):
+    project_name: ProjectName,
+    current_user: CurrentUser,
+) -> EmptyResponse:
     """Delete a team member."""
     project = await ProjectEntity.load(project_name)
     existing_teams = project.data.get("teams", [])
@@ -158,4 +154,4 @@ async def delete_team_member(
 
     project.data["teams"] = existing_teams
     await project.save()
-    return Response(status_code=204)
+    return EmptyResponse()

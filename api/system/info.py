@@ -4,11 +4,11 @@ from typing import Literal
 from urllib.parse import urlparse
 
 from attributes.attributes import AttributeModel, get_attribute_list
-from fastapi import Depends, Request
+from fastapi import Request
 from pydantic import ValidationError
 
 from ayon_server.addons import AddonLibrary, SSOOption
-from ayon_server.api import dep_current_user_optional
+from ayon_server.api.dependencies import CurrentUserOptional
 from ayon_server.api.metadata import VERSION
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
@@ -132,16 +132,10 @@ async def get_additional_info(user: UserEntity, request: Request):
     }
 
 
-@router.get(
-    "/info",
-    response_model=InfoResponseModel,
-    response_model_exclude_none=True,
-    tags=["System"],
-)
+@router.get("/info", response_model_exclude_none=True, tags=["System"])
 async def get_site_info(
-    request: Request,
-    current_user: UserEntity | None = Depends(dep_current_user_optional),
-):
+    request: Request, current_user: CurrentUserOptional
+) -> InfoResponseModel:
     """Return site information.
 
     This is the initial endpoint that is called when the user opens the page.

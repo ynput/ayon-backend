@@ -1,16 +1,16 @@
-from fastapi import Depends, Header, Response
+from fastapi import Header
 from nxtools import logging
 from projects.router import router
 
-from ayon_server.api import (
-    ResponseFactory,
-    dep_current_user,
-    dep_new_project_name,
-    dep_project_name,
-)
-from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.api.dependencies import CurrentUser, NewProjectName, ProjectName
+from ayon_server.api.responses import EmptyResponse
+from ayon_server.entities import ProjectEntity
 from ayon_server.events import dispatch_event
-from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.exceptions import (
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.lib.postgres import Postgres
 
 #
@@ -18,16 +18,11 @@ from ayon_server.lib.postgres import Postgres
 #
 
 
-@router.get(
-    "/projects/{project_name}",
-    response_model=ProjectEntity.model.main_model,
-    response_model_exclude_none=True,
-    responses={404: ResponseFactory.error(404, "Project not found")},
-)
+@router.get("/projects/{project_name}", response_model_exclude_none=True)
 async def get_project(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+) -> ProjectEntity.model.main_model:  # type: ignore
     """Retrieve a project by its name."""
 
     project = await ProjectEntity.load(project_name)
@@ -39,13 +34,8 @@ async def get_project(
 #
 
 
-@router.get(
-    "/projects/{project_name}/stats",
-)
-async def get_project_stats(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-):
+@router.get("/projects/{project_name}/stats")
+async def get_project_stats(user: CurrentUser, project_name: ProjectName):
     """Retrieve a project statistics by its name."""
 
     counts = {}
@@ -66,20 +56,12 @@ async def get_project_stats(
 #
 
 
-@router.put(
-    "/projects/{project_name}",
-    response_class=Response,
-    status_code=201,
-    responses={
-        201: {"content": "", "description": "Project created"},
-        409: ResponseFactory.error(409, "Project already exists"),
-    },
-)
+@router.put("/projects/{project_name}", status_code=201)
 async def create_project(
     put_data: ProjectEntity.model.post_model,  # type: ignore
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_new_project_name),
-):
+    user: CurrentUser,
+    project_name: NewProjectName,
+) -> EmptyResponse:
     """Create a new project.
 
     Since project has no ID, and a unique name is used as its
@@ -110,12 +92,12 @@ async def create_project(
         project = ProjectEntity(payload=put_data.dict() | {"name": project_name})
         action = "Created"
     else:
-        return Response(status_code=409)
+        raise ConflictException(f"Project {project_name} already exists")
 
     await project.save()
 
     logging.info(f"[PUT] {action} project {project.name}", user=user.name)
-    return Response(status_code=201)
+    return EmptyResponse(status_code=201)
 
 
 #
@@ -123,15 +105,11 @@ async def create_project(
 #
 
 
-@router.patch(
-    "/projects/{project_name}",
-    status_code=204,
-    response_class=Response,
-)
+@router.patch("/projects/{project_name}", status_code=204)
 async def update_project(
     patch_data: ProjectEntity.model.patch_model,  # type: ignore
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    user: CurrentUser,
+    project_name: ProjectName,
     x_sender: str | None = Header(default=None),
 ):
     """Patch a project.
@@ -158,7 +136,7 @@ async def update_project(
         description=f"Updated project {project_name}",
     )
     logging.info(f"[PATCH] Updated project {project.name}", user=user.name)
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 #
@@ -166,15 +144,8 @@ async def update_project(
 #
 
 
-@router.delete(
-    "/projects/{project_name}",
-    response_class=Response,
-    status_code=204,
-)
-async def delete_project(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-):
+@router.delete("/projects/{project_name}", status_code=204)
+async def delete_project(user: CurrentUser, project_name: ProjectName) -> EmptyResponse:
     """Delete a given project including all its entities."""
 
     project = await ProjectEntity.load(project_name)
@@ -184,4 +155,4 @@ async def delete_project(
 
     await project.delete()
     logging.info(f"[DELETE] Deleted project {project.name}", user=user.name)
-    return Response(status_code=204)
+    return EmptyResponse()

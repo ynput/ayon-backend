@@ -1,22 +1,12 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
+from fastapi import APIRouter, BackgroundTasks, Header
 
-from ayon_server.api.dependencies import (
-    dep_current_user,
-    dep_project_name,
-    dep_subset_id,
-)
-from ayon_server.api.responses import EntityIdResponse, ResponseFactory
-from ayon_server.entities import SubsetEntity, UserEntity
+from ayon_server.api.dependencies import CurrentUser, ProjectName, SubsetID
+from ayon_server.api.responses import EmptyResponse, EntityIdResponse
+from ayon_server.entities import SubsetEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
 
-router = APIRouter(
-    tags=["Subsets"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403),
-    },
-)
+router = APIRouter(tags=["Subsets"])
 
 #
 # [GET]
@@ -24,16 +14,13 @@ router = APIRouter(
 
 
 @router.get(
-    "/projects/{project_name}/subsets/{subset_id}",
-    response_model=SubsetEntity.model.main_model,
-    response_model_exclude_none=True,
-    responses={404: ResponseFactory.error(404, "Subset not found")},
+    "/projects/{project_name}/subsets/{subset_id}", response_model_exclude_none=True
 )
 async def get_subset(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    subset_id: str = Depends(dep_subset_id),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+    subset_id: SubsetID,
+) -> SubsetEntity.model.main_model:  # type: ignore
     """Retrieve a subset by its ID."""
 
     subset = await SubsetEntity.load(project_name, subset_id)
@@ -46,21 +33,14 @@ async def get_subset(
 #
 
 
-@router.post(
-    "/projects/{project_name}/subsets",
-    status_code=201,
-    response_model=EntityIdResponse,
-    responses={
-        409: ResponseFactory.error(409, "Coflict"),
-    },
-)
+@router.post("/projects/{project_name}/subsets", status_code=201)
 async def create_subset(
     post_data: SubsetEntity.model.post_model,  # type: ignore
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    user: CurrentUser,
+    project_name: ProjectName,
     x_sender: str | None = Header(default=None),
-):
+) -> EntityIdResponse:
     """Create a new subset."""
 
     subset = SubsetEntity(project_name=project_name, payload=post_data.dict())
@@ -86,19 +66,15 @@ async def create_subset(
 #
 
 
-@router.patch(
-    "/projects/{project_name}/subsets/{subset_id}",
-    status_code=204,
-    response_class=Response,
-)
+@router.patch("/projects/{project_name}/subsets/{subset_id}", status_code=204)
 async def update_subset(
     post_data: SubsetEntity.model.patch_model,  # type: ignore
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    subset_id: str = Depends(dep_subset_id),
+    user: CurrentUser,
+    project_name: ProjectName,
+    subset_id: SubsetID,
     x_sender: str | None = Header(default=None),
-):
+) -> EmptyResponse:
     """Patch (partially update) a subset."""
 
     subset = await SubsetEntity.load(project_name, subset_id)
@@ -113,7 +89,7 @@ async def update_subset(
             user=user.name,
             **event,
         )
-    return Response(status_code=204)
+    return EmptyResponse(status_code=204)
 
 
 #
@@ -121,18 +97,14 @@ async def update_subset(
 #
 
 
-@router.delete(
-    "/projects/{project_name}/subsets/{subset_id}",
-    response_class=Response,
-    status_code=204,
-)
+@router.delete("/projects/{project_name}/subsets/{subset_id}")
 async def delete_subset(
     background_tasks: BackgroundTasks,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-    subset_id: str = Depends(dep_subset_id),
+    user: CurrentUser,
+    project_name: ProjectName,
+    subset_id: SubsetID,
     x_sender: str | None = Header(default=None),
-):
+) -> EmptyResponse:
     """Delete a subset."""
 
     subset = await SubsetEntity.load(project_name, subset_id)
@@ -150,4 +122,4 @@ async def delete_subset(
         user=user.name,
         **event,
     )
-    return Response(status_code=204)
+    return EmptyResponse()

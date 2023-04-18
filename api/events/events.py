@@ -1,10 +1,9 @@
 from typing import Any
 
-from fastapi import Depends, Response
 from nxtools import logging
 
-from ayon_server.api.dependencies import dep_current_user, dep_event_id
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser, EventID
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.events import EventModel, dispatch_event, update_event
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -107,10 +106,10 @@ class DispatchEventResponseModel(OPModel):
 #
 
 
-@router.post("/events", response_model=DispatchEventResponseModel)
+@router.post("/events")
 async def post_event(
     request: DispatchEventRequestModel,
-    user: UserEntity = Depends(dep_current_user),
+    user: CurrentUser,
 ) -> DispatchEventResponseModel:
 
     if not user.is_manager:
@@ -133,10 +132,7 @@ async def post_event(
 
 
 @router.get("/events/{event_id}")
-async def get_event(
-    user: UserEntity = Depends(dep_current_user),
-    event_id: str = Depends(dep_event_id),
-) -> EventModel:
+async def get_event(user: CurrentUser, event_id: EventID) -> EventModel:
     """Get event by ID.
 
     Return event data with given ID. If event is not found, 404 is returned.
@@ -172,12 +168,10 @@ async def get_event(
     return event
 
 
-@router.patch("/events/{event_id}", response_class=Response)
+@router.patch("/events/{event_id}", status_code=204)
 async def update_existing_event(
-    payload: UpdateEventRequestModel,
-    user: UserEntity = Depends(dep_current_user),
-    event_id: str = Depends(dep_event_id),
-):
+    payload: UpdateEventRequestModel, user: CurrentUser, event_id: EventID
+) -> EmptyResponse:
     """Update existing event."""
 
     if not user.is_manager:
@@ -198,4 +192,4 @@ async def update_existing_event(
         payload.payload,
     )
 
-    return Response(status_code=204)
+    return EmptyResponse()

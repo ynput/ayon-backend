@@ -1,11 +1,11 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import Depends, Path, Response
+from fastapi import Path
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -35,8 +35,8 @@ class ServiceListModel(OPModel):
     services: list[ServiceModel] = Field(default_factory=list)
 
 
-@router.get("/services", response_model=ServiceListModel, tags=["Services"])
-async def list_services(user: UserEntity = Depends(dep_current_user)):
+@router.get("/services", tags=["Services"])
+async def list_services(user: CurrentUser) -> ServiceListModel:
 
     query = "SELECT * FROM services ORDER BY name ASC"
     services = []
@@ -58,12 +58,12 @@ class SpawnServiceRequestModel(OPModel):
     hostname: str
 
 
-@router.put("/services/{name}", response_class=Response, tags=["Services"])
+@router.put("/services/{name}", status_code=204, tags=["Services"])
 async def spawn_service(
     payload: SpawnServiceRequestModel,
+    user: CurrentUser,
     name: str = Path(...),
-    user: UserEntity = Depends(dep_current_user),
-):
+) -> EmptyResponse:
 
     if not user.is_admin:
         raise ForbiddenException("Only admins can spawn services")
@@ -100,36 +100,27 @@ async def spawn_service(
         data,
     )
 
-    return Response(status_code=201)
+    return EmptyResponse()
 
 
-@router.delete("/services/{name}", response_class=Response, tags=["Services"])
-async def delete_service(
-    name: str = Path(...),
-    user: UserEntity = Depends(dep_current_user),
-):
-
+@router.delete("/services/{name}", status_code=204, tags=["Services"])
+async def delete_service(user: CurrentUser, name: str = Path(...)) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can delete services")
-
     await Postgres.execute("DELETE FROM services WHERE name = $1", name)
-
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 class PatchServiceRequestModel(OPModel):
     should_run: bool | None = Field(None)
 
 
-@router.patch("/services/{name}", response_class=Response, tags=["Services"])
+@router.patch("/services/{name}", status_code=204, tags=["Services"])
 async def patch_service(
-    payload: PatchServiceRequestModel,
-    name: str = Path(...),
-    user: UserEntity = Depends(dep_current_user),
-):
+    payload: PatchServiceRequestModel, user: CurrentUser, name: str = Path(...)
+) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can modify services")
-
     await Postgres.execute(
         *SQLTool.update(
             "services",
@@ -137,5 +128,4 @@ async def patch_service(
             **payload.dict(),
         )
     )
-
-    return Response(status_code=204)
+    return EmptyResponse()

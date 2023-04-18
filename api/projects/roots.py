@@ -1,19 +1,17 @@
-from fastapi import Depends, Path, Response
+from fastapi import Path
 from projects.router import router
 
-from ayon_server.api import ResponseFactory, dep_current_user, dep_project_name
-from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.api.responses import EmptyResponse
+from ayon_server.entities import ProjectEntity
 from ayon_server.lib.postgres import Postgres
 
 
-@router.get(
-    "/projects/{project_name}/roots",
-    responses={404: ResponseFactory.error(404, "Project not found")},
-)
+@router.get("/projects/{project_name}/roots")
 async def get_project_roots_overrides(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
-):
+    user: CurrentUser,
+    project_name: ProjectName,
+) -> dict[str, dict[str, str]]:
     """Return overrides for project roots.
 
     This endpoint is used to get overrides for project roots.
@@ -36,13 +34,13 @@ async def get_project_roots_overrides(
     return result
 
 
-@router.put("/projects/{project_name}/roots/{site_id}", response_class=Response)
+@router.put("/projects/{project_name}/roots/{site_id}")
 async def set_project_roots_overrides(
     payload: dict[str, str],
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    user: CurrentUser,
+    project_name: ProjectName,
     site_id: str = Path(...),
-):
+) -> EmptyResponse:
 
     project = await ProjectEntity.load(project_name)
     for root_name in project.config["roots"]:
@@ -57,4 +55,4 @@ async def set_project_roots_overrides(
 
     await Postgres.execute(query, site_id, user.name, payload)
 
-    return Response(status_code=204)
+    return EmptyResponse()

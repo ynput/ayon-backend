@@ -1,13 +1,13 @@
 from typing import Any
 
 from addons.router import route_meta, router
-from fastapi import Depends, Query, Response
+from fastapi import Query, Response
 from pydantic.error_wrappers import ValidationError
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import dep_current_user
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
-from ayon_server.entities import UserEntity
 from ayon_server.events import dispatch_event
 from ayon_server.exceptions import (
     BadRequestException,
@@ -26,10 +26,8 @@ from .common import ModifyOverridesRequestModel, pin_override, remove_override
 
 @router.get("/{addon_name}/{addon_version}/schema", **route_meta)
 async def get_addon_settings_schema(
-    addon_name: str,
-    addon_version: str,
-    user: UserEntity = Depends(dep_current_user),
-):
+    addon_name: str, addon_version: str, user: CurrentUser
+) -> dict[str, Any]:
     """Return the JSON schema of the addon settings."""
 
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
@@ -50,9 +48,9 @@ async def get_addon_settings_schema(
 async def get_addon_studio_settings(
     addon_name: str,
     addon_version: str,
+    user: CurrentUser,
     variant: str = Query("production"),
-    user: UserEntity = Depends(dep_current_user),
-):
+) -> dict[str, Any]:
     """Return the settings (including studio overrides) of the given addon."""
 
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
@@ -60,14 +58,14 @@ async def get_addon_studio_settings(
     return await addon.get_studio_settings(variant=variant)
 
 
-@router.post("/{addon_name}/{addon_version}/settings", **route_meta)
+@router.post("/{addon_name}/{addon_version}/settings", status_code=204, **route_meta)
 async def set_addon_studio_settings(
     payload: dict[str, Any],
     addon_name: str,
     addon_version: str,
+    user: CurrentUser,
     variant: str = Query("production"),
-    user: UserEntity = Depends(dep_current_user),
-):
+) -> EmptyResponse:
     """Set the studio overrides for the given addon."""
 
     if not user.is_manager:
@@ -118,15 +116,15 @@ async def set_addon_studio_settings(
         user=user.name,
         payload=payload,
     )
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 @router.get("/{addon_name}/{addon_version}/overrides", **route_meta)
 async def get_addon_studio_overrides(
     addon_name: str,
     addon_version: str,
+    user: CurrentUser,
     variant: str = Query("production"),
-    user: UserEntity = Depends(dep_current_user),
 ):
     if not user.is_manager:
         raise ForbiddenException
@@ -139,13 +137,13 @@ async def get_addon_studio_overrides(
     return list_overrides(settings, overrides)
 
 
-@router.delete("/{addon_name}/{addon_version}/overrides", **route_meta)
+@router.delete("/{addon_name}/{addon_version}/overrides", status_code=204, **route_meta)
 async def delete_addon_studio_overrides(
     addon_name: str,
     addon_version: str,
+    user: CurrentUser,
     variant: str = Query("production"),
-    user: UserEntity = Depends(dep_current_user),
-):
+) -> EmptyResponse:
     # TODO: Selectable snapshot
 
     if not user.is_manager:
@@ -175,17 +173,17 @@ async def delete_addon_studio_overrides(
         },
         user=user.name,
     )
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
-@router.post("/{addon_name}/{addon_version}/overrides", **route_meta)
+@router.post("/{addon_name}/{addon_version}/overrides", status_code=204, **route_meta)
 async def modify_studio_overrides(
     payload: ModifyOverridesRequestModel,
     addon_name: str,
     addon_version: str,
+    user: CurrentUser,
     variant: str = Query("production"),
-    user: UserEntity = Depends(dep_current_user),
-):
+) -> EmptyResponse:
     if not user.is_manager:
         raise ForbiddenException
 
@@ -193,4 +191,4 @@ async def modify_studio_overrides(
         await remove_override(addon_name, addon_version, payload.path, variant=variant)
     elif payload.action == "pin":
         await pin_override(addon_name, addon_version, payload.path, variant=variant)
-    return Response(status_code=204)
+    return EmptyResponse()

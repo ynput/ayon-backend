@@ -1,14 +1,15 @@
 from typing import Any
 
 from addons.router import route_meta, router
-from fastapi import Depends, Query, Response
+from fastapi import Query
 from nxtools import logging
 from pydantic.error_wrappers import ValidationError
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import dep_current_user, dep_project_name
+from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
-from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.entities import ProjectEntity
 from ayon_server.events import dispatch_event
 from ayon_server.exceptions import (
     BadRequestException,
@@ -35,10 +36,10 @@ from .common import (
 async def get_addon_project_settings_schema(
     addon_name: str,
     version: str,
-    project_name: str = Depends(dep_project_name),
-    user: UserEntity = Depends(dep_current_user),
+    project_name: ProjectName,
+    user: CurrentUser,
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
-):
+) -> dict[str, Any]:
     """Return the JSON schema of the addon settings."""
 
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
@@ -66,11 +67,11 @@ async def get_addon_project_settings_schema(
 async def get_addon_project_settings(
     addon_name: str,
     version: str,
-    project_name: str,
-    user: UserEntity = Depends(dep_current_user),
+    project_name: ProjectName,
+    user: CurrentUser,
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
-):
+) -> dict[str, Any]:
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
@@ -84,8 +85,8 @@ async def get_addon_project_settings(
 async def get_addon_project_overrides(
     addon_name: str,
     version: str,
-    project_name: str,
-    user: UserEntity = Depends(dep_current_user),
+    project_name: ProjectName,
+    user: CurrentUser,
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
@@ -117,16 +118,18 @@ async def get_addon_project_overrides(
     return result
 
 
-@router.post("/{addon_name}/{version}/settings/{project_name}", **route_meta)
+@router.post(
+    "/{addon_name}/{version}/settings/{project_name}", status_code=204, **route_meta
+)
 async def set_addon_project_settings(
     payload: dict[str, Any],
     addon_name: str,
     version: str,
-    project_name: str,
-    user: UserEntity = Depends(dep_current_user),
+    project_name: ProjectName,
+    user: CurrentUser,
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
-):
+) -> EmptyResponse:
     """Set the studio overrides of the given addon."""
 
     addon = AddonLibrary.addon(addon_name, version)
@@ -142,7 +145,7 @@ async def set_addon_project_settings(
         existing = await addon.get_project_overrides(project_name)
         if original is None:
             # This addon does not have settings
-            return Response(status_code=400)
+            raise BadRequestException(f"Addon {addon_name} has no settings")
         try:
             data = extract_overrides(original, model(**payload), existing)
         except ValidationError:
@@ -183,7 +186,7 @@ async def set_addon_project_settings(
             payload=payload,
         )
 
-        return Response(status_code=204)
+        return EmptyResponse()
 
     # site settings
 
@@ -191,7 +194,7 @@ async def set_addon_project_settings(
     existing = await addon.get_project_site_overrides(project_name, user.name, site)
     if original is None:
         # This addon does not have settings
-        return Response(status_code=400)
+        raise BadRequestException(f"Addon {addon_name} has no settings")
     try:
         data = extract_overrides(original, model(**payload), existing)
     except ValidationError:
@@ -211,15 +214,15 @@ async def set_addon_project_settings(
         user.name,
         data,
     )
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 @router.delete("/{addon_name}/{version}/overrides/{project_name}", **route_meta)
 async def delete_addon_project_overrides(
     addon_name: str,
     version: str,
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name),
+    user: CurrentUser,
+    project_name: ProjectName,
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
@@ -255,7 +258,7 @@ async def delete_addon_project_overrides(
             project=project_name,
         )
 
-        return Response(status_code=204)
+        return EmptyResponse()
 
     # site settings
 
@@ -272,7 +275,7 @@ async def delete_addon_project_overrides(
         site,
         user.name,
     )
-    return Response(status_code=204)
+    return EmptyResponse()
 
 
 @router.post("/{addon_name}/{version}/overrides/{project_name}", **route_meta)
@@ -280,8 +283,8 @@ async def modify_project_overrides(
     payload: ModifyOverridesRequestModel,
     addon_name: str,
     version: str,
-    project_name: str,
-    user: UserEntity = Depends(dep_current_user),
+    project_name: ProjectName,
+    user: CurrentUser,
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
@@ -307,7 +310,7 @@ async def modify_project_overrides(
                 payload.path,
             )
 
-        return Response(status_code=204)
+        return EmptyResponse()
 
     if not user.is_manager:
         raise ForbiddenException
@@ -328,4 +331,4 @@ async def modify_project_overrides(
             project_name=project_name,
             variant=variant,
         )
-    return Response(status_code=204)
+    return EmptyResponse()

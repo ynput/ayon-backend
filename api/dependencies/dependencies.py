@@ -1,26 +1,17 @@
 import os
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Path, Request, Response
+from fastapi import APIRouter, Path, Request, Response
 from nxtools import logging
 
-from ayon_server.api import ResponseFactory
-from ayon_server.api.dependencies import dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import dict_exclude
 
-router = APIRouter(
-    prefix="/dependencies",
-    tags=["Dependencies"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403),
-        404: ResponseFactory.error(404),
-    },
-)
+router = APIRouter(prefix="/dependencies", tags=["Dependency packages"])
 
 
 Platform = Literal["windows", "linux", "darwin"]
@@ -93,9 +84,11 @@ class DependencyPackageList(OPModel):
     production_package: str | None = None
 
 
-@router.get("", response_model=DependencyPackageList)
-async def list_dependency_packages():
+@router.get("")
+async def list_dependency_packages() -> DependencyPackageList:
     """Return a list of dependency packages"""
+
+    # TODO: is there a reason for not having authentication here?
 
     packages: list[DependencyPackage] = []
     async for row in Postgres.iterate(
@@ -125,11 +118,11 @@ async def list_dependency_packages():
     return result
 
 
-@router.put("", response_class=Response)
+@router.put("", status_code=204)
 async def store_dependency_package(
     payload: DependencyPackage,
-    user: UserEntity = Depends(dep_current_user),
-):
+    user: CurrentUser,
+) -> EmptyResponse:
     """Create (or update) a dependency package record in the database.
 
     You can set external download locations in the payload,
@@ -153,15 +146,15 @@ async def store_dependency_package(
         data,
     )
 
-    return Response(status_code=201)
+    return EmptyResponse()
 
 
 @router.get("/{package_name}/{platform}")
 async def download_dependency_package(
-    user: UserEntity = Depends(dep_current_user),
+    user: CurrentUser,
     package_name: str = Path(...),
     platform: Platform = Path(...),
-):
+) -> Response:
     """Download dependency package.
 
     Use this endpoint to download dependency package stored on the server.
@@ -191,13 +184,13 @@ async def download_dependency_package(
     )
 
 
-@router.post("/{package_name}/{platform}", response_class=Response)
+@router.post("/{package_name}/{platform}", status_code=204)
 async def upload_dependency_package(
     request: Request,
-    user: UserEntity = Depends(dep_current_user),
+    user: CurrentUser,
     package_name: str = Path(...),
     platform: Platform = Path(...),
-):
+) -> EmptyResponse:
     """Upload a dependency package to the server."""
 
     if not user.is_admin:
@@ -245,15 +238,15 @@ async def upload_dependency_package(
             f"expected: {expected_checksum}, got: {checksum}"
         )
 
-    return Response(status_code=201)
+    return EmptyResponse()
 
 
-@router.delete("/{package_name}/{platform}", response_class=Response)
+@router.delete("/{package_name}/{platform}", status_code=204)
 async def delete_dependency_package(
-    user: UserEntity = Depends(dep_current_user),
+    user: CurrentUser,
     package_name: str = Path(...),
     platform: Platform = Path(...),
-):
+) -> EmptyResponse:
     """Delete a dependency package from the server.
     If there is an uploaded package, it will be deleted as well.
     """
@@ -273,4 +266,4 @@ async def delete_dependency_package(
         platform,
     )
 
-    return Response(status_code=204)
+    return EmptyResponse()

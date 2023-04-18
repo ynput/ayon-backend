@@ -1,17 +1,12 @@
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, Response
+from fastapi import APIRouter, Body
 from nxtools import log_traceback
 
 from ayon_server.access.permissions import Permissions
 from ayon_server.access.roles import Roles
-from ayon_server.api import ResponseFactory
-from ayon_server.api.dependencies import (
-    dep_current_user,
-    dep_project_name_or_underscore,
-    dep_role_name,
-)
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser, ProjectNameOrUnderscore, RoleName
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import (
     ConstraintViolationException,
     ForbiddenException,
@@ -20,19 +15,7 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import postprocess_settings_schema
 
-#
-# Router
-#
-
-
-router = APIRouter(
-    prefix="/roles",
-    tags=["Roles"],
-    responses={
-        401: ResponseFactory.error(401),
-        403: ResponseFactory.error(403),
-    },
-)
+router = APIRouter(prefix="/roles", tags=["Roles"])
 
 
 @router.get("/_schema")
@@ -44,9 +27,8 @@ async def get_role_schema():
 
 @router.get("/{project_name}")
 async def get_roles(
-    user: UserEntity = Depends(dep_current_user),
-    project_name: str = Depends(dep_project_name_or_underscore),
-):
+    user: CurrentUser, project_name: ProjectNameOrUnderscore
+) -> list[dict[str, Any]]:
     """Get a list of roles for a given project"""
 
     rdict = {}
@@ -70,30 +52,27 @@ async def get_roles(
 
 @router.get(
     "/{role_name}/{project_name}",
-    response_model=Permissions,
     response_model_exclude_none=True,
 )
 async def get_role(
-    user: UserEntity = Depends(dep_current_user),
-    role_name: str = Depends(dep_role_name),
-    project_name: str = Depends(dep_project_name_or_underscore),
-):
+    user: CurrentUser,
+    role_name: RoleName,
+    project_name: ProjectNameOrUnderscore,
+) -> Permissions:
     """Get a role definition"""
     return Roles.combine([role_name], project_name)
 
 
 @router.put(
     "/{role_name}/{project_name}",
-    response_class=Response,
-    status_code=201,
-    responses={201: {"content": "", "description": "Role created"}},
+    status_code=204,
 )
 async def save_role(
+    user: CurrentUser,
+    role_name: RoleName,
+    project_name: ProjectNameOrUnderscore,
     data: Permissions = Body(..., description="Set of role permissions"),
-    user: UserEntity = Depends(dep_current_user),
-    role_name: str = Depends(dep_role_name),
-    project_name: str = Depends(dep_project_name_or_underscore),
-):
+) -> EmptyResponse:
     """Create or update a user role.
 
     Use `_` as a project name to save a global role.
@@ -122,18 +101,14 @@ async def save_role(
 
     await Roles.load()
     # TODO: messaging: notify other instances
-    return Response(status_code=201)
+    return EmptyResponse()
 
 
-@router.delete(
-    "/{role_name}/{project_name}",
-    response_class=Response,
-    status_code=204,
-)
+@router.delete("/{role_name}/{project_name}", status_code=204)
 async def delete_role(
-    user: UserEntity = Depends(dep_current_user),
-    role_name: str = Depends(dep_role_name),
-    project_name: str = Depends(dep_project_name_or_underscore),
+    user: CurrentUser,
+    role_name: RoleName,
+    project_name: ProjectNameOrUnderscore,
 ):
     """Delete a user role"""
 
@@ -157,4 +132,4 @@ async def delete_role(
 
     await Roles.load()
     # TODO: messaging: notify other instances
-    return Response(status_code=204)
+    return EmptyResponse()
