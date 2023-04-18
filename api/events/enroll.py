@@ -51,7 +51,8 @@ class EnrollResponseModel(OPModel):
     status: str = Field("pending")
 
 
-@router.post("/enroll")
+# response model must be here
+@router.post("/enroll", response_model=EnrollResponseModel)
 async def enroll(
     payload: EnrollRequestModel,
     current_user: CurrentUser,
