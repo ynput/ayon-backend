@@ -50,7 +50,7 @@ async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> A
     )
 
 
-@router.post("/projects/{project_name}/anatomy", status_code=204)
+@router.post("/projects/{project_name}/anatomy")
 async def set_project_anatomy(
     payload: Anatomy,
     user: CurrentUser,

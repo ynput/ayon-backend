@@ -283,9 +283,9 @@ async def modify_project_overrides(
     payload: ModifyOverridesRequestModel,
     addon_name: str,
     version: str,
-    project_name: str,
+    project_name: ProjectName,
     user: CurrentUser,
-    variant: ProjectName,
+    variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
 
