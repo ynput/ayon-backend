@@ -261,7 +261,10 @@ async def ws_endpoint(websocket: WebSocket) -> None:
         #     logging.info(f"{client.user_name} disconnected")
         # else:
         #     logging.info("Anonymous client disconnected")
-        del messaging.clients[client.id]
+        try:
+            del messaging.clients[client.id]
+        except KeyError:
+            pass
 
 
 #

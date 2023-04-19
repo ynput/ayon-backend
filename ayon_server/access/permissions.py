@@ -13,6 +13,8 @@ async def attr_enum():
 
 
 class FolderAccess(BaseSettingsModel):
+    """FolderAccess model defines a single whitelist item on accessing a folder."""
+
     _layout: str = "compact"
     access_type: str = Field(
         "assigned",
@@ -20,7 +22,12 @@ class FolderAccess(BaseSettingsModel):
         enum_resolver=lambda: ["assigned", "hierarchy", "children"],
     )
 
-    path: str | None = Field("", title="Path")
+    path: str | None = Field(
+        "",
+        title="Path",
+        description="The path of the folder to allow access to. "
+        "Required for access_type 'hierarchy and 'children'",
+    )
 
     def __hash__(self):
         return hash(json_dumps(self.dict()))
@@ -54,41 +61,53 @@ class EndpointsAccessList(BasePermissionsModel):
 
 
 class Permissions(BaseSettingsModel):
+    """
+    The Permissions model defines the permissions for a role
+    to interact with specific resources in the system.
+    """
+
     _layout: str = "root"
 
     create: FolderAccessList = Field(
         default_factory=FolderAccessList,
-        title="Limit folder create",
+        title="Folder create",
+        description="Whitelist folders a user can create",
     )
 
     read: FolderAccessList = Field(
         default_factory=FolderAccessList,
-        title="Limit folder read",
+        title="Folder read",
+        description="Whitelist folders a user can read",
     )
 
     update: FolderAccessList = Field(
         default_factory=FolderAccessList,
-        title="Limit folder update",
+        title="Folder update",
+        description="Whitelist folders a user can update",
     )
 
     delete: FolderAccessList = Field(
         default_factory=FolderAccessList,
-        title="Limit folder delete",
+        title="Folder delete",
+        description="Whitelist folders a user can delete",
     )
 
     attrib_read: AttributeAccessList = Field(
         default_factory=AttributeAccessList,
-        title="Limit attribute read access",
+        title="Attribute read",
+        description="Whitelist attributes a user can read",
     )
 
     attrib_write: AttributeAccessList = Field(
         default_factory=AttributeAccessList,
-        title="Limit attribute write access",
+        title="Attribute write",
+        description="Whitelist attributes a user can write",
     )
 
     endpoints: EndpointsAccessList = Field(
         default_factory=EndpointsAccessList,
         title="Limit REST endpoints",
+        description="Whitelist REST endpoints a user can access",
     )
 
     @classmethod

@@ -38,7 +38,7 @@ class AttributeLibrary:
         return attribute in [k["name"] for k in self.data[entity_type]]
 
     async def load(self) -> None:
-        query = "SELECT name, scope, data from public.attributes"
+        query = "SELECT name, scope, data from public.attributes ORDER BY position"
         await Postgres.connect()
         async for row in Postgres.iterate(query):
             for scope in row["scope"]:
