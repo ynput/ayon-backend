@@ -22,6 +22,7 @@ class TeamModel(OPModel):
 class TeamListItemModel(OPModel):
     name: str = Field(..., description="Team name")
     member_count: int = Field(..., description="Number of members in the team")
+    members: list[TeamMemberModel] | None = Field(None, description="Team members")
     leaders: list[TeamMemberModel] = Field(
         default_factory=list,
         description="Team leaders",

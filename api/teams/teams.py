@@ -1,3 +1,5 @@
+from fastapi import Query
+
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
@@ -7,15 +9,29 @@ from .models import TeamListItemModel, TeamMemberModel, TeamModel, TeamPutModel
 from .router import router
 
 
-@router.get("")
+@router.get("", response_model_exclude_none=True)
 async def get_teams(
-    project_name: ProjectName, current_user: CurrentUser
+    project_name: ProjectName,
+    current_user: CurrentUser,
+    show_members: bool = Query(False),
 ) -> list[TeamListItemModel]:
     """Get all teams in a project."""
     project = await ProjectEntity.load(project_name)
     teams: list[TeamListItemModel] = []
     for team_data in project.data.get("teams", []):
         team = TeamModel(**team_data)
+
+        members: list[TeamMemberModel] | None = None
+        if show_members:
+            members = [
+                TeamMemberModel(
+                    name=member.name,
+                    leader=member.leader,
+                    roles=member.roles,
+                )
+                for member in team.members
+            ]
+
         team_item = TeamListItemModel(
             name=team.name,
             member_count=len(team.members),
@@ -28,6 +44,7 @@ async def get_teams(
                 for member in team.members
                 if member.leader
             ],
+            members=members,
         )
         teams.append(team_item)
     return teams
