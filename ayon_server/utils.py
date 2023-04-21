@@ -9,7 +9,7 @@ import random
 import threading
 import time
 import uuid
-from typing import Any, Callable, NamedTuple
+from typing import Any, Callable
 
 import codenamize
 import orjson
@@ -21,12 +21,19 @@ def json_loads(data: str) -> Any:
     return orjson.loads(data)
 
 
+def isinstance_namedtuple(obj) -> bool:
+    return (
+        isinstance(obj, tuple) and hasattr(obj, "_asdict") and hasattr(obj, "_fields")
+    )
+
+
 def json_default_handler(value: Any) -> Any:
-    if isinstance(value, NamedTuple):
-        return json.dumps(list(value))
+
+    if isinstance_namedtuple(value):
+        return list(value)
 
     if isinstance(value, BaseModel):
-        return json.dumps(value.dict())
+        value.dict()
 
     if isinstance(value, datetime.datetime):
         return value.isoformat()

@@ -1,4 +1,5 @@
 import collections
+import copy
 import inspect
 import re
 from typing import Any, Deque, Type
@@ -33,18 +34,20 @@ async def process_enum(
 ) -> tuple[list[str], dict[str, str]]:
 
     if context is None:
-        context = {}
+        ctx_data = {}
+    else:
+        ctx_data = copy.deepcopy(context)
 
     resolver_args = inspect.getfullargspec(enum_resolver).args
-    available_keys = list(context.keys())
+    available_keys = list(ctx_data.keys())
     for key in available_keys:
         if key not in resolver_args:
-            del context[key]
+            del ctx_data[key]
 
     if inspect.iscoroutinefunction(enum_resolver):
-        enum = await enum_resolver(**context)
+        enum = await enum_resolver(**ctx_data)
     else:
-        enum = enum_resolver(**context)
+        enum = enum_resolver(**ctx_data)
 
     enum_values = []
     enum_labels = {}
