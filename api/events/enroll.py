@@ -99,7 +99,7 @@ async def enroll(
                 SELECT depends_on
                 FROM events
                 WHERE topic = $2
-                AND status in ('finished')
+                AND status in ('finished', 'failed')
             )
 
         ORDER BY source_events.created_at ASC
