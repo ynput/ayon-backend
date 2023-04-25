@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, validator
 
 from ayon_server.settings.common import BaseSettingsModel
 
@@ -13,6 +13,12 @@ class TaskType(BaseSettingsModel):
         title="Original name",
         scope=[],
     )  # Used for renaming
+
+    @validator("original_name")
+    def validate_original_name(cls, v, values):
+        if v is None:
+            return values["name"]
+        return v
 
 
 default_task_types = [

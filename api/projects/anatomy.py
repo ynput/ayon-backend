@@ -19,6 +19,7 @@ def dict2list(src) -> list[dict[str, Any]]:
 
 def process_aux_table(src: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Process auxiliary table."""
+    # TODO: isn't this redundant since we have validators on the model?
     result = []
     for data in src:
         result.append({**data, "original_name": data["name"]})
