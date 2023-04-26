@@ -3,7 +3,7 @@ from fastapi import Query
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
-from ayon_server.exceptions import NotFoundException
+from ayon_server.exceptions import ForbiddenException, NotFoundException
 
 from .models import TeamListItemModel, TeamMemberModel, TeamModel, TeamPutModel
 from .router import router
@@ -58,6 +58,10 @@ async def save_team(
     current_user: CurrentUser,
 ) -> EmptyResponse:
     """Save a team."""
+
+    if not current_user.is_manager:
+        raise ForbiddenException("Only managers can update teams")
+
     project = await ProjectEntity.load(project_name)
     existing_teams = project.data.get("teams", [])
 
@@ -87,6 +91,10 @@ async def save_team_member(
     current_user: CurrentUser,
 ) -> EmptyResponse:
     """Save a team member."""
+
+    if not current_user.is_manager:
+        raise ForbiddenException("Only managers can update teams")
+
     project = await ProjectEntity.load(project_name)
     existing_teams = project.data.get("teams", [])
 
@@ -124,6 +132,10 @@ async def delete_team(
     team_name: str, project_name: ProjectName, current_user: CurrentUser
 ) -> EmptyResponse:
     """Delete a team."""
+
+    if not current_user.is_manager:
+        raise ForbiddenException("Only managers can update teams")
+
     project = await ProjectEntity.load(project_name)
     existing_teams = project.data.get("teams", [])
 
@@ -147,6 +159,10 @@ async def delete_team_member(
     current_user: CurrentUser,
 ) -> EmptyResponse:
     """Delete a team member."""
+
+    if not current_user.is_manager:
+        raise ForbiddenException("Only managers can update teams")
+
     project = await ProjectEntity.load(project_name)
     existing_teams = project.data.get("teams", [])
 
@@ -170,5 +186,38 @@ async def delete_team_member(
     ]
 
     project.data["teams"] = existing_teams
+    await project.save()
+    return EmptyResponse()
+
+
+@router.patch("")
+async def update_teams(
+    project_name: ProjectName,
+    current_user: CurrentUser,
+    payload: list[TeamModel],
+) -> EmptyResponse:
+    """Update teams."""
+
+    if not current_user.is_manager:
+        raise ForbiddenException("Only managers can update teams")
+
+    project = await ProjectEntity.load(project_name)
+    existing_teams = project.data.get("teams", [])
+
+    new_names = [team.name.lower() for team in payload]
+
+    # remove old existing existing_teams
+
+    existing_teams = [
+        existing_teams
+        for existing_teams in existing_teams
+        if existing_teams["name"].lower() not in new_names
+    ]
+
+    for new_team in payload:
+        existing_teams.append(new_team.dict())
+
+    project.data["teams"] = existing_teams
+
     await project.save()
     return EmptyResponse()
