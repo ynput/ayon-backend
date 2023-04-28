@@ -23,6 +23,10 @@ class AttributeLibrary:
 
     def __init__(self) -> None:
         self.data: DefaultDict[str, Any] = collections.defaultdict(list)
+
+        # Used in info endpoint to get the active list of attributes
+        # in the same format as the attributes endpoint
+        self.info_data: list[str, Any] = []
         _thread = threading.Thread(target=self.execute)
         _thread.start()
         _thread.join()
@@ -38,9 +42,10 @@ class AttributeLibrary:
         return attribute in [k["name"] for k in self.data[entity_type]]
 
     async def load(self) -> None:
-        query = "SELECT name, scope, data from public.attributes ORDER BY position"
+        query = "SELECT * FROM public.attributes ORDER BY position"
         await Postgres.connect()
         async for row in Postgres.iterate(query):
+            self.info_data.append(row)
             for scope in row["scope"]:
                 attrd = {"name": row["name"], **row["data"]}
                 # Only project attributes should have defaults.

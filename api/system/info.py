@@ -3,7 +3,7 @@ import time
 from typing import Literal
 from urllib.parse import urlparse
 
-from attributes.attributes import AttributeModel, get_attribute_list
+from attributes.attributes import AttributeModel
 from fastapi import Request
 from pydantic import ValidationError
 
@@ -12,6 +12,7 @@ from ayon_server.api.dependencies import CurrentUserOptional
 from ayon_server.api.metadata import VERSION
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
+from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
@@ -125,9 +126,11 @@ async def get_additional_info(user: UserEntity, request: Request):
 
         sites.insert(0, current_site)
 
-    attr_list = await get_attribute_list(user)
+    attr_list: list[AttributeModel] = []
+    for row in attribute_library.info_data:
+        attr_list.append(AttributeModel(**row))
     return {
-        "attributes": attr_list.attributes,
+        "attributes": attr_list,
         "sites": sites,
     }
 
