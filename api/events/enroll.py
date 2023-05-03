@@ -1,9 +1,13 @@
+import json
+from typing import Any, Literal, Union
+
 from pydantic import Field
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.events import dispatch_event
 from ayon_server.lib.postgres import Postgres
+from ayon_server.sqlfilter import Filter, build_filter
 from ayon_server.types import OPModel
 from ayon_server.utils import hash_data
 
@@ -42,6 +46,10 @@ class EnrollRequestModel(OPModel):
         description="Ensure events are processed in sequential order",
         example=True,
     )
+    filter: Filter | None = Field(
+        None, title="Filter", description="Filter source events"
+    )
+    debug: bool = False
 
 
 class EnrollResponseModel(OPModel):
@@ -73,11 +81,12 @@ async def enroll(
     else:
         description = payload.description
 
+    filter = build_filter(payload.filter) or "TRUE"
+
     # Iterate thru unprocessed source events starting
     # by the oldest one
 
-    async for row in Postgres.iterate(
-        """
+    query = f"""
         SELECT
             source_events.id AS source_id,
             target_events.status AS target_status,
@@ -95,6 +104,8 @@ async def enroll(
         AND
             source_events.status = 'finished'
         AND
+            {filter}
+        AND
             source_events.id NOT IN (
                 SELECT depends_on
                 FROM events
@@ -103,11 +114,16 @@ async def enroll(
             )
 
         ORDER BY source_events.created_at ASC
-        """,
-        payload.source_topic,
-        payload.target_topic,
-    ):
+    """
 
+    if payload.debug:
+        print(query)
+        print("source_topic", payload.source_topic)
+        print("target_topic", payload.target_topic)
+
+    async for row in Postgres.iterate(
+        query, payload.source_topic, payload.target_topic
+    ):
         if row["target_status"] is not None:
             if row["target_sender"] != sender:
                 if payload.sequential:

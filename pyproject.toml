@@ -36,7 +36,7 @@ pre-commit = "^2.20.0"
 
 [tool.isort]
 profile = "black"
-skip = ["addons/"]
+skip = ["addons/", ".venv"]
 
 [tool.black]
 line-length = 88

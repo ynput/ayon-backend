@@ -147,8 +147,9 @@ class Messaging(BackgroundTask):
                 for client_id, client in self.clients.items():
 
                     if client.project_name is not None:
-                        if message.get("project", None) != client.project_name:
-                            continue
+                        if prj := message.get("project", None):
+                            if prj != client.project_name:
+                                continue
 
                     for topic in client.topics:
                         if topic == "*" or message["topic"].startswith(topic):
