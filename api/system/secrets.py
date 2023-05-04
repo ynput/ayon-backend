@@ -16,7 +16,7 @@ class Secret(OPModel):
     value: str | None
 
 
-@router.get("/secrets", response_model_exclude_none=True)
+@router.get("/secrets", response_model_exclude_none=True, tags=["Secrets"])
 async def get_list_of_secrets(user: CurrentUser) -> list[Secret]:
 
     if not user.is_manager:
@@ -30,7 +30,7 @@ async def get_list_of_secrets(user: CurrentUser) -> list[Secret]:
     return result
 
 
-@router.get("/secrets/{secret_name}")
+@router.get("/secrets/{secret_name}", tags=["Secrets"])
 async def get_secret(user: CurrentUser, secret_name: SecretName) -> Secret:
     """Return a secret value"""
 
@@ -44,7 +44,7 @@ async def get_secret(user: CurrentUser, secret_name: SecretName) -> Secret:
     return Secret(name=secret_name, value=value)
 
 
-@router.put("/secrets/{secret_name}", status_code=204)
+@router.put("/secrets/{secret_name}", status_code=204, tags=["Secrets"])
 async def save_secret(
     payload: Secret, user: CurrentUser, secret_name: SecretName
 ) -> EmptyResponse:
@@ -60,7 +60,7 @@ async def save_secret(
     return EmptyResponse()
 
 
-@router.delete("/secrets/{secret_name}", status_code=204)
+@router.delete("/secrets/{secret_name}", status_code=204, tags=["Secrets"])
 async def delete_secret(user: CurrentUser, secret_name: SecretName) -> EmptyResponse:
     """Delete a secret"""
 

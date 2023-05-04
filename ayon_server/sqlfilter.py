@@ -1,7 +1,10 @@
 import json
 from typing import Any, Literal, Union
+from pydantic import validator
 
 from ayon_server.types import Field, OPModel
+
+ValueType = Union[str, int, float, list[str], list[int], list[float], None]
 
 
 class Condition(OPModel):
@@ -11,8 +14,11 @@ class Condition(OPModel):
         description="Path to the key separated by slashes",
         example="summary/newValue",
     )
-    value: Any = Field(
-        ..., title="Value", description="Value to compare against", example="New value"
+    value: ValueType = Field(
+        None,
+        title="Value",
+        description="Value to compare against",
+        example="New value",
     )
     operator: Literal[
         "eq",
@@ -29,28 +35,44 @@ class Condition(OPModel):
         "excludes",
     ] = Field("eq")
 
+    @validator("operator", pre=True, always=True)
+    def convert_operator_to_lowercase(cls, v):
+        return v.lower()
+
+    @validator("value")
+    def validate_value(cls, v, values):
+        if values.get("operator") in ("in", "notin"):
+            if not isinstance(v, list):
+                raise ValueError("Value must be a list")
+        if values.get("operator") not in ("isnull", "notnull"):
+            if v is None:
+                raise ValueError("Value cannot be null")
+        return v
+
 
 class Filter(OPModel):
-    conditions: list[Union[Condition, "Filter"]] = Field(default_factory=list)
-    operator: Literal["and", "or"] = Field("and")
+    conditions: list[Union[Condition, "Filter"]] = Field(
+        default_factory=list,
+        title="Conditions",
+        description="List of conditions to be evaluated",
+    )
+    operator: Literal["and", "or"] = Field(
+        "and",
+        title="Operator",
+        description="Operator to use when joining conditions",
+    )
 
+    @validator("operator", pre=True, always=True)
+    def convert_operator_to_lowercase(cls, v):
+        return v.lower()
 
-ROOT_FIELDS = [
-    "topic",
-    "project",
-    "user",
-    "depends_on",
-    "status",
-    "sender",
-    "created_at",
-    "updated_at",
-]
 
 JSON_FIELDS = [
     "summary",
     "payload",
     "attrib",
     "data",
+    "config",
 ]
 
 
@@ -63,18 +85,17 @@ def build_condition(c: Condition, **kwargs) -> str:
     assert path, "Path cannot be empty"
 
     json_fields = kwargs.get("json_fields", JSON_FIELDS)
-    normal_fields = kwargs.get("normal_fields", ROOT_FIELDS)
-    table_prefix = kwargs.get("table_prefix", "source_events")
+    table_prefix = kwargs.get("table_prefix")
 
     key = path[0]
-    if len(path) == 1 and path[0] in normal_fields:
+    if len(path) == 1 and path[0] not in json_fields:
+        # Hack to map project and user to their respective db column names
         if key in ["project", "user"]:
             key = f"{key}_name"
 
         if type(value) == str:
             value = value.replace("'", "''")
             value = f"'{value}'"
-        assert type(value) in [str, int, float], f"Invalid value type: {type(value)}"
 
     elif len(path) > 1 and key in json_fields:
         for k in path[1:]:
@@ -88,25 +109,31 @@ def build_condition(c: Condition, **kwargs) -> str:
     else:
         raise ValueError(f"Invalid path: {path}")
 
-    key = f"{table_prefix}.{key}"
+    if table_prefix:
+        key = f"{table_prefix}.{key}"
 
     if type(value) == list:
-        raise ValueError("List values are not supported yet")
-        r = []
-        for v in value:
-            if type(v) == str:
-                v = v.replace("'", "''")
-                r.append(f"'{v}'")
-            else:
-                r.append(str(v))
-        value = f"({', '.join(r)})"
-
-        if operator == "in":
-            return f"{key} IN {value}"
-        elif operator == "notin":
-            return f"{key} NOT IN {value}"
+        if all([type(v) == str for v in value]):
+            value = [v.replace("'", "''") for v in value]
+            arr_value = "array[" + ", ".join([f"'{v}'" for v in value]) + "]"
+        elif all([type(v) in [int, float] for v in value]):
+            arr_value = "array[" + ", ".join([str(v) for v in value]) + "]"
         else:
-            raise ValueError(f"Invalid operator: {operator}")
+            raise ValueError("Invalid value type in list")
+
+        value = f"{{{', '.join(value)}}}"
+        if operator == "in":
+            if len(path) > 1:
+                return f"{key} ?| {arr_value}"
+            else:
+                return f"{key} = ANY({arr_value})"
+        elif operator == "notin":
+            if len(path) > 1:
+                return f"NOT ({key} ?| {arr_value})"
+            else:
+                return f"{key} != ALL({arr_value})"
+        else:
+            raise ValueError(f"Invalid list operator: {operator}")
 
     if operator == "isnull":
         return f"{key} IS NULL"

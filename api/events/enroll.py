@@ -81,7 +81,7 @@ async def enroll(
     else:
         description = payload.description
 
-    filter = build_filter(payload.filter) or "TRUE"
+    filter = build_filter(payload.filter, table_prefix="source_events") or "TRUE"
 
     # Iterate thru unprocessed source events starting
     # by the oldest one

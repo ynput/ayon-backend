@@ -114,14 +114,14 @@ class UserEntity(TopLevelEntity):
     @property
     def is_service(self) -> bool:
         """
-        Service accounts have similar rights as managers,
+        Service accounts have similar rights as administrators,
         but they also can act as a different user (sudo-style)
         """
         return self._payload.data.get("isService", False)
 
     @property
     def is_admin(self) -> bool:
-        return self._payload.data.get("isAdmin", False)
+        return self._payload.data.get("isAdmin", False) or self.is_service
 
     @property
     def is_guest(self) -> bool:
