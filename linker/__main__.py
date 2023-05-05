@@ -37,8 +37,11 @@ async def main() -> None:
         log_traceback()
         critical_error("Invalid project data provided")
 
-    project_name = gen_config["project_name"]
-    links_config = gen_config["links"]
+    project_name = gen_config["name"]
+    links_config = gen_config.get("links", [])
+
+    if not links_config:
+        return
 
     # Connect to the DB and ensure the project exists
 
