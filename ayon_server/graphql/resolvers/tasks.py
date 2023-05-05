@@ -59,6 +59,9 @@ async def get_tasks(
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
+    assignees: Annotated[
+        list[str] | None, argdesc("List of assignees to filter by")
+    ] = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
 
@@ -119,7 +122,12 @@ async def get_tasks(
         sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
     if tags:
         validate_name_list(tags)
-        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
+        sql_conditions.append(f"tasks.tags @> {SQLTool.array(tags, curly=True)}")
+
+    if assignees:
+        sql_conditions.append(
+            f"tasks.assignees @> {SQLTool.array(assignees, curly=True)}"
+        )
 
     if has_links is not None:
         sql_conditions.extend(get_has_links_conds(project_name, "tasks.id", has_links))

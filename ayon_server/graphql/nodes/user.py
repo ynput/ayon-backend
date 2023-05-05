@@ -1,15 +1,31 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
+from strawberry import LazyType
+from strawberry.types import Info
 
 import strawberry
 
 from ayon_server.entities import UserEntity
+from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import get_nickname, json_dumps, obscure
+
+if TYPE_CHECKING:
+    from ayon_server.graphql.connections import TasksConnection
+else:
+    TasksConnection = LazyType["TasksConnection", "..connections"]
 
 
 @UserEntity.strawberry_attrib()
 class UserAttribType:
     pass
+
+
+class FakeRoot:
+    project_name: str
+
+    def __init__(self, project_name: str):
+        self.project_name = project_name
 
 
 @strawberry.type
@@ -27,6 +43,11 @@ class UserNode:
     is_guest: bool
     has_password: bool
     apiKeyPreview: str | None
+
+    @strawberry.field
+    def tasks(self, info: Info, project_name: str) -> "TasksConnection":
+        root = FakeRoot(project_name)
+        return get_tasks(root, info, assignees=[self.name])
 
 
 def user_from_record(record: dict, context: dict) -> UserNode:
