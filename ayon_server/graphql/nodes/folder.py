@@ -1,7 +1,8 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import strawberry
 from strawberry import LazyType
+from strawberry.types import Info
 
 from ayon_server.entities import FolderEntity
 from ayon_server.graphql.nodes.common import BaseNode
@@ -64,6 +65,19 @@ class FolderNode(BaseNode):
     @strawberry.field()
     def parents(self) -> list[str]:
         return self.path.split("/")[:-1] if self.path else []
+
+    @strawberry.field
+    async def parent(self, info: Info) -> Optional["FolderNode"]:
+        if not self.parent_id:
+            return None
+        record = await info.context["folder_loader"].load(
+            (self.project_name, self.parent_id)
+        )
+        return FolderNode.from_record(
+            self.project_name,
+            record,
+            info.context,
+        )
 
 
 #

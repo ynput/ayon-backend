@@ -10,6 +10,8 @@ import fastapi
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
+
+# from fastapi.middleware.cors import CORSMiddleware
 from nxtools import log_traceback, logging
 
 from ayon_server.access.roles import Roles
@@ -35,6 +37,14 @@ app = fastapi.FastAPI(
     openapi_tags=tags_meta,
     **app_meta,
 )
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
 #
 # Static files
