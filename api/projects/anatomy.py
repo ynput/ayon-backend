@@ -5,6 +5,7 @@ from fastapi import Header
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
+from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.events import dispatch_event
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.deploy_project import anatomy_to_project_data
@@ -26,12 +27,27 @@ def process_aux_table(src: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
+def process_link_types(src: list[LinkTypeModel]) -> list[dict[str, Any]]:
+    """Convert project linktypes sumbmodel to anatomy-style linktypes."""
+    result = []
+    for ltdata in src:
+        row = {
+            "link_type": ltdata.link_type,
+            "input_type": ltdata.input_type,
+            "output_type": ltdata.output_type,
+        }
+        for key in ["color", "style"]:
+            if value := ltdata.data.get(key):
+                row[key] = value
+        result.append(row)
+    return result
+
+
 @router.get("/projects/{project_name}/anatomy", response_model_exclude_none=True)
 async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> Anatomy:
     """Retrieve a project anatomy."""
 
     project = await ProjectEntity.load(project_name)
-
     templates = project.config.get("templates", {}).get("common", {})
     for template_group, template_group_def in project.config.get(
         "templates", {}
@@ -40,15 +56,18 @@ async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> A
             continue
         templates[template_group] = dict2list(template_group_def)
 
-    return Anatomy(
+    result = dict(
         templates=templates,
         roots=dict2list(project.config.get("roots", {})),
         folder_types=process_aux_table(project.folder_types),
         task_types=process_aux_table(project.task_types),
+        link_types=process_link_types(project.link_types),
         statuses=process_aux_table(project.statuses),
         tags=process_aux_table(project.tags),
         attributes=project.attrib,
     )
+
+    return Anatomy(**result)
 
 
 @router.post("/projects/{project_name}/anatomy")
@@ -70,7 +89,6 @@ async def set_project_anatomy(
     project.patch(patch)
 
     await project.save()
-
     await dispatch_event(
         "entity.project.changed",
         sender=x_sender,

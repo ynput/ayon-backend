@@ -8,6 +8,7 @@ from typing import Any, Dict
 
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.exceptions import ConstraintViolationException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import SQLTool, dict_exclude
@@ -31,7 +32,6 @@ async def aux_table_update(conn, table: str, update_data: list[dict[str, Any]]):
         if "original_name" in data:
             del data["original_name"]
         if original_name and name != original_name:
-
             await conn.execute(
                 f"""
                 UPDATE {table} SET name = $1, position = $2, data = $3
@@ -64,6 +64,35 @@ async def aux_table_update(conn, table: str, update_data: list[dict[str, Any]]):
         old_keys = list(old_data.keys())
         query = f"DELETE FROM {table} WHERE name = ANY($1)"
         await conn.execute(query, old_keys)
+
+
+async def link_types_update(conn, table: str, update_data: list[LinkTypeModel]):
+    existing_names: list[str] = []
+    for row in await conn.fetch(f"SELECT name FROM {table}"):
+        existing_names.append(row["name"])
+
+    new_names: list[str] = []
+    for link_type_data in update_data:
+        name = f"{link_type_data.link_type}|{link_type_data.input_type}|{link_type_data.output_type}"
+        new_names.append(name)
+
+        # Upsert
+        await conn.execute(
+            f"""
+            INSERT INTO {table} (name, link_type, input_type, output_type, data)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (name) DO UPDATE SET link_type = $2, input_type = $3, output_type = $4, data = $5
+            """,
+            name,
+            link_type_data.link_type,
+            link_type_data.input_type,
+            link_type_data.output_type,
+            link_type_data.data,
+        )
+
+    for name in existing_names:
+        if name not in new_names:
+            await conn.execute(f"DELETE FROM {table} WHERE name = $1", name)
 
 
 class ProjectEntity(TopLevelEntity):
@@ -122,6 +151,16 @@ class ProjectEntity(TopLevelEntity):
         ):
             task_types.append({"name": name, **data})
 
+        # Load link types
+        link_types = []
+        for row in await Postgres.fetch(
+            f"""
+            SELECT name, link_type, input_type, output_type, data
+            FROM project_{project_name}.link_types
+            """
+        ):
+            link_types.append(dict(row))
+
         # Load statuses
         statuses = []
         for name, data in await Postgres.fetch(
@@ -149,6 +188,7 @@ class ProjectEntity(TopLevelEntity):
         payload = dict(project_data[0]) | {
             "folder_types": folder_types,
             "task_types": task_types,
+            "link_types": link_types,
             "statuses": statuses,
             "tags": tags,
         }
@@ -165,10 +205,9 @@ class ProjectEntity(TopLevelEntity):
         else:
             async with Postgres.acquire() as conn:
                 async with conn.transaction():
-                    return await (self._save(conn))
+                    return await self._save(conn)
 
     async def _save(self, transaction) -> bool:
-
         assert self.folder_types, "Project must have at least one folder type"
         assert self.task_types, "Project must have at least one task type"
         assert self.statuses, "Project must have at least one status"
@@ -185,6 +224,7 @@ class ProjectEntity(TopLevelEntity):
                             [
                                 "folder_types",
                                 "task_types",
+                                "link_types",
                                 "statuses",
                                 "tags",
                                 "ctime",
@@ -209,6 +249,7 @@ class ProjectEntity(TopLevelEntity):
                             [
                                 "folder_types",
                                 "task_types",
+                                "link_types",
                                 "statuses",
                                 "tags",
                                 "own_attrib",
@@ -253,6 +294,12 @@ class ProjectEntity(TopLevelEntity):
             self.tags,
         )
 
+        await link_types_update(
+            transaction,
+            f"project_{project_name}.link_types",
+            self.link_types,
+        )
+
         return True
 
     #
@@ -266,7 +313,7 @@ class ProjectEntity(TopLevelEntity):
         else:
             async with Postgres.acquire() as conn:
                 async with conn.transaction():
-                    return await (self._delete(conn))
+                    return await self._delete(conn)
 
     async def _delete(self, transaction) -> bool:
         if not self.name:
@@ -332,6 +379,16 @@ class ProjectEntity(TopLevelEntity):
     def task_types(self, value: list[dict[str, Any]]):
         """Set the task types."""
         self._payload.task_types = value
+
+    @property
+    def link_types(self) -> list[LinkTypeModel]:
+        """Return the link types."""
+        return self._payload.link_types
+
+    @link_types.setter
+    def link_types(self, value: list[dict[str, Any]]):
+        """Set the link types."""
+        self._payload.link_types = value
 
     @property
     def statuses(self) -> list[dict[str, Any]]:

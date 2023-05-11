@@ -1,9 +1,10 @@
-from typing import Literal
+from typing import Literal, Any
 
-from pydantic import BaseModel, Field
+from ayon_server.types import OPModel
+from pydantic import Field
 
 
-class RepresentationFile(BaseModel):
+class RepresentationFileModel(OPModel):
     id: str = Field(
         ...,
         title="File ID",
@@ -33,4 +34,15 @@ class RepresentationFile(BaseModel):
         "md5",
         title="Hash type. 'op3' is the default for OpenPype 3 imports",
         example="md5",
+    )
+
+
+class LinkTypeModel(OPModel):
+    name: str = Field(..., description="Name of the link type")
+    link_type: str = Field(..., description="Type of the link")
+    input_type: str = Field(..., description="Input entity type")
+    output_type: str = Field(..., description="Output entity type")
+    data: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional link type data",
     )

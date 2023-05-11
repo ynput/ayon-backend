@@ -14,19 +14,11 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID
+from ayon_server.entities.models.submodels import LinkTypeModel
 
 router = APIRouter(tags=["Links"])
 
 
-class LinkTypeModel(OPModel):
-    name: str = Field(..., description="Name of the link type")
-    link_type: str = Field(..., description="Type of the link")
-    input_type: str = Field(..., description="Input entity type")
-    output_type: str = Field(..., description="Output entity type")
-    data: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional link type data",
-    )
 
 
 class LinkTypeListResponse(OPModel):
@@ -35,7 +27,7 @@ class LinkTypeListResponse(OPModel):
         description="List of link types",
         example=[
             {
-                "name": "referene|version|version",
+                "name": "reference|version|version",
                 "link_type": "reference",
                 "input_type": "version",
                 "output_type": "version",
@@ -74,13 +66,13 @@ async def list_link_types(
 
 
 @router.put("/projects/{project_name}/links/types/{link_type}", status_code=204)
-async def create_link_type(
+async def save_link_type(
     project_name: ProjectName,
     current_user: CurrentUser,
     link_type: LinkType,
     request_model: CreateLinkTypeRequestModel,
 ) -> EmptyResponse:
-    """Create new link type"""
+    """Save a link type"""
 
     if not current_user.is_manager:
         raise ForbiddenException
@@ -89,6 +81,8 @@ async def create_link_type(
         INSERT INTO project_{project_name}.link_types
         (name, link_type, input_type, output_type, data)
         VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (name) DO UPDATE
+        SET data = $5
         """
     await Postgres.execute(
         query,

@@ -1,12 +1,12 @@
 from typing import Any
 
 from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 
 
 def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
-
     task_types = [t.dict() for t in anatomy.task_types]
     folder_types = [t.dict() for t in anatomy.folder_types]
     statuses = [t.dict() for t in anatomy.statuses]
@@ -39,9 +39,24 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
                 k: template[k] for k in template.keys() if k != "name"
             }
 
+    link_types: list[LinkTypeModel] = []
+    for link_type in anatomy.link_types:
+        name = f"{link_type.link_type}|{link_type.input_type}|{link_type.output_type}"
+        data = {"color": link_type.color, "style": link_type.style}
+        link_types.append(
+            LinkTypeModel(
+                name=name,
+                link_type=link_type.link_type,
+                input_type=link_type.input_type,
+                output_type=link_type.output_type,
+                data=data,
+            )
+        )
+
     return {
         "task_types": task_types,
         "folder_types": folder_types,
+        "link_types": link_types,
         "statuses": statuses,
         "tags": tags,
         "attrib": anatomy.attributes.dict(),  # type: ignore
@@ -75,7 +90,6 @@ async def create_project_from_anatomy(
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
-
             await project.save(transaction=conn)
 
             # Assign the new project to all users with default roles

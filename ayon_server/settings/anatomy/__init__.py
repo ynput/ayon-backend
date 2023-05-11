@@ -6,6 +6,7 @@ from ayon_server.settings.anatomy.roots import Root, default_roots
 from ayon_server.settings.anatomy.statuses import Status, default_statuses
 from ayon_server.settings.anatomy.tags import Tag
 from ayon_server.settings.anatomy.task_types import TaskType, default_task_types
+from ayon_server.settings.anatomy.link_types import LinkType, default_link_types
 from ayon_server.settings.anatomy.templates import Templates
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.validators import ensure_unique_names
@@ -39,19 +40,25 @@ class Anatomy(BaseSettingsModel):
     )
 
     folder_types: list[FolderType] = Field(
-        default=default_folder_types,
-        title="Folder Types",
+        default_factory=lambda: default_folder_types,
+        title="Folder types",
         description="Folder types configuration",
     )
 
     task_types: list[TaskType] = Field(
-        default=default_task_types,
-        title="Task Types",
+        default_factory=lambda: default_task_types,
+        title="Task types",
         description="Task types configuration",
     )
 
+    link_types: list[LinkType] = Field(
+        default_factory=lambda: default_link_types,
+        title="Link types",
+        description="Link types configuration",
+    )
+
     statuses: list[Status] = Field(
-        default=default_statuses,
+        default_factory=lambda:default_statuses,
         title="Statuses",
         description="Statuses configuration",
     )

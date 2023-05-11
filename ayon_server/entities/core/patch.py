@@ -37,7 +37,7 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
 
         else:
             # Patch scalar types such as ints, strings and booleans
-            update_data[key] = value
+            update_data[key] = getattr(patch, key)
 
     if "updated_at" in original.__fields__:
         update_data["updated_at"] = datetime.now()

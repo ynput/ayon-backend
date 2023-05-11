@@ -12,7 +12,7 @@ field parameters.
 """
 
 
-from ayon_server.entities.models.submodels import RepresentationFile
+from ayon_server.entities.models.submodels import RepresentationFileModel, LinkTypeModel
 from ayon_server.types import (
     ENTITY_ID_EXAMPLE,
     ENTITY_ID_REGEX,
@@ -55,6 +55,22 @@ project_fields = [
         "example": [
             {"name": "Rigging", "icon": "rig"},
             {"name": "Modeling", "icon": "model"},
+        ],
+    },
+    {
+        "name": "link_types",
+        "list_of_submodels": LinkTypeModel,
+        "title": "Link types",
+        "example": [
+            {
+                "name": "reference|version|version",
+                "link_type": "reference",
+                "input_type": "version",
+                "output_type": "version",
+                "data": {
+                    "color": "#ff0000",
+                },
+            },
         ],
     },
     {
@@ -270,7 +286,7 @@ representation_fields = [
     },
     {
         "name": "files",
-        "list_of_submodels": RepresentationFile,
+        "list_of_submodels": RepresentationFileModel,
         "title": "Files",
         "description": "List of files",
     },
