@@ -73,7 +73,13 @@ async def link_types_update(conn, table: str, update_data: list[LinkTypeModel]):
 
     new_names: list[str] = []
     for link_type_data in update_data:
-        name = f"{link_type_data.link_type}|{link_type_data.input_type}|{link_type_data.output_type}"
+        name = "|".join(
+            [
+                link_type_data.link_type,
+                link_type_data.input_type,
+                link_type_data.output_type,
+            ]
+        )
         new_names.append(name)
 
         # Upsert
@@ -81,7 +87,8 @@ async def link_types_update(conn, table: str, update_data: list[LinkTypeModel]):
             f"""
             INSERT INTO {table} (name, link_type, input_type, output_type, data)
             VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (name) DO UPDATE SET link_type = $2, input_type = $3, output_type = $4, data = $5
+            ON CONFLICT (name) DO UPDATE SET
+            link_type = $2, input_type = $3, output_type = $4, data = $5
             """,
             name,
             link_type_data.link_type,

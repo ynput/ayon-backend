@@ -2,11 +2,11 @@ from pydantic import Field, validator
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.settings.anatomy.folder_types import FolderType, default_folder_types
+from ayon_server.settings.anatomy.link_types import LinkType, default_link_types
 from ayon_server.settings.anatomy.roots import Root, default_roots
 from ayon_server.settings.anatomy.statuses import Status, default_statuses
 from ayon_server.settings.anatomy.tags import Tag
 from ayon_server.settings.anatomy.task_types import TaskType, default_task_types
-from ayon_server.settings.anatomy.link_types import LinkType, default_link_types
 from ayon_server.settings.anatomy.templates import Templates
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.validators import ensure_unique_names
@@ -58,7 +58,7 @@ class Anatomy(BaseSettingsModel):
     )
 
     statuses: list[Status] = Field(
-        default_factory=lambda:default_statuses,
+        default_factory=lambda: default_statuses,
         title="Statuses",
         description="Statuses configuration",
     )

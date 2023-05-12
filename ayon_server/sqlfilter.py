@@ -1,5 +1,5 @@
 import json
-from typing import Any, Literal, Union
+from typing import Literal, Union
 
 from pydantic import validator
 

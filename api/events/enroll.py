@@ -1,11 +1,8 @@
-import json
-from typing import Any, Literal, Union
-
 from pydantic import Field
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.events import dispatch_event
+from ayon_server.events import dispatch_event, update_event
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import Filter, build_filter
 from ayon_server.types import OPModel
@@ -49,6 +46,7 @@ class EnrollRequestModel(OPModel):
     filter: Filter | None = Field(
         None, title="Filter", description="Filter source events"
     )
+    max_retries: int = Field(3, title="Max retries", example=3)
     debug: bool = False
 
 
@@ -110,7 +108,17 @@ async def enroll(
                 SELECT depends_on
                 FROM events
                 WHERE topic = $2
-                AND status in ('finished', 'failed')
+                AND (
+
+                    -- DO NOT enroll events that are already finished
+
+                    status == 'finished'
+
+                    -- DO NOT enroll events that are already failed and have
+                    -- reached max retries
+
+                    OR (status == 'failed' AND retries > $3)
+                )
             )
 
         ORDER BY source_events.created_at ASC
@@ -122,17 +130,45 @@ async def enroll(
         print("target_topic", payload.target_topic)
 
     async for row in Postgres.iterate(
-        query, payload.source_topic, payload.target_topic
+        query,
+        payload.source_topic,
+        payload.target_topic,
+        payload.max_retries,
     ):
+        # Check if target event already exists
         if row["target_status"] is not None:
+            if row["target_status"] == "failed":
+                # events which have reached max retries are already
+                # filtered out by the query above,
+                # so we can just retry them - update status to pending
+                # and increase retries counter
+                event_id = row["target_id"]
+                await update_event(
+                    event_id,
+                    status="pending",
+                    sender=sender,
+                    user=current_user.name,
+                    retries=row["target_retries"] + 1,
+                    description="Restarting failed event",
+                )
+                return EnrollResponseModel(
+                    id=event_id,
+                    hash=row["target_hash"],
+                    depends_on=row["source_id"],
+                )
+
             if row["target_sender"] != sender:
+                # There is already a target event for this source event.
+                # Check who is the sender. If it's not us, then we can't
+                # enroll for this job (the other worker is already working on it)
                 if payload.sequential:
                     return EmptyResponse()
                 continue
 
-            # TODO: handle restarting own jobs
-            # if a job is restarted, just return its id so
-            # the processor will
+            # We are the sender of the target event, so it is possible that,
+            # for some reason, we have not finished processing it yet.
+            # In this case, we can't enroll for this job again.
+
             return EnrollResponseModel(
                 id=row["target_id"],
                 depends_on=row["source_id"],

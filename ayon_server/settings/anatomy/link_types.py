@@ -1,5 +1,6 @@
-from pydantic import Field, validator
 from typing import Literal
+
+from pydantic import Field
 
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.types import ProjectLevelEntityType
@@ -37,6 +38,9 @@ default_link_types = [
         color="#d94383",
     ),
     LinkType(
-        link_type="template", input_type="folder", output_type="folder", color="#d94383",
+        link_type="template",
+        input_type="folder",
+        output_type="folder",
+        color="#d94383",
     ),
 ]

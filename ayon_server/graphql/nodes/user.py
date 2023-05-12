@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
-from strawberry import LazyType
-from strawberry.types import Info
 
 import strawberry
+from strawberry import LazyType
+from strawberry.types import Info
 
 from ayon_server.entities import UserEntity
 from ayon_server.graphql.resolvers.tasks import get_tasks

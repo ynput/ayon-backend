@@ -26,7 +26,7 @@ class AttributeLibrary:
 
         # Used in info endpoint to get the active list of attributes
         # in the same format as the attributes endpoint
-        self.info_data: list[str, Any] = []
+        self.info_data: list[Any] = []
         _thread = threading.Thread(target=self.execute)
         _thread.start()
         _thread.join()
