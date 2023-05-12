@@ -72,7 +72,7 @@ async def link_types_update(conn, table: str, update_data: list[LinkTypeModel]):
         existing_names.append(row["name"])
 
     new_names: list[str] = []
-    for link_type_data in update_data:
+    for link_type_data in update_data or []:
         name = "|".join(
             [
                 link_type_data.link_type,

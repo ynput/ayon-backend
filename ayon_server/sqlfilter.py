@@ -116,13 +116,12 @@ def build_condition(c: Condition, **kwargs) -> str:
     if type(value) == list:
         if all([type(v) == str for v in value]):
             value = [v.replace("'", "''") for v in value]  # type: ignore
-            arr_value = "array[" + ", ".join([f"'{v}'" for v in value]) + "]"  # type: ignore
+            arr_value = "array[" + ", ".join([f"'{v}'" for v in value]) + "]"
         elif all([type(v) in [int, float] for v in value]):
             arr_value = "array[" + ", ".join([str(v) for v in value]) + "]"
         else:
             raise ValueError("Invalid value type in list")
 
-        value = f"{{{', '.join(value)}}}"
         if operator == "in":
             if len(path) > 1:
                 return f"{key} ?| {arr_value}"

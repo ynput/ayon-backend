@@ -73,7 +73,7 @@ class FolderNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.parent_id)
         )
-        return(
+        return (
             info.context["folder_from_record"](self.project_name, record, info.context)
             if record
             else None

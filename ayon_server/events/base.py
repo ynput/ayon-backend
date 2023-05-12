@@ -179,8 +179,8 @@ async def update_event(
 
     if sender is not None:
         new_data["sender"] = sender
-    if project_name is not None:
-        new_data["project_name"] = project_name
+    if project is not None:
+        new_data["project_name"] = project
     if status is not None:
         new_data["status"] = status
     if description is not None:

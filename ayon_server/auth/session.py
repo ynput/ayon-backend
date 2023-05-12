@@ -16,8 +16,8 @@ from ayon_server.utils import create_hash, json_dumps, json_loads
 class SessionModel(OPModel):
     user: UserEntity.model.main_model  # type: ignore
     token: str
-    created: float
-    last_used: float
+    created: float = 0
+    last_used: float = 0
     is_service: bool = False
     client_info: ClientInfo | None = None
 
