@@ -111,7 +111,6 @@ async def post_event(
     request: DispatchEventRequestModel,
     user: CurrentUser,
 ) -> DispatchEventResponseModel:
-
     if not user.is_manager:
         if request.topic not in normal_user_topic_whitelist:
             raise ForbiddenException("Not allowed to update this event")
@@ -186,6 +185,7 @@ async def update_existing_event(
         event_id,
         payload.sender,
         payload.project_name or payload.project,
+        user.name,
         payload.status,
         payload.description,
         payload.summary,

@@ -38,7 +38,6 @@ async def query(
     request: QueryRequestModel,
     current_user: CurrentUser,
 ) -> list[dict[str, Any]]:
-
     if not current_user.is_admin:
         raise ForbiddenException("Only admins can use this endpoint")
 
@@ -56,7 +55,6 @@ async def query(
 
     events = []
     async for record in Postgres.iterate(query, request.limit, request.offset):
-
         events.append(
             EventModel(
                 id=record["id"],
@@ -73,6 +71,6 @@ async def query(
                 summary=record["summary"],
                 created_at=record["created_at"],
                 updated_at=record["updated_at"],
-            )
+            ).dict(exclude_none=True, exclude_unset=True)
         )
     return events

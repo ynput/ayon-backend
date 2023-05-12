@@ -45,9 +45,9 @@ class UserNode:
     apiKeyPreview: str | None
 
     @strawberry.field
-    def tasks(self, info: Info, project_name: str) -> "TasksConnection":
+    async def tasks(self, info: Info, project_name: str) -> "TasksConnection":
         root = FakeRoot(project_name)
-        return get_tasks(root, info, assignees=[self.name])
+        return await get_tasks(root, info, assignees=[self.name])
 
 
 def user_from_record(record: dict, context: dict) -> UserNode:

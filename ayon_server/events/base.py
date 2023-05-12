@@ -164,13 +164,15 @@ async def dispatch_event(
 async def update_event(
     event_id: str,
     sender: str | None = None,
-    project_name: str | None = None,
+    project: str | None = None,
+    user: str | None = None,
     status: str | None = None,
     description: str | None = None,
     summary: dict[str, Any] | None = None,
     payload: dict[str, Any] | None = None,
     progress: float | None = None,
     store: bool = True,
+    retries: int | None = None,
 ):
 
     new_data: dict[str, Any] = {"updated_at": datetime.now()}
@@ -187,6 +189,8 @@ async def update_event(
         new_data["summary"] = summary
     if payload is not None:
         new_data["payload"] = payload
+    if retries is not None:
+        new_data["retries"] = retries
 
     if store:
         query = SQLTool.update("events", f"WHERE id = '{event_id}'", **new_data)
