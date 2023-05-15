@@ -112,12 +112,12 @@ async def enroll(
 
                     -- DO NOT enroll events that are already finished
 
-                    status == 'finished'
+                    status = 'finished'
 
                     -- DO NOT enroll events that are already failed and have
                     -- reached max retries
 
-                    OR (status == 'failed' AND retries > $3)
+                    OR (status = 'failed' AND retries > $3)
                 )
             )
 
