@@ -44,18 +44,22 @@ async def get_addon_settings_schema(
     return schema
 
 
-@router.get("/{addon_name}/{addon_version}/settings", **route_meta)
+@router.get("/{addon_name}/{addon_version}/settings", response_model=dict[str, Any], **route_meta)
 async def get_addon_studio_settings(
     addon_name: str,
     addon_version: str,
     user: CurrentUser,
     variant: str = Query("production"),
-) -> dict[str, Any]:
+) -> dict[str, Any] | EmptyResponse:
     """Return the settings (including studio overrides) of the given addon."""
 
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
-    return await addon.get_studio_settings(variant=variant)
+
+    settings = await addon.get_studio_settings(variant=variant)
+    if not settings:
+        return EmptyResponse()
+    return settings
 
 
 @router.post("/{addon_name}/{addon_version}/settings", status_code=204, **route_meta)

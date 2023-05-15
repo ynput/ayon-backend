@@ -63,7 +63,11 @@ async def get_addon_project_settings_schema(
     return schema
 
 
-@router.get("/{addon_name}/{version}/settings/{project_name}", **route_meta)
+@router.get(
+    "/{addon_name}/{version}/settings/{project_name}",
+    response_model=dict[str, Any],
+    **route_meta,
+)
 async def get_addon_project_settings(
     addon_name: str,
     version: str,
@@ -71,14 +75,18 @@ async def get_addon_project_settings(
     user: CurrentUser,
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
-) -> dict[str, Any]:
+) -> dict[str, Any] | EmptyResponse:
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
     if site:
-        return await addon.get_project_site_settings(project_name, user.name, site)
+        settings = await addon.get_project_site_settings(project_name, user.name, site)
+    else:
+        settings = await addon.get_project_settings(project_name, variant=variant)
 
-    return await addon.get_project_settings(project_name, variant=variant)
+    if not settings:
+        return EmptyResponse()
+    return settings
 
 
 @router.get("/{addon_name}/{version}/overrides/{project_name}", **route_meta)
@@ -288,7 +296,6 @@ async def modify_project_overrides(
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
-
     if site:
         if payload.action == "delete":
             await remove_site_override(
