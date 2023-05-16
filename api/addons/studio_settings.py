@@ -44,7 +44,11 @@ async def get_addon_settings_schema(
     return schema
 
 
-@router.get("/{addon_name}/{addon_version}/settings", response_model=dict[str, Any], **route_meta)
+@router.get(
+    "/{addon_name}/{addon_version}/settings",
+    response_model=dict[str, Any],
+    **route_meta,
+)
 async def get_addon_studio_settings(
     addon_name: str,
     addon_version: str,

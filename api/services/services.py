@@ -14,9 +14,16 @@ from ayon_server.utils import SQLTool
 from .router import router
 
 
-class ServiceDataModel(OPModel):
-    image: str | None = Field(None, example="ayon/ftrack-addon-leecher:2.0.0")
+class ServiceConfigModel(OPModel):
+    volumes: list[str] | None = Field(None, title="Volumes", example=["/tmp:/tmp"])
+    ports: list[str] | None = Field(None, title="Ports", example=["8080:8080"])
+    mem_limit: str | None = Field(None, title="Memory Limit", example="1g")
+    user: str | None = Field(None, title="User", example="1000")
     env: dict[str, Any] = Field(default_factory=dict)
+
+
+class ServiceDataModel(ServiceConfigModel):
+    image: str | None = Field(None, example="ayon/ftrack-addon-leecher:2.0.0")
 
 
 class ServiceModel(OPModel):
@@ -52,10 +59,11 @@ async def list_services(user: CurrentUser) -> ServiceListModel:
 
 
 class SpawnServiceRequestModel(OPModel):
-    addon_name: str
-    addon_version: str
-    service: str
-    hostname: str
+    addon_name: str = Field(..., title="Addon name", example="ftrack")
+    addon_version: str = Field(..., title="Addon version", example="2.0.0")
+    service: str = Field(..., title="Service", example="leecher")
+    hostname: str = Field(..., title="Host", example="worker03")
+    config: ServiceConfigModel = Field(default_factory=ServiceConfigModel)
 
 
 @router.put("/services/{name}", status_code=204, tags=["Services"])
@@ -77,7 +85,8 @@ async def spawn_service(
     image = addon.services[payload.service].get("image")
     assert image is not None  # TODO: raise smarter exception
 
-    data = {"image": image}
+    data = payload.config.dict()
+    data["image"] = image
 
     await Postgres.execute(
         """
@@ -113,19 +122,31 @@ async def delete_service(user: CurrentUser, name: str = Path(...)) -> EmptyRespo
 
 class PatchServiceRequestModel(OPModel):
     should_run: bool | None = Field(None)
+    config: ServiceConfigModel | None = Field(None)
 
 
-@router.patch("/services/{name}", status_code=204, tags=["Services"])
+@router.patch("/services/{service_name}", status_code=204, tags=["Services"])
 async def patch_service(
-    payload: PatchServiceRequestModel, user: CurrentUser, name: str = Path(...)
+    payload: PatchServiceRequestModel,
+    user: CurrentUser,
+    service_name: str = Path(...),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can modify services")
+
+    res = await Postgres.fetch(
+        "SELECT should_run, data FROM services WHERE name = $1 LIMIT 1", service_name
+    )
+    if not res:
+        raise NotFoundException("Service not found")
+
+    service_data = res[0]
+    if payload.should_run is not None:
+        service_data["should_run"] = payload.should_run
+    if payload.config is not None:
+        service_data["data"].update(payload.config.dict())
+
     await Postgres.execute(
-        *SQLTool.update(
-            "services",
-            f"WHERE name='{name}'",
-            **payload.dict(),
-        )
+        *SQLTool.update("services", f"WHERE name='{service_name}'", **service_data)
     )
     return EmptyResponse()
