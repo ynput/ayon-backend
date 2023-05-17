@@ -32,7 +32,7 @@ def classes_from_module(superclass: T, module: ModuleType) -> list[T]:
 
     """
 
-    classes = list()
+    classes = []
     for name in dir(module):
         # It could be anything at this point
         obj = getattr(module, name)

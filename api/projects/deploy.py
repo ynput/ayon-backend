@@ -1,11 +1,10 @@
-from projects.router import router
-
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.deploy_project import create_project_from_anatomy
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.types import Field, OPModel
+from projects.router import router
 
 
 class DeployProjectRequestModel(OPModel):

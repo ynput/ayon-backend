@@ -364,7 +364,7 @@ async def dep_link_type(
     except ValueError:
         raise BadRequestException(
             "Link type must be in the format 'name|input_type|output_type'"
-        )
+        ) from None
 
     if input_type not in ["folder", "subset", "version", "representation", "task"]:
         raise BadRequestException(

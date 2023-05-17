@@ -195,7 +195,7 @@ async def process_operations(
 
     events: list[dict[str, Any]] = []
 
-    for i, operation in enumerate(operations):
+    for _i, operation in enumerate(operations):
         try:
             entity, evt, response = await process_operation(
                 project_name,

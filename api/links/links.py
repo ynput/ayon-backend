@@ -156,7 +156,7 @@ async def create_entity_link(
         FROM project_{project_name}.{input_type}s
         WHERE id = $1
         """
-    for row in await Postgres.fetch(query, post_data.input):
+    for _row in await Postgres.fetch(query, post_data.input):
         break
     else:
         raise NotFoundException(f"Input entity {post_data.input} not found.")
@@ -168,7 +168,7 @@ async def create_entity_link(
         FROM project_{project_name}.{output_type}s
         WHERE id = $1
         """
-    for row in await Postgres.fetch(query, post_data.output):
+    for _row in await Postgres.fetch(query, post_data.output):
         break
     else:
         raise NotFoundException(f"Output entity {post_data.output} not found.")
@@ -190,9 +190,9 @@ async def create_entity_link(
             {"author": user.name},
         )
     except Postgres.ForeignKeyViolationError:
-        raise BadRequestException("Unsupported link type.")
+        raise BadRequestException("Unsupported link type.") from None
     except Postgres.UniqueViolationError:
-        raise ConstraintViolationException("Link already exists.")
+        raise ConstraintViolationException("Link already exists.") from None
 
     logging.debug(
         f"Created {link_type} link between "

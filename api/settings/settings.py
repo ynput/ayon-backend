@@ -49,7 +49,7 @@ async def get_all_addons_settings(
     result: dict[str, dict[str, Any]] = {}
     versions: dict[str, str] = {}
 
-    for addon_name, addon in library.items():
+    for addon_name, _addon in library.items():
         if addon_name not in active_versions:
             continue
         try:
@@ -115,7 +115,7 @@ async def get_all_site_settings(
     result: dict[str, dict[str, Any]] = {}
     versions: dict[str, str] = {}
 
-    for addon_name, addon in library.items():
+    for addon_name, _addon in library.items():
         if addon_name not in active_versions:
             continue
         try:

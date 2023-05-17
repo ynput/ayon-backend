@@ -1,10 +1,10 @@
 from fastapi import Path
-from projects.router import router
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.lib.postgres import Postgres
+from projects.router import router
 
 
 @router.get("/projects/{project_name}/roots")

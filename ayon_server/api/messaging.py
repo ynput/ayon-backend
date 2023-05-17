@@ -144,7 +144,7 @@ class Messaging(BackgroundTask):
                     message = json_loads(raw_message["data"])
 
                 # TODO: much much smarter logic here
-                for client_id, client in self.clients.items():
+                for _client_id, client in self.clients.items():
 
                     if client.project_name is not None:
                         if prj := message.get("project", None):

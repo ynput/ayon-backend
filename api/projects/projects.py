@@ -1,6 +1,5 @@
 from fastapi import Header
 from nxtools import logging
-from projects.router import router
 
 from ayon_server.api.dependencies import CurrentUser, NewProjectName, ProjectName
 from ayon_server.api.responses import EmptyResponse
@@ -12,6 +11,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
+from projects.router import router
 
 #
 # [GET]

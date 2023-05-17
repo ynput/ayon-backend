@@ -76,4 +76,4 @@ def workfile_from_record(
     )
 
 
-setattr(WorkfileNode, "from_record", staticmethod(workfile_from_record))
+WorkfileNode.from_record = staticmethod(workfile_from_record)

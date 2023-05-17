@@ -1,11 +1,11 @@
 from typing import Any, Literal
 
-from addons.router import route_meta, router
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.routing import APIRoute
 from nxtools import logging, slugify
 
 from addons import project_settings, site_settings, studio_settings
+from addons.router import route_meta, router
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import SourceInfo
 from ayon_server.api.dependencies import CurrentUser
@@ -118,7 +118,7 @@ async def list_addons(
     # TODO: for each version, return the information
     # whether it has settings (and don't show the addon in the settings editor if not)
 
-    for name, definition in library.data.items():
+    for _name, definition in library.data.items():
         vers = active_versions.get(definition.name, {})
         versions = {}
         for version, addon in definition.versions.items():
@@ -138,7 +138,7 @@ async def list_addons(
                 if source_info is None:
                     pass
 
-                elif not all([isinstance(x, SourceInfo) for x in source_info]):
+                elif not all(isinstance(x, SourceInfo) for x in source_info):
                     logging.error(f"Invalid source info for {addon.name} {version}")
                     source_info = [x for x in source_info if isinstance(x, SourceInfo)]
                 vinf["client_source_info"] = source_info

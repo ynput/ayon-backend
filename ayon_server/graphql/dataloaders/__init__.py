@@ -16,7 +16,7 @@ KeysType = NewType("KeysType", list[KeyType])
 
 
 def get_project_name(keys: list[KeyType]) -> str:
-    project_names = set(k[0] for k in keys)
+    project_names = {k[0] for k in keys}
     if len(project_names) != 1:
         raise AyonException("Data loaders cannot perform cross-project requests")
     return project_names.pop()

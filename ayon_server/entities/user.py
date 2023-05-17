@@ -151,7 +151,9 @@ class UserEntity(TopLevelEntity):
         return Roles.combine(active_roles, project_name)
 
     def set_password(
-        self, password: str | None, complexity_check: bool = False,
+        self,
+        password: str | None,
+        complexity_check: bool = False,
     ) -> None:
         """Set user password."""
 

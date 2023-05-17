@@ -318,7 +318,7 @@ class Gibberish:
             letter_list = [self.initial_consonants]
         else:
             letter_list = []
-        for i in range(vowel_consonant_repeats):
+        for _i in range(vowel_consonant_repeats):
             letter_list.extend([self.vowels, self.final_consonants])
         if end_vowel:
             letter_list.pop()

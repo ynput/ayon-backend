@@ -22,7 +22,7 @@ def apply_overrides(
         override: dict[str, Any],
         target: dict[str, Any],
     ) -> None:
-        for name, field in obj.__fields__.items():
+        for name, _field in obj.__fields__.items():
             child = getattr(obj, name)
             if isinstance(child, BaseSettingsModel):
                 target[name] = {}
@@ -77,7 +77,7 @@ def list_overrides(
     else:
         root = "root_" + "_".join(crumbs)
 
-    for name, field in obj.__fields__.items():
+    for name, _field in obj.__fields__.items():
         child = getattr(obj, name)
         path = f"{root}_{name}"
         chcrumbs = [*crumbs, name]
@@ -156,7 +156,7 @@ def extract_overrides(
     result: dict[str, Any] = {}
 
     def crawl(obj, ovr, ex, target):
-        for name, field in obj.__fields__.items():
+        for name, _field in obj.__fields__.items():
             child = getattr(obj, name)
             if isinstance(child, BaseSettingsModel) and not child._isGroup:
                 if child.dict() != ovr.dict()[name] or (name in ex):

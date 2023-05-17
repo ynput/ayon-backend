@@ -228,7 +228,7 @@ async def postprocess_settings_schema(  # noqa
 
         submodels[parent.__name__] = parent
 
-        for field_name, field in parent.__fields__.items():
+        for _field_name, field in parent.__fields__.items():
             submodels_deque.append(field.type_)
             for sub_field in field.sub_fields or []:
                 submodels_deque.append(sub_field.type_)

@@ -1,9 +1,9 @@
 from typing import Any
 
-from addons.router import route_meta, router
 from fastapi import Query, Response
 from pydantic.error_wrappers import ValidationError
 
+from addons.router import route_meta, router
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
@@ -89,7 +89,7 @@ async def set_addon_studio_settings(
     try:
         data = extract_overrides(original, model(**payload), existing)
     except ValidationError:
-        raise BadRequestException
+        raise BadRequestException("Invalid settings") from None
 
     await Postgres.execute(
         """

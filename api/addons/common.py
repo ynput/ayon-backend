@@ -77,7 +77,7 @@ async def pin_override(
     c_field = settings
     c_overr = overrides
 
-    for i, key in enumerate(path):
+    for _i, key in enumerate(path):
         if key not in c_field.__fields__:
             raise KeyError(f"{key} is not present in {c_field}")
 
@@ -181,7 +181,7 @@ async def pin_site_override(
     c_field = settings
     c_overr = overrides
 
-    for i, key in enumerate(path):
+    for _i, key in enumerate(path):
         if key not in c_field.__fields__:
             raise KeyError(f"{key} is not present in {c_field}")
 

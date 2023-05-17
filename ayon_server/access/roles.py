@@ -81,10 +81,10 @@ class Roles:
                 if perm_name in ("create", "read", "update", "delete"):
                     # TODO: deduplicate
                     result[perm_name]["access_list"] = list(
-                        set(
+                        {
                             FolderAccess(**normalize_to_dict(r))
                             for r in result[perm_name].get("access_list", [])
-                        )
+                        }
                         | set(value.access_list)
                     )
 

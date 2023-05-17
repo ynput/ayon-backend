@@ -1,10 +1,10 @@
 from typing import Any
 
-from addons.router import route_meta, router
 from fastapi import Query
 from nxtools import logging
 from pydantic.error_wrappers import ValidationError
 
+from addons.router import route_meta, router
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
@@ -157,7 +157,7 @@ async def set_addon_project_settings(
         try:
             data = extract_overrides(original, model(**payload), existing)
         except ValidationError:
-            raise BadRequestException
+            raise BadRequestException("Invalid settings") from None
 
         await Postgres.execute(
             f"""
@@ -206,7 +206,7 @@ async def set_addon_project_settings(
     try:
         data = extract_overrides(original, model(**payload), existing)
     except ValidationError:
-        raise BadRequestException
+        raise BadRequestException("Invalid settings") from None
 
     await Postgres.execute(
         f"""

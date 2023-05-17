@@ -58,7 +58,7 @@ async def main() -> None:
 
     # Create link types
 
-    link_types = list(set([link_type["link_type"] for link_type in links_config]))
+    link_types = list({link_type["link_type"] for link_type in links_config})
 
     for link_type in link_types:
         await create_link_type(project_name, link_type)

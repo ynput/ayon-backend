@@ -1,9 +1,9 @@
 from typing import Any
 
-from addons.router import route_meta, router
 from fastapi import Query
 from nxtools import logging
 
+from addons.router import route_meta, router
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse

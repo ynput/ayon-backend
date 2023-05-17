@@ -56,16 +56,16 @@ async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> A
             continue
         templates[template_group] = dict2list(template_group_def)
 
-    result = dict(
-        templates=templates,
-        roots=dict2list(project.config.get("roots", {})),
-        folder_types=process_aux_table(project.folder_types),
-        task_types=process_aux_table(project.task_types),
-        link_types=process_link_types(project.link_types),
-        statuses=process_aux_table(project.statuses),
-        tags=process_aux_table(project.tags),
-        attributes=project.attrib,
-    )
+    result = {
+        "templates": templates,
+        "roots": dict2list(project.config.get("roots", {})),
+        "folder_types": process_aux_table(project.folder_types),
+        "task_types": process_aux_table(project.task_types),
+        "link_types": process_link_types(project.link_types),
+        "statuses": process_aux_table(project.statuses),
+        "tags": process_aux_table(project.tags),
+        "attributes": project.attrib,
+    }
 
     return Anatomy(**result)
 

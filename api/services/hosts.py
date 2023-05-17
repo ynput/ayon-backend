@@ -1,13 +1,13 @@
 from datetime import datetime
 
 from fastapi import Depends
-from services.services import ServiceModel, list_services
 
 from ayon_server.api.dependencies import dep_current_user
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
+from services.services import ServiceModel, list_services
 
 from .router import router
 

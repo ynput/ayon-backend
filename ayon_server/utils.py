@@ -73,9 +73,7 @@ def dict_exclude(
         return {k: v for k, v in data.items() if k not in keys}
     elif mode == "startswith":
         return {
-            k: v
-            for k, v in data.items()
-            if not any([k.startswith(key) for key in keys])
+            k: v for k, v in data.items() if not any(k.startswith(key) for key in keys)
         }
     return data
 

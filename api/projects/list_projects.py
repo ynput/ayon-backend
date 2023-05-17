@@ -4,12 +4,12 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import Query
-from projects.router import router
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 from ayon_server.utils import SQLTool
+from projects.router import router
 
 
 class ListProjectsItemModel(OPModel):
@@ -83,9 +83,9 @@ async def list_projects(
     conditions = []
 
     if library is not None:
-        conditions.append("library IS " + "TRUE" if library else "FALSE")
+        conditions.append(f"library IS {'TRUE' if library else 'FALSE'}")
     if active is not None:
-        conditions.append("active IS " + "TRUE" if active else "FALSE")
+        conditions.append(f"active IS {'TRUE' if active else 'FALSE'}")
 
     if name:
         conditions.append(f"name ILIKE '{name}'")

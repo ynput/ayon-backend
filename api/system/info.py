@@ -66,7 +66,7 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
     library = AddonLibrary.getinstance()
     active_versions = await library.get_active_versions()
 
-    for name, definition in library.data.items():
+    for _name, definition in library.data.items():
         vers = active_versions.get(definition.name, {})
         production_version = vers.get("production", None)
         if not production_version:

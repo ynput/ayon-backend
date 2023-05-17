@@ -150,7 +150,7 @@ class Session:
         from the database.
         """
 
-        async for session_id, data in Redis.iterate("session"):
+        async for _session_id, data in Redis.iterate("session"):
             session = SessionModel(**json_loads(data))
             if cls.is_expired(session):
                 logging.info(

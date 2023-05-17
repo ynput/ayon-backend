@@ -33,7 +33,7 @@ async def get_roles(
 
     rdict = {}
 
-    for role_key, perms in Roles.roles.items():
+    for role_key, _perms in Roles.roles.items():
         role_name, pname = role_key
         if pname == "_":
             if role_name in rdict:
@@ -97,7 +97,7 @@ async def save_role(
     except Exception:
         # TODO: which exception is raised?
         log_traceback()
-        raise ConstraintViolationException(f"Unable to add role {role_name}")
+        raise ConstraintViolationException(f"Unable to add role {role_name}") from None
 
     await Roles.load()
     # TODO: messaging: notify other instances

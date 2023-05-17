@@ -172,7 +172,7 @@ class BaseServerAddon:
         try:
             return toml.load(open(pyproject_path))
         except Exception:
-            raise AyonException("Unable to parse pyproject.toml")
+            raise AyonException("Unable to parse pyproject.toml") from None
 
     #
     # Settings
@@ -216,7 +216,7 @@ class BaseServerAddon:
                 query, self.definition.name, self.version, variant
             )
         except Postgres.UndefinedTableError:
-            raise NotFoundException(f"Project {project_name} does not exists")
+            raise NotFoundException(f"Project {project_name} does not exists") from None
         if res:
             return dict(res[0]["data"])
         return {}

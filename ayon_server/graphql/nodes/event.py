@@ -49,4 +49,4 @@ def event_from_record(record: dict, context: dict) -> EventNode:
     )
 
 
-setattr(EventNode, "from_record", staticmethod(event_from_record))
+EventNode.from_record = staticmethod(event_from_record)
