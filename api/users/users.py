@@ -132,7 +132,7 @@ async def create_user(
         raise ConflictException("User already exists")
 
     if put_data.password:
-        nuser.set_password(put_data.password)
+        nuser.set_password(put_data.password, complexity_check=not user.is_admin)
     await nuser.save()
     return EmptyResponse()
 
@@ -241,7 +241,6 @@ async def change_password(
     user: CurrentUser,
     user_name: UserName,
 ) -> EmptyResponse:
-
     patch_data_dict = patch_data.dict(exclude_unset=True)
 
     if "password" in patch_data_dict:
@@ -251,7 +250,10 @@ async def change_password(
             raise ForbiddenException()
 
         target_user = await UserEntity.load(user_name)
-        target_user.set_password(patch_data.password)
+        target_user.set_password(
+            patch_data.password,
+            complexity_check=not user.is_admin,
+        )
 
         await target_user.save()
         return EmptyResponse()
@@ -310,7 +312,6 @@ async def change_user_name(
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
-
             await conn.execute(
                 "UPDATE users SET name = $1 WHERE name = $2",
                 patch_data.new_name,

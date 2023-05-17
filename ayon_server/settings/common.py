@@ -165,7 +165,7 @@ async def postprocess_settings_schema(  # noqa
                 "conditionalEnum",
             ):
                 if extra_field := field.field_info.extra.get(extra_field_name):
-                    if not camelize(extra_field_name) in prop:
+                    if camelize(extra_field_name) not in prop:
                         prop[camelize(extra_field_name)] = extra_field
 
             # Support for VERY CUSTOM widgets, which would be otherwise

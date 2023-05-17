@@ -27,7 +27,6 @@ def isinstance_namedtuple(obj) -> bool:
 
 
 def json_default_handler(value: Any) -> Any:
-
     if isinstance_namedtuple(value):
         return list(value)
 

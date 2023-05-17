@@ -150,14 +150,16 @@ class UserEntity(TopLevelEntity):
 
         return Roles.combine(active_roles, project_name)
 
-    def set_password(self, password: str | None) -> None:
+    def set_password(
+        self, password: str | None, complexity_check: bool = False,
+    ) -> None:
         """Set user password."""
 
         if password is None:
             self._payload.data.pop("password", None)
             return
 
-        if not ensure_password_complexity(password):
+        if complexity_check and not ensure_password_complexity(password):
             raise LowPasswordComplexityException
         hashed_password = create_password(password)
         self._payload.data["password"] = hashed_password
