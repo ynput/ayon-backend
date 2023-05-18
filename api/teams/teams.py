@@ -17,6 +17,10 @@ async def get_teams(
 ) -> list[TeamListItemModel]:
     """Get all teams in a project."""
     project = await ProjectEntity.load(project_name)
+
+    if current_user.is_guest:
+        return []
+
     teams: list[TeamListItemModel] = []
     for team_data in project.data.get("teams", []):
         team = TeamModel(**team_data)
@@ -136,6 +140,9 @@ async def delete_team(
     if not current_user.is_manager:
         raise ForbiddenException("Only managers can update teams")
 
+    if current_user.is_guest:
+        raise ForbiddenException("Guests cannot update teams")
+
     project = await ProjectEntity.load(project_name)
     existing_teams = project.data.get("teams", [])
 
@@ -162,6 +169,9 @@ async def delete_team_member(
 
     if not current_user.is_manager:
         raise ForbiddenException("Only managers can update teams")
+
+    if current_user.is_guest:
+        raise ForbiddenException("Guests cannot update teams")
 
     project = await ProjectEntity.load(project_name)
     existing_teams = project.data.get("teams", [])
@@ -200,6 +210,9 @@ async def update_teams(
 
     if not current_user.is_manager:
         raise ForbiddenException("Only managers can update teams")
+
+    if current_user.is_guest:
+        raise ForbiddenException("Guests cannot update teams")
 
     project = await ProjectEntity.load(project_name)
     existing_teams = project.data.get("teams", [])
