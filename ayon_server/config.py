@@ -60,7 +60,7 @@ class AyonConfig(BaseModel):
     )
 
     postgres_url: str = Field(
-        default="postgres://pypeusr:pypepass@postgres/pype",
+        default="postgres://ayon:ayon@postgres/ayon",
         description="Connection string for Postgres.",
         example="postgres://user:password123@postgres.example.com:5432/ayon",
     )
