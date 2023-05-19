@@ -32,6 +32,7 @@ class HierarchyFolderModel(OPModel):
     hasTasks: bool
     taskNames: list[str] = Field(example=["Modeling", "Rigging"], title="Task names")
     parents: list[str]
+    parentId: str | None = Field(None, title="Parent folder id")
     children: list[HierarchyFolderModel] = Field(
         default_factory=list,
         title="List of children",
