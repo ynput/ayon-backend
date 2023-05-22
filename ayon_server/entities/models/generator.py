@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 from typing import Any, List, Literal, Optional, Type, TypeVar, Union
 
+from nxtools import logging
 from pydantic import BaseModel, Field, create_model
 
 from ayon_server.types import AttributeType
@@ -119,7 +120,14 @@ def generate_model(
     fields = {}
 
     for fdef_data in field_data:
-        fdef = FieldDefinition(**fdef_data)
+        try:
+            fdef = FieldDefinition(**fdef_data)
+        except Exception:
+            logging.error(
+                f"Unable to load attribute '{fdef_data.get('name', 'Unknown')}'"
+            )
+            continue
+
         field = {}
 
         #

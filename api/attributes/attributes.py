@@ -1,7 +1,7 @@
 from typing import Any
 
 from fastapi import APIRouter
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from ayon_server.api.dependencies import AttributeName, CurrentUser
 from ayon_server.api.responses import EmptyResponse
@@ -116,7 +116,7 @@ class AttributePutModel(OPModel):
         example=["folder", "task"],
     )
     builtin: bool = Field(
-        ...,
+        False,
         title="Builtin",
         description="Is attribute builtin. Built-in attributes cannot be removed.",
     )
@@ -143,20 +143,72 @@ class SetAttributeListModel(GetAttributeListModel):
     )
 
 
-@router.get("")
-async def get_attribute_list(user: CurrentUser) -> GetAttributeListModel:
-    """Return a list of attributes and their configuration."""
+async def save_attribute(attribute: AttributeModel):
+    query = """
+    INSERT INTO attributes
+    (name, position, scope, data)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (name)
+    DO UPDATE SET position = $2, scope = $3, data = $4
+    """
+
+    await Postgres.execute(
+        query,
+        attribute.name,
+        attribute.position,
+        attribute.scope,
+        attribute.data.dict(exclude_none=True),
+    )
+
+
+async def list_raw_attributes() -> list[dict[str, Any]]:
+    """Return a list of attributes as they are stored in the DB"""
 
     query = "SELECT * FROM attributes ORDER BY position"
     attributes: list[AttributeModel] = []
     async for row in Postgres.iterate(query):
-        attributes.append(AttributeModel(**row))
+        attributes.append(dict(row))
+    return attributes
+
+
+async def list_attributes() -> list[AttributeModel]:
+    """Return a list of attributes and their configuration.
+
+    Skip attributes with invalid configuration.
+    """
+
+    attr_list = await list_raw_attributes()
+    result = []
+    for attr in attr_list:
+        try:
+            result.append(AttributeModel(**attr))
+        except ValidationError:
+            pass
+    return result
+
+
+async def remove_attribute(name: str):
+    query = "DELETE FROM attributes WHERE name = $1"
+    await Postgres.execute(query, name)
+
+
+#
+# REST endpoints
+#
+
+
+@router.get("")
+async def get_attribute_list(user: CurrentUser) -> GetAttributeListModel:
+    """Return a list of attributes and their configuration."""
+
+    attributes = await list_attributes()
     return GetAttributeListModel(attributes=attributes)
 
 
 @router.put("", status_code=204)
 async def set_attribute_list(
-    payload: SetAttributeListModel, user: CurrentUser
+    payload: SetAttributeListModel,
+    user: CurrentUser,
 ) -> EmptyResponse:
     """
     Set the attribute configuration for all (or a subset of) attributes
@@ -180,25 +232,7 @@ async def set_attribute_list(
         )
 
     for attr in new_attributes:
-        query = """
-        INSERT INTO attributes
-        (name, position, scope, data)
-        VALUES
-        ($1, $2, $3, $4)
-        ON CONFLICT (name)
-        DO UPDATE SET
-            position = $2,
-            scope = $3,
-            data = $4
-        """
-
-        await Postgres.execute(
-            query,
-            attr.name,
-            attr.position,
-            attr.scope,
-            attr.data.dict(exclude_none=True),
-        )
+        await save_attribute(attr)
 
     return EmptyResponse()
 
@@ -220,29 +254,10 @@ async def set_attribute_config(
     payload: AttributePutModel, user: CurrentUser, attribute_name: AttributeName
 ) -> EmptyResponse:
     """Update attribute configuration"""
-
     if not user.is_admin:
         raise ForbiddenException("Only administrators are allowed to modify attributes")
-
-    query = """
-        INSERT INTO attributes
-        (name, position, scope, data)
-        VALUES
-        ($1, $2, $3, $4)
-        ON CONFLICT (name)
-        DO UPDATE SET
-            position = $2,
-            scope = $3,
-            data = $4
-    """
-
-    await Postgres.execute(
-        query,
-        attribute_name,
-        payload.position,
-        payload.scope,
-        payload.data.dict(exclude_none=True),
-    )
+    attribute = AttributeModel(name=attribute_name, **payload.dict())
+    await save_attribute(attribute)
     return EmptyResponse()
 
 
@@ -253,6 +268,5 @@ async def delete_attribute(
     if not user.is_admin:
         raise ForbiddenException("Only administrators are allowed to delete attributes")
 
-    query = "DELETE FROM attributes WHERE name = $1"
-    await Postgres.iterate(query, attribute_name)
+    await remove_attribute(attribute_name)
     return EmptyResponse()

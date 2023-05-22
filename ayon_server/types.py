@@ -45,6 +45,7 @@ AttributeType = Literal[
     "list_of_strings",
     "list_of_integers",
     "list_of_any",
+    "list_of_submodels",
     "dict",
 ]
 
