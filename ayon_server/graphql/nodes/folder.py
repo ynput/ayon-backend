@@ -87,6 +87,9 @@ class FolderNode(BaseNode):
 
 def folder_from_record(project_name: str, record: dict, context: dict) -> FolderNode:
     """Construct a folder node from a DB row."""
+
+    own_attrib = list(record["attrib"].keys())
+
     return FolderNode(
         project_name=project_name,
         id=record["id"],
@@ -112,7 +115,7 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         subset_count=record.get("subset_count", 0),
         task_count=record.get("task_count", 0),
         path=record.get("path"),
-        own_attrib=list(record["attrib"].keys()),
+        own_attrib=own_attrib,
     )
 
 
