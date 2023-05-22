@@ -37,12 +37,15 @@ async def deploy_users(
             data["apiKeyPreview"] = api_key_preview
 
         data["defaultRoles"] = user.get("defaultRoles", [])
+        assert type(data["defaultRoles"]) == list
+        assert all(type(role) == str for role in data["defaultRoles"])
 
         data["roles"] = {
             project_name: data["defaultRoles"]
             for project_name in projects
             if data["defaultRoles"]
         }
+
         for project_name, roles in user.get("roles", {}).items():
             #  roles = list(
             #     set(data["roles"].get(project_name, [])) | set(roles)

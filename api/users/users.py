@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Path
 from nxtools import logging
 
@@ -109,6 +111,26 @@ class NewUserModel(UserEntity.model.post_model):  # type: ignore
     password: str | None = Field(None, description="Password for the new user")
 
 
+def validate_user_data(data: dict[str, Any]):
+    try:
+        if default_roles := data.get("defaultRoles"):
+            assert type(default_roles) == list, "default roles must be a list"
+            assert all(
+                type(role) == str for role in default_roles
+            ), "default roles must be a list of str"
+
+        if roles := data.get("roles"):
+            assert type(roles) == dict, "roles must be a dict"
+            for project, role_list in roles.items():
+                assert type(project) == str, "project name must be a string"
+                assert type(role_list) == list, "role list must be a list"
+                assert all(
+                    type(role) == str for role in role_list
+                ), "role list must be a list of str"
+    except AssertionError as e:
+        raise BadRequestException(str(e)) from e
+
+
 @router.put("/{user_name}")
 async def create_user(
     put_data: NewUserModel,
@@ -119,6 +141,8 @@ async def create_user(
 
     if not user.is_manager:
         raise ForbiddenException
+
+    validate_user_data(put_data.data)
 
     if user.is_guest:
         put_data.data["isGuest"] = True
@@ -197,6 +221,8 @@ async def patch_user(
     elif target_user.name == user.name:
         # Managers cannot demote themselves
         payload.data.pop("isManager", None)
+
+    validate_user_data(payload.data)
 
     target_user.patch(payload)
     await target_user.save()
