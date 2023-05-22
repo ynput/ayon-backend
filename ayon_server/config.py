@@ -65,44 +65,6 @@ class AyonConfig(BaseModel):
         example="postgres://user:password123@postgres.example.com:5432/ayon",
     )
 
-    oauth_create_users: str | None = Field(
-        default=None,
-        title="OAuth create users",
-        description="Create users on OAuth2 login if they don't exist."
-        " value is a list of default top-level to assign to the user."
-        " e.g. 'user' or 'guest,manager'",
-    )
-
-    discord_client_id: str | None = Field(
-        default=None,
-        description="Discord client ID (for OAuth)",
-        example="123456789012345678",
-    )
-
-    discord_client_secret: str | None = Field(
-        default=None,
-        description="Discord client secret (for OAuth)",
-        example="123456789012345678",
-    )
-
-    discord_guilds: str | None = Field(
-        default=None,
-        description="Discord guilds",
-        example="123456789012345678, 123456789012345678",
-    )
-
-    google_client_id: str | None = Field(
-        default=None,
-        description="Google client ID (for OAuth).",
-        example="123456789012345678",
-    )
-
-    google_client_secret: str | None = Field(
-        default=None,
-        description="Google client secret (for OAuth)",
-        example="123456789012345678",
-    )
-
     motd: str | None = Field(
         default=None,
         description="Message of the day",

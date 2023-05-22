@@ -21,7 +21,6 @@ fastapi = "^0.95"
 httpx = "^0.23"
 orjson = "^3.8.6"
 redis = "^4.5.5"
-yaoauth2 = "^1.1.2"
 aiofiles = "^23.1.0"
 shortuuid = "^1.0.11"
 
