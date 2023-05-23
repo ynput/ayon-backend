@@ -115,6 +115,9 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
     joins = []
     conds = []
 
+    if not req.path:
+        return ResolvedEntityModel(project_name=req.project_name)
+
     if req.task_name is not None or req.workfile_name is not None:
         return []  # not implemented
     else:

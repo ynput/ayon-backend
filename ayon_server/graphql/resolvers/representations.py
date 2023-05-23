@@ -21,6 +21,11 @@ from ayon_server.graphql.resolvers.common import (
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 
+empty_connection = RepresentationsConnection(
+    edges=[],
+    page_info=create_pagination(["representations.creation_order"], 0, 0, 0, 0),
+)
+
 
 async def get_representations(
     root,
@@ -30,8 +35,6 @@ async def get_representations(
     last: ARGLast = None,
     before: ARGBefore = None,
     ids: ARGIds = None,
-    local_site: str | None = None,
-    remote_site: str | None = None,
     version_ids: Annotated[
         list[str] | None, argdesc("List of parent version IDs to filter by")
     ] = None,
@@ -69,29 +72,34 @@ async def get_representations(
     sql_joins = []
     sql_conditions = []
 
-    # if local_site or remote_site:
-    #     sql_columns.append("representations.data AS data")
-
-    if ids:
+    if ids is not None:
+        if not ids:
+            return empty_connection
         sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
 
     if version_ids is not None:
+        if not version_ids:
+            return empty_connection
         sql_conditions.append(f"version_id IN {SQLTool.id_array(version_ids)}")
     elif root.__class__.__name__ == "VersionNode":
         # cannot use isinstance here because of circular imports
         sql_conditions.append(f"version_id = '{root.id}'")
 
-    # if name is not None:
-    #     sql_conditions.append(f"name ILIKE '{name}'")
     if names is not None:
+        if not names:
+            return empty_connection
         validate_name_list(names)
         sql_conditions.append(f"name IN {SQLTool.array(names)}")
 
-    if statuses:
+    if statuses is not None:
+        if not statuses:
+            return empty_connection
         validate_status_list(statuses)
         sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
 
-    if tags:
+    if tags is not None:
+        if not tags:
+            return empty_connection
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
@@ -165,15 +173,11 @@ async def get_representation(
     root,
     info: Info,
     id: str,
-    local_site: str | None = None,
-    remote_site: str | None = None,
 ) -> RepresentationNode | None:
     """Return a representation node based on its ID"""
     if not id:
         return None
-    connection = await get_representations(
-        root, info, ids=[id], local_site=local_site, remote_site=remote_site
-    )
+    connection = await get_representations(root, info, ids=[id])
     if not connection.edges:
         return None
     return connection.edges[0].node

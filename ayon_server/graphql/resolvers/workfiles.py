@@ -31,6 +31,12 @@ SORT_OPTIONS = {
 }
 
 
+empty_connection = WorkfilesConnection(
+    edges=[],
+    page_info=create_pagination(["subsets.creation_order"], 0, 0, 0, 0),
+)
+
+
 async def get_workfiles(
     root,
     info: Info,
@@ -81,15 +87,21 @@ async def get_workfiles(
     sql_conditions = []
     sql_joins = []
 
-    if ids:
+    if ids is not None:
+        if not ids:
+            return empty_connection
         sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
 
-    if task_ids:
+    if task_ids is not None:
+        if not task_ids:
+            return empty_connection
         sql_conditions.append(f"task_id IN {SQLTool.id_array(task_ids)}")
     elif root.__class__.__name__ == "TaskNode":
         sql_conditions.append(f"task_id = '{root.id}'")
 
-    if paths:
+    if paths is not None:
+        if not paths:
+            return empty_connection
         paths = [r.replace("'", "''") for r in paths]
         sql_conditions.append(f"path IN {SQLTool.array(paths)}")
 
@@ -103,10 +115,14 @@ async def get_workfiles(
             get_has_links_conds(project_name, "workfiles.id", has_links)
         )
 
-    if statuses:
+    if statuses is not None:
+        if not statuses:
+            return empty_connection
         validate_status_list(statuses)
         sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
-    if tags:
+    if tags is not None:
+        if not tags:
+            return empty_connection
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 

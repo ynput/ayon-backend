@@ -30,6 +30,11 @@ SORT_OPTIONS = {
     "updatedAt": "versions.updated_at",
 }
 
+empty_connection = VersionsConnection(
+    edges=[],
+    page_info=create_pagination(["versions.creation_order"], 0, 0, 0, 0),
+)
+
 
 async def get_versions(
     root,
@@ -105,23 +110,35 @@ async def get_versions(
     if ids == ["0" * 32]:
         return VersionsConnection(edges=[])
 
-    if ids:
+    if ids is not None:
+        if not ids:
+            return empty_connection
         sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
     if version:
         sql_conditions.append(f"version = {version}")
-    if versions:
+    if versions is not None:
+        if not versions:
+            return empty_connection
         sql_conditions.append(f"version IN {SQLTool.array(versions)}")
-    if authors:
+    if authors is not None:
+        if not authors:
+            return empty_connection
         validate_name_list(authors)
         sql_conditions.append(f"author IN {SQLTool.array(authors)}")
-    if statuses:
+    if statuses is not None:
+        if not statuses:
+            return empty_connection
         validate_status_list(statuses)
         sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
-    if tags:
+    if tags is not None:
+        if not tags:
+            return empty_connection
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
-    if subset_ids:
+    if subset_ids is not None:
+        if not subset_ids:
+            return empty_connection
         sql_conditions.append(f"subset_id IN {SQLTool.id_array(subset_ids)}")
     elif root.__class__.__name__ == "SubsetNode":
         sql_conditions.append(f"subset_id = '{root.id}'")
