@@ -132,4 +132,4 @@ def subset_from_record(
     )
 
 
-SubsetNode.from_record = staticmethod(subset_from_record)
+SubsetNode.from_record = staticmethod(subset_from_record)  # type: ignore

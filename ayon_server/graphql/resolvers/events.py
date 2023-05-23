@@ -24,11 +24,6 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool
 
-empty_connection = EventsConnection(
-    edges=[],
-    page_info=create_pagination(["events.creation_order"], 0, 0, 0, 0),
-)
-
 
 async def get_events(
     root,
@@ -53,7 +48,7 @@ async def get_events(
 
     if topics is not None:
         if not topics:
-            return empty_connection
+            return EventsConnection()
         topics = validate_topic_list(topics)
         sql_conditions.append(
             f"topic LIKE ANY(array[{SQLTool.array(topics, nobraces=True)}])"
@@ -63,17 +58,17 @@ async def get_events(
 
     if projects is not None:
         if not projects:
-            return empty_connection
+            return EventsConnection()
         projects = validate_name_list(projects)
         sql_conditions.append(f"project_name IN {SQLTool.array(projects)}")
     if users is not None:
         if not users:
-            return empty_connection
+            return EventsConnection()
         users = validate_user_name_list(users)
         sql_conditions.append(f"user_name IN {SQLTool.array(users)}")
     if states is not None:
         if not states:
-            return empty_connection
+            return EventsConnection()
         states = validate_name_list(states)
         sql_conditions.append(f"status IN {SQLTool.array(states)}")
 

@@ -144,7 +144,7 @@ class AyonSchema(strawberry.Schema):
             logging.error(f"GraphQL: {fname}:{line_no} ({path}) {message}")
 
 
-router = GraphQLRouter(
+router: GraphQLRouter = GraphQLRouter(
     schema=AyonSchema(query=Query),
     graphiql=False,
     context_getter=graphql_get_context,

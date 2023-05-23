@@ -33,11 +33,6 @@ SORT_OPTIONS = {
     "taskType": "tasks.folder_type",
 }
 
-empty_connection = TasksConnection(
-    edges=[],
-    page_info=create_pagination(["tasks.creation_order"], 0, 0, 0, 0),
-)
-
 
 async def get_tasks(
     root,
@@ -103,12 +98,12 @@ async def get_tasks(
 
     if ids is not None:
         if not ids:
-            return empty_connection
+            return TasksConnection()
         sql_conditions.append(f"tasks.id IN {SQLTool.id_array(ids)}")
 
     if folder_ids is not None:
         if not folder_ids:
-            return empty_connection
+            return TasksConnection()
         sql_conditions.append(f"tasks.folder_id IN {SQLTool.id_array(folder_ids)}")
     elif root.__class__.__name__ == "FolderNode":
         # cannot use isinstance here because of circular imports
@@ -119,30 +114,30 @@ async def get_tasks(
 
     if names is not None:
         if not names:
-            return empty_connection
+            return TasksConnection()
         validate_name_list(names)
         sql_conditions.append(f"tasks.name IN {SQLTool.array(names)}")
 
     if task_types is not None:
         if not task_types:
-            return empty_connection
+            return TasksConnection()
         validate_name_list(task_types)
         sql_conditions.append(f"tasks.task_type IN {SQLTool.array(task_types)}")
 
     if statuses is not None:
         if not statuses:
-            return empty_connection
+            return TasksConnection()
         validate_status_list(statuses)
         sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
     if tags is not None:
         if not tags:
-            return empty_connection
+            return TasksConnection()
         validate_name_list(tags)
         sql_conditions.append(f"tasks.tags @> {SQLTool.array(tags, curly=True)}")
 
     if assignees is not None:
         if not assignees:
-            return empty_connection
+            return TasksConnection()
         sql_conditions.append(
             f"tasks.assignees @> {SQLTool.array(assignees, curly=True)}"
         )

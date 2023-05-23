@@ -1,4 +1,5 @@
 import re
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter
@@ -18,7 +19,6 @@ class ResolvedEntityModel(OPModel):
     folder_id: str | None = Field(None, title="Folder id")
     subset_id: str | None = Field(None, title="Subset id")
     task_id: str | None = Field(None, title="Task id")
-    subset_id: str | None = Field(None, title="Subset id")
     version_id: str | None = Field(None, title="Version id")
     representation_id: str | None = Field(None, title="Representation id")
     workfile_id: str | None = Field(None, title="Workfile id")
@@ -61,10 +61,10 @@ def parse_uri(uri: str) -> ParsedURIModel:
 
     path = parsed_uri.path.strip("/") or None
 
-    qs = parse_qs(parsed_uri.query)
+    qs: dict[str, Any] = parse_qs(parsed_uri.query)
 
     subset_name = qs.get("subset", [None])[0]
-    assert subset_name is None or name_validator.match(
+    assert (subset_name is None) or name_validator.match(
         subset_name
     ), f"Invalid subset name: {subset_name}"
 
@@ -145,7 +145,7 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
             if req.path is not None:
                 conds.append(f"h.path = '{req.path}'")
         elif req.subset_name is not None:
-            cols.append("s.id as subset_id"),
+            cols.append("s.id as subset_id")
             joins.append("INNER JOIN subsets AS s ON h.id = s.folder_id")
             conds.append(f"s.name = '{req.subset_name}'")
             if req.path is not None:

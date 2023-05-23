@@ -91,4 +91,4 @@ def user_from_record(record: dict, context: dict) -> UserNode:
     )
 
 
-UserNode.from_record = staticmethod(user_from_record)
+UserNode.from_record = staticmethod(user_from_record)  # type: ignore

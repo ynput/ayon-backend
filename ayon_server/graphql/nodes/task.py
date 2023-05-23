@@ -117,4 +117,4 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
     )
 
 
-TaskNode.from_record = staticmethod(task_from_record)
+TaskNode.from_record = staticmethod(task_from_record)  # type: ignore

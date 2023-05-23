@@ -13,6 +13,12 @@ repos:
       language: system
       types: [python]
 
+    - id: ruff
+      name: ruff
+      entry: poetry run ruff .
+      language: system
+      types: [python]
+
     # TODO: make this work
     # - id: mypy
     #   name: mypy

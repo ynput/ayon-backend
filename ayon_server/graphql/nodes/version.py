@@ -105,4 +105,4 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
     )
 
 
-VersionNode.from_record = staticmethod(version_from_record)
+VersionNode.from_record = staticmethod(version_from_record)  # type: ignore

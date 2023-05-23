@@ -31,12 +31,6 @@ SORT_OPTIONS = {
 }
 
 
-empty_connection = SubsetsConnection(
-    edges=[],
-    page_info=create_pagination(["subsets.creation_order"], 0, 0, 0, 0),
-)
-
-
 async def get_subsets(
     root,
     info: Info,
@@ -87,12 +81,12 @@ async def get_subsets(
 
     if ids is not None:
         if not ids:
-            return empty_connection
+            return SubsetsConnection()
         sql_conditions.append(f"subsets.id IN {SQLTool.id_array(ids)}")
 
     if folder_ids is not None:
         if not folder_ids:
-            return empty_connection
+            return SubsetsConnection()
         sql_conditions.append(f"subsets.folder_id IN {SQLTool.id_array(folder_ids)}")
     elif root.__class__.__name__ == "FolderNode":
         # cannot use isinstance here because of circular imports
@@ -100,24 +94,24 @@ async def get_subsets(
 
     if names is not None:
         if not names:
-            return empty_connection
+            return SubsetsConnection()
         validate_name_list(names)
         sql_conditions.append(f"subsets.name IN {SQLTool.array(names)}")
 
     if families is not None:
         if not families:
-            return empty_connection
+            return SubsetsConnection()
         validate_name_list(families)
         sql_conditions.append(f"subsets.family IN {SQLTool.array(families)}")
 
     if statuses is not None:
         if not statuses:
-            return empty_connection
+            return SubsetsConnection()
         validate_status_list(statuses)
         sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
     if tags is not None:
         if not tags:
-            return empty_connection
+            return SubsetsConnection()
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 

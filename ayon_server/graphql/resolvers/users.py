@@ -18,11 +18,6 @@ from ayon_server.graphql.resolvers.common import (
 from ayon_server.types import validate_user_name
 from ayon_server.utils import SQLTool
 
-empty_connection = UsersConnection(
-    edges=[],
-    page_info=create_pagination(["users.creation_order"], 0, 0, 0, 0),
-)
-
 
 async def get_users(
     root,
@@ -61,7 +56,7 @@ async def get_users(
 
     if names is not None:
         if not names:
-            return empty_connection
+            return UsersConnection()
         for name in names:
             validate_user_name(name)
         sql_conditions.append(f"users.name IN {SQLTool.array(names)}")

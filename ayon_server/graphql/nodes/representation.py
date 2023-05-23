@@ -124,4 +124,4 @@ def representation_from_record(
     )
 
 
-RepresentationNode.from_record = staticmethod(representation_from_record)
+RepresentationNode.from_record = staticmethod(representation_from_record)  # type: ignore

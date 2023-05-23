@@ -119,4 +119,4 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
     )
 
 
-FolderNode.from_record = staticmethod(folder_from_record)
+FolderNode.from_record = staticmethod(folder_from_record)  # type: ignore

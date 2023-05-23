@@ -204,4 +204,4 @@ def project_from_record(record: dict, context: dict) -> ProjectNode:
     )
 
 
-ProjectNode.from_record = staticmethod(project_from_record)
+ProjectNode.from_record = staticmethod(project_from_record)  # type: ignore

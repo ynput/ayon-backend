@@ -165,7 +165,7 @@ async def list_raw_attributes() -> list[dict[str, Any]]:
     """Return a list of attributes as they are stored in the DB"""
 
     query = "SELECT * FROM attributes ORDER BY position"
-    attributes: list[AttributeModel] = []
+    attributes = []
     async for row in Postgres.iterate(query):
         attributes.append(dict(row))
     return attributes

@@ -33,11 +33,6 @@ SORT_OPTIONS = {
     "folderType": "folders.folder_type",
 }
 
-empty_connection = FoldersConnection(
-    edges=[],
-    page_info=create_pagination(["folders.creation_order"], 0, 0, 0, 0),
-)
-
 
 async def get_folders(
     root,
@@ -186,7 +181,7 @@ async def get_folders(
 
     if ids is not None:
         if not ids:
-            return empty_connection
+            return FoldersConnection()
         sql_conditions.append(f"folders.id IN {SQLTool.id_array(ids)}")
 
     if parent_id is not None:
@@ -199,7 +194,7 @@ async def get_folders(
 
     if parent_ids is not None:
         if not parent_ids:
-            return empty_connection
+            return FoldersConnection()
         pids_set = set(parent_ids)
         lconds = []
         if "root" in pids_set or None in pids_set:
@@ -215,7 +210,7 @@ async def get_folders(
 
     if folder_types is not None:
         if not folder_types:
-            return empty_connection
+            return FoldersConnection()
         validate_name_list(folder_types)
         sql_conditions.append(f"folders.folder_type in {SQLTool.array(folder_types)}")
 
@@ -225,13 +220,13 @@ async def get_folders(
 
     if names is not None:
         if not names:
-            return empty_connection
+            return FoldersConnection()
         validate_name_list(names)
         sql_conditions.append(f"folders.name in {SQLTool.array(names)}")
 
     if statuses is not None:
         if not statuses:
-            return empty_connection
+            return FoldersConnection()
         validate_status_list(statuses)
         sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
 
@@ -259,7 +254,7 @@ async def get_folders(
 
     if paths is not None:
         if not paths:
-            return empty_connection
+            return FoldersConnection()
         # TODO: sanitize
         sql_conditions.append(f"hierarchy.path IN {SQLTool.array(paths)}")
 

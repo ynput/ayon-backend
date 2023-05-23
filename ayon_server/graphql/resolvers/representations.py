@@ -21,11 +21,6 @@ from ayon_server.graphql.resolvers.common import (
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 
-empty_connection = RepresentationsConnection(
-    edges=[],
-    page_info=create_pagination(["representations.creation_order"], 0, 0, 0, 0),
-)
-
 
 async def get_representations(
     root,
@@ -74,12 +69,12 @@ async def get_representations(
 
     if ids is not None:
         if not ids:
-            return empty_connection
+            return RepresentationsConnection()
         sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
 
     if version_ids is not None:
         if not version_ids:
-            return empty_connection
+            return RepresentationsConnection()
         sql_conditions.append(f"version_id IN {SQLTool.id_array(version_ids)}")
     elif root.__class__.__name__ == "VersionNode":
         # cannot use isinstance here because of circular imports
@@ -87,19 +82,19 @@ async def get_representations(
 
     if names is not None:
         if not names:
-            return empty_connection
+            return RepresentationsConnection()
         validate_name_list(names)
         sql_conditions.append(f"name IN {SQLTool.array(names)}")
 
     if statuses is not None:
         if not statuses:
-            return empty_connection
+            return RepresentationsConnection()
         validate_status_list(statuses)
         sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
 
     if tags is not None:
         if not tags:
-            return empty_connection
+            return RepresentationsConnection()
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
