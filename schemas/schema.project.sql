@@ -137,15 +137,15 @@ CREATE UNIQUE INDEX task_creation_order_idx ON tasks(creation_order);
 CREATE UNIQUE INDEX task_unique_name ON tasks(folder_id, name);
 
 -------------
--- SUBSETS --
+-- PRODUCTS --
 -------------
 
-CREATE TABLE subsets(
+CREATE TABLE products(
     id UUID NOT NULL PRIMARY KEY,
     name VARCHAR NOT NULL,
 
     folder_id UUID NOT NULL REFERENCES folders(id),
-    family VARCHAR NOT NULL,
+    product_type VARCHAR NOT NULL REFERENCES public.product_types(name) ON UPDATE CASCADE,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -157,10 +157,10 @@ CREATE TABLE subsets(
     creation_order SERIAL NOT NULL
 );
 
-CREATE INDEX subset_parent_idx ON subsets(folder_id);
-CREATE INDEX subset_family_idx ON subsets(family);
-CREATE UNIQUE INDEX subset_creation_order_idx ON subsets(creation_order);
-CREATE UNIQUE INDEX subset_unique_name_parent ON subsets (folder_id, name) WHERE (active IS TRUE);
+CREATE INDEX product_parent_idx ON products(folder_id);
+CREATE INDEX product_type_idx ON products(product_type);
+CREATE UNIQUE INDEX product_creation_order_idx ON products(creation_order);
+CREATE UNIQUE INDEX product_unique_name_parent ON products (folder_id, name) WHERE (active IS TRUE);
 
 --------------
 -- VERSIONS --
@@ -170,7 +170,7 @@ CREATE TABLE versions(
     id UUID NOT NULL PRIMARY KEY,
 
     version INTEGER NOT NULL,
-    subset_id UUID NOT NULL REFERENCES subsets(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
     author VARCHAR, -- REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
@@ -185,24 +185,24 @@ CREATE TABLE versions(
     creation_order SERIAL NOT NULL
 );
 
-CREATE INDEX version_parent_idx ON versions(subset_id);
+CREATE INDEX version_parent_idx ON versions(product_id);
 CREATE UNIQUE INDEX version_creation_order_idx ON versions(creation_order);
-CREATE UNIQUE INDEX version_unique_version_parent ON versions (subset_id, version) WHERE (active IS TRUE);
+CREATE UNIQUE INDEX version_unique_version_parent ON versions (product_id, version) WHERE (active IS TRUE);
 
 -- Version list VIEW
--- Materialized view used as a shorthand to get subset versions
+-- Materialized view used as a shorthand to get product versions
 
 CREATE MATERIALIZED VIEW version_list
 AS
     SELECT
-        v.subset_id AS subset_id,
+        v.product_id AS product_id,
         array_agg(v.id ORDER BY v.version ) AS ids, 
         array_agg(v.version ORDER BY v.version ) AS versions
     FROM
         versions AS v
-    GROUP BY v.subset_id;
+    GROUP BY v.product_id;
 
-CREATE UNIQUE INDEX version_list_id ON version_list (subset_id);
+CREATE UNIQUE INDEX version_list_id ON version_list (product_id);
 
 ---------------------
 -- REPRESENTATIONS --
