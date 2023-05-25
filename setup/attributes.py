@@ -145,7 +145,7 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "title": "Site",
         "example": "workstation42",
     },
-    "product_types": {
+    "productTypes": {
         "scope": "V",
         "type": "list_of_strings",
         "title": "Product types",

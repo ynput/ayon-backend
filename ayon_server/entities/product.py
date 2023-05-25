@@ -11,6 +11,17 @@ class ProductEntity(ProjectLevelEntity):
     # Properties
     #
 
+    async def pre_save(self, insert, transaction) -> None:
+        """Hook called before saving the entity to the database."""
+        await transaction.execute(
+            """
+            INSERT INTO product_types (name)
+            VALUES ($1)
+            ON CONFLICT DO NOTHING
+            """,
+            self.product_type,
+        )
+
     @property
     def folder_id(self) -> str:
         return self._payload.folder_id

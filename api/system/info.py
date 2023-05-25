@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 
 from attributes.attributes import AttributeModel
 from fastapi import Request
+from nxtools import log_traceback
 from pydantic import ValidationError
 
 from ayon_server.addons import AddonLibrary, SSOOption
@@ -54,7 +55,6 @@ class InfoResponseModel(OPModel):
 
 
 async def get_sso_options(request: Request) -> list[SSOOption]:
-
     referer = request.headers.get("referer")
     if referer:
         parsed_url = urlparse(referer)
@@ -128,7 +128,11 @@ async def get_additional_info(user: UserEntity, request: Request):
 
     attr_list: list[AttributeModel] = []
     for row in attribute_library.info_data:
-        attr_list.append(AttributeModel(**row))
+        try:
+            attr_list.append(AttributeModel(**row))
+        except ValidationError:
+            log_traceback(f"Invalid attribute data: {row}")
+            continue
     return {
         "attributes": attr_list,
         "sites": sites,

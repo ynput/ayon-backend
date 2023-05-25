@@ -176,6 +176,10 @@ class ProjectLevelEntity(BaseEntity):
     # Save
     #
 
+    async def pre_save(self, insert: bool, transaction) -> None:
+        """Hook called before saving the entity to the database."""
+        pass
+
     async def save(self, transaction=None) -> bool:
         """Save the entity to the database.
 
@@ -213,6 +217,7 @@ class ProjectLevelEntity(BaseEntity):
             fields["attrib"] = attrib
 
             try:
+                await self.pre_save(False, transaction)
                 await transaction.execute(
                     *SQLTool.update(
                         f"project_{self.project_name}.{self.entity_type}s",
@@ -238,6 +243,7 @@ class ProjectLevelEntity(BaseEntity):
             )
             fields["attrib"] = attrib
 
+            await self.pre_save(True, transaction)
             await transaction.execute(
                 *SQLTool.insert(
                     f"project_{self.project_name}.{self.entity_type}s",
