@@ -4,7 +4,7 @@ import strawberry
 from strawberry import LazyType
 from strawberry.types import Info
 
-from ayon_server.entities import SubsetEntity
+from ayon_server.entities import ProductEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.utils import parse_attrib_data
@@ -33,18 +33,18 @@ class VersionListItem:
         return f"v{self.version:03d}"
 
 
-@SubsetEntity.strawberry_attrib()
-class SubsetAttribType:
+@ProductEntity.strawberry_attrib()
+class ProductAttribType:
     pass
 
 
 @strawberry.type
-class SubsetNode(BaseNode):
+class ProductNode(BaseNode):
     folder_id: str
-    family: str
+    product_type: str
     status: str
     tags: list[str]
-    attrib: SubsetAttribType
+    attrib: ProductAttribType
 
     # GraphQL specifics
 
@@ -55,14 +55,14 @@ class SubsetNode(BaseNode):
 
     version_list: list[VersionListItem] = strawberry.field(
         default_factory=list,
-        description="Simple (id /version) list of versions in the subset",
+        description="Simple (id /version) list of versions in the product",
     )
 
     _folder: Optional[FolderNode] = None
 
-    @strawberry.field(description="Parent folder of the subset")
+    @strawberry.field(description="Parent folder of the product")
     async def folder(self, info: Info) -> FolderNode:
-        # Skip dataloader if already loaded by the subset resolver
+        # Skip dataloader if already loaded by the product resolver
         if self._folder:
             return self._folder
         record = await info.context["folder_loader"].load(
@@ -72,7 +72,7 @@ class SubsetNode(BaseNode):
             self.project_name, record, info.context
         )
 
-    @strawberry.field(description="Last version of the subset")
+    @strawberry.field(description="Last version of the product")
     async def latest_version(self, info: Info) -> Optional[VersionNode]:
         record = await info.context["latest_version_loader"].load(
             (self.project_name, self.id)
@@ -84,12 +84,12 @@ class SubsetNode(BaseNode):
         )
 
 
-def subset_from_record(
+def product_from_record(
     project_name: str,
     record: dict,
     context: dict[str, Any],
-) -> SubsetNode:
-    """Construct a subset node from a DB row."""
+) -> ProductNode:
+    """Construct a product node from a DB row."""
 
     if context:
         folder_data = {}
@@ -110,16 +110,16 @@ def subset_from_record(
     for id, vers in zip(record.get("version_ids", []), record.get("version_list", [])):
         vlist.append(VersionListItem(id=id, version=vers))
 
-    return SubsetNode(
+    return ProductNode(
         project_name=project_name,
         id=record["id"],
         name=record["name"],
         folder_id=record["folder_id"],
-        family=record["family"],
+        product_type=record["product_type"],
         status=record["status"],
         tags=record["tags"],
         attrib=parse_attrib_data(
-            SubsetAttribType,
+            ProductAttribType,
             record["attrib"],
             user=context["user"],
             project_name=project_name,
@@ -132,4 +132,4 @@ def subset_from_record(
     )
 
 
-SubsetNode.from_record = staticmethod(subset_from_record)  # type: ignore
+ProductNode.from_record = staticmethod(product_from_record)  # type: ignore

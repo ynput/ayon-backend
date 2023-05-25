@@ -71,7 +71,7 @@ async def get_tasks(
         return TasksConnection(edges=[])
 
     project_name = root.project_name
-    fields = FieldInfo(info, ["tasks.edges.node", "subset"])
+    fields = FieldInfo(info, ["tasks.edges.node", "product"])
 
     #
     # SQL

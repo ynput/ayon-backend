@@ -6,11 +6,11 @@ from strawberry import LazyType
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.graphql.resolvers.folders import get_folder, get_folders
+from ayon_server.graphql.resolvers.products import get_product, get_products
 from ayon_server.graphql.resolvers.representations import (
     get_representation,
     get_representations,
 )
-from ayon_server.graphql.resolvers.subsets import get_subset, get_subsets
 from ayon_server.graphql.resolvers.tasks import get_task, get_tasks
 from ayon_server.graphql.resolvers.versions import get_version, get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfile, get_workfiles
@@ -20,29 +20,29 @@ from ayon_server.lib.postgres import Postgres
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import (
         FoldersConnection,
+        ProductsConnection,
         RepresentationsConnection,
-        SubsetsConnection,
         TasksConnection,
         VersionsConnection,
         WorkfilesConnection,
     )
     from ayon_server.graphql.nodes.folder import FolderNode
+    from ayon_server.graphql.nodes.product import ProductNode
     from ayon_server.graphql.nodes.representation import RepresentationNode
-    from ayon_server.graphql.nodes.subset import SubsetNode
     from ayon_server.graphql.nodes.task import TaskNode
     from ayon_server.graphql.nodes.version import VersionNode
     from ayon_server.graphql.nodes.workfile import WorkfileNode
 else:
     FoldersConnection = LazyType["FoldersConnection", "..connections"]
     RepresentationsConnection = LazyType["RepresentationsConnection", "..connections"]
-    SubsetsConnection = LazyType["SubsetsConnection", "..connections"]
+    ProductsConnection = LazyType["ProductsConnection", "..connections"]
     TasksConnection = LazyType["TasksConnection", "..connections"]
     VersionsConnection = LazyType["VersionsConnection", "..connections"]
     WorkfilesConnection = LazyType["WorkfilesConnection", "..connections"]
 
     FolderNode = LazyType["FolderNode", ".folder"]
     RepresentationNode = LazyType["RepresentationNode", ".representation"]
-    SubsetNode = LazyType["SubsetNode", ".subset"]
+    ProductNode = LazyType["ProductNode", ".product"]
     TaskNode = LazyType["TaskNode", ".task"]
     VersionNode = LazyType["VersionNode", ".version"]
     WorkfileNode = LazyType["WorkfileNode", ".workfile"]
@@ -98,14 +98,14 @@ class ProjectNode:
         description=get_tasks.__doc__,
     )
 
-    subset: SubsetNode = strawberry.field(
-        resolver=get_subset,
-        description=get_subset.__doc__,
+    product: ProductNode = strawberry.field(
+        resolver=get_product,
+        description=get_product.__doc__,
     )
 
-    subsets: SubsetsConnection = strawberry.field(
-        resolver=get_subsets,
-        description=get_subsets.__doc__,
+    products: ProductsConnection = strawberry.field(
+        resolver=get_products,
+        description=get_products.__doc__,
     )
 
     version: VersionNode = strawberry.field(
@@ -173,13 +173,13 @@ class ProjectNode:
         ]
 
     @strawberry.field
-    async def subset_families(self) -> list[str]:
+    async def product_typess(self) -> list[str]:
         return [
-            row["family"]
+            row["product_types"]
             async for row in Postgres.iterate(
                 f"""
-                SELECT DISTINCT(family)
-                FROM project_{self.project_name}.subsets
+                SELECT DISTINCT()
+                FROM project_{self.project_name}.products
             """
             )
         ]

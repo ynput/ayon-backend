@@ -39,7 +39,7 @@ async def get_project_stats(user: CurrentUser, project_name: ProjectName):
     """Retrieve a project statistics by its name."""
 
     counts = {}
-    for entity in ["folders", "subsets", "versions", "representations", "tasks"]:
+    for entity in ["folders", "products", "versions", "representations", "tasks"]:
         res = await Postgres.fetch(
             f"""
             SELECT COUNT(id)

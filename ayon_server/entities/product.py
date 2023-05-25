@@ -3,9 +3,9 @@ from ayon_server.entities.models import ModelSet
 from ayon_server.types import ProjectLevelEntityType
 
 
-class SubsetEntity(ProjectLevelEntity):
-    entity_type: ProjectLevelEntityType = "subset"
-    model = ModelSet("subset", attribute_library["subset"])
+class ProductEntity(ProjectLevelEntity):
+    entity_type: ProjectLevelEntityType = "product"
+    model = ModelSet("product", attribute_library["product"])
 
     #
     # Properties
@@ -24,9 +24,9 @@ class SubsetEntity(ProjectLevelEntity):
         return self.folder_id
 
     @property
-    def family(self) -> str:
-        return self._payload.family
+    def product_type(self) -> str:
+        return self._payload.product_type
 
-    @family.setter
-    def family(self, value: str):
-        self._payload.family = value
+    @product_type.setter
+    def product_type(self, value: str):
+        self._payload.product_type = value

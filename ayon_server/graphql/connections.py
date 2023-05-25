@@ -3,9 +3,9 @@ import strawberry
 from ayon_server.graphql.edges import (
     EventEdge,
     FolderEdge,
+    ProductEdge,
     ProjectEdge,
     RepresentationEdge,
-    SubsetEdge,
     TaskEdge,
     UserEdge,
     VersionEdge,
@@ -35,8 +35,8 @@ class TasksConnection(BaseConnection):
 
 
 @strawberry.type
-class SubsetsConnection(BaseConnection):
-    edges: list[SubsetEdge] = strawberry.field(default_factory=list)
+class ProductsConnection(BaseConnection):
+    edges: list[ProductEdge] = strawberry.field(default_factory=list)
 
 
 @strawberry.type

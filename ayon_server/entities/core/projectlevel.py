@@ -281,7 +281,7 @@ class ProjectLevelEntity(BaseEntity):
             detail = f"Unable to delete {self.entity_type} {self.id}"
             if self.entity_type == "folder":
                 _ = e  # TODO: use this
-                detail = "Unable to delete a folder with subsets or tasks."
+                detail = "Unable to delete a folder with products or tasks."
             raise ConstraintViolationException(detail)
 
         if commit:
@@ -314,7 +314,7 @@ class ProjectLevelEntity(BaseEntity):
         """Return the parent id.
 
         Return None if the entity does not have a parent.
-        In case of tasks and subsets, this is the folder id,
+        In case of tasks and products, this is the folder id,
         in case of folders, this is the parent folder id,
         and so on...
         """

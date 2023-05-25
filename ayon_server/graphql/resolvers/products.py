@@ -3,9 +3,9 @@ from typing import Annotated
 from strawberry.types import Info
 
 from ayon_server.access.utils import folder_access_list
-from ayon_server.graphql.connections import SubsetsConnection
-from ayon_server.graphql.edges import SubsetEdge
-from ayon_server.graphql.nodes.subset import SubsetNode
+from ayon_server.graphql.connections import ProductsConnection
+from ayon_server.graphql.edges import ProductEdge
+from ayon_server.graphql.nodes.product import ProductNode
 from ayon_server.graphql.resolvers.common import (
     ARGAfter,
     ARGBefore,
@@ -24,14 +24,14 @@ from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 
 SORT_OPTIONS = {
-    "name": "subsets.name",
-    "family": "subsets.family",
-    "createdAt": "subsets.created_at",
-    "updatedAt": "subsets.updated_at",
+    "name": "products.name",
+    "productType": "products.product_type",
+    "createdAt": "products.created_at",
+    "updatedAt": "products.updated_at",
 }
 
 
-async def get_subsets(
+async def get_products(
     root,
     info: Info,
     first: ARGFirst = None,
@@ -43,8 +43,8 @@ async def get_subsets(
         list[str] | None, argdesc("List of parent folder IDs to filter by")
     ] = None,
     names: Annotated[list[str] | None, argdesc("Filter by a list of names")] = None,
-    families: Annotated[
-        list[str] | None, argdesc("List of families to filter by")
+    product_types: Annotated[
+        list[str] | None, argdesc("List of product types to filter by")
     ] = None,
     statuses: Annotated[
         list[str] | None, argdesc("List of statuses to filter by")
@@ -52,77 +52,79 @@ async def get_subsets(
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
-) -> SubsetsConnection:
-    """Return a list of subsets."""
+) -> ProductsConnection:
+    """Return a list of products."""
 
     project_name = root.project_name
-    fields = FieldInfo(info, ["subsets.edges.node", "subset"])
+    fields = FieldInfo(info, ["products.edges.node", "product"])
 
     #
     # SQL
     #
 
     sql_columns = [
-        "subsets.id AS id",
-        "subsets.name AS name",
-        "subsets.folder_id AS folder_id",
-        "subsets.family AS family",
-        "subsets.attrib AS attrib",
-        "subsets.data AS data",
-        "subsets.status AS status",
-        "subsets.tags AS tags",
-        "subsets.active AS active",
-        "subsets.created_at AS created_at",
-        "subsets.updated_at AS updated_at",
-        "subsets.creation_order AS creation_order",
+        "products.id AS id",
+        "products.name AS name",
+        "products.folder_id AS folder_id",
+        "products.product_type AS product_type",
+        "products.attrib AS attrib",
+        "products.data AS data",
+        "products.status AS status",
+        "products.tags AS tags",
+        "products.active AS active",
+        "products.created_at AS created_at",
+        "products.updated_at AS updated_at",
+        "products.creation_order AS creation_order",
     ]
     sql_conditions = []
     sql_joins = []
 
     if ids is not None:
         if not ids:
-            return SubsetsConnection()
-        sql_conditions.append(f"subsets.id IN {SQLTool.id_array(ids)}")
+            return ProductsConnection()
+        sql_conditions.append(f"products.id IN {SQLTool.id_array(ids)}")
 
     if folder_ids is not None:
         if not folder_ids:
-            return SubsetsConnection()
-        sql_conditions.append(f"subsets.folder_id IN {SQLTool.id_array(folder_ids)}")
+            return ProductsConnection()
+        sql_conditions.append(f"products.folder_id IN {SQLTool.id_array(folder_ids)}")
     elif root.__class__.__name__ == "FolderNode":
         # cannot use isinstance here because of circular imports
-        sql_conditions.append(f"subsets.folder_id = '{root.id}'")
+        sql_conditions.append(f"products.folder_id = '{root.id}'")
 
     if names is not None:
         if not names:
-            return SubsetsConnection()
+            return ProductsConnection()
         validate_name_list(names)
-        sql_conditions.append(f"subsets.name IN {SQLTool.array(names)}")
+        sql_conditions.append(f"products.name IN {SQLTool.array(names)}")
 
-    if families is not None:
-        if not families:
-            return SubsetsConnection()
-        validate_name_list(families)
-        sql_conditions.append(f"subsets.family IN {SQLTool.array(families)}")
+    if product_types is not None:
+        if not product_types:
+            return ProductsConnection()
+        validate_name_list(product_types)
+        sql_conditions.append(
+            f"products.product_type IN {SQLTool.array(product_types)}"
+        )
 
     if statuses is not None:
         if not statuses:
-            return SubsetsConnection()
+            return ProductsConnection()
         validate_status_list(statuses)
         sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
     if tags is not None:
         if not tags:
-            return SubsetsConnection()
+            return ProductsConnection()
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     if has_links is not None:
         sql_conditions.extend(
-            get_has_links_conds(project_name, "subsets.id", has_links)
+            get_has_links_conds(project_name, "products.id", has_links)
         )
 
     access_list = None
     if root.__class__.__name__ == "ProjectNode":
-        # Selecting subsets directly from the project node,
+        # Selecting products directly from the project node,
         # so we need to check access rights
         user = info.context["user"]
         access_list = await folder_access_list(user, project_name)
@@ -156,7 +158,7 @@ async def get_subsets(
         sql_joins.append(
             f"""
             INNER JOIN project_{project_name}.folders
-            ON folders.id = subsets.folder_id
+            ON folders.id = products.folder_id
             """
         )
 
@@ -211,7 +213,7 @@ async def get_subsets(
             f"""
             LEFT JOIN
                 project_{project_name}.version_list
-                ON subsets.id = version_list.subset_id
+                ON products.id = version_list.product_id
             """
         )
 
@@ -219,20 +221,20 @@ async def get_subsets(
     # Pagination
     #
 
-    order_by = ["subsets.creation_order"]
+    order_by = ["products.creation_order"]
     if sort_by is not None:
         if sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
-            order_by.insert(0, f"subsets.attrib->>'{sort_by[7:]}'")
+            order_by.insert(0, f"products.attrib->>'{sort_by[7:]}'")
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, ["subsets"])
+    paging_fields = FieldInfo(info, ["products"])
     need_cursor = paging_fields.has_any(
-        "subsets.pageInfo.startCursor",
-        "subsets.pageInfo.endCursor",
-        "subsets.edges.cursor",
+        "products.pageInfo.startCursor",
+        "products.pageInfo.endCursor",
+        "products.edges.cursor",
     )
 
     pagination, paging_conds, cursor = create_pagination(
@@ -251,16 +253,16 @@ async def get_subsets(
 
     query = f"""
         SELECT {cursor}, {", ".join(sql_columns)}
-        FROM project_{project_name}.subsets
+        FROM project_{project_name}.products
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {pagination}
     """
 
     return await resolve(
-        SubsetsConnection,
-        SubsetEdge,
-        SubsetNode,
+        ProductsConnection,
+        ProductEdge,
+        ProductNode,
         project_name,
         query,
         first,
@@ -269,11 +271,11 @@ async def get_subsets(
     )
 
 
-async def get_subset(root, info: Info, id: str) -> SubsetNode | None:
+async def get_product(root, info: Info, id: str) -> ProductNode | None:
     """Return a representation node based on its ID"""
     if not id:
         return None
-    connection = await get_subsets(root, info, ids=[id])
+    connection = await get_products(root, info, ids=[id])
     if not connection.edges:
         return None
     return connection.edges[0].node

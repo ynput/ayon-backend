@@ -28,7 +28,6 @@ class HierarchyFolderModel(OPModel):
     label: str = Field(..., example="Tree", title="Folder label")
     status: str = Field(..., example="Tree", title="Folder status")
     folderType: str | None = Field(example="AssetBuild", title="Folder type")
-    # hasSubsets: bool
     hasTasks: bool
     taskNames: list[str] = Field(example=["Modeling", "Rigging"], title="Task names")
     parents: list[str]
@@ -82,7 +81,7 @@ async def get_folder_hierarchy(
     if access_list is not None:
         conds.append(f"path like ANY ('{{ {','.join(access_list)} }}')")
 
-    # TODO: eventually solve subset_count too. ATM it clashes with the
+    # TODO: eventually solve products too. ATM it clashes with the
     # task names list (group by hell), which is more important.
 
     plain_result = []
@@ -95,7 +94,7 @@ async def get_folder_hierarchy(
             folders.label,
             folders.status,
             hierarchy.path as path,
-            -- COUNT (subsets.id) AS subset_count,
+            -- COUNT (products.id) AS product_count,
             COUNT (tasks.id) AS task_count,
             array_agg(tasks.name) AS task_names
         FROM
@@ -105,9 +104,9 @@ async def get_folder_hierarchy(
         ON
             folders.id = hierarchy.id
         -- LEFT JOIN
-        --     project_{project_name}.subsets AS subsets
+        --     project_{project_name}.products AS products
         -- ON
-        --     subsets.folder_id = folders.id
+        --     products.folder_id = folders.id
         LEFT JOIN
             project_{project_name}.tasks AS tasks
         ON

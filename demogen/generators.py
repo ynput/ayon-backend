@@ -8,7 +8,7 @@ async def gen_shots(parent):
         yield {
             "name": f"{parent.get('_sequence', '')}sh{i:0{padding}d}0",
             "folder_type": "Shot",
-            "_subsets": parent.get("_leaf_subsets", []),
+            "_products": parent.get("_leaf_products", []),
             "_tasks": parent.get("_leaf_tasks", []),
         }
 
@@ -20,7 +20,7 @@ async def gen_sequences(parent):
             "name": seq_name,
             "folder_type": "Sequence",
             "_sequence": seq_name,
-            "_leaf_subsets": parent.get("_leaf_subsets", []),
+            "_leaf_products": parent.get("_leaf_products", []),
             "_leaf_tasks": parent.get("_leaf_tasks", []),
             "_children": "gen_shots",
         }
@@ -34,7 +34,7 @@ async def gen_episodes(parent):
             "name": ep_name,
             "folder_type": "Episode",
             "_episode": ep_name,
-            "_leaf_subsets": parent.get("_leaf_subsets", []),
+            "_leaf_products": parent.get("_leaf_products", []),
             "_leaf_tasks": parent.get("_leaf_tasks", []),
             "_children": "gen_sequences",
         }
@@ -61,7 +61,7 @@ async def gen_assets(parent):
             "label": label,
             "folder_type": "Asset",
             "_version_count": 5,
-            "_subsets": parent.get("_leaf_subsets", []),
+            "_products": parent.get("_leaf_products", []),
             "_tasks": parent.get("_leaf_tasks", []),
         }
 

@@ -37,8 +37,8 @@ async def resolve(request: ResolveRequestModel):
     query = """
         SELECT r.attrib->>'path'
         FROM hierarchy as n
-        INNER JOIN subsets AS s ON n.id = s.folder_id
-        INNER JOIN versions AS v ON s.id = v.subset_id
+        INNER JOIN products AS s ON n.id = s.folder_id
+        INNER JOIN versions AS v ON s.id = v.product_id
         INNER JOIN representations AS r ON v.id = r.version_id
         WHERE
             n.path = $1
@@ -56,14 +56,14 @@ async def resolve(request: ResolveRequestModel):
                 path, args = uri.split("?")
 
                 project, hpath = path.split("/", 1)
-                subset = None
+                product = None
                 version = None
                 representation = None
 
                 for elm in args.split("&"):
                     key, val = elm.split("=")
-                    if key == "subset":
-                        subset = val
+                    if key == "product":
+                        product = val
                     elif key == "version":
                         version = int(val.lower().lstrip("v"))
                     elif key == "representation":
@@ -75,7 +75,7 @@ async def resolve(request: ResolveRequestModel):
                     current_project = project
 
                 result.append(
-                    await stmt.fetchval(hpath, subset, version, representation)
+                    await stmt.fetchval(hpath, product, version, representation)
                 )
 
     elapsed = time.monotonic() - start_time

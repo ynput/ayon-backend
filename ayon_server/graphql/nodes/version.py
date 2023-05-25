@@ -12,11 +12,11 @@ from ayon_server.utils import get_nickname
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import RepresentationsConnection
-    from ayon_server.graphql.nodes.subset import SubsetNode
+    from ayon_server.graphql.nodes.product import ProductNode
     from ayon_server.graphql.nodes.task import TaskNode
 else:
     RepresentationsConnection = LazyType["RepresentationsConnection", "..connections"]
-    SubsetNode = LazyType["SubsetNode", ".subset"]
+    ProductNode = LazyType["ProductNode", ".product"]
     TaskNode = LazyType["TaskNode", ".task"]
 
 
@@ -28,7 +28,7 @@ class VersionAttribType:
 @strawberry.type
 class VersionNode(BaseNode):
     version: int
-    subset_id: str
+    product_id: str
     task_id: str | None
     thumbnail_id: str | None
     author: str | None
@@ -51,12 +51,12 @@ class VersionNode(BaseNode):
         # TODO: configurable zero pad / format?
         return f"v{self.version:03d}"
 
-    @strawberry.field(description="Parent subset of the version")
-    async def subset(self, info: Info) -> SubsetNode:
-        record = await info.context["subset_loader"].load(
-            (self.project_name, self.subset_id)
+    @strawberry.field(description="Parent product of the version")
+    async def product(self, info: Info) -> ProductNode:
+        record = await info.context["product_loader"].load(
+            (self.project_name, self.product_id)
         )
-        return info.context["subset_from_record"](
+        return info.context["product_from_record"](
             self.project_name, record, info.context
         )
 
@@ -88,7 +88,7 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
         id=record["id"],
         version=record["version"],
         active=record["active"],
-        subset_id=record["subset_id"],
+        product_id=record["product_id"],
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
         author=author,

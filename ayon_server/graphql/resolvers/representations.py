@@ -120,12 +120,12 @@ async def get_representations(
                 ON versions.id = representations.version_id
                 """,
                 f"""
-                INNER JOIN project_{project_name}.subsets AS subsets
-                ON subsets.id = versions.subset_id
+                INNER JOIN project_{project_name}.products AS products
+                ON products.id = versions.product_id
                 """,
                 f"""
                 INNER JOIN project_{project_name}.hierarchy AS hierarchy
-                ON hierarchy.id = subsets.folder_id
+                ON hierarchy.id = products.folder_id
                 """,
             ]
         )

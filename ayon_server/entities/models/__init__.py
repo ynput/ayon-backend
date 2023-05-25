@@ -8,9 +8,9 @@ from pydantic import BaseModel
 from ayon_server.entities.models.config import EntityModelConfig
 from ayon_server.entities.models.fields import (
     folder_fields,
+    product_fields,
     project_fields,
     representation_fields,
-    subset_fields,
     task_fields,
     version_fields,
     workfile_fields,
@@ -28,7 +28,7 @@ FIELD_LISTS: dict[str, list[Any]] = {
     "user": [],
     "folder": folder_fields,
     "task": task_fields,
-    "subset": subset_fields,
+    "product": product_fields,
     "version": version_fields,
     "representation": representation_fields,
     "workfile": workfile_fields,

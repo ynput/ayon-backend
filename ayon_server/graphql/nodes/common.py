@@ -26,9 +26,9 @@ class LinkEdge(BaseEdge):
         elif self.entity_type == "version":
             loader = info.context["version_loader"]
             parser = info.context["version_from_record"]
-        elif self.entity_type == "subset":
-            loader = info.context["subset_loader"]
-            parser = info.context["subset_from_record"]
+        elif self.entity_type == "product":
+            loader = info.context["product_loader"]
+            parser = info.context["product_from_record"]
         elif self.entity_type == "task":
             loader = info.context["task_loader"]
             parser = info.context["task_from_record"]

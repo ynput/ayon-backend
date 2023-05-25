@@ -74,8 +74,8 @@ async def get_folders(
     has_children: Annotated[
         bool | None, argdesc("Whether to filter by folders with children")
     ] = None,
-    has_subsets: Annotated[
-        bool | None, argdesc("Whether to filter by folders with subsets")
+    has_products: Annotated[
+        bool | None, argdesc("Whether to filter by folders with products")
     ] = None,
     has_tasks: Annotated[
         bool | None, argdesc("Whether to filter by folders with tasks")
@@ -146,12 +146,12 @@ async def get_folders(
             """
         )
 
-    if (has_subsets is not None) or fields.has_any("subsetCount", "hasSubsets"):
-        sql_columns.append("COUNT(subsets.id) AS subset_count")
+    if (has_products is not None) or fields.has_any("productCount", "hasProducts"):
+        sql_columns.append("COUNT(products.id) AS product_count")
         sql_joins.append(
             f"""
-            LEFT JOIN project_{project_name}.subsets AS subsets
-            ON folders.id = subsets.folder_id
+            LEFT JOIN project_{project_name}.products AS products
+            ON folders.id = products.folder_id
             """
         )
 
@@ -234,9 +234,9 @@ async def get_folders(
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
-    if has_subsets is not None:
+    if has_products is not None:
         sql_having.append(
-            "COUNT(subsets.id) > 0" if has_subsets else "COUNT(subsets.id) = 0"
+            "COUNT(products.id) > 0" if has_products else "COUNT(products.id) = 0"
         )
 
     if has_children is not None:

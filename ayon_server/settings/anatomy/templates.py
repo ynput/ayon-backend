@@ -79,8 +79,8 @@ class Templates(BaseSettingsModel):
         default_factory=lambda: [
             PublishTemplate(
                 name="default",
-                file="{project[code]}_{asset}_{subset}_{@version}<_{output}><.{@frame}><_{udim}>.{ext}",  # noqa: E501
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/{@version}",  # noqa: E501
+                file="{project[code]}_{asset}_{product}_{@version}<_{output}><.{@frame}><_{udim}>.{ext}",  # noqa: E501
+                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{product_type}/{product}/{@version}",  # noqa: E501
             )
         ],
     )
@@ -90,7 +90,7 @@ class Templates(BaseSettingsModel):
         default_factory=lambda: [
             HeroTemplate(
                 name="default",
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/hero",  # noqa: E501
+                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{product_type}/{product}/hero",  # noqa: E501
                 file="{project[code]}_{asset}_{task[name]}_hero<_{comment}>.{ext}",  # noqa: E501
             )
         ],

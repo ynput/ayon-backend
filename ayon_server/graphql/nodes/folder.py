@@ -6,14 +6,14 @@ from strawberry.types import Info
 
 from ayon_server.entities import FolderEntity
 from ayon_server.graphql.nodes.common import BaseNode
-from ayon_server.graphql.resolvers.subsets import get_subsets
+from ayon_server.graphql.resolvers.products import get_products
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.utils import parse_attrib_data
 
 if TYPE_CHECKING:
-    from ayon_server.graphql.connections import SubsetsConnection, TasksConnection
+    from ayon_server.graphql.connections import ProductsConnection, TasksConnection
 else:
-    SubsetsConnection = LazyType["SubsetsConnection", "..connections"]
+    ProductsConnection = LazyType["ProductsConnection", "..connections"]
     TasksConnection = LazyType["TasksConnection", "..connections"]
 
 
@@ -37,12 +37,12 @@ class FolderNode(BaseNode):
     # GraphQL specifics
 
     child_count: int = strawberry.field(default=0)
-    subset_count: int = strawberry.field(default=0)
+    product_count: int = strawberry.field(default=0)
     task_count: int = strawberry.field(default=0)
 
-    subsets: SubsetsConnection = strawberry.field(
-        resolver=get_subsets,
-        description=get_subsets.__doc__,
+    products: ProductsConnection = strawberry.field(
+        resolver=get_products,
+        description=get_products.__doc__,
     )
 
     tasks: TasksConnection = strawberry.field(
@@ -55,8 +55,8 @@ class FolderNode(BaseNode):
         return bool(self.child_count)
 
     @strawberry.field
-    def has_subsets(self) -> bool:
-        return bool(self.subset_count)
+    def has_products(self) -> bool:
+        return bool(self.product_count)
 
     @strawberry.field
     def has_tasks(self) -> bool:
@@ -112,7 +112,7 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         child_count=record.get("child_count", 0),
-        subset_count=record.get("subset_count", 0),
+        product_count=record.get("product_count", 0),
         task_count=record.get("task_count", 0),
         path=record.get("path"),
         own_attrib=own_attrib,
