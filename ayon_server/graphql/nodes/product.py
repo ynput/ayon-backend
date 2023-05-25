@@ -48,6 +48,11 @@ class ProductNode(BaseNode):
 
     # GraphQL specifics
 
+    @strawberry.field
+    def type(self) -> str:
+        """Alias for `productType`"""
+        return self.product_type
+
     versions: VersionsConnection = strawberry.field(
         resolver=get_versions,
         description=get_versions.__doc__,

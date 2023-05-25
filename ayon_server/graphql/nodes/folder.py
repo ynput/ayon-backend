@@ -51,6 +51,11 @@ class FolderNode(BaseNode):
     )
 
     @strawberry.field
+    def type(self) -> str:
+        """Alias for `folderType`"""
+        return self.folder_type
+
+    @strawberry.field
     def has_children(self) -> bool:
         return bool(self.child_count)
 
