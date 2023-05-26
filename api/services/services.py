@@ -140,7 +140,7 @@ async def patch_service(
     if not res:
         raise NotFoundException("Service not found")
 
-    service_data = res[0]
+    service_data = dict(res[0])
     if payload.should_run is not None:
         service_data["should_run"] = payload.should_run
     if payload.config is not None:
