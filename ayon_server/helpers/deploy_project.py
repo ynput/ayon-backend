@@ -53,7 +53,7 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
             )
         )
 
-    return {
+    result = {
         "task_types": task_types,
         "folder_types": folder_types,
         "link_types": link_types,
@@ -62,6 +62,8 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         "attrib": anatomy.attributes.dict(),  # type: ignore
         "config": config,
     }
+
+    return result
 
 
 async def create_project_from_anatomy(

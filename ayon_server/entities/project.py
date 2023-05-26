@@ -31,7 +31,7 @@ async def aux_table_update(conn, table: str, update_data: list[dict[str, Any]]):
         original_name = data.get("original_name")
         if "original_name" in data:
             del data["original_name"]
-        if original_name and name != original_name:
+        if original_name and (original_name in old_data) and name != original_name:
             await conn.execute(
                 f"""
                 UPDATE {table} SET name = $1, position = $2, data = $3
@@ -43,8 +43,7 @@ async def aux_table_update(conn, table: str, update_data: list[dict[str, Any]]):
                 original_name,
             )
 
-            if original_name in old_data:
-                del old_data[original_name]
+            del old_data[original_name]
             continue
 
         # Upsert
