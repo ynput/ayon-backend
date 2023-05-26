@@ -7,6 +7,13 @@ from ayon_server.graphql.types import BaseConnection, BaseEdge
 
 
 @strawberry.type
+class ProductType(BaseEdge):
+    name: str = strawberry.field()
+    icon: str | None = strawberry.field(default=None)
+    color: str | None = strawberry.field(default=None)
+
+
+@strawberry.type
 class LinkEdge(BaseEdge):
     id: str = strawberry.field()
     project_name: str = strawberry.field()

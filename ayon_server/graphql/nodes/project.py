@@ -5,6 +5,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import ProjectEntity
+from ayon_server.graphql.nodes.common import ProductType
 from ayon_server.graphql.resolvers.folders import get_folder, get_folders
 from ayon_server.graphql.resolvers.products import get_product, get_products
 from ayon_server.graphql.resolvers.representations import (
@@ -173,13 +174,20 @@ class ProjectNode:
         ]
 
     @strawberry.field
-    async def product_typess(self) -> list[str]:
+    async def product_types(self) -> list[ProductType]:
         return [
-            row["product_types"]
+            ProductType(
+                name=row["name"],
+                icon=row["data"].get("icon"),
+                color=row["data"].get("color"),
+            )
             async for row in Postgres.iterate(
                 f"""
-                SELECT DISTINCT()
-                FROM project_{self.project_name}.products
+                SELECT name, data FROM product_types
+                WHERE name IN (
+                    SELECT DISTINCT(product_type) FROM project_{self.project_name}.products
+                )
+                ORDER BY name ASC
             """
             )
         ]
