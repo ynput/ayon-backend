@@ -139,7 +139,7 @@ class ProjectNode:
         description=get_workfiles.__doc__,
     )
 
-    @strawberry.field
+    @strawberry.field(description="List of project's task types")
     async def task_types(self, active_only: bool = False) -> list[TaskType]:
         if active_only:
             query = f"""
@@ -156,7 +156,7 @@ class ProjectNode:
             TaskType(name=row["task_type"]) async for row in Postgres.iterate(query)
         ]
 
-    @strawberry.field
+    @strawberry.field(description="List of project's folder types")
     async def folder_types(self, active_only: bool = False) -> list[FolderType]:
         if active_only:
             query = f"""
@@ -173,7 +173,7 @@ class ProjectNode:
             FolderType(name=row["folder_type"]) async for row in Postgres.iterate(query)
         ]
 
-    @strawberry.field
+    @strawberry.field(description="List of project's product types")
     async def product_types(self) -> list[ProductType]:
         return [
             ProductType(

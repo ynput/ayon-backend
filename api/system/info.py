@@ -40,18 +40,29 @@ class InfoResponseModel(OPModel):
         title="Message of the day",
         description="Instance specific message to be displayed in the login page",
     )
-    login_page_background: str | None = Field(default=ayonconfig.login_page_background)
-    login_page_brand: str | None = Field(default=ayonconfig.login_page_brand)
+    login_page_background: str | None = Field(
+        default=ayonconfig.login_page_background,
+        description="URL of the background image for the login page",
+    )
+    login_page_brand: str | None = Field(
+        default=ayonconfig.login_page_brand,
+        title="Brand logo",
+        description="URL of the brand logo for the login page",
+    )
     version: str = Field(
         VERSION,
         title="Ayon version",
         description="Version of the Ayon API",
     )
-    uptime: float = Field(default_factory=get_uptime)
-    user: UserEntity.model.main_model | None = Field(None)  # type: ignore
-    attributes: list[AttributeModel] | None = Field(None)
-    sites: list[SiteInfo] = Field(default_factory=list)
-    sso_options: list[SSOOption] = Field(default_factory=list)
+    uptime: float = Field(
+        default_factory=get_uptime,
+        title="Uptime",
+        description="Time (seconds) since the server was started",
+    )
+    user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
+    attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
+    sites: list[SiteInfo] = Field(default_factory=list, title="List of sites")
+    sso_options: list[SSOOption] = Field(default_factory=list, title="SSO options")
 
 
 async def get_sso_options(request: Request) -> list[SSOOption]:
@@ -141,7 +152,8 @@ async def get_additional_info(user: UserEntity, request: Request):
 
 @router.get("/info", response_model_exclude_none=True, tags=["System"])
 async def get_site_info(
-    request: Request, current_user: CurrentUserOptional
+    request: Request,
+    current_user: CurrentUserOptional,
 ) -> InfoResponseModel:
     """Return site information.
 

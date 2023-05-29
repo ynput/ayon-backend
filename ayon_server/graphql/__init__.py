@@ -121,7 +121,7 @@ class Query:
             apiKeyPreview=user.data.get("apiKeyPreview"),
         )
 
-    @strawberry.field
+    @strawberry.field(description="Studio-wide product type configuration")
     async def product_types(self) -> list[ProductType]:
         return [
             ProductType(

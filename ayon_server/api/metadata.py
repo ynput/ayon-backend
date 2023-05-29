@@ -56,4 +56,16 @@ The server needs to be restarted in order the changes become active.
 Addon configuration, site and project overrides...
         """,
     },
+    {
+        "name": "Secrets",
+        "description": """
+Sensitive information, like passwords or API keys, can be securely stored in secrets,
+which are only accessible by administrators and services.
+This makes them an ideal location for storing this type of data.
+
+For addons needing access to secrets, using the 'secret name' in settings
+instead of the actual value is recommended.
+Consequently, updating secrets won't require any changes to the addon configuration.
+""",
+    },
 ]

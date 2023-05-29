@@ -6,19 +6,19 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.secrets import Secrets
-from ayon_server.types import OPModel
+from ayon_server.types import Field, OPModel
 
 from .router import router
 
 
 class Secret(OPModel):
-    name: str | None
-    value: str | None
+    name: str | None = Field(None, title="Secret name")
+    value: str | None = Field(None, title="Secret value")
 
 
 @router.get("/secrets", response_model_exclude_none=True, tags=["Secrets"])
 async def get_list_of_secrets(user: CurrentUser) -> list[Secret]:
-
+    """Return a list of stored secrets"""
     if not user.is_manager:
         raise ForbiddenException()
 

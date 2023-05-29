@@ -119,7 +119,16 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
         return [ResolvedEntityModel(project_name=req.project_name)]
 
     if req.task_name is not None or req.workfile_name is not None:
-        return []  # not implemented
+        cols.append("t.id as task_id")
+        joins.append("INNER JOIN tasks AS t ON h.id = t.folder_id")
+        conds.append(f"t.name = '{req.task_name}'")
+        if req.workfile_name is not None:
+            cols.append("w.id as workfile_id")
+            joins.append("INNER JOIN workfiles AS w ON t.id = w.task_id")
+            conds.append(f"w.name = '{req.workfile_name}'")
+
+        conds.append(f"h.path = '{req.path}'")
+
     else:
         if req.representation_name is not None:
             cols.extend(
