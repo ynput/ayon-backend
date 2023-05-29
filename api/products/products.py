@@ -97,7 +97,7 @@ async def update_product(
 #
 
 
-@router.delete("/projects/{project_name}/products/{product_id}")
+@router.delete("/projects/{project_name}/products/{product_id}", status_code=204)
 async def delete_product(
     background_tasks: BackgroundTasks,
     user: CurrentUser,

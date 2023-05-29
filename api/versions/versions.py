@@ -69,7 +69,7 @@ async def create_version(
 #
 
 
-@router.patch("/projects/{project_name}/versions/{version_id}")
+@router.patch("/projects/{project_name}/versions/{version_id}", status_code=204)
 async def update_version(
     post_data: VersionEntity.model.patch_model,  # type: ignore
     background_tasks: BackgroundTasks,
@@ -100,7 +100,7 @@ async def update_version(
 #
 
 
-@router.delete("/projects/{project_name}/versions/{version_id}")
+@router.delete("/projects/{project_name}/versions/{version_id}", status_code=204)
 async def delete_version(
     background_tasks: BackgroundTasks,
     user: CurrentUser,

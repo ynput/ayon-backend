@@ -75,7 +75,7 @@ async def get_addon_project_settings(
     user: CurrentUser,
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
-) -> dict[str, Any] | EmptyResponse:
+) -> dict[str, Any]:
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
@@ -85,7 +85,7 @@ async def get_addon_project_settings(
         settings = await addon.get_project_settings(project_name, variant=variant)
 
     if not settings:
-        return EmptyResponse()
+        return {}
     return settings
 
 
@@ -225,7 +225,9 @@ async def set_addon_project_settings(
     return EmptyResponse()
 
 
-@router.delete("/{addon_name}/{version}/overrides/{project_name}", **route_meta)
+@router.delete(
+    "/{addon_name}/{version}/overrides/{project_name}", status_code=204, **route_meta
+)
 async def delete_addon_project_overrides(
     addon_name: str,
     version: str,
@@ -286,7 +288,9 @@ async def delete_addon_project_overrides(
     return EmptyResponse()
 
 
-@router.post("/{addon_name}/{version}/overrides/{project_name}", **route_meta)
+@router.post(
+    "/{addon_name}/{version}/overrides/{project_name}", status_code=204, **route_meta
+)
 async def modify_project_overrides(
     payload: ModifyOverridesRequestModel,
     addon_name: str,
