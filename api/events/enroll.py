@@ -90,6 +90,7 @@ async def enroll(
             target_events.status AS target_status,
             target_events.sender AS target_sender,
             target_events.hash AS target_hash,
+            target_events.retries AS target_retries,
             target_events.id AS target_id
         FROM
             events AS source_events
