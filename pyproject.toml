@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ayon-server"
-version = "1.0.0"
+version = "0.1.0"
 description = ""
 authors = ["Ynput <info@ynput.io>"]
 
@@ -40,7 +40,7 @@ select = [
     "F",   # pyflakes
     "I",   # isort
     "C",   # flake8-comprehensions
-  #"B",   # flake8-bugbear
+    # "B",   # flake8-bugbear
     "ISC", # flake8-implicit-str-concat
     "C4",  # flake8-comprehensions
     # "N",    # pep8-naming
