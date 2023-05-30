@@ -50,6 +50,11 @@ class TaskNode(BaseNode):
 
     _folder: Optional[FolderNode] = None
 
+    @strawberry.field
+    def type(self) -> str:
+        """Alias for `taskType`"""
+        return self.task_type
+
     @strawberry.field(description="Parent folder of the task")
     async def folder(self, info: Info) -> FolderNode:
         if self._folder:

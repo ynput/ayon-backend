@@ -1,6 +1,5 @@
 from typing import Literal
 
-from nxtools import logging
 from strawberry.types import Info
 
 from ayon_server.graphql.nodes.common import LinkEdge, LinksConnection
@@ -19,7 +18,6 @@ async def get_links(
 ) -> LinksConnection:
 
     project_name = root.project_name
-    logging.info(f"Loading entities linked to entity {root.id} in {project_name}")
 
     edges: list[LinkEdge] = []
 

@@ -13,7 +13,7 @@ from .router import router
 
 class EntityCounts(OPModel):
     folders: int = Field(..., description="Number of folders", example=10)
-    subsets: int = Field(..., description="Number of subsets", example=98)
+    products: int = Field(..., description="Number of products", example=98)
     versions: int = Field(..., description="Number of versions", example=512)
     representations: int = Field(
         ...,

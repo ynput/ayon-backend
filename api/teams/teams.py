@@ -54,7 +54,7 @@ async def get_teams(
     return teams
 
 
-@router.put("/{team_name}")
+@router.put("/{team_name}", status_code=204)
 async def save_team(
     team_name: str,
     team: TeamPutModel,
@@ -86,7 +86,7 @@ async def save_team(
     return EmptyResponse()
 
 
-@router.put("/{team_name}/members/{member_name}")
+@router.put("/{team_name}/members/{member_name}", status_code=204)
 async def save_team_member(
     team_name: str,
     member_name: str,
@@ -131,7 +131,7 @@ async def save_team_member(
     return EmptyResponse()
 
 
-@router.delete("/{team_name}")
+@router.delete("/{team_name}", status_code=204)
 async def delete_team(
     team_name: str, project_name: ProjectName, current_user: CurrentUser
 ) -> EmptyResponse:
@@ -158,7 +158,7 @@ async def delete_team(
     return EmptyResponse()
 
 
-@router.delete("/{team_name}/members/{member_name}")
+@router.delete("/{team_name}/members/{member_name}", status_code=204)
 async def delete_team_member(
     team_name: str,
     member_name: str,
@@ -200,7 +200,7 @@ async def delete_team_member(
     return EmptyResponse()
 
 
-@router.patch("")
+@router.patch("", status_code=204)
 async def update_teams(
     project_name: ProjectName,
     current_user: CurrentUser,

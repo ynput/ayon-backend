@@ -18,7 +18,7 @@ class QueryRequestModel(OPModel):
         "project",
         "user",
         "folder",
-        "subset",
+        "product",
         "task",
         "version",
         "representation",

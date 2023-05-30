@@ -73,9 +73,9 @@ async def folder_loader(keys: list[KeyType]) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def subset_loader(keys: list[KeyType]) -> list[dict | None]:
-    """Load a list of subsets by their ids (used as a dataloader).
-    keys must be a list of tuples (project_name, subset_id) and project_name
+async def product_loader(keys: list[KeyType]) -> list[dict | None]:
+    """Load a list of products by their ids (used as a dataloader).
+    keys must be a list of tuples (project_name, product_id) and project_name
     values must be the same!
     """
 
@@ -83,7 +83,7 @@ async def subset_loader(keys: list[KeyType]) -> list[dict | None]:
     project_name = get_project_name(keys)
 
     query = f"""
-        SELECT * FROM project_{project_name}.subsets
+        SELECT * FROM project_{project_name}.products
         WHERE id IN {SQLTool.id_array([k[1] for k in keys])}
         """
 
@@ -175,7 +175,7 @@ async def version_loader(keys: list[KeyType]) -> list[dict | None]:
 
 
 async def latest_version_loader(keys: list[KeyType]) -> list[dict | None]:
-    """Load a list of latest versions of given subsets"""
+    """Load a list of latest versions of given products"""
 
     result_dict = {k: None for k in keys}
     project_name = get_project_name(keys)
@@ -184,7 +184,7 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict | None]:
         SELECT
             v.id AS id,
             v.version AS version,
-            v.subset_id AS subset_id,
+            v.product_id AS product_id,
             v.thumbnail_id AS thumbnail_id,
             v.task_id AS task_id,
             v.author AS author,
@@ -200,12 +200,12 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict | None]:
         WHERE v.id IN (
             SELECT l.ids[array_upper(l.ids, 1)]
             FROM project_{project_name}.version_list as l
-            WHERE l.subset_id IN {SQLTool.id_array([k[1] for k in keys])}
+            WHERE l.product_id IN {SQLTool.id_array([k[1] for k in keys])}
         )
         """
 
     async for record in Postgres.iterate(query):
-        key: KeyType = KeyType((project_name, str(record["subset_id"])))
+        key: KeyType = KeyType((project_name, str(record["product_id"])))
         result_dict[key] = record
     return [result_dict[k] for k in keys]
 

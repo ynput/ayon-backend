@@ -26,7 +26,9 @@ from .common import ModifyOverridesRequestModel, pin_override, remove_override
 
 @router.get("/{addon_name}/{addon_version}/schema", **route_meta)
 async def get_addon_settings_schema(
-    addon_name: str, addon_version: str, user: CurrentUser
+    addon_name: str,
+    addon_version: str,
+    user: CurrentUser,
 ) -> dict[str, Any]:
     """Return the JSON schema of the addon settings."""
 
@@ -54,7 +56,7 @@ async def get_addon_studio_settings(
     addon_version: str,
     user: CurrentUser,
     variant: str = Query("production"),
-) -> dict[str, Any] | EmptyResponse:
+) -> dict[str, Any]:
     """Return the settings (including studio overrides) of the given addon."""
 
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
@@ -62,7 +64,7 @@ async def get_addon_studio_settings(
 
     settings = await addon.get_studio_settings(variant=variant)
     if not settings:
-        return EmptyResponse()
+        return {}
     return settings
 
 

@@ -30,6 +30,15 @@ CREATE TABLE IF NOT EXISTS public.users(
 
 CREATE UNIQUE INDEX IF NOT EXISTS username_idx ON public.users (LOWER(name));
 
+
+-- Product types
+
+CREATE TABLE IF NOT EXISTS public.product_types(
+  name VARCHAR NOT NULL PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+
 ------------
 -- Events --
 ------------

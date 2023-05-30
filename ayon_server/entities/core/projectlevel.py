@@ -176,6 +176,10 @@ class ProjectLevelEntity(BaseEntity):
     # Save
     #
 
+    async def pre_save(self, insert: bool, transaction) -> None:
+        """Hook called before saving the entity to the database."""
+        pass
+
     async def save(self, transaction=None) -> bool:
         """Save the entity to the database.
 
@@ -213,6 +217,7 @@ class ProjectLevelEntity(BaseEntity):
             fields["attrib"] = attrib
 
             try:
+                await self.pre_save(False, transaction)
                 await transaction.execute(
                     *SQLTool.update(
                         f"project_{self.project_name}.{self.entity_type}s",
@@ -238,6 +243,7 @@ class ProjectLevelEntity(BaseEntity):
             )
             fields["attrib"] = attrib
 
+            await self.pre_save(True, transaction)
             await transaction.execute(
                 *SQLTool.insert(
                     f"project_{self.project_name}.{self.entity_type}s",
@@ -281,7 +287,7 @@ class ProjectLevelEntity(BaseEntity):
             detail = f"Unable to delete {self.entity_type} {self.id}"
             if self.entity_type == "folder":
                 _ = e  # TODO: use this
-                detail = "Unable to delete a folder with subsets or tasks."
+                detail = "Unable to delete a folder with products or tasks."
             raise ConstraintViolationException(detail)
 
         if commit:
@@ -314,7 +320,7 @@ class ProjectLevelEntity(BaseEntity):
         """Return the parent id.
 
         Return None if the entity does not have a parent.
-        In case of tasks and subsets, this is the folder id,
+        In case of tasks and products, this is the folder id,
         in case of folders, this is the parent folder id,
         and so on...
         """

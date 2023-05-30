@@ -261,8 +261,8 @@ class FolderEntity(ProjectLevelEntity):
         query = f"""
             SELECT v.id as version_id
             FROM project_{self.project_name}.versions as v
-            INNER JOIN project_{self.project_name}.subsets as s
-                ON s.id = v.subset_id
+            INNER JOIN project_{self.project_name}.products as s
+                ON s.id = v.product_id
             WHERE s.folder_id = $1
             """
         return [row["version_id"] async for row in Postgres.iterate(query, self.id)]

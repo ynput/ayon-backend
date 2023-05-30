@@ -14,7 +14,8 @@ router = APIRouter(tags=["Workfiles"])
 
 
 @router.get(
-    "/projects/{project_name}/workfiles/{workfile_id}", response_model_exclude_none=True
+    "/projects/{project_name}/workfiles/{workfile_id}",
+    response_model_exclude_none=True,
 )
 async def get_workfile(
     user: CurrentUser,
@@ -69,7 +70,7 @@ async def create_workfile(
 #
 
 
-@router.patch("/projects/{project_name}/workfiles/{workfile_id}")
+@router.patch("/projects/{project_name}/workfiles/{workfile_id}", status_code=204)
 async def update_workfile(
     post_data: WorkfileEntity.model.patch_model,  # type: ignore
     background_tasks: BackgroundTasks,
@@ -100,7 +101,7 @@ async def update_workfile(
 #
 
 
-@router.delete("/projects/{project_name}/workfiles/{workfile_id}")
+@router.delete("/projects/{project_name}/workfiles/{workfile_id}", status_code=204)
 async def delete_workfile(
     background_tasks: BackgroundTasks,
     user: CurrentUser,

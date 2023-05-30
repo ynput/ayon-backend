@@ -45,9 +45,9 @@ async def get_versions(
         list[str] | None, argdesc("List of statuses to filter by")
     ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
-    subset_ids: Annotated[
+    product_ids: Annotated[
         list[str] | None,
-        argdesc("List of parent subsets IDs"),
+        argdesc("List of parent products IDs"),
     ] = None,
     task_ids: Annotated[
         list[str] | None,
@@ -83,7 +83,7 @@ async def get_versions(
     sql_columns = [
         "versions.id AS id",
         "versions.version AS version",
-        "versions.subset_id AS subset_id",
+        "versions.product_id AS product_id",
         "versions.task_id AS task_id",
         "versions.thumbnail_id AS thumbnail_id",
         "versions.author AS author",
@@ -131,12 +131,12 @@ async def get_versions(
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
-    if subset_ids is not None:
-        if not subset_ids:
+    if product_ids is not None:
+        if not product_ids:
             return VersionsConnection()
-        sql_conditions.append(f"subset_id IN {SQLTool.id_array(subset_ids)}")
-    elif root.__class__.__name__ == "SubsetNode":
-        sql_conditions.append(f"subset_id = '{root.id}'")
+        sql_conditions.append(f"product_id IN {SQLTool.id_array(product_ids)}")
+    elif root.__class__.__name__ == "ProductNode":
+        sql_conditions.append(f"product_id = '{root.id}'")
     if task_ids:
         sql_conditions.append(f"task_id IN {SQLTool.id_array(task_ids)}")
     elif root.__class__.__name__ == "TaskNode":
@@ -181,12 +181,12 @@ async def get_versions(
         sql_joins.extend(
             [
                 f"""
-                INNER JOIN project_{project_name}.subsets AS subsets
-                ON subsets.id = versions.subset_id
+                INNER JOIN project_{project_name}.products AS products
+                ON products.id = versions.product_id
                 """,
                 f"""
                 INNER JOIN project_{project_name}.hierarchy AS hierarchy
-                ON hierarchy.id = subsets.folder_id
+                ON hierarchy.id = products.folder_id
                 """,
             ]
         )

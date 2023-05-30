@@ -8,9 +8,9 @@ from ayon_server.graphql.types import BaseEdge
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.event import EventNode
     from ayon_server.graphql.nodes.folder import FolderNode
+    from ayon_server.graphql.nodes.product import ProductNode
     from ayon_server.graphql.nodes.project import ProjectNode
     from ayon_server.graphql.nodes.representation import RepresentationNode
-    from ayon_server.graphql.nodes.subset import SubsetNode
     from ayon_server.graphql.nodes.task import TaskNode
     from ayon_server.graphql.nodes.user import UserNode
     from ayon_server.graphql.nodes.version import VersionNode
@@ -20,7 +20,7 @@ else:
     UserNode = LazyType["UserNode", ".nodes.user"]
     FolderNode = LazyType["FolderNode", ".nodes.folder"]
     TaskNode = LazyType["TaskNode", ".nodes.task"]
-    SubsetNode = LazyType["SubsetNode", ".nodes.subset"]
+    ProductNode = LazyType["ProductNode", ".nodes.product"]
     VersionNode = LazyType["VersionNode", ".nodes.version"]
     RepresentationNode = LazyType["RepresentationNode", ".nodes.representation"]
     EventNode = LazyType["EventNode", ".nodes.event"]
@@ -53,8 +53,8 @@ class TaskEdge(BaseEdge):
 
 
 @strawberry.type
-class SubsetEdge(BaseEdge):
-    node: SubsetNode = strawberry.field(description="Subset node")
+class ProductEdge(BaseEdge):
+    node: ProductNode = strawberry.field(description="Product node")
     cursor: str | None = strawberry.field(default=None)
 
 
