@@ -42,9 +42,9 @@ async def create_workfile(
     project_name: ProjectName,
     x_sender: str | None = Header(default=None),
 ) -> EntityIdResponse:
-    """Create a new version.
+    """Create a new workfile.
 
-    Use a POST request to create a new version (with a new id).
+    Use a POST request to create a new workfile
     """
 
     workfile = WorkfileEntity(project_name=project_name, payload=post_data.dict())

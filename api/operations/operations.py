@@ -12,6 +12,7 @@ from ayon_server.entities import (
     TaskEntity,
     UserEntity,
     VersionEntity,
+    WorkfileEntity,
 )
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events import dispatch_event
@@ -96,6 +97,7 @@ def get_entity_class(entity_type: ProjectLevelEntityType) -> Type[ProjectLevelEn
         "product": ProductEntity,
         "version": VersionEntity,
         "representation": RepresentationEntity,
+        "workfile": WorkfileEntity,
     }[entity_type]
 
 
