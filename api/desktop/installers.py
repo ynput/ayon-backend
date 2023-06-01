@@ -1,9 +1,10 @@
 import json
 import os
+import shutil
 from typing import Literal
 
 import aiofiles
-from fastapi import Query, Request
+from fastapi import FileResponse, Query, Request
 from nxtools import logging
 
 from ayon_server.exceptions import AyonException
@@ -147,14 +148,30 @@ async def upload_installer_file(request: Request, version: str, filename: str):
 
 @router.delete("/installers/{version}", status_code=204)
 async def delete_installer_version(version: str):
-    pass
+    version_dir = get_version_dir(version)
+    if not os.path.isdir(version_dir):
+        raise AyonException("No such installer")
+
+    shutil.rmtree(version_dir)
 
 
 @router.delete("/installers/{version}/{filename}", status_code=204)
-async def delete_installer_file():
-    pass
+async def delete_installer_file(version: str, filename: str):
+    manifest = get_manifest_by_filename(version, filename)
+    if manifest is None:
+        raise AyonException("No such installer")
+    version_dir = get_version_dir(version)
+    file_path = os.path.join(version_dir, filename)
+    if not os.path.isfile(file_path):
+        raise AyonException("No such installer")
+    os.remove(file_path)
 
 
 @router.get("/{version}/{filename}")
-async def download_installer_file():
-    pass
+async def download_installer_file(version: str, filename: str):
+    version_dir = get_version_dir(version)
+    file_path = os.path.join(version_dir, filename)
+    if not os.path.isfile(file_path):
+        raise AyonException("No such installer")
+
+    return FileResponse(file_path, filename=filename)
