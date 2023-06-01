@@ -309,21 +309,15 @@ class DemoGen:
         # Create a list of files
         #
         context = {
-            "root": {
-                "work": "{root[work]}"
-            },
-            "project": {
-                "name": self.project_name
-            },
+            "root": {"work": "{root[work]}"},
+            "project": {"name": self.project_name},
             "path": "/".join(folder.parents + [folder.name]),  # type: ignore
             "product": {
                 "type": product.product_type,
                 "name": product.name,
             },
             "version": version.version,
-            "folder": {
-                "name": folder.name
-            },
+            "folder": {"name": folder.name},
         }
 
         # Backwards compatibility
