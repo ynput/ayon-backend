@@ -309,17 +309,34 @@ class DemoGen:
         # Create a list of files
         #
         context = {
-            "root": "{root}",
-            "project_name": self.project_name,
+            "root": {
+                "work": "{root[work]}"
+            },
+            "project": {
+                "name": self.project_name
+            },
             "path": "/".join(folder.parents + [folder.name]),  # type: ignore
-            "product_type": product.product_type,
-            "product": product.name,
+            "product": {
+                "type": product.product_type,
+                "name": product.name,
+            },
             "version": version.version,
-            "folder": folder.name,
+            "folder": {
+                "name": folder.name
+            },
         }
 
+        # Backwards compatibility
+        template = (
+            kwargs["attrib"]["template"]
+            .replace("{folder}", "{folder[name]}")
+            .replace("{project_name}", "{project[name]}")
+            .replace("{product}", "{product[name]}")
+            .replace("{product_type}", "{product[type]}")
+            .replace("{root}", "{root[work]}")
+        )
         files = []
-        if "{frame}" in kwargs["attrib"]["template"]:
+        if "{frame}" in template:
             frame_start = folder.attrib.frameStart
             frame_end = folder.attrib.frameEnd
         else:
@@ -327,7 +344,7 @@ class DemoGen:
             frame_end = 0
         for i in range(frame_start, frame_end + 1):
             fid = create_uuid()
-            fpath = kwargs["attrib"]["template"].format(frame=f"{i:06d}", **context)
+            fpath = template.format(frame=f"{i:06d}", **context)
             files.append(
                 {
                     "id": fid,
