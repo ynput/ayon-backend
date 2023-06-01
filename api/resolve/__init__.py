@@ -11,22 +11,75 @@ router = APIRouter(tags=["URI resolver"])
 
 
 class ResolveRequestModel(OPModel):
-    uris: list[str] = Field(..., title="URIs", description="list of uris to resolve")
+    uris: list[str] = Field(
+        ...,
+        title="URIs",
+        description="List of uris to resolve",
+        example=[
+            "ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004"
+        ],
+    )
 
 
 class ResolvedEntityModel(OPModel):
-    project_name: str = Field(..., title="Project name")
-    folder_id: str | None = Field(None, title="Folder id")
-    product_id: str | None = Field(None, title="Product id")
-    task_id: str | None = Field(None, title="Task id")
-    version_id: str | None = Field(None, title="Version id")
-    representation_id: str | None = Field(None, title="Representation id")
-    workfile_id: str | None = Field(None, title="Workfile id")
+    project_name: str = Field(
+        ...,
+        title="Project name",
+        example="demo_Big_Feature",
+    )
+    folder_id: str | None = Field(
+        None,
+        title="Folder id",
+        example="0254c370005811ee9a740242ac130004",
+    )
+    product_id: str | None = Field(
+        None,
+        title="Product id",
+        example="0255ce50005811ee9a740242ac130004",
+    )
+    task_id: str | None = Field(
+        None,
+        title="Task id",
+        example=None,
+    )
+    version_id: str | None = Field(
+        None,
+        title="Version id",
+        example="0256ba2c005811ee9a740242ac130004",
+    )
+    representation_id: str | None = Field(
+        None,
+        title="Representation id",
+        example=None,
+    )
+    workfile_id: str | None = Field(
+        None,
+        title="Workfile id",
+        example=None,
+    )
 
 
 class ResolvedURIModel(OPModel):
-    uri: str = Field(..., title="Resolved URI")
-    entities: list[ResolvedEntityModel] = Field(..., title="Resolved entities")
+    uri: str = Field(
+        ...,
+        title="Resolved URI",
+        example="ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004",
+    )
+    entities: list[ResolvedEntityModel] = Field(
+        ...,
+        title="Resolved entities",
+        example=[
+            {
+                "project_name": "demo_Big_Feature",
+                "folder_id": "0254c370005811ee9a740242ac130004",
+                "product_id": "0255ce50005811ee9a740242ac130004",
+                "task_id": None,
+                "version_id": "0256ba2c005811ee9a740242ac130004",
+                "representation_id": None,
+                "workfile_id": None,
+            }
+        ],
+    )
 
 
 class ParsedURIModel(OPModel):
@@ -184,7 +237,7 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
 
 
 @router.post("/resolve", response_model_exclude_none=True)
-async def resolve(request: ResolveRequestModel) -> list[ResolvedURIModel]:
+async def resolve_uris(request: ResolveRequestModel) -> list[ResolvedURIModel]:
     result: list[ResolvedURIModel] = []
     current_project = ""
     async with Postgres.acquire() as conn:
