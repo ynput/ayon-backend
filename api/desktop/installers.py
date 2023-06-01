@@ -2,7 +2,8 @@ import json
 import os
 from typing import Literal
 
-from fastapi import Query
+import aiofiles
+from fastapi import Query, Request
 from nxtools import logging
 
 from ayon_server.exceptions import AyonException
@@ -73,7 +74,9 @@ def get_manifest_by_filename(version: str, filename: str) -> InstallerModel | No
 
         if manifest.get("filename") == filename:
             return InstallerModel(
-                **manifest, file_exists=True, file_size=os.path.getsize(manifest_file)
+                **manifest,
+                file_exists=True,
+                file_size=os.path.getsize(manifest_file),
             )
 
 
@@ -124,20 +127,34 @@ async def create_installer(payload: InstallerPostModel):
 
 
 @router.put("/installers/{version}/{filename}", status_code=204)
-async def upload_installer(version: str, filename: str):
-    pass
+async def upload_installer_file(request: Request, version: str, filename: str):
+    manifest = get_manifest_by_filename(version, filename)
+    if manifest is None:
+        raise AyonException("No such installer")
+
+    installer_dir = get_version_dir(version)
+    file_path = os.path.join(installer_dir, filename)
+
+    i = 0
+    async with aiofiles.open(file_path, "wb") as f:
+        async for chunk in request.stream():
+            await f.write(chunk)
+            i += 1
+
+    if i == 0:
+        raise AyonException("Empty file")
 
 
 @router.delete("/installers/{version}", status_code=204)
-async def delete_version(version: str):
+async def delete_installer_version(version: str):
     pass
 
 
 @router.delete("/installers/{version}/{filename}", status_code=204)
-async def delete_installer():
+async def delete_installer_file():
     pass
 
 
 @router.get("/{version}/{filename}")
-async def download_installer():
+async def download_installer_file():
     pass
