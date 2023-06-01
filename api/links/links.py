@@ -219,9 +219,13 @@ async def delete_entity_link(
     Managers can delete any link.
     """
 
-    query = f"SELECT data->'author' FROM project_{project_name}.links WHERE id = $1"
+    query = f"""
+        SELECT data->'author' as author
+        FROM project_{project_name}.links
+        WHERE id = $1
+    """
     for row in await Postgres.fetch(query, link_id):
-        if (row["data"]["author"] != user.name) and (not user.is_manager):
+        if (row["author"] != user.name) and (not user.is_manager):
             raise ForbiddenException
         break
     else:
