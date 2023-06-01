@@ -57,6 +57,12 @@ class ResolvedEntityModel(OPModel):
         title="Workfile id",
         example=None,
     )
+    file_path: str | None = Field(
+        None,
+        title="File path",
+        description="Path to the file if a representation is specified",
+        example="/path/to/file.ma",
+    )
 
 
 class ResolvedURIModel(OPModel):
@@ -189,6 +195,7 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
                     "s.id as product_id",
                     "v.id as version_id",
                     "r.id as representation_id",
+                    "r.attrib->>'path' as file_path",
                 ]
             )
             joins.append("INNER JOIN products AS s ON h.id = s.folder_id")
