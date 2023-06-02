@@ -209,29 +209,43 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
             joins.append("INNER JOIN products AS s ON h.id = s.folder_id")
             joins.append("INNER JOIN versions AS v ON s.id = v.product_id")
             joins.append("INNER JOIN representations AS r ON v.id = r.version_id")
-            conds.append(f"r.name = '{req.representation_name}'")
-            if req.version_name is not None:
+            if req.representation_name != "*":
+                conds.append(f"r.name = '{req.representation_name}'")
+            if req.version_name is not None and req.version_name != "*":
+                # TODO: implement latest and hero
                 conds.append(f"v.version = {int(req.version_name.lstrip('v'))}")
-            if req.product_name is not None:
+
+            if req.product_name is not None and req.product_name != "*":
                 conds.append(f"s.name = '{req.product_name}'")
-            if req.path is not None:
+
+            if req.path is not None and req.path != "*":
                 conds.append(f"h.path = '{req.path}'")
+
         elif req.version_name is not None:
             cols.extend(["s.id as product_id", "v.id as version_id"])
             joins.append("INNER JOIN products AS s ON h.id = s.folder_id")
             joins.append("INNER JOIN versions AS v ON s.id = v.product_id")
-            conds.append(f"v.version = {int(req.version_name.lstrip('v'))}")
-            if req.product_name is not None:
+
+            if req.version_name != "*":
+                conds.append(f"v.version = {int(req.version_name.lstrip('v'))}")
+
+            if req.product_name is not None and req.product_name != "*":
                 conds.append(f"s.name = '{req.product_name}'")
-            if req.path is not None:
+
+            if req.path is not None and req.path != "*":
                 conds.append(f"h.path = '{req.path}'")
+
         elif req.product_name is not None:
             cols.append("s.id as product_id")
             joins.append("INNER JOIN products AS s ON h.id = s.folder_id")
-            conds.append(f"s.name = '{req.product_name}'")
-            if req.path is not None:
+
+            if req.product_name != "*":
+                conds.append(f"s.name = '{req.product_name}'")
+
+            if req.path is not None and req.path != "*":
                 conds.append(f"h.path = '{req.path}'")
-        elif req.path is not None:
+
+        elif req.path is not None and req.path != "*":
             conds.append(f"h.path = '{req.path}'")
 
     query = f"""
