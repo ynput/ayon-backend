@@ -7,6 +7,8 @@ from fastapi import APIRouter
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
+from .templating import StringTemplate
+
 router = APIRouter(tags=["URI resolver"])
 
 
@@ -168,6 +170,11 @@ def parse_uri(uri: str) -> ParsedURIModel:
     )
 
 
+def get_representation_path(template: str, context: dict[str, Any]) -> str:
+    context["root"] = {}
+    return StringTemplate.format_template(template, context)
+
+
 async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityModel]:
     result = []
     cols = ["h.id as folder_id"]
@@ -195,7 +202,8 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
                     "s.id as product_id",
                     "v.id as version_id",
                     "r.id as representation_id",
-                    "r.attrib->>'path' as file_path",
+                    "r.attrib->>'template' as file_template",
+                    "r.data->'context' as context",
                 ]
             )
             joins.append("INNER JOIN products AS s ON h.id = s.folder_id")
@@ -238,7 +246,26 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
 
     statement = await conn.prepare(query)
     async for row in statement.cursor():
-        result.append(ResolvedEntityModel(project_name=req.project_name, **row))
+        if "file_template" in row:
+            print()
+            print(row["file_template"])
+            print(row["context"])
+            print(type(row["context"]))
+            print()
+            file_path = get_representation_path(
+                row["file_template"],
+                row["context"],
+            )
+        else:
+            file_path = None
+
+        result.append(
+            ResolvedEntityModel(
+                project_name=req.project_name,
+                file_path=file_path,
+                **row,
+            )
+        )
 
     return result
 
