@@ -7,6 +7,8 @@ from fastapi import APIRouter
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
+from .templating import StringTemplate
+
 router = APIRouter(tags=["URI resolver"])
 
 
@@ -57,6 +59,12 @@ class ResolvedEntityModel(OPModel):
         title="Workfile id",
         example=None,
     )
+    file_path: str | None = Field(
+        None,
+        title="File path",
+        description="Path to the file if a representation is specified",
+        example="/path/to/file.ma",
+    )
 
 
 class ResolvedURIModel(OPModel):
@@ -93,6 +101,15 @@ class ParsedURIModel(OPModel):
     workfile_name: str | None = Field(None, title="Workfile name")
 
 
+def validate_name(name: str) -> None:
+    if name is None:
+        return
+    if name == "*":
+        return
+    name_validator = re.compile(NAME_REGEX)
+    assert name_validator.match(name), f"Invalid name: {name}"
+
+
 def parse_uri(uri: str) -> ParsedURIModel:
     project_name: str
     path: str | None
@@ -117,29 +134,19 @@ def parse_uri(uri: str) -> ParsedURIModel:
     qs: dict[str, Any] = parse_qs(parsed_uri.query)
 
     product_name = qs.get("product", [None])[0]
-    assert (product_name is None) or name_validator.match(
-        product_name
-    ), f"Invalid product name: {product_name}"
+    validate_name(product_name)
 
     task_name = qs.get("task", [None])[0]
-    assert task_name is None or name_validator.match(
-        task_name
-    ), f"Invalid task name: {task_name}"
+    validate_name(task_name)
 
     version_name = qs.get("version", [None])[0]
-    assert version_name is None or name_validator.match(
-        version_name
-    ), f"Invalid version name: {version_name}"
+    validate_name(version_name)
 
     representation_name = qs.get("representation", [None])[0]
-    assert representation_name is None or name_validator.match(
-        representation_name
-    ), f"Invalid representation name: {representation_name}"
+    validate_name(representation_name)
 
     workfile_name = qs.get("workfile", [None])[0]
-    assert workfile_name is None or name_validator.match(
-        workfile_name
-    ), f"Invalid workfile name: {workfile_name}"
+    validate_name(workfile_name)
 
     # assert we don't have incompatible arguments
 
@@ -162,14 +169,65 @@ def parse_uri(uri: str) -> ParsedURIModel:
     )
 
 
+def get_representation_path(template: str, context: dict[str, Any]) -> str:
+    context["root"] = {}
+    return StringTemplate.format_template(template, context)
+
+
+def get_path_conditions(path: str | None) -> list[str]:
+    if path is None:
+        return []
+    if path == "*":
+        return []
+    return [f"h.path = '{path}'"]
+
+
+def get_product_conditions(product_name: str | None) -> list[str]:
+    if product_name is None:
+        return []
+    if product_name == "*":
+        return []
+    return [f"s.name = '{product_name}'"]
+
+
+def get_version_conditions(version_name: str | None) -> list[str]:
+    if version_name is None:
+        return []
+    if version_name == "*":
+        return []
+    if version_name.startswith("v"):
+        version_name = version_name[1:]
+        return [f"v.version = {int(version_name)}"]
+    if version_name == "latest":
+        return [
+            """
+            v.id in (
+                SELECT l.ids[array_upper(l.ids, 1)]
+                FROM version_list AS l
+            )
+        """
+        ]
+    if version_name == "hero":
+        return ["v.version < 0"]
+
+
+def get_representation_conditions(representation_name: str | None) -> list[str]:
+    if representation_name is None:
+        return []
+    if representation_name == "*":
+        return []
+    return [f"r.name = '{representation_name}'"]
+
+
 async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityModel]:
     result = []
     cols = ["h.id as folder_id"]
     joins = []
     conds = []
 
-    if not req.path:
-        return [ResolvedEntityModel(project_name=req.project_name)]
+    print(req)
+    # if not req.path:
+    #     return [ResolvedEntityModel(project_name=req.project_name)]
 
     if req.task_name is not None or req.workfile_name is not None:
         cols.append("t.id as task_id")
@@ -180,7 +238,7 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
             joins.append("INNER JOIN workfiles AS w ON t.id = w.task_id")
             conds.append(f"w.name = '{req.workfile_name}'")
 
-        conds.append(f"h.path = '{req.path}'")
+        conds.extend(get_path_conditions(req.path))
 
     else:
         if req.representation_name is not None:
@@ -189,49 +247,61 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
                     "s.id as product_id",
                     "v.id as version_id",
                     "r.id as representation_id",
+                    "r.attrib->>'template' as file_template",
+                    "r.data->'context' as context",
                 ]
             )
             joins.append("INNER JOIN products AS s ON h.id = s.folder_id")
             joins.append("INNER JOIN versions AS v ON s.id = v.product_id")
             joins.append("INNER JOIN representations AS r ON v.id = r.version_id")
-            conds.append(f"r.name = '{req.representation_name}'")
-            if req.version_name is not None:
-                conds.append(f"v.version = {int(req.version_name.lstrip('v'))}")
-            if req.product_name is not None:
-                conds.append(f"s.name = '{req.product_name}'")
-            if req.path is not None:
-                conds.append(f"h.path = '{req.path}'")
+            conds.extend(get_representation_conditions(req.representation_name))
+            conds.extend(get_version_conditions(req.version_name))
+            conds.extend(get_product_conditions(req.product_name))
+            conds.extend(get_path_conditions(req.path))
+
         elif req.version_name is not None:
             cols.extend(["s.id as product_id", "v.id as version_id"])
             joins.append("INNER JOIN products AS s ON h.id = s.folder_id")
             joins.append("INNER JOIN versions AS v ON s.id = v.product_id")
-            conds.append(f"v.version = {int(req.version_name.lstrip('v'))}")
-            if req.product_name is not None:
-                conds.append(f"s.name = '{req.product_name}'")
-            if req.path is not None:
-                conds.append(f"h.path = '{req.path}'")
+            conds.extend(get_version_conditions(req.version_name))
+            conds.extend(get_product_conditions(req.product_name))
+            conds.extend(get_path_conditions(req.path))
+
         elif req.product_name is not None:
             cols.append("s.id as product_id")
             joins.append("INNER JOIN products AS s ON h.id = s.folder_id")
-            conds.append(f"s.name = '{req.product_name}'")
-            if req.path is not None:
-                conds.append(f"h.path = '{req.path}'")
-        elif req.path is not None:
-            conds.append(f"h.path = '{req.path}'")
+            conds.extend(get_product_conditions(req.product_name))
+            conds.extend(get_path_conditions(req.path))
+
+        else:
+            conds.extend(get_path_conditions(req.path))
 
     query = f"""
-        SELECT
-            {", ".join(cols)}
-        FROM
-            hierarchy h
-            {" ".join(joins)}
-        WHERE
-            {" AND ".join(conds)}
+        SELECT {", ".join(cols)}
+        FROM hierarchy h {" ".join(joins)}
     """
+    if conds:
+        query += f""" WHERE {" AND ".join(conds)}"""
+
+    query += " LIMIT 1000"
 
     statement = await conn.prepare(query)
     async for row in statement.cursor():
-        result.append(ResolvedEntityModel(project_name=req.project_name, **row))
+        if "file_template" in row:
+            file_path = get_representation_path(
+                row["file_template"],
+                row["context"],
+            )
+        else:
+            file_path = None
+
+        result.append(
+            ResolvedEntityModel(
+                project_name=req.project_name,
+                file_path=file_path,
+                **row,
+            )
+        )
 
     return result
 
