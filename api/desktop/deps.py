@@ -117,8 +117,8 @@ async def list_dependency_packages() -> DependencyPackageList:
     return result
 
 
-@router.put("/dependency_packages", status_code=204)
-async def store_dependency_package(
+@router.post("/dependency_packages", status_code=204)
+async def create_dependency_package(
     payload: DependencyPackage,
     user: CurrentUser,
 ) -> EmptyResponse:
@@ -183,7 +183,7 @@ async def download_dependency_package(
     )
 
 
-@router.post("/dependency_packages/{package_name}/{platform}", status_code=204)
+@router.put("/dependency_packages/{package_name}/{platform}", status_code=204)
 async def upload_dependency_package(
     request: Request,
     user: CurrentUser,

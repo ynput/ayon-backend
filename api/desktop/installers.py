@@ -4,10 +4,12 @@ import shutil
 from typing import Literal
 
 import aiofiles
-from fastapi import FileResponse, Query, Request
+from fastapi import Query, Request
 from nxtools import logging
+from starlette.responses import FileResponse
 
-from ayon_server.exceptions import AyonException
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.exceptions import AyonException, ForbiddenException
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -88,6 +90,7 @@ def get_manifest_by_filename(version: str, filename: str) -> InstallerModel | No
 
 @router.get("/installers")
 async def list_installers(
+    user: CurrentUser,
     version: str | None = Query(None, description="Version of the package"),
     platform: Platform | None = Query(None, description="Platform of the package"),
 ) -> list[InstallerModel]:
@@ -120,7 +123,9 @@ async def list_installers(
 
 
 @router.post("/installers", status_code=204)
-async def create_installer(payload: InstallerPostModel):
+async def create_installer(user: CurrentUser, payload: InstallerPostModel):
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can create installers")
     installer_dir = get_version_dir(payload.version)
     manifest_path = os.path.join(installer_dir, f"{payload.platform}.json")
     with open(manifest_path, "w") as f:
@@ -128,7 +133,11 @@ async def create_installer(payload: InstallerPostModel):
 
 
 @router.put("/installers/{version}/{filename}", status_code=204)
-async def upload_installer_file(request: Request, version: str, filename: str):
+async def upload_installer_file(
+    user: CurrentUser, request: Request, version: str, filename: str
+):
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can upload installers")
     manifest = get_manifest_by_filename(version, filename)
     if manifest is None:
         raise AyonException("No such installer")
@@ -147,16 +156,19 @@ async def upload_installer_file(request: Request, version: str, filename: str):
 
 
 @router.delete("/installers/{version}", status_code=204)
-async def delete_installer_version(version: str):
+async def delete_installer_version(user: CurrentUser, version: str):
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can delete installers")
     version_dir = get_version_dir(version)
     if not os.path.isdir(version_dir):
         raise AyonException("No such installer")
-
     shutil.rmtree(version_dir)
 
 
 @router.delete("/installers/{version}/{filename}", status_code=204)
-async def delete_installer_file(version: str, filename: str):
+async def delete_installer_file(user: CurrentUser, version: str, filename: str):
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can delete installers")
     manifest = get_manifest_by_filename(version, filename)
     if manifest is None:
         raise AyonException("No such installer")
@@ -165,13 +177,21 @@ async def delete_installer_file(version: str, filename: str):
     if not os.path.isfile(file_path):
         raise AyonException("No such installer")
     os.remove(file_path)
+    os.remove(os.path.join(version_dir, f"{manifest.platform}.json"))
+
+    if os.listdir(version_dir) == []:
+        shutil.rmtree(version_dir)
 
 
-@router.get("/{version}/{filename}")
-async def download_installer_file(version: str, filename: str):
+@router.get("/installers/{version}/{filename}")
+async def download_installer_file(user: CurrentUser, version: str, filename: str):
     version_dir = get_version_dir(version)
     file_path = os.path.join(version_dir, filename)
     if not os.path.isfile(file_path):
         raise AyonException("No such installer")
 
-    return FileResponse(file_path, filename=filename)
+    return FileResponse(
+        file_path,
+        media_type="application/octet-stream",
+        filename=filename,
+    )
