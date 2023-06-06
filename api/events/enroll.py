@@ -5,7 +5,7 @@ from ayon_server.api.responses import EmptyResponse
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import Filter, build_filter
-from ayon_server.types import OPModel
+from ayon_server.types import TOPIC_REGEX, OPModel
 from ayon_server.utils import hash_data
 
 from .router import router
@@ -20,11 +20,13 @@ class EnrollRequestModel(OPModel):
         ...,
         title="Source topic",
         example="ftrack.update",
+        regex=TOPIC_REGEX,
     )
     target_topic: str = Field(
         ...,
         title="Target topic",
         example="ftrack.sync_to_ayon",
+        regex=TOPIC_REGEX,
     )
     sender: str = Field(
         ...,
@@ -100,7 +102,7 @@ async def enroll(
         ON target_events.depends_on = source_events.id
 
         WHERE
-            source_events.topic = $1
+            source_events.topic ILIKE $1
         AND
             source_events.status = 'finished'
         AND
@@ -126,6 +128,11 @@ async def enroll(
         ORDER BY source_events.created_at ASC
     """
 
+    source_topic = payload.source_topic
+    target_topic = payload.target_topic
+    assert "*" not in target_topic, "Target topic must not contain wildcards"
+    source_topic = source_topic.replace("*", "%")
+
     if payload.debug:
         print(query)
         print("source_topic", payload.source_topic)
@@ -133,8 +140,8 @@ async def enroll(
 
     async for row in Postgres.iterate(
         query,
-        payload.source_topic,
-        payload.target_topic,
+        source_topic,
+        target_topic,
         payload.max_retries,
     ):
         # Check if target event already exists
