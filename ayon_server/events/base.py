@@ -191,6 +191,8 @@ async def update_event(
         new_data["payload"] = payload
     if retries is not None:
         new_data["retries"] = retries
+    if user is not None:
+        new_data["user_name"] = user
 
     if store:
         query = SQLTool.update("events", f"WHERE id = '{event_id}'", **new_data)

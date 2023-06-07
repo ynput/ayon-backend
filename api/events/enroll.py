@@ -146,18 +146,23 @@ async def enroll(
     ):
         # Check if target event already exists
         if row["target_status"] is not None:
-            if row["target_status"] == "failed":
+            if row["target_status"] in ["failed", "restarted"]:
                 # events which have reached max retries are already
                 # filtered out by the query above,
                 # so we can just retry them - update status to pending
                 # and increase retries counter
+
+                retries = row["target_retries"]
+                if row["target_status"] == "failed":
+                    retries += 1
+
                 event_id = row["target_id"]
                 await update_event(
                     event_id,
                     status="pending",
                     sender=sender,
                     user=current_user.name,
-                    retries=row["target_retries"] + 1,
+                    retries=retries,
                     description="Restarting failed event",
                 )
                 return EnrollResponseModel(
