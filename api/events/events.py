@@ -176,10 +176,16 @@ async def update_existing_event(
 ) -> EmptyResponse:
     """Update existing event."""
 
-    res = await Postgres.fetch("SELECT user_name FROM events WHERE id = $1", event_id)
+    res = await Postgres.fetch(
+        "SELECT user_name, status, depends_on FROM events WHERE id = $1", event_id
+    )
     if not res:
         raise NotFoundException("Event not found")
     event_user = res[0]["user_name"]
+
+    if payload.status and payload.status != res[0]["status"]:
+        if res[0]["depends_on"] is None:
+            raise ForbiddenException("Source events are not restartable")
 
     if not user.is_manager:
         if event_user == user.name:
