@@ -1,37 +1,65 @@
-import json
 import os
-import shutil
-from typing import Literal
 
 import aiofiles
 from fastapi import Query, Request
 from nxtools import logging
-from starlette.responses import FileResponse
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import AyonException, ForbiddenException
 from ayon_server.types import Field, OPModel
 
+from .common import (
+    BasePackageModel,
+    Platform,
+    SourceModel,
+    get_desktop_dir,
+    get_desktop_file_path,
+    handle_download,
+    handle_upload,
+    load_json_file,
+)
 from .router import router
 
 #
 # Models
 #
 
-Platform = Literal["windows", "linux", "darwin"]
+
+class InstallerManifest(BasePackageModel):
+    version: str = Field(
+        ...,
+        title="Version",
+        description="Version of the installer",
+        example="1.2.3",
+    )
+    python_version: str = Field(
+        ...,
+        title="Python version",
+        description="Version of Python that the installer is created with",
+        example="3.11",
+    )
+    python_modules: dict[str, str] = Field(
+        default_factory=dict,
+        title="Python modules",
+        description="mapping of module_name:module_version used to create the installer",
+        example={"requests": "2.25.1", "pydantic": "1.8.2"},
+    )
+
+    @property
+    def local_file_path(self) -> str:
+        return get_desktop_file_path("installers", self.filename)
+
+    @property
+    def has_local_file(self) -> bool:
+        return os.path.isfile(self.local_file_path)
+
+    @property
+    def path(self) -> str:
+        return get_desktop_file_path("installers", f"{self.filename}.json")
 
 
-class InstallerPostModel(OPModel):
-    version: str
-    platform: Platform
-    filename: str = Field(..., description="Name of the package")
-    python_version: str
-    python_modules: dict[str, str] = Field(default_factory=dict)
-
-
-class InstallerModel(InstallerPostModel):
-    file_exists: bool = Field(False, description="Whether the file exists")
-    file_size: int | None = Field(None, description="Size of the package in bytes")
+class InstallerListModel(OPModel):
+    installers: list[InstallerManifest] = Field(default_factory=list)
 
 
 #
@@ -39,48 +67,12 @@ class InstallerModel(InstallerPostModel):
 #
 
 
-def get_installer_root() -> str:
-    root = "/storage/installers"
-    if not os.path.isdir(root):
-        try:
-            os.makedirs(root)
-        except Exception as e:
-            raise AyonException(f"Failed to create installer directory: {e}")
-    return root
-
-
-def get_version_dir(version: str) -> str:
-    """Get path to version directory."""
-    root = f"{get_installer_root()}/{version}"
-    if not os.path.isdir(root):
-        try:
-            os.makedirs(root)
-        except Exception as e:
-            raise AyonException(f"Failed to create installer directory: {e}")
-    return root
-
-
-def get_manifest_by_filename(version: str, filename: str) -> InstallerModel | None:
-    version_dir = get_version_dir(version)
-
-    # ensure the file is specified in one of the manifest files
-    for platform in Platform.__args__:
-        manifest_file = os.path.join(version_dir, f"{platform}.json")
-        if not os.path.isfile(manifest_file):
-            continue
-        try:
-            with open(manifest_file, "r") as f:
-                manifest = json.load(f)
-        except Exception as e:
-            logging.warning(f"Failed to load manifest file {manifest_file}: {e}")
-            continue
-
-        if manifest.get("filename") == filename:
-            return InstallerModel(
-                **manifest,
-                file_exists=True,
-                file_size=os.path.getsize(manifest_file),
-            )
+def get_manifest(filename: str) -> InstallerManifest:
+    manifest_data = load_json_file("installers", f"{filename}.json")
+    manifest = InstallerManifest(**manifest_data)
+    if manifest.has_local_file:
+        manifest.sources.append(SourceModel(type="server"))
+    return manifest
 
 
 #
@@ -88,110 +80,97 @@ def get_manifest_by_filename(version: str, filename: str) -> InstallerModel | No
 #
 
 
-@router.get("/installers")
+@router.get("/installers", response_model_exclude_none=True)
 async def list_installers(
     user: CurrentUser,
     version: str | None = Query(None, description="Version of the package"),
     platform: Platform | None = Query(None, description="Platform of the package"),
-) -> list[InstallerModel]:
-    result: list[InstallerModel] = []
-    root = get_installer_root()
-    for version_dir in os.listdir(root):
-        if not os.path.isdir(os.path.join(root, version_dir)):
-            continue
-        if version is not None and version_dir != version:
-            continue
-        for p in Platform.__args__:
-            if platform is not None and platform != p:
-                continue
-            manifest_path = os.path.join(root, version_dir, f"{p}.json")
-            if not os.path.isfile(manifest_path):
-                continue
-            try:
-                manifest = json.load(open(manifest_path, "r"))
-                item = InstallerModel(**manifest)
-                file_path = os.path.join(root, version_dir, item.filename)
-                item.file_exists = os.path.isfile(file_path)
-                if item.file_exists:
-                    item.file_size = os.path.getsize(file_path)
-            except Exception as e:
-                logging.warning(f"Failed to load manifest file {manifest_path}: {e}")
-                continue
+) -> InstallerListModel:
+    result: list[InstallerManifest] = []
+    root = get_desktop_dir("installers", for_writing=False)
+    if not os.path.isdir(root):
+        return InstallerListModel()
 
-            result.append(item)
-    return result
+    for filename in os.listdir(root):
+        # we scan for json files instead of installers,
+        # because we want to return all installers,
+        # even if they are not uploaded to the server
+
+        if not os.path.isfile(os.path.join(root, filename)):
+            continue
+
+        if not filename.endswith(".json"):
+            continue
+
+        filename = filename[:-5]
+
+        try:
+            manifest = get_manifest(filename)
+        except Exception as e:
+            logging.warning(f"Failed to load manifest file {filename}: {e}")
+            continue
+
+        if filename != manifest.filename:
+            logging.warning(
+                f"Filename in manifest does not match: {filename} != {manifest.filename}"
+            )
+            continue
+
+        # Filtering
+
+        if platform is not None and platform != manifest.platform:
+            continue
+
+        if version is not None and version != manifest.version:
+            continue
+
+        result.append(manifest)
+    return InstallerListModel(installers=result)
 
 
 @router.post("/installers", status_code=204)
-async def create_installer(user: CurrentUser, payload: InstallerPostModel):
+async def create_installer(user: CurrentUser, payload: InstallerManifest):
     if not user.is_admin:
         raise ForbiddenException("Only admins can create installers")
-    installer_dir = get_version_dir(payload.version)
-    manifest_path = os.path.join(installer_dir, f"{payload.platform}.json")
-    with open(manifest_path, "w") as f:
-        json.dump(payload.dict(), f)
+
+    try:
+        _ = get_manifest(payload.filename)
+    except Exception:
+        pass
+    else:
+        raise AyonException("Installer already exists")
+
+    _ = get_desktop_dir("installers", for_writing=True)
+
+    async with aiofiles.open(payload.path, "w") as f:
+        await f.write(payload.json(exclude_none=True))
 
 
-@router.put("/installers/{version}/{filename}", status_code=204)
-async def upload_installer_file(
-    user: CurrentUser, request: Request, version: str, filename: str
-):
+@router.put("/installers/{filename}", status_code=204)
+async def upload_installer_file(user: CurrentUser, request: Request, filename: str):
     if not user.is_admin:
         raise ForbiddenException("Only admins can upload installers")
-    manifest = get_manifest_by_filename(version, filename)
-    if manifest is None:
-        raise AyonException("No such installer")
 
-    installer_dir = get_version_dir(version)
-    file_path = os.path.join(installer_dir, filename)
+    manifest = get_manifest(filename)
 
-    i = 0
-    async with aiofiles.open(file_path, "wb") as f:
-        async for chunk in request.stream():
-            await f.write(chunk)
-            i += 1
+    if manifest.filename != filename:
+        raise AyonException("Filename in manifest does not match")
 
-    if i == 0:
-        raise AyonException("Empty file")
+    return await handle_upload(request, manifest.local_file_path)
 
 
-@router.delete("/installers/{version}", status_code=204)
-async def delete_installer_version(user: CurrentUser, version: str):
+@router.delete("/installers/{filename}", status_code=204)
+async def delete_installer_file(user: CurrentUser, filename: str):
     if not user.is_admin:
         raise ForbiddenException("Only admins can delete installers")
-    version_dir = get_version_dir(version)
-    if not os.path.isdir(version_dir):
-        raise AyonException("No such installer")
-    shutil.rmtree(version_dir)
+    manifest = get_manifest(filename)
+    if manifest.has_local_file:
+        os.remove(manifest.local_file_path)
+    os.remove(manifest.path)
 
 
-@router.delete("/installers/{version}/{filename}", status_code=204)
-async def delete_installer_file(user: CurrentUser, version: str, filename: str):
-    if not user.is_admin:
-        raise ForbiddenException("Only admins can delete installers")
-    manifest = get_manifest_by_filename(version, filename)
-    if manifest is None:
-        raise AyonException("No such installer")
-    version_dir = get_version_dir(version)
-    file_path = os.path.join(version_dir, filename)
-    if not os.path.isfile(file_path):
-        raise AyonException("No such installer")
-    os.remove(file_path)
-    os.remove(os.path.join(version_dir, f"{manifest.platform}.json"))
-
-    if os.listdir(version_dir) == []:
-        shutil.rmtree(version_dir)
-
-
-@router.get("/installers/{version}/{filename}")
-async def download_installer_file(user: CurrentUser, version: str, filename: str):
-    version_dir = get_version_dir(version)
-    file_path = os.path.join(version_dir, filename)
-    if not os.path.isfile(file_path):
-        raise AyonException("No such installer")
-
-    return FileResponse(
-        file_path,
-        media_type="application/octet-stream",
-        filename=filename,
-    )
+@router.get("/installers/{filename}")
+async def download_installer_file(user: CurrentUser, filename: str):
+    installers_dir = get_desktop_dir("installers", for_writing=False)
+    file_path = os.path.join(installers_dir, filename)
+    return await handle_download(file_path)
