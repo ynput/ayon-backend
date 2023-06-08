@@ -85,6 +85,7 @@ class UpdateEventRequestModel(OPModel):
         description="Deprecated use 'project' instead",
     )
     project: str | None = Field(None, title="Project name")
+    user: str | None = Field(None, title="User name override")
     status: str | None = None
     description: str | None = None
     summary: dict[str, Any] | None = None
@@ -169,13 +170,30 @@ async def get_event(user: CurrentUser, event_id: EventID) -> EventModel:
 
 @router.patch("/events/{event_id}", status_code=204)
 async def update_existing_event(
-    payload: UpdateEventRequestModel, user: CurrentUser, event_id: EventID
+    payload: UpdateEventRequestModel,
+    user: CurrentUser,
+    event_id: EventID,
 ) -> EmptyResponse:
     """Update existing event."""
 
+    res = await Postgres.fetch(
+        "SELECT user_name, status, depends_on FROM events WHERE id = $1", event_id
+    )
+    if not res:
+        raise NotFoundException("Event not found")
+    event_user = res[0]["user_name"]
+
+    if payload.status and payload.status != res[0]["status"]:
+        if res[0]["depends_on"] is None:
+            raise ForbiddenException("Source events are not restartable")
+
     if not user.is_manager:
-        if payload.topic not in normal_user_topic_whitelist:
+        if event_user == user.name:
             raise ForbiddenException("Not allowed to update this event")
+        if payload.user and payload.user != user.name:
+            raise ForbiddenException("Not allowed to change user of this event")
+
+    new_user = payload.user or event_user or user.name
 
     if payload.project_name:
         logging.warning(
@@ -185,7 +203,7 @@ async def update_existing_event(
         event_id,
         payload.sender,
         payload.project_name or payload.project,
-        user.name,
+        new_user,
         payload.status,
         payload.description,
         payload.summary,
