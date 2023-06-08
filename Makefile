@@ -3,5 +3,5 @@ default:
 
 check:
 	poetry run black .
-	poetry run ruff .
+	poetry run ruff --fix .
 	poetry run mypy .

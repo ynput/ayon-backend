@@ -1,7 +1,7 @@
 import hashlib
 import json
 import os
-from typing import Any, Literal
+from typing import Any, Generator, Literal
 
 import aiofiles
 from fastapi import Request
@@ -63,6 +63,20 @@ def save_json_file(*args, data: Any) -> None:
             json.dump(data, f)
     except Exception as e:
         raise AyonException(f"Failed to save file {path}: {e}")
+
+
+def iter_names(directory: str) -> Generator[str, None, None]:
+    """Iterate over package names in a directory."""
+
+    root = get_desktop_dir(directory, for_writing=False)
+    if not os.path.isdir(root):
+        return
+    for filename in os.listdir(root):
+        if not os.path.isfile(os.path.join(root, filename)):
+            continue
+        if not filename.endswith(".json"):
+            continue
+        yield filename[:-5]
 
 
 async def handle_upload(request: Request, target_path: str) -> None:
@@ -140,25 +154,4 @@ class BasePackageModel(OPModel):
         description="List of sources to download the file from. "
         "Server source is added automatically by the server if the file is uploaded.",
         example=[{"type": "url"}],
-    )
-
-
-class DependencyPackageModel(BasePackageModel):
-    installer_version: str = Field(
-        ...,
-        title="Installer version",
-        description="Version of the Ayon installer that this dependency package is created with",
-        example="1.2.3",
-    )
-    source_addons: dict[str, str] = Field(
-        default_factory=dict,
-        title="Source addons",
-        description="mapping of addon_name:addon_version used to create the package",
-        example={"ftrack": "1.2.3", "maya": "2.4"},
-    )
-    python_modules: dict[str, str] = Field(
-        default_factory=dict,
-        title="Python modules",
-        description="mapping of module_name:module_version used to create the package",
-        example={"requests": "2.25.1", "pydantic": "1.8.2"},
     )

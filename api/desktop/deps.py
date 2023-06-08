@@ -1,250 +1,160 @@
 import os
-from typing import Any, Literal
 
+import aiofiles
 from fastapi import Path, Request, Response
 from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundException
-from ayon_server.lib.postgres import Postgres
+from ayon_server.exceptions import AyonException, ForbiddenException
 from ayon_server.types import Field, OPModel
-from ayon_server.utils import dict_exclude
 
+from .common import (
+    BasePackageModel,
+    SourceModel,
+    get_desktop_dir,
+    get_desktop_file_path,
+    handle_download,
+    handle_upload,
+    iter_names,
+    load_json_file,
+)
 from .router import router
 
-Platform = Literal["windows", "linux", "darwin"]
 
-
-def md5sum(path: str) -> str:
-    """Calculate md5sum of file."""
-    import hashlib
-
-    with open(path, "rb") as f:
-        return hashlib.md5(f.read()).hexdigest()
-
-
-def get_package_file_path(name: str, platform: Platform) -> str:
-    """Get path to package file."""
-    return f"/storage/dependency_packages/{name}-{platform}.zip"
-
-
-class DependencyPackage(OPModel):
-    """
-    Each source is a dict with the type of the source as key and the value,
-    the rest of the fields depend on the type of the source.
-
-    type: "server" is added automatically by the server,
-    if the package was uploaded to the server.
-    """
-
-    name: str = Field(..., description="Name of the package")
-    platform: Platform = Field(..., description="Platform of the package")
-    size: int = Field(..., description="Size of the package in bytes")
-
-    checksum: str = Field(
+class DependencyPackageManifest(BasePackageModel):
+    installer_version: str = Field(
         ...,
-        title="Checksum",
-        description="Checksum of the package",
+        title="Installer version",
+        description="Version of the Ayon installer that this dependency package is created with",
+        example="1.2.3",
     )
-    checksum_algorithm: Literal["md5"] = Field(
-        "md5",
-        title="Checksum algorithm",
-        description="Algorithm used to calculate the checksum",
-    )
-    supported_addons: dict[str, str] = Field(
+    source_addons: dict[str, str] = Field(
         default_factory=dict,
-        title="Supported addons",
-        description="Supported addons and their versions {addon_name: version}",
+        title="Source addons",
+        description="mapping of addon_name:addon_version used to create the package",
+        example={"ftrack": "1.2.3", "maya": "2.4"},
     )
     python_modules: dict[str, str] = Field(
         default_factory=dict,
-        description="Python modules {module_name: version} included in the package",
+        title="Python modules",
+        description="mapping of module_name:module_version used to create the package",
+        example={"requests": "2.25.1", "pydantic": "1.8.2"},
     )
-    sources: list[dict[str, Any]] = Field(
-        default_factory=list,
-        title="Package sources",
-        description="List of sources from which the package was downloaded",
-        example=[
-            {
-                "type": "server",
-                "filename": "win_ayon_package_1.0.0.zip",
-            },
-            {
-                "type": "http",
-                "url": "https://example.com/win_ayon_package_1.0.0.zip",
-            },
-        ],
-    )
+
+    @property
+    def local_file_path(self) -> str:
+        return get_desktop_file_path("dependency_packages", self.filename)
+
+    @property
+    def has_local_file(self) -> bool:
+        return os.path.isfile(self.local_file_path)
+
+    @property
+    def path(self) -> str:
+        return get_desktop_file_path("dependency_packages", f"{self.filename}.json")
 
 
 class DependencyPackageList(OPModel):
-    packages: list[DependencyPackage] = Field(default_factory=list)
-    production_package: str | None = None
+    packages: list[DependencyPackageManifest] = Field(default_factory=list)
 
 
-@router.get("/dependency_packages")
-async def list_dependency_packages() -> DependencyPackageList:
+#
+# Helpers
+#
+
+
+def get_manifest(filename: str) -> DependencyPackageManifest:
+    manifest_data = load_json_file("dependency_packages", f"{filename}.json")
+    manifest = DependencyPackageManifest(**manifest_data)
+    if manifest.has_local_file:
+        print("dep has local file", manifest.local_file_path)
+        manifest.sources.append(SourceModel(type="server"))
+    return manifest
+
+
+# TODO: add filtering
+@router.get("/dependency_packages", response_model_exclude_none=True)
+async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
     """Return a list of dependency packages"""
 
-    # TODO: is there a reason for not having authentication here?
+    result: list[DependencyPackageManifest] = []
+    for filename in iter_names("dependency_packages"):
+        try:
+            manifest = get_manifest(filename)
+        except Exception as e:
+            logging.warning(f"Failed to load manifest file {filename}: {e}")
+            continue
 
-    packages: list[DependencyPackage] = []
-    async for row in Postgres.iterate(
-        "SELECT * FROM dependency_packages ORDER BY name ASC"
-    ):
-        data = row["data"]
-        if os.path.exists(
-            file_path := get_package_file_path(row["name"], row["platform"])
-        ):
-            local_source = {
-                "type": "server",
-                "filename": os.path.basename(file_path),
-            }
-            data["sources"].append(local_source)
-
-        packages.append(
-            DependencyPackage(name=row["name"], platform=row["platform"], **data)
-        )
-
-    production_package = None
-    if packages:
-        production_package = packages[-1].name
-
-    result = DependencyPackageList(
-        packages=packages, production_package=production_package
-    )
-    return result
+        if filename != manifest.filename:
+            logging.warning(
+                f"Filename in manifest does not match: {filename} != {manifest.filename}"
+            )
+            continue
+        result.append(manifest)
+    return DependencyPackageList(packages=result)
 
 
 @router.post("/dependency_packages", status_code=204)
 async def create_dependency_package(
-    payload: DependencyPackage,
+    payload: DependencyPackageManifest,
     user: CurrentUser,
 ) -> EmptyResponse:
-    """Create (or update) a dependency package record in the database.
-
-    You can set external download locations in the payload,
-    it is not necessary to set "server" location (it is added automatically)
-    to the response when an uploaded package is found.
-    """
-
     if not user.is_admin:
         raise ForbiddenException("Only admins can save dependency packages.")
 
-    data = dict_exclude(payload.dict(), ["name", "platform"])
+    try:
+        _ = get_manifest(payload.filename)
+    except Exception:
+        pass
+    else:
+        raise AyonException("Dependency package already exists")
 
-    await Postgres.execute(
-        """
-        INSERT INTO dependency_packages (name, platform, data)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (name, platform) DO UPDATE SET data = $3
-        """,
-        payload.name,
-        payload.platform,
-        data,
-    )
+    _ = get_desktop_dir("dependency_packages", for_writing=True)
 
+    async with aiofiles.open(payload.path, "w") as f:
+        await f.write(payload.json(exclude_none=True))
     return EmptyResponse()
 
 
-@router.get("/dependency_packages/{package_name}/{platform}")
+@router.get("/dependency_packages/{filename}")
 async def download_dependency_package(
     user: CurrentUser,
-    package_name: str = Path(...),
-    platform: Platform = Path(...),
+    filename: str = Path(...),
 ) -> Response:
     """Download dependency package.
 
     Use this endpoint to download dependency package stored on the server.
     """
 
-    res = await Postgres.fetch(
-        """
-        SELECT name, platform FROM dependency_packages
-        WHERE name = $1 AND platform = $2
-        """,
-        package_name,
-        platform,
-    )
-
-    if not res:
-        raise NotFoundException("Package not found.")
-
-    file_path = get_package_file_path(package_name, platform)
-    if not os.path.exists(file_path):
-        raise NotFoundException("Package file not found.")
-
-    # TODO: use streaming
-    return Response(
-        media_type="application/octet-stream",
-        status_code=200,
-        content=open(file_path, "rb").read(),
-    )
+    packages_dir = get_desktop_dir("dependency_packages", for_writing=False)
+    file_path = os.path.join(packages_dir, filename)
+    return await handle_download(file_path)
 
 
-@router.put("/dependency_packages/{package_name}/{platform}", status_code=204)
+@router.put("/dependency_packages/{filename}", status_code=204)
 async def upload_dependency_package(
     request: Request,
     user: CurrentUser,
-    package_name: str = Path(...),
-    platform: Platform = Path(...),
+    filename: str = Path(...),
 ) -> EmptyResponse:
     """Upload a dependency package to the server."""
 
     if not user.is_admin:
         raise ForbiddenException("Only admins can upload dependency packages.")
 
-    res = await Postgres.fetch(
-        """
-        SELECT
-            data->>'size' as size,
-            data->>'checksum' as checksum
-        FROM dependency_packages
-        WHERE name = $1 AND platform = $2
-        """,
-        package_name,
-        platform,
-    )
+    manifest = get_manifest(filename)
 
-    if not res:
-        raise NotFoundException("Package not found.")
+    if manifest.filename != filename:
+        raise AyonException("Filename in manifest does not match")
 
-    expected_size = int(res[0]["size"])
-    expected_checksum = res[0]["checksum"]
-
-    file_path = get_package_file_path(package_name, platform)
-    directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
-        logging.info(f"Creating directory {directory}")
-        os.makedirs(directory)
-
-    with open(file_path, "wb") as f:
-        async for chunk in request.stream():
-            f.write(chunk)
-
-    file_size = os.path.getsize(file_path)
-    if file_size != expected_size:
-        raise AyonException(
-            "Uploaded file has different size than expected"
-            f"expected: {expected_size}, got: {file_size}"
-        )
-
-    checksum = md5sum(file_path)
-    if checksum != expected_checksum:
-        raise AyonException(
-            "Uploaded file has different checksum than expected."
-            f"expected: {expected_checksum}, got: {checksum}"
-        )
-
-    return EmptyResponse()
+    return await handle_upload(request, manifest.local_file_path)
 
 
-@router.delete("/dependency_packages/{package_name}/{platform}", status_code=204)
+@router.delete("/dependency_packages/{filename}", status_code=204)
 async def delete_dependency_package(
     user: CurrentUser,
-    package_name: str = Path(...),
-    platform: Platform = Path(...),
+    filename: str = Path(...),
 ) -> EmptyResponse:
     """Delete a dependency package from the server.
     If there is an uploaded package, it will be deleted as well.
@@ -253,16 +163,9 @@ async def delete_dependency_package(
     if not user.is_admin:
         raise ForbiddenException("Only admins can delete dependency packages")
 
-    if os.path.exists(file_path := get_package_file_path(package_name, platform)):
-        os.remove(file_path)
-
-    await Postgres.execute(
-        """
-        DELETE FROM dependency_packages
-        WHERE name = $1 AND platform = $2
-        """,
-        package_name,
-        platform,
-    )
+    manifest = get_manifest(filename)
+    if manifest.has_local_file:
+        os.remove(manifest.local_file_path)
+    os.remove(manifest.path)
 
     return EmptyResponse()

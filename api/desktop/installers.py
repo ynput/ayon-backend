@@ -16,6 +16,7 @@ from .common import (
     get_desktop_file_path,
     handle_download,
     handle_upload,
+    iter_names,
     load_json_file,
 )
 from .router import router
@@ -87,23 +88,8 @@ async def list_installers(
     platform: Platform | None = Query(None, description="Platform of the package"),
 ) -> InstallerListModel:
     result: list[InstallerManifest] = []
-    root = get_desktop_dir("installers", for_writing=False)
-    if not os.path.isdir(root):
-        return InstallerListModel()
 
-    for filename in os.listdir(root):
-        # we scan for json files instead of installers,
-        # because we want to return all installers,
-        # even if they are not uploaded to the server
-
-        if not os.path.isfile(os.path.join(root, filename)):
-            continue
-
-        if not filename.endswith(".json"):
-            continue
-
-        filename = filename[:-5]
-
+    for filename in iter_names("installers"):
         try:
             manifest = get_manifest(filename)
         except Exception as e:
@@ -146,6 +132,13 @@ async def create_installer(user: CurrentUser, payload: InstallerManifest):
         await f.write(payload.json(exclude_none=True))
 
 
+@router.get("/installers/{filename}")
+async def download_installer_file(user: CurrentUser, filename: str):
+    installers_dir = get_desktop_dir("installers", for_writing=False)
+    file_path = os.path.join(installers_dir, filename)
+    return await handle_download(file_path)
+
+
 @router.put("/installers/{filename}", status_code=204)
 async def upload_installer_file(user: CurrentUser, request: Request, filename: str):
     if not user.is_admin:
@@ -167,10 +160,3 @@ async def delete_installer_file(user: CurrentUser, filename: str):
     if manifest.has_local_file:
         os.remove(manifest.local_file_path)
     os.remove(manifest.path)
-
-
-@router.get("/installers/{filename}")
-async def download_installer_file(user: CurrentUser, filename: str):
-    installers_dir = get_desktop_dir("installers", for_writing=False)
-    file_path = os.path.join(installers_dir, filename)
-    return await handle_download(file_path)
