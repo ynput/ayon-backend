@@ -5,7 +5,7 @@ try:
 except ModuleNotFoundError:
     toml = None  # type: ignore
 
-from typing import TYPE_CHECKING, Any, Callable, Literal, Type
+from typing import TYPE_CHECKING, Any, Callable, Type
 
 from nxtools import logging
 
@@ -22,7 +22,7 @@ class BaseServerAddon:
     name: str
     version: str
     title: str | None = None
-    addon_type: Literal["module", "host"] = "module"
+    dcc_host_name: str | None = None
     definition: "ServerAddonDefinition"
     endpoints: list[dict[str, Any]]
     settings_model: Type[BaseSettingsModel] | None = None
