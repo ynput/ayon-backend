@@ -79,6 +79,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS unique_creation_order ON events(creation_order
 -- Settings --
 --------------
 
+CREATE TABLE IF NOT EXISTS public.bundles(
+  name VARCHAR NOT NULL PRIMARY KEY,
+  is_production BOOLEAN NOT NULL DEFAULT FALSE,
+  is_staging BOOLEAN NOT NULL DEFAULT FALSE,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- case insensitive name index
+CREATE UNIQUE INDEX IF NOT EXISTS bundle_name_idx ON bundles(LOWER(name));
+-- allow only one bundle to be production
+CREATE UNIQUE INDEX IF NOT EXISTS bundle_production_idx ON bundles(is_production) WHERE is_production;
+-- allow only one bundle to be staging
+CREATE UNIQUE INDEX IF NOT EXISTS bundle_staging_idx ON bundles(is_staging) WHERE is_staging;
+
+
+
 CREATE TABLE IF NOT EXISTS public.sites(
   id VARCHAR NOT NULL PRIMARY KEY,
   data JSONB NOT NULL DEFAULT '{}'::JSONB
@@ -126,6 +143,7 @@ CREATE TABLE IF NOT EXISTS public.site_settings(
 );
 
 
+-- DEPRECATED?? Replaced by bundles?
 CREATE TABLE IF NOT EXISTS public.addon_versions(
   name VARCHAR NOT NULL PRIMARY KEY,
   production_version VARCHAR,
@@ -175,6 +193,7 @@ CREATE TABLE IF NOT EXISTS public.services(
 -- Dependencies --
 ------------------
 
+-- DEPRECATED. REMOVE
 CREATE TABLE IF NOT EXISTS public.dependency_packages(
   name VARCHAR NOT NULL,
   platform VARCHAR NOT NULL,
