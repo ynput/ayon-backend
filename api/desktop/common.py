@@ -142,16 +142,23 @@ class SourceModel(OPModel):
     )
 
 
+SOURCES_META = Field(
+    default_factory=list,
+    title="Sources",
+    description="List of sources to download the file from. "
+    "Server source is added automatically by the server if the file is uploaded.",
+    example=[{"type": "url"}],
+)
+
+
 class BasePackageModel(OPModel):
     filename: str
     platform: Platform
     size: int | None = None
     checksum: str | None = None
     checksum_algorithm: Literal["md5", "sha1", "sha256"] | None = None
-    sources: list[SourceModel] = Field(
-        default_factory=list,
-        title="Sources",
-        description="List of sources to download the file from. "
-        "Server source is added automatically by the server if the file is uploaded.",
-        example=[{"type": "url"}],
-    )
+    sources: list[SourceModel] = SOURCES_META
+
+
+class SourcesPatchModel(OPModel):
+    sources: list[SourceModel] = SOURCES_META

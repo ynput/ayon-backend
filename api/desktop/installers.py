@@ -12,6 +12,7 @@ from .common import (
     BasePackageModel,
     Platform,
     SourceModel,
+    SourcesPatchModel,
     get_desktop_dir,
     get_desktop_file_path,
     handle_download,
@@ -128,6 +129,16 @@ async def create_installer(user: CurrentUser, payload: InstallerManifest):
 
     _ = get_desktop_dir("installers", for_writing=True)
 
+    existing_installers = await list_installers(
+        user=user,
+        version=payload.version,
+        platform=payload.platform,
+    )
+    if existing_installers.installers:
+        raise AyonException(
+            "Installer with the same version and platform already exists"
+        )
+
     async with aiofiles.open(payload.path, "w") as f:
         await f.write(payload.json(exclude_none=True))
 
@@ -160,3 +171,20 @@ async def delete_installer_file(user: CurrentUser, filename: str):
     if manifest.has_local_file:
         os.remove(manifest.local_file_path)
     os.remove(manifest.path)
+
+
+@router.patch("/installers/{filename}", status_code=204)
+async def patch_installer(user: CurrentUser, filename: str, payload: SourcesPatchModel):
+    """Update sources for an installer"""
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can patch installers")
+
+    manifest = get_manifest(filename)
+
+    if manifest.filename != filename:
+        raise AyonException("Filename in manifest does not match")
+
+    manifest.sources = payload.sources
+
+    async with aiofiles.open(manifest.path, "w") as f:
+        await f.write(manifest.json(exclude_none=True))

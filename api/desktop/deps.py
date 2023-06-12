@@ -12,6 +12,7 @@ from ayon_server.types import Field, OPModel
 from .common import (
     BasePackageModel,
     SourceModel,
+    SourcesPatchModel,
     get_desktop_dir,
     get_desktop_file_path,
     handle_download,
@@ -169,3 +170,23 @@ async def delete_dependency_package(
     os.remove(manifest.path)
 
     return EmptyResponse()
+
+
+@router.patch("/dependency_packages/{filename}", status_code=204)
+async def update_dependency_package(
+    payload: SourcesPatchModel,
+    user: CurrentUser,
+    filename: str = Path(...),
+) -> EmptyResponse:
+    """Update dependency package sources"""
+
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can update dependency packages")
+
+    manifest = get_manifest(filename)
+    if manifest.filename != filename:
+        raise AyonException("Filename in manifest does not match")
+
+    manifest.sources = payload.sources
+    async with aiofiles.open(manifest.path, "w") as f:
+        await f.write(manifest.json(exclude_none=True))
