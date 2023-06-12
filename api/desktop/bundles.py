@@ -44,7 +44,7 @@ class BundleModel(BaseBundleModel):
         default_factory=datetime.now,
         example=datetime.now(),
     )
-    installer_version: str = Field(..., example="1.2.3")
+    installer_version: str | None = Field(None, example="1.2.3")
     addons: dict[str, str] = Field(
         default_factory=dict,
         title="Addons",
@@ -54,7 +54,7 @@ class BundleModel(BaseBundleModel):
         default_factory=dict, **dependency_packages_meta
     )
     is_production: bool = Field(False, example=False)
-    is_stable: bool = Field(False, example=False)
+    is_staging: bool = Field(False, example=False)
 
 
 class BundlePatchModel(BaseBundleModel):
@@ -63,7 +63,7 @@ class BundlePatchModel(BaseBundleModel):
         **dependency_packages_meta,
     )
     is_production: bool | None = Field(None, example=False)
-    is_stable: bool | None = Field(None, example=False)
+    is_staging: bool | None = Field(None, example=False)
 
 
 class ListBundleModel(OPModel):
@@ -107,7 +107,8 @@ async def create_bundle(bundle: BundleModel, user: CurrentUser) -> EmptyResponse
                     await conn.execute("UPDATE bundles SET is_staging = FALSE")
 
                 query = """
-                    INSERT INTO bundles (name, data, is_production, is_staging, created_at)
+                    INSERT INTO bundles
+                    (name, data, is_production, is_staging, created_at)
                     VALUES ($1, $2, $3, $4, $5)
                 """
 
