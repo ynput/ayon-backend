@@ -95,7 +95,6 @@ async def list_bundles() -> ListBundleModel:
 
 @router.post("/bundles", status_code=201)
 async def create_bundle(bundle: BundleModel, user: CurrentUser) -> EmptyResponse:
-
     if not user.is_admin:
         raise ForbiddenException("Only admins can create bundles")
 
@@ -132,13 +131,11 @@ async def patch_bundle(
     bundle: BundlePatchModel,
     user: CurrentUser,
 ) -> EmptyResponse:
-
     if not user.is_admin:
         raise ForbiddenException("Only admins can patch bundles")
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
-
             res = await conn.fetch(
                 "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
             )
@@ -179,4 +176,8 @@ async def delete_bundle(
     bundle_name: str,
     user: CurrentUser,
 ) -> EmptyResponse:
-    pass
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can delete bundles")
+
+    await Postgres.execute("DELETE FROM bundles WHERE name = $1", bundle_name)
+    return EmptyResponse(status_code=204)
