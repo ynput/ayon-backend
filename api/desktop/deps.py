@@ -149,7 +149,8 @@ async def upload_dependency_package(
     if manifest.filename != filename:
         raise AyonException("Filename in manifest does not match")
 
-    return await handle_upload(request, manifest.local_file_path)
+    await handle_upload(request, manifest.local_file_path)
+    return EmptyResponse(status_code=204)
 
 
 @router.delete("/dependency_packages/{filename}", status_code=204)
@@ -190,3 +191,5 @@ async def update_dependency_package(
     manifest.sources = payload.sources
     async with aiofiles.open(manifest.path, "w") as f:
         await f.write(manifest.json(exclude_none=True))
+
+    return EmptyResponse(status_code=204)

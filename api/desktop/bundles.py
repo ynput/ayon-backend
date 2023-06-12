@@ -119,7 +119,7 @@ async def create_bundle(bundle: BundleModel, user: CurrentUser) -> EmptyResponse
                     bundle.is_staging,
                     bundle.created_at,
                 )
-    except Postgres.UniqueViolation:
+    except Postgres.UniqueViolationError:
         raise ConflictException("Bundle with this name already exists")
 
     return EmptyResponse(status_code=201)
