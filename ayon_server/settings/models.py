@@ -22,7 +22,9 @@ class CustomTemplateModel(BaseSettingsModel):
     _layout = "expanded"
     _isGroup = True
     task_types: list[str] = Field(
-        default_factory=list, title="Task types", enum_resolver=task_types_enum
+        default_factory=list,
+        title="Task types",
+        enum_resolver=task_types_enum
     )
 
     # label:
@@ -46,8 +48,14 @@ class TemplateWorkfileBaseOptions(BaseSettingsModel):
 
 # --- Host 'imageio' models ---
 class ImageIOConfigModel(BaseSettingsModel):
-    enabled: bool = Field(False)
-    filepath: list[str] = Field(default_factory=list, title="Config path")
+    override_global_config: bool = Field(
+        False,
+        title="Override global OCIO config"
+    )
+    filepath: list[str] = Field(
+        default_factory=list,
+        title="Config path"
+    )
 
 
 class ImageIOFileRuleModel(BaseSettingsModel):
@@ -58,8 +66,11 @@ class ImageIOFileRuleModel(BaseSettingsModel):
 
 
 class ImageIOFileRulesModel(BaseSettingsModel):
-    enabled: bool = Field(False)
-    rules: list[ImageIOFileRuleModel] = Field(default_factory=list, title="Rules")
+    activate_host_rules: bool = Field(False)
+    rules: list[ImageIOFileRuleModel] = Field(
+        default_factory=list,
+        title="Rules"
+    )
 
     @validator("rules")
     def validate_unique_outputs(cls, value):
@@ -67,11 +78,49 @@ class ImageIOFileRulesModel(BaseSettingsModel):
         return value
 
 
+class ImageIORemappingRulesModel(BaseSettingsModel):
+    host_native_name: str = Field(
+        title="Application native colorspace name"
+    )
+    ocio_name: str = Field(title="OCIO colorspace name")
+
+
+class ImageIORemappingModel(BaseSettingsModel):
+    rules: list[ImageIORemappingRulesModel] = Field(
+        default_factory=list)
+
+
 # Base model that can be used as is if host does not need any custom fields
-class ImageIOBaseModel(BaseSettingsModel):
+class HostImageIOBaseModel(BaseSettingsModel):
+    activate_host_color_management: bool = Field(
+        True, title="Enable Color Management"
+    )
     ocio_config: ImageIOConfigModel = Field(
-        default_factory=ImageIOConfigModel, title="OCIO config"
+        default_factory=ImageIOConfigModel,
+        title="OCIO config"
     )
     file_rules: ImageIOFileRulesModel = Field(
-        default_factory=ImageIOFileRulesModel, title="File Rules"
+        default_factory=ImageIOFileRulesModel,
+        title="File Rules"
     )
+
+
+class HostImageIORemappedModel(BaseSettingsModel):
+    activate_host_color_management: bool = Field(
+        True, title="Enable Color Management"
+    )
+    remapping: ImageIORemappingModel = Field(
+        title="Remapping colorspace names",
+        default_factory=ImageIORemappingModel
+    )
+    ocio_config: ImageIOConfigModel = Field(
+        default_factory=ImageIOConfigModel,
+        title="OCIO config"
+    )
+    file_rules: ImageIOFileRulesModel = Field(
+        default_factory=ImageIOFileRulesModel,
+        title="File Rules"
+    )
+
+# Backwards compatibility
+ImageIOBaseModel = HostImageIOBaseModel

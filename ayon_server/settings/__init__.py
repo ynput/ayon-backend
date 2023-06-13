@@ -9,7 +9,10 @@ __all__ = [
     "TemplateWorkfileBaseOptions",
     "ImageIOConfigModel",
     "ImageIOFileRulesModel",
+    "ImageIORemappingModel",
     "ImageIOBaseModel",
+    "HostImageIOBaseModel",
+    "HostImageIORemappedModel",
     "apply_overrides",
     "list_overrides",
     "extract_overrides",
@@ -26,8 +29,11 @@ from ayon_server.settings.common import BaseSettingsModel, postprocess_settings_
 from ayon_server.settings.enum import folder_types_enum, task_types_enum
 from ayon_server.settings.models import (
     ImageIOBaseModel,
+    HostImageIOBaseModel,
+    HostImageIORemappedModel,
     ImageIOConfigModel,
     ImageIOFileRulesModel,
+    ImageIORemappingModel,
     MultiplatformPathListModel,
     MultiplatformPathModel,
     TemplateWorkfileBaseOptions,
