@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# This script is no longer needed in the docker container, but is kept here for reference.
+# Dockerfile now uses gunicorn as the process manager.
+
 echo "Starting the backend"
 python -m setup --ensure-installed
 
