@@ -1,9 +1,9 @@
-VERSION = "0.2.0"
+from ayon_server import __version__
 
 app_meta = {
     "title": "Ayon server",
     "description": "Open VFX and Animation pipeline server",
-    "version": VERSION,
+    "version": __version__,
     "contact": {
         "name": "Ynput",
         "email": "info@ynput.io",
