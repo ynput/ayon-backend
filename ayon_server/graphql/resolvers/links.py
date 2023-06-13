@@ -16,7 +16,6 @@ async def get_links(
     first: int,
     after: str,
 ) -> LinksConnection:
-
     project_name = root.project_name
 
     edges: list[LinkEdge] = []

@@ -171,7 +171,6 @@ async def pin_site_override(
     user_name: str,
     path: list[str],
 ):
-
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 

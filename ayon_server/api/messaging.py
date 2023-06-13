@@ -145,7 +145,6 @@ class Messaging(BackgroundTask):
 
                 # TODO: much much smarter logic here
                 for _client_id, client in self.clients.items():
-
                     if client.project_name is not None:
                         if prj := message.get("project", None):
                             if prj != client.project_name:

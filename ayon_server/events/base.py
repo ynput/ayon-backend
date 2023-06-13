@@ -174,7 +174,6 @@ async def update_event(
     store: bool = True,
     retries: int | None = None,
 ):
-
     new_data: dict[str, Any] = {"updated_at": datetime.now()}
 
     if sender is not None:
