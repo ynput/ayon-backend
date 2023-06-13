@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class ServerAddonDefinition:
     title: str | None = None
-    dcc_host_name: str | None = None
+    app_host_name: str | None = None
 
     def __init__(self, library: "AddonLibrary", addon_dir: str):
         self.library = library
@@ -25,16 +25,16 @@ class ServerAddonDefinition:
             return
 
         for version in self.versions.values():
-            if self.dcc_host_name is None:
-                self.dcc_host_name = version.dcc_host_name
+            if self.app_host_name is None:
+                self.app_host_name = version.app_host_name
             if self.name is None:
                 self.name = version.name
 
             # do we need this check?
-            if version.dcc_host_name != self.dcc_host_name:
+            if version.app_host_name != self.app_host_name:
                 raise ValueError(
                     f"Addon {self.name} has version {version.version} with "
-                    f"mismatched dcc host name {version.dcc_host_name} != {self.dcc_host_name}"
+                    f"mismatched app host name {version.app_host_name} != {self.app_host_name}"
                 )
 
             if version.name != self.name:

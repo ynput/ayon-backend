@@ -22,7 +22,7 @@ class BaseServerAddon:
     name: str
     version: str
     title: str | None = None
-    dcc_host_name: str | None = None
+    app_host_name: str | None = None
     definition: "ServerAddonDefinition"
     endpoints: list[dict[str, Any]]
     settings_model: Type[BaseSettingsModel] | None = None
