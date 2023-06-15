@@ -16,7 +16,6 @@ async def create_link(
     link_type_name: str,
     **kwargs,
 ) -> None:
-
     link_type, input_type, output_type = link_type_name.split("|")
     link_id = EntityID.create()
 
@@ -69,7 +68,6 @@ async def make_links(
         async for output_entity in query_entities(
             project_name, output_type, **out_config
         ):
-
             await create_link(
                 project_name,
                 input_entity.id,

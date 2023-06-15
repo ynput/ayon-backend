@@ -99,7 +99,9 @@ async def enroll(
             events AS source_events
         LEFT JOIN
             events AS target_events
-        ON target_events.depends_on = source_events.id
+        ON
+            target_events.depends_on = source_events.id
+            AND target_events.topic = $2
 
         WHERE
             source_events.topic ILIKE $1

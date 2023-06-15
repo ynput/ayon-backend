@@ -3,10 +3,23 @@ import queue
 import time
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.background import BackgroundTask
-from ayon_server.events import dispatch_event
+
+# Fallback to the default logging module
+# This is just used when ayon_server is loaded in order
+# to get the version number.
+
+try:
+    from nxtools import logging
+
+    has_nxtools = True
+except ModuleNotFoundError:
+    import logging
+
+    has_nxtools = False
+
+else:
+    from ayon_server.events import dispatch_event
 
 
 def parse_log_message(message):
@@ -102,6 +115,7 @@ class LogCollector(BackgroundTask):
             await self.process_message(record)
 
 
-log_collector = LogCollector()
-logging.add_handler(log_collector)
-logging.info("Log collector initialized", handlers=None)
+if has_nxtools:
+    log_collector = LogCollector()
+    logging.add_handler(log_collector)
+    logging.info("Log collector initialized", handlers=None)

@@ -73,6 +73,6 @@ class Anatomy(BaseSettingsModel):
         title = "Project anatomy"
 
     @validator("roots", "folder_types", "task_types", "statuses", "tags")
-    def ensure_unique_names(cls, value):
-        ensure_unique_names(value)
+    def ensure_unique_names(cls, value, field):
+        ensure_unique_names(value, field_name=field.name)
         return value

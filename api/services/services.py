@@ -44,7 +44,6 @@ class ServiceListModel(OPModel):
 
 @router.get("/services", tags=["Services"])
 async def list_services(user: CurrentUser) -> ServiceListModel:
-
     query = "SELECT * FROM services ORDER BY name ASC"
     services = []
     async for row in Postgres.iterate(query):
@@ -72,7 +71,6 @@ async def spawn_service(
     user: CurrentUser,
     name: str = Path(...),
 ) -> EmptyResponse:
-
     if not user.is_admin:
         raise ForbiddenException("Only admins can spawn services")
 

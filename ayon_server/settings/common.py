@@ -32,7 +32,6 @@ async def process_enum(
     enum_resolver,
     context: dict[str, Any] | None = None,
 ) -> tuple[list[str], dict[str, str]]:
-
     if context is None:
         ctx_data = {}
     else:

@@ -31,7 +31,6 @@ class ResolveResponseModel(OPModel):
 
 @router.post("/resolve")
 async def resolve(request: ResolveRequestModel):
-
     start_time = time.monotonic()
 
     query = """

@@ -28,7 +28,6 @@ def register_addon_endpoints():
     library = AddonLibrary.getinstance()
     for addon_name, addon_definition in library.items():
         for version in addon_definition.versions:
-
             addon = addon_definition.versions[version]
             addon_router = APIRouter(
                 prefix=f"/{addon_name}/{version}",
@@ -122,7 +121,6 @@ async def list_addons(
         vers = active_versions.get(definition.name, {})
         versions = {}
         for version, addon in definition.versions.items():
-
             if addon.system and not user.is_admin:
                 continue
 

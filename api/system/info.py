@@ -8,9 +8,9 @@ from fastapi import Request
 from nxtools import log_traceback
 from pydantic import ValidationError
 
+from ayon_server import __version__
 from ayon_server.addons import AddonLibrary, SSOOption
 from ayon_server.api.dependencies import CurrentUserOptional
-from ayon_server.api.metadata import VERSION
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core.attrib import attribute_library
@@ -39,10 +39,12 @@ class InfoResponseModel(OPModel):
         ayonconfig.motd,
         title="Message of the day",
         description="Instance specific message to be displayed in the login page",
+        example="Hello and welcome to Ayon!",
     )
     login_page_background: str | None = Field(
         default=ayonconfig.login_page_background,
         description="URL of the background image for the login page",
+        example="https://i.insider.com/602ee9d81a89f20019a377c6?width=1136&format=jpeg",
     )
     login_page_brand: str | None = Field(
         default=ayonconfig.login_page_brand,
@@ -50,7 +52,7 @@ class InfoResponseModel(OPModel):
         description="URL of the brand logo for the login page",
     )
     version: str = Field(
-        VERSION,
+        __version__,
         title="Ayon version",
         description="Version of the Ayon API",
     )
