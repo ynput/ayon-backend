@@ -21,3 +21,4 @@ exec gunicorn \
   --log-level warning \
   -b :5000 \
   ayon_server.api:app
+  
