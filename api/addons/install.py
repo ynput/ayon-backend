@@ -1,10 +1,18 @@
+import asyncio
+import os
+import shutil
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 
 import aiofiles
 import shortuuid
 from fastapi import BackgroundTasks, Request
+from nxtools import logging
 
-from ayon_server.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.config import ayonconfig
+from ayon_server.events import dispatch_event, update_event
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -37,15 +45,75 @@ def get_zip_info(path: str) -> tuple[str, str]:
     return addon_name, addon_version
 
 
-async def init_zip_install(background_tasks: BackgroundTasks, path: str) -> str:
-    """Initiates addon installation from a zip file
+def unpack_addon_sync(zip_path: str, addon_name: str, addon_version: str):
+    logging.info(f"Unpacking addon {addon_name} {addon_version} from {zip_path}")
+    target_dir = os.path.join(ayonconfig.addons_dir, addon_name, addon_version)
+    if os.path.exists(target_dir):
+        shutil.rmtree(target_dir)
 
-    Ensures that the zip file is valid and contains a single addon,
-    if not, raises an exception, otherwise starts the installation
-    in the background and returns event ID of the installation process
+    # TODO: ensure it works with empty directories, such as private.
+
+    os.makedirs(target_dir)
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        prefix = addon_name + "/" + addon_version + "/"
+        for file in zip_ref.namelist():
+            if file.startswith(prefix):
+                if file.endswith("/"):
+                    continue
+                else:
+                    zip_ref.extract(file, ayonconfig.addons_dir)
+
+
+async def unpack_addon(
+    event_id: str,
+    zip_path: str,
+    addon_name: str,
+    addon_version: str,
+):
+    """Unpack the addon from the zip file and install it
+
+    Unpacking is done in a separate thread to avoid blocking the main thread
+    (unzipping is a synchronous operation and it is also cpu-bound)
+
+    After the addon is unpacked, the event is finalized and the zip file is removed.
     """
 
-    addon_name, addon_version = get_zip_info(path)
+    await update_event(
+        event_id,
+        description=f"Unpacking addon {addon_name} {addon_version}",
+        status="in_progress",
+    )
+
+    loop = asyncio.get_event_loop()
+
+    try:
+        with ThreadPoolExecutor() as executor:
+            task = loop.run_in_executor(
+                executor,
+                unpack_addon_sync,
+                zip_path,
+                addon_name,
+                addon_version,
+            )
+            await asyncio.gather(task)
+    except Exception as e:
+        logging.error(f"Error while unpacking addon: {e}")
+        await update_event(
+            event_id,
+            description=f"Error while unpacking addon: {e}",
+            status="failed",
+        )
+
+    try:
+        os.remove(zip_path)
+    except Exception as e:
+        logging.error(f"Error while removing zip file: {e}")
+
+    await update_event(
+        event_id,
+        description=f"Addon {addon_name} {addon_version} installed",
+        status="finished",
+    )
 
 
 #
@@ -57,30 +125,73 @@ class InstallAddonResponseModel(OPModel):
     event_id: str = Field(..., title="Event ID")
 
 
-@router.post("/addons/install")
+@router.post("/install")
 async def upload_addon_zip_file(
     user: CurrentUser,
     request: Request,
     background_tasks: BackgroundTasks,
 ) -> InstallAddonResponseModel:
-    temp_path = f"/tmp/{shortuuid.uuid()}.zip"
+    """Upload an addon zip file and install it"""
 
+    # Check if the user is allowed to install addons
+
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can install addons")
+
+    # Store the zip file in a temporary location
+
+    temp_path = f"/tmp/{shortuuid.uuid()}.zip"
     async with aiofiles.open(temp_path, "wb") as f:
         async for chunk in request.stream():
             await f.write(chunk)
 
-    event_id = await init_zip_install(background_tasks, temp_path)
+    # Get addon name and version from the zip file
+
+    addon_name, addon_version = get_zip_info(temp_path)
+
+    # We don't create the event before we know that the zip file is valid
+    # and contains an addon. If it doesn't, an exception is raised before
+    # we reach this point.
+
+    event_id = await dispatch_event(
+        "addon.install",
+        description=f"Installing addon {addon_name} {addon_version}",
+        summary={
+            "addon_name": addon_name,
+            "addon_version": addon_version,
+            "zip_path": temp_path,
+        },
+        user=user.name,
+        finished=False,
+    )
+
+    # Start the installation in the background
+    # And return the event ID to the client,
+    # so that the client can poll the event status.
+
+    background_tasks.add_task(
+        unpack_addon,
+        event_id,
+        temp_path,
+        addon_name,
+        addon_version,
+    )
+
     return InstallAddonResponseModel(event_id=event_id)
 
 
-class InstallFromUrlRequestModel(OPModel):
-    url: str = Field(..., title="URL to the addon zip file")
+#
+# Do wee need this?
+#
 
-
-@router.post("/addons/install/from_url")
-async def install_addon_from_url(
-    user: CurrentUser,
-    request: InstallFromUrlRequestModel,
-    background_tasks: BackgroundTasks,
-) -> InstallAddonResponseModel:
-    return
+# class InstallFromUrlRequestModel(OPModel):
+#     url: str = Field(..., title="URL to the addon zip file")
+#
+#
+# @router.post("/addons/install/from_url")
+# async def install_addon_from_url(
+#     user: CurrentUser,
+#     request: InstallFromUrlRequestModel,
+#     background_tasks: BackgroundTasks,
+# ) -> InstallAddonResponseModel:
+#     return
