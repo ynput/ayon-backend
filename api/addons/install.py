@@ -37,7 +37,23 @@ def get_zip_info(path: str) -> tuple[str, str]:
     return addon_name, addon_version
 
 
-class UploadAddonResponseModel(OPModel):
+async def init_zip_install(background_tasks: BackgroundTasks, path: str) -> str:
+    """Initiates addon installation from a zip file
+
+    Ensures that the zip file is valid and contains a single addon,
+    if not, raises an exception, otherwise starts the installation
+    in the background and returns event ID of the installation process
+    """
+
+    addon_name, addon_version = get_zip_info(path)
+
+
+#
+# API
+#
+
+
+class InstallAddonResponseModel(OPModel):
     event_id: str = Field(..., title="Event ID")
 
 
@@ -46,12 +62,25 @@ async def upload_addon_zip_file(
     user: CurrentUser,
     request: Request,
     background_tasks: BackgroundTasks,
-):
-
+) -> InstallAddonResponseModel:
     temp_path = f"/tmp/{shortuuid.uuid()}.zip"
 
     async with aiofiles.open(temp_path, "wb") as f:
         async for chunk in request.stream():
             await f.write(chunk)
 
-    addon_name, addon_version = get_zip_info(temp_path)
+    event_id = await init_zip_install(background_tasks, temp_path)
+    return InstallAddonResponseModel(event_id=event_id)
+
+
+class InstallFromUrlRequestModel(OPModel):
+    url: str = Field(..., title="URL to the addon zip file")
+
+
+@router.post("/addons/install/from_url")
+async def install_addon_from_url(
+    user: CurrentUser,
+    request: InstallFromUrlRequestModel,
+    background_tasks: BackgroundTasks,
+) -> InstallAddonResponseModel:
+    return
