@@ -5,7 +5,7 @@ from fastapi import Query, Request
 from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.exceptions import AyonException, ForbiddenException
+from ayon_server.exceptions import AyonException, ConflictException, ForbiddenException
 from ayon_server.types import Field, OPModel
 
 from .common import (
@@ -125,7 +125,7 @@ async def create_installer(user: CurrentUser, payload: InstallerManifest):
     except Exception:
         pass
     else:
-        raise AyonException("Installer already exists")
+        raise ConflictException("Installer already exists")
 
     _ = get_desktop_dir("installers", for_writing=True)
 
