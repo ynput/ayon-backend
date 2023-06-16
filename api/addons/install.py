@@ -3,6 +3,7 @@ import os
 import shutil
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 import aiofiles
 import shortuuid
@@ -13,6 +14,7 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -153,17 +155,32 @@ async def upload_addon_zip_file(
     # and contains an addon. If it doesn't, an exception is raised before
     # we reach this point.
 
-    event_id = await dispatch_event(
-        "addon.install",
-        description=f"Installing addon {addon_name} {addon_version}",
-        summary={
-            "addon_name": addon_name,
-            "addon_version": addon_version,
-            "zip_path": temp_path,
-        },
-        user=user.name,
-        finished=False,
-    )
+    # Let's check if we installed this addon before
+
+    query = """
+        SELECT id FROM events
+        WHERE topic = 'addon.install'
+        AND summary->>'addon_name' = $1
+        AND summary->>'addon_version' = $2
+        LIMIT 1
+    """
+
+    res = await Postgres.fetch(query, addon_name, addon_version)
+    if res:
+        event_id = res[0]["id"]
+    else:
+        # If not, dispatch a new event
+        event_id = await dispatch_event(
+            "addon.install",
+            description=f"Installing addon {addon_name} {addon_version}",
+            summary={
+                "addon_name": addon_name,
+                "addon_version": addon_version,
+                "zip_path": temp_path,
+            },
+            user=user.name,
+            finished=False,
+        )
 
     # Start the installation in the background
     # And return the event ID to the client,
@@ -178,6 +195,47 @@ async def upload_addon_zip_file(
     )
 
     return InstallAddonResponseModel(event_id=event_id)
+
+
+class AddonListItemModel(OPModel):
+    id: str = Field(..., title="Addon ID")
+    description: str = Field(..., title="Addon description")
+    addon_name: str = Field(..., title="Addon name")
+    addon_version: str = Field(..., title="Addon version")
+    user: str | None = Field(None, title="User who installed the addon")
+    status: str = Field(..., title="Event status")
+    created_at: datetime = Field(..., title="Event creation time")
+    updated_at: datetime | None = Field(None, title="Event update time")
+
+
+@router.get("/install")
+def get_installed_addons_list() -> list[AddonListItemModel]:
+    """Get a list of installed addons"""
+
+    query = """
+        SELECT id, description, summary, user, status, created_at
+        FROM events WHERE topic = 'addon.install'
+        ORDER BY updated_at DESC
+        LIMIT 100
+    """
+
+    result = []
+    async for row in Postgres.iterate(query):
+        summary = row["summary"]
+        result.append(
+            AddonListItemModel(
+                id=row["id"],
+                description=row["description"],
+                addon_name=summary["addon_name"],
+                addon_version=summary["addon_version"],
+                user=row["user"],
+                status=row["status"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
+        )
+
+    return result
 
 
 #
