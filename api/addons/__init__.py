@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query, Request, Response
 from fastapi.routing import APIRoute
 from nxtools import logging, slugify
 
-from addons import project_settings, site_settings, studio_settings
+from addons import install, project_settings, site_settings, studio_settings
 from addons.router import route_meta, router
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import SourceInfo
@@ -17,6 +17,7 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
+assert install
 assert site_settings
 assert studio_settings
 assert project_settings
