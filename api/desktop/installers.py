@@ -5,6 +5,7 @@ from fastapi import Query, Request
 from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import AyonException, ConflictException, ForbiddenException
 from ayon_server.types import Field, OPModel
 
@@ -115,8 +116,11 @@ async def list_installers(
     return InstallerListModel(installers=result)
 
 
-@router.post("/installers", status_code=204)
-async def create_installer(user: CurrentUser, payload: InstallerManifest):
+@router.post("/installers", status_code=201)
+async def create_installer(
+    user: CurrentUser,
+    payload: InstallerManifest,
+) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can create installers")
 
@@ -141,6 +145,8 @@ async def create_installer(user: CurrentUser, payload: InstallerManifest):
 
     async with aiofiles.open(payload.path, "w") as f:
         await f.write(payload.json(exclude_none=True))
+
+    return EmptyResponse(status_code=201)
 
 
 @router.get("/installers/{filename}")

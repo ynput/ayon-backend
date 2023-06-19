@@ -163,7 +163,11 @@ async def patch_bundle(
                     await conn.execute("UPDATE bundles SET is_staging = FALSE")
 
             await conn.execute(
-                "UPDATE bundles SET data = $1, is_production = $2, is_staging = $3 WHERE name = $4",
+                """
+                UPDATE bundles
+                SET data = $1, is_production = $2, is_staging = $3
+                WHERE name = $4
+                """,
                 orig_bundle.dict(),
                 orig_bundle.is_production,
                 orig_bundle.is_staging,
