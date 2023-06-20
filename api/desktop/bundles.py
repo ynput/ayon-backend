@@ -79,7 +79,13 @@ async def list_bundles() -> ListBundleModel:
     staging_bundle: str | None = None
 
     async for row in Postgres.iterate("SELECT * FROM bundles ORDER by created_at DESC"):
-        bundle = BundleModel(**row["data"])
+        bundle = BundleModel(
+            **row["data"],
+            name=row["name"],
+            created_at=row["created_at"],
+            is_production=row["is_production"],
+            is_staging=row["is_staging"],
+        )
         if row["is_production"]:
             production_bundle = row["name"]
         if row["is_staging"]:
@@ -112,10 +118,16 @@ async def create_bundle(bundle: BundleModel, user: CurrentUser) -> EmptyResponse
                     VALUES ($1, $2, $3, $4, $5)
                 """
 
+                data = {**bundle.dict()}
+                data.pop("name", None)
+                data.pop("created_at", None)
+                data.pop("is_production", None)
+                data.pop("is_staging", None)
+
                 await conn.execute(
                     query,
                     bundle.name,
-                    bundle.dict(),
+                    data,
                     bundle.is_production,
                     bundle.is_staging,
                     bundle.created_at,
@@ -162,13 +174,19 @@ async def patch_bundle(
                 if orig_bundle.is_staging:
                     await conn.execute("UPDATE bundles SET is_staging = FALSE")
 
+            data = {**orig_bundle.dict()}
+            data.pop("name", None)
+            data.pop("created_at", None)
+            data.pop("is_production", None)
+            data.pop("is_staging", None)
+
             await conn.execute(
                 """
                 UPDATE bundles
                 SET data = $1, is_production = $2, is_staging = $3
                 WHERE name = $4
                 """,
-                orig_bundle.dict(),
+                data,
                 orig_bundle.is_production,
                 orig_bundle.is_staging,
                 bundle_name,
