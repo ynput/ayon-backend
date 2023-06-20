@@ -154,8 +154,15 @@ async def patch_bundle(
             )
             if not res:
                 raise NotFoundException("Bundle not found")
+            row = res[0]
 
-            orig_bundle = BundleModel(**res[0]["data"])
+            orig_bundle = BundleModel(
+                **row["data"],
+                name=row["name"],
+                created_at=row["created_at"],
+                is_production=row["is_production"],
+                is_staging=row["is_staging"],
+            )
             dep_packages = orig_bundle.dependency_packages.copy()
             for key, value in bundle.dependency_packages.items():
                 if bundle.dependency_packages is None:
