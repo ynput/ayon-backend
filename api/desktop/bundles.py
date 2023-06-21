@@ -8,7 +8,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import Field, OPModel
+from ayon_server.types import NAME_REGEX, Field, OPModel
 
 from .common import Platform
 from .router import router
@@ -38,6 +38,7 @@ class BundleModel(BaseBundleModel):
         title="Name",
         description="Name of the bundle",
         example="my_superior_bundle",
+        regex=NAME_REGEX,
     )
 
     created_at: datetime = Field(
