@@ -209,7 +209,7 @@ class AddonListItemModel(OPModel):
 
 
 @router.get("/install")
-def get_installed_addons_list() -> list[AddonListItemModel]:
+async def get_installed_addons_list() -> list[AddonListItemModel]:
     """Get a list of installed addons"""
 
     query = """
