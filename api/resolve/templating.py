@@ -1,6 +1,7 @@
 import numbers
 import os
 import re
+from typing import Any
 
 KEY_PATTERN = re.compile(r"(\{.*?[^{0]*\})")
 KEY_PADDING_PATTERN = re.compile(r"([^:]+)\S+[><]\S+")
@@ -207,7 +208,7 @@ class TemplatePartResult:
 
     @staticmethod
     def split_keys_to_subdicts(values):
-        output = {}
+        output: dict[str, Any] = {}
         for key, value in values.items():
             if key_padding := list(KEY_PADDING_PATTERN.findall(key)):
                 key = key_padding[0]
@@ -427,7 +428,7 @@ class StringTemplate(object):
             )
 
         self._template = template
-        parts = []
+        parts: list[str | FormattingPart] = []
         last_end_idx = 0
         for item in KEY_PATTERN.finditer(template):
             start, end = item.span()
@@ -439,7 +440,7 @@ class StringTemplate(object):
         if last_end_idx < len(template):
             parts.append(template[last_end_idx:])
 
-        new_parts = []
+        new_parts: list[str | FormattingPart] = []
         for part in parts:
             if not isinstance(part, str):
                 new_parts.append(part)
@@ -532,8 +533,8 @@ class StringTemplate(object):
 
     @staticmethod
     def find_optional_parts(parts):
-        new_parts = []
-        tmp_parts = {}
+        new_parts: list[Any] = []
+        tmp_parts: dict[int, Any] = {}
         counted_symb = -1
         for part in parts:
             if part == "<":
@@ -549,6 +550,8 @@ class StringTemplate(object):
                     if parts:
                         # Remove optional start char
                         parts.pop(0)
+
+                    value: str | OptionalPart
 
                     if not parts:
                         value = "<>"

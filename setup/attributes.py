@@ -273,6 +273,13 @@ async def deploy_attributes() -> None:
             if (value := tdata.get(key)) is not None:
                 data[key] = value
 
+        # Migration from 0.1.x to 0.2.x
+        await Postgres.execute(
+            """
+            DELETE FROM ATTRIBUTES WHERE 'subset' = ANY(scope);
+            """
+        )
+
         await Postgres.execute(
             """
             INSERT INTO public.attributes

@@ -134,19 +134,24 @@ def parse_uri(uri: str) -> ParsedURIModel:
     qs: dict[str, Any] = parse_qs(parsed_uri.query)
 
     product_name = qs.get("product", [None])[0]
-    validate_name(product_name)
+    if product_name is not None:
+        validate_name(product_name)
 
     task_name = qs.get("task", [None])[0]
-    validate_name(task_name)
+    if task_name is not None:
+        validate_name(task_name)
 
     version_name = qs.get("version", [None])[0]
-    validate_name(version_name)
+    if version_name is not None:
+        validate_name(version_name)
 
     representation_name = qs.get("representation", [None])[0]
-    validate_name(representation_name)
+    if representation_name is not None:
+        validate_name(representation_name)
 
     workfile_name = qs.get("workfile", [None])[0]
-    validate_name(workfile_name)
+    if workfile_name is not None:
+        validate_name(workfile_name)
 
     # assert we don't have incompatible arguments
 
@@ -209,6 +214,8 @@ def get_version_conditions(version_name: str | None) -> list[str]:
         ]
     if version_name == "hero":
         return ["v.version < 0"]
+
+    return []
 
 
 def get_representation_conditions(representation_name: str | None) -> list[str]:
