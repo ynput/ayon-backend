@@ -7,11 +7,12 @@ from nxtools import log_traceback
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.entities import (
     FolderEntity,
+    ProductEntity,
     RepresentationEntity,
-    SubsetEntity,
     TaskEntity,
     UserEntity,
     VersionEntity,
+    WorkfileEntity,
 )
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events import dispatch_event
@@ -93,9 +94,10 @@ def get_entity_class(entity_type: ProjectLevelEntityType) -> Type[ProjectLevelEn
     return {
         "folder": FolderEntity,
         "task": TaskEntity,
-        "subset": SubsetEntity,
+        "product": ProductEntity,
         "version": VersionEntity,
         "representation": RepresentationEntity,
+        "workfile": WorkfileEntity,
     }[entity_type]
 
 

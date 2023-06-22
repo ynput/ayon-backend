@@ -16,7 +16,7 @@ ADDITIONAL_COLUMNS = {
     "thumbnail_id": "thumbnail_changed",
     "active": "active_changed",
     "assignees": "assignees_changed",
-    "family": "family_changed",
+    "product_type": "product_type_changed",
     "author": "author_changed",
     "files": "files_changed",
 }

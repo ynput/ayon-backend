@@ -78,7 +78,7 @@ async def create_task(
 #
 
 
-@router.patch("/projects/{project_name}/tasks/{task_id}")
+@router.patch("/projects/{project_name}/tasks/{task_id}", status_code=204)
 async def update_task(
     post_data: TaskEntity.model.patch_model,  # type: ignore
     background_tasks: BackgroundTasks,
@@ -109,14 +109,14 @@ async def update_task(
 #
 
 
-@router.delete("/projects/{project_name}/tasks/{task_id}")
+@router.delete("/projects/{project_name}/tasks/{task_id}", status_code=204)
 async def delete_task(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
     x_sender: str | None = Header(default=None),
-):
+) -> EmptyResponse:
     """Delete a task."""
 
     task = await TaskEntity.load(project_name, task_id)
@@ -156,7 +156,7 @@ class AssignUsersRequestModel(OPModel):
     )
 
 
-@router.post("/projects/{project_name}/tasks/{task_id}/assign")
+@router.post("/projects/{project_name}/tasks/{task_id}/assign", status_code=204)
 async def assign_users_to_task(
     post_data: AssignUsersRequestModel,  # type: ignore
     user: CurrentUser,

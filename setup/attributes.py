@@ -114,10 +114,10 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "type": "string",
         "title": "Avatar URL",
     },
-    "subsetGroup": {
+    "productGroup": {
         "scope": "S",
         "type": "string",
-        "title": "Subset group",
+        "title": "Product group",
     },
     "intent": {
         "scope": "V",
@@ -145,10 +145,10 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "title": "Site",
         "example": "workstation42",
     },
-    "families": {
+    "productTypes": {
         "scope": "V",
         "type": "list_of_strings",
-        "title": "Families",
+        "title": "Product types",
     },
     "colorSpace": {
         "scope": "V",
@@ -230,7 +230,7 @@ async def deploy_attributes() -> None:
                     "u": "user",
                     "f": "folder",
                     "t": "task",
-                    "s": "subset",
+                    "s": "product",
                     "v": "version",
                     "r": "representation",
                     "w": "workfile",
@@ -272,6 +272,13 @@ async def deploy_attributes() -> None:
         ):
             if (value := tdata.get(key)) is not None:
                 data[key] = value
+
+        # Migration from 0.1.x to 0.2.x
+        await Postgres.execute(
+            """
+            DELETE FROM ATTRIBUTES WHERE 'subset' = ANY(scope);
+            """
+        )
 
         await Postgres.execute(
             """

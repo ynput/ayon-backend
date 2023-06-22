@@ -1,9 +1,9 @@
-VERSION = "1.0.0"
+from ayon_server import __version__
 
 app_meta = {
     "title": "Ayon server",
     "description": "Open VFX and Animation pipeline server",
-    "version": VERSION,
+    "version": __version__,
     "contact": {
         "name": "Ynput",
         "email": "info@ynput.io",
@@ -55,5 +55,17 @@ The server needs to be restarted in order the changes become active.
         "description": """
 Addon configuration, site and project overrides...
         """,
+    },
+    {
+        "name": "Secrets",
+        "description": """
+Sensitive information, like passwords or API keys, can be securely stored in secrets,
+which are only accessible by administrators and services.
+This makes them an ideal location for storing this type of data.
+
+For addons needing access to secrets, using the 'secret name' in settings
+instead of the actual value is recommended.
+Consequently, updating secrets won't require any changes to the addon configuration.
+""",
     },
 ]

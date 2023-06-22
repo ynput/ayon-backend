@@ -272,14 +272,14 @@ async def dep_folder_id(
 FolderID = Annotated[str, Depends(dep_folder_id)]
 
 
-async def dep_subset_id(
-    subset_id: str = Path(..., title="Subset ID", **EntityID.META)
+async def dep_product_id(
+    product_id: str = Path(..., title="Product ID", **EntityID.META)
 ) -> str:
-    """Validate and return a subset id specified in an endpoint path."""
-    return subset_id
+    """Validate and return a product id specified in an endpoint path."""
+    return product_id
 
 
-SubsetID = Annotated[str, Depends(dep_subset_id)]
+ProductID = Annotated[str, Depends(dep_product_id)]
 
 
 async def dep_version_id(
@@ -366,15 +366,15 @@ async def dep_link_type(
             "Link type must be in the format 'name|input_type|output_type'"
         ) from None
 
-    if input_type not in ["folder", "subset", "version", "representation", "task"]:
+    if input_type not in ["folder", "product", "version", "representation", "task"]:
         raise BadRequestException(
             "Link type input type must be one of 'folder', "
-            "'subset', 'version', 'representation', or 'task'"
+            "'product', 'version', 'representation', or 'task'"
         )
-    if output_type not in ["folder", "subset", "version", "representation", "task"]:
+    if output_type not in ["folder", "product", "version", "representation", "task"]:
         raise BadRequestException(
             "Link type output type must be one of 'folder', "
-            "'subset', 'version', 'representation', or 'task'"
+            "'product', 'version', 'representation', or 'task'"
         )
 
     return (name, input_type, output_type)

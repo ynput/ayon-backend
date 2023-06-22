@@ -67,8 +67,8 @@ class Templates(BaseSettingsModel):
         default_factory=lambda: [
             WorkTemplate(
                 name="default",
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/work/{task[name]}",  # noqa: E501
-                file="{project[code]}_{asset}_{task[name]}_{@version}<_{comment}>.{ext}",  # noqa: E501
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/work/{task[name]}",  # noqa: E501
+                file="{project[code]}_{folder[name]}_{task[name]}_{@version}<_{comment}>.{ext}",  # noqa: E501
             )
         ],
         title="Work",
@@ -79,8 +79,8 @@ class Templates(BaseSettingsModel):
         default_factory=lambda: [
             PublishTemplate(
                 name="default",
-                file="{project[code]}_{asset}_{subset}_{@version}<_{output}><.{@frame}><_{udim}>.{ext}",  # noqa: E501
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/{@version}",  # noqa: E501
+                file="{project[code]}_{folder[name]}_{product[name]}_{@version}<_{output}><.{@frame}><_{udim}>.{ext}",  # noqa: E501
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{product[name]}/{@version}",  # noqa: E501
             )
         ],
     )
@@ -90,8 +90,8 @@ class Templates(BaseSettingsModel):
         default_factory=lambda: [
             HeroTemplate(
                 name="default",
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{family}/{subset}/hero",  # noqa: E501
-                file="{project[code]}_{asset}_{task[name]}_hero<_{comment}>.{ext}",  # noqa: E501
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{product[name]}/hero",  # noqa: E501
+                file="{project[code]}_{folder[name]}_{task[name]}_hero<_{comment}>.{ext}",  # noqa: E501
             )
         ],
     )

@@ -5,3 +5,4 @@ __pycache__
 /openpype/trigger.py
 
 .python-version
+.vscode

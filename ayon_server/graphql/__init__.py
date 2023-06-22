@@ -19,16 +19,17 @@ from ayon_server.graphql.connections import (
 from ayon_server.graphql.dataloaders import (
     folder_loader,
     latest_version_loader,
-    subset_loader,
+    product_loader,
     task_loader,
     user_loader,
     version_loader,
     workfile_loader,
 )
+from ayon_server.graphql.nodes.common import ProductType
 from ayon_server.graphql.nodes.folder import folder_from_record
+from ayon_server.graphql.nodes.product import product_from_record
 from ayon_server.graphql.nodes.project import ProjectNode, project_from_record
 from ayon_server.graphql.nodes.representation import representation_from_record
-from ayon_server.graphql.nodes.subset import subset_from_record
 from ayon_server.graphql.nodes.task import task_from_record
 from ayon_server.graphql.nodes.user import UserAttribType, UserNode, user_from_record
 from ayon_server.graphql.nodes.version import version_from_record
@@ -37,6 +38,7 @@ from ayon_server.graphql.resolvers.events import get_events
 from ayon_server.graphql.resolvers.links import get_links
 from ayon_server.graphql.resolvers.projects import get_project, get_projects
 from ayon_server.graphql.resolvers.users import get_user, get_users
+from ayon_server.lib.postgres import Postgres
 
 
 async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> dict:
@@ -46,7 +48,7 @@ async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> d
         "user": user,
         # Record parsing
         "folder_from_record": folder_from_record,
-        "subset_from_record": subset_from_record,
+        "product_from_record": product_from_record,
         "version_from_record": version_from_record,
         "representation_from_record": representation_from_record,
         "task_from_record": task_from_record,
@@ -55,7 +57,7 @@ async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> d
         "workfile_from_record": workfile_from_record,
         # Data loaders
         "folder_loader": DataLoader(load_fn=folder_loader),
-        "subset_loader": DataLoader(load_fn=subset_loader),
+        "product_loader": DataLoader(load_fn=product_loader),
         "task_loader": DataLoader(load_fn=task_loader),
         "version_loader": DataLoader(load_fn=version_loader),
         "latest_version_loader": DataLoader(load_fn=latest_version_loader),
@@ -118,6 +120,20 @@ class Query:
             has_password=bool(user.data.get("password")),
             apiKeyPreview=user.data.get("apiKeyPreview"),
         )
+
+    @strawberry.field(description="Studio-wide product type configuration")
+    async def product_types(self) -> list[ProductType]:
+        return [
+            ProductType(
+                name=row["name"],
+                icon=row["data"].get("icon"),
+                color=row["data"].get("color"),
+            )
+            async for row in Postgres.iterate(
+                """SELECT name, data FROM product_types
+                ORDER BY name ASC"""
+            )
+        ]
 
 
 class AyonSchema(strawberry.Schema):

@@ -16,7 +16,6 @@ class AyonException(Exception):
         log: bool | str = False,
         **kwargs,
     ) -> None:
-
         if detail is not None:
             self.detail = detail
         self.extra = kwargs

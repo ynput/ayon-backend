@@ -191,12 +191,12 @@ task_fields = [
 ]
 
 
-subset_fields = [
+product_fields = [
     {
         "name": "name",
         "type": "string",
         "required": True,
-        "description": "Name of the subset",
+        "description": "Name of the product",
         "regex": NAME_REGEX,
         "example": "modelMain",
     },
@@ -210,11 +210,11 @@ subset_fields = [
         "example": ENTITY_ID_EXAMPLE,
     },
     {
-        "name": "family",
+        "name": "product_type",
         "type": "string",
         "required": True,
-        "title": "Family",
-        "description": "Subset family",
+        "title": "Product type",
+        "description": "Product ",
         "regex": NAME_REGEX,
         "example": "model",
     },
@@ -231,11 +231,11 @@ version_fields = [
         "example": 1,
     },
     {
-        "name": "subset_id",
+        "name": "product_id",
         "type": "string",
         "required": True,
-        "title": "Subset ID",
-        "description": "ID of the parent subset",
+        "title": "Product ID",
+        "description": "ID of the parent product",
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
     },

@@ -5,7 +5,7 @@ from ayon_server.api.responses import EmptyResponse
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import Filter, build_filter
-from ayon_server.types import OPModel
+from ayon_server.types import TOPIC_REGEX, OPModel
 from ayon_server.utils import hash_data
 
 from .router import router
@@ -20,11 +20,13 @@ class EnrollRequestModel(OPModel):
         ...,
         title="Source topic",
         example="ftrack.update",
+        regex=TOPIC_REGEX,
     )
     target_topic: str = Field(
         ...,
         title="Target topic",
         example="ftrack.sync_to_ayon",
+        regex=TOPIC_REGEX,
     )
     sender: str = Field(
         ...,
@@ -89,6 +91,7 @@ async def enroll(
             source_events.id AS source_id,
             target_events.status AS target_status,
             target_events.sender AS target_sender,
+            target_events.retries AS target_retries,
             target_events.hash AS target_hash,
             target_events.retries AS target_retries,
             target_events.id AS target_id
@@ -96,10 +99,12 @@ async def enroll(
             events AS source_events
         LEFT JOIN
             events AS target_events
-        ON target_events.depends_on = source_events.id
+        ON
+            target_events.depends_on = source_events.id
+            AND target_events.topic = $2
 
         WHERE
-            source_events.topic = $1
+            source_events.topic ILIKE $1
         AND
             source_events.status = 'finished'
         AND
@@ -125,6 +130,11 @@ async def enroll(
         ORDER BY source_events.created_at ASC
     """
 
+    source_topic = payload.source_topic
+    target_topic = payload.target_topic
+    assert "*" not in target_topic, "Target topic must not contain wildcards"
+    source_topic = source_topic.replace("*", "%")
+
     if payload.debug:
         print(query)
         print("source_topic", payload.source_topic)
@@ -132,24 +142,29 @@ async def enroll(
 
     async for row in Postgres.iterate(
         query,
-        payload.source_topic,
-        payload.target_topic,
+        source_topic,
+        target_topic,
         payload.max_retries,
     ):
         # Check if target event already exists
         if row["target_status"] is not None:
-            if row["target_status"] == "failed":
+            if row["target_status"] in ["failed", "restarted"]:
                 # events which have reached max retries are already
                 # filtered out by the query above,
                 # so we can just retry them - update status to pending
                 # and increase retries counter
+
+                retries = row["target_retries"]
+                if row["target_status"] == "failed":
+                    retries += 1
+
                 event_id = row["target_id"]
                 await update_event(
                     event_id,
                     status="pending",
                     sender=sender,
                     user=current_user.name,
-                    retries=row["target_retries"] + 1,
+                    retries=retries,
                     description="Restarting failed event",
                 )
                 return EnrollResponseModel(

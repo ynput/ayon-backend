@@ -21,7 +21,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
 )
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import OPModel
+from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID
 
 #
@@ -95,7 +95,7 @@ async def retrieve_thumbnail(project_name: str, thumbnail_id: str | None) -> Res
 
 
 class CreateThumbnailResponseModel(OPModel):
-    id: str
+    id: str = Field(..., title="Thumbnail ID", example="a1f2b3c4d5e6f7g8h9i0")
 
 
 @router.post("/projects/{project_name}/thumbnails")
@@ -119,7 +119,7 @@ async def create_thumbnail(
 
 @router.put(
     "/projects/{project_name}/thumbnails/{thumbnail_id}",
-    response_class=Response,
+    status_code=204,
 )
 async def update_thumbnail(
     request: Request,
@@ -168,14 +168,14 @@ async def get_thumbnail(
 #
 
 
-@router.post("/projects/{project_name}/folders/{folder_id}/thumbnail")
+@router.post("/projects/{project_name}/folders/{folder_id}/thumbnail", status_code=201)
 async def create_folder_thumbnail(
     request: Request,
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
     content_type: ThumbnailContentType,
-) -> EmptyResponse:
+) -> CreateThumbnailResponseModel:
     """Create a new thumbnail for a folder.
 
     Returns a thumbnail ID, which is also saved into the entity
@@ -194,7 +194,7 @@ async def create_folder_thumbnail(
     )
     folder.thumbnail_id = thumbnail_id
     await folder.save()
-    return EmptyResponse()
+    return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
 @router.get("/projects/{project_name}/folders/{folder_id}/thumbnail")
@@ -216,14 +216,16 @@ async def get_folder_thumbnail(
 #
 
 
-@router.post("/projects/{project_name}/versions/{version_id}/thumbnail")
+@router.post(
+    "/projects/{project_name}/versions/{version_id}/thumbnail", status_code=201
+)
 async def create_version_thumbnail(
     request: Request,
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
     content_type: ThumbnailContentType,
-) -> Response:
+) -> CreateThumbnailResponseModel:
     payload = await request.body()
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_update_access(user)
@@ -237,7 +239,7 @@ async def create_version_thumbnail(
     )
     version.thumbnail_id = thumbnail_id
     await version.save()
-    return Response(status_code=201)
+    return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
 @router.get("/projects/{project_name}/versions/{version_id}/thumbnail")
@@ -259,14 +261,16 @@ async def get_version_thumbnail(
 #
 
 
-@router.post("/projects/{project_name}/workfiles/{workfile_id}/thumbnail")
+@router.post(
+    "/projects/{project_name}/workfiles/{workfile_id}/thumbnail", status_code=201
+)
 async def create_workfile_thumbnail(
     request: Request,
     user: CurrentUser,
     project_name: ProjectName,
     workfile_id: WorkfileID,
     content_type: ThumbnailContentType,
-) -> Response:
+) -> CreateThumbnailResponseModel:
     payload = await request.body()
     workfile = await WorkfileEntity.load(project_name, workfile_id)
     await workfile.ensure_update_access(user)
@@ -280,7 +284,7 @@ async def create_workfile_thumbnail(
     )
     workfile.thumbnail_id = thumbnail_id
     await workfile.save()
-    return Response(status_code=201)
+    return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
 @router.get(

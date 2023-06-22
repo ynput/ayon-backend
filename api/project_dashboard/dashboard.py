@@ -13,7 +13,7 @@ from .router import router
 
 class EntityCounts(OPModel):
     folders: int = Field(..., description="Number of folders", example=10)
-    subsets: int = Field(..., description="Number of subsets", example=98)
+    products: int = Field(..., description="Number of products", example=98)
     versions: int = Field(..., description="Number of versions", example=512)
     representations: int = Field(
         ...,
@@ -89,7 +89,6 @@ async def get_project_health(
     user: CurrentUser,
     project_name: ProjectName,
 ) -> Health:
-
     project = await ProjectEntity.load(project_name)
 
     #
@@ -201,7 +200,6 @@ async def get_project_activity(
     project_name: ProjectName,
     days: int = Query(50, description="Number of days to retrieve activity for"),
 ) -> ActivityResponseModel:
-
     activity = {k: 0 for k in get_midnight_dates(days)}
 
     query = """

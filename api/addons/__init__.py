@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query, Request, Response
 from fastapi.routing import APIRoute
 from nxtools import logging, slugify
 
-from addons import project_settings, site_settings, studio_settings
+from addons import install, project_settings, site_settings, studio_settings
 from addons.router import route_meta, router
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import SourceInfo
@@ -17,6 +17,7 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
+assert install
 assert site_settings
 assert studio_settings
 assert project_settings
@@ -28,7 +29,6 @@ def register_addon_endpoints():
     library = AddonLibrary.getinstance()
     for addon_name, addon_definition in library.items():
         for version in addon_definition.versions:
-
             addon = addon_definition.versions[version]
             addon_router = APIRouter(
                 prefix=f"/{addon_name}/{version}",
@@ -122,7 +122,6 @@ async def list_addons(
         vers = active_versions.get(definition.name, {})
         versions = {}
         for version, addon in definition.versions.items():
-
             if addon.system and not user.is_admin:
                 continue
 

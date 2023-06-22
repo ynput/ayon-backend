@@ -12,7 +12,6 @@ async def deploy_users(
 ) -> None:
     """Create users in the database."""
     for user in users:
-
         name = user["name"]
         attrib = {}
         data: dict[str, Any] = {}

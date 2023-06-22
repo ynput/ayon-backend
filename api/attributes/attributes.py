@@ -211,7 +211,7 @@ async def set_attribute_list(
     user: CurrentUser,
 ) -> EmptyResponse:
     """
-    Set the attribute configuration for all (or a subset of) attributes
+    Set the attribute configuration for all (or ao of) attributes
     """
 
     if not user.is_admin:

@@ -24,7 +24,7 @@ AccessType = Literal[
 
 ProjectLevelEntityType = Literal[
     "folder",
-    "subset",
+    "product",
     "version",
     "representation",
     "task",

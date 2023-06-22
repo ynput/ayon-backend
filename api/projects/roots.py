@@ -41,7 +41,6 @@ async def set_project_roots_overrides(
     project_name: ProjectName,
     site_id: str = Path(...),
 ) -> EmptyResponse:
-
     project = await ProjectEntity.load(project_name)
     for root_name in project.config["roots"]:
         if root_name not in payload:

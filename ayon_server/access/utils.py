@@ -117,18 +117,18 @@ async def ensure_entity_access(
     conditions = [f"hierarchy.path like ANY ('{{{', '.join(access_list)}}}')"]
     joins = []
 
-    if entity_type in ("subset", "version", "representation"):
+    if entity_type in ("product", "version", "representation"):
         joins.append(
             f"""
-            INNER JOIN project_{project_name}.subsets
-            ON subsets.folder_id = hierarchy.id
+            INNER JOIN project_{project_name}.products
+            ON products.folder_id = hierarchy.id
             """
         )
         if entity_type in ("version", "representation"):
             joins.append(
                 f"""
                 INNER JOIN project_{project_name}.versions
-                ON versions.subset_id = subsets.id
+                ON versions.product_id = products.id
                 """
             )
             if entity_type == "representation":

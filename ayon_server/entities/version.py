@@ -22,10 +22,10 @@ class VersionEntity(ProjectLevelEntity):
                 WHERE
                     version < 0
                 AND id != $1
-                AND subset_id = $2
+                AND product_id = $2
                 """,
                 self.id,
-                self.subset_id,
+                self.product_id,
             )
             if res:
                 raise ConstraintViolationException("Hero version already exists.")
@@ -64,16 +64,16 @@ class VersionEntity(ProjectLevelEntity):
         self._payload.version = value
 
     @property
-    def subset_id(self) -> str:
-        return self._payload.subset_id
+    def product_id(self) -> str:
+        return self._payload.product_id
 
-    @subset_id.setter
-    def subset_id(self, value: str) -> None:
-        self._payload.subset_id = value
+    @product_id.setter
+    def product_id(self, value: str) -> None:
+        self._payload.product_id = value
 
     @property
     def parent_id(self) -> str:
-        return self.subset_id
+        return self.product_id
 
     @property
     def task_id(self) -> str:

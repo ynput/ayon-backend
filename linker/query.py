@@ -18,7 +18,7 @@ async def query_entities(
     folder_path: str | None = None,
     folder_type: str | None = None,
     folder_id: str | None = None,
-    subset_name: str | None = None,
+    product_name: str | None = None,
     limit: int | None = None,
     version: Literal["hero", "latest"] | int | None = None,
 ) -> AsyncGenerator[EntityResult, None]:
@@ -36,8 +36,8 @@ async def query_entities(
         conditions.append(f"folder_type = '{folder_type}'")
     if folder_path is not None:
         conditions.append(f"h.path ~* '{folder_path}'")
-    if subset_name is not None:
-        conditions.append(f"s.name ~* '{subset_name}'")
+    if product_name is not None:
+        conditions.append(f"s.name ~* '{product_name}'")
 
     if type(version) is int:
         conditions.append(f"v.version = {version}")
@@ -46,17 +46,17 @@ async def query_entities(
         conditions.append("v.id = l.ids[array_upper(l.ids, 1)]")
 
     if limit is not None:
-        cols = ["f.id as folder_id", "s.id as subset_id", "v.id as version_id"]
+        cols = ["f.id as folder_id", "s.id as product_id", "v.id as version_id"]
     else:
         if entity_type == "folder":
             cols = [
                 "distinct(f.id) as folder_id",
-                "s.id as subset_id",
+                "s.id as product_id",
                 "v.id as version_id",
             ]
-        elif entity_type == "subset":
+        elif entity_type == "product":
             cols = [
-                "distinct(s.id) as subset_id",
+                "distinct(s.id) as product_id",
                 "f.id as folder_id",
                 "v.id as version_id",
             ]
@@ -64,7 +64,7 @@ async def query_entities(
             cols = [
                 "distinct(v.id) as version_id",
                 "f.id as folder_id",
-                "s.id as subset_id",
+                "s.id as product_id",
             ]
         else:
             raise ValueError(f"Unknown entity type: {entity_type}")
@@ -72,8 +72,8 @@ async def query_entities(
     cols.extend(
         [
             "h.path as path",
-            "s.name as subset_name",
-            "s.family as subset_family",
+            "s.name as product_name",
+            "s.product_type as product_type",
             "v.version as version",
         ]
     )
@@ -83,17 +83,17 @@ async def query_entities(
         FROM
             project_{project_name}.folders f
         INNER JOIN
-            project_{project_name}.subsets s
+            project_{project_name}.products s
             ON f.id = s.folder_id
         INNER JOIN
             project_{project_name}.versions v
-            ON s.id = v.subset_id
+            ON s.id = v.product_id
         INNER JOIN
             project_{project_name}.hierarchy h
             ON f.id = h.id
         INNER JOIN
             project_{project_name}.version_list l
-            ON s.id = l.subset_id
+            ON s.id = l.product_id
         {SQLTool.conditions(conditions)}
         {'ORDER BY RANDOM()' if limit is not None else ''}
     """

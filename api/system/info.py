@@ -5,11 +5,12 @@ from urllib.parse import urlparse
 
 from attributes.attributes import AttributeModel
 from fastapi import Request
+from nxtools import log_traceback
 from pydantic import ValidationError
 
+from ayon_server import __version__
 from ayon_server.addons import AddonLibrary, SSOOption
 from ayon_server.api.dependencies import CurrentUserOptional
-from ayon_server.api.metadata import VERSION
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core.attrib import attribute_library
@@ -38,23 +39,35 @@ class InfoResponseModel(OPModel):
         ayonconfig.motd,
         title="Message of the day",
         description="Instance specific message to be displayed in the login page",
+        example="Hello and welcome to Ayon!",
     )
-    login_page_background: str | None = Field(default=ayonconfig.login_page_background)
-    login_page_brand: str | None = Field(default=ayonconfig.login_page_brand)
+    login_page_background: str | None = Field(
+        default=ayonconfig.login_page_background,
+        description="URL of the background image for the login page",
+        example="https://i.insider.com/602ee9d81a89f20019a377c6?width=1136&format=jpeg",
+    )
+    login_page_brand: str | None = Field(
+        default=ayonconfig.login_page_brand,
+        title="Brand logo",
+        description="URL of the brand logo for the login page",
+    )
     version: str = Field(
-        VERSION,
+        __version__,
         title="Ayon version",
         description="Version of the Ayon API",
     )
-    uptime: float = Field(default_factory=get_uptime)
-    user: UserEntity.model.main_model | None = Field(None)  # type: ignore
-    attributes: list[AttributeModel] | None = Field(None)
-    sites: list[SiteInfo] = Field(default_factory=list)
-    sso_options: list[SSOOption] = Field(default_factory=list)
+    uptime: float = Field(
+        default_factory=get_uptime,
+        title="Uptime",
+        description="Time (seconds) since the server was started",
+    )
+    user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
+    attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
+    sites: list[SiteInfo] = Field(default_factory=list, title="List of sites")
+    sso_options: list[SSOOption] = Field(default_factory=list, title="SSO options")
 
 
 async def get_sso_options(request: Request) -> list[SSOOption]:
-
     referer = request.headers.get("referer")
     if referer:
         parsed_url = urlparse(referer)
@@ -128,7 +141,11 @@ async def get_additional_info(user: UserEntity, request: Request):
 
     attr_list: list[AttributeModel] = []
     for row in attribute_library.info_data:
-        attr_list.append(AttributeModel(**row))
+        try:
+            attr_list.append(AttributeModel(**row))
+        except ValidationError:
+            log_traceback(f"Invalid attribute data: {row}")
+            continue
     return {
         "attributes": attr_list,
         "sites": sites,
@@ -137,7 +154,8 @@ async def get_additional_info(user: UserEntity, request: Request):
 
 @router.get("/info", response_model_exclude_none=True, tags=["System"])
 async def get_site_info(
-    request: Request, current_user: CurrentUserOptional
+    request: Request,
+    current_user: CurrentUserOptional,
 ) -> InfoResponseModel:
     """Return site information.
 

@@ -9,9 +9,9 @@ from nxtools import logging
 
 from ayon_server.entities import (
     FolderEntity,
+    ProductEntity,
     ProjectEntity,
     RepresentationEntity,
-    SubsetEntity,
     TaskEntity,
     VersionEntity,
     WorkfileEntity,
@@ -21,7 +21,7 @@ from ayon_server.utils import create_uuid, dict_exclude
 from demogen.generators import generators
 from setup.attributes import DEFAULT_ATTRIBUTES
 
-VERSIONS_PER_SUBSET = 5
+VERSIONS_PER_PRODUCT = 5
 
 
 def get_random_md5():
@@ -44,7 +44,7 @@ def random_datetime_interval(start, end):
 class DemoGen:
     def __init__(self):
         self.folder_count = 0
-        self.subset_count = 0
+        self.product_count = 0
         self.version_count = 0
         self.representation_count = 0
         self.task_count = 0
@@ -76,7 +76,7 @@ class DemoGen:
 
         elapsed_time = time.monotonic() - start_time
         logging.info(f"{self.folder_count} folders created")
-        logging.info(f"{self.subset_count} subset created")
+        logging.info(f"{self.product_count} product created")
         logging.info(f"{self.version_count} versions created")
         logging.info(f"{self.representation_count} representations created")
         logging.info(f"{self.task_count} tasks created")
@@ -126,7 +126,7 @@ class DemoGen:
                 attrib[key] = value
         kwargs["attrib"] = attrib
 
-        for s in kwargs.get("_subsets", []):
+        for s in kwargs.get("_products", []):
             for r in s.get("_representations", []):
                 if (tpl := r.get("template")) is not None:
                     if "{frame}" in tpl:
@@ -161,8 +161,8 @@ class DemoGen:
             )
             tasks[task_entity.name] = task_entity.id
 
-        for subset in kwargs.get("_subsets", []):
-            await self.create_subset(conn, folder, tasks=tasks, **subset)
+        for product in kwargs.get("_products", []):
+            await self.create_product(conn, folder, tasks=tasks, **product)
 
         if "_children" in kwargs:
             if type(kwargs["_children"]) == str:
@@ -177,17 +177,17 @@ class DemoGen:
                     )
         return folder
 
-    async def create_subset(
+    async def create_product(
         self,
         conn: Postgres.Transaction,
         folder: FolderEntity,
         tasks,
         **kwargs,
-    ) -> SubsetEntity:
-        self.subset_count += 1
+    ) -> ProductEntity:
+        self.product_count += 1
         if task_name := kwargs.get("_task_link"):
             task_id = tasks.get(task_name)
-            # print(f"subset {kwargs['name']} linked to task_id {task_id}")
+            # print(f"product {kwargs['name']} linked to task_id {task_id}")
         else:
             task_id = None
 
@@ -197,15 +197,15 @@ class DemoGen:
             "status": self.get_entity_status(),
             **dict_exclude(kwargs, ["_"], mode="startswith"),
         }
-        subset = SubsetEntity(
+        product = ProductEntity(
             project_name=self.project_name,
             payload=payload,
         )
-        await subset.save(conn)
+        await product.save(conn)
 
-        for i in range(1, VERSIONS_PER_SUBSET):
+        for i in range(1, VERSIONS_PER_PRODUCT):
             self.version_count += 1
-            attrib = {"families": [kwargs["family"]]}
+            attrib = {"product_types": [kwargs["product_type"]]}
 
             for key, acfg in DEFAULT_ATTRIBUTES.items():
                 if "V" not in [scope.strip() for scope in acfg["scope"].split(",")]:
@@ -217,7 +217,7 @@ class DemoGen:
             version = VersionEntity(
                 project_name=self.project_name,
                 payload={
-                    "subset_id": subset.id,
+                    "product_id": product.id,
                     "task_id": task_id,
                     "version": i,
                     "author": "admin",
@@ -230,9 +230,9 @@ class DemoGen:
 
             for representation in kwargs.get("_representations", []):
                 await self.create_representation(
-                    conn, folder, subset, version, **representation
+                    conn, folder, product, version, **representation
                 )
-        return subset
+        return product
 
     async def create_task(
         self,
@@ -294,7 +294,7 @@ class DemoGen:
         self,
         conn: Postgres.Transaction,
         folder: FolderEntity,
-        subset: SubsetEntity,
+        product: ProductEntity,
         version: VersionEntity,
         **kwargs: Any,
     ) -> RepresentationEntity:
@@ -309,17 +309,28 @@ class DemoGen:
         # Create a list of files
         #
         context = {
-            "root": "{root}",
-            "project_name": self.project_name,
+            "root": {"work": "{root[work]}"},
+            "project": {"name": self.project_name},
             "path": "/".join(folder.parents + [folder.name]),  # type: ignore
-            "family": subset.family,
-            "subset": subset.name,
+            "product": {
+                "type": product.product_type,
+                "name": product.name,
+            },
             "version": version.version,
-            "folder": folder.name,
+            "folder": {"name": folder.name},
         }
 
+        # Backwards compatibility
+        template = (
+            kwargs["attrib"]["template"]
+            .replace("{folder}", "{folder[name]}")
+            .replace("{project_name}", "{project[name]}")
+            .replace("{product}", "{product[name]}")
+            .replace("{product_type}", "{product[type]}")
+            .replace("{root}", "{root[work]}")
+        )
         files = []
-        if "{frame}" in kwargs["attrib"]["template"]:
+        if "{frame}" in template:
             frame_start = folder.attrib.frameStart
             frame_end = folder.attrib.frameEnd
         else:
@@ -327,7 +338,7 @@ class DemoGen:
             frame_end = 0
         for i in range(frame_start, frame_end + 1):
             fid = create_uuid()
-            fpath = kwargs["attrib"]["template"].format(frame=f"{i:06d}", **context)
+            fpath = template.format(frame=f"{i:06d}", **context)
             files.append(
                 {
                     "id": fid,

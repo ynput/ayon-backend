@@ -14,6 +14,16 @@ def create_id():
     return uuid.uuid1().hex
 
 
+EventStatus = Literal[
+    "pending",
+    "in_progress",
+    "finished",
+    "failed",
+    "aborted",
+    "restarted",
+]
+
+
 class EventModel(OPModel):
     """
     ID is an automatically assigned primary identifier of the event.
@@ -40,14 +50,7 @@ class EventModel(OPModel):
     project: str | None = Field(None)
     user: str | None = Field(None)
     depends_on: str | None = Field(None, **EntityID.META)
-    status: Literal[
-        "pending",
-        "in_progress",
-        "finished",
-        "failed",
-        "aborted",
-        "restarted",
-    ] = Field("pending")
+    status: EventStatus = Field("pending")
     retries: int = Field(0)
     description: str = Field(...)
     summary: dict[str, Any] = Field(default_factory=dict)
@@ -166,7 +169,7 @@ async def update_event(
     sender: str | None = None,
     project: str | None = None,
     user: str | None = None,
-    status: str | None = None,
+    status: EventStatus | None = None,
     description: str | None = None,
     summary: dict[str, Any] | None = None,
     payload: dict[str, Any] | None = None,
@@ -174,7 +177,6 @@ async def update_event(
     store: bool = True,
     retries: int | None = None,
 ):
-
     new_data: dict[str, Any] = {"updated_at": datetime.now()}
 
     if sender is not None:
@@ -191,6 +193,8 @@ async def update_event(
         new_data["payload"] = payload
     if retries is not None:
         new_data["retries"] = retries
+    if user is not None:
+        new_data["user_name"] = user
 
     if store:
         query = SQLTool.update("events", f"WHERE id = '{event_id}'", **new_data)

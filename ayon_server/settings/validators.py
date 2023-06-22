@@ -56,17 +56,20 @@ def normalize_name(
     return name
 
 
-def ensure_unique_names(objects: Iterable[Any]) -> None:
+def ensure_unique_names(objects: Iterable[Any], field_name: str | None = None) -> None:
     """Ensure a list of objects have unique 'name' property.
 
     In settings, we use lists instead of dictionaries (for various reasons).
     'name' property is considered the primary key for the items.
     """
+    suf = ""
+    if field_name:
+        suf = f" in '{field_name}'"
     names = []
     for obj in objects:
         if not hasattr(obj, "name"):
-            raise BadRequestException("Object without name provided")
+            raise BadRequestException(f"Object without name provided{suf}")
         if obj.name not in names:
             names.append(obj.name)
         else:
-            raise BadRequestException(f"Duplicate name **{obj.name}**")
+            raise BadRequestException(f"Duplicate name '{obj.name}'{suf}")

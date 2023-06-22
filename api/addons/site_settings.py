@@ -77,7 +77,6 @@ async def set_addon_site_settings(
     user: CurrentUser,
     site: str = Query(..., title="Site ID", regex="^[a-z0-9-]+$"),
 ) -> EmptyResponse:
-
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 

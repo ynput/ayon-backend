@@ -34,4 +34,4 @@ async def deploy_project(
         library=payload.library,
     )
 
-    return EmptyResponse()
+    return EmptyResponse(status_code=201)
