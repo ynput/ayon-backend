@@ -4,7 +4,7 @@ from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser, EventID
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.events import EventModel, dispatch_event, update_event
+from ayon_server.events import EventModel, EventStatus, dispatch_event, update_event
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, TOPIC_REGEX, Field, OPModel
@@ -86,7 +86,7 @@ class UpdateEventRequestModel(OPModel):
     )
     project: str | None = Field(None, title="Project name")
     user: str | None = Field(None, title="User name override")
-    status: str | None = None
+    status: EventStatus | None = None
     description: str | None = None
     summary: dict[str, Any] | None = None
     payload: dict[str, Any] | None = None

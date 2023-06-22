@@ -56,7 +56,7 @@ def normalize_name(
     return name
 
 
-def ensure_unique_names(objects: Iterable[Any], field_name: str = None) -> None:
+def ensure_unique_names(objects: Iterable[Any], field_name: str | None = None) -> None:
     """Ensure a list of objects have unique 'name' property.
 
     In settings, we use lists instead of dictionaries (for various reasons).
