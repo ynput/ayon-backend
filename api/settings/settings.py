@@ -85,8 +85,7 @@ async def get_all_settings(
         site_settings = None
         settings = {}
         if site_id:
-            addon.get_site_settings_model()
-            # TODO: Load site settings
+            site_settings = await addon.get_site_settings(user.name, site_id)
 
             settings = await addon.get_project_site_settings(
                 project_name,
