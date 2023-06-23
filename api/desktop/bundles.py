@@ -46,12 +46,12 @@ class BundleModel(BaseBundleModel):
         example=datetime.now(),
     )
     installer_version: str | None = Field(None, example="1.2.3")
-    addons: dict[str, str] = Field(
+    addons: dict[str, str | None] = Field(
         default_factory=dict,
         title="Addons",
         example={"ftrack": "1.2.3"},
     )
-    dependency_packages: dict[Platform, str] = Field(
+    dependency_packages: dict[Platform, str | None] = Field(
         default_factory=dict, **dependency_packages_meta
     )
     is_production: bool = Field(False, example=False)
@@ -119,7 +119,7 @@ async def create_bundle(bundle: BundleModel, user: CurrentUser) -> EmptyResponse
                     VALUES ($1, $2, $3, $4, $5)
                 """
 
-                data = {**bundle.dict()}
+                data = {**bundle.dict(exclude_none=True)}
                 data.pop("name", None)
                 data.pop("created_at", None)
                 data.pop("is_production", None)
@@ -182,7 +182,7 @@ async def patch_bundle(
                 if orig_bundle.is_staging:
                     await conn.execute("UPDATE bundles SET is_staging = FALSE")
 
-            data = {**orig_bundle.dict()}
+            data = {**orig_bundle.dict(exclude_none=True)}
             data.pop("name", None)
             data.pop("created_at", None)
             data.pop("is_production", None)
