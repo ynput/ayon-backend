@@ -6,6 +6,7 @@ from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.settings import BaseSettingsModel
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
 from .router import router
@@ -56,20 +57,20 @@ async def get_all_settings(
     pass
 
     if bundle_name is None:
-        query = (
+        query = [
             """
             SELECT name, is_production, is_staging, data->'addons' as addons
             FROM bundles WHERE is_production IS TRUE
-            """,
-        )
+            """
+        ]
     else:
-        query = (
+        query = [
             """
             SELECT name, is_production, is_staging, data->'addons'
             FROM bundles WHERE name = $1
             """,
             bundle_name,
-        )
+        ]
 
     brow = await Postgres.fetch(*query)
     if not brow:
@@ -83,16 +84,17 @@ async def get_all_settings(
         addon = AddonLibrary.addon(addon_name, addon_version)
 
         site_settings = None
-        settings = {}
+        settings: BaseSettingsModel | None = None
         if site_id:
             site_settings = await addon.get_site_settings(user.name, site_id)
 
-            settings = await addon.get_project_site_settings(
-                project_name,
-                user.name,
-                site_id,
-                variant,
-            )
+            if project_name is not None:
+                settings = await addon.get_project_site_settings(
+                    project_name,
+                    user.name,
+                    site_id,
+                    variant,
+                )
         elif project_name:
             settings = await addon.get_project_settings(project_name, variant)
         else:
