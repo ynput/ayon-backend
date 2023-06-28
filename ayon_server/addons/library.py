@@ -91,13 +91,28 @@ class AddonLibrary:
         return iter(self.data)
 
     async def get_active_versions(self) -> dict[str, dict[str, str]]:
-        active_versions = {}
-        async for row in Postgres.iterate("SELECT * FROM addon_versions"):
-            active_versions[row["name"]] = {
-                "production": row["production_version"],
-                "staging": row["staging_version"],
+        production_bundle = await Postgres.fetch(
+            "SELECT data->'addons' as addons FROM bundles WHERE is_production is true"
+        )
+        staging_bundle = await Postgres.fetch(
+            "SELECT data->'addons' as addons FROM bundles WHERE is_staging is true"
+        )
+
+        res = {}
+        for addon_name in self.data.keys():
+            res[addon_name] = {
+                "production": None,
+                "staging": None,
             }
-        return active_versions
+
+            if production_bundle and (addons := production_bundle[0]["addons"]):
+                if addon_name in addons:
+                    res[addon_name]["production"] = addons[addon_name]
+            if staging_bundle and (addons := staging_bundle[0]["addons"]):
+                if addon_name in addons:
+                    res[addon_name]["staging"] = addons[addon_name]
+
+        return res
 
     async def get_production_addon(self, addon_name: str) -> BaseServerAddon | None:
         """Return a production instance of the addon."""

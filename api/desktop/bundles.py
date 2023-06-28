@@ -8,7 +8,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import Field, OPModel
+from ayon_server.types import NAME_REGEX, Field, OPModel
 
 from .common import Platform
 from .router import router
@@ -38,6 +38,7 @@ class BundleModel(BaseBundleModel):
         title="Name",
         description="Name of the bundle",
         example="my_superior_bundle",
+        regex=NAME_REGEX,
     )
 
     created_at: datetime = Field(
@@ -45,12 +46,12 @@ class BundleModel(BaseBundleModel):
         example=datetime.now(),
     )
     installer_version: str | None = Field(None, example="1.2.3")
-    addons: dict[str, str] = Field(
+    addons: dict[str, str | None] = Field(
         default_factory=dict,
         title="Addons",
         example={"ftrack": "1.2.3"},
     )
-    dependency_packages: dict[Platform, str] = Field(
+    dependency_packages: dict[Platform, str | None] = Field(
         default_factory=dict, **dependency_packages_meta
     )
     is_production: bool = Field(False, example=False)
@@ -79,7 +80,13 @@ async def list_bundles() -> ListBundleModel:
     staging_bundle: str | None = None
 
     async for row in Postgres.iterate("SELECT * FROM bundles ORDER by created_at DESC"):
-        bundle = BundleModel(**row["data"])
+        bundle = BundleModel(
+            **row["data"],
+            name=row["name"],
+            created_at=row["created_at"],
+            is_production=row["is_production"],
+            is_staging=row["is_staging"],
+        )
         if row["is_production"]:
             production_bundle = row["name"]
         if row["is_staging"]:
@@ -112,10 +119,16 @@ async def create_bundle(bundle: BundleModel, user: CurrentUser) -> EmptyResponse
                     VALUES ($1, $2, $3, $4, $5)
                 """
 
+                data = {**bundle.dict(exclude_none=True)}
+                data.pop("name", None)
+                data.pop("created_at", None)
+                data.pop("is_production", None)
+                data.pop("is_staging", None)
+
                 await conn.execute(
                     query,
                     bundle.name,
-                    bundle.dict(),
+                    data,
                     bundle.is_production,
                     bundle.is_staging,
                     bundle.created_at,
@@ -142,13 +155,20 @@ async def patch_bundle(
             )
             if not res:
                 raise NotFoundException("Bundle not found")
+            row = res[0]
 
-            orig_bundle = BundleModel(**res[0]["data"])
+            orig_bundle = BundleModel(
+                **row["data"],
+                name=row["name"],
+                created_at=row["created_at"],
+                is_production=row["is_production"],
+                is_staging=row["is_staging"],
+            )
             dep_packages = orig_bundle.dependency_packages.copy()
             for key, value in bundle.dependency_packages.items():
                 if bundle.dependency_packages is None:
                     dep_packages.pop(key, None)
-                elif value is not None:
+                elif type(value) is str:
                     dep_packages[key] = value
 
             orig_bundle.dependency_packages = dep_packages
@@ -162,9 +182,19 @@ async def patch_bundle(
                 if orig_bundle.is_staging:
                     await conn.execute("UPDATE bundles SET is_staging = FALSE")
 
+            data = {**orig_bundle.dict(exclude_none=True)}
+            data.pop("name", None)
+            data.pop("created_at", None)
+            data.pop("is_production", None)
+            data.pop("is_staging", None)
+
             await conn.execute(
-                "UPDATE bundles SET data = $1, is_production = $2, is_staging = $3 WHERE name = $4",
-                orig_bundle.dict(),
+                """
+                UPDATE bundles
+                SET data = $1, is_production = $2, is_staging = $3
+                WHERE name = $4
+                """,
+                data,
                 orig_bundle.is_production,
                 orig_bundle.is_staging,
                 bundle_name,

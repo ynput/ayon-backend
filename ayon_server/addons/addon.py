@@ -306,6 +306,31 @@ class BaseServerAddon:
             settings = apply_overrides(settings, site_overrides)
         return settings
 
+    async def get_site_settings(self, user_name: str, site_id: str) -> dict:
+        site_settings_model = self.get_site_settings_model()
+        if site_settings_model is None:
+            return None
+
+        data = {}
+        query = """
+            SELECT data FROM site_settings
+            WHERE site_id = $1 AND addon_name = $2
+            AND addon_version = $3 AND user_name = $4
+        """
+        async for row in Postgres.iterate(
+            query,
+            site_id,
+            self.name,
+            self.version,
+            user_name,
+        ):
+            data = row["data"]
+            break
+        else:
+            return None
+
+        return site_settings_model(**data).dict()
+
     #
     # Overridable settings-related methods
     #

@@ -1,153 +1,115 @@
 from typing import Any, Literal
 
-from fastapi import APIRouter, Query
+from fastapi import Query
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.settings import BaseSettingsModel
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
-router = APIRouter(tags=["Addon settings"])
+from .router import router
 
 
-class AddonSettingsResponse(OPModel):
-    settings: dict[str, dict[str, Any]] = Field(
-        ...,
-        title="Addon settings",
-        description="Addon settings for each active addon",
-        example={
-            "my-addon": {
-                "my-setting": "my-value",
-                "my-other-setting": "my-other-value",
-            },
-        },
-    )
-    versions: dict[str, str] = Field(
-        ...,
-        title="Addon versions",
-        description="Active versions of the addon for the given variant",
-        example={"my-addon": "1.0.0"},
-    )
+class AddonSettingsItemModel(OPModel):
+    name: str = Field(..., regex=NAME_REGEX)
+    version: str = Field(..., regex=NAME_REGEX)
+
+    # Final settings for the addon depending on the request (project, site)
+    # it returns either studio, project or project/site settings
+    settings: dict[str, Any] = Field(default_factory=dict)
+
+    # If site_id is specified and the addon has site settings model,
+    # return studio level site settings here
+    site_settings: dict[str, Any] | None = Field(default_factory=dict)
 
 
-@router.get("/settings/addons")
-async def get_all_addons_settings(
+class AllSettingsResponseModel(OPModel):
+    bundle_name: str = Field(..., regex=NAME_REGEX)
+    addons: list[AddonSettingsItemModel] = Field(default_factory=list)
+
+
+@router.get("/settings", response_model_exclude_none=True)
+async def get_all_settings(
     user: CurrentUser,
-    variant: Literal["production", "staging"] = Query(
-        "production",
-        title="Settings variant",
+    bundle_name: str
+    | None = Query(
+        None,
+        title="Bundle name",
+        description="Production if not set",
+        regex=NAME_REGEX,
     ),
-    project: str | None = Query(None, regex=NAME_REGEX),
-    site: str | None = Query(None, regex=NAME_REGEX),
-) -> AddonSettingsResponse:
-    """Return all addon settings for the project."""
-
-    library = AddonLibrary.getinstance()
-
-    active_versions = await library.get_active_versions()
-
-    result: dict[str, dict[str, Any]] = {}
-    versions: dict[str, str] = {}
-
-    for addon_name, _addon in library.items():
-        if addon_name not in active_versions:
-            continue
-        try:
-            addon_version = active_versions[addon_name][variant]
-        except KeyError:
-            continue
-
-        if not addon_version:
-            continue
-
-        try:
-            active_addon = library.addon(addon_name, addon_version)
-        except Exception:
-            continue
-
-        if project:
-            if site:
-                settings = await active_addon.get_project_site_settings(
-                    project_name=project,
-                    variant=variant,
-                    user_name=user.name,
-                    site_id=site,
-                )
-            else:
-                settings = await active_addon.get_project_settings(
-                    project_name=project,
-                    variant=variant,
-                )
-            if settings:
-                result[addon_name] = settings
-                versions[addon_name] = addon_version
-                continue
-
-        settings = await active_addon.get_studio_settings(variant=variant)
-        if settings is None:
-            continue
-        result[addon_name] = settings
-        versions[addon_name] = addon_version
-
-    return AddonSettingsResponse(settings=result, versions=versions)
-
-
-@router.get("/settings/addons/siteSettings")
-async def get_all_site_settings(
-    user: CurrentUser,
-    variant: Literal["production", "staging"] = Query(
-        "production",
-        title="Settings variant",
+    project_name: str
+    | None = Query(
+        None,
+        title="Project name",
+        description="Studio settings if not set",
+        regex=NAME_REGEX,
     ),
-    site: str | None = Query(None, regex=NAME_REGEX),
-) -> AddonSettingsResponse:
-    """Return site settings for all enabled addons.
+    site_id: str
+    | None = Query(
+        None,
+        title="Site ID",
+    ),
+    variant: Literal["production", "staging"] = Query("production"),
+) -> AllSettingsResponseModel:
+    pass
 
-    Those are 'global' site settings (from addon.site_settings_model)
-    with no project overrides. When site is not specified, it will
-    return the default settings provided by the model.
-    """
+    if bundle_name is None:
+        query = [
+            """
+            SELECT name, is_production, is_staging, data->'addons' as addons
+            FROM bundles WHERE is_production IS TRUE
+            """
+        ]
+    else:
+        query = [
+            """
+            SELECT name, is_production, is_staging, data->'addons'
+            FROM bundles WHERE name = $1
+            """,
+            bundle_name,
+        ]
 
-    library = AddonLibrary.getinstance()
+    brow = await Postgres.fetch(*query)
+    if not brow:
+        raise NotFoundException(status_code=404, detail="Bundle not found")
 
-    active_versions = await library.get_active_versions()
+    bundle_name = brow[0]["name"]
+    addons = brow[0]["addons"]
 
-    result: dict[str, dict[str, Any]] = {}
-    versions: dict[str, str] = {}
+    addon_result = []
+    for addon_name, addon_version in addons.items():
+        addon = AddonLibrary.addon(addon_name, addon_version)
 
-    for addon_name, _addon in library.items():
-        if addon_name not in active_versions:
-            continue
-        try:
-            addon_version = active_versions[addon_name][variant]
-        except KeyError:
-            continue
+        site_settings = None
+        settings: BaseSettingsModel | None = None
+        if site_id:
+            site_settings = await addon.get_site_settings(user.name, site_id)
 
-        if not addon_version:
-            continue
+            if project_name is not None:
+                settings = await addon.get_project_site_settings(
+                    project_name,
+                    user.name,
+                    site_id,
+                    variant,
+                )
+        elif project_name:
+            settings = await addon.get_project_settings(project_name, variant)
+        else:
+            settings = await addon.get_studio_settings(variant)
 
-        try:
-            active_addon = library.addon(addon_name, addon_version)
-        except Exception:
-            continue
+        addon_result.append(
+            AddonSettingsItemModel(
+                name=addon_name,
+                version=addon_version,
+                settings=settings.dict() if settings else {},
+                site_settings=site_settings,
+            )
+        )
 
-        site_settings_model = active_addon.get_site_settings_model()
-        if site_settings_model is None:
-            continue
-
-        data = {}
-        query = """
-            SELECT data FROM site_settings
-            WHERE site_id = $1 AND addon_name = $2
-            AND addon_version = $3 AND user_name = $4
-        """
-        async for row in Postgres.iterate(
-            query, site, addon_name, addon_version, user.name
-        ):
-            data = row["data"]
-            break
-
-        result[addon_name] = site_settings_model(**data)
-        versions[addon_name] = addon_version
-
-    return AddonSettingsResponse(settings=result, versions=versions)
+    return AllSettingsResponseModel(
+        bundle_name=bundle_name,
+        addons=addon_result,
+    )

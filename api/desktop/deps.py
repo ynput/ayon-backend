@@ -27,7 +27,7 @@ class DependencyPackageManifest(BasePackageModel):
     installer_version: str = Field(
         ...,
         title="Installer version",
-        description="Version of the Ayon installer that this dependency package is created with",
+        description="Version of the Ayon installer this package is created with",
         example="1.2.3",
     )
     source_addons: dict[str, str] = Field(
@@ -69,7 +69,6 @@ def get_manifest(filename: str) -> DependencyPackageManifest:
     manifest_data = load_json_file("dependency_packages", f"{filename}.json")
     manifest = DependencyPackageManifest(**manifest_data)
     if manifest.has_local_file:
-        print("dep has local file", manifest.local_file_path)
         manifest.sources.append(SourceModel(type="server"))
     return manifest
 
@@ -89,14 +88,15 @@ async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
 
         if filename != manifest.filename:
             logging.warning(
-                f"Filename in manifest does not match: {filename} != {manifest.filename}"
+                "Filename in manifest does not match: "
+                f"{filename} != {manifest.filename}"
             )
             continue
         result.append(manifest)
     return DependencyPackageList(packages=result)
 
 
-@router.post("/dependency_packages", status_code=204)
+@router.post("/dependency_packages", status_code=201)
 async def create_dependency_package(
     payload: DependencyPackageManifest,
     user: CurrentUser,
@@ -115,7 +115,7 @@ async def create_dependency_package(
 
     async with aiofiles.open(payload.path, "w") as f:
         await f.write(payload.json(exclude_none=True))
-    return EmptyResponse()
+    return EmptyResponse(status_code=201)
 
 
 @router.get("/dependency_packages/{filename}")
