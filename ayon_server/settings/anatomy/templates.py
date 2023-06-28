@@ -33,6 +33,7 @@ class DeliveryTemplate(BaseTemplate):
 
 
 class CustomTemplate(BaseTemplate):
+    _layout: str = "compact"
     value: str = Field("", title="Template value")
 
 
