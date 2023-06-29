@@ -66,7 +66,7 @@ async def get_all_settings(
     else:
         query = [
             """
-            SELECT name, is_production, is_staging, data->'addons'
+            SELECT name, is_production, is_staging, data->'addons' as addons
             FROM bundles WHERE name = $1
             """,
             bundle_name,
@@ -81,6 +81,9 @@ async def get_all_settings(
 
     addon_result = []
     for addon_name, addon_version in addons.items():
+        if addon_version is None:
+            continue
+
         addon = AddonLibrary.addon(addon_name, addon_version)
 
         site_settings = None
