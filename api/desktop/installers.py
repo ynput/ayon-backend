@@ -7,11 +7,10 @@ from nxtools import logging
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import AyonException, ConflictException, ForbiddenException
-from ayon_server.types import Field, OPModel
+from ayon_server.types import Field, OPModel, Platform
 
 from .common import (
     BasePackageModel,
-    Platform,
     SourceModel,
     SourcesPatchModel,
     get_desktop_dir,

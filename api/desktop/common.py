@@ -8,9 +8,7 @@ from fastapi import Request
 from starlette.responses import FileResponse
 
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
-from ayon_server.types import Field, OPModel
-
-Platform = Literal["windows", "linux", "darwin"]
+from ayon_server.types import Field, OPModel, Platform
 
 
 def md5sum(path: str) -> str:

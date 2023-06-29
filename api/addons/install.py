@@ -127,7 +127,7 @@ class InstallAddonResponseModel(OPModel):
     event_id: str = Field(..., title="Event ID")
 
 
-@router.post("/install")
+@router.post("/install", tags=["Addons"])
 async def upload_addon_zip_file(
     user: CurrentUser,
     request: Request,
@@ -208,7 +208,7 @@ class AddonListItemModel(OPModel):
     updated_at: datetime | None = Field(None, title="Event update time")
 
 
-@router.get("/install")
+@router.get("/install", tags=["Addons"])
 async def get_installed_addons_list() -> list[AddonListItemModel]:
     """Get a list of installed addons"""
 
