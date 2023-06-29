@@ -91,7 +91,13 @@ async def get_all_settings(
         if site_id:
             site_settings = await addon.get_site_settings(user.name, site_id)
 
-            if project_name is not None:
+            if project_name is None:
+                # Studio level settings (studio level does not have)
+                # site overrides per se but it can have site settings
+                settings = await addon.get_studio_settings(variant)
+            else:
+                # Project and site is requested, so we are returning
+                # project level settings WITH site overrides
                 settings = await addon.get_project_site_settings(
                     project_name,
                     user.name,
@@ -99,8 +105,10 @@ async def get_all_settings(
                     variant,
                 )
         elif project_name:
+            # Project level settings (no site overrides)
             settings = await addon.get_project_settings(project_name, variant)
         else:
+            # Just studio level settings (no project, no site)
             settings = await addon.get_studio_settings(variant)
 
         addon_result.append(

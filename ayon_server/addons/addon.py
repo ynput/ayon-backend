@@ -274,7 +274,7 @@ class BaseServerAddon:
         You shouldn't override this method, unless absolutely necessary.
         """
 
-        settings = await self.get_studio_settings()
+        settings = await self.get_studio_settings(variant=variant)
         if settings is None:
             return None  # this addon has no settings at all
 
