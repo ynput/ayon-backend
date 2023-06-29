@@ -47,6 +47,12 @@ class InstallerManifest(BasePackageModel):
         description="mapping of module_name:module_version used to create the installer",
         example={"requests": "2.25.1", "pydantic": "1.8.2"},
     )
+    runtime_python_modules: dict[str, str] = Field(
+        default_factory=dict,
+        title="Runtime Python modules",
+        description="mapping of module_name:module_version used to run the installer",
+        example={"requests": "2.25.1", "pydantic": "1.8.2"},
+    )
 
     @property
     def local_file_path(self) -> str:
