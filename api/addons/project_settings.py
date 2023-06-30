@@ -80,7 +80,9 @@ async def get_addon_project_settings(
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
     if site:
-        settings = await addon.get_project_site_settings(project_name, user.name, site)
+        settings = await addon.get_project_site_settings(
+            project_name, user.name, site, variant=variant
+        )
     else:
         settings = await addon.get_project_settings(project_name, variant=variant)
 
@@ -149,8 +151,8 @@ async def set_addon_project_settings(
         if not user.is_manager:
             raise ForbiddenException
 
-        original = await addon.get_project_settings(project_name)
-        existing = await addon.get_project_overrides(project_name)
+        original = await addon.get_project_settings(project_name, variant=variant)
+        existing = await addon.get_project_overrides(project_name, variant=variant)
         if original is None:
             # This addon does not have settings
             raise BadRequestException(f"Addon {addon_name} has no settings")
@@ -198,8 +200,12 @@ async def set_addon_project_settings(
 
     # site settings
 
-    original = await addon.get_project_site_settings(project_name, user.name, site)
-    existing = await addon.get_project_site_overrides(project_name, user.name, site)
+    original = await addon.get_project_site_settings(
+        project_name, user.name, site, variant=variant
+    )
+    existing = await addon.get_project_site_overrides(
+        project_name, user.name, site, variant=variant
+    )
     if original is None:
         # This addon does not have settings
         raise BadRequestException(f"Addon {addon_name} has no settings")

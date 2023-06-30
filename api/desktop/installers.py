@@ -182,6 +182,7 @@ async def delete_installer_file(user: CurrentUser, filename: str):
     if manifest.has_local_file:
         os.remove(manifest.local_file_path)
     os.remove(manifest.path)
+    return EmptyResponse(status_code=204)
 
 
 @router.patch("/installers/{filename}", status_code=204)
@@ -199,3 +200,4 @@ async def patch_installer(user: CurrentUser, filename: str, payload: SourcesPatc
 
     async with aiofiles.open(manifest.path, "w") as f:
         await f.write(manifest.json(exclude_none=True))
+    return EmptyResponse(status_code=204)
