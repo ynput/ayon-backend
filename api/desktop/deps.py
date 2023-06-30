@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import aiofiles
 from fastapi import Path, Request, Response
@@ -30,7 +31,7 @@ class DependencyPackageManifest(BasePackageModel):
         description="Version of the Ayon installer this package is created with",
         example="1.2.3",
     )
-    source_addons: dict[str, str] = Field(
+    source_addons: dict[str, Optional[str]] = Field(
         default_factory=dict,
         title="Source addons",
         description="mapping of addon_name:addon_version used to create the package",
@@ -114,6 +115,13 @@ async def create_dependency_package(
     _ = get_desktop_dir("dependency_packages", for_writing=True)
 
     async with aiofiles.open(payload.path, "w") as f:
+        addons_to_delete = []
+        for addon, version in payload.source_addons.items():
+            if version is None:
+                addons_to_delete.append(addon)
+        if addons_to_delete:
+            for addon in addons_to_delete:
+                del payload.source_addons[addon]
         await f.write(payload.json(exclude_none=True))
     return EmptyResponse(status_code=201)
 
