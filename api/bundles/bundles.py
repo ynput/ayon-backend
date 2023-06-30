@@ -1,8 +1,10 @@
 from datetime import datetime
+from typing import Literal
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import (
+    BadRequestException,
     ConflictException,
     ForbiddenException,
     NotFoundException,
@@ -72,7 +74,7 @@ class ListBundleModel(OPModel):
     staging_bundle: str | None = Field(None, example="my_superior_bundle")
 
 
-@router.get("/bundles")
+@router.get("/bundles", response_model_exclude_none=True)
 async def list_bundles() -> ListBundleModel:
     result: list[BundleModel] = []
     production_bundle: str | None = None
@@ -210,4 +212,65 @@ async def delete_bundle(
         raise ForbiddenException("Only admins can delete bundles")
 
     await Postgres.execute("DELETE FROM bundles WHERE name = $1", bundle_name)
+    return EmptyResponse(status_code=204)
+
+
+class BundleActionModel(OPModel):
+    action: Literal["promote"] = Field(..., example="promote")
+
+
+async def promote_bundle(bundle: BundleModel, conn):
+    """Promote a bundle to production."""
+    pass
+
+
+@router.post("/bundles/{bundle_name}", status_code=201)
+async def bundle_actions(
+    bundle_name: str,
+    action: BundleActionModel,
+    user: CurrentUser,
+) -> EmptyResponse:
+    """Promote a bundle to production.
+
+    That includes copying staging settings to production.
+    """
+
+    async with Postgres.acquire() as conn:
+        async with conn.transaction():
+            res = await conn.fetch(
+                "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
+            )
+
+            if not res:
+                raise NotFoundException("Bundle not found")
+
+            row = res[0]
+
+            bundle = BundleModel(
+                **row["data"],
+                name=row["name"],
+                created_at=row["created_at"],
+                is_production=row["is_production"],
+                is_staging=row["is_staging"],
+            )
+
+            if action.action == "promote":
+                if not user.is_admin:
+                    raise ForbiddenException("Only admins can promote bundles")
+
+                if not bundle.is_staging:
+                    raise BadRequestException("Bundle is not a staging bundle")
+
+                await conn.execute("UPDATE bundles SET is_production = FALSE")
+                await conn.execute(
+                    """
+                    UPDATE bundles
+                    SET is_production = TRUE
+                    WHERE name = $1
+                    """,
+                    bundle_name,
+                )
+
+                # TODO: copy settings
+
     return EmptyResponse(status_code=204)
