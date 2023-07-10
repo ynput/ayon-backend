@@ -53,7 +53,11 @@ def random_datetime(days_offset: int) -> datetime.datetime:
         random_offset = random.randint(0, days_offset)
     else:
         random_offset = random.randint(days_offset, 0)
-    return now + datetime.timedelta(days=random_offset)
+    result = now + datetime.timedelta(days=random_offset)
+
+    # make result timezone aware
+    result = result.replace(tzinfo=datetime.timezone.utc)
+    return result
 
 
 async def main() -> None:
