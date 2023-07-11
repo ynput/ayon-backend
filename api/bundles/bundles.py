@@ -1,8 +1,11 @@
 from datetime import datetime
 from typing import Literal
 
+from fastapi import Header
+
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.events import dispatch_event
 from ayon_server.exceptions import (
     BadRequestException,
     ConflictException,
@@ -102,7 +105,11 @@ async def list_bundles() -> ListBundleModel:
 
 
 @router.post("/bundles", status_code=201)
-async def create_bundle(bundle: BundleModel, user: CurrentUser) -> EmptyResponse:
+async def create_bundle(
+    bundle: BundleModel,
+    user: CurrentUser,
+    x_sender: str | None = Header(default=None),
+) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can create bundles")
 
@@ -137,6 +144,19 @@ async def create_bundle(bundle: BundleModel, user: CurrentUser) -> EmptyResponse
     except Postgres.UniqueViolationError:
         raise ConflictException("Bundle with this name already exists")
 
+    await dispatch_event(
+        "bundle.created",
+        sender=x_sender,
+        user=user.name,
+        description=f"Bundle {bundle.name} created",
+        summary={
+            "name": bundle.name,
+            "isProduction": bundle.is_production,
+            "isStaging": bundle.is_staging,
+        },
+        payload=data,
+    )
+
     return EmptyResponse(status_code=201)
 
 
@@ -145,6 +165,7 @@ async def patch_bundle(
     bundle_name: str,
     bundle: BundlePatchModel,
     user: CurrentUser,
+    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can patch bundles")
@@ -200,6 +221,19 @@ async def patch_bundle(
                 orig_bundle.is_staging,
                 bundle_name,
             )
+
+    await dispatch_event(
+        "bundle.updated",
+        sender=x_sender,
+        user=user.name,
+        description=f"Bundle {bundle.name} updated",
+        summary={
+            "name": bundle.name,
+            "isProduction": bundle.is_production,
+            "isStaging": bundle.is_staging,
+        },
+        payload=data,
+    )
     return EmptyResponse(status_code=204)
 
 
