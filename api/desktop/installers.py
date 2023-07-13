@@ -6,7 +6,12 @@ from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import AyonException, ConflictException, ForbiddenException
+from ayon_server.exceptions import (
+    AyonException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.types import Field, OPModel, Platform
 
 from .common import (
@@ -76,8 +81,13 @@ class InstallerListModel(OPModel):
 
 
 def get_manifest(filename: str) -> InstallerManifest:
-    manifest_data = load_json_file("installers", f"{filename}.json")
-    manifest = InstallerManifest(**manifest_data)
+    try:
+        manifest_data = load_json_file("installers", f"{filename}.json")
+        manifest = InstallerManifest(**manifest_data)
+    except FileNotFoundError:
+        raise NotFoundException(f"Installer manifest {filename} not found")
+    except ValueError:
+        raise AyonException(f"Failed to load installer manifest {filename}")
     if manifest.has_local_file:
         manifest.sources.append(SourceModel(type="server"))
     return manifest

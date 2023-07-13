@@ -7,7 +7,7 @@ from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import AyonException, ForbiddenException
+from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundException
 from ayon_server.types import Field, OPModel
 
 from .common import (
@@ -67,8 +67,13 @@ class DependencyPackageList(OPModel):
 
 
 def get_manifest(filename: str) -> DependencyPackageManifest:
-    manifest_data = load_json_file("dependency_packages", f"{filename}.json")
-    manifest = DependencyPackageManifest(**manifest_data)
+    try:
+        manifest_data = load_json_file("dependency_packages", f"{filename}.json")
+        manifest = DependencyPackageManifest(**manifest_data)
+    except FileNotFoundError:
+        raise NotFoundException(f"Dependency package manifest {filename} not found")
+    except ValueError:
+        raise AyonException(f"Failed to load dependency package manifest {filename}")
     if manifest.has_local_file:
         manifest.sources.append(SourceModel(type="server"))
     return manifest
