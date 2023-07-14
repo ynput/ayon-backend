@@ -4,6 +4,8 @@ from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter
 
+from ayon_server.api.dependencies import CurrentUser, SiteID
+from ayon_server.api.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
@@ -13,6 +15,11 @@ router = APIRouter(tags=["URI resolver"])
 
 
 class ResolveRequestModel(OPModel):
+    resolve_roots: bool = Field(
+        False,
+        title="Resolve roots",
+        description="If x-ayon-site-id header is provided, resolve representation path roots",
+    )
     uris: list[str] = Field(
         ...,
         title="URIs",
@@ -313,8 +320,54 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
     return result
 
 
+async def get_roots_for_projects(
+    site_id: str, projects: list[str]
+) -> dict[str, dict[str, str]]:
+    # platform specific roots for each requested project
+    # e.g. roots[project][root_name] = root_path
+    roots: dict[str, dict[str, str]] = {}
+
+    site_res = await Postgres.fetch(
+        "SELECT data->>'platform' as platform FROM sites WHERE id = $1", site_id
+    )
+    if not site_res:
+        raise BadRequestException(status_code=404, detail="Site not found")
+
+    platform = site_res[0]["platform"]
+
+    # get roots from project anatomies
+
+    async for row in Postgres.iterate(
+        "SELECT name, config FROM projects WHERE name = ANY($1)", projects
+    ):
+        _project_name = row["name"]
+        _roots = row["config"].get("roots", {})
+        roots[_project_name] = {}
+        for _root_name, _root_paths in _roots.items():
+            roots[_project_name][_root_name] = _root_paths[platform]
+
+    # root project overrides
+
+    # for project_name in projects:
+    #     async for row in Postgres.iterate(
+    #         f"SELECT root_proje FROM projects WHERE name = $1", project_name
+    #     ):
+    #         root_project = row["root_project"]
+    #         if root_project:
+    #             roots[project_name] = roots[root_project]
+
+
 @router.post("/resolve", response_model_exclude_none=True)
-async def resolve_uris(request: ResolveRequestModel) -> list[ResolvedURIModel]:
+async def resolve_uris(
+    request: ResolveRequestModel,
+    site_id: SiteID,
+    user: CurrentUser,
+) -> list[ResolvedURIModel]:
+
+    if request.resolve_roots and site_id:
+        projects = [parse_uri(uri).project_name for uri in request.uris]
+        await get_roots_for_projects(site_id, projects)
+
     result: list[ResolvedURIModel] = []
     current_project = ""
     async with Postgres.acquire() as conn:
