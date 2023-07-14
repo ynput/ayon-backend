@@ -65,6 +65,11 @@ class AyonConfig(BaseModel):
         example="postgres://user:password123@postgres.example.com:5432/ayon",
     )
 
+    session_ttl: int = Field(
+        default=24 * 3600,
+        description="Session lifetime in seconds",
+    )
+
     motd: str | None = Field(
         default=None,
         description="Message of the day",

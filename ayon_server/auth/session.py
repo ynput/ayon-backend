@@ -7,6 +7,7 @@ from fastapi import Request
 from nxtools import logging
 
 from ayon_server.api.clientinfo import ClientInfo, get_client_info, get_real_ip
+from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
@@ -32,12 +33,11 @@ def is_local_ip(ip: str) -> bool:
 
 
 class Session:
-    ttl = 24 * 3600
     ns = "session"
 
     @classmethod
     def is_expired(cls, session: SessionModel) -> bool:
-        ttl = 600 if session.is_service else cls.ttl
+        ttl = 600 if session.is_service else ayonconfig.session_ttl
         return time.time() - session.last_used > ttl
 
     @classmethod
@@ -88,7 +88,7 @@ class Session:
         # Whatever. Fix later.
 
         if not session.is_service:
-            if time.time() - session.created > cls.ttl / 2:
+            if time.time() - session.created > ayonconfig.session_ttl / 2:
                 session.last_used = time.time()
                 await Redis.set(cls.ns, token, json_dumps(session.dict()))
 
