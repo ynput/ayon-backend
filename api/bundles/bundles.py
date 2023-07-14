@@ -5,6 +5,7 @@ from fastapi import Header
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.entities import UserEntity
 from ayon_server.events import dispatch_event
 from ayon_server.exceptions import (
     BadRequestException,
@@ -226,9 +227,9 @@ async def patch_bundle(
         "bundle.updated",
         sender=x_sender,
         user=user.name,
-        description=f"Bundle {bundle.name} updated",
+        description=f"Bundle {bundle_name} updated",
         summary={
-            "name": bundle.name,
+            "name": bundle_name,
             "isProduction": bundle.is_production,
             "isStaging": bundle.is_staging,
         },
@@ -253,9 +254,64 @@ class BundleActionModel(OPModel):
     action: Literal["promote"] = Field(..., example="promote")
 
 
-async def promote_bundle(bundle: BundleModel, conn):
-    """Promote a bundle to production."""
-    pass
+async def promote_bundle(bundle: BundleModel, user: UserEntity, conn):
+    """Promote a bundle to production.
+
+    That includes copying staging settings to production.
+    """
+
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can promote bundles")
+
+    if not bundle.is_staging:
+        raise BadRequestException("Only staging bundles can be promoted")
+
+    await conn.execute("UPDATE bundles SET is_production = FALSE")
+    await conn.execute(
+        """
+        UPDATE bundles
+        SET is_production = TRUE
+        WHERE name = $1
+        """,
+        bundle.name,
+    )
+
+    # Get project list
+    # statement = await conn.prepare("SELECT name FROM projects")
+    # project_names = [row["name"] async for row in statement.cursor()]
+
+    # Copy staging settings to production
+
+    for addon_name, addon_version in bundle.addons.items():
+        sres = await conn.fetch(
+            """
+                SELECT data FROM settings
+                WHERE addon_name = $1 AND addon_version = $2
+                AND variant = 'staging'
+                """,
+            addon_name,
+            addon_version,
+        )
+        if not sres:
+            data = {}
+        else:
+            data = sres[0]["data"]
+        await conn.execute(
+            """
+            INSERT INTO settings (addon_name, addon_version, variant, data)
+            VALUES ($1, $2, 'production', $3)
+            ON CONFLICT (addon_name, addon_version, variant)
+            DO UPDATE SET data = $3
+            """,
+            addon_name,
+            addon_version,
+            data,
+        )
+
+        # Do the same for every active project settings
+        # TODO: Do we want this?
+        #
+        # for project_name in project_names:
 
 
 @router.post("/bundles/{bundle_name}", status_code=201)
@@ -264,22 +320,16 @@ async def bundle_actions(
     action: BundleActionModel,
     user: CurrentUser,
 ) -> EmptyResponse:
-    """Promote a bundle to production.
-
-    That includes copying staging settings to production.
-    """
+    """Perform actions on bundles."""
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
             res = await conn.fetch(
                 "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
             )
-
             if not res:
                 raise NotFoundException("Bundle not found")
-
             row = res[0]
-
             bundle = BundleModel(
                 **row["data"],
                 name=row["name"],
@@ -289,22 +339,6 @@ async def bundle_actions(
             )
 
             if action.action == "promote":
-                if not user.is_admin:
-                    raise ForbiddenException("Only admins can promote bundles")
-
-                if not bundle.is_staging:
-                    raise BadRequestException("Bundle is not a staging bundle")
-
-                await conn.execute("UPDATE bundles SET is_production = FALSE")
-                await conn.execute(
-                    """
-                    UPDATE bundles
-                    SET is_production = TRUE
-                    WHERE name = $1
-                    """,
-                    bundle_name,
-                )
-
-                # TODO: copy settings
+                return await promote_bundle(bundle, user, conn)
 
     return EmptyResponse(status_code=204)
