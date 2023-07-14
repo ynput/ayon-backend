@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse
 from fastapi import APIRouter
 
 from ayon_server.api.dependencies import CurrentUser, SiteID
-from ayon_server.api.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
@@ -181,8 +181,12 @@ def parse_uri(uri: str) -> ParsedURIModel:
     )
 
 
-def get_representation_path(template: str, context: dict[str, Any]) -> str:
-    context["root"] = {}
+def get_representation_path(
+    template: str,
+    context: dict[str, Any],
+    roots: dict[str, str] | None = None,
+) -> str:
+    context["root"] = roots or {}
     return StringTemplate.format_template(template, context)
 
 
@@ -233,13 +237,16 @@ def get_representation_conditions(representation_name: str | None) -> list[str]:
     return [f"r.name = '{representation_name}'"]
 
 
-async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityModel]:
+async def resolve_entities(
+    conn,
+    req: ParsedURIModel,
+    roots: dict[str, str],
+) -> list[ResolvedEntityModel]:
     result = []
     cols = ["h.id as folder_id"]
     joins = []
     conds = []
 
-    print(req)
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
 
@@ -305,6 +312,7 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
             file_path = get_representation_path(
                 row["file_template"],
                 row["context"],
+                roots,
             )
         else:
             file_path = None
@@ -321,7 +329,7 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
 
 
 async def get_roots_for_projects(
-    site_id: str, projects: list[str]
+    user_name: str, site_id: str, projects: list[str]
 ) -> dict[str, dict[str, str]]:
     # platform specific roots for each requested project
     # e.g. roots[project][root_name] = root_path
@@ -348,13 +356,16 @@ async def get_roots_for_projects(
 
     # root project overrides
 
-    # for project_name in projects:
-    #     async for row in Postgres.iterate(
-    #         f"SELECT root_proje FROM projects WHERE name = $1", project_name
-    #     ):
-    #         root_project = row["root_project"]
-    #         if root_project:
-    #             roots[project_name] = roots[root_project]
+    for project_name in projects:
+        async for row in Postgres.iterate(
+            f"SELECT data FROM project_{project_name}.custom_roots WHERE user_name = $1 AND site_id = $2",
+            user_name,
+            site_id,
+        ):
+            roots[project_name].update(row["data"])
+
+    print("Resolved roots", roots)
+    return roots
 
 
 @router.post("/resolve", response_model_exclude_none=True)
@@ -363,10 +374,10 @@ async def resolve_uris(
     site_id: SiteID,
     user: CurrentUser,
 ) -> list[ResolvedURIModel]:
-
+    roots = {}
     if request.resolve_roots and site_id:
         projects = [parse_uri(uri).project_name for uri in request.uris]
-        await get_roots_for_projects(site_id, projects)
+        roots = await get_roots_for_projects(user.name, site_id, projects)
 
     result: list[ResolvedURIModel] = []
     current_project = ""
@@ -379,6 +390,8 @@ async def resolve_uris(
                         f"SET LOCAL search_path TO project_{parsed_uri.project_name}"
                     )
                     current_project = parsed_uri.project_name
-                entities = await resolve_entities(conn, parsed_uri)
+                entities = await resolve_entities(
+                    conn, parsed_uri, roots[current_project]
+                )
                 result.append(ResolvedURIModel(uri=uri, entities=entities))
     return result
