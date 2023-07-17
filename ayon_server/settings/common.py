@@ -20,6 +20,9 @@ class BaseSettingsModel(BaseModel):
     _title: str | None = None
     _layout: str | None = None
     _required: bool = False
+    _has_studio_overrides: bool | None = None
+    _has_project_overrides: bool | None = None
+    _has_site_overrides: bool | None = None
 
     class Config:
         underscore_attrs_are_private = True

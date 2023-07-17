@@ -261,6 +261,7 @@ class BaseServerAddon:
         overrides = await self.get_studio_overrides(variant=variant)
         if overrides:
             settings = apply_overrides(settings, overrides)
+            settings._has_studio_overrides = True
 
         return settings
 
@@ -277,12 +278,15 @@ class BaseServerAddon:
         settings = await self.get_studio_settings(variant=variant)
         if settings is None:
             return None  # this addon has no settings at all
+        has_studio_overrides = settings._has_studio_overrides
 
         project_overrides = await self.get_project_overrides(
             project_name, variant=variant
         )
         if project_overrides:
             settings = apply_overrides(settings, project_overrides)
+            settings._has_project_overrides = True
+        settings._has_studio_overrides = has_studio_overrides
         return settings
 
     async def get_project_site_settings(
@@ -299,11 +303,16 @@ class BaseServerAddon:
         settings = await self.get_project_settings(project_name, variant=variant)
         if settings is None:
             return None
+        has_project_overrides = settings._has_project_overrides
+        has_studio_overrides = settings._has_studio_overrides
         site_overrides = await self.get_project_site_overrides(
             project_name, user_name, site_id
         )
         if site_overrides:
             settings = apply_overrides(settings, site_overrides)
+            settings._has_site_overrides = True
+        settings._has_project_overrides = has_project_overrides
+        settings._has_studio_overrides = has_studio_overrides
         return settings
 
     async def get_site_settings(self, user_name: str, site_id: str) -> dict:

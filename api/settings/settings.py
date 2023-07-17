@@ -13,8 +13,17 @@ from .router import router
 
 
 class AddonSettingsItemModel(OPModel):
-    name: str = Field(..., regex=NAME_REGEX)
-    version: str = Field(..., regex=NAME_REGEX)
+    name: str = Field(..., title="Addon name", regex=NAME_REGEX, example="my-addon")
+    title: str | None = Field(None, title="Addon title", example="My Addon")
+    version: str = Field(..., title="Addon version", regex=NAME_REGEX, example="1.0.0")
+
+    # None value means that project does not have overrides or project/site was not specified
+    # in the request
+    has_settings: bool = Field(False)
+    has_site_settings: bool = Field(False)
+    has_studio_overrides: bool | None = Field(None)
+    has_project_overrides: bool | None = Field(None)
+    has_site_overrides: bool | None = Field(None)
 
     # Final settings for the addon depending on the request (project, site)
     # it returns either studio, project or project/site settings
@@ -53,14 +62,15 @@ async def get_all_settings(
         title="Site ID",
     ),
     variant: Literal["production", "staging"] = Query("production"),
+    summary: bool = Query(False, title="Summary", description="Summary mode"),
 ) -> AllSettingsResponseModel:
     pass
 
     if bundle_name is None:
         query = [
-            """
+            f"""
             SELECT name, is_production, is_staging, data->'addons' as addons
-            FROM bundles WHERE is_production IS TRUE
+            FROM bundles WHERE is_{variant} IS TRUE
             """
         ]
     else:
@@ -114,8 +124,17 @@ async def get_all_settings(
         addon_result.append(
             AddonSettingsItemModel(
                 name=addon_name,
+                title=addon.title if addon.title else addon_name,
                 version=addon_version,
-                settings=settings.dict() if settings else {},
+                has_settings=settings is not None,
+                has_studio_overrides=settings._has_studio_overrides
+                if settings
+                else None,
+                has_project_overrides=settings._has_project_overrides
+                if settings
+                else None,
+                has_site_overrides=settings._has_site_overrides if settings else None,
+                settings=settings.dict() if (settings and not summary) else {},
                 site_settings=site_settings,
             )
         )
