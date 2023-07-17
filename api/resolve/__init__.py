@@ -365,7 +365,6 @@ async def get_roots_for_projects(
         ):
             roots[project_name].update(row["data"])
 
-    print("Resolved roots", roots)
     return roots
 
 
