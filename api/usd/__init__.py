@@ -1,3 +1,7 @@
+#
+# TODO: This is deprecated (replaced by /api/resolve)
+#
+
 import time
 
 from fastapi import APIRouter
@@ -12,7 +16,7 @@ from ayon_server.types import Field, OPModel
 
 router = APIRouter(
     prefix="/usd",
-    tags=["USD"],
+    tags=["URI resolver"],
 )
 
 #
