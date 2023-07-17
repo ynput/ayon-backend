@@ -20,10 +20,12 @@ class AddonSettingsItemModel(OPModel):
     # None value means that project does not have overrides or project/site was not specified
     # in the request
     has_settings: bool = Field(False)
+    has_project_settings: bool = Field(False)
+    has_project_site_settings: bool = Field(False)
     has_site_settings: bool = Field(False)
     has_studio_overrides: bool | None = Field(None)
     has_project_overrides: bool | None = Field(None)
-    has_site_overrides: bool | None = Field(None)
+    has_project_site_overrides: bool | None = Field(None)
 
     # Final settings for the addon depending on the request (project, site)
     # it returns either studio, project or project/site settings
@@ -96,6 +98,26 @@ async def get_all_settings(
 
         addon = AddonLibrary.addon(addon_name, addon_version)
 
+        # Determine which scopes addon has settings for
+
+        model = addon.get_settings_model()
+        has_settings = False
+        has_project_settings = False
+        has_project_site_settings = False
+        has_site_settings = bool(addon.site_settings_model)
+        if model:
+            has_project_settings = False
+            for field_name, field in model.__fields__.items():
+                scope = field.field_info.extra.get("scope", ["studio", "project"])
+                if "project" in scope:
+                    has_project_settings = True
+                if "site" in scope:
+                    has_project_site_settings = True
+                if "studio" in scope:
+                    has_settings = True
+
+        # Load settings for the addon
+
         site_settings = None
         settings: BaseSettingsModel | None = None
         if site_id:
@@ -121,12 +143,20 @@ async def get_all_settings(
             # Just studio level settings (no project, no site)
             settings = await addon.get_studio_settings(variant)
 
+        # Add addon to the result
+
         addon_result.append(
             AddonSettingsItemModel(
                 name=addon_name,
                 title=addon.title if addon.title else addon_name,
                 version=addon_version,
-                has_settings=settings is not None,
+                # Has settings means that addon has settings model
+                has_settings=has_settings,
+                has_project_settings=has_project_settings,
+                has_project_site_settings=has_project_site_settings,
+                has_site_settings=has_site_settings,
+                # Has overrides means that addon has overrides for the requested
+                # project/site
                 has_studio_overrides=settings._has_studio_overrides
                 if settings
                 else None,
