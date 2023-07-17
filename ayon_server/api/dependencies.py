@@ -381,3 +381,13 @@ async def dep_link_type(
 
 
 LinkType = Annotated[tuple[str, str, str], Depends(dep_link_type)]
+
+
+async def dep_site_id(
+    x_ayon_site_id: str | None = Header(None, title="Site ID")
+) -> str | None:
+    """Validate and return a site id specified in an endpoint header."""
+    return x_ayon_site_id
+
+
+SiteID = Annotated[str, Depends(dep_site_id)]
