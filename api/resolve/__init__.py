@@ -92,6 +92,7 @@ class ResolvedURIModel(OPModel):
                 "version_id": "0256ba2c005811ee9a740242ac130004",
                 "representation_id": None,
                 "workfile_id": None,
+                "file_path": "/path/to/file.ma",
             }
         ],
     )
@@ -391,7 +392,7 @@ async def resolve_uris(
                     )
                     current_project = parsed_uri.project_name
                 entities = await resolve_entities(
-                    conn, parsed_uri, roots[current_project]
+                    conn, parsed_uri, roots.get(current_project, {})
                 )
                 result.append(ResolvedURIModel(uri=uri, entities=entities))
     return result
