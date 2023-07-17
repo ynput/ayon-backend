@@ -169,6 +169,8 @@ async def get_all_settings(
             )
         )
 
+    addon_result.sort(key=lambda x: x.title.lower())
+
     return AllSettingsResponseModel(
         bundle_name=bundle_name,
         addons=addon_result,
