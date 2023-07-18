@@ -20,5 +20,5 @@ exec gunicorn \
   -k uvicorn.workers.UvicornWorker \
   --log-level warning \
   -b :5000 \
-  ayon_server.api:app
+  ayon_server.api.server:app
   
