@@ -4,7 +4,6 @@ from fastapi import Query
 from nxtools import logging
 from pydantic.error_wrappers import ValidationError
 
-from addons.router import route_meta, router
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
@@ -30,6 +29,7 @@ from .common import (
     remove_override,
     remove_site_override,
 )
+from .router import route_meta, router
 
 
 @router.get("/{addon_name}/{version}/schema/{project_name}", **route_meta)

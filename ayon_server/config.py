@@ -25,7 +25,7 @@ class AyonConfig(BaseModel):
 
     addons_dir: str = Field(
         default="/addons",
-        description="Path to the directory containing the addons.",
+        description="Path to the directory containing the addons. Always use absolute path.",
     )
 
     frontend_dir: str = Field(
