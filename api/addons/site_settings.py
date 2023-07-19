@@ -3,13 +3,14 @@ from typing import Any
 from fastapi import Query
 from nxtools import logging
 
-from addons.router import route_meta, router
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.common import postprocess_settings_schema
+
+from .router import route_meta, router
 
 
 @router.get("/{addon_name}/{version}/siteSettings/schema", **route_meta)
