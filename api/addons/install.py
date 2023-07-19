@@ -25,6 +25,7 @@ def get_zip_info(path: str) -> tuple[str, str]:
     with zipfile.ZipFile(path, "r") as zip_ref:
         names = zip_ref.namelist()
 
+    base_name = os.path.split(path)[-1]
     addon_name = None
     addon_version = None
     for path in names:
@@ -37,12 +38,12 @@ def get_zip_info(path: str) -> tuple[str, str]:
             addon_version = _version
             continue
         if _name != addon_name:
-            raise RuntimeError("Multiple addon names found in zip file")
+            raise RuntimeError(f"Multiple addon names found in {base_name}")
         if _version != addon_version:
-            raise RuntimeError("Multiple addon versions found in zip file")
+            raise RuntimeError(f"Multiple addon versions found in {base_name}")
 
     if not (addon_name and addon_version):
-        raise RuntimeError("No addon name or version found in zip file")
+        raise RuntimeError(f"No addon name or version found in {base_name}")
 
     return addon_name, addon_version
 
