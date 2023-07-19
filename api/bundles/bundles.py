@@ -1,8 +1,14 @@
 from datetime import datetime
+from typing import Literal
+
+from fastapi import Header
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.entities import UserEntity
+from ayon_server.events import dispatch_event
 from ayon_server.exceptions import (
+    BadRequestException,
     ConflictException,
     ForbiddenException,
     NotFoundException,
@@ -72,7 +78,7 @@ class ListBundleModel(OPModel):
     staging_bundle: str | None = Field(None, example="my_superior_bundle")
 
 
-@router.get("/bundles")
+@router.get("/bundles", response_model_exclude_none=True)
 async def list_bundles() -> ListBundleModel:
     result: list[BundleModel] = []
     production_bundle: str | None = None
@@ -100,7 +106,11 @@ async def list_bundles() -> ListBundleModel:
 
 
 @router.post("/bundles", status_code=201)
-async def create_bundle(bundle: BundleModel, user: CurrentUser) -> EmptyResponse:
+async def create_bundle(
+    bundle: BundleModel,
+    user: CurrentUser,
+    x_sender: str | None = Header(default=None),
+) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can create bundles")
 
@@ -135,6 +145,19 @@ async def create_bundle(bundle: BundleModel, user: CurrentUser) -> EmptyResponse
     except Postgres.UniqueViolationError:
         raise ConflictException("Bundle with this name already exists")
 
+    await dispatch_event(
+        "bundle.created",
+        sender=x_sender,
+        user=user.name,
+        description=f"Bundle {bundle.name} created",
+        summary={
+            "name": bundle.name,
+            "isProduction": bundle.is_production,
+            "isStaging": bundle.is_staging,
+        },
+        payload=data,
+    )
+
     return EmptyResponse(status_code=201)
 
 
@@ -143,6 +166,7 @@ async def patch_bundle(
     bundle_name: str,
     bundle: BundlePatchModel,
     user: CurrentUser,
+    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can patch bundles")
@@ -198,6 +222,19 @@ async def patch_bundle(
                 orig_bundle.is_staging,
                 bundle_name,
             )
+
+    await dispatch_event(
+        "bundle.updated",
+        sender=x_sender,
+        user=user.name,
+        description=f"Bundle {bundle_name} updated",
+        summary={
+            "name": bundle_name,
+            "isProduction": bundle.is_production,
+            "isStaging": bundle.is_staging,
+        },
+        payload=data,
+    )
     return EmptyResponse(status_code=204)
 
 
@@ -210,4 +247,98 @@ async def delete_bundle(
         raise ForbiddenException("Only admins can delete bundles")
 
     await Postgres.execute("DELETE FROM bundles WHERE name = $1", bundle_name)
+    return EmptyResponse(status_code=204)
+
+
+class BundleActionModel(OPModel):
+    action: Literal["promote"] = Field(..., example="promote")
+
+
+async def promote_bundle(bundle: BundleModel, user: UserEntity, conn):
+    """Promote a bundle to production.
+
+    That includes copying staging settings to production.
+    """
+
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can promote bundles")
+
+    if not bundle.is_staging:
+        raise BadRequestException("Only staging bundles can be promoted")
+
+    await conn.execute("UPDATE bundles SET is_production = FALSE")
+    await conn.execute(
+        """
+        UPDATE bundles
+        SET is_production = TRUE
+        WHERE name = $1
+        """,
+        bundle.name,
+    )
+
+    # Get project list
+    # statement = await conn.prepare("SELECT name FROM projects")
+    # project_names = [row["name"] async for row in statement.cursor()]
+
+    # Copy staging settings to production
+
+    for addon_name, addon_version in bundle.addons.items():
+        sres = await conn.fetch(
+            """
+                SELECT data FROM settings
+                WHERE addon_name = $1 AND addon_version = $2
+                AND variant = 'staging'
+                """,
+            addon_name,
+            addon_version,
+        )
+        if not sres:
+            data = {}
+        else:
+            data = sres[0]["data"]
+        await conn.execute(
+            """
+            INSERT INTO settings (addon_name, addon_version, variant, data)
+            VALUES ($1, $2, 'production', $3)
+            ON CONFLICT (addon_name, addon_version, variant)
+            DO UPDATE SET data = $3
+            """,
+            addon_name,
+            addon_version,
+            data,
+        )
+
+        # Do the same for every active project settings
+        # TODO: Do we want this?
+        #
+        # for project_name in project_names:
+
+
+@router.post("/bundles/{bundle_name}", status_code=201)
+async def bundle_actions(
+    bundle_name: str,
+    action: BundleActionModel,
+    user: CurrentUser,
+) -> EmptyResponse:
+    """Perform actions on bundles."""
+
+    async with Postgres.acquire() as conn:
+        async with conn.transaction():
+            res = await conn.fetch(
+                "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
+            )
+            if not res:
+                raise NotFoundException("Bundle not found")
+            row = res[0]
+            bundle = BundleModel(
+                **row["data"],
+                name=row["name"],
+                created_at=row["created_at"],
+                is_production=row["is_production"],
+                is_staging=row["is_staging"],
+            )
+
+            if action.action == "promote":
+                return await promote_bundle(bundle, user, conn)
+
     return EmptyResponse(status_code=204)

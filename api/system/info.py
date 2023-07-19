@@ -1,6 +1,5 @@
 import contextlib
 import time
-from typing import Literal
 from urllib.parse import urlparse
 
 from attributes.attributes import AttributeModel
@@ -18,20 +17,13 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .router import router
+from .sites import SiteInfo
 
 BOOT_TIME = time.time()
 
 
 def get_uptime():
     return time.time() - BOOT_TIME
-
-
-class SiteInfo(OPModel):
-    id: str = Field(..., title="Site identifier")
-    platform: Literal["linux", "windows", "darwin"] = Field(...)
-    hostname: str = Field(..., title="Machine hostname")
-    version: str = Field(..., title="Ayon version")
-    users: list[str] = Field(..., title="List of users")
 
 
 class InfoResponseModel(OPModel):

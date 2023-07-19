@@ -5,12 +5,17 @@ from fastapi import Query, Request
 from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.exceptions import AyonException, ForbiddenException
-from ayon_server.types import Field, OPModel
+from ayon_server.api.responses import EmptyResponse
+from ayon_server.exceptions import (
+    AyonException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+)
+from ayon_server.types import Field, OPModel, Platform
 
 from .common import (
     BasePackageModel,
-    Platform,
     SourceModel,
     SourcesPatchModel,
     get_desktop_dir,
@@ -46,6 +51,12 @@ class InstallerManifest(BasePackageModel):
         description="mapping of module_name:module_version used to create the installer",
         example={"requests": "2.25.1", "pydantic": "1.8.2"},
     )
+    runtime_python_modules: dict[str, str] = Field(
+        default_factory=dict,
+        title="Runtime Python modules",
+        description="mapping of module_name:module_version used to run the installer",
+        example={"requests": "2.25.1", "pydantic": "1.8.2"},
+    )
 
     @property
     def local_file_path(self) -> str:
@@ -70,8 +81,13 @@ class InstallerListModel(OPModel):
 
 
 def get_manifest(filename: str) -> InstallerManifest:
-    manifest_data = load_json_file("installers", f"{filename}.json")
-    manifest = InstallerManifest(**manifest_data)
+    try:
+        manifest_data = load_json_file("installers", f"{filename}.json")
+        manifest = InstallerManifest(**manifest_data)
+    except FileNotFoundError:
+        raise NotFoundException(f"Installer manifest {filename} not found")
+    except ValueError:
+        raise AyonException(f"Failed to load installer manifest {filename}")
     if manifest.has_local_file:
         manifest.sources.append(SourceModel(type="server"))
     return manifest
@@ -115,8 +131,11 @@ async def list_installers(
     return InstallerListModel(installers=result)
 
 
-@router.post("/installers", status_code=204)
-async def create_installer(user: CurrentUser, payload: InstallerManifest):
+@router.post("/installers", status_code=201)
+async def create_installer(
+    user: CurrentUser,
+    payload: InstallerManifest,
+) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can create installers")
 
@@ -125,7 +144,7 @@ async def create_installer(user: CurrentUser, payload: InstallerManifest):
     except Exception:
         pass
     else:
-        raise AyonException("Installer already exists")
+        raise ConflictException("Installer already exists")
 
     _ = get_desktop_dir("installers", for_writing=True)
 
@@ -141,6 +160,8 @@ async def create_installer(user: CurrentUser, payload: InstallerManifest):
 
     async with aiofiles.open(payload.path, "w") as f:
         await f.write(payload.json(exclude_none=True))
+
+    return EmptyResponse(status_code=201)
 
 
 @router.get("/installers/{filename}")
@@ -171,6 +192,7 @@ async def delete_installer_file(user: CurrentUser, filename: str):
     if manifest.has_local_file:
         os.remove(manifest.local_file_path)
     os.remove(manifest.path)
+    return EmptyResponse(status_code=204)
 
 
 @router.patch("/installers/{filename}", status_code=204)
@@ -188,3 +210,4 @@ async def patch_installer(user: CurrentUser, filename: str, payload: SourcesPatc
 
     async with aiofiles.open(manifest.path, "w") as f:
         await f.write(manifest.json(exclude_none=True))
+    return EmptyResponse(status_code=204)

@@ -5,7 +5,7 @@ from ayon_server.settings.validators import ensure_unique_names, normalize_name
 
 
 class BaseTemplate(BaseSettingsModel):
-    name: str = Field(..., title="Template name")
+    name: str = Field(..., title="Name")
 
     @validator("name")
     def validate_name(cls, value):
@@ -33,7 +33,13 @@ class DeliveryTemplate(BaseTemplate):
 
 
 class CustomTemplate(BaseTemplate):
-    pass
+    _layout: str = "compact"
+    value: str = Field("", title="Template value")
+
+
+class StagingDirectory(BaseTemplate):
+    _layout: str = "compact"
+    directory: str = Field("")
 
 
 # TODO: Custom templates are not supported yet
@@ -106,7 +112,12 @@ class Templates(BaseSettingsModel):
         title="Others",
     )
 
-    @validator("work", "publish", "hero", "delivery", "others")
+    staging_directories: list[StagingDirectory] = Field(
+        default_factory=list,
+        title="Staging directories",
+    )
+
+    @validator("work", "publish", "hero", "delivery", "others", "staging_directories")
     def validate_template_group(cls, value):
         ensure_unique_names(value)
         return value

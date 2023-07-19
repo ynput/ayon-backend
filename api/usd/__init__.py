@@ -1,3 +1,7 @@
+#
+# TODO: This is deprecated (replaced by /api/resolve)
+#
+
 import time
 
 from fastapi import APIRouter
@@ -12,7 +16,7 @@ from ayon_server.types import Field, OPModel
 
 router = APIRouter(
     prefix="/usd",
-    tags=["USD"],
+    tags=["URI resolver"],
 )
 
 #
@@ -29,8 +33,8 @@ class ResolveResponseModel(OPModel):
     time: float
 
 
-@router.post("/resolve")
-async def resolve(request: ResolveRequestModel):
+@router.post("/resolve", deprecated=True)
+async def resolve(request: ResolveRequestModel) -> ResolveResponseModel:
     start_time = time.monotonic()
 
     query = """

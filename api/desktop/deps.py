@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import aiofiles
 from fastapi import Path, Request, Response
@@ -6,7 +7,7 @@ from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import AyonException, ForbiddenException
+from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundException
 from ayon_server.types import Field, OPModel
 
 from .common import (
@@ -27,10 +28,10 @@ class DependencyPackageManifest(BasePackageModel):
     installer_version: str = Field(
         ...,
         title="Installer version",
-        description="Version of the Ayon installer that this dependency package is created with",
+        description="Version of the Ayon installer this package is created with",
         example="1.2.3",
     )
-    source_addons: dict[str, str] = Field(
+    source_addons: dict[str, Optional[str]] = Field(
         default_factory=dict,
         title="Source addons",
         description="mapping of addon_name:addon_version used to create the package",
@@ -66,10 +67,14 @@ class DependencyPackageList(OPModel):
 
 
 def get_manifest(filename: str) -> DependencyPackageManifest:
-    manifest_data = load_json_file("dependency_packages", f"{filename}.json")
-    manifest = DependencyPackageManifest(**manifest_data)
+    try:
+        manifest_data = load_json_file("dependency_packages", f"{filename}.json")
+        manifest = DependencyPackageManifest(**manifest_data)
+    except FileNotFoundError:
+        raise NotFoundException(f"Dependency package manifest {filename} not found")
+    except ValueError:
+        raise AyonException(f"Failed to load dependency package manifest {filename}")
     if manifest.has_local_file:
-        print("dep has local file", manifest.local_file_path)
         manifest.sources.append(SourceModel(type="server"))
     return manifest
 
@@ -89,14 +94,15 @@ async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
 
         if filename != manifest.filename:
             logging.warning(
-                f"Filename in manifest does not match: {filename} != {manifest.filename}"
+                "Filename in manifest does not match: "
+                f"{filename} != {manifest.filename}"
             )
             continue
         result.append(manifest)
     return DependencyPackageList(packages=result)
 
 
-@router.post("/dependency_packages", status_code=204)
+@router.post("/dependency_packages", status_code=201)
 async def create_dependency_package(
     payload: DependencyPackageManifest,
     user: CurrentUser,
@@ -114,8 +120,15 @@ async def create_dependency_package(
     _ = get_desktop_dir("dependency_packages", for_writing=True)
 
     async with aiofiles.open(payload.path, "w") as f:
+        addons_to_delete = []
+        for addon, version in payload.source_addons.items():
+            if version is None:
+                addons_to_delete.append(addon)
+        if addons_to_delete:
+            for addon in addons_to_delete:
+                del payload.source_addons[addon]
         await f.write(payload.json(exclude_none=True))
-    return EmptyResponse()
+    return EmptyResponse(status_code=201)
 
 
 @router.get("/dependency_packages/{filename}")

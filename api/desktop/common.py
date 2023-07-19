@@ -8,9 +8,7 @@ from fastapi import Request
 from starlette.responses import FileResponse
 
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
-from ayon_server.types import Field, OPModel
-
-Platform = Literal["windows", "linux", "darwin"]
+from ayon_server.types import Field, OPModel, Platform
 
 
 def md5sum(path: str) -> str:
@@ -48,12 +46,12 @@ def get_desktop_file_path(*args, for_writing: bool = False) -> str:
 def load_json_file(*args) -> dict[str, Any]:
     path = get_desktop_file_path(*args, for_writing=False)
     if not os.path.isfile(path):
-        raise AyonException(f"File does not exist: {path}")
+        raise FileNotFoundError(f"File does not exist: {path}")
     try:
         with open(path, "r") as f:
             return json.load(f)
     except Exception as e:
-        raise AyonException(f"Failed to load file {path}: {e}")
+        raise ValueError(f"Failed to load file {path}: {e}")
 
 
 def save_json_file(*args, data: Any) -> None:
