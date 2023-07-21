@@ -16,11 +16,8 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
-from ayon_server.settings import (
-    extract_overrides,
-    list_overrides,
-    postprocess_settings_schema,
-)
+from ayon_server.settings.overrides import extract_overrides, list_overrides
+from ayon_server.settings.postprocess import postprocess_settings_schema
 
 from .common import (
     ModifyOverridesRequestModel,

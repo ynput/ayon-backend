@@ -3,6 +3,7 @@ from typing import Literal
 
 from fastapi import Header
 
+from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import UserEntity
@@ -105,15 +106,9 @@ async def list_bundles() -> ListBundleModel:
     )
 
 
-@router.post("/bundles", status_code=201)
 async def create_bundle(
-    bundle: BundleModel,
-    user: CurrentUser,
-    x_sender: str | None = Header(default=None),
-) -> EmptyResponse:
-    if not user.is_admin:
-        raise ForbiddenException("Only admins can create bundles")
-
+    bundle: BundleModel, user: UserEntity | None = None, sender: str | None = None
+):
     try:
         async with Postgres.acquire() as conn:
             async with conn.transaction():
@@ -147,8 +142,8 @@ async def create_bundle(
 
     await dispatch_event(
         "bundle.created",
-        sender=x_sender,
-        user=user.name,
+        sender=sender,
+        user=user.name if user else None,
         description=f"Bundle {bundle.name} created",
         summary={
             "name": bundle.name,
@@ -157,6 +152,23 @@ async def create_bundle(
         },
         payload=data,
     )
+
+
+@router.post("/bundles", status_code=201)
+async def create_new_bundle(
+    bundle: BundleModel,
+    user: CurrentUser,
+    x_sender: str | None = Header(default=None),
+) -> EmptyResponse:
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can create bundles")
+
+    for addon_name, addon_version in bundle.addons.items():
+        # Raise exception if addon if you are trying to add
+        # a bundle with an addon that does not exist
+        _ = AddonLibrary.addon(addon_name, addon_version)
+
+    await create_bundle(bundle, user, x_sender)
 
     return EmptyResponse(status_code=201)
 
@@ -238,15 +250,18 @@ async def patch_bundle(
     return EmptyResponse(status_code=204)
 
 
+async def delete_bundle(bundle_name: str):
+    await Postgres.execute("DELETE FROM bundles WHERE name = $1", bundle_name)
+
+
 @router.delete("/bundles/{bundle_name}", status_code=204)
-async def delete_bundle(
+async def delete_existing_bundle(
     bundle_name: str,
     user: CurrentUser,
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can delete bundles")
-
-    await Postgres.execute("DELETE FROM bundles WHERE name = $1", bundle_name)
+    await delete_existing_bundle(bundle_name)
     return EmptyResponse(status_code=204)
 
 

@@ -309,7 +309,7 @@ async def resolve_entities(
 
     statement = await conn.prepare(query)
     async for row in statement.cursor():
-        if "file_template" in row:
+        if ("file_template" in row) and ("context" in row):
             file_path = get_representation_path(
                 row["file_template"],
                 row["context"],

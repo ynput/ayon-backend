@@ -8,7 +8,7 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.settings.common import postprocess_settings_schema
+from ayon_server.settings.postprocess import postprocess_settings_schema
 
 from .router import route_meta, router
 
