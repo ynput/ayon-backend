@@ -7,7 +7,12 @@ from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundException
+from ayon_server.exceptions import (
+    AyonException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.types import Field, OPModel
 
 from .common import (
@@ -115,7 +120,7 @@ async def create_dependency_package(
     except Exception:
         pass
     else:
-        raise AyonException("Dependency package already exists")
+        raise ConflictException(f"Dependency package {payload.filename} already exists")
 
     _ = get_desktop_dir("dependency_packages", for_writing=True)
 
