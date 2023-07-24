@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from fastapi import Header
+from fastapi import Header, Query
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
@@ -158,15 +158,19 @@ async def create_bundle(
 async def create_new_bundle(
     bundle: BundleModel,
     user: CurrentUser,
+    validate: bool = Query(False, description="Ensure specified addons exist"),
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can create bundles")
 
-    for addon_name, addon_version in bundle.addons.items():
-        # Raise exception if addon if you are trying to add
-        # a bundle with an addon that does not exist
-        _ = AddonLibrary.addon(addon_name, addon_version)
+    if validate:
+        for addon_name, addon_version in bundle.addons.items():
+            # Raise exception if addon if you are trying to add
+            # a bundle with an addon that does not exist
+            if not addon_version:
+                continue
+            _ = AddonLibrary.addon(addon_name, addon_version)
 
     await create_bundle(bundle, user, x_sender)
 
@@ -261,7 +265,7 @@ async def delete_existing_bundle(
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can delete bundles")
-    await delete_existing_bundle(bundle_name)
+    await delete_bundle(bundle_name)
     return EmptyResponse(status_code=204)
 
 

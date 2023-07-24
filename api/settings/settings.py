@@ -14,7 +14,7 @@ from .router import router
 
 class AddonSettingsItemModel(OPModel):
     name: str = Field(..., title="Addon name", regex=NAME_REGEX, example="my-addon")
-    title: str | None = Field(None, title="Addon title", example="My Addon")
+    title: str = Field(..., title="Addon title", example="My Addon")
     version: str = Field(..., title="Addon version", regex=NAME_REGEX, example="1.0.0")
 
     # None value means that project does not have overrides or project/site was not specified
