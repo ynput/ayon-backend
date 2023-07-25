@@ -235,6 +235,16 @@ async def patch_bundle(
             orig_bundle.dependency_packages = dep_packages
 
             if bundle.is_archived:
+                if (
+                    orig_bundle.is_production
+                    or orig_bundle.is_staging
+                    or bundle.is_production
+                    or bundle.is_staging
+                ):
+                    raise BadRequestException(
+                        "Cannot archive bundle that is production or staging"
+                    )
+
                 bundle.is_production = False
                 bundle.is_staging = False
                 orig_bundle.is_archived = True
