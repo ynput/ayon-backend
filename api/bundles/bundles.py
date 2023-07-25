@@ -62,6 +62,7 @@ class BundleModel(BaseBundleModel):
     )
     is_production: bool = Field(False, example=False)
     is_staging: bool = Field(False, example=False)
+    is_archived: bool = Field(False, example=False)
 
 
 class BundlePatchModel(BaseBundleModel):
@@ -71,6 +72,7 @@ class BundlePatchModel(BaseBundleModel):
     )
     is_production: bool | None = Field(None, example=False)
     is_staging: bool | None = Field(None, example=False)
+    is_archived: bool | None = Field(None, example=False)
 
 
 class ListBundleModel(OPModel):
@@ -80,7 +82,9 @@ class ListBundleModel(OPModel):
 
 
 @router.get("/bundles", response_model_exclude_none=True)
-async def list_bundles() -> ListBundleModel:
+async def list_bundles(
+    archived: bool = Query(False, description="Include archived bundles"),
+) -> ListBundleModel:
     result: list[BundleModel] = []
     production_bundle: str | None = None
     staging_bundle: str | None = None
@@ -92,11 +96,16 @@ async def list_bundles() -> ListBundleModel:
             created_at=row["created_at"],
             is_production=row["is_production"],
             is_staging=row["is_staging"],
+            is_archived=row["is_archived"],
         )
         if row["is_production"]:
             production_bundle = row["name"]
         if row["is_staging"]:
             staging_bundle = row["name"]
+
+        if not archived and bundle.is_archived:
+            continue
+
         result.append(bundle)
 
     return ListBundleModel(
@@ -107,7 +116,9 @@ async def list_bundles() -> ListBundleModel:
 
 
 async def create_bundle(
-    bundle: BundleModel, user: UserEntity | None = None, sender: str | None = None
+    bundle: BundleModel,
+    user: UserEntity | None = None,
+    sender: str | None = None,
 ):
     try:
         async with Postgres.acquire() as conn:
@@ -128,6 +139,10 @@ async def create_bundle(
                 data.pop("created_at", None)
                 data.pop("is_production", None)
                 data.pop("is_staging", None)
+                data.pop("is_archived", None)
+
+                # we ignore is_archived. it does not make sense to create
+                # an archived bundle
 
                 await conn.execute(
                     query,
@@ -182,6 +197,12 @@ async def patch_bundle(
     bundle_name: str,
     bundle: BundlePatchModel,
     user: CurrentUser,
+    build: list[Platform]
+    | None = Query(
+        None,
+        title="Request build",
+        description="Build dependency packages for selected platforms",
+    ),
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     if not user.is_admin:
@@ -202,6 +223,7 @@ async def patch_bundle(
                 created_at=row["created_at"],
                 is_production=row["is_production"],
                 is_staging=row["is_staging"],
+                is_archived=row["is_archived"],
             )
             dep_packages = orig_bundle.dependency_packages.copy()
             for key, value in bundle.dependency_packages.items():
@@ -211,6 +233,13 @@ async def patch_bundle(
                     dep_packages[key] = value
 
             orig_bundle.dependency_packages = dep_packages
+
+            if bundle.is_archived:
+                bundle.is_production = False
+                bundle.is_staging = False
+                orig_bundle.is_archived = True
+            elif bundle.is_archived is False:
+                orig_bundle.is_archived = False
 
             if bundle.is_production is not None:
                 orig_bundle.is_production = bundle.is_production
@@ -226,16 +255,18 @@ async def patch_bundle(
             data.pop("created_at", None)
             data.pop("is_production", None)
             data.pop("is_staging", None)
+            data.pop("is_archived", None)
 
             await conn.execute(
                 """
                 UPDATE bundles
-                SET data = $1, is_production = $2, is_staging = $3
-                WHERE name = $4
+                SET data = $1, is_production = $2, is_staging = $3, is_archived = $4
+                WHERE name = $5
                 """,
                 data,
                 orig_bundle.is_production,
                 orig_bundle.is_staging,
+                orig_bundle.is_archived,
                 bundle_name,
             )
 
@@ -248,9 +279,15 @@ async def patch_bundle(
             "name": bundle_name,
             "isProduction": bundle.is_production,
             "isStaging": bundle.is_staging,
+            "isArchived": bundle.is_archived,
         },
         payload=data,
     )
+
+    if build:
+        # TODO
+        pass
+
     return EmptyResponse(status_code=204)
 
 
@@ -355,7 +392,11 @@ async def bundle_actions(
                 created_at=row["created_at"],
                 is_production=row["is_production"],
                 is_staging=row["is_staging"],
+                is_archived=row["is_archived"],
             )
+
+            if bundle.is_archived:
+                raise BadRequestException("Archived bundles cannot be modified")
 
             if action.action == "promote":
                 return await promote_bundle(bundle, user, conn)
