@@ -1,6 +1,7 @@
 from typing import Any, Literal
 
 from fastapi import Query
+from nxtools import logging
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
@@ -96,7 +97,13 @@ async def get_all_settings(
         if addon_version is None:
             continue
 
-        addon = AddonLibrary.addon(addon_name, addon_version)
+        try:
+            addon = AddonLibrary.addon(addon_name, addon_version)
+        except NotFoundException:
+            logging.warning(
+                f"Addon {addon_name} {addon_version} "
+                f"declared in {bundle_name} not found"
+            )
 
         # Determine which scopes addon has settings for
 
