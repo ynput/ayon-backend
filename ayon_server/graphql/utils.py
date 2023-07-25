@@ -33,6 +33,8 @@ def parse_attrib_data(
         attr_limit = []  # This shouldn't happen
     elif perms.attrib_read.enabled:
         attr_limit = perms.attrib_read.attributes
+    else:
+        attr_limit = "all"
 
     data = own_attrib or {}
     if inherited_attrib is not None:
