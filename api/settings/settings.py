@@ -105,6 +105,17 @@ async def get_all_settings(
                 f"declared in {bundle_name} not found"
             )
 
+            addon_result.append(
+                AddonSettingsItemModel(
+                    name=addon_name,
+                    title=addon_name,
+                    version=addon_version,
+                    settings={},
+                    site_settings=None,
+                )
+            )
+            continue
+
         # Determine which scopes addon has settings for
 
         model = addon.get_settings_model()
