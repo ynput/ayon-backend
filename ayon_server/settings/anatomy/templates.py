@@ -79,7 +79,7 @@ class Templates(BaseSettingsModel):
             WorkTemplate(
                 name="unreal",
                 directory="{root[work]}/{project[name]}/unreal/{task[name]}",
-                file="{project[code]}_{asset}.{ext}",
+                file="{project[code]}_{folder[name]}.{ext}",
             ),
         ],
         title="Work",
@@ -90,17 +90,17 @@ class Templates(BaseSettingsModel):
         default_factory=lambda: [
             PublishTemplate(
                 name="default",
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{product[type]}/{product[name]}/{@version}",
-                file="{project[code]}_{asset}_{product[name]}_{@version}<_{output}><.{@frame}><_{udim}>.{ext}",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{product[name]}/{@version}",
+                file="{project[code]}_{folder[name]}_{product[name]}_{@version}<_{output}><.{@frame}><_{udim}>.{ext}",
             ),
             PublishTemplate(
                 name="render",
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{product[type]}/{product[name]}/{@version}",
-                file="{project[code]}_{asset}_{product[name]}_{@version}<_{output}><.{@frame}>.{ext}",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{product[name]}/{@version}",
+                file="{project[code]}_{folder[name]}_{product[name]}_{@version}<_{output}><.{@frame}>.{ext}",
             ),
             PublishTemplate(
                 name="online",
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{product[type]}/{product[name]}/{@version}",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{product[name]}/{@version}",
                 file="{originalBasename}<.{@frame}><_{udim}>.{ext}",
             ),
             PublishTemplate(
@@ -110,17 +110,17 @@ class Templates(BaseSettingsModel):
             ),
             PublishTemplate(
                 name="maya2unreal",
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{product[type]}",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}",
                 file="{product[name]}_{@version}<_{output}><.{@frame}>.{ext}",
             ),
             PublishTemplate(
                 name="simpleUnrealTextureHero",
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{product[type]}/hero",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/hero",
                 file="{originalBasename}.{ext}",
             ),
             PublishTemplate(
                 name="simpleUnrealTexture",
-                directory="{root[work]}/{project[name]}/{hierarchy}/{asset}/publish/{product[type]}/{@version}",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{@version}",
                 file="{originalBasename}_{@version}.{ext}",
             ),
         ],
