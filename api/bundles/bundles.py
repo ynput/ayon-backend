@@ -227,7 +227,7 @@ async def patch_bundle(
             )
             dep_packages = orig_bundle.dependency_packages.copy()
             for key, value in bundle.dependency_packages.items():
-                if bundle.dependency_packages is None:
+                if value is None:
                     dep_packages.pop(key, None)
                 elif type(value) is str:
                     dep_packages[key] = value
