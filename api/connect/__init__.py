@@ -2,6 +2,7 @@ import httpx
 from fastapi import APIRouter
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -14,6 +15,9 @@ router = APIRouter(
 
 @router.get("")
 async def get_ynput_connect_info(user: CurrentUser):
+    """
+    Check whether the Ynput connect key is set and return the Ynput connect info
+    """
     res = await Postgres.fetch(
         """
         SELECT value FROM secrets
@@ -27,6 +31,7 @@ async def get_ynput_connect_info(user: CurrentUser):
     key = res[0]["value"]
 
     # TODO: handle errors
+    # TODO: cache this
     async with httpx.AsyncClient() as client:
         res = await client.get(f"https://auth.ayon.cloud/info?key={key}")
 
@@ -38,7 +43,9 @@ class YnputConnectRequestModel(OPModel):
 
 
 @router.post("")
-async def set_ynput_connect_key(request: YnputConnectRequestModel, user: CurrentUser):
+async def set_ynput_connect_key(
+    request: YnputConnectRequestModel, user: CurrentUser
+) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can set the Ynput connect key")
 
@@ -51,11 +58,11 @@ async def set_ynput_connect_key(request: YnputConnectRequestModel, user: Current
         request.key,
     )
 
-    return {"success": True}
+    return EmptyResponse()
 
 
 @router.delete("")
-async def delete_ynput_connect_key(user: CurrentUser):
+async def delete_ynput_connect_key(user: CurrentUser) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can set the Ynput connect key")
     await Postgres.execute(
@@ -65,4 +72,4 @@ async def delete_ynput_connect_key(user: CurrentUser):
         """
     )
 
-    return {"success": True}
+    return EmptyResponse()
