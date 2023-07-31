@@ -1,18 +1,22 @@
+import hashlib
 import os
 from typing import Optional
 
 import aiofiles
-from fastapi import Path, Request, Response
+from fastapi import Path, Query, Request, Response
 from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import (
     AyonException,
     ConflictException,
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.installer import background_installer
+from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .common import (
@@ -111,6 +115,8 @@ async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
 async def create_dependency_package(
     payload: DependencyPackageManifest,
     user: CurrentUser,
+    url: str | None = Query(None, title="URL to the addon zip file"),
+    overwrite: bool = Query(False, title="Overwrite existing package"),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can save dependency packages.")
@@ -120,7 +126,10 @@ async def create_dependency_package(
     except Exception:
         pass
     else:
-        raise ConflictException(f"Dependency package {payload.filename} already exists")
+        if not overwrite:
+            raise ConflictException(
+                f"Dependency package {payload.filename} already exists"
+            )
 
     _ = get_desktop_dir("dependency_packages", for_writing=True)
 
@@ -133,6 +142,44 @@ async def create_dependency_package(
             for addon in addons_to_delete:
                 del payload.source_addons[addon]
         await f.write(payload.json(exclude_none=True))
+
+    if url:
+        hash = hashlib.sha256(f"dep_pkg_install_{url}".encode("utf-8")).hexdigest()
+
+        query = """
+            SELECT id FROM events
+            WHERE topic = 'dependency_package.install_from_url'
+            AND hash = $1
+        """
+
+        res = await Postgres.fetch(query, hash)
+        if res:
+            event_id = res[0]["id"]
+            await update_event(
+                event_id,
+                description="Reinstalling dependency package from URL",
+                summary={"url": url},
+                status="pending",
+                retries=0,
+            )
+        else:
+            event_id = await dispatch_event(
+                "dependency_package.install_from_url",
+                hash=hash,
+                description="Installing dependency_package from URL",
+                summary={"url": url},
+                user=user.name,
+                finished=False,
+            )
+
+        # background_tasks.add_task(
+        #     install_addon_from_url,
+        #     event_id,
+        #     url,
+        # )
+
+        await background_installer.enqueue(event_id)
+
     return EmptyResponse(status_code=201)
 
 
