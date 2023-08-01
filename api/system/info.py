@@ -1,4 +1,5 @@
 import contextlib
+import os
 import time
 from urllib.parse import urlparse
 
@@ -26,6 +27,19 @@ def get_uptime():
     return time.time() - BOOT_TIME
 
 
+if os.path.isfile("BUILD_DATE"):
+    BUILD_DATE = open("BUILD_DATE").read().strip()
+else:
+    BUILD_DATE = None
+
+
+def get_version():
+    version = __version__
+    if BUILD_DATE:
+        version += f"+{BUILD_DATE}"
+    return version
+
+
 class InfoResponseModel(OPModel):
     motd: str | None = Field(
         ayonconfig.motd,
@@ -44,7 +58,7 @@ class InfoResponseModel(OPModel):
         description="URL of the brand logo for the login page",
     )
     version: str = Field(
-        __version__,
+        default_factory=get_version,
         title="Ayon version",
         description="Version of the Ayon API",
     )
