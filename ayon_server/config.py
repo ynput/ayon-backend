@@ -98,6 +98,11 @@ class AyonConfig(BaseModel):
         description="Path to the GeoIP database",
     )
 
+    force_create_admin: bool = Field(
+        default=False,
+        description="Ensure creation of admin user on first run",
+    )
+
     audit_trail: bool = Field(
         default=True,
         description="Enable audit trail",

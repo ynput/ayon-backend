@@ -67,10 +67,23 @@ class InfoResponseModel(OPModel):
         title="Uptime",
         description="Time (seconds) since the server was started",
     )
+    no_admin_user: bool = Field(
+        False,
+        title="No admin user",
+        description="No admin user exists, display 'Create admin user' form",
+    )
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
     sites: list[SiteInfo] = Field(default_factory=list, title="List of sites")
     sso_options: list[SSOOption] = Field(default_factory=list, title="SSO options")
+
+
+async def admin_exists() -> bool:
+    async for row in Postgres.iterate(
+        "SELECT name FROM users WHERE data->>'isAdmin' = 'true'"
+    ):
+        return True
+    return False
 
 
 async def get_sso_options(request: Request) -> list[SSOOption]:
@@ -176,6 +189,10 @@ async def get_site_info(
         additional_info = await get_additional_info(current_user, request)
     else:
         sso_options = await get_sso_options(request)
-        additional_info = {"sso_options": sso_options}
+        has_admin_user = await admin_exists()
+        additional_info = {
+            "sso_options": sso_options,
+            "no_admin_user": not has_admin_user,
+        }
     user_payload = current_user.payload if (current_user is not None) else None
     return InfoResponseModel(user=user_payload, **additional_info)
