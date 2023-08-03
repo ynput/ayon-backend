@@ -8,6 +8,7 @@ from fastapi import Request
 from starlette.responses import FileResponse
 
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
+from ayon_server.installer.common import get_desktop_dir
 from ayon_server.types import Field, OPModel, Platform
 
 
@@ -16,24 +17,6 @@ def md5sum(path: str) -> str:
 
     with open(path, "rb") as f:
         return hashlib.md5(f.read()).hexdigest()
-
-
-def get_desktop_dir(*args, for_writing: bool = True) -> str:
-    """Get path to desktop directory.
-    If the directory does not exist, create it.
-    args: path to the directory relative to the desktop directory
-    """
-
-    # TODO: Make this configurable
-    root = "/storage/desktop"
-    directory = os.path.join(root, *args)
-    if not os.path.isdir(directory):
-        if for_writing:
-            try:
-                os.makedirs(directory)
-            except Exception as e:
-                raise AyonException(f"Failed to create desktop directory: {e}")
-    return directory
 
 
 def get_desktop_file_path(*args, for_writing: bool = False) -> str:

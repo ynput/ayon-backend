@@ -25,6 +25,7 @@ from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import AyonException, UnauthorizedException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.helpers.thumbnail_cleaner import thumbnail_cleaner
+from ayon_server.installer import background_installer
 from ayon_server.lib.postgres import Postgres
 
 # This needs to be imported first!
@@ -384,6 +385,7 @@ async def startup_event() -> None:
     log_collector.start()
     messaging.start()
     thumbnail_cleaner.start()
+    background_installer.start()
 
     logging.info("Setting up addons")
     start_event = await dispatch_event("server.started", finished=False)
@@ -431,6 +433,7 @@ async def shutdown_event() -> None:
     """Shutdown event."""
     logging.info("Server is shutting down")
 
+    await background_installer.shutdown()
     await log_collector.shutdown()
     await thumbnail_cleaner.shutdown()
     await messaging.shutdown()
