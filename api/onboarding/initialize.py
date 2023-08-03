@@ -1,6 +1,3 @@
-# DEPRECATED! Remove
-# Moved to api/onboarding/initialize.py
-
 from fastapi import Request
 
 from ayon_server.auth.models import LoginResponseModel

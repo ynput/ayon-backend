@@ -67,10 +67,14 @@ class InfoResponseModel(OPModel):
         title="Uptime",
         description="Time (seconds) since the server was started",
     )
-    no_admin_user: bool = Field(
-        False,
+    no_admin_user: bool | None = Field(
+        None,
         title="No admin user",
         description="No admin user exists, display 'Create admin user' form",
+    )
+    onboarding: bool | None = Field(
+        None,
+        title="Onboarding",
     )
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
@@ -187,6 +191,14 @@ async def get_site_info(
     additional_info = {}
     if current_user:
         additional_info = await get_additional_info(current_user, request)
+
+        if current_user.is_admin:
+            res = await Postgres.fetch(
+                """SELECT * FROM config where key = 'onboardingFinished'"""
+            )
+            if not res:
+                additional_info["onboarding"] = True
+
     else:
         sso_options = await get_sso_options(request)
         has_admin_user = await admin_exists()
