@@ -59,6 +59,21 @@ class BaseServerAddon:
         """
         pass
 
+    def pre_setup(self) -> None:
+        """Pre-Setup the addon.
+
+        This method is called when all addons are initialized.
+        Add code which needs to access other addons here.
+
+        This method may be async if needed (for example when)
+        it needs to access the database.
+
+        it is the same as setup, but allows two step setup.
+        first pre_setup is called for all addons, then setup is called
+        for all addons.
+        """
+        return None
+
     def setup(self) -> None:
         """Setup the addon.
 

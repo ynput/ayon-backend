@@ -403,6 +403,20 @@ async def startup_event() -> None:
     restart_requested = False
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
+            if inspect.iscoroutinefunction(version.pre_setup):
+                # Since setup may, but does not have to be async, we need to
+                # silence mypy here.
+                await version.pre_setup()  # type: ignore
+            else:
+                version.pre_setup()
+            if (not restart_requested) and version.restart_requested:
+                logging.warning(
+                    f"Restart requested during addon {addon_name} pre-setup."
+                )
+                restart_requested = True
+
+    for addon_name, addon in addon_records:
+        for version in addon.versions.values():
             if inspect.iscoroutinefunction(version.setup):
                 # Since setup may, but does not have to be async, we need to
                 # silence mypy here.

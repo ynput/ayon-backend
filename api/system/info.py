@@ -27,6 +27,7 @@ def get_uptime():
     return time.time() - BOOT_TIME
 
 
+BUILD_DATE: str | None
 if os.path.isfile("BUILD_DATE"):
     BUILD_DATE = open("BUILD_DATE").read().strip()
 else:
