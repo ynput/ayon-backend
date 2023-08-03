@@ -1,3 +1,8 @@
+CREATE TABLE IF NOT EXISTS public.config(
+  key VARCHAR NOT NULL PRIMARY KEY,
+  value JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
 -- Projects
 
 CREATE TABLE IF NOT EXISTS public.projects(
