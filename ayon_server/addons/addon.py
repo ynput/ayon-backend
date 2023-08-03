@@ -79,6 +79,7 @@ class BaseServerAddon:
         If called from setup the server will restart after all addons are
         setup.
         """
+        logging.info(f"Addon {self.name}:{self.version} requested server restart")
         self.restart_requested = True
 
     def add_endpoint(
