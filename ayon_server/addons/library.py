@@ -133,3 +133,14 @@ class AddonLibrary:
         if staging_version is None:
             return None
         return self[addon_name][staging_version]
+
+    def unload_addon(self, addon_name: str, addon_version: str) -> None:
+        definition = self.data.get(addon_name)
+        if definition is None:
+            return
+        logging.info("Unloading addon", addon_name, addon_version)
+        definition.unload_version(addon_version)
+
+        if not definition._versions:
+            logging.info("Unloading addon", addon_name)
+            del self.data[addon_name]

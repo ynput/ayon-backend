@@ -101,3 +101,12 @@ class ServerAddonDefinition:
 
     def __getitem__(self, item) -> BaseServerAddon:
         return self.versions[item]
+
+    def get(self, item, default=None) -> BaseServerAddon | None:
+        return self.versions.get(item, default)
+
+    def unload_version(self, version: str) -> None:
+        """Unload the given version of the addon."""
+        if version not in self.versions:
+            return None
+        del self._versions[version]

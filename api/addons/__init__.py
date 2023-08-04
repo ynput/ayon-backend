@@ -1,8 +1,7 @@
 from typing import Any, Literal
 
-from fastapi import APIRouter, Query, Request, Response
-from fastapi.routing import APIRoute
-from nxtools import logging, slugify
+from fastapi import Query, Request, Response
+from nxtools import logging
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import SourceInfo
@@ -22,52 +21,6 @@ assert install
 assert site_settings
 assert studio_settings
 assert project_settings
-
-
-def register_addon_endpoints():
-    """Register all addons endpoints in the router."""
-
-    library = AddonLibrary.getinstance()
-    for addon_name, addon_definition in library.items():
-        for version in addon_definition.versions:
-            addon = addon_definition.versions[version]
-            addon_router = APIRouter(
-                prefix=f"/{addon_name}/{version}",
-                tags=[f"{addon_definition.friendly_name} {version}"],
-            )
-
-            # TODO: add a condition to check if the addon REST API is enabled
-            # We should discuss where the information about the addon is stored
-            # and how to enable/disable it. It doesn't make sense to have
-            # it in the database, because when this function is called,
-            # database is not yet initialized (and we want to avoid the async madness)
-            # Maybe each Addon versionshould have an attribute to enable/disable it?
-
-            for endpoint in addon.endpoints:
-                path = endpoint["path"].lstrip("/")
-                first_element = path.split("/")[0]
-                # TODO: site settings? other routes?
-                if first_element in ["settings", "schema", "overrides"]:
-                    logging.error(f"Unable to assing path to endpoint: {path}")
-                    continue
-
-                addon_router.add_api_route(
-                    f"/{path}",
-                    endpoint["handler"],
-                    methods=[endpoint["method"]],
-                    name=endpoint["name"],
-                )
-            for route in addon_router.routes:
-                if isinstance(route, APIRoute):
-                    route.has_own_op_id = True
-                    route.operation_id = slugify(
-                        f"{addon_name}_{version}_{route.name}",
-                        separator="_",
-                    )
-            router.include_router(addon_router)
-
-
-register_addon_endpoints()
 
 
 class VersionInfo(OPModel):

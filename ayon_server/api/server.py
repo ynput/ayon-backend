@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 
 # from fastapi.middleware.cors import CORSMiddleware
-from nxtools import log_traceback, logging
+from nxtools import log_traceback, logging, slugify
 
 from ayon_server.access.roles import Roles
 from ayon_server.addons import AddonLibrary
@@ -307,7 +307,33 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
                 route.operation_id = route.name
 
 
-def init_addons(target_app: fastapi.FastAPI) -> None:
+def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
+    library = AddonLibrary.getinstance()
+    for addon_name, addon_definition in library.items():
+        for version in addon_definition.versions:
+            addon = addon_definition.versions[version]
+            for endpoint in addon.endpoints:
+                path = endpoint["path"].lstrip("/")
+                first_element = path.split("/")[0]
+                # TODO: site settings? other routes?
+                if first_element in ["settings", "schema", "overrides"]:
+                    logging.error(f"Unable to assing path to endpoint: {path}")
+                    continue
+
+                target_app.add_api_route(
+                    f"/api/addons/{addon_name}/{version}/{path}",
+                    endpoint["handler"],
+                    methods=[endpoint["method"]],
+                    name=endpoint["name"],
+                    tags=[f"{addon_definition.friendly_name} {version}"],
+                    operation_id=slugify(
+                        f"{addon_name}_{version}_{endpoint['name']}",
+                        separator="_",
+                    ),
+                )
+
+
+def init_addon_static(target_app: fastapi.FastAPI) -> None:
     """Serve static files for addon frontends."""
     for addon_name, addon_definition in AddonLibrary.items():
         for version in addon_definition.versions:
@@ -344,7 +370,8 @@ if os.path.isdir("/storage/static"):  # TODO: Make this configurable
 
 
 init_api(app, ayonconfig.api_modules_dir)
-init_addons(app)
+# Addon static dirs must stay exactly here
+init_addon_static(app)
 init_frontend(app, ayonconfig.frontend_dir)
 
 
@@ -401,45 +428,61 @@ async def startup_event() -> None:
         return
 
     restart_requested = False
+    bad_addons = []
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
-            if inspect.iscoroutinefunction(version.pre_setup):
-                # Since setup may, but does not have to be async, we need to
-                # silence mypy here.
-                await version.pre_setup()  # type: ignore
-            else:
-                version.pre_setup()
-            if (not restart_requested) and version.restart_requested:
-                logging.warning(
-                    f"Restart requested during addon {addon_name} pre-setup."
-                )
-                restart_requested = True
+            try:
+                if inspect.iscoroutinefunction(version.pre_setup):
+                    # Since setup may, but does not have to be async, we need to
+                    # silence mypy here.
+                    await version.pre_setup()  # type: ignore
+                else:
+                    version.pre_setup()
+                if (not restart_requested) and version.restart_requested:
+                    logging.warning(
+                        f"Restart requested during addon {addon_name} pre-setup."
+                    )
+                    restart_requested = True
+            except Exception:
+                log_traceback(f"Error during {addon_name} {version.version} pre-setup")
+                bad_addons.append((addon_name, version.version))
 
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
-            if inspect.iscoroutinefunction(version.setup):
-                # Since setup may, but does not have to be async, we need to
-                # silence mypy here.
-                await version.setup()  # type: ignore
-            else:
-                version.setup()
-            if (not restart_requested) and version.restart_requested:
-                logging.warning(f"Restart requested during addon {addon_name} setup.")
-                restart_requested = True
+            try:
+                if inspect.iscoroutinefunction(version.setup):
+                    await version.setup()
+                else:
+                    version.setup()
+                if (not restart_requested) and version.restart_requested:
+                    logging.warning(
+                        f"Restart requested during addon {addon_name} setup."
+                    )
+                    restart_requested = True
+            except Exception:
+                log_traceback(f"Error during {addon_name} {version.version} setup")
+                bad_addons.append((addon_name, version.version))
+
+    for _addon_name, _addon_version in bad_addons:
+        logging.error(
+            f"Addon {_addon_name} {_addon_version} failed to initialize. Unloading."
+        )
+        library.unload_addon(_addon_name, _addon_version)
 
     if restart_requested:
         await dispatch_event(
             "server.restart_requested",
             description="Server restart requested during addon setup",
         )
-
-    if start_event is not None:
-        await update_event(
-            start_event,
-            status="finished",
-            description="Server started",
-        )
-    logging.goodnews("Server is now ready to connect")
+    else:
+        init_addon_endpoints(app)
+        if start_event is not None:
+            await update_event(
+                start_event,
+                status="finished",
+                description="Server started",
+            )
+        logging.goodnews("Server is now ready to connect")
 
 
 @app.on_event("shutdown")
