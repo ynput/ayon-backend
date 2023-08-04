@@ -27,17 +27,25 @@ def get_uptime():
     return time.time() - BOOT_TIME
 
 
-BUILD_DATE: str | None
-if os.path.isfile("BUILD_DATE"):
-    BUILD_DATE = open("BUILD_DATE").read().strip()
-else:
-    BUILD_DATE = None
+def get_build_date() -> str | None:
+    """
+    Get the build date from the BUILD_DATE file
+    This file is created when building the docker image.
+    """
+    if os.path.isfile("BUILD_DATE"):
+        return open("BUILD_DATE").read().strip()
+    return None
 
 
 def get_version():
+    """
+    Get the version of the Ayon API
+    If the BUILD_DATE file exists, append the build date to the version
+    """
     version = __version__
-    if BUILD_DATE:
-        version += f"+{BUILD_DATE}"
+    build_date = get_build_date()
+    if build_date:
+        version += f"+{build_date}"
     return version
 
 

@@ -11,6 +11,10 @@ from .router import router
 
 
 class InitializeRequestModel(OPModel):
+    # Admin prefix in the field names allows
+    # extending this model with more fields
+    # such as basic backend configuration in the future
+
     admin_name: str = Field(
         ...,
         title="User name",
@@ -49,7 +53,16 @@ async def create_first_admin(
     request: Request,
     payload: InitializeRequestModel,
 ) -> LoginResponseModel:
-    """Create the first user and log in."""
+    """Create the first user and log in.
+
+    When Ayon is started for the first time, there is no admin user.
+    in that case `/api/system/info` contains `{"noAdmin_user": true}`.
+
+    The frontend will display a form to create the first admin user.
+    using this endpoint. It will also log in the user and return the same
+    response as `/api/auth/login`, so the frontend can continue in
+    logged-in mode.
+    """
 
     if await admin_exists():
         raise UnauthorizedException("Admin already initialized")
