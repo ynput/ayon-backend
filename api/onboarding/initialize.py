@@ -75,7 +75,7 @@ async def create_first_admin(
                 "fullName": payload.admin_full_name,
             },
             "data": {
-                "isAdmin": "true",
+                "isAdmin": True,
             },
         }
     )
