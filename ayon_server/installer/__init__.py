@@ -23,7 +23,7 @@ class TooManyRetries(Exception):
 
 class BackgroundInstaller(BackgroundTask):
     def initialize(self):
-        self.event_queue = asyncio.Queue()
+        self.event_queue: asyncio.Queue[str] = asyncio.Queue()
 
     async def enqueue(self, event_id: str):
         logging.debug(f"Background installer: enquing event {event_id}")
