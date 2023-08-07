@@ -320,8 +320,10 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
                     logging.error(f"Unable to assing path to endpoint: {path}")
                     continue
 
+                path = f"/api/addons/{addon_name}/{version}/{path}"
+                logging.info(f"Adding endpoint {path}")
                 target_app.add_api_route(
-                    f"/api/addons/{addon_name}/{version}/{path}",
+                    path,
                     endpoint["handler"],
                     methods=[endpoint["method"]],
                     name=endpoint["name"],
@@ -368,12 +370,10 @@ def init_frontend(target_app: fastapi.FastAPI, frontend_dir: str) -> None:
 if os.path.isdir("/storage/static"):  # TODO: Make this configurable
     app.mount("/static", StaticFiles(directory="/storage/static"), name="static")
 
-
+# API must be initialized here
+# Because addons, which are initialized later
+# may need access to classes initialized from the API (such as Attributes)
 init_api(app, ayonconfig.api_modules_dir)
-# Addon static dirs must stay exactly here
-init_addon_static(app)
-init_frontend(app, ayonconfig.frontend_dir)
-
 
 #
 # Start up
@@ -397,6 +397,8 @@ async def startup_event() -> None:
 
     retry_interval = 5
 
+    # Connect to the database
+
     while True:
         try:
             await Postgres.connect()
@@ -409,12 +411,16 @@ async def startup_event() -> None:
             break
 
     await Roles.load()
+
+    # Start background tasks
+
     log_collector.start()
     messaging.start()
     thumbnail_cleaner.start()
     background_installer.start()
 
-    logging.info("Setting up addons")
+    # Initialize addons
+
     start_event = await dispatch_event("server.started", finished=False)
 
     library = AddonLibrary.getinstance()
@@ -475,7 +481,15 @@ async def startup_event() -> None:
             description="Server restart requested during addon setup",
         )
     else:
+        # Initialize endpoints for active addons
         init_addon_endpoints(app)
+
+        # Addon static dirs must stay exactly here
+        init_addon_static(app)
+
+        # Frontend must be initialized last (since it is mounted to /)
+        init_frontend(app, ayonconfig.frontend_dir)
+
         if start_event is not None:
             await update_event(
                 start_event,
