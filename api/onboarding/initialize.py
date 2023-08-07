@@ -4,7 +4,7 @@ from ayon_server.auth.models import LoginResponseModel
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import UnauthorizedException
-from ayon_server.lib.postgres import Postgres
+from ayon_server.helpers.setup import admin_exists
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -38,14 +38,6 @@ class InitializeRequestModel(OPModel):
         title="Administrator email",
         example="admin@example.com",
     )
-
-
-async def admin_exists() -> bool:
-    async for row in Postgres.iterate(
-        "SELECT name FROM users WHERE data->>'isAdmin' = 'true'"
-    ):
-        return True
-    return False
 
 
 @router.post("/initialize")

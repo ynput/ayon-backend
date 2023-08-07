@@ -108,6 +108,8 @@ class AyonConfig(BaseModel):
         description="Enable audit trail",
     )
 
+    ynput_connect_url: str | None = Field("https://auth.ayon.cloud")
+
 
 #
 # Load configuration from environment variables

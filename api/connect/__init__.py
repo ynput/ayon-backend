@@ -1,9 +1,12 @@
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
+from fastapi.responses import RedirectResponse
 
 from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.config import ayonconfig
 from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.helpers.setup import admin_exists
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
@@ -11,14 +14,6 @@ router = APIRouter(
     prefix="/connect",
     tags=["YnputConnect"],
 )
-
-
-async def admin_exists() -> bool:
-    async for row in Postgres.iterate(
-        "SELECT name FROM users WHERE data->>'isAdmin' = 'true'"
-    ):
-        return True
-    return False
 
 
 @router.get("")
@@ -41,7 +36,7 @@ async def get_ynput_connect_info(user: CurrentUser):
     # TODO: handle errors
     # TODO: cache this
     async with httpx.AsyncClient() as client:
-        res = await client.get(f"https://auth.ayon.cloud/info?key={key}")
+        res = await client.get(f"{ayonconfig.ynput_connect_url}/api/info?key={key}")
 
     return res.json()
 
@@ -53,6 +48,14 @@ class YnputConnectRequestModel(OPModel):
 class YnputConnectResponseModel(OPModel):
     user_name: str = Field(..., description="User name")
     user_email: str = Field(..., description="User email")
+
+
+@router.get("/authorize")
+async def authorize_ynput_connect(origin_url: str = Query(...)):
+    """Redirect to Ynput connect authorization page"""
+    return RedirectResponse(
+        f"{ayonconfig.ynput_connect_url}/api/login?origin_url={origin_url}"
+    )
 
 
 @router.post("")
@@ -68,7 +71,9 @@ async def set_ynput_connect_key(
             raise ForbiddenException("Connecting to Ynput is allowed only on first run")
 
     async with httpx.AsyncClient() as client:
-        res = await client.get(f"https://auth.ayon.cloud/info?key={request.key}")
+        res = await client.get(
+            f"{ayonconfig.ynput_connect_url}/api/info?key={request.key}"
+        )
         if res.status_code != 200:
             raise ForbiddenException("Invalid Ynput connect key")
         data = res.json()
