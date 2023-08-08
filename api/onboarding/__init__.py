@@ -1,6 +1,7 @@
 __all__ = ["router"]
 
-from . import initialize
+from . import initialize, release
 from .router import router
 
 assert initialize
+assert release

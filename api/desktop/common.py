@@ -1,7 +1,7 @@
 import hashlib
 import json
 import os
-from typing import Any, Generator, Literal
+from typing import Any, Generator
 
 import aiofiles
 from fastapi import Request
@@ -9,7 +9,6 @@ from starlette.responses import FileResponse
 
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.installer.common import get_desktop_dir
-from ayon_server.types import Field, OPModel, Platform
 
 
 def md5sum(path: str) -> str:
@@ -99,47 +98,3 @@ async def handle_download(
         media_type=media_type,
         filename=filename,
     )
-
-
-class SourceModel(OPModel):
-    # For type=server, we do not use absolute url, because base server url can
-    # be different for different users. Instead, we provide just the information
-    # the source is availabe and the client can construct the url from the
-    # filename attribute of BasePackageModel
-    # e.g. http://server/api/desktop/{installers|dependency_packages}/{filename}
-
-    type: Literal["server", "url"] = Field(
-        ...,
-        title="Source type",
-        description="If set to server, the file is stored on the server. "
-        "If set to url, the file is downloaded from the specified URL.",
-        example="url",
-    )
-    url: str | None = Field(
-        None,
-        title="Download URL",
-        description="URL to download the file from. Only used if type is url",
-        example="https://example.com/file.zip",
-    )
-
-
-SOURCES_META = Field(
-    default_factory=list,
-    title="Sources",
-    description="List of sources to download the file from. "
-    "Server source is added automatically by the server if the file is uploaded.",
-    example=[{"type": "url"}],
-)
-
-
-class BasePackageModel(OPModel):
-    filename: str
-    platform: Platform
-    size: int | None = None
-    checksum: str | None = None
-    checksum_algorithm: Literal["md5", "sha1", "sha256"] | None = None
-    sources: list[SourceModel] = SOURCES_META
-
-
-class SourcesPatchModel(OPModel):
-    sources: list[SourceModel] = SOURCES_META

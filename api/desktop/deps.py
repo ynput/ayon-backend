@@ -1,6 +1,5 @@
 import hashlib
 import os
-from typing import Optional
 
 import aiofiles
 from fastapi import Path, Query, Request, Response
@@ -16,13 +15,15 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.installer import background_installer
+from ayon_server.installer.models import (
+    DependencyPackageManifest,
+    SourceModel,
+    SourcesPatchModel,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .common import (
-    BasePackageModel,
-    SourceModel,
-    SourcesPatchModel,
     get_desktop_dir,
     get_desktop_file_path,
     handle_download,
@@ -33,26 +34,7 @@ from .common import (
 from .router import router
 
 
-class DependencyPackageManifest(BasePackageModel):
-    installer_version: str = Field(
-        ...,
-        title="Installer version",
-        description="Version of the Ayon installer this package is created with",
-        example="1.2.3",
-    )
-    source_addons: dict[str, Optional[str]] = Field(
-        default_factory=dict,
-        title="Source addons",
-        description="mapping of addon_name:addon_version used to create the package",
-        example={"ftrack": "1.2.3", "maya": "2.4"},
-    )
-    python_modules: dict[str, str] = Field(
-        default_factory=dict,
-        title="Python modules",
-        description="mapping of module_name:module_version used to create the package",
-        example={"requests": "2.25.1", "pydantic": "1.8.2"},
-    )
-
+class DependencyPackage(DependencyPackageManifest):
     @property
     def local_file_path(self) -> str:
         return get_desktop_file_path("dependency_packages", self.filename)
@@ -67,7 +49,7 @@ class DependencyPackageManifest(BasePackageModel):
 
 
 class DependencyPackageList(OPModel):
-    packages: list[DependencyPackageManifest] = Field(default_factory=list)
+    packages: list[DependencyPackage] = Field(default_factory=list)
 
 
 #
@@ -75,16 +57,17 @@ class DependencyPackageList(OPModel):
 #
 
 
-def get_manifest(filename: str) -> DependencyPackageManifest:
+def get_manifest(filename: str) -> DependencyPackage:
     try:
         manifest_data = load_json_file("dependency_packages", f"{filename}.json")
-        manifest = DependencyPackageManifest(**manifest_data)
+        manifest = DependencyPackage(**manifest_data)
     except FileNotFoundError:
         raise NotFoundException(f"Dependency package manifest {filename} not found")
     except ValueError:
         raise AyonException(f"Failed to load dependency package manifest {filename}")
     if manifest.has_local_file:
-        manifest.sources.append(SourceModel(type="server"))
+        if "server" not in [s.type for s in manifest.sources]:
+            manifest.sources.append(SourceModel(type="server"))
     return manifest
 
 
@@ -93,7 +76,7 @@ def get_manifest(filename: str) -> DependencyPackageManifest:
 async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
     """Return a list of dependency packages"""
 
-    result: list[DependencyPackageManifest] = []
+    result: list[DependencyPackage] = []
     for filename in iter_names("dependency_packages"):
         try:
             manifest = get_manifest(filename)
@@ -113,7 +96,7 @@ async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
 
 @router.post("/dependency_packages", status_code=201)
 async def create_dependency_package(
-    payload: DependencyPackageManifest,
+    payload: DependencyPackage,
     user: CurrentUser,
     url: str | None = Query(None, title="URL to the addon zip file"),
     overwrite: bool = Query(False, title="Overwrite existing package"),

@@ -1,4 +1,6 @@
+import hashlib
 import os
+from typing import Literal
 
 import aiofiles
 from fastapi import Query, Request
@@ -6,18 +8,23 @@ from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import (
     AyonException,
     ConflictException,
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.installer import background_installer
+from ayon_server.installer.models import (
+    InstallerManifest,
+    SourceModel,
+    SourcesPatchModel,
+)
+from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, Platform
 
 from .common import (
-    BasePackageModel,
-    SourceModel,
-    SourcesPatchModel,
     get_desktop_dir,
     get_desktop_file_path,
     handle_download,
@@ -32,32 +39,7 @@ from .router import router
 #
 
 
-class InstallerManifest(BasePackageModel):
-    version: str = Field(
-        ...,
-        title="Version",
-        description="Version of the installer",
-        example="1.2.3",
-    )
-    python_version: str = Field(
-        ...,
-        title="Python version",
-        description="Version of Python that the installer is created with",
-        example="3.11",
-    )
-    python_modules: dict[str, str] = Field(
-        default_factory=dict,
-        title="Python modules",
-        description="mapping of module_name:module_version used to create the installer",
-        example={"requests": "2.25.1", "pydantic": "1.8.2"},
-    )
-    runtime_python_modules: dict[str, str] = Field(
-        default_factory=dict,
-        title="Runtime Python modules",
-        description="mapping of module_name:module_version used to run the installer",
-        example={"requests": "2.25.1", "pydantic": "1.8.2"},
-    )
-
+class Installer(InstallerManifest):
     @property
     def local_file_path(self) -> str:
         return get_desktop_file_path("installers", self.filename)
@@ -72,7 +54,7 @@ class InstallerManifest(BasePackageModel):
 
 
 class InstallerListModel(OPModel):
-    installers: list[InstallerManifest] = Field(default_factory=list)
+    installers: list[Installer] = Field(default_factory=list)
 
 
 #
@@ -80,16 +62,17 @@ class InstallerListModel(OPModel):
 #
 
 
-def get_manifest(filename: str) -> InstallerManifest:
+def get_manifest(filename: str) -> Installer:
     try:
         manifest_data = load_json_file("installers", f"{filename}.json")
-        manifest = InstallerManifest(**manifest_data)
+        manifest = Installer(**manifest_data)
     except FileNotFoundError:
         raise NotFoundException(f"Installer manifest {filename} not found")
     except ValueError:
         raise AyonException(f"Failed to load installer manifest {filename}")
     if manifest.has_local_file:
-        manifest.sources.append(SourceModel(type="server"))
+        if "server" not in [s.type for s in manifest.sources]:
+            manifest.sources.append(SourceModel(type="server"))
     return manifest
 
 
@@ -103,8 +86,18 @@ async def list_installers(
     user: CurrentUser,
     version: str | None = Query(None, description="Version of the package"),
     platform: Platform | None = Query(None, description="Platform of the package"),
+    variant: Literal["production", "staging"] | None = Query(None),
 ) -> InstallerListModel:
-    result: list[InstallerManifest] = []
+    result: list[Installer] = []
+
+    if variant in ["production", "staging"]:
+        r = await Postgres.fetch(
+            f"SELECT data->>'installer_version' as v FROM bundles WHERE is_{variant} IS TRUE"
+        )
+        if r:
+            version = r[0]["v"]
+        else:
+            raise NotFoundException(f"No {variant} bundle found")
 
     for filename in iter_names("installers"):
         try:
@@ -134,7 +127,9 @@ async def list_installers(
 @router.post("/installers", status_code=201)
 async def create_installer(
     user: CurrentUser,
-    payload: InstallerManifest,
+    payload: Installer,
+    url: str | None = Query(None, title="URL to the addon zip file"),
+    overwrite: bool = Query(False, title="Overwrite existing package"),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can create installers")
@@ -144,19 +139,55 @@ async def create_installer(
     except Exception:
         pass
     else:
-        raise ConflictException("Installer already exists")
+        if not overwrite:
+            raise ConflictException("Installer already exists")
 
     _ = get_desktop_dir("installers", for_writing=True)
 
-    existing_installers = await list_installers(
-        user=user,
-        version=payload.version,
-        platform=payload.platform,
-    )
-    if existing_installers.installers:
-        raise AyonException(
-            "Installer with the same version and platform already exists"
+    if not overwrite:
+        # double-check - filename check might not be enough,
+        # we must check whether there is a manifest with the same version and Platform
+        existing_installers = await list_installers(
+            user=user,
+            version=payload.version,
+            platform=payload.platform,
+            variant=None,
         )
+        if existing_installers.installers:
+            raise AyonException(
+                "Installer with the same version and platform already exists"
+            )
+
+    if url:
+        hash = hashlib.sha256(f"installer_install_{url}".encode("utf-8")).hexdigest()
+
+        query = """
+            SELECT id FROM events
+            WHERE topic = 'installer.install_from_url'
+            AND hash = $1
+        """
+
+        res = await Postgres.fetch(query, hash)
+        if res:
+            event_id = res[0]["id"]
+            await update_event(
+                event_id,
+                description="Reinstalling installer from URL",
+                summary={"url": url},
+                status="pending",
+                retries=0,
+            )
+        else:
+            event_id = await dispatch_event(
+                "installer.install_from_url",
+                hash=hash,
+                description="Installing installer from URL",
+                summary={"url": url},
+                user=user.name,
+                finished=False,
+            )
+
+        await background_installer.enqueue(event_id)
 
     async with aiofiles.open(payload.path, "w") as f:
         await f.write(payload.json(exclude_none=True))
