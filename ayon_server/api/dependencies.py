@@ -9,6 +9,7 @@ from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
+    ForbiddenException,
     NotFoundException,
     UnauthorizedException,
     UnsupportedMediaException,
@@ -391,3 +392,18 @@ async def dep_site_id(
 
 
 SiteID = Annotated[str, Depends(dep_site_id)]
+
+
+async def dep_ynput_connect_key() -> str:
+    res = await Postgres.fetch(
+        """
+        SELECT value FROM secrets
+        WHERE name = 'ynput_connect_key'
+        """
+    )
+    if not res:
+        raise ForbiddenException("Ynput connect key not found")
+    return res[0]["value"]
+
+
+YnputConnectKey = Annotated[str, Depends(dep_ynput_connect_key)]

@@ -155,12 +155,6 @@ async def create_dependency_package(
                 finished=False,
             )
 
-        # background_tasks.add_task(
-        #     install_addon_from_url,
-        #     event_id,
-        #     url,
-        # )
-
         await background_installer.enqueue(event_id)
 
     return EmptyResponse(status_code=201)

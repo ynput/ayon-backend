@@ -4,7 +4,7 @@ import httpx
 from fastapi import Request
 from pydantic import Field
 
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, YnputConnectKey
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
@@ -38,6 +38,19 @@ class ReleaseInfoModel(OPModel):
     dependency_packages: list[DependencyPackageManifest] = Field(None)
 
 
+class ReleaseListItemModel(OPModel):
+    name: str = Field(..., title="Release name", example="2023.08-2D")
+    bio: str = Field("", title="Release bio", example="2D Animation")
+    icon: str = Field("", title="Release icon", example="skeleton")
+    created_at: datetime = Field(...)
+    is_latest: bool = Field(...)
+    addons: list[str] = Field(...)
+
+
+class ReleaseListModel(OPModel):
+    releases: list[ReleaseListItemModel] = Field(...)
+
+
 @router.post("/abort")
 async def abort_onboarding(request: Request, user: CurrentUser) -> EmptyResponse:
     """Abort the onboarding process (disable nag screen)"""
@@ -55,11 +68,31 @@ async def abort_onboarding(request: Request, user: CurrentUser) -> EmptyResponse
     return EmptyResponse()
 
 
-@router.get("/release")
-async def get_release_info() -> ReleaseInfoModel:
-    """Get the release info"""
+@router.get("/releases")
+async def get_releases(ynput_connect_key: YnputConnectKey) -> ReleaseListModel:
+    """Get the releases"""
+
+    params = {"key": ynput_connect_key}
 
     async with httpx.AsyncClient() as client:
-        res = await client.get(f"{ayonconfig.ynput_connect_url}/api/releases/latest")
+        res = await client.get(
+            f"{ayonconfig.ynput_connect_url}/api/releases", params=params
+        )
+
+    return ReleaseListModel(**res.json())
+
+
+@router.get("/releases/{release_name}")
+async def get_release_info(
+    ynput_connect_key: YnputConnectKey, release_name: str
+) -> ReleaseInfoModel:
+    """Get the release info"""
+
+    params = {"key": ynput_connect_key}
+
+    async with httpx.AsyncClient() as client:
+        res = await client.get(
+            f"{ayonconfig.ynput_connect_url}/api/releases/{release_name}", params=params
+        )
 
     return ReleaseInfoModel(**res.json())
