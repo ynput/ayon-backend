@@ -218,7 +218,7 @@ async def update_event(
         )
 
     else:
-        query = ["SELECT * FROM events WHERE id=$!", event_id]
+        query = ["SELECT * FROM events WHERE id=$1", event_id]
 
     result = await Postgres.fetch(*query)
     for row in result:

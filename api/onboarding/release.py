@@ -55,7 +55,7 @@ class ReleaseListModel(OPModel):
 async def abort_onboarding(request: Request, user: CurrentUser) -> EmptyResponse:
     """Abort the onboarding process (disable nag screen)"""
 
-    if user.is_admin:
+    if not user.is_admin:
         raise ForbiddenException()
 
     await Postgres().execute(
@@ -76,7 +76,8 @@ async def get_releases(ynput_connect_key: YnputConnectKey) -> ReleaseListModel:
 
     async with httpx.AsyncClient() as client:
         res = await client.get(
-            f"{ayonconfig.ynput_connect_url}/api/releases", params=params
+            f"{ayonconfig.ynput_connect_url}/api/releases",
+            params=params,
         )
 
     return ReleaseListModel(**res.json())
@@ -92,7 +93,8 @@ async def get_release_info(
 
     async with httpx.AsyncClient() as client:
         res = await client.get(
-            f"{ayonconfig.ynput_connect_url}/api/releases/{release_name}", params=params
+            f"{ayonconfig.ynput_connect_url}/api/releases/{release_name}",
+            params=params,
         )
 
     return ReleaseInfoModel(**res.json())

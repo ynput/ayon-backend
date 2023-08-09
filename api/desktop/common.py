@@ -9,6 +9,7 @@ from starlette.responses import FileResponse
 
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.installer.common import get_desktop_dir
+from ayon_server.types import Field, OPModel
 
 
 def md5sum(path: str) -> str:
@@ -98,3 +99,7 @@ async def handle_download(
         media_type=media_type,
         filename=filename,
     )
+
+
+class InstallResponseModel(OPModel):
+    event_id: str | None = Field(None, title="Event ID")

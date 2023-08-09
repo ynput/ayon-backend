@@ -65,14 +65,7 @@ async def upload_addon_zip_file(
                 finished=False,
             )
 
-        # background_tasks.add_task(
-        #     install_addon_from_url,
-        #     event_id,
-        #     url,
-        # )
-
         await background_installer.enqueue(event_id)
-
         return InstallAddonResponseModel(event_id=event_id)
 
     # Store the zip file in a temporary location
@@ -132,14 +125,6 @@ async def upload_addon_zip_file(
     # so that the client can poll the event status.
 
     await background_installer.enqueue(event_id)
-
-    # background_tasks.add_task(
-    #     unpack_addon,
-    #     event_id,
-    #     temp_path,
-    #     addon_name,
-    #     addon_version,
-    # )
 
     return InstallAddonResponseModel(event_id=event_id)
 

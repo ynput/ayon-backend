@@ -39,7 +39,7 @@ class BackgroundInstaller(BackgroundTask):
             return
 
         if res[0]["status"] == "failed" and res[0]["retries"] > 3:
-            print(f"Event {event_id} failed too many times")
+            logging.error(f"Event {event_id} failed too many times")
             raise TooManyRetries()
 
         topic = res[0]["topic"]
@@ -48,7 +48,6 @@ class BackgroundInstaller(BackgroundTask):
         logging.info(f"Background installer: processing {topic} event: {event_id}")
 
         if topic == "addon.install":
-            print(">>> Installing addon")
             await unpack_addon(
                 event_id,
                 summary["zip_path"],

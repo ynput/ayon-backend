@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import tempfile
+import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
@@ -116,13 +117,28 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
     # we do not use download_file() here because using NamedTemporaryFile
     # is much more convenient than manually creating a temporary file
 
+    file_size = 0
+    last_time = 0.0
+
+    i = 0
     with tempfile.NamedTemporaryFile(dir=ayonconfig.addons_dir) as temporary_file:
         zip_path = temporary_file.name
         async with httpx.AsyncClient() as client:
             async with client.stream("GET", url) as response:
+                file_size = int(response.headers.get("content-length", 0))
                 async with aiofiles.open(zip_path, "wb") as f:
                     async for chunk in response.aiter_bytes():
                         await f.write(chunk)
+                        i += 1
+
+                        if file_size and (time.time() - last_time > 1):
+                            percent = int(i / file_size * 100)
+                            await update_event(
+                                event_id,
+                                progress=int(percent / 2),
+                                store=False,
+                            )
+                            last_time = time.time()
 
         # Get the addon name and version from the zip file
 
@@ -136,6 +152,7 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
                 "addon_version": addon_version,
                 "url": url,
             },
+            progress=50,
         )
 
         # Unpack the addon

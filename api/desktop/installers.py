@@ -25,6 +25,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, Platform
 
 from .common import (
+    InstallResponseModel,
     get_desktop_dir,
     get_desktop_file_path,
     handle_download,
@@ -130,7 +131,9 @@ async def create_installer(
     payload: Installer,
     url: str | None = Query(None, title="URL to the addon zip file"),
     overwrite: bool = Query(False, title="Overwrite existing package"),
-) -> EmptyResponse:
+) -> InstallResponseModel:
+    event_id: str | None = None
+
     if not user.is_admin:
         raise ForbiddenException("Only admins can create installers")
 
@@ -170,6 +173,9 @@ async def create_installer(
         res = await Postgres.fetch(query, hash)
         if res:
             event_id = res[0]["id"]
+
+            assert event_id
+
             await update_event(
                 event_id,
                 description="Reinstalling installer from URL",
@@ -187,12 +193,13 @@ async def create_installer(
                 finished=False,
             )
 
+        assert event_id
         await background_installer.enqueue(event_id)
 
     async with aiofiles.open(payload.path, "w") as f:
         await f.write(payload.json(exclude_none=True))
 
-    return EmptyResponse(status_code=201)
+    return InstallResponseModel(event_id=event_id)
 
 
 @router.get("/installers/{filename}")
