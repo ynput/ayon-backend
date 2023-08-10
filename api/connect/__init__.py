@@ -47,7 +47,7 @@ async def get_ynput_connect_info(
     # TODO: cache this
     async with httpx.AsyncClient() as client:
         res = await client.get(
-            f"{ayonconfig.ynput_connect_url}/api/info", params=params
+            f"{ayonconfig.ynput_connect_url}/api/connect/info", params=params
         )
 
     if res.status_code == 401:
@@ -71,7 +71,7 @@ async def get_ynput_connect_info(
 async def authorize_ynput_connect(origin_url: str = Query(...)):
     """Redirect to Ynput connect authorization page"""
     return RedirectResponse(
-        f"{ayonconfig.ynput_connect_url}/api/login?origin_url={origin_url}"
+        f"{ayonconfig.ynput_connect_url}/api/connect?origin_url={origin_url}"
     )
 
 
@@ -92,7 +92,7 @@ async def set_ynput_connect_key(
 
     async with httpx.AsyncClient() as client:
         res = await client.get(
-            f"{ayonconfig.ynput_connect_url}/api/info?key={request.key}"
+            f"{ayonconfig.ynput_connect_url}/api/connect/info?key={request.key}"
         )
         if res.status_code != 200:
             raise ForbiddenException("Invalid Ynput connect key")

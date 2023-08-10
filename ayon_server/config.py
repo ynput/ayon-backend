@@ -25,7 +25,7 @@ class AyonConfig(BaseModel):
 
     addons_dir: str = Field(
         default="/addons",
-        description="Path to the directory containing the addons. Always use absolute path.",
+        description="Absolute path to the directory containing the addons.",
     )
 
     frontend_dir: str = Field(
@@ -108,7 +108,10 @@ class AyonConfig(BaseModel):
         description="Enable audit trail",
     )
 
-    ynput_connect_url: str | None = Field("https://auth.ayon.cloud")
+    ynput_connect_url: str | None = Field(
+        "https://connect.ynput.io",
+        description="YnputConnect URL",
+    )
 
 
 #
