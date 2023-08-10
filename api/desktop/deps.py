@@ -2,7 +2,7 @@ import hashlib
 import os
 
 import aiofiles
-from fastapi import Path, Query, Request, Response
+from fastapi import BackgroundTasks, Path, Query, Request, Response
 from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
@@ -97,6 +97,7 @@ async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
 
 @router.post("/dependency_packages", status_code=201)
 async def create_dependency_package(
+    background_tasks: BackgroundTasks,
     payload: DependencyPackage,
     user: CurrentUser,
     url: str | None = Query(None, title="URL to the addon zip file"),
@@ -160,7 +161,7 @@ async def create_dependency_package(
             )
 
         assert event_id
-        await background_installer.enqueue(event_id)
+        background_tasks.add_task(background_installer.enqueue, event_id)
 
     return InstallResponseModel(event_id=event_id)
 

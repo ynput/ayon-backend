@@ -3,7 +3,7 @@ import os
 from typing import Literal
 
 import aiofiles
-from fastapi import Query, Request
+from fastapi import BackgroundTasks, Query, Request
 from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
@@ -127,6 +127,7 @@ async def list_installers(
 
 @router.post("/installers", status_code=201)
 async def create_installer(
+    background_tasks: BackgroundTasks,
     user: CurrentUser,
     payload: Installer,
     url: str | None = Query(None, title="URL to the addon zip file"),
@@ -194,7 +195,7 @@ async def create_installer(
             )
 
         assert event_id
-        await background_installer.enqueue(event_id)
+        background_tasks.add_task(background_installer.enqueue, event_id)
 
     async with aiofiles.open(payload.path, "w") as f:
         await f.write(payload.json(exclude_none=True))

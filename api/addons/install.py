@@ -4,7 +4,7 @@ from typing import Literal
 
 import aiofiles
 import shortuuid
-from fastapi import Query, Request
+from fastapi import BackgroundTasks, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.events import dispatch_event, update_event
@@ -27,6 +27,7 @@ class InstallAddonResponseModel(OPModel):
 
 @router.post("/install", tags=["Addons"])
 async def upload_addon_zip_file(
+    background_tasks: BackgroundTasks,
     user: CurrentUser,
     request: Request,
     url: str | None = Query(None, title="URL to the addon zip file"),
@@ -124,7 +125,7 @@ async def upload_addon_zip_file(
     # And return the event ID to the client,
     # so that the client can poll the event status.
 
-    await background_installer.enqueue(event_id)
+    background_tasks.add_task(background_installer.enqueue, event_id)
 
     return InstallAddonResponseModel(event_id=event_id)
 
