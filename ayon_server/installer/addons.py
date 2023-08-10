@@ -129,7 +129,7 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
                 async with aiofiles.open(zip_path, "wb") as f:
                     async for chunk in response.aiter_bytes():
                         await f.write(chunk)
-                        i += 1
+                        i += len(chunk)
 
                         if file_size and (time.time() - last_time > 1):
                             percent = int(i / file_size * 100)
