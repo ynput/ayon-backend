@@ -1,7 +1,7 @@
 from typing import Any, Literal
 
 from fastapi import Query
-from nxtools import logging
+from nxtools import log_traceback, logging
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
@@ -138,28 +138,36 @@ async def get_all_settings(
 
         site_settings = None
         settings: BaseSettingsModel | None = None
-        if site_id:
-            site_settings = await addon.get_site_settings(user.name, site_id)
 
-            if project_name is None:
-                # Studio level settings (studio level does not have)
-                # site overrides per se but it can have site settings
-                settings = await addon.get_studio_settings(variant)
+        try:
+            if site_id:
+                site_settings = await addon.get_site_settings(user.name, site_id)
+
+                if project_name is None:
+                    # Studio level settings (studio level does not have)
+                    # site overrides per se but it can have site settings
+                    settings = await addon.get_studio_settings(variant)
+                else:
+                    # Project and site is requested, so we are returning
+                    # project level settings WITH site overrides
+                    settings = await addon.get_project_site_settings(
+                        project_name,
+                        user.name,
+                        site_id,
+                        variant,
+                    )
+            elif project_name:
+                # Project level settings (no site overrides)
+                settings = await addon.get_project_settings(project_name, variant)
             else:
-                # Project and site is requested, so we are returning
-                # project level settings WITH site overrides
-                settings = await addon.get_project_site_settings(
-                    project_name,
-                    user.name,
-                    site_id,
-                    variant,
-                )
-        elif project_name:
-            # Project level settings (no site overrides)
-            settings = await addon.get_project_settings(project_name, variant)
-        else:
-            # Just studio level settings (no project, no site)
-            settings = await addon.get_studio_settings(variant)
+                # Just studio level settings (no project, no site)
+                settings = await addon.get_studio_settings(variant)
+
+        except Exception:
+            log_traceback(
+                "Unable to load settings of {addon_name} {addon_version}. Skipping."
+            )
+            continue
 
         # Add addon to the result
 
