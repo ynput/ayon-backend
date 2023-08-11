@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 import httpx
 from fastapi import Request
@@ -14,20 +15,35 @@ from ayon_server.types import OPModel
 
 from .router import router
 
+DocsType = Literal["user", "admin", "developer"]
+
 
 class ReleaseAddon(OPModel):
-    name: str = Field(..., example="tvpaint")
-    version: str = Field(..., example="1.0.0")
-    url: str = Field(
-        ...,
-        description="URL to download the addon zip file",
-        example="https://get.ayon.io/addons/tvpaint-1.0.0.zip",
-    )
+    name: str = Field(..., min_length=1, max_length=64, title="Addon Name")
+    title: str | None = Field(None, min_length=1, max_length=64, title="Addon Title")
+    description: str | None = Field(None, title="Addon Description")
+
+    icon: str | None = Field(None)
+    preview: str | None = Field(None)
+
+    features: list[str] = Field(default_factory=list)
+    families: list[str] = Field(default_factory=list)
+
+    tags: list[str] = Field(default_factory=list)
+    docs: dict[DocsType, str] = Field(default_factory=dict)
+    github: str | None = Field(None, title="GitHub Repository URL")
+    discussion: str | None = Field(None, title="Discussion URL")
+
+    is_free: bool = Field(True, title="Is this addon free?")
+
+    version: str | None = Field(None, title="Version")
+    url: str | None = Field(None, title="Download URL")
     checksum: str | None = Field(
         None,
         description="Checksum of the zip file",
-        example="sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        example="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     )
+    mandatory: bool | None = Field(None)
 
 
 class ReleaseInfoModel(OPModel):
@@ -68,7 +84,7 @@ async def abort_onboarding(request: Request, user: CurrentUser) -> EmptyResponse
     return EmptyResponse()
 
 
-@router.get("/releases")
+@router.get("/releases", response_model_exclude_none=True)
 async def get_releases(ynput_connect_key: YnputConnectKey) -> ReleaseListModel:
     """Get the releases"""
 
@@ -83,7 +99,7 @@ async def get_releases(ynput_connect_key: YnputConnectKey) -> ReleaseListModel:
     return ReleaseListModel(**res.json())
 
 
-@router.get("/releases/{release_name}")
+@router.get("/releases/{release_name}", response_model_exclude_none=True)
 async def get_release_info(
     ynput_connect_key: YnputConnectKey, release_name: str
 ) -> ReleaseInfoModel:
