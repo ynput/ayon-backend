@@ -27,6 +27,7 @@ class FolderAccess(BaseSettingsModel):
         title="Path",
         description="The path of the folder to allow access to. "
         "Required for access_type 'hierarchy and 'children'",
+        widget="hierarchy",
     )
 
     def __hash__(self):
