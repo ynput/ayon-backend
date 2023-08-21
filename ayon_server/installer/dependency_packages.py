@@ -1,7 +1,5 @@
 import os
 
-from nxtools import log_traceback
-
 from ayon_server.events import update_event
 from ayon_server.helpers.download import download_file
 from ayon_server.installer.common import get_desktop_dir
@@ -16,10 +14,5 @@ async def download_dependency_package(event_id: str, url: str):
     async def on_progress(progress):
         await update_event(event_id, progress=progress, store=False)
 
-    try:
-        await download_file(url, target_path, progress_handler=on_progress)
-    except Exception as e:
-        log_traceback()
-        await update_event(event_id, status="failed", summary={"error": str(e)})
-
+    await download_file(url, target_path, progress_handler=on_progress)
     await update_event(event_id, status="finished")

@@ -159,23 +159,15 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
 
         loop = asyncio.get_event_loop()
 
-        try:
-            with ThreadPoolExecutor() as executor:
-                task = loop.run_in_executor(
-                    executor,
-                    unpack_addon_sync,
-                    zip_path,
-                    addon_name,
-                    addon_version,
-                )
-                await asyncio.gather(task)
-        except Exception as e:
-            logging.error(f"Error while unpacking addon: {e}")
-            await update_event(
-                event_id,
-                description=f"Error while unpacking addon: {e}",
-                status="failed",
+        with ThreadPoolExecutor() as executor:
+            task = loop.run_in_executor(
+                executor,
+                unpack_addon_sync,
+                zip_path,
+                addon_name,
+                addon_version,
             )
+            await asyncio.gather(task)
 
     await update_event(
         event_id,

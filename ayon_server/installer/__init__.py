@@ -1,6 +1,6 @@
 import asyncio
 
-from nxtools import logging
+from nxtools import log_traceback, logging
 
 from ayon_server.background import BackgroundTask
 from ayon_server.events import update_event
@@ -89,7 +89,7 @@ class BackgroundInstaller(BackgroundTask):
             except TooManyRetries:
                 pass
             except Exception as e:
-                logging.error(f"Error while processing event {event_id}: {e}")
+                log_traceback(f"Error while processing event {event_id}: {e}")
                 r = await Postgres.fetch(
                     "SELECT retries FROM events WHERE id = $1", event_id
                 )
