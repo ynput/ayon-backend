@@ -84,6 +84,22 @@ async def abort_onboarding(request: Request, user: CurrentUser) -> EmptyResponse
     return EmptyResponse()
 
 
+@router.post("/restart")
+async def restart_onboarding(request: Request, user: CurrentUser) -> EmptyResponse:
+    """Restart the onboarding process"""
+
+    if not user.is_admin:
+        raise ForbiddenException()
+
+    await Postgres().execute(
+        """
+        DELETE FROM config WHERE key = 'onboardingFinished'
+        """
+    )
+
+    return EmptyResponse()
+
+
 @router.get("/releases", response_model_exclude_none=True)
 async def get_releases(ynput_connect_key: YnputConnectKey) -> ReleaseListModel:
     """Get the releases"""
