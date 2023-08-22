@@ -16,14 +16,16 @@ def normalize_to_dict(s: Any):
     return s.dict()
 
 
-class Roles:
-    roles: dict[tuple[str, str], Permissions] = {}
+class AccessGroups:
+    access_groups: dict[tuple[str, str], Permissions] = {}
 
     @classmethod
     async def load(cls) -> None:
-        cls.roles = {}
-        async for row in Postgres.iterate("SELECT name, data FROM public.roles"):
-            cls.add_role(
+        cls.access_groups = {}
+        async for row in Postgres.iterate(
+            "SELECT name, data FROM public.access_groups"
+        ):
+            cls.add_access_group(
                 row["name"],
                 "_",
                 Permissions.from_record(row["data"]),
@@ -34,43 +36,47 @@ class Roles:
 
         for project_name in project_list:
             async for row in Postgres.iterate(
-                f"SELECT name, data FROM project_{project_name}.roles"
+                f"SELECT name, data FROM project_{project_name}.access_groups"
             ):
-                cls.add_role(
+                cls.add_access_group(
                     row["name"],
                     project_name,
                     Permissions.from_record(row["data"]),
                 )
 
     @classmethod
-    def add_role(cls, name: str, project_name: str, permissions: Permissions) -> None:
-        logging.debug("Adding role", name)
-        cls.roles[(name, project_name)] = permissions
+    def add_access_group(
+        cls, name: str, project_name: str, permissions: Permissions
+    ) -> None:
+        logging.debug("Adding access_group", name)
+        cls.access_groups[(name, project_name)] = permissions
 
     @classmethod
-    def combine(cls, role_names: list[str], project_name: str = "_") -> Permissions:
-        """Create aggregated permissions object for a given list of roles.
+    def combine(
+        cls, access_group_names: list[str], project_name: str = "_"
+    ) -> Permissions:
+        """Create aggregated permissions object for a given list of access_groups.
 
         If a project name is specified and there is a project-level override
-        for a given role, it will be used. Ohterwise a "_" (default) role will
+        for a given access group, it will be used. Ohterwise a "_" (default) access group will
         be used.
         """
 
         result: Permissions | None = None
 
-        for role_name in role_names:
-            if (role_name, project_name) in cls.roles:
-                role = cls.roles[(role_name, project_name)]
-            elif (role_name, "_") in cls.roles:
-                role = cls.roles[(role_name, "_")]
+        for access_group_name in access_group_names:
+            if (access_group_name, project_name) in cls.access_groups:
+                access_group = cls.access_groups[(access_group_name, project_name)]
+            elif (access_group, "_") in cls.access_groups:
+                access_group = cls.access_groups[(access_group_name, "_")]
             else:
                 continue
 
             if result is None:
-                result = role.dict()
+                result = access_group.dict()
                 continue
 
-            for perm_name, value in role:
+            for perm_name, value in access_group:
                 if isinstance(value, BasePermissionsModel):
                     if not value.enabled:
                         result[perm_name] = {"enabled": False}

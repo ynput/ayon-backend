@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS public.bundles(
   is_production BOOLEAN NOT NULL DEFAULT FALSE,
   is_staging BOOLEAN NOT NULL DEFAULT FALSE,
   is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+  is_dev BOOLEAN NOT NULL DEFAULT FALSE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -149,13 +150,6 @@ CREATE TABLE IF NOT EXISTS public.site_settings(
 );
 
 
--- DEPRECATED?? Replaced by bundles?
-CREATE TABLE IF NOT EXISTS public.addon_versions(
-  name VARCHAR NOT NULL PRIMARY KEY,
-  production_version VARCHAR,
-  staging_version VARCHAR
-);
-
 
 CREATE TABLE IF NOT EXISTS public.addon_data(
   addon_name VARCHAR NOT NULL,
@@ -193,16 +187,3 @@ CREATE TABLE IF NOT EXISTS public.services(
   data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
-
-
-------------------
--- Dependencies --
-------------------
-
--- DEPRECATED. REMOVE
-CREATE TABLE IF NOT EXISTS public.dependency_packages(
-  name VARCHAR NOT NULL,
-  platform VARCHAR NOT NULL,
-  data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  PRIMARY KEY (name, platform)
-);

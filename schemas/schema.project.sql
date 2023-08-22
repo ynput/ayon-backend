@@ -289,8 +289,8 @@ CREATE UNIQUE INDEX link_unique_idx ON links(input_id, output_id, link_name);
 -- Project specific overrides of roles and addon settings
 -- The table structure is the same as in the public schema
 
-CREATE TABLE IF NOT EXISTS roles(
-    name VARCHAR NOT NULL PRIMARY KEY REFERENCES public.roles(name) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS access_groups(
+    name VARCHAR NOT NULL PRIMARY KEY REFERENCES public.access_groups(name) ON DELETE CASCADE,
     data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 

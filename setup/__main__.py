@@ -11,7 +11,6 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_loads
 from setup.attributes import deploy_attributes
 from setup.roles import deploy_roles
-from setup.settings import deploy_settings
 from setup.users import deploy_users
 
 # Defaults which should allow Ayon server to run out of the box
@@ -76,11 +75,11 @@ async def main(force: bool | None = None) -> None:
         schema = Path("schemas/schema.drop.sql").read_text()
         await Postgres.execute(schema)
 
-    schema = Path("schemas/schema.public.sql").read_text()
-    await Postgres.execute(schema)
-
     # inter-version updates
     schema = Path("schemas/schema.public.update.sql").read_text()
+    await Postgres.execute(schema)
+
+    schema = Path("schemas/schema.public.sql").read_text()
     await Postgres.execute(schema)
 
     # This is something we can do every time.
@@ -105,12 +104,9 @@ async def main(force: bool | None = None) -> None:
 
         users: list[dict[str, Any]] = DATA["users"]
         roles: list[dict[str, Any]] = DATA.get("roles", [])
-        settings: dict[str, Any] = DATA.get("settings", {})
-        addons: dict[str, str] = DATA.get("addons", {})
 
         await deploy_users(users, projects)
         await deploy_roles(roles)
-        await deploy_settings(settings, addons)
 
         for name, value in DATA.get("secrets", {}).items():
             await Postgres.execute(
