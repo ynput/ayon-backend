@@ -38,6 +38,9 @@ async def get_users(
             """
         ),
     ] = None,
+    project_name: Annotated[
+        str | None, argdesc("List only users assigned to a given project")
+    ] = None,
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
@@ -46,8 +49,8 @@ async def get_users(
     """Return a list of users."""
 
     user = info.context["user"]
-    if not user.is_manager:
-        raise ForbiddenException("Only managers and administrators can view users")
+    if (not user.is_manager) and (project_name is None):
+        raise ForbiddenException("Only managers and administrators can view all users")
 
     sql_conditions = []
     if name is not None:
@@ -60,6 +63,13 @@ async def get_users(
         for name in names:
             validate_user_name(name)
         sql_conditions.append(f"users.name IN {SQLTool.array(names)}")
+
+    if project_name is not None:
+        cnd1 = "users.data->>'isAdmin' = 'true'"
+        cnd2 = "users.data->>'isManager' = 'true'"
+        cnd3 = f"users.data->'roles'->'{project_name}' IS NOT NULL"
+        cnd = f"({cnd1} OR {cnd2} OR {cnd3})"
+        sql_conditions.append(cnd)
 
     #
     # Pagination
