@@ -12,7 +12,7 @@ BEGIN
         WHERE table_name = 'bundles'
         AND column_name = 'is_archived'
     ) THEN
-        ALTER TABLE bundles
+        ALTER TABLE IF EXISTS bundles
         ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT FALSE;
     END IF;
 END $$;
@@ -31,7 +31,7 @@ BEGIN
         WHERE table_name = 'bundles'
         AND column_name = 'is_dev'
     ) THEN
-        ALTER TABLE bundles
+        ALTER TABLE IF EXISTS bundles
         ADD COLUMN is_dev BOOLEAN NOT NULL DEFAULT FALSE;
     END IF;
 END $$;
