@@ -1,3 +1,9 @@
+-- Assuming version at least 0.3.0
+
+----------------
+-- Ayon 0.3.1 --
+----------------
+
 DO $$ 
 BEGIN
     IF NOT EXISTS (
@@ -16,6 +22,7 @@ END $$;
 -- Ayon 0.4.0 --
 ----------------
 
+-- Add is_dev column to bundles
 DO $$ 
 BEGIN
     IF NOT EXISTS (
@@ -33,7 +40,9 @@ DROP TABLE IF EXISTS public.addon_versions; -- replaced by bundles
 DROP TABLE IF EXISTS public.dependency_packages; -- stored as json files
 
 
-CREATE OR REPLACE FUNCTION migrate_roles () 
+-- Delete project-level roles. They are hard to migrate, 
+-- so users will have to re-create them (collateral damage, sorry)
+CREATE OR REPLACE FUNCTION delete_project_roles () 
    RETURNS VOID  AS
    $$
    DECLARE rec RECORD; 
@@ -50,12 +59,21 @@ CREATE OR REPLACE FUNCTION migrate_roles ()
    END;
    $$ LANGUAGE plpgsql;
 
-SELECT migrate_roles();
+SELECT delete_project_roles();
+DROP FUNCTION IF EXISTS delete_project_roles();
 
--- last, rename public roles to access_groups
-ALTER TABLE IF EXISTS public.roles RENAME TO access_groups;
+-- Rename roles table to access_groups
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'access_groups') THEN
+    ALTER TABLE IF EXISTS public.roles RENAME TO public.access_groups;
+  ELSE
+    DROP TABLE IF EXISTS public.roles;
+  END IF;
+END $$;
 
-CREATE OR REPLACE FUNCTION migrate_roles () 
+-- Create access_groups table in all project schemas
+CREATE OR REPLACE FUNCTION create_access_groups_in_projects () 
    RETURNS VOID  AS
    $$
    DECLARE rec RECORD; 
@@ -70,5 +88,5 @@ CREATE OR REPLACE FUNCTION migrate_roles ()
    END;
    $$ LANGUAGE plpgsql;
 
-SELECT migrate_roles();
-DROP function IF EXISTS migrate_roles();
+SELECT create_access_groups_in_projects();
+DROP FUNCTION IF EXISTS create_access_groups_in_projects();

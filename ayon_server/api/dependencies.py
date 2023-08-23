@@ -236,14 +236,14 @@ UserName = Annotated[str, Depends(dep_user_name)]
 
 
 async def dep_access_group_name(
-    access_group: str = Path(
+    access_group_name: str = Path(
         ...,
         title="Access group name",
         regex=NAME_REGEX,
     )
 ) -> str:
     """Validate and return an access group name specified in an endpoint path."""
-    return access_group
+    return access_group_name
 
 
 AccessGroupName = Annotated[str, Depends(dep_access_group_name)]

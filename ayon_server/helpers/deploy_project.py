@@ -83,7 +83,7 @@ async def create_project_from_anatomy(
 
     Create a new project with the given name and code, and deploy the
     given anatomy to it. Assing the project to all users with
-    defaultRoles.
+    defaultAccessGroups.
 
     This is a preffered way of creating a new project, as it will
     create all the necessary data in the database.
@@ -101,7 +101,7 @@ async def create_project_from_anatomy(
         async with conn.transaction():
             await project.save(transaction=conn)
 
-            # Assign the new project to all users with default roles
+            # Assign the new project to all users with default access groups
 
             # TBD: limit to active users only?
             # NOTE: we need to use explicit public here, because the
@@ -109,7 +109,7 @@ async def create_project_from_anatomy(
             # to the project schema.
             query = """
                 SELECT u.* FROM public.users AS u
-                WHERE jsonb_array_length(data->'defaultRoles')::boolean
+                WHERE jsonb_array_length(data->'defaultAccessGroups')::boolean
                 FOR UPDATE OF u
             """
 
@@ -117,7 +117,7 @@ async def create_project_from_anatomy(
 
             for row in users:
                 user = UserEntity.from_record(row)
-                roles = user.data.get("roles", {})
-                roles[project.name] = user.data["defaultRoles"]
-                user.data["roles"] = roles
+                access_groups = user.data.get("accessGroups", {})
+                access_groups[project.name] = user.data["defaultAccessGroups"]
+                user.data["accessGroups"] = access_groups
                 await user.save(transaction=conn)

@@ -114,10 +114,10 @@ async def list_projects(
         # breaks the pagination. Remove pagination completely?
         # Or rather use graphql-like approach with cursor?
         if not user.is_manager:
-            roles = user.data.get("roles", {})
-            if type(roles) is not dict:
+            access_groups = user.data.get("accessGroups", {})
+            if type(access_groups) is not dict:
                 continue
-            if not roles.get(row["name"]):
+            if not access_groups.get(row["name"]):
                 continue
 
         projects.append(

@@ -14,7 +14,7 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 # from fastapi.middleware.cors import CORSMiddleware
 from nxtools import log_traceback, logging, slugify
 
-from ayon_server.access.roles import Roles
+from ayon_server.access.access_groups import AccessGroups
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.messaging import Messaging
 from ayon_server.api.metadata import app_meta, tags_meta
@@ -388,7 +388,7 @@ async def startup_event() -> None:
         - initializes the log
         - initializes redis2websocket bridge
         - connects to the database
-        - loads roles
+        - loads access groups
     """
 
     # Save the process PID
@@ -410,7 +410,7 @@ async def startup_event() -> None:
         else:
             break
 
-    await Roles.load()
+    await AccessGroups.load()
 
     # Start background tasks
 

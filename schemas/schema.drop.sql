@@ -2,7 +2,7 @@
 
 DROP TABLE IF EXISTS public.projects CASCADE;
 DROP TABLE IF EXISTS public.users CASCADE;
-DROP TABLE IF EXISTS public.roles CASCADE;
+DROP TABLE IF EXISTS public.access_groups CASCADE;
 DROP TABLE IF EXISTS public.attributes CASCADE;
 DROP TABLE IF EXISTS public.anatomy_presets CASCADE;
 DROP TABLE IF EXISTS public.settings CASCADE;

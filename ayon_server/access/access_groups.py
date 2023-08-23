@@ -67,7 +67,7 @@ class AccessGroups:
         for access_group_name in access_group_names:
             if (access_group_name, project_name) in cls.access_groups:
                 access_group = cls.access_groups[(access_group_name, project_name)]
-            elif (access_group, "_") in cls.access_groups:
+            elif (access_group_name, "_") in cls.access_groups:
                 access_group = cls.access_groups[(access_group_name, "_")]
             else:
                 continue

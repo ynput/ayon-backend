@@ -35,8 +35,8 @@ class UserNode:
     created_at: datetime
     updated_at: datetime
     attrib: UserAttribType
-    roles: str
-    default_roles: list[str]
+    access_groups: str
+    default_access_groups: list[str]
     is_admin: bool
     is_manager: bool
     is_service: bool
@@ -52,7 +52,7 @@ class UserNode:
 
 def user_from_record(record: dict, context: dict) -> UserNode:
     data = record["data"]
-    roles = data.get("roles", {})
+    access_groups = data.get("accessGroups", {})
     is_admin = data.get("isAdmin", False)
     is_service = data.get("isService", False)
     is_manager = is_admin or is_service or data.get("isManager", False)
@@ -80,13 +80,13 @@ def user_from_record(record: dict, context: dict) -> UserNode:
         attrib=attrib,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
-        roles=json_dumps(roles),
+        access_groups=json_dumps(access_groups),
         is_admin=is_admin,
         is_manager=is_manager,
         is_service=is_service,
         is_guest=is_guest,
         has_password=bool(data.get("password")),
-        default_roles=data.get("defaultRoles", []),
+        default_access_groups=data.get("defaultAccessGroups", []),
         apiKeyPreview=data.get("apiKeyPreview"),
     )
 

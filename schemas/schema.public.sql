@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS public.sites(
 );
 
 
-CREATE TABLE IF NOT EXISTS public.roles(
+CREATE TABLE IF NOT EXISTS public.access_groups(
     name VARCHAR NOT NULL PRIMARY KEY, 
     data JSONB NOT NULL DEFAULT '{}'::JSONB
 );

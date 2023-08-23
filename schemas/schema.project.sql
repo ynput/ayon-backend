@@ -286,7 +286,7 @@ CREATE UNIQUE INDEX link_unique_idx ON links(input_id, output_id, link_name);
 -- SETTINGS --
 --------------
 
--- Project specific overrides of roles and addon settings
+-- Project specific overrides of access groups and addon settings
 -- The table structure is the same as in the public schema
 
 CREATE TABLE IF NOT EXISTS access_groups(

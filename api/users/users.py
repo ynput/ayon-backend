@@ -114,20 +114,22 @@ class NewUserModel(UserEntity.model.post_model):  # type: ignore
 
 def validate_user_data(data: dict[str, Any]):
     try:
-        if default_roles := data.get("defaultRoles"):
-            assert type(default_roles) == list, "default roles must be a list"
+        if default_access_groups := data.get("defaultAccessGroups"):
+            assert (
+                type(default_access_groups) == list
+            ), "defaultAccessGroups must be a list"
             assert all(
-                type(role) == str for role in default_roles
-            ), "default roles must be a list of str"
+                type(access_group) == str for access_group in default_access_groups
+            ), "defaultAccessGroups must be a list of str"
 
-        if roles := data.get("roles"):
-            assert type(roles) == dict, "roles must be a dict"
-            for project, role_list in roles.items():
+        if access_groups := data.get("accessGroups"):
+            assert type(access_groups) == dict, "accessGroups must be a dict"
+            for project, ag_list in access_groups.items():
                 assert type(project) == str, "project name must be a string"
-                assert type(role_list) == list, "role list must be a list"
+                assert type(ag_list) == list, "access group list must be a list"
                 assert all(
-                    type(role) == str for role in role_list
-                ), "role list must be a list of str"
+                    type(ag) == str for ag in ag_list
+                ), "acces group list must be a list of str"
     except AssertionError as e:
         raise BadRequestException(str(e)) from e
 
@@ -422,25 +424,25 @@ async def delete_user_session(
 
 
 #
-# Assign roles
+# Assign access groups
 #
 
 
-class RolesOnProject(OPModel):
+class AccessGroupsOnProject(OPModel):
     project: str = Field(
         ...,
         description="Project name",
     )
-    roles: list[str] = Field(
+    access_groups: list[str] = Field(
         ...,
-        description="List of user roles on the project",
+        description="List of access groups on the project",
     )
 
 
-class AssignRolesRequestModel(OPModel):
-    roles: list[RolesOnProject] = Field(
+class AssignAccessGroupsRequestModel(OPModel):
+    access_groups: list[AccessGroupsOnProject] = Field(
         default_factory=list,
-        description="List of roles to assign",
+        description="List of access groups to assign",
         example=[
             {"project": "project1", "roles": ["artist", "viewer"]},
             {"project": "project2", "roles": ["viewer"]},
@@ -448,28 +450,28 @@ class AssignRolesRequestModel(OPModel):
     )
 
 
-@router.patch("/{user_name}/roles")
-async def assign_user_roles(
-    patch_data: AssignRolesRequestModel,
+@router.patch("/{user_name}/accessGroups")
+async def assign_access_groups(
+    patch_data: AssignAccessGroupsRequestModel,
     user: CurrentUser,
     user_name: UserName,
 ) -> EmptyResponse:
     if not user.is_manager:
-        raise ForbiddenException("You are not permitted to assign user roles")
+        raise ForbiddenException("You are not permitted to assign access groups")
 
     target_user = await UserEntity.load(user_name)
 
-    role_set = target_user.data.get("roles", {})
-    for rconf in patch_data.roles:
+    ag_set = target_user.data.get("accessGroups", {})
+    for rconf in patch_data.access_groups:
         project_name = rconf.project
-        roles = rconf.roles
-        if not roles:
-            if project_name in role_set:
-                del role_set[project_name]
+        access_groups = rconf.access_groups
+        if not access_groups:
+            if project_name in ag_set:
+                del ag_set[project_name]
             continue
-        role_set[project_name] = roles
+        ag_set[project_name] = access_groups
 
-    target_user.data["roles"] = role_set
+    target_user.data["accessGroups"] = ag_set
     await target_user.save()
 
     return EmptyResponse()

@@ -70,6 +70,7 @@ async def deploy_users(
         )
 
     # Migration from 0.3.0 to 0.4.0
+    # TODO: remove in 0.5.0
 
     async for row in Postgres.iterate("SELECT name, data FROM users"):
         name = row["name"]

@@ -2,15 +2,13 @@ import os
 import traceback
 
 import strawberry
-from fastapi import Depends
 from graphql import GraphQLError
 from nxtools import logging
 from strawberry.dataloader import DataLoader
 from strawberry.fastapi import GraphQLRouter
 from strawberry.types import ExecutionContext, Info
 
-from ayon_server.api.dependencies import dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser
 from ayon_server.graphql.connections import (
     EventsConnection,
     ProjectsConnection,
@@ -41,7 +39,7 @@ from ayon_server.graphql.resolvers.users import get_user, get_users
 from ayon_server.lib.postgres import Postgres
 
 
-async def graphql_get_context(user: UserEntity = Depends(dep_current_user)) -> dict:
+async def graphql_get_context(user: CurrentUser) -> dict:
     """Get the current request context"""
     return {
         # Auth
@@ -111,12 +109,12 @@ class Query:
             updated_at=user.updated_at,
             created_at=user.created_at,
             attrib=UserAttribType(**user.attrib.dict()),
-            roles=user.data.get("roles", {}),
+            access_groups=user.data.get("accessGroups", {}),
             is_admin=user.is_admin,
             is_manager=user.is_manager,
             is_service=user.is_service,
             is_guest=False,  # TODO
-            default_roles=user.data.get("defaultRoles", []),
+            default_access_groups=user.data.get("defaultAccessGroups", []),
             has_password=bool(user.data.get("password")),
             apiKeyPreview=user.data.get("apiKeyPreview"),
         )
