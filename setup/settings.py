@@ -25,6 +25,7 @@ async def deploy_settings(settings: dict[str, Any], addons: dict[str, str]) -> N
                 addon_settings,
             )
 
+    # TODO: Deprecated. Remove in future versions
     await Postgres.execute("DELETE FROM public.addon_versions")
     for addon_name, addon_version in addons.items():
         await Postgres.execute(

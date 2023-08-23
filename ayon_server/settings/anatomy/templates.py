@@ -5,7 +5,7 @@ from ayon_server.settings.validators import ensure_unique_names, normalize_name
 
 
 class BaseTemplate(BaseSettingsModel):
-    name: str = Field(..., title="Template name")
+    name: str = Field(..., title="Name")
 
     @validator("name")
     def validate_name(cls, value):
@@ -35,6 +35,11 @@ class DeliveryTemplate(BaseTemplate):
 class CustomTemplate(BaseTemplate):
     _layout: str = "compact"
     value: str = Field("", title="Template value")
+
+
+class StagingDirectory(BaseTemplate):
+    _layout: str = "compact"
+    directory: str = Field("")
 
 
 # TODO: Custom templates are not supported yet
@@ -70,7 +75,12 @@ class Templates(BaseSettingsModel):
                 name="default",
                 directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/work/{task[name]}",  # noqa: E501
                 file="{project[code]}_{folder[name]}_{task[name]}_{@version}<_{comment}>.{ext}",  # noqa: E501
-            )
+            ),
+            WorkTemplate(
+                name="unreal",
+                directory="{root[work]}/{project[name]}/unreal/{task[name]}",
+                file="{project[code]}_{folder[name]}.{ext}",
+            ),
         ],
         title="Work",
     )
@@ -80,9 +90,39 @@ class Templates(BaseSettingsModel):
         default_factory=lambda: [
             PublishTemplate(
                 name="default",
-                file="{project[code]}_{folder[name]}_{product[name]}_{@version}<_{output}><.{@frame}><_{udim}>.{ext}",  # noqa: E501
-                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{product[name]}/{@version}",  # noqa: E501
-            )
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{product[name]}/{@version}",
+                file="{project[code]}_{folder[name]}_{product[name]}_{@version}<_{output}><.{@frame}><_{udim}>.{ext}",
+            ),
+            PublishTemplate(
+                name="render",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{product[name]}/{@version}",
+                file="{project[code]}_{folder[name]}_{product[name]}_{@version}<_{output}><.{@frame}>.{ext}",
+            ),
+            PublishTemplate(
+                name="online",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{product[name]}/{@version}",
+                file="{originalBasename}<.{@frame}><_{udim}>.{ext}",
+            ),
+            PublishTemplate(
+                name="source",
+                directory="{root[work]}/{originalDirname}",
+                file="{originalBasename}.{ext}",
+            ),
+            PublishTemplate(
+                name="maya2unreal",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}",
+                file="{product[name]}_{@version}<_{output}><.{@frame}>.{ext}",
+            ),
+            PublishTemplate(
+                name="simpleUnrealTextureHero",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/hero",
+                file="{originalBasename}.{ext}",
+            ),
+            PublishTemplate(
+                name="simpleUnrealTexture",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{@version}",
+                file="{originalBasename}_{@version}.{ext}",
+            ),
         ],
     )
 
@@ -107,7 +147,12 @@ class Templates(BaseSettingsModel):
         title="Others",
     )
 
-    @validator("work", "publish", "hero", "delivery", "others")
+    staging_directories: list[StagingDirectory] = Field(
+        default_factory=list,
+        title="Staging directories",
+    )
+
+    @validator("work", "publish", "hero", "delivery", "others", "staging_directories")
     def validate_template_group(cls, value):
         ensure_unique_names(value)
         return value

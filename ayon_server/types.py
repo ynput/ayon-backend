@@ -15,6 +15,8 @@ from ayon_server.utils import json_dumps, json_loads
 # Common constants and types used everywhere
 #
 
+Platform = Literal["windows", "linux", "darwin"]
+
 AccessType = Literal[
     "create",
     "read",

@@ -13,7 +13,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
-from ayon_server.settings import postprocess_settings_schema
+from ayon_server.settings.postprocess import postprocess_settings_schema
 
 router = APIRouter(prefix="/roles", tags=["Roles"])
 

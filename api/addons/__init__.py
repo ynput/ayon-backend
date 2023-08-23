@@ -1,11 +1,8 @@
 from typing import Any, Literal
 
-from fastapi import APIRouter, Query, Request, Response
-from fastapi.routing import APIRoute
-from nxtools import logging, slugify
+from fastapi import Query, Request, Response
+from nxtools import logging
 
-from addons import install, project_settings, site_settings, studio_settings
-from addons.router import route_meta, router
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import SourceInfo
 from ayon_server.api.dependencies import CurrentUser
@@ -17,56 +14,13 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
+from . import install, project_settings, site_settings, studio_settings
+from .router import route_meta, router
+
 assert install
 assert site_settings
 assert studio_settings
 assert project_settings
-
-
-def register_addon_endpoints():
-    """Register all addons endpoints in the router."""
-
-    library = AddonLibrary.getinstance()
-    for addon_name, addon_definition in library.items():
-        for version in addon_definition.versions:
-            addon = addon_definition.versions[version]
-            addon_router = APIRouter(
-                prefix=f"/{addon_name}/{version}",
-                tags=[f"{addon_definition.friendly_name} {version}"],
-            )
-
-            # TODO: add a condition to check if the addon REST API is enabled
-            # We should discuss where the information about the addon is stored
-            # and how to enable/disable it. It doesn't make sense to have
-            # it in the database, because when this function is called,
-            # database is not yet initialized (and we want to avoid the async madness)
-            # Maybe each Addon versionshould have an attribute to enable/disable it?
-
-            for endpoint in addon.endpoints:
-                path = endpoint["path"].lstrip("/")
-                first_element = path.split("/")[0]
-                # TODO: site settings? other routes?
-                if first_element in ["settings", "schema", "overrides"]:
-                    logging.error(f"Unable to assing path to endpoint: {path}")
-                    continue
-
-                addon_router.add_api_route(
-                    f"/{path}",
-                    endpoint["handler"],
-                    methods=[endpoint["method"]],
-                    name=endpoint["name"],
-                )
-            for route in addon_router.routes:
-                if isinstance(route, APIRoute):
-                    route.has_own_op_id = True
-                    route.operation_id = slugify(
-                        f"{addon_name}_{version}_{route.name}",
-                        separator="_",
-                    )
-            router.include_router(addon_router)
-
-
-register_addon_endpoints()
 
 
 class VersionInfo(OPModel):
@@ -242,17 +196,18 @@ async def copy_addon_variant(
         target_settings,
     )
 
+    # TODO: deprecated. Remove
     # update the active version
-
-    await Postgres.execute(
-        f"""
-        UPDATE addon_versions
-        SET {copy_to}_version = $1
-        WHERE name = $2
-        """,
-        source_version,
-        addon_name,
-    )
+    #
+    # await Postgres.execute(
+    #     f"""
+    #     UPDATE addon_versions
+    #     SET {copy_to}_version = $1
+    #     WHERE name = $2
+    #     """,
+    #     source_version,
+    #     addon_name,
+    # )
 
 
 class AddonVersionConfig(OPModel):
@@ -276,7 +231,7 @@ class VariantCopyRequest(OPModel):
 
 class AddonConfigRequest(OPModel):
     copy_variant: VariantCopyRequest | None = Field(None)
-    versions: dict[str, AddonVersionConfig] | None = Field(None)
+    # versions: dict[str, AddonVersionConfig] | None = Field(None)
 
 
 @router.post("", **route_meta)
@@ -295,34 +250,35 @@ async def configure_addons(
         )
         return Response(status_code=204)
 
-    if payload.versions:
-        for name, version_config in payload.versions.items():
-            new_versions = version_config.dict(exclude_none=False, exclude_unset=True)
-            if not new_versions:
-                continue
-
-            sets = []
-            if "production_version" in new_versions:
-                sets.append("production_version = $1")
-
-            if "staging_version" in new_versions:
-                sets.append("staging_version = $2")
-
-            if not sets:
-                continue
-
-            query = f"""
-                INSERT INTO addon_versions (name, production_version, staging_version)
-                VALUES ($3, $1, $2)
-                ON CONFLICT (name) DO UPDATE SET {", ".join(sets)}
-            """
-
-            await Postgres.execute(
-                query,
-                new_versions.get("production_version"),
-                new_versions.get("staging_version"),
-                name,
-            )
-        return Response(status_code=204)
+    # TODO: Deprecated. Replaced with bundles
+    # if payload.versions:
+    #     for name, version_config in payload.versions.items():
+    #         new_versions = version_config.dict(exclude_none=False, exclude_unset=True)
+    #         if not new_versions:
+    #             continue
+    #
+    #         sets = []
+    #         if "production_version" in new_versions:
+    #             sets.append("production_version = $1")
+    #
+    #         if "staging_version" in new_versions:
+    #             sets.append("staging_version = $2")
+    #
+    #         if not sets:
+    #             continue
+    #
+    #         query = f"""
+    #             INSERT INTO addon_versions (name, production_version, staging_version)
+    #             VALUES ($3, $1, $2)
+    #             ON CONFLICT (name) DO UPDATE SET {", ".join(sets)}
+    #         """
+    #
+    #         await Postgres.execute(
+    #             query,
+    #             new_versions.get("production_version"),
+    #             new_versions.get("staging_version"),
+    #             name,
+    #         )
+    #     return Response(status_code=204)
 
     raise BadRequestException("Unsupported request")

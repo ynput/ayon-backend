@@ -133,7 +133,9 @@ async def get_folders(
     access_list = await create_folder_access_list(root, info)
 
     if access_list is not None:
-        sql_conditions.append(f"path like ANY ('{{ {','.join(access_list)} }}')")
+        sql_conditions.append(
+            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+        )
         use_hierarchy = True
 
     # We need to use children-join

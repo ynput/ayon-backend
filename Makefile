@@ -1,5 +1,4 @@
-VERSION=$(shell python -c "import ayon_server; print(ayon_server.__version__, end='')")
-
+VERSION=$(shell poetry run python -c "import ayon_server; print(ayon_server.__version__, end='')")
 
 default:
 	poetry run pre-commit install
@@ -9,3 +8,6 @@ check:
 	poetry run black .
 	poetry run ruff --fix .
 	poetry run mypy .
+
+reload:
+	@echo "You are in a wrong directory :)"

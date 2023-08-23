@@ -108,39 +108,39 @@ async def get_versions(
     if ids is not None:
         if not ids:
             return VersionsConnection()
-        sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
+        sql_conditions.append(f"versions.id IN {SQLTool.id_array(ids)}")
     if version:
-        sql_conditions.append(f"version = {version}")
+        sql_conditions.append(f"version.version = {version}")
     if versions is not None:
         if not versions:
             return VersionsConnection()
-        sql_conditions.append(f"version IN {SQLTool.array(versions)}")
+        sql_conditions.append(f"versions.version IN {SQLTool.array(versions)}")
     if authors is not None:
         if not authors:
             return VersionsConnection()
         validate_name_list(authors)
-        sql_conditions.append(f"author IN {SQLTool.array(authors)}")
+        sql_conditions.append(f"versions.author IN {SQLTool.array(authors)}")
     if statuses is not None:
         if not statuses:
             return VersionsConnection()
         validate_status_list(statuses)
-        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
+        sql_conditions.append(f"versions.status IN {SQLTool.array(statuses)}")
     if tags is not None:
         if not tags:
             return VersionsConnection()
         validate_name_list(tags)
-        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
+        sql_conditions.append(f"versions.tags @> {SQLTool.array(tags, curly=True)}")
 
     if product_ids is not None:
         if not product_ids:
             return VersionsConnection()
-        sql_conditions.append(f"product_id IN {SQLTool.id_array(product_ids)}")
+        sql_conditions.append(f"versions.product_id IN {SQLTool.id_array(product_ids)}")
     elif root.__class__.__name__ == "ProductNode":
-        sql_conditions.append(f"product_id = '{root.id}'")
+        sql_conditions.append(f"versions.product_id = '{root.id}'")
     if task_ids:
-        sql_conditions.append(f"task_id IN {SQLTool.id_array(task_ids)}")
+        sql_conditions.append(f"versions.task_id IN {SQLTool.id_array(task_ids)}")
     elif root.__class__.__name__ == "TaskNode":
-        sql_conditions.append(f"task_id = '{root.id}'")
+        sql_conditions.append(f"versions.task_id = '{root.id}'")
 
     if latestOnly:
         sql_conditions.append(

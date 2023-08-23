@@ -29,7 +29,14 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
             "frame": anatomy.templates.frame,
         }
     }
-    for template_type in ("work", "publish", "hero", "delivery", "others"):
+    for template_type in (
+        "work",
+        "publish",
+        "hero",
+        "delivery",
+        "others",
+        "staging_directories",
+    ):
         template_group = anatomy.templates.dict().get(template_type, [])
         if not template_group:
             continue

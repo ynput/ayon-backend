@@ -91,13 +91,28 @@ class AddonLibrary:
         return iter(self.data)
 
     async def get_active_versions(self) -> dict[str, dict[str, str]]:
-        active_versions = {}
-        async for row in Postgres.iterate("SELECT * FROM addon_versions"):
-            active_versions[row["name"]] = {
-                "production": row["production_version"],
-                "staging": row["staging_version"],
+        production_bundle = await Postgres.fetch(
+            "SELECT data->'addons' as addons FROM bundles WHERE is_production is true"
+        )
+        staging_bundle = await Postgres.fetch(
+            "SELECT data->'addons' as addons FROM bundles WHERE is_staging is true"
+        )
+
+        res = {}
+        for addon_name in self.data.keys():
+            res[addon_name] = {
+                "production": None,
+                "staging": None,
             }
-        return active_versions
+
+            if production_bundle and (addons := production_bundle[0]["addons"]):
+                if addon_name in addons:
+                    res[addon_name]["production"] = addons[addon_name]
+            if staging_bundle and (addons := staging_bundle[0]["addons"]):
+                if addon_name in addons:
+                    res[addon_name]["staging"] = addons[addon_name]
+
+        return res
 
     async def get_production_addon(self, addon_name: str) -> BaseServerAddon | None:
         """Return a production instance of the addon."""
@@ -118,3 +133,14 @@ class AddonLibrary:
         if staging_version is None:
             return None
         return self[addon_name][staging_version]
+
+    def unload_addon(self, addon_name: str, addon_version: str) -> None:
+        definition = self.data.get(addon_name)
+        if definition is None:
+            return
+        logging.info("Unloading addon", addon_name, addon_version)
+        definition.unload_version(addon_version)
+
+        if not definition._versions:
+            logging.info("Unloading addon", addon_name)
+            del self.data[addon_name]

@@ -4,7 +4,6 @@ from ayon_server.lib.postgres import Postgres
 
 
 async def deploy_roles(roles: list[dict[str, Any]]) -> None:
-    await Postgres.execute("DELETE FROM public.roles")
     for role in roles:
         await Postgres.execute(
             """
@@ -12,6 +11,8 @@ async def deploy_roles(roles: list[dict[str, Any]]) -> None:
                 (name, data)
             VALUES
                 ($1, $2)
+            ON CONFLICT (name) DO UPDATE
+            SET data = $2
             """,
             role["name"],
             role["data"],

@@ -35,7 +35,7 @@ router = APIRouter(
 # [GET] /api/users
 #
 
-# TODO: do we need this? Or is graphql enough
+# TODO: REMOVE!
 
 
 class UserListItemModel(OPModel):
@@ -46,8 +46,9 @@ class UserListModel(OPModel):
     users: list[UserListItemModel] = Field(default_factory=list)
 
 
-@router.get("")
+@router.get("", deprecated=True)
 async def list_users():
+    """This endpoint is deprecated. Use GraphQL instead."""
     pass
 
 

@@ -4,7 +4,6 @@ from fastapi import Query
 from nxtools import logging
 from pydantic.error_wrappers import ValidationError
 
-from addons.router import route_meta, router
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
@@ -17,11 +16,8 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
-from ayon_server.settings import (
-    extract_overrides,
-    list_overrides,
-    postprocess_settings_schema,
-)
+from ayon_server.settings.overrides import extract_overrides, list_overrides
+from ayon_server.settings.postprocess import postprocess_settings_schema
 
 from .common import (
     ModifyOverridesRequestModel,
@@ -30,6 +26,7 @@ from .common import (
     remove_override,
     remove_site_override,
 )
+from .router import route_meta, router
 
 
 @router.get("/{addon_name}/{version}/schema/{project_name}", **route_meta)
@@ -80,7 +77,9 @@ async def get_addon_project_settings(
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
     if site:
-        settings = await addon.get_project_site_settings(project_name, user.name, site)
+        settings = await addon.get_project_site_settings(
+            project_name, user.name, site, variant=variant
+        )
     else:
         settings = await addon.get_project_settings(project_name, variant=variant)
 
@@ -149,8 +148,8 @@ async def set_addon_project_settings(
         if not user.is_manager:
             raise ForbiddenException
 
-        original = await addon.get_project_settings(project_name)
-        existing = await addon.get_project_overrides(project_name)
+        original = await addon.get_project_settings(project_name, variant=variant)
+        existing = await addon.get_project_overrides(project_name, variant=variant)
         if original is None:
             # This addon does not have settings
             raise BadRequestException(f"Addon {addon_name} has no settings")
@@ -198,8 +197,12 @@ async def set_addon_project_settings(
 
     # site settings
 
-    original = await addon.get_project_site_settings(project_name, user.name, site)
-    existing = await addon.get_project_site_overrides(project_name, user.name, site)
+    original = await addon.get_project_site_settings(
+        project_name, user.name, site, variant=variant
+    )
+    existing = await addon.get_project_site_overrides(
+        project_name, user.name, site, variant=variant
+    )
     if original is None:
         # This addon does not have settings
         raise BadRequestException(f"Addon {addon_name} has no settings")

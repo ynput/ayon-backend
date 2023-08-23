@@ -1,122 +1,20 @@
-import asyncio
-import os
-import shutil
-import zipfile
-from concurrent.futures import ThreadPoolExecutor
+import hashlib
 from datetime import datetime
+from typing import Literal
 
 import aiofiles
 import shortuuid
-from fastapi import BackgroundTasks, Request
-from nxtools import logging
+from fastapi import BackgroundTasks, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.installer import background_installer
+from ayon_server.installer.addons import get_addon_zip_info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .router import router
-
-
-def get_zip_info(path: str) -> tuple[str, str]:
-    """Returns the addon name and version from the zip file"""
-    with zipfile.ZipFile(path, "r") as zip_ref:
-        names = zip_ref.namelist()
-
-    addon_name = None
-    addon_version = None
-    for path in names:
-        path = path.strip("/").split("/")
-        if len(path) < 2:
-            continue
-        _name, _version = path[:2]
-        if addon_name is None:
-            addon_name = _name
-            addon_version = _version
-            continue
-        if _name != addon_name:
-            raise RuntimeError("Multiple addon names found in zip file")
-        if _version != addon_version:
-            raise RuntimeError("Multiple addon versions found in zip file")
-
-    if not (addon_name and addon_version):
-        raise RuntimeError("No addon name or version found in zip file")
-
-    return addon_name, addon_version
-
-
-def unpack_addon_sync(zip_path: str, addon_name: str, addon_version: str):
-    logging.info(f"Unpacking addon {addon_name} {addon_version} from {zip_path}")
-    target_dir = os.path.join(ayonconfig.addons_dir, addon_name, addon_version)
-    if os.path.exists(target_dir):
-        shutil.rmtree(target_dir)
-
-    # TODO: ensure it works with empty directories, such as private.
-
-    os.makedirs(target_dir)
-    with zipfile.ZipFile(zip_path, "r") as zip_ref:
-        prefix = addon_name + "/" + addon_version + "/"
-        for file in zip_ref.namelist():
-            if file.startswith(prefix):
-                if file.endswith("/"):
-                    continue
-                else:
-                    zip_ref.extract(file, ayonconfig.addons_dir)
-
-
-async def unpack_addon(
-    event_id: str,
-    zip_path: str,
-    addon_name: str,
-    addon_version: str,
-):
-    """Unpack the addon from the zip file and install it
-
-    Unpacking is done in a separate thread to avoid blocking the main thread
-    (unzipping is a synchronous operation and it is also cpu-bound)
-
-    After the addon is unpacked, the event is finalized and the zip file is removed.
-    """
-
-    await update_event(
-        event_id,
-        description=f"Unpacking addon {addon_name} {addon_version}",
-        status="in_progress",
-    )
-
-    loop = asyncio.get_event_loop()
-
-    try:
-        with ThreadPoolExecutor() as executor:
-            task = loop.run_in_executor(
-                executor,
-                unpack_addon_sync,
-                zip_path,
-                addon_name,
-                addon_version,
-            )
-            await asyncio.gather(task)
-    except Exception as e:
-        logging.error(f"Error while unpacking addon: {e}")
-        await update_event(
-            event_id,
-            description=f"Error while unpacking addon: {e}",
-            status="failed",
-        )
-
-    try:
-        os.remove(zip_path)
-    except Exception as e:
-        logging.error(f"Error while removing zip file: {e}")
-
-    await update_event(
-        event_id,
-        description=f"Addon {addon_name} {addon_version} installed",
-        status="finished",
-    )
-
 
 #
 # API
@@ -127,11 +25,12 @@ class InstallAddonResponseModel(OPModel):
     event_id: str = Field(..., title="Event ID")
 
 
-@router.post("/install")
+@router.post("/install", tags=["Addons"])
 async def upload_addon_zip_file(
+    background_tasks: BackgroundTasks,
     user: CurrentUser,
     request: Request,
-    background_tasks: BackgroundTasks,
+    url: str | None = Query(None, title="URL to the addon zip file"),
 ) -> InstallAddonResponseModel:
     """Upload an addon zip file and install it"""
 
@@ -139,6 +38,36 @@ async def upload_addon_zip_file(
 
     if not user.is_admin:
         raise ForbiddenException("Only admins can install addons")
+
+    if url:
+        hash = hashlib.sha256(f"addon_install_{url}".encode("utf-8")).hexdigest()
+
+        query = """
+            SELECT id FROM events
+            WHERE topic = 'addon.install_from_url'
+            AND hash = $1
+        """
+
+        res = await Postgres.fetch(query, hash)
+        if res:
+            event_id = res[0]["id"]
+            await update_event(
+                event_id,
+                description="Reinstalling addon from URL",
+                status="pending",
+            )
+        else:
+            event_id = await dispatch_event(
+                "addon.install_from_url",
+                hash=hash,
+                description="Installing addon from URL",
+                summary={"url": url},
+                user=user.name,
+                finished=False,
+            )
+
+        await background_installer.enqueue(event_id)
+        return InstallAddonResponseModel(event_id=event_id)
 
     # Store the zip file in a temporary location
 
@@ -149,7 +78,7 @@ async def upload_addon_zip_file(
 
     # Get addon name and version from the zip file
 
-    addon_name, addon_version = get_zip_info(temp_path)
+    addon_name, addon_version = get_addon_zip_info(temp_path)
 
     # We don't create the event before we know that the zip file is valid
     # and contains an addon. If it doesn't, an exception is raised before
@@ -168,6 +97,16 @@ async def upload_addon_zip_file(
     res = await Postgres.fetch(query, addon_name, addon_version)
     if res:
         event_id = res[0]["id"]
+        await update_event(
+            event_id,
+            description="Reinstalling addon from zip file",
+            summary={
+                "addon_name": addon_name,
+                "addon_version": addon_version,
+                "zip_path": temp_path,
+            },
+            status="pending",
+        )
     else:
         # If not, dispatch a new event
         event_id = await dispatch_event(
@@ -186,19 +125,17 @@ async def upload_addon_zip_file(
     # And return the event ID to the client,
     # so that the client can poll the event status.
 
-    background_tasks.add_task(
-        unpack_addon,
-        event_id,
-        temp_path,
-        addon_name,
-        addon_version,
-    )
+    background_tasks.add_task(background_installer.enqueue, event_id)
 
     return InstallAddonResponseModel(event_id=event_id)
 
 
-class AddonListItemModel(OPModel):
+class AddonInstallListItemModel(OPModel):
     id: str = Field(..., title="Addon ID")
+    topic: Literal["addon.install", "addon.install_from_url"] = Field(
+        ...,
+        title="Event topic",
+    )
     description: str = Field(..., title="Addon description")
     addon_name: str = Field(..., title="Addon name")
     addon_version: str = Field(..., title="Addon version")
@@ -208,23 +145,36 @@ class AddonListItemModel(OPModel):
     updated_at: datetime | None = Field(None, title="Event update time")
 
 
-@router.get("/install")
-async def get_installed_addons_list() -> list[AddonListItemModel]:
+class AddonInstallListResponseModel(OPModel):
+    items: list[AddonInstallListItemModel] = Field(..., title="List of addons")
+    restart_required: bool = Field(...)
+
+
+@router.get("/install", tags=["Addons"])
+async def get_installed_addons_list(
+    user: CurrentUser,
+) -> AddonInstallListResponseModel:
     """Get a list of installed addons"""
 
     query = """
-        SELECT id, description, summary, user, status, created_at
-        FROM events WHERE topic = 'addon.install'
+        SELECT id, topic, description, summary, user, status, created_at, updated_at
+        FROM events WHERE topic IN ('addon.install', 'addon.install_from_url')
         ORDER BY updated_at DESC
         LIMIT 100
     """
 
-    result = []
+    last_change: datetime | None = None
+    items = []
     async for row in Postgres.iterate(query):
         summary = row["summary"]
-        result.append(
-            AddonListItemModel(
+        if last_change is None:
+            last_change = row["updated_at"]
+        else:
+            last_change = max(last_change, row["updated_at"])
+        items.append(
+            AddonInstallListItemModel(
                 id=row["id"],
+                topic=row["topic"],
                 description=row["description"],
                 addon_name=summary["addon_name"],
                 addon_version=summary["addon_version"],
@@ -235,21 +185,24 @@ async def get_installed_addons_list() -> list[AddonListItemModel]:
             )
         )
 
-    return result
+    # Check if a restart is required
+    if last_change is None:
+        restart_required = False
+    else:
+        res = await Postgres.fetch(
+            """
+                SELECT id FROM events
+                WHERE topic = 'server.started'
+                AND created_at > $1
+                ORDER BY created_at DESC
+                LIMIT 1
+            """,
+            last_change,
+        )
 
+        restart_required = not bool(res)
 
-#
-# Do wee need this?
-#
-
-# class InstallFromUrlRequestModel(OPModel):
-#     url: str = Field(..., title="URL to the addon zip file")
-#
-#
-# @router.post("/addons/install/from_url")
-# async def install_addon_from_url(
-#     user: CurrentUser,
-#     request: InstallFromUrlRequestModel,
-#     background_tasks: BackgroundTasks,
-# ) -> InstallAddonResponseModel:
-#     return
+    return AddonInstallListResponseModel(
+        items=items,
+        restart_required=restart_required,
+    )

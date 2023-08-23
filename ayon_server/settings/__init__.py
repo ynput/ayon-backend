@@ -13,7 +13,6 @@ __all__ = [
     "apply_overrides",
     "list_overrides",
     "extract_overrides",
-    "postprocess_settings_schema",
     "task_types_enum",
     "folder_types_enum",
     "ensure_unique_names",
@@ -22,7 +21,7 @@ __all__ = [
 
 from pydantic import Field
 
-from ayon_server.settings.common import BaseSettingsModel, postprocess_settings_schema
+from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.enum import folder_types_enum, task_types_enum
 from ayon_server.settings.models import (
     ImageIOBaseModel,

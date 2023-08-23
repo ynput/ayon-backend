@@ -1,18 +1,30 @@
+import hashlib
 import os
 
 import aiofiles
-from fastapi import Path, Request, Response
+from fastapi import BackgroundTasks, Path, Query, Request, Response
 from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import AyonException, ForbiddenException
+from ayon_server.events import dispatch_event, update_event
+from ayon_server.exceptions import (
+    AyonException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+)
+from ayon_server.installer import background_installer
+from ayon_server.installer.models import (
+    DependencyPackageManifest,
+    SourceModel,
+    SourcesPatchModel,
+)
+from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .common import (
-    BasePackageModel,
-    SourceModel,
-    SourcesPatchModel,
+    InstallResponseModel,
     get_desktop_dir,
     get_desktop_file_path,
     handle_download,
@@ -23,26 +35,7 @@ from .common import (
 from .router import router
 
 
-class DependencyPackageManifest(BasePackageModel):
-    installer_version: str = Field(
-        ...,
-        title="Installer version",
-        description="Version of the Ayon installer that this dependency package is created with",
-        example="1.2.3",
-    )
-    source_addons: dict[str, str] = Field(
-        default_factory=dict,
-        title="Source addons",
-        description="mapping of addon_name:addon_version used to create the package",
-        example={"ftrack": "1.2.3", "maya": "2.4"},
-    )
-    python_modules: dict[str, str] = Field(
-        default_factory=dict,
-        title="Python modules",
-        description="mapping of module_name:module_version used to create the package",
-        example={"requests": "2.25.1", "pydantic": "1.8.2"},
-    )
-
+class DependencyPackage(DependencyPackageManifest):
     @property
     def local_file_path(self) -> str:
         return get_desktop_file_path("dependency_packages", self.filename)
@@ -57,7 +50,7 @@ class DependencyPackageManifest(BasePackageModel):
 
 
 class DependencyPackageList(OPModel):
-    packages: list[DependencyPackageManifest] = Field(default_factory=list)
+    packages: list[DependencyPackage] = Field(default_factory=list)
 
 
 #
@@ -65,12 +58,17 @@ class DependencyPackageList(OPModel):
 #
 
 
-def get_manifest(filename: str) -> DependencyPackageManifest:
-    manifest_data = load_json_file("dependency_packages", f"{filename}.json")
-    manifest = DependencyPackageManifest(**manifest_data)
+def get_manifest(filename: str) -> DependencyPackage:
+    try:
+        manifest_data = load_json_file("dependency_packages", f"{filename}.json")
+        manifest = DependencyPackage(**manifest_data)
+    except FileNotFoundError:
+        raise NotFoundException(f"Dependency package manifest {filename} not found")
+    except ValueError:
+        raise AyonException(f"Failed to load dependency package manifest {filename}")
     if manifest.has_local_file:
-        print("dep has local file", manifest.local_file_path)
-        manifest.sources.append(SourceModel(type="server"))
+        if "server" not in [s.type for s in manifest.sources]:
+            manifest.sources.append(SourceModel(type="server"))
     return manifest
 
 
@@ -79,7 +77,7 @@ def get_manifest(filename: str) -> DependencyPackageManifest:
 async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
     """Return a list of dependency packages"""
 
-    result: list[DependencyPackageManifest] = []
+    result: list[DependencyPackage] = []
     for filename in iter_names("dependency_packages"):
         try:
             manifest = get_manifest(filename)
@@ -89,18 +87,24 @@ async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
 
         if filename != manifest.filename:
             logging.warning(
-                f"Filename in manifest does not match: {filename} != {manifest.filename}"
+                "Filename in manifest does not match: "
+                f"{filename} != {manifest.filename}"
             )
             continue
         result.append(manifest)
     return DependencyPackageList(packages=result)
 
 
-@router.post("/dependency_packages", status_code=204)
+@router.post("/dependency_packages", status_code=201)
 async def create_dependency_package(
-    payload: DependencyPackageManifest,
+    background_tasks: BackgroundTasks,
+    payload: DependencyPackage,
     user: CurrentUser,
-) -> EmptyResponse:
+    url: str | None = Query(None, title="URL to the addon zip file"),
+    overwrite: bool = Query(False, title="Overwrite existing package"),
+) -> InstallResponseModel:
+    event_id: str | None = None
+
     if not user.is_admin:
         raise ForbiddenException("Only admins can save dependency packages.")
 
@@ -109,13 +113,57 @@ async def create_dependency_package(
     except Exception:
         pass
     else:
-        raise AyonException("Dependency package already exists")
+        if not overwrite:
+            raise ConflictException(
+                f"Dependency package {payload.filename} already exists"
+            )
 
     _ = get_desktop_dir("dependency_packages", for_writing=True)
 
     async with aiofiles.open(payload.path, "w") as f:
+        addons_to_delete = []
+        for addon, version in payload.source_addons.items():
+            if version is None:
+                addons_to_delete.append(addon)
+        if addons_to_delete:
+            for addon in addons_to_delete:
+                del payload.source_addons[addon]
         await f.write(payload.json(exclude_none=True))
-    return EmptyResponse()
+
+    if url:
+        hash = hashlib.sha256(f"dep_pkg_install_{url}".encode("utf-8")).hexdigest()
+
+        query = """
+            SELECT id FROM events
+            WHERE topic = 'dependency_package.install_from_url'
+            AND hash = $1
+        """
+
+        res = await Postgres.fetch(query, hash)
+        if res:
+            event_id = res[0]["id"]
+            assert event_id
+            await update_event(
+                event_id,
+                description="Reinstalling dependency package from URL",
+                summary={"url": url},
+                status="pending",
+                retries=0,
+            )
+        else:
+            event_id = await dispatch_event(
+                "dependency_package.install_from_url",
+                hash=hash,
+                description="Installing dependency_package from URL",
+                summary={"url": url},
+                user=user.name,
+                finished=False,
+            )
+
+        assert event_id
+        background_tasks.add_task(background_installer.enqueue, event_id)
+
+    return InstallResponseModel(event_id=event_id)
 
 
 @router.get("/dependency_packages/{filename}")

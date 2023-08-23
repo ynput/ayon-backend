@@ -6,6 +6,7 @@ from typing import Any
 import asyncpg
 from nxtools import critical_error, log_traceback, logging
 
+from ayon_server.config import ayonconfig
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_loads
 from setup.attributes import deploy_attributes
@@ -18,58 +19,22 @@ from setup.users import deploy_users
 DATA: dict[str, Any] = {
     "addons": {},
     "settings": {},
-    "users": [
+    "users": [],
+    "roles": [],
+}
+
+if ayonconfig.force_create_admin:
+    DATA["users"] = [
         {
             "name": "admin",
             "password": "admin",
             "fullName": "Ayon admin",
             "isAdmin": True,
         },
-        {
-            "name": "manager",
-            "password": "manager",
-            "fullName": "Ayon manager",
-            "isManager": True,
-        },
-        {
-            "name": "user",
-            "password": "user",
-            "fullName": "Ayon user",
-            "defaultRoles": ["viewer"],
-        },
-    ],
-    "roles": [
-        {
-            "name": "editor",
-            "data": {},
-        },
-        {
-            "name": "viewer",
-            "data": {
-                "read": {"enabled": False},
-                "update": {"enabled": True, "access_list": []},
-                "create": {"enabled": True, "access_list": []},
-                "delete": {"enabled": True, "access_list": []},
-            },
-        },
-        {
-            "name": "artist",
-            "data": {
-                "read": {"enabled": True, "access_list": [{"type": "assigned"}]},
-                "update": {"enabled": True, "access_list": [{"type": "assigned"}]},
-                "create": {"enabled": True, "access_list": []},
-                "delete": {"enabled": True, "access_list": []},
-            },
-        },
-    ],
-}
+    ]
 
 
-async def main(force: bool | None = None) -> None:
-    """Main entry point for setup."""
-
-    logging.info("Starting setup")
-
+async def wait_for_postgres() -> None:
     while 1:
         try:
             await Postgres.connect()
@@ -82,6 +47,14 @@ async def main(force: bool | None = None) -> None:
         else:
             break
         await asyncio.sleep(1)
+
+
+async def main(force: bool | None = None) -> None:
+    """Main entry point for setup."""
+
+    logging.info("Starting setup")
+
+    await wait_for_postgres()
 
     try:
         await Postgres.fetch("SELECT * FROM projects")
@@ -104,6 +77,10 @@ async def main(force: bool | None = None) -> None:
         await Postgres.execute(schema)
 
     schema = Path("schemas/schema.public.sql").read_text()
+    await Postgres.execute(schema)
+
+    # inter-version updates
+    schema = Path("schemas/schema.public.update.sql").read_text()
     await Postgres.execute(schema)
 
     # This is something we can do every time.

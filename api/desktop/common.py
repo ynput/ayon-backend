@@ -1,16 +1,15 @@
 import hashlib
 import json
 import os
-from typing import Any, Generator, Literal
+from typing import Any, Generator
 
 import aiofiles
 from fastapi import Request
 from starlette.responses import FileResponse
 
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
+from ayon_server.installer.common import get_desktop_dir
 from ayon_server.types import Field, OPModel
-
-Platform = Literal["windows", "linux", "darwin"]
 
 
 def md5sum(path: str) -> str:
@@ -18,24 +17,6 @@ def md5sum(path: str) -> str:
 
     with open(path, "rb") as f:
         return hashlib.md5(f.read()).hexdigest()
-
-
-def get_desktop_dir(*args, for_writing: bool = True) -> str:
-    """Get path to desktop directory.
-    If the directory does not exist, create it.
-    args: path to the directory relative to the desktop directory
-    """
-
-    # TODO: Make this configurable
-    root = "/storage/desktop"
-    directory = os.path.join(root, *args)
-    if not os.path.isdir(directory):
-        if for_writing:
-            try:
-                os.makedirs(directory)
-            except Exception as e:
-                raise AyonException(f"Failed to create desktop directory: {e}")
-    return directory
 
 
 def get_desktop_file_path(*args, for_writing: bool = False) -> str:
@@ -48,12 +29,12 @@ def get_desktop_file_path(*args, for_writing: bool = False) -> str:
 def load_json_file(*args) -> dict[str, Any]:
     path = get_desktop_file_path(*args, for_writing=False)
     if not os.path.isfile(path):
-        raise AyonException(f"File does not exist: {path}")
+        raise FileNotFoundError(f"File does not exist: {path}")
     try:
         with open(path, "r") as f:
             return json.load(f)
     except Exception as e:
-        raise AyonException(f"Failed to load file {path}: {e}")
+        raise ValueError(f"Failed to load file {path}: {e}")
 
 
 def save_json_file(*args, data: Any) -> None:
@@ -120,45 +101,5 @@ async def handle_download(
     )
 
 
-class SourceModel(OPModel):
-    # For type=server, we do not use absolute url, because base server url can
-    # be different for different users. Instead, we provide just the information
-    # the source is availabe and the client can construct the url from the
-    # filename attribute of BasePackageModel
-    # e.g. http://server/api/desktop/{installers|dependency_packages}/{filename}
-
-    type: Literal["server", "url"] = Field(
-        ...,
-        title="Source type",
-        description="If set to server, the file is stored on the server. "
-        "If set to url, the file is downloaded from the specified URL.",
-        example="url",
-    )
-    url: str | None = Field(
-        None,
-        title="Download URL",
-        description="URL to download the file from. Only used if type is url",
-        example="https://example.com/file.zip",
-    )
-
-
-SOURCES_META = Field(
-    default_factory=list,
-    title="Sources",
-    description="List of sources to download the file from. "
-    "Server source is added automatically by the server if the file is uploaded.",
-    example=[{"type": "url"}],
-)
-
-
-class BasePackageModel(OPModel):
-    filename: str
-    platform: Platform
-    size: int | None = None
-    checksum: str | None = None
-    checksum_algorithm: Literal["md5", "sha1", "sha256"] | None = None
-    sources: list[SourceModel] = SOURCES_META
-
-
-class SourcesPatchModel(OPModel):
-    sources: list[SourceModel] = SOURCES_META
+class InstallResponseModel(OPModel):
+    event_id: str | None = Field(None, title="Event ID")

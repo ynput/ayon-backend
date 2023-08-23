@@ -27,6 +27,7 @@ class FolderAccess(BaseSettingsModel):
         title="Path",
         description="The path of the folder to allow access to. "
         "Required for access_type 'hierarchy and 'children'",
+        widget="hierarchy",
     )
 
     def __hash__(self):
@@ -70,43 +71,43 @@ class Permissions(BaseSettingsModel):
 
     create: FolderAccessList = Field(
         default_factory=FolderAccessList,
-        title="Folder create",
+        title="Restrict folder creation",
         description="Whitelist folders a user can create",
     )
 
     read: FolderAccessList = Field(
         default_factory=FolderAccessList,
-        title="Folder read",
+        title="Restrict folder read",
         description="Whitelist folders a user can read",
     )
 
     update: FolderAccessList = Field(
         default_factory=FolderAccessList,
-        title="Folder update",
+        title="Restrict folder update",
         description="Whitelist folders a user can update",
     )
 
     delete: FolderAccessList = Field(
         default_factory=FolderAccessList,
-        title="Folder delete",
+        title="Restrict folder delete",
         description="Whitelist folders a user can delete",
     )
 
     attrib_read: AttributeAccessList = Field(
         default_factory=AttributeAccessList,
-        title="Attribute read",
+        title="Restrict attribute read",
         description="Whitelist attributes a user can read",
     )
 
     attrib_write: AttributeAccessList = Field(
         default_factory=AttributeAccessList,
-        title="Attribute write",
+        title="Restrict attribute update",
         description="Whitelist attributes a user can write",
     )
 
     endpoints: EndpointsAccessList = Field(
         default_factory=EndpointsAccessList,
-        title="Limit REST endpoints",
+        title="Restrict REST endpoints",
         description="Whitelist REST endpoints a user can access",
     )
 

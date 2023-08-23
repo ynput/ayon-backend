@@ -19,6 +19,7 @@ echo "start.sh: Starting server"
 exec gunicorn \
   -k uvicorn.workers.UvicornWorker \
   --log-level warning \
+  --timeout 120 \
   -b :5000 \
-  ayon_server.api:app
+  ayon_server.api.server:app
   

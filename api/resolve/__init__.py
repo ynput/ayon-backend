@@ -4,6 +4,8 @@ from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter
 
+from ayon_server.api.dependencies import CurrentUser, SiteID
+from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
@@ -13,6 +15,11 @@ router = APIRouter(tags=["URI resolver"])
 
 
 class ResolveRequestModel(OPModel):
+    resolve_roots: bool = Field(
+        False,
+        title="Resolve roots",
+        description="If x-ayon-site-id header is provided, resolve representation path roots",
+    )
     uris: list[str] = Field(
         ...,
         title="URIs",
@@ -85,6 +92,7 @@ class ResolvedURIModel(OPModel):
                 "version_id": "0256ba2c005811ee9a740242ac130004",
                 "representation_id": None,
                 "workfile_id": None,
+                "file_path": "/path/to/file.ma",
             }
         ],
     )
@@ -174,8 +182,12 @@ def parse_uri(uri: str) -> ParsedURIModel:
     )
 
 
-def get_representation_path(template: str, context: dict[str, Any]) -> str:
-    context["root"] = {}
+def get_representation_path(
+    template: str,
+    context: dict[str, Any],
+    roots: dict[str, str] | None = None,
+) -> str:
+    context["root"] = roots or {}
     return StringTemplate.format_template(template, context)
 
 
@@ -226,13 +238,16 @@ def get_representation_conditions(representation_name: str | None) -> list[str]:
     return [f"r.name = '{representation_name}'"]
 
 
-async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityModel]:
+async def resolve_entities(
+    conn,
+    req: ParsedURIModel,
+    roots: dict[str, str],
+) -> list[ResolvedEntityModel]:
     result = []
     cols = ["h.id as folder_id"]
     joins = []
     conds = []
 
-    print(req)
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
 
@@ -294,10 +309,11 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
 
     statement = await conn.prepare(query)
     async for row in statement.cursor():
-        if "file_template" in row:
+        if ("file_template" in row) and ("context" in row):
             file_path = get_representation_path(
                 row["file_template"],
                 row["context"],
+                roots,
             )
         else:
             file_path = None
@@ -313,8 +329,56 @@ async def resolve_entities(conn, req: ParsedURIModel) -> list[ResolvedEntityMode
     return result
 
 
+async def get_roots_for_projects(
+    user_name: str, site_id: str, projects: list[str]
+) -> dict[str, dict[str, str]]:
+    # platform specific roots for each requested project
+    # e.g. roots[project][root_name] = root_path
+    roots: dict[str, dict[str, str]] = {}
+
+    site_res = await Postgres.fetch(
+        "SELECT data->>'platform' as platform FROM sites WHERE id = $1", site_id
+    )
+    if not site_res:
+        raise BadRequestException(status_code=404, detail="Site not found")
+
+    platform = site_res[0]["platform"]
+
+    # get roots from project anatomies
+
+    async for row in Postgres.iterate(
+        "SELECT name, config FROM projects WHERE name = ANY($1)", projects
+    ):
+        _project_name = row["name"]
+        _roots = row["config"].get("roots", {})
+        roots[_project_name] = {}
+        for _root_name, _root_paths in _roots.items():
+            roots[_project_name][_root_name] = _root_paths[platform]
+
+    # root project overrides
+
+    for project_name in projects:
+        async for row in Postgres.iterate(
+            f"SELECT data FROM project_{project_name}.custom_roots WHERE user_name = $1 AND site_id = $2",
+            user_name,
+            site_id,
+        ):
+            roots[project_name].update(row["data"])
+
+    return roots
+
+
 @router.post("/resolve", response_model_exclude_none=True)
-async def resolve_uris(request: ResolveRequestModel) -> list[ResolvedURIModel]:
+async def resolve_uris(
+    request: ResolveRequestModel,
+    site_id: SiteID,
+    user: CurrentUser,
+) -> list[ResolvedURIModel]:
+    roots = {}
+    if request.resolve_roots and site_id:
+        projects = [parse_uri(uri).project_name for uri in request.uris]
+        roots = await get_roots_for_projects(user.name, site_id, projects)
+
     result: list[ResolvedURIModel] = []
     current_project = ""
     async with Postgres.acquire() as conn:
@@ -326,6 +390,8 @@ async def resolve_uris(request: ResolveRequestModel) -> list[ResolvedURIModel]:
                         f"SET LOCAL search_path TO project_{parsed_uri.project_name}"
                     )
                     current_project = parsed_uri.project_name
-                entities = await resolve_entities(conn, parsed_uri)
+                entities = await resolve_entities(
+                    conn, parsed_uri, roots.get(current_project, {})
+                )
                 result.append(ResolvedURIModel(uri=uri, entities=entities))
     return result

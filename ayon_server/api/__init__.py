@@ -33,6 +33,3 @@ from ayon_server.api.dependencies import (
     dep_workfile_id,
 )
 from ayon_server.api.responses import JSONResponse, ResponseFactory
-
-# Import this last!
-from ayon_server.api.server import app

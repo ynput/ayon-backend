@@ -6,8 +6,8 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.settings import postprocess_settings_schema
 from ayon_server.settings.anatomy import Anatomy
+from ayon_server.settings.postprocess import postprocess_settings_schema
 from ayon_server.types import Field, OPModel
 
 router = APIRouter(tags=["Anatomy"], prefix="/anatomy")

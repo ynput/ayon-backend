@@ -3,7 +3,6 @@ from typing import Any
 from fastapi import Query, Response
 from pydantic.error_wrappers import ValidationError
 
-from addons.router import route_meta, router
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
@@ -15,13 +14,11 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
-from ayon_server.settings import (
-    extract_overrides,
-    list_overrides,
-    postprocess_settings_schema,
-)
+from ayon_server.settings.overrides import extract_overrides, list_overrides
+from ayon_server.settings.postprocess import postprocess_settings_schema
 
 from .common import ModifyOverridesRequestModel, pin_override, remove_override
+from .router import route_meta, router
 
 
 @router.get("/{addon_name}/{addon_version}/schema", **route_meta)

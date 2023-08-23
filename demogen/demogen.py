@@ -34,7 +34,9 @@ def random_datetime_interval(start, end):
     int_delta = delta.total_seconds()
     # subtract 86400 seconds (1 day) to ensure the interval lasts at least one day
     random_offset = random.uniform(0, int_delta - 86400)
-    interval_start = start + datetime.timedelta(seconds=random_offset)
+    interval_start = start + datetime.timedelta(
+        seconds=random_offset,
+    )
     interval_end = interval_start + datetime.timedelta(days=1)
     if interval_end > end:
         return (start, start + datetime.timedelta(days=1))
@@ -248,7 +250,7 @@ class DemoGen:
             self.project.attrib.endDate,
         )
 
-        if end_date < datetime.datetime.now():
+        if end_date < datetime.datetime.now(tz=datetime.timezone.utc):
             status = self.get_entity_status(done=True)
         else:
             status = self.get_entity_status()

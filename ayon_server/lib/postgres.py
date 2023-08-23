@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 import asyncpg
@@ -59,9 +60,14 @@ class Postgres:
     async def shutdown(cls) -> None:
         """Close the PostgreSQL connection pool."""
         if cls.pool is not None:
-            await cls.pool.close()
-            cls.pool = None
-            cls.shutting_down = True
+            try:
+                await asyncio.wait_for(cls.pool.close(), timeout=5)
+            except asyncio.TimeoutError:
+                print("Timeout closing Postgres connection pool.")
+                cls.pool.terminate()
+            finally:
+                cls.pool = None
+                cls.shutting_down = True
 
     @classmethod
     async def execute(cls, query: str, *args: Any) -> str:

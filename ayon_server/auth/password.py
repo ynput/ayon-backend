@@ -25,12 +25,12 @@ class PasswordAuth:
         Return None otherwise.
         """
 
-        name = name.strip().lower()
+        name = name.strip()
 
         # name active attrib data
 
         result = await Postgres.fetch(
-            "SELECT * FROM public.users WHERE name = $1", name
+            "SELECT * FROM public.users WHERE name ilike $1", name
         )
         if not result:
             logging.error(f"User {name} not found")

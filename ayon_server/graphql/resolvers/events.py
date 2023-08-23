@@ -11,6 +11,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,
+    ARGIds,
     ARGLast,
     FieldInfo,
     argdesc,
@@ -28,6 +29,7 @@ from ayon_server.utils import SQLTool
 async def get_events(
     root,
     info: Info,
+    ids: ARGIds = None,
     topics: Annotated[list[str] | None, argdesc("List of topics")] = None,
     projects: Annotated[list[str] | None, argdesc("List of projects")] = None,
     users: Annotated[list[str] | None, argdesc("List of users")] = None,
@@ -45,6 +47,9 @@ async def get_events(
     """Return a list of events."""
 
     sql_conditions = []
+
+    if ids is not None:
+        sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
 
     if topics is not None:
         if not topics:

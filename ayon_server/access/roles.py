@@ -99,5 +99,6 @@ class Roles:
                         | set(value.endpoints)
                     )
 
-        assert result is not None
+        if not result:
+            return Permissions()
         return Permissions(**result)

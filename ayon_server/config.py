@@ -25,7 +25,7 @@ class AyonConfig(BaseModel):
 
     addons_dir: str = Field(
         default="/addons",
-        description="Path to the directory containing the addons.",
+        description="Absolute path to the directory containing the addons.",
     )
 
     frontend_dir: str = Field(
@@ -65,6 +65,11 @@ class AyonConfig(BaseModel):
         example="postgres://user:password123@postgres.example.com:5432/ayon",
     )
 
+    session_ttl: int = Field(
+        default=24 * 3600,
+        description="Session lifetime in seconds",
+    )
+
     motd: str | None = Field(
         default=None,
         description="Message of the day",
@@ -93,9 +98,19 @@ class AyonConfig(BaseModel):
         description="Path to the GeoIP database",
     )
 
+    force_create_admin: bool = Field(
+        default=False,
+        description="Ensure creation of admin user on first run",
+    )
+
     audit_trail: bool = Field(
         default=True,
         description="Enable audit trail",
+    )
+
+    ynput_connect_url: str | None = Field(
+        "https://connect.ynput.io",
+        description="YnputConnect URL",
     )
 
 

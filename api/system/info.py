@@ -1,6 +1,6 @@
 import contextlib
+import os
 import time
-from typing import Literal
 from urllib.parse import urlparse
 
 from attributes.attributes import AttributeModel
@@ -18,6 +18,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .router import router
+from .sites import SiteInfo
 
 BOOT_TIME = time.time()
 
@@ -26,12 +27,26 @@ def get_uptime():
     return time.time() - BOOT_TIME
 
 
-class SiteInfo(OPModel):
-    id: str = Field(..., title="Site identifier")
-    platform: Literal["linux", "windows", "darwin"] = Field(...)
-    hostname: str = Field(..., title="Machine hostname")
-    version: str = Field(..., title="Ayon version")
-    users: list[str] = Field(..., title="List of users")
+def get_build_date() -> str | None:
+    """
+    Get the build date from the BUILD_DATE file
+    This file is created when building the docker image.
+    """
+    if os.path.isfile("BUILD_DATE"):
+        return open("BUILD_DATE").read().strip()
+    return None
+
+
+def get_version():
+    """
+    Get the version of the Ayon API
+    If the BUILD_DATE file exists, append the build date to the version
+    """
+    version = __version__
+    build_date = get_build_date()
+    if build_date:
+        version += f"+{build_date}"
+    return version
 
 
 class InfoResponseModel(OPModel):
@@ -52,7 +67,7 @@ class InfoResponseModel(OPModel):
         description="URL of the brand logo for the login page",
     )
     version: str = Field(
-        __version__,
+        default_factory=get_version,
         title="Ayon version",
         description="Version of the Ayon API",
     )
@@ -61,10 +76,27 @@ class InfoResponseModel(OPModel):
         title="Uptime",
         description="Time (seconds) since the server was started",
     )
+    no_admin_user: bool | None = Field(
+        None,
+        title="No admin user",
+        description="No admin user exists, display 'Create admin user' form",
+    )
+    onboarding: bool | None = Field(
+        None,
+        title="Onboarding",
+    )
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
     sites: list[SiteInfo] = Field(default_factory=list, title="List of sites")
     sso_options: list[SSOOption] = Field(default_factory=list, title="SSO options")
+
+
+async def admin_exists() -> bool:
+    async for row in Postgres.iterate(
+        "SELECT name FROM users WHERE data->>'isAdmin' = 'true'"
+    ):
+        return True
+    return False
 
 
 async def get_sso_options(request: Request) -> list[SSOOption]:
@@ -168,8 +200,20 @@ async def get_site_info(
     additional_info = {}
     if current_user:
         additional_info = await get_additional_info(current_user, request)
+
+        if current_user.is_admin:
+            res = await Postgres.fetch(
+                """SELECT * FROM config where key = 'onboardingFinished'"""
+            )
+            if not res:
+                additional_info["onboarding"] = True
+
     else:
         sso_options = await get_sso_options(request)
-        additional_info = {"sso_options": sso_options}
+        has_admin_user = await admin_exists()
+        additional_info = {
+            "sso_options": sso_options,
+            "no_admin_user": not has_admin_user,
+        }
     user_payload = current_user.payload if (current_user is not None) else None
     return InfoResponseModel(user=user_payload, **additional_info)
