@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ayon-server"
-version = "0.3.3"
+version = "0.4.0"
 description = ""
 authors = ["Ynput <info@ynput.io>"]
 

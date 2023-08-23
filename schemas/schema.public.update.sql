@@ -66,7 +66,7 @@ DROP FUNCTION IF EXISTS delete_project_roles();
 DO $$ 
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'access_groups') THEN
-    ALTER TABLE IF EXISTS public.roles RENAME TO public.access_groups;
+    ALTER TABLE IF EXISTS public.roles RENAME TO access_groups;
   ELSE
     DROP TABLE IF EXISTS public.roles;
   END IF;
