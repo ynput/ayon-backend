@@ -87,6 +87,12 @@ class Permissions(BaseSettingsModel):
         description="Whitelist folders a user can update",
     )
 
+    publish: FolderAccessList = Field(
+        default_factory=FolderAccessList,
+        title="Restrict publishing",
+        description="Whitelist folders a user can publish to",
+    )
+
     delete: FolderAccessList = Field(
         default_factory=FolderAccessList,
         title="Restrict folder delete",

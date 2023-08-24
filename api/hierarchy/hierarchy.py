@@ -76,7 +76,7 @@ async def get_folder_hierarchy(
     if type_list:
         conds.append(f"folder_type IN {SQLTool.array(type_list)}")
 
-    access_list = await folder_access_list(user, project_name, "read")
+    access_list = await folder_access_list(user, project_name, ["read"])
 
     if access_list is not None:
         conds.append(f"path like ANY ('{{ {','.join(access_list)} }}')")
