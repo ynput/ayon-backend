@@ -63,6 +63,7 @@ class ReleaseListItemModel(OPModel):
     created_at: datetime = Field(...)
     is_latest: bool = Field(...)
     addons: list[str] = Field(...)
+    mandatory_addons: list[str] = Field(default_factory=list)
 
 
 class ReleaseListModel(OPModel):
