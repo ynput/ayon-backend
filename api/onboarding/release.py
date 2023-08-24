@@ -48,6 +48,7 @@ class ReleaseAddon(OPModel):
 
 class ReleaseInfoModel(OPModel):
     name: str = Field(..., title="Release name", example="2023.08-2D")
+    label: str = Field(..., title="Release label", example="2D Animation")
     created_at: datetime = Field(default_factory=datetime.now)
     addons: list[ReleaseAddon] = Field(default_factory=list)
     installers: list[InstallerManifest] | None = Field(None)
@@ -56,6 +57,7 @@ class ReleaseInfoModel(OPModel):
 
 class ReleaseListItemModel(OPModel):
     name: str = Field(..., title="Release name", example="2023.08-2D")
+    label: str = Field(..., title="Release label", example="2D Animation")
     bio: str = Field("", title="Release bio", example="2D Animation")
     icon: str = Field("", title="Release icon", example="skeleton")
     created_at: datetime = Field(...)
