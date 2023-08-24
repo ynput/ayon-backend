@@ -6,6 +6,9 @@ from ayon_server.lib.postgres import Postgres
 
 
 async def deploy_settings(settings: dict[str, Any], addons: dict[str, str]) -> None:
+    # REMOVED IN 0.4.0
+    return
+
     logging.info("Deploying settings")
     await Postgres.execute("DELETE FROM public.settings")
 

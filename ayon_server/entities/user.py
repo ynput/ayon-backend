@@ -2,8 +2,8 @@
 
 import re
 
+from ayon_server.access.access_groups import AccessGroups
 from ayon_server.access.permissions import Permissions
-from ayon_server.access.roles import Roles
 from ayon_server.auth.utils import (
     create_password,
     ensure_password_complexity,
@@ -143,12 +143,14 @@ class UserEntity(TopLevelEntity):
             return None
 
         try:
-            roles = {k.lower(): v for k, v in self.data.get("roles", {}).items()}
-            active_roles = roles[project_name.lower()]
+            access_groups = {
+                k.lower(): v for k, v in self.data.get("accessGroups", {}).items()
+            }
+            active_access_groups = access_groups[project_name.lower()]
         except KeyError:
-            raise ForbiddenException("No role assigned on this project")
+            raise ForbiddenException("No access group assigned on this project")
 
-        return Roles.combine(active_roles, project_name)
+        return AccessGroups.combine(active_access_groups, project_name)
 
     def set_password(
         self,

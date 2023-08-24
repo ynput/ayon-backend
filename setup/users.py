@@ -35,24 +35,21 @@ async def deploy_users(
             data["apiKey"] = hash_password(api_key)
             data["apiKeyPreview"] = api_key_preview
 
-        data["defaultRoles"] = user.get("defaultRoles", [])
-        assert type(data["defaultRoles"]) == list
-        assert all(type(role) == str for role in data["defaultRoles"])
+        data["defaultAccessGroups"] = user.get("defaultAccessGroups", [])
+        assert type(data["defaultAccessGroups"]) == list
+        assert all(type(role) == str for role in data["defaultAccessGroups"])
 
-        data["roles"] = {
-            project_name: data["defaultRoles"]
+        data["accessGroups"] = {
+            project_name: data["defaultAccessGroups"]
             for project_name in projects
-            if data["defaultRoles"]
+            if data["defaultAccessGroups"]
         }
 
-        for project_name, roles in user.get("roles", {}).items():
-            #  roles = list(
-            #     set(data["roles"].get(project_name, [])) | set(roles)
-            # )
-            if roles:
-                data["roles"][project_name] = roles
-            elif data["roles"].get(project_name):
-                del data["roles"][project_name]
+        for project_name, access_groups in user.get("accessGroups", {}).items():
+            if access_groups:
+                data["accessGroups"][project_name] = access_groups
+            elif data["accessGroups"].get(project_name):
+                del data["accessGroups"][project_name]
 
         res = await Postgres.fetch("SELECT * FROM users WHERE name = $1", name)
         if res and not user.get("forceUpdate"):
@@ -71,3 +68,26 @@ async def deploy_users(
             attrib,
             data,
         )
+
+    # Migration from 0.3.0 to 0.4.0
+    # TODO: remove in 0.5.0
+
+    async for row in Postgres.iterate("SELECT name, data FROM users"):
+        name = row["name"]
+        data = row["data"]
+        need_update = False
+
+        dr = data.pop("defaultRoles", None)
+        if dr:
+            need_update = True
+            data["defaultAccessGroups"] = dr
+
+        r = data.pop("roles", None)
+        if r:
+            need_update = True
+            data["accessGroups"] = r
+
+        if need_update:
+            await Postgres.execute(
+                "UPDATE users SET data = $1 WHERE name = $2", data, name
+            )

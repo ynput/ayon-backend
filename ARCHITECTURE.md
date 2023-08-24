@@ -20,7 +20,7 @@ A Python package that will replace the current MongoDB implementation with a Pos
 
 ```
 ayon_server/
-├── access - Permission acces and roles. i.e. Admin, Project Manager, etc.
+├── access - Permissions, access groups... i.e. Admin, Project Manager, etc.
 ├── addons - Base classes for Addon's creation and Addon loading/importing logic.
 ├── api - Python interface for the different modules.
 ├── auth - Authentication via password or SSO and Session handling.

@@ -9,9 +9,8 @@ from nxtools import critical_error, log_traceback, logging
 from ayon_server.config import ayonconfig
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_loads
+from setup.access_groups import deploy_access_groups
 from setup.attributes import deploy_attributes
-from setup.roles import deploy_roles
-from setup.settings import deploy_settings
 from setup.users import deploy_users
 
 # Defaults which should allow Ayon server to run out of the box
@@ -76,11 +75,11 @@ async def main(force: bool | None = None) -> None:
         schema = Path("schemas/schema.drop.sql").read_text()
         await Postgres.execute(schema)
 
-    schema = Path("schemas/schema.public.sql").read_text()
-    await Postgres.execute(schema)
-
     # inter-version updates
     schema = Path("schemas/schema.public.update.sql").read_text()
+    await Postgres.execute(schema)
+
+    schema = Path("schemas/schema.public.sql").read_text()
     await Postgres.execute(schema)
 
     # This is something we can do every time.
@@ -93,7 +92,7 @@ async def main(force: bool | None = None) -> None:
                 data: dict[str, Any] = json_loads(raw_data)
             except Exception:
                 log_traceback()
-                critical_error("Invalid setup fileprovided")
+                critical_error("Invalid setup file provided")
 
             DATA.update(data)
         else:
@@ -104,13 +103,10 @@ async def main(force: bool | None = None) -> None:
             projects.append(row["name"])
 
         users: list[dict[str, Any]] = DATA["users"]
-        roles: list[dict[str, Any]] = DATA.get("roles", [])
-        settings: dict[str, Any] = DATA.get("settings", {})
-        addons: dict[str, str] = DATA.get("addons", {})
+        access_groups: list[dict[str, Any]] = DATA.get("accessGroups", [])
 
         await deploy_users(users, projects)
-        await deploy_roles(roles)
-        await deploy_settings(settings, addons)
+        await deploy_access_groups(access_groups)
 
         for name, value in DATA.get("secrets", {}).items():
             await Postgres.execute(
