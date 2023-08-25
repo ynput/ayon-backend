@@ -1,10 +1,13 @@
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 from pydantic import BaseModel
 from strawberry.experimental.pydantic import type as pydantic_type
 
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
+
+if TYPE_CHECKING:
+    from ayon_server.entities.user import UserEntity
 
 
 class BaseEntity:
@@ -37,8 +40,21 @@ class BaseEntity:
     # Modification
     #
 
-    def patch(self, patch_data: BaseModel) -> None:
+    def patch(self, patch_data: BaseModel, user: "UserEntity" | None = None) -> None:
         """Apply a patch to the entity."""
+
+        if user is not None and hasattr(self, "project_name"):
+            if not (user.is_manager):
+                # If a normal user tries to patch a project-level entity,
+                # we need to check what attributes are being modified.
+                # and if the user is allowed to do so.
+                patch_data = patch_data.copy(deep=True)
+                user.permissions(self.project_name)
+
+                # TODO: check for attribute whitelist
+                # and drop any attributes that are not allowed
+                # from the patch data.
+
         if (attrib := patch_data.dict().get("attrib")) is not None:
             for key in attrib:
                 if attrib.get(key) is None:
