@@ -1,7 +1,6 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from pydantic import Field
-from typing import Union
 
 from ayon_server.types import OPModel, Platform
 

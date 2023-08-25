@@ -109,7 +109,7 @@ async def get_releases(ynput_connect_key: YnputConnectKey) -> ReleaseListModel:
 
     params = {"key": ynput_connect_key}
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_connect_url}/api/releases",
             params=params,
@@ -126,7 +126,7 @@ async def get_release_info(
 
     params = {"key": ynput_connect_key}
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_connect_url}/api/releases/{release_name}",
             params=params,

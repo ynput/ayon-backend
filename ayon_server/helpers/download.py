@@ -6,6 +6,8 @@ from typing import Awaitable, Callable
 import aiofiles
 import httpx
 
+from ayon_server.config import ayonconfig
+
 
 async def download_file(
     url: str,
@@ -50,7 +52,7 @@ async def download_file(
     target_path = os.path.join(directory, filename)
     temp_file_path = target_path + f".{uuid.uuid1().hex}.part"
     i = 0
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         async with client.stream("GET", url) as response:
             file_size = int(response.headers.get("content-length", 0))
             directory = os.path.dirname(temp_file_path)
