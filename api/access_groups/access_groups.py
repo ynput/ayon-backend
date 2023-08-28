@@ -22,7 +22,6 @@ from ayon_server.settings.postprocess import postprocess_settings_schema
 router = APIRouter(prefix="", tags=["Access Groups"])
 
 
-@router.get("/roles/_schema", deprecated=True)
 @router.get("/accessGroups/_schema")
 async def get_access_group_schema():
     schema = Permissions.schema()
@@ -30,7 +29,6 @@ async def get_access_group_schema():
     return Permissions.schema()
 
 
-@router.get("/roles/{project_name}", deprecated=True)
 @router.get("/accessGroups/{project_name}")
 async def get_access_groups(
     user: CurrentUser, project_name: ProjectNameOrUnderscore
@@ -57,11 +55,6 @@ async def get_access_groups(
 
 
 @router.get(
-    "/roles/{access_group_name}/{project_name}",
-    response_model_exclude_none=True,
-    deprecated=True,
-)
-@router.get(
     "/accessGroups/{access_group_name}/{project_name}",
     response_model_exclude_none=True,
 )
@@ -74,11 +67,6 @@ async def get_access_group(
     return AccessGroups.combine([access_group_name], project_name)
 
 
-@router.put(
-    "/roles/{access_group_name}/{project_name}",
-    status_code=204,
-    deprecated=True,
-)
 @router.put(
     "/accessGroups/{access_group_name}/{project_name}",
     status_code=204,
@@ -122,9 +110,6 @@ async def save_access_group(
     return EmptyResponse()
 
 
-@router.delete(
-    "/roles/{access_group_name}/{project_name}", status_code=204, deprecated=True
-)
 @router.delete("/accessGroups/{access_group_name}/{project_name}", status_code=204)
 async def delete_access_group(
     user: CurrentUser,

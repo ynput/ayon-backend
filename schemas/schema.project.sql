@@ -311,12 +311,6 @@ CREATE TABLE project_site_settings(
   PRIMARY KEY (addon_name, addon_version, site_id, user_name)
 );
 
-CREATE TABLE addon_versions(
-  name VARCHAR NOT NULL PRIMARY KEY,
-  production_version VARCHAR,
-  staging_version VARCHAR
-);
-
 CREATE TABLE IF NOT EXISTS addon_data(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
@@ -324,7 +318,6 @@ CREATE TABLE IF NOT EXISTS addon_data(
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (addon_name, addon_version, key)
 );
-
 
 CREATE TABLE IF NOT EXISTS custom_roots(
   site_id VARCHAR NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
