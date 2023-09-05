@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from pydantic import BaseModel
 from strawberry.experimental.pydantic import type as pydantic_type
@@ -40,7 +40,7 @@ class BaseEntity:
     # Modification
     #
 
-    def patch(self, patch_data: BaseModel, user: "UserEntity" | None = None) -> None:
+    def patch(self, patch_data: BaseModel, user: Optional["UserEntity"] = None) -> None:
         """Apply a patch to the entity."""
 
         if user is not None and hasattr(self, "project_name"):

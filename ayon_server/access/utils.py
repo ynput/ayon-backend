@@ -117,8 +117,8 @@ async def ensure_entity_access(
     """
 
     access_types = [access_type]
-    # TODO: if we're modyfiing product, version or representation,
-    # add 'publish' to access_types
+    if entity_type in ["product", "version", "representation"]:
+        access_types.append("publish")
 
     access_list = await folder_access_list(
         user, project_name, access_types=access_types
