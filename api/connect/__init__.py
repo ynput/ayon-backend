@@ -45,7 +45,7 @@ async def get_ynput_connect_info(
 
     # TODO: handle errors
     # TODO: cache this
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_connect_url}/api/connect/info", params=params
         )
@@ -90,7 +90,7 @@ async def set_ynput_connect_key(
         if has_admin:
             raise ForbiddenException("Connecting to Ynput is allowed only on first run")
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_connect_url}/api/connect/info?key={request.key}"
         )

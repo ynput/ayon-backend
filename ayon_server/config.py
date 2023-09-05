@@ -113,6 +113,12 @@ class AyonConfig(BaseModel):
         description="YnputConnect URL",
     )
 
+    http_timeout: int = Field(
+        default=120,
+        description="Timeout for HTTP requests the server uses "
+        "to connect to external services",
+    )
+
 
 #
 # Load configuration from environment variables

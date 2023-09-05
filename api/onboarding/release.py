@@ -48,6 +48,7 @@ class ReleaseAddon(OPModel):
 
 class ReleaseInfoModel(OPModel):
     name: str = Field(..., title="Release name", example="2023.08-2D")
+    label: str = Field(..., title="Release label", example="2D Animation")
     created_at: datetime = Field(default_factory=datetime.now)
     addons: list[ReleaseAddon] = Field(default_factory=list)
     installers: list[InstallerManifest] | None = Field(None)
@@ -56,11 +57,13 @@ class ReleaseInfoModel(OPModel):
 
 class ReleaseListItemModel(OPModel):
     name: str = Field(..., title="Release name", example="2023.08-2D")
+    label: str = Field(..., title="Release label", example="2D Animation")
     bio: str = Field("", title="Release bio", example="2D Animation")
     icon: str = Field("", title="Release icon", example="skeleton")
     created_at: datetime = Field(...)
     is_latest: bool = Field(...)
     addons: list[str] = Field(...)
+    mandatory_addons: list[str] = Field(default_factory=list)
 
 
 class ReleaseListModel(OPModel):
@@ -106,7 +109,7 @@ async def get_releases(ynput_connect_key: YnputConnectKey) -> ReleaseListModel:
 
     params = {"key": ynput_connect_key}
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_connect_url}/api/releases",
             params=params,
@@ -123,7 +126,7 @@ async def get_release_info(
 
     params = {"key": ynput_connect_key}
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_connect_url}/api/releases/{release_name}",
             params=params,

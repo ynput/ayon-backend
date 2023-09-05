@@ -61,6 +61,9 @@ async def get_tasks(
     assignees: Annotated[
         list[str] | None, argdesc("List of assignees to filter by")
     ] = None,
+    assignees_any: Annotated[
+        list[str] | None, argdesc("List tasks with any of the selected assignees")
+    ] = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
 
@@ -140,6 +143,13 @@ async def get_tasks(
             return TasksConnection()
         sql_conditions.append(
             f"tasks.assignees @> {SQLTool.array(assignees, curly=True)}"
+        )
+
+    if assignees_any is not None:
+        if not assignees_any:
+            return TasksConnection()
+        sql_conditions.append(
+            f"tasks.assignees && {SQLTool.array(assignees_any, curly=True)}"
         )
 
     if has_links is not None:
