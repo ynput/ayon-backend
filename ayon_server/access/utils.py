@@ -57,7 +57,6 @@ async def folder_access_list(
     fpaths = set()
 
     for access_type in access_types:
-
         permset = perms.__getattribute__(access_type)
         if not permset.enabled:
             return None
@@ -117,11 +116,17 @@ async def ensure_entity_access(
     """
 
     access_types = [access_type]
-    if entity_type in ["product", "version", "representation"]:
+    if access_type in ["create", "update"] and entity_type in [
+        "product",
+        "version",
+        "representation",
+    ]:
         access_types.append("publish")
 
     access_list = await folder_access_list(
-        user, project_name, access_types=access_types
+        user,
+        project_name,
+        access_types=access_types,
     )
     if access_list is None:
         return True
