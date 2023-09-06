@@ -1,3 +1,4 @@
+import copy
 from typing import Any
 
 from fastapi import Query
@@ -54,7 +55,7 @@ async def get_addon_project_settings_schema(
         "user_name": user.name,
     }
 
-    schema = model.schema()
+    schema = copy.deepcopy(model.schema())
     await postprocess_settings_schema(schema, model, context=context)
     schema["title"] = addon.friendly_name
     return schema

@@ -1,3 +1,4 @@
+import copy
 from typing import Any
 
 from fastapi import APIRouter, Body
@@ -24,7 +25,7 @@ router = APIRouter(prefix="", tags=["Access Groups"])
 
 @router.get("/accessGroups/_schema")
 async def get_access_group_schema():
-    schema = Permissions.schema()
+    schema = copy.deepcopy(Permissions.schema())
     await postprocess_settings_schema(schema, Permissions)
     return Permissions.schema()
 

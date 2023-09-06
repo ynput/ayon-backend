@@ -1,3 +1,4 @@
+import copy
 from typing import Any
 
 from fastapi import Query, Response
@@ -37,7 +38,7 @@ async def get_addon_settings_schema(
     if model is None:
         return {}
 
-    schema = model.schema()
+    schema = copy.deepcopy(model.schema())
     await postprocess_settings_schema(schema, model)
     schema["title"] = addon.friendly_name
     return schema
