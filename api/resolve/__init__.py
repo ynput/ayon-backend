@@ -1,3 +1,4 @@
+import os
 import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -242,6 +243,7 @@ async def resolve_entities(
     conn,
     req: ParsedURIModel,
     roots: dict[str, str],
+    site_id: str | None = None,
 ) -> list[ResolvedEntityModel]:
     result = []
     cols = ["h.id as folder_id"]
@@ -250,6 +252,10 @@ async def resolve_entities(
 
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
+
+    platform = None
+    if site_id:
+        platform = await get_platform_for_site_id(site_id)
 
     if req.task_name is not None or req.workfile_name is not None:
         cols.append("t.id as task_id")
@@ -309,14 +315,19 @@ async def resolve_entities(
 
     statement = await conn.prepare(query)
     async for row in statement.cursor():
+        file_path = None
         if ("file_template" in row) and ("context" in row):
-            file_path = get_representation_path(
-                row["file_template"],
-                row["context"],
-                roots,
-            )
-        else:
-            file_path = None
+            if row["file_template"]:
+                
+                file_path = get_representation_path(
+                    row["file_template"],
+                    row["context"],
+                    roots,
+                )
+                file_path = os.path.normpath(file_path)
+                file_path = file_path.replace("//", "/")
+                if platform == "windows":
+                    file_path = file_path.replace("/", "\\")
 
         result.append(
             ResolvedEntityModel(
@@ -327,6 +338,16 @@ async def resolve_entities(
         )
 
     return result
+
+
+async def get_platform_for_site_id(site_id: str) -> str:
+    """Return the platform for the given site id."""
+    res = await Postgres.fetch(
+        "SELECT data->>'platform' as platform FROM sites WHERE id = $1", site_id
+    )
+    if not res:
+        raise BadRequestException(status_code=404, detail="Site not found")
+    return res[0]["platform"]
 
 
 async def get_roots_for_projects(
@@ -391,7 +412,7 @@ async def resolve_uris(
                     )
                     current_project = parsed_uri.project_name
                 entities = await resolve_entities(
-                    conn, parsed_uri, roots.get(current_project, {})
+                    conn, parsed_uri, roots.get(current_project, {}), site_id
                 )
                 result.append(ResolvedURIModel(uri=uri, entities=entities))
     return result
