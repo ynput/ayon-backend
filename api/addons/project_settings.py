@@ -156,8 +156,8 @@ async def set_addon_project_settings(
             raise BadRequestException(f"Addon {addon_name} has no settings")
         try:
             data = extract_overrides(original, model(**payload), existing)
-        except ValidationError:
-            raise BadRequestException("Invalid settings") from None
+        except ValidationError as e:
+            raise BadRequestException("Invalid settings", errors=e.errors()) from e
 
         await Postgres.execute(
             f"""

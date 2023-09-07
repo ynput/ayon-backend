@@ -1,7 +1,7 @@
 import copy
 from typing import Any
 
-from fastapi import Query, Response
+from fastapi import Query
 from pydantic.error_wrappers import ValidationError
 
 from ayon_server.addons import AddonLibrary
@@ -84,12 +84,11 @@ async def set_addon_studio_settings(
     existing = await addon.get_studio_overrides(variant=variant)
     model = addon.get_settings_model()
     if (original is None) or (model is None):
-        # This addon does not have settings
-        return Response(status_code=400)
+        raise BadRequestException("This addon does not have settings")
     try:
         data = extract_overrides(original, model(**payload), existing)
-    except ValidationError:
-        raise BadRequestException("Invalid settings") from None
+    except ValidationError as e:
+        raise BadRequestException("Invalid settings", errors=e.errors()) from e
 
     await Postgres.execute(
         """
