@@ -100,13 +100,13 @@ class TaskEntity(ProjectLevelEntity):
     #
 
     @property
-    def label(self) -> str:
-        """Return the label of the folder."""
-        return self._payload.label or self.name
+    def label(self) -> str | None:
+        """Return the label of the task."""
+        return self._payload.label
 
     @label.setter
     def label(self, value) -> None:
-        """Set the label of the folder."""
+        """Set the label of the task."""
         self._payload.label = value
 
     @property
