@@ -153,6 +153,7 @@ class FolderEntity(ProjectLevelEntity):
                         f"project_{self.project_name}.{self.entity_type}s",
                         f"WHERE id = '{self.id}'",
                         name=self.name,
+                        label=self.label,
                         folder_type=self.folder_type,
                         parent_id=self.parent_id,
                         thumbnail_id=self.thumbnail_id,
@@ -291,9 +292,9 @@ class FolderEntity(ProjectLevelEntity):
     #
 
     @property
-    def label(self):
+    def label(self) -> str | None:
         """Return the label of the folder."""
-        return self._payload.label or self.name
+        return self._payload.label
 
     @label.setter
     def label(self, value):

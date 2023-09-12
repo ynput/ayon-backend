@@ -1,3 +1,4 @@
+import copy
 from typing import Any
 
 from fastapi import Query
@@ -54,7 +55,7 @@ async def get_addon_project_settings_schema(
         "user_name": user.name,
     }
 
-    schema = model.schema()
+    schema = copy.deepcopy(model.schema())
     await postprocess_settings_schema(schema, model, context=context)
     schema["title"] = addon.friendly_name
     return schema
@@ -155,8 +156,8 @@ async def set_addon_project_settings(
             raise BadRequestException(f"Addon {addon_name} has no settings")
         try:
             data = extract_overrides(original, model(**payload), existing)
-        except ValidationError:
-            raise BadRequestException("Invalid settings") from None
+        except ValidationError as e:
+            raise BadRequestException("Invalid settings", errors=e.errors()) from e
 
         await Postgres.execute(
             f"""

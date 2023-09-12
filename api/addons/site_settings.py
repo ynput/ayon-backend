@@ -1,3 +1,4 @@
+import copy
 from typing import Any
 
 from fastapi import Query
@@ -30,7 +31,8 @@ async def get_addon_site_settings_schema(
         logging.error(f"No site settings schema for addon {addon_name}")
         return {}
 
-    schema = model.schema()
+    schema = copy.deepcopy(model.schema())
+
     await postprocess_settings_schema(schema, model)
     schema["title"] = addon.friendly_name
     return schema
