@@ -28,14 +28,16 @@ def path_to_paths(
 async def folder_access_list(
     user: "UserEntity",
     project_name: str,
-    access_type: AccessType = "read",
+    access_types: list[AccessType] | None = None,
 ) -> list[str] | None:
     """Return a list of paths user has access to
 
     Result is either a list of strings or None,
     if there's no access limit, so if the result is not none,
+    user has access to all folders in the list.
 
-    ```
+    Multiple access types can be specified, in which case
+    the result is a union of all access types.
 
     Requires folowing columns to be selected:
         - hierarchy.path AS path
@@ -44,53 +46,56 @@ async def folder_access_list(
     does not have rights to access any of the folders in the project.
     """
 
+    if access_types is None:
+        access_types = ["read"]
+
     if user.is_manager:
         return None
 
     perms = user.permissions(project_name)
     assert perms is not None, "folder_access_list without selected project"
-
-    permset = perms.__getattribute__(access_type)
-    if not permset.enabled:
-        return None
-
     fpaths = set()
 
-    for perm in permset.access_list:
-        if perm.access_type == "hierarchy":
-            for path in path_to_paths(
-                perm.path,
-                # Read access implies reading parent folders
-                include_parents=access_type == "read",
-            ):
-                fpaths.add(path)
+    for access_type in access_types:
+        permset = perms.__getattribute__(access_type)
+        if not permset.enabled:
+            return None
 
-        elif perm.access_type == "children":
-            for path in path_to_paths(
-                perm.path,
-                include_parents=access_type == "read",
-                include_self=False,
-            ):
-                fpaths.add(path)
-
-        elif perm.access_type == "assigned":
-            query = f"""
-                SELECT
-                    h.path
-                FROM
-                    project_{project_name}.hierarchy as h
-                INNER JOIN
-                    project_{project_name}.tasks as t
-                    ON h.id = t.folder_id
-                WHERE
-                    '{user.name}' = ANY (t.assignees)
-                """
-            async for record in Postgres.iterate(query):
+        for perm in permset.access_list:
+            if perm.access_type == "hierarchy":
                 for path in path_to_paths(
-                    record["path"],
+                    perm.path,
+                    # Read access implies reading parent folders
                     include_parents=access_type == "read",
                 ):
                     fpaths.add(path)
+
+            elif perm.access_type == "children":
+                for path in path_to_paths(
+                    perm.path,
+                    include_parents=access_type == "read",
+                    include_self=False,
+                ):
+                    fpaths.add(path)
+
+            elif perm.access_type == "assigned":
+                query = f"""
+                    SELECT
+                        h.path
+                    FROM
+                        project_{project_name}.hierarchy as h
+                    INNER JOIN
+                        project_{project_name}.tasks as t
+                        ON h.id = t.folder_id
+                    WHERE
+                        '{user.name}' = ANY (t.assignees)
+                    """
+                async for record in Postgres.iterate(query):
+                    for path in path_to_paths(
+                        record["path"],
+                        include_parents=access_type == "read",
+                    ):
+                        fpaths.add(path)
 
     if not fpaths:
         raise ForbiddenException("No paths")
@@ -110,7 +115,19 @@ async def ensure_entity_access(
     Warning: THIS IS SLOW. DO NOT USE IN BATCHES!
     """
 
-    access_list = await folder_access_list(user, project_name, access_type=access_type)
+    access_types = [access_type]
+    if access_type in ["create", "update"] and entity_type in [
+        "product",
+        "version",
+        "representation",
+    ]:
+        access_types.append("publish")
+
+    access_list = await folder_access_list(
+        user,
+        project_name,
+        access_types=access_types,
+    )
     if access_list is None:
         return True
 

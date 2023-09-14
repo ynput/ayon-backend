@@ -22,6 +22,7 @@ AccessType = Literal[
     "read",
     "update",
     "delete",
+    "publish",
 ]
 
 ProjectLevelEntityType = Literal[
