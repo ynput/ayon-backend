@@ -62,6 +62,13 @@ class NotFoundException(AyonException):
     status: int = 404
 
 
+class InvalidSettingsException(AyonException):
+    """Exception raised when addon settings are invalid."""
+
+    detail: str = "Invalid settings"
+    status: int = 503
+
+
 class ConflictException(AyonException):
     """Exception raised when a resource already exists."""
 
