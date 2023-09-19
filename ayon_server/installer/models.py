@@ -4,16 +4,15 @@ from pydantic import Field, validator
 
 from ayon_server.types import OPModel, Platform
 
+# For type=server, we do not use absolute url, because base server url can
+# be different for different users. Instead, we provide just the information
+# the source is availabe and the client can construct the url from the
+# filename attribute of BasePackageModel
+# e.g. http://server/api/desktop/{installers|dependency_packages}/{filename}
+# type = url is deprecated!
+
 
 class SourceModel(OPModel):
-    # For type=server, we do not use absolute url, because base server url can
-    # be different for different users. Instead, we provide just the information
-    # the source is availabe and the client can construct the url from the
-    # filename attribute of BasePackageModel
-    # e.g. http://server/api/desktop/{installers|dependency_packages}/{filename}
-
-    # type: url is deprecated!
-
     type: Literal["server", "http"] = Field(
         ...,
         title="Source type",
