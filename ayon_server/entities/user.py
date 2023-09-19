@@ -121,6 +121,8 @@ class UserEntity(TopLevelEntity):
 
     @property
     def is_admin(self) -> bool:
+        if self.is_guest:
+            return False
         return self._payload.data.get("isAdmin", False) or self.is_service
 
     @property
