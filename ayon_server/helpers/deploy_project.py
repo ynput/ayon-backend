@@ -1,5 +1,6 @@
 from typing import Any
 
+from ayon_server.events import dispatch_event
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.lib.postgres import Postgres
@@ -121,3 +122,11 @@ async def create_project_from_anatomy(
                 access_groups[project.name] = user.data["defaultAccessGroups"]
                 user.data["accessGroups"] = access_groups
                 await user.save(transaction=conn)
+
+    await dispatch_event(
+        "entity.project.created",
+        sender="ayon",
+        project=project.name,
+        user="",
+        description=f"Created project {project.name}",
+    )
