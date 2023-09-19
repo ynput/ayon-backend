@@ -18,6 +18,7 @@ from ayon_server.types import (
     ENTITY_ID_REGEX,
     LABEL_REGEX,
     NAME_REGEX,
+    PROJECT_NAME_REGEX,
 )
 
 project_fields = [
@@ -26,7 +27,7 @@ project_fields = [
     {
         "name": "code",
         "type": "string",
-        "regex": NAME_REGEX,
+        "regex": PROJECT_NAME_REGEX,
         "example": "prj",
         "title": "Project code",
         "required": True,

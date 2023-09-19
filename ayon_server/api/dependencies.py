@@ -16,7 +16,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.types import NAME_REGEX, USER_NAME_REGEX
+from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX, USER_NAME_REGEX
 from ayon_server.utils import (
     EntityID,
     json_dumps,
@@ -165,7 +165,7 @@ async def dep_new_project_name(
     project_name: str = Path(
         ...,
         title="Project name",
-        regex=NAME_REGEX,
+        regex=PROJECT_NAME_REGEX,
     )
 ) -> str:
     """Validate and return a project name.
@@ -184,7 +184,7 @@ async def dep_project_name(
     project_name: str = Path(
         ...,
         title="Project name",
-        regex=NAME_REGEX,
+        regex=PROJECT_NAME_REGEX,
     )
 ) -> str:
     """Validate and return a project name specified in an endpoint path.
