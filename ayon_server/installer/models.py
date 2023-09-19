@@ -1,6 +1,6 @@
-from typing import Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
-from pydantic import Field
+from pydantic import Field, validator
 
 from ayon_server.types import OPModel, Platform
 
@@ -12,11 +12,13 @@ class SourceModel(OPModel):
     # filename attribute of BasePackageModel
     # e.g. http://server/api/desktop/{installers|dependency_packages}/{filename}
 
-    type: Literal["server", "url"] = Field(
+    # type: url is deprecated!
+
+    type: Literal["server", "http"] = Field(
         ...,
         title="Source type",
         description="If set to server, the file is stored on the server. "
-        "If set to url, the file is downloaded from the specified URL.",
+        "If set to http, the file is downloaded from the specified URL.",
         example="url",
     )
     url: str | None = Field(
@@ -25,6 +27,13 @@ class SourceModel(OPModel):
         description="URL to download the file from. Only used if type is url",
         example="https://example.com/file.zip",
     )
+
+    @validator("type", pre=True)
+    def validate_type(cls, value: Any):
+        # if type is "url", change it to "http"
+        if value == "url":
+            return "http"
+        return value
 
 
 SOURCES_META = Field(

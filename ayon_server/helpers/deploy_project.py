@@ -1,8 +1,8 @@
 from typing import Any
 
-from ayon_server.events import dispatch_event
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
+from ayon_server.events import dispatch_event
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 
