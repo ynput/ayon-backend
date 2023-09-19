@@ -73,7 +73,6 @@ def get_manifest(filename: str) -> DependencyPackage:
 
 
 # TODO: add filtering
-@router.get("/dependency_packages", response_model_exclude_none=True, deprecated=True)
 @router.get("/dependencyPackages", response_model_exclude_none=True)
 async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
     """Return a list of dependency packages"""
@@ -96,7 +95,6 @@ async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
     return DependencyPackageList(packages=result)
 
 
-@router.post("/dependency_packages", status_code=201, deprecated=True)
 @router.post("/dependencyPackages", status_code=201)
 async def create_dependency_package(
     background_tasks: BackgroundTasks,
@@ -168,7 +166,6 @@ async def create_dependency_package(
     return InstallResponseModel(event_id=event_id)
 
 
-@router.get("/dependency_packages/{filename}", deprecated=True)
 @router.get("/dependencyPackages/{filename}")
 async def download_dependency_package(
     user: CurrentUser,
@@ -184,7 +181,6 @@ async def download_dependency_package(
     return await handle_download(file_path)
 
 
-@router.put("/dependency_packages/{filename}", status_code=204, deprecated=True)
 @router.put("/dependencyPackages/{filename}", status_code=204)
 async def upload_dependency_package(
     request: Request,
@@ -205,7 +201,6 @@ async def upload_dependency_package(
     return EmptyResponse(status_code=204)
 
 
-@router.delete("/dependency_packages/{filename}", status_code=204, deprecated=True)
 @router.delete("/dependencyPackages/{filename}", status_code=204)
 async def delete_dependency_package(
     user: CurrentUser,
@@ -226,7 +221,6 @@ async def delete_dependency_package(
     return EmptyResponse()
 
 
-@router.patch("/dependency_packages/{filename}", status_code=204, deprecated=True)
 @router.patch("/dependencyPackages/{filename}", status_code=204)
 async def update_dependency_package(
     payload: SourcesPatchModel,
