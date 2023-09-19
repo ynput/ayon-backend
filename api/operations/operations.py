@@ -5,6 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Header
 from nxtools import log_traceback
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.config import ayonconfig
 from ayon_server.entities import (
     FolderEntity,
     ProductEntity,
@@ -161,6 +162,8 @@ async def process_operation(
                 "project": project_name,
             }
         ]
+        if ayonconfig.audit_trail:
+            events[0]["payload"] = {"entityData": entity.dict_simple()}
         await entity.delete(transaction=transaction)
 
     return (

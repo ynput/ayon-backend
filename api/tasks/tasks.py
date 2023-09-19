@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Header
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName, TaskID
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
+from ayon_server.config import ayonconfig
 from ayon_server.entities import TaskEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
@@ -126,6 +127,8 @@ async def delete_task(
         "summary": {"entityId": task.id, "parentId": task.parent_id},
         "project": project_name,
     }
+    if ayonconfig.audit_trail:
+        event["payload"] = {"entityData": task.dict_simple()}
     await task.delete()
     background_tasks.add_task(
         dispatch_event,

@@ -152,7 +152,7 @@ async def delete_folder(
     }
     if ayonconfig.audit_trail:
         event["payload"] = {
-            "originalValue": folder.payload.dict(exclude_none=True),
+            "entityData": folder.dict_simple(),
         }
 
     await folder.delete()
