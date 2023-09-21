@@ -73,7 +73,7 @@ def get_manifest(filename: str) -> Installer:
         raise AyonException(f"Failed to load installer manifest {filename}")
     if manifest.has_local_file:
         if "server" not in [s.type for s in manifest.sources]:
-            manifest.sources.append(SourceModel(type="server"))
+            manifest.sources.insert(0, SourceModel(type="server"))
     return manifest
 
 
