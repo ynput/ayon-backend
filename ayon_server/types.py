@@ -52,15 +52,28 @@ AttributeType = Literal[
     "dict",
 ]
 
+#
+# Common regexes
+#
+
 ENTITY_ID_REGEX = r"^[0-f]{32}$"
 ENTITY_ID_EXAMPLE = "c10d5bc73dcab7da4cba0f3e0b3c0aea"
-STATUS_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{2,64}[a-zA-Z0-9_]$"
+STATUS_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{1,64}[a-zA-Z0-9_]$"
 TOPIC_REGEX = r"^[a-zA-Z][a-zA-Z0-9_\.\*]{2,64}$"
+
+# labels should not contain single quotes or semicolons (sql injection prevention)
 LABEL_REGEX = r"^[^';]*$"
-NAME_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_\.\-]*[a-zA-Z0-9_]$"
+
+# entity names
+NAME_REGEX = r"^[a-zA-Z0-9_]([a-zA-Z0-9_\.\-]*[a-zA-Z0-9_])?$"
+
+# user names shouldn't start or end with underscores
 USER_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
-# project name cannot contain - / .
-PROJECT_NAME_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_]*[a-zA-Z0-9_]$"
+
+# project name cannot contain - / . (sql hard limit for schema names)
+PROJECT_NAME_REGEX = r"^[a-zA-Z0-9_]*$"
+
+# TODO: consider length limit for project code
 PROJECT_CODE_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_]*[a-zA-Z0-9_]$"
 
 
