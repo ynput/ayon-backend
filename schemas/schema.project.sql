@@ -121,7 +121,7 @@ CREATE TABLE tasks(
 
     name VARCHAR NOT NULL,
     label VARCHAR,
-    folder_id UUID NOT NULL REFERENCES folders(id),
+    folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
     task_type VARCHAR REFERENCES task_types(name) ON UPDATE CASCADE,
     assignees VARCHAR[] NOT NULL DEFAULT '{}',
 
