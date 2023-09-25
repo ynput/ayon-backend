@@ -5,10 +5,23 @@ from typing import Any, Deque, Type
 
 from nxtools import logging
 
-from ayon_server.entities.models.generator import EnumFieldDefinition
 from ayon_server.exceptions import AyonException
+from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.common import BaseSettingsModel
-from ayon_server.types import camelize
+from ayon_server.types import AttributeEnumItem, camelize
+
+
+async def get_attrib_enum(name: str) -> tuple[list[str], dict[str, str]]:
+    enum_values = []
+    enum_labels = {}
+
+    res = await Postgres.fetch("SELECT data FROM attributes WHERE name=$1", name)
+    if res:
+        for item in res[0]["data"].get("enum", []):
+            enum_values.append(item["value"])
+            enum_labels[item["value"]] = item["label"]
+
+    return enum_values, enum_labels
 
 
 async def process_enum(
@@ -90,18 +103,22 @@ async def postprocess_settings_schema(  # noqa
             is_enum = False
             if enum := field.field_info.extra.get("enum"):
                 is_enum = True
-                for item in enum:
-                    if isinstance(item, EnumFieldDefinition):
-                        enum_values.append(item.value)
-                        enum_labels[item.value] = item.label
-                    elif type(item) is str:
-                        enum_values.append(item)
-                    elif type(item) is dict:
-                        if "value" not in item or "label" not in item:
-                            logging.warning(f"Invalid enumerator item: {item}")
-                            continue
-                        enum_values.append(item["value"])
-                        enum_labels[item["value"]] = item["label"]
+
+                if field.field_info.extra.get("_attrib_enum"):
+                    enum_values, enum_labels = await get_attrib_enum(name)
+                else:
+                    for item in enum:
+                        if isinstance(item, AttributeEnumItem):
+                            enum_values.append(item.value)
+                            enum_labels[item.value] = item.label
+                        elif type(item) is str:
+                            enum_values.append(item)
+                        elif type(item) is dict:
+                            if "value" not in item or "label" not in item:
+                                logging.warning(f"Invalid enumerator item: {item}")
+                                continue
+                            enum_values.append(item["value"])
+                            enum_labels[item["value"]] = item["label"]
 
             elif enum_resolver := field.field_info.extra.get("enum_resolver"):
                 is_enum = True
