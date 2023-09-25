@@ -210,10 +210,12 @@ async def patch_user(
             )
         # user cannot change any user's guest status
         payload.data.pop("isGuest", None)
+        payload.data.pop("isDeveloper", None)
 
     if not user.is_admin:
         # Non-admins cannot change any user's admin status
         payload.data.pop("isAdmin", None)
+        payload.data.pop("isDeveloper", None)
     elif target_user.name == user.name:
         # Admins cannot demote themselves
         payload.data.pop("isAdmin", None)
