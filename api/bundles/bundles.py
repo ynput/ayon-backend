@@ -63,6 +63,7 @@ class BundleModel(BaseBundleModel):
     is_production: bool = Field(False, example=False)
     is_staging: bool = Field(False, example=False)
     is_archived: bool = Field(False, example=False)
+    is_dev: bool = Field(False, example=False)
 
 
 class BundlePatchModel(BaseBundleModel):
@@ -73,12 +74,14 @@ class BundlePatchModel(BaseBundleModel):
     is_production: bool | None = Field(None, example=False)
     is_staging: bool | None = Field(None, example=False)
     is_archived: bool | None = Field(None, example=False)
+    is_dev: bool | None = Field(None, example=False)
 
 
 class ListBundleModel(OPModel):
     bundles: list[BundleModel] = Field(default_factory=list)
     production_bundle: str | None = Field(None, example="my_superior_bundle")
     staging_bundle: str | None = Field(None, example="my_superior_bundle")
+    dev_bundles: list[str] = Field(default_factory=list)
 
 
 @router.get("/bundles", response_model_exclude_none=True)
@@ -88,6 +91,7 @@ async def list_bundles(
     result: list[BundleModel] = []
     production_bundle: str | None = None
     staging_bundle: str | None = None
+    dev_bundles: list[str] = []
 
     async for row in Postgres.iterate("SELECT * FROM bundles ORDER by created_at DESC"):
         bundle = BundleModel(
@@ -97,11 +101,14 @@ async def list_bundles(
             is_production=row["is_production"],
             is_staging=row["is_staging"],
             is_archived=row["is_archived"],
+            is_dev=row["is_dev"],
         )
         if row["is_production"]:
             production_bundle = row["name"]
         if row["is_staging"]:
             staging_bundle = row["name"]
+        if row["is_dev"]:
+            dev_bundles.append(row["name"])
 
         if not archived and bundle.is_archived:
             continue
@@ -112,6 +119,7 @@ async def list_bundles(
         bundles=result,
         production_bundle=production_bundle,
         staging_bundle=staging_bundle,
+        dev_bundles=dev_bundles,
     )
 
 
@@ -130,7 +138,7 @@ async def create_bundle(
 
                 query = """
                     INSERT INTO bundles
-                    (name, data, is_production, is_staging, created_at)
+                    (name, data, is_production, is_staging, is_dev, created_at)
                     VALUES ($1, $2, $3, $4, $5)
                 """
 
@@ -140,6 +148,7 @@ async def create_bundle(
                 data.pop("is_production", None)
                 data.pop("is_staging", None)
                 data.pop("is_archived", None)
+                data.pop("is_dev", None)
 
                 # we ignore is_archived. it does not make sense to create
                 # an archived bundle
@@ -150,6 +159,7 @@ async def create_bundle(
                     data,
                     bundle.is_production,
                     bundle.is_staging,
+                    bundle.is_dev,
                     bundle.created_at,
                 )
     except Postgres.UniqueViolationError:
@@ -164,6 +174,7 @@ async def create_bundle(
             "name": bundle.name,
             "isProduction": bundle.is_production,
             "isStaging": bundle.is_staging,
+            "isDev": bundle.is_dev,
         },
         payload=data,
     )
@@ -223,6 +234,7 @@ async def patch_bundle(
                 created_at=row["created_at"],
                 is_production=row["is_production"],
                 is_staging=row["is_staging"],
+                id_dev=row["is_dev"],
                 is_archived=row["is_archived"],
             )
             dep_packages = orig_bundle.dependency_packages.copy()
@@ -240,6 +252,7 @@ async def patch_bundle(
                     or orig_bundle.is_staging
                     or bundle.is_production
                     or bundle.is_staging
+                    or bundle.is_dev
                 ):
                     raise BadRequestException(
                         "Cannot archive bundle that is production or staging"
@@ -250,6 +263,9 @@ async def patch_bundle(
                 orig_bundle.is_archived = True
             elif bundle.is_archived is False:
                 orig_bundle.is_archived = False
+
+            if bundle.is_dev is not None:
+                orig_bundle.is_dev = bundle.is_dev
 
             if bundle.is_production is not None:
                 orig_bundle.is_production = bundle.is_production
@@ -270,12 +286,13 @@ async def patch_bundle(
             await conn.execute(
                 """
                 UPDATE bundles
-                SET data = $1, is_production = $2, is_staging = $3, is_archived = $4
+                SET data = $1, is_production = $2, is_staging = $3, is_dev, is_archived = $4
                 WHERE name = $5
                 """,
                 data,
                 orig_bundle.is_production,
                 orig_bundle.is_staging,
+                orig_bundle.is_dev,
                 orig_bundle.is_archived,
                 bundle_name,
             )
@@ -290,6 +307,7 @@ async def patch_bundle(
             "isProduction": bundle.is_production,
             "isStaging": bundle.is_staging,
             "isArchived": bundle.is_archived,
+            "isDev": bundle.is_dev,
         },
         payload=data,
     )
@@ -403,6 +421,7 @@ async def bundle_actions(
                 is_production=row["is_production"],
                 is_staging=row["is_staging"],
                 is_archived=row["is_archived"],
+                is_dev=row["is_dev"],
             )
 
             if bundle.is_archived:
