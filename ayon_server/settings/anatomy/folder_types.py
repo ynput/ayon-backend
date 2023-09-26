@@ -24,7 +24,7 @@ class FolderType(BaseSettingsModel):
 
 default_folder_types = [
     FolderType(name="Folder", icon="folder"),
-    FolderType(name="Library", icon="category"),
+    FolderType(name="Library", shortName="lib", icon="category"),
     FolderType(name="Asset", icon="smart_toy"),
     FolderType(name="Episode", shortName="ep", icon="live_tv"),
     FolderType(name="Sequence", shortName="sq", icon="theaters"),
