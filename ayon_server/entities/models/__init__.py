@@ -45,6 +45,8 @@ class AttribModelConfig:
     own entity attributes and which are inherited).
     """
 
+    _is_attrib_model = True
+
     # On the other hand, in demogen, we need to be able to
     # set attributes on the fly, so we need to allow it.
     # TODO: How to handle this situation?

@@ -4,7 +4,7 @@ __all__ = [
 ]
 
 import re
-from typing import Literal, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, Field
 
@@ -215,3 +215,10 @@ class ColorRGBA_float(NamedTuple):
     g: float
     b: float
     a: float
+
+
+class AttributeEnumItem(OPModel):
+    """Attribute enum item."""
+
+    value: Any = Field(..., title="Enum value")
+    label: str = Field(..., title="Enum label")

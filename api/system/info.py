@@ -1,6 +1,7 @@
 import contextlib
 import os
 import time
+from typing import Any
 from urllib.parse import urlparse
 
 from attributes.attributes import AttributeModel
@@ -171,8 +172,18 @@ async def get_additional_info(user: UserEntity, request: Request):
 
         sites.insert(0, current_site)
 
+    # load dynamic_enums
+    enums: dict[str, Any] = {}
+    async for row in Postgres.iterate(
+        "SELECT name, data FROM attributes WHERE data->'enum' is not null"
+    ):
+        enums[row["name"]] = row["data"]["enum"]
+
     attr_list: list[AttributeModel] = []
     for row in attribute_library.info_data:
+        row = {**row}
+        if row["name"] in enums:
+            row["enum"] = enums[row["name"]]
         try:
             attr_list.append(AttributeModel(**row))
         except ValidationError:
