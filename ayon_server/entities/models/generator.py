@@ -11,7 +11,7 @@ from typing import Any, List, Literal, Optional, Type, TypeVar, Union
 from nxtools import logging
 from pydantic import BaseModel, Field, create_model
 
-from ayon_server.types import AttributeType
+from ayon_server.types import AttributeEnumItem, AttributeType
 
 C = TypeVar("C", bound=type)
 
@@ -69,13 +69,6 @@ FIELD_FACORIES = {
 # 'extra',
 
 
-class EnumFieldDefinition(BaseModel):
-    """Enum field definition."""
-
-    value: str
-    label: str
-
-
 class FieldDefinition(BaseModel):
     """Field definition model."""
 
@@ -108,7 +101,7 @@ class FieldDefinition(BaseModel):
     min_items: Optional[int] = Field(title="Minimum items")
     max_items: Optional[int] = Field(title="Maximum items")
     regex: Optional[str] = Field(title="Field regex")
-    enum: Optional[list[EnumFieldDefinition]] = Field(None, title="Enum values")
+    enum: Optional[list[AttributeEnumItem]] = Field(None, title="Enum values")
 
 
 def generate_model(
@@ -156,6 +149,9 @@ def generate_model(
         ):
             if getattr(fdef, k):
                 field[k] = getattr(fdef, k)
+
+        if field.get("enum"):
+            field["_attrib_enum"] = True
         #
         # Default value
         #

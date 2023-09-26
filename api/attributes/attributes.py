@@ -5,9 +5,11 @@ from pydantic import Field, ValidationError
 
 from ayon_server.api.dependencies import AttributeName, CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import (
+    AttributeEnumItem,
     AttributeType,
     OPModel,
     ProjectLevelEntityType,
@@ -15,13 +17,6 @@ from ayon_server.types import (
 )
 
 router = APIRouter(prefix="/attributes", tags=["Attributes"])
-
-
-class AttributeEnumItem(OPModel):
-    """Attribute enum item."""
-
-    value: Any = Field(..., title="Enum value")
-    label: str = Field(..., title="Enum label")
 
 
 class AttributeData(OPModel):
@@ -159,6 +154,25 @@ async def save_attribute(attribute: AttributeModel):
         attribute.scope,
         attribute.data.dict(exclude_none=True),
     )
+
+    if (enum := attribute.data.enum) is not None:
+        # print(f"Enum of {attribute.name} is {enum}")
+
+        for name, field in ProjectEntity.model.attrib_model.__fields__.items():
+            if name != attribute.name:
+                continue
+
+            field_enum = field.field_info.extra.get("enum")
+            if field_enum is None:
+                continue
+            field_enum.clear()
+            field_enum.extend(enum)
+
+        for name, field in ProjectEntity.model.attrib_model.__fields__.items():
+            if name != attribute.name:
+                continue
+            field_enum = field.field_info.extra.get("enum")
+            print(field_enum)
 
 
 async def list_raw_attributes() -> list[dict[str, Any]]:
