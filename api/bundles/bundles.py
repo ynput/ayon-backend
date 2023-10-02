@@ -139,7 +139,7 @@ async def create_bundle(
                 query = """
                     INSERT INTO bundles
                     (name, data, is_production, is_staging, is_dev, created_at)
-                    VALUES ($1, $2, $3, $4, $5)
+                    VALUES ($1, $2, $3, $4, $5, $6)
                 """
 
                 data = {**bundle.dict(exclude_none=True)}
@@ -286,8 +286,8 @@ async def patch_bundle(
             await conn.execute(
                 """
                 UPDATE bundles
-                SET data = $1, is_production = $2, is_staging = $3, is_dev, is_archived = $4
-                WHERE name = $5
+                SET data = $1, is_production = $2, is_staging = $3, is_dev = $4, is_archived = $5
+                WHERE name = $6
                 """,
                 data,
                 orig_bundle.is_production,
