@@ -94,8 +94,14 @@ async def list_bundles(
     dev_bundles: list[str] = []
 
     async for row in Postgres.iterate("SELECT * FROM bundles ORDER by created_at DESC"):
+
+        data = {**row["data"]}
+        data.pop("is_production", None)
+        data.pop("is_staging", None)
+        data.pop("is_archived", None)
+        data.pop("is_dev", None)
         bundle = BundleModel(
-            **row["data"],
+            **data,
             name=row["name"],
             created_at=row["created_at"],
             is_production=row["is_production"],
@@ -228,13 +234,19 @@ async def patch_bundle(
                 raise NotFoundException("Bundle not found")
             row = res[0]
 
+            data = {**row["data"]}
+            data.pop("is_production", None)
+            data.pop("is_staging", None)
+            data.pop("is_archived", None)
+            data.pop("is_dev", None)
+
             orig_bundle = BundleModel(
-                **row["data"],
+                **data,
                 name=row["name"],
                 created_at=row["created_at"],
                 is_production=row["is_production"],
                 is_staging=row["is_staging"],
-                id_dev=row["is_dev"],
+                is_dev=row["is_dev"],
                 is_archived=row["is_archived"],
             )
             dep_packages = orig_bundle.dependency_packages.copy()
@@ -282,6 +294,7 @@ async def patch_bundle(
             data.pop("is_production", None)
             data.pop("is_staging", None)
             data.pop("is_archived", None)
+            data.pop("is_dev", None)
 
             await conn.execute(
                 """
