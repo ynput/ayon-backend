@@ -165,7 +165,7 @@ async def get_all_settings(
 
         except Exception:
             log_traceback(
-                "Unable to load settings of {addon_name} {addon_version}. Skipping."
+                "fUnable to load settings of {addon_name} {addon_version}. Skipping."
             )
             continue
 
