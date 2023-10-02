@@ -124,12 +124,18 @@ def validate_user_data(data: dict[str, Any]):
 
         if access_groups := data.get("accessGroups"):
             assert type(access_groups) == dict, "accessGroups must be a dict"
+            ag_to_remove = []
             for project, ag_list in access_groups.items():
                 assert type(project) == str, "project name must be a string"
                 assert type(ag_list) == list, "access group list must be a list"
                 assert all(
                     type(ag) == str for ag in ag_list
                 ), "acces group list must be a list of str"
+                if not ag_list:
+                    ag_to_remove.append(project)
+            for project in ag_to_remove:
+                del access_groups[project]
+
     except AssertionError as e:
         raise BadRequestException(str(e)) from e
 
