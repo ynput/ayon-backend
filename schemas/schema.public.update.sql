@@ -90,3 +90,28 @@ CREATE OR REPLACE FUNCTION create_access_groups_in_projects ()
 
 SELECT create_access_groups_in_projects();
 DROP FUNCTION IF EXISTS create_access_groups_in_projects();
+
+
+----------------
+-- Ayon 0.4.8 --
+----------------
+
+-- Add is_dev column to bundles
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'bundles'
+        AND column_name = 'active_user'
+    ) THEN
+        ALTER TABLE IF EXISTS bundles
+        ADD COLUMN active_user VARCHAR REFERENCES public.users(name) ON DELETE SET NULL;
+
+        CREATE UNIQUE INDEX IF NOT EXISTS bundle_active_user_idx 
+        ON bundles(active_user) WHERE active_user IS NOT NULL;
+    END IF;
+END $$;
+
+DROP TABLE IF EXISTS public.addon_versions; -- replaced by bundles
+DROP TABLE IF EXISTS public.dependency_packages; -- stored as json files
