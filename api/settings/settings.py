@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import Query
 from nxtools import log_traceback, logging
@@ -64,12 +64,21 @@ async def get_all_settings(
         None,
         title="Site ID",
     ),
-    variant: Literal["production", "staging"] = Query("production"),
+    variant: str = Query("production"),
     summary: bool = Query(False, title="Summary", description="Summary mode"),
 ) -> AllSettingsResponseModel:
-    pass
 
-    if bundle_name is None:
+    print(user.name, "is dev", user.attrib.developerMode)
+
+    if variant not in ("production", "staging"):
+        query = [
+            """
+            SELECT name, is_production, is_staging, data->'addons' as addons
+            FROM bundles WHERE name = $1
+            """,
+            variant,
+        ]
+    elif bundle_name is None:
         query = [
             f"""
             SELECT name, is_production, is_staging, data->'addons' as addons
