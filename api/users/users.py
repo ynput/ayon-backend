@@ -314,7 +314,6 @@ class CheckPasswordRequestModel(OPModel):
     password: str = Field(..., title="Password", example="5up3r5ecr3t_p455W0rd.123")
 
 
-@router.post("/{user_name}/check_password", deprecated=True)
 @router.post("/{user_name}/checkPassword")
 async def check_password(
     post_data: CheckPasswordRequestModel,
