@@ -299,13 +299,8 @@ async def patch_bundle(
                 elif type(value) is str:
                     dep_packages[key] = value
 
-            if bundle.addons and (bundle.is_dev):
-                addons = bundle.addons.copy()
-            else:
-                addons = orig_bundle.addons.copy()
-
             orig_bundle.dependency_packages = dep_packages
-            orig_bundle.addons = addons
+            orig_bundle.addon_development = bundle.addon_development
 
             if bundle.is_archived:
                 if (
@@ -341,6 +336,14 @@ async def patch_bundle(
                     "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
                     bundle.active_user,
                 )
+                orig_bundle.active_user = bundle.active_user
+
+            # patch addons when we already know if bundle is dev
+            if bundle.addons and orig_bundle.is_dev:
+                addon_dict = bundle.addons.copy()
+            else:
+                addon_dict = orig_bundle.addons.copy()
+            orig_bundle.addons = addon_dict
 
             data = {**orig_bundle.dict(exclude_none=True)}
             data.pop("name", None)
