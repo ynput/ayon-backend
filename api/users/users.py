@@ -280,8 +280,8 @@ async def change_password(
 
     if "password" in patch_data_dict:
         if (user_name != user.name) and not (user.is_manager):
-            # Users can only change their own password
-            # Managers can change any password
+            # users can only change their own password
+            # managers can change any password
             raise ForbiddenException()
 
         target_user = await UserEntity.load(user_name)
@@ -480,4 +480,26 @@ async def assign_access_groups(
     target_user.data["accessGroups"] = ag_set
     await target_user.save()
 
+    return EmptyResponse()
+
+
+@router.patch("/{user_name}/frontendPreferences")
+async def set_frontend_preferences(
+    patch_data: dict[str, Any],
+    user: CurrentUser,
+    user_name: UserName,
+) -> EmptyResponse:
+
+    if (user_name != user.name) and not (user.is_manager):
+        # users can only change their own preferences
+        # managers can change any preferences
+        raise ForbiddenException()
+
+    target_user = await UserEntity.load(user_name)
+
+    preferences = target_user.data.get("frontendPreferences", {})
+    preferences.update(patch_data)
+    target_user.data["frontendPreferences"] = preferences
+
+    await target_user.save()
     return EmptyResponse()
