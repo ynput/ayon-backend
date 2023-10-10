@@ -90,6 +90,8 @@ class UpdateEventRequestModel(OPModel):
     description: str | None = None
     summary: dict[str, Any] | None = None
     payload: dict[str, Any] | None = None
+    progress: float | None = None
+    retries: int | None = None
 
 
 class DispatchEventResponseModel(OPModel):
@@ -201,13 +203,15 @@ async def update_existing_event(
         )
     await update_event(
         event_id,
-        payload.sender,
-        payload.project_name or payload.project,
-        new_user,
-        payload.status,
-        payload.description,
-        payload.summary,
-        payload.payload,
+        sender=payload.sender,
+        project=payload.project_name or payload.project,
+        user=new_user,
+        status=payload.status,
+        description=payload.description,
+        summary=payload.summary,
+        payload=payload.payload,
+        progress=payload.progress,
+        retries=payload.retries,
     )
 
     return EmptyResponse()
