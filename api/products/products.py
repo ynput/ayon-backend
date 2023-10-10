@@ -105,7 +105,10 @@ async def delete_product(
     product_id: ProductID,
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
-    """Delete a product."""
+    """Delete a product.
+
+    This will also delete all the product's versions and representations.
+    """
 
     product = await ProductEntity.load(project_name, product_id)
     await product.ensure_delete_access(user)

@@ -140,7 +140,11 @@ async def delete_folder(
     folder_id: FolderID,
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
-    """Delete a folder."""
+    """Delete a folder.
+
+    Returns 409 error in there's a published product in the folder or any of
+    its subfolders. Otherwise, deletes the folder and all its subfolders.
+    """
 
     folder = await FolderEntity.load(project_name, folder_id)
     await folder.ensure_delete_access(user)

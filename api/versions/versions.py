@@ -108,7 +108,10 @@ async def delete_version(
     version_id: VersionID,
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
-    """Delete a version."""
+    """Delete a version.
+
+    This will also delete all representations of the version.
+    """
 
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_delete_access(user)
