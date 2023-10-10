@@ -69,6 +69,10 @@ class BaseEntity:
                 # and drop any attributes that are not allowed
                 # from the patch data.
 
+                # TODO: don't forget to use user.is_developer to include developerMode attribute
+                if not user.is_developer and "developerMode" in patch_data:
+                    patch_data.pop("developerMode")
+
         if (attrib := patch_data.dict().get("attrib")) is not None:
             for key in attrib:
                 if attrib.get(key) is None:

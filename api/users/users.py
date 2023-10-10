@@ -216,10 +216,12 @@ async def patch_user(
             )
         # user cannot change any user's guest status
         payload.data.pop("isGuest", None)
+        payload.data.pop("isDeveloper", None)
 
     if not user.is_admin:
         # Non-admins cannot change any user's admin status
         payload.data.pop("isAdmin", None)
+        payload.data.pop("isDeveloper", None)
     elif target_user.name == user.name:
         # Admins cannot demote themselves
         payload.data.pop("isAdmin", None)
@@ -312,7 +314,6 @@ class CheckPasswordRequestModel(OPModel):
     password: str = Field(..., title="Password", example="5up3r5ecr3t_p455W0rd.123")
 
 
-@router.post("/{user_name}/check_password", deprecated=True)
 @router.post("/{user_name}/checkPassword")
 async def check_password(
     post_data: CheckPasswordRequestModel,

@@ -90,10 +90,13 @@ CREATE TABLE IF NOT EXISTS public.bundles(
   is_staging BOOLEAN NOT NULL DEFAULT FALSE,
   is_archived BOOLEAN NOT NULL DEFAULT FALSE,
   is_dev BOOLEAN NOT NULL DEFAULT FALSE,
+  active_user VARCHAR REFERENCES public.users(name) ON DELETE SET NULL,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- only one bundle per active user
+CREATE UNIQUE INDEX IF NOT EXISTS bundle_active_user_idx ON bundles(active_user) WHERE active_user IS NOT NULL;
 -- case insensitive name index
 CREATE UNIQUE INDEX IF NOT EXISTS bundle_name_idx ON bundles(LOWER(name));
 -- allow only one bundle to be production
