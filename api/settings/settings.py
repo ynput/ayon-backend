@@ -68,8 +68,6 @@ async def get_all_settings(
     summary: bool = Query(False, title="Summary", description="Summary mode"),
 ) -> AllSettingsResponseModel:
 
-    print(user.name, "is dev", user.attrib.developerMode)
-
     if variant not in ("production", "staging"):
         query = [
             """

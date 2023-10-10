@@ -4,6 +4,15 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from ayon_server.events.typing import (
+    DEPENDS_ON_FIELD,
+    DESCRIPTION_FIELD,
+    PAYLOAD_FIELD,
+    PROJECT_FIELD,
+    SENDER_FIELD,
+    SUMMARY_FIELD,
+    USER_FIELD,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
@@ -46,15 +55,15 @@ class EventModel(OPModel):
     id: str = Field(default_factory=create_id, **EntityID.META)
     hash: str = Field(...)
     topic: str = Field(...)
-    sender: str | None = Field(None)
-    project: str | None = Field(None)
-    user: str | None = Field(None)
-    depends_on: str | None = Field(None, **EntityID.META)
+    sender: str | None = SENDER_FIELD
+    project: str | None = PROJECT_FIELD
+    user: str | None = USER_FIELD
+    depends_on: str | None = DEPENDS_ON_FIELD
     status: EventStatus = Field("pending")
     retries: int = Field(0)
-    description: str = Field(...)
-    summary: dict[str, Any] = Field(default_factory=dict)
-    payload: dict[str, Any] = Field(default_factory=dict)
+    description: str = DESCRIPTION_FIELD
+    summary: dict[str, Any] = SUMMARY_FIELD
+    payload: dict[str, Any] = PAYLOAD_FIELD
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 

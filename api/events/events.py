@@ -5,9 +5,23 @@ from nxtools import logging
 from ayon_server.api.dependencies import CurrentUser, EventID
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.events import EventModel, EventStatus, dispatch_event, update_event
+from ayon_server.events.typing import (
+    DEPENDS_ON_FIELD,
+    DESCRIPTION_FIELD,
+    HASH_FIELD,
+    ID_FIELD,
+    PAYLOAD_FIELD,
+    PROGRESS_FIELD,
+    PROJECT_FIELD,
+    RETRIES_FIELD,
+    SENDER_FIELD,
+    SUMMARY_FIELD,
+    TOPIC_FIELD,
+    USER_FIELD,
+)
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import NAME_REGEX, TOPIC_REGEX, Field, OPModel
+from ayon_server.types import Field, OPModel
 
 from .router import router
 
@@ -19,50 +33,14 @@ normal_user_topic_whitelist: list[str] = []
 
 
 class DispatchEventRequestModel(OPModel):
-    topic: str = Field(
-        ...,
-        title="Topic",
-        description="Topic of the event",
-        example="log.info",
-        regex=TOPIC_REGEX,
-    )
-    sender: str | None = Field(
-        None,
-        title="Sender",
-        description="Identifier of the process that sent the event.",
-    )
-    hash: str | None = Field(
-        None,
-        title="Hash",
-    )
-    project: str | None = Field(
-        None,
-        title="Project name",
-        description="Name of the project if the event belong to one.",
-        example="MyProject",
-        regex=NAME_REGEX,
-    )
-    depends_on: str | None = Field(
-        None,
-        title="Depends on",
-        min_length=32,
-        max_length=32,
-    )
-    description: str = Field(
-        "",
-        title="Description",
-        description="Human-readable event description.",
-    )
-    summary: dict[str, Any] = Field(
-        default_factory=dict,
-        title="Summary",
-        description="Arbitrary topic-specific data sent to clients in real time",
-    )
-    payload: dict[str, Any] = Field(
-        default_factory=dict,
-        title="Payload",
-        description="Full event payload. Only avaiable in REST endpoint.",
-    )
+    topic: str = TOPIC_FIELD
+    sender: str | None = SENDER_FIELD
+    hash: str | None = HASH_FIELD
+    project: str | None = PROJECT_FIELD
+    depends_on: str | None = DEPENDS_ON_FIELD
+    description: str = DESCRIPTION_FIELD
+    summary: dict[str, Any] = SUMMARY_FIELD
+    payload: dict[str, Any] = PAYLOAD_FIELD
     finished: bool = Field(
         True,
         title="Finished",
@@ -78,30 +56,25 @@ class DispatchEventRequestModel(OPModel):
 
 
 class UpdateEventRequestModel(OPModel):
-    sender: str | None = None
+    sender: str | None = SENDER_FIELD
     project_name: str | None = Field(
         None,
         title="Project name",
         description="Deprecated use 'project' instead",
+        deprecated=True,
     )
-    project: str | None = Field(None, title="Project name")
-    user: str | None = Field(None, title="User name override")
-    status: EventStatus | None = None
-    description: str | None = None
-    summary: dict[str, Any] | None = None
-    payload: dict[str, Any] | None = None
-    progress: float | None = None
-    retries: int | None = None
+    project: str | None = PROJECT_FIELD
+    user: str | None = USER_FIELD
+    status: EventStatus | None = Field(None, title="Status", example="in_progress")
+    description: str | None = DESCRIPTION_FIELD
+    summary: dict[str, Any] | None = SUMMARY_FIELD
+    payload: dict[str, Any] | None = PAYLOAD_FIELD
+    progress: float | None = PROGRESS_FIELD
+    retries: int | None = RETRIES_FIELD
 
 
 class DispatchEventResponseModel(OPModel):
-    id: str = Field(
-        ...,
-        min_length=32,
-        max_length=32,
-        title="Event ID",
-        description="ID of the created event.",
-    )
+    id: str = ID_FIELD
 
 
 #
@@ -123,7 +96,6 @@ async def post_event(
         sender=request.sender,
         hash=request.hash,
         user=user.name,
-        # TODO description
         description=request.description,
         summary=request.summary,
         payload=request.payload,
