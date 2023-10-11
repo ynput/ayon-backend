@@ -96,7 +96,7 @@ def list_overrides(
                     override.get(name, {}),
                     chcrumbs,
                     level,
-                    in_group=child._isGroup,
+                    in_group=chcrumbs if child._isGroup else in_group,
                 )
             )
 
@@ -118,7 +118,7 @@ def list_overrides(
                                 ovr,
                                 [*chcrumbs, f"{i}"],
                                 level=level,
-                                in_group=True,
+                                in_group=in_group or chcrumbs,
                             )
                         )
                     else:
@@ -126,7 +126,7 @@ def list_overrides(
                             "path": [*chcrumbs, f"{i}"],
                             "level": "default",
                             "value": item,
-                            "inGroup": True,
+                            "inGroup": in_group or chcrumbs,
                         }
 
         elif isinstance(child, tuple):
