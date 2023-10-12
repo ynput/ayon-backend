@@ -108,10 +108,25 @@ BEGIN
         ALTER TABLE IF EXISTS bundles
         ADD COLUMN active_user VARCHAR REFERENCES public.users(name) ON DELETE SET NULL;
 
-        CREATE UNIQUE INDEX IF NOT EXISTS bundle_active_user_idx 
-        ON bundles(active_user) WHERE active_user IS NOT NULL;
     END IF;
 END $$;
+
+-- Check again for the active_user column, because it might have been created in the
+-- previous step.
+-- But if bundle table still does not exist, let the public.schema.sql create it later
+DO $$ 
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'bundles'
+        AND column_name = 'active_user'
+    ) THEN
+        CREATE UNIQUE INDEX IF NOT EXISTS bundle_active_user_idx 
+        ON public.bundles(active_user) WHERE (active_user IS NOT NULL);
+    END IF;
+END $$;
+
 
 DROP TABLE IF EXISTS public.addon_versions; -- replaced by bundles
 DROP TABLE IF EXISTS public.dependency_packages; -- stored as json files

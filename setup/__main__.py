@@ -75,11 +75,11 @@ async def main(force: bool | None = None) -> None:
         schema = Path("schemas/schema.drop.sql").read_text()
         await Postgres.execute(schema)
 
-    schema = Path("schemas/schema.public.sql").read_text()
-    await Postgres.execute(schema)
-
     # inter-version updates
     schema = Path("schemas/schema.public.update.sql").read_text()
+    await Postgres.execute(schema)
+
+    schema = Path("schemas/schema.public.sql").read_text()
     await Postgres.execute(schema)
 
     # This is something we can do every time.
