@@ -1,5 +1,5 @@
 import os
-from typing import ItemsView
+from typing import Any, ItemsView
 
 from nxtools import log_traceback, logging
 
@@ -24,6 +24,7 @@ class AddonLibrary:
 
     def __init__(self) -> None:
         self.data = {}
+        self.broken_addons = {}
         self.restart_requested = False
         addons_dir = self.get_addons_dir()
         if addons_dir is None:
@@ -134,7 +135,11 @@ class AddonLibrary:
             return None
         return self[addon_name][staging_version]
 
-    def unload_addon(self, addon_name: str, addon_version: str) -> None:
+    def unload_addon(
+        self, addon_name: str, addon_version: str, reason: dict[str, str] | None = None
+    ) -> None:
+        if reason is not None:
+            self.broken_addons[(addon_name, addon_version)] = reason
         definition = self.data.get(addon_name)
         if definition is None:
             return
@@ -144,3 +149,10 @@ class AddonLibrary:
         if not definition._versions:
             logging.info("Unloading addon", addon_name)
             del self.data[addon_name]
+
+    @classmethod
+    def is_broken(cls, addon_name: str, addon_version: str) -> dict[str, Any] | None:
+        instance = cls.getinstance()
+        if summary := instance.broken_addons.get((addon_name, addon_version), None):
+            return summary
+        return None
