@@ -345,3 +345,65 @@ async def modify_project_overrides(
             variant=variant,
         )
     return EmptyResponse()
+
+
+@router.get("/{addon_name}/{addon_version}/rawOverrides/{project_name}", **route_meta)
+async def get_raw_addon_project_overrides(
+    addon_name: str,
+    addon_version: str,
+    user: CurrentUser,
+    project_name: ProjectName,
+    variant: str = Query("production"),
+) -> dict[str, Any]:
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can access raw overrides")
+
+    result = await Postgres.fetch(
+        f"""
+        SELECT data FROM project_{project_name}.settings
+        WHERE addon_name = $1
+        AND addon_version = $2
+        AND variant = $3
+        """,
+        addon_name,
+        addon_version,
+        variant,
+    )
+
+    if not result:
+        return {}
+
+    return result[0]["data"]
+
+
+@router.put(
+    "/{addon_name}/{addon_version}/rawOverrides/{project_name}",
+    status_code=204,
+    **route_meta,
+)
+async def set_raw_addon_project_overrides(
+    addon_name: str,
+    addon_version: str,
+    payload: dict[str, Any],
+    user: CurrentUser,
+    project_name: ProjectName,
+    variant: str = Query("production"),
+) -> EmptyResponse:
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can access raw overrides")
+
+    await Postgres.execute(
+        f"""
+        INSERT INTO project_{project_name}.settings
+            (addon_name, addon_version, variant, data)
+        VALUES
+            ($1, $2, $3, $4)
+        ON CONFLICT (addon_name, addon_version, variant)
+            DO UPDATE SET data = $4
+        """,
+        addon_name,
+        addon_version,
+        variant,
+        payload,
+    )
+    return EmptyResponse()
