@@ -35,6 +35,7 @@ class ServiceModel(OPModel):
     should_run: bool = Field(...)
     is_running: bool = Field(...)
     last_seen: datetime | None = Field(None)
+    last_seen_delta: float | None = Field(None)
     data: ServiceDataModel = Field(default_factory=ServiceDataModel)
 
 
@@ -44,7 +45,10 @@ class ServiceListModel(OPModel):
 
 @router.get("/services", tags=["Services"])
 async def list_services(user: CurrentUser) -> ServiceListModel:
-    query = "SELECT * FROM services ORDER BY name ASC"
+    query = """
+        SELECT *, extract(epoch from (now() - last_seen)) as last_seen_delta
+        FROM services ORDER BY name ASC
+    """
     services = []
     async for row in Postgres.iterate(query):
         services.append(ServiceModel(**row))
