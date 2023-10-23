@@ -434,7 +434,7 @@ async def startup_event() -> None:
         return
 
     restart_requested = False
-    bad_addons = []
+    bad_addons = {}
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
             try:
@@ -449,9 +449,13 @@ async def startup_event() -> None:
                         f"Restart requested during addon {addon_name} pre-setup."
                     )
                     restart_requested = True
-            except Exception:
+            except Exception as e:
                 log_traceback(f"Error during {addon_name} {version.version} pre-setup")
-                bad_addons.append((addon_name, version.version))
+                reason = {
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                }
+                bad_addons[(addon_name, version.version)] = reason
 
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
@@ -465,15 +469,20 @@ async def startup_event() -> None:
                         f"Restart requested during addon {addon_name} setup."
                     )
                     restart_requested = True
-            except Exception:
+            except Exception as e:
                 log_traceback(f"Error during {addon_name} {version.version} setup")
-                bad_addons.append((addon_name, version.version))
+                reason = {
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                }
+                bad_addons[(addon_name, version.version)] = reason
 
     for _addon_name, _addon_version in bad_addons:
         logging.error(
             f"Addon {_addon_name} {_addon_version} failed to initialize. Unloading."
         )
-        library.unload_addon(_addon_name, _addon_version)
+        reason = bad_addons[(_addon_name, _addon_version)]
+        library.unload_addon(_addon_name, _addon_version, reason=reason)
 
     if restart_requested:
         await dispatch_event(

@@ -36,6 +36,9 @@ class AddonSettingsItemModel(OPModel):
     # return studio level site settings here
     site_settings: dict[str, Any] | None = Field(default_factory=dict)
 
+    is_broken: bool = Field(False)
+    reason: dict[str, str] | None = Field(None)
+
 
 class AllSettingsResponseModel(OPModel):
     bundle_name: str = Field(..., regex=NAME_REGEX)
@@ -112,6 +115,8 @@ async def get_all_settings(
                 f"declared in {bundle_name} not found"
             )
 
+            broken_reason = AddonLibrary.is_broken(addon_name, addon_version)
+
             addon_result.append(
                 AddonSettingsItemModel(
                     name=addon_name,
@@ -119,6 +124,8 @@ async def get_all_settings(
                     version=addon_version,
                     settings={},
                     site_settings=None,
+                    is_broken=bool(broken_reason),
+                    reason=broken_reason,
                 )
             )
             continue
