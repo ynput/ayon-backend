@@ -74,6 +74,11 @@ class FolderEntity(ProjectLevelEntity):
 
         try:
             async for record in Postgres.iterate(query, entity_id, project_name):
+                record = dict(record)
+                path = record.pop("path")
+                if path is not None:
+                    # ensure path starts with / but does not end with /
+                    record["path"] = f"/{path.strip('/')}"
                 attrib: dict[str, Any] = {}
 
                 for key, value in record.get("project_attrib", {}).items():
@@ -143,7 +148,9 @@ class FolderEntity(ProjectLevelEntity):
             await transaction.execute(
                 f"""
                 DELETE FROM project_{self.project_name}.exported_attributes
-                WHERE path LIKE '{self.path}%'
+                WHERE
+                    path LIKE '{self.path.strip("/")}'
+                OR  path LIKE '{self.path.strip("/")}/%'
                 """
             )
 
@@ -227,7 +234,7 @@ class FolderEntity(ProjectLevelEntity):
         cache: dict[str, dict[str, Any]] = {}
 
         async for row in Postgres.iterate(query, transaction=transaction):
-            parent_path = "/".join(row["path"].split("/")[:-1])
+            parent_path = "/".join(row["path"].strip("/").split("/")[:-1])
             attr: dict[str, Any] = {}
             if (inherited := row["inherited_attrib"]) is not None:
                 for key, value in inherited.items():
@@ -246,7 +253,7 @@ class FolderEntity(ProjectLevelEntity):
             if row["own_attrib"] is not None:
                 attr |= row["own_attrib"]
 
-            cache[row["path"]] = attr
+            cache[row["path"].strip("/")] = attr
             await transaction.execute(
                 f"""
                 INSERT INTO project_{self.project_name}.exported_attributes

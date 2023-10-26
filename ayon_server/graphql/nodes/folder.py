@@ -69,7 +69,8 @@ class FolderNode(BaseNode):
 
     @strawberry.field()
     def parents(self) -> list[str]:
-        return self.path.split("/")[:-1] if self.path else []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
 
     @strawberry.field
     async def parent(self, info: Info) -> Optional["FolderNode"]:
@@ -119,7 +120,7 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         child_count=record.get("child_count", 0),
         product_count=record.get("product_count", 0),
         task_count=record.get("task_count", 0),
-        path=record.get("path"),
+        path="/" + record.get("path", "").strip("/"),
         own_attrib=own_attrib,
     )
 

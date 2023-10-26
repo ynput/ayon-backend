@@ -145,7 +145,7 @@ folder_fields = [
         "name": "path",
         "type": "string",
         "title": "Path",
-        "example": "assets/characters/st_javelin",
+        "example": "/assets/characters/xenomorph",
         "dynamic": True,
     },
 ]
