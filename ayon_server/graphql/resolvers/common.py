@@ -6,6 +6,7 @@ from strawberry.arguments import StrawberryArgumentAnnotation
 from strawberry.types import Info
 
 from ayon_server.access.utils import folder_access_list
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import PageInfo
 from ayon_server.lib.postgres import Postgres
 
@@ -185,7 +186,10 @@ async def resolve(
         if project_name:
             node = node_type.from_record(project_name, record, context=context)
         else:
-            node = node_type.from_record(record, context=context)
+            try:
+                node = node_type.from_record(record, context=context)
+            except ForbiddenException:
+                continue
         cursor = record["cursor"]
         edges.append(edge_type(node=node, cursor=cursor))
 
