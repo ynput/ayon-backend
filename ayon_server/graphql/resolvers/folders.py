@@ -263,7 +263,7 @@ async def get_folders(
 
     if path_ex is not None:
         # TODO: sanitize
-        sql_conditions.append(f"hierarchy.path ~ '{path_ex}'")
+        sql_conditions.append(f"'/' || hierarchy.path ~ '{path_ex}'")
 
     if attributes:
         for attribute_input in attributes:
