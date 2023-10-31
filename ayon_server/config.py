@@ -103,6 +103,11 @@ class AyonConfig(BaseModel):
         description="Ensure creation of admin user on first run",
     )
 
+    disable_rest_docs: bool = Field(
+        default=False,
+        description="Disable REST API documentation",
+    )
+
     audit_trail: bool = Field(
         default=True,
         description="Enable audit trail",
