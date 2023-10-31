@@ -10,7 +10,6 @@ from ayon_server.api.dependencies import AccessToken
 from ayon_server.auth.models import LoginResponseModel, LogoutResponseModel
 from ayon_server.auth.password import PasswordAuth
 from ayon_server.auth.session import Session
-from ayon_server.exceptions import UnauthorizedException
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -45,9 +44,7 @@ async def login(request: Request, login: LoginRequestModel) -> LoginResponseMode
     Returns 401 response if the credentials are invalid.
     """
 
-    if not (session := await PasswordAuth.login(login.name, login.password, request)):
-        # We don't need to be too verbose about the bad credentials
-        raise UnauthorizedException("Invalid login/password")
+    session = await PasswordAuth.login(login.name, login.password, request)
 
     return LoginResponseModel(
         detail=f"Logged in as {session.user.name}",
