@@ -1,7 +1,7 @@
 import asyncio
 
 
-class BackgroundTask:
+class BackgroundWorker:
     def __init__(self):
         self.task: asyncio.Task | None = None
         self.shutting_down = False

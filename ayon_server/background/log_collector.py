@@ -3,7 +3,7 @@ import queue
 import time
 from typing import Any
 
-from ayon_server.background import BackgroundTask
+from ayon_server.background.background_worker import BackgroundWorker
 
 # Fallback to the default logging module
 # This is just used when ayon_server is loaded in order
@@ -47,7 +47,7 @@ def parse_log_message(message):
     }
 
 
-class LogCollector(BackgroundTask):
+class LogCollector(BackgroundWorker):
     def initialize(self):
         self.queue: queue.Queue[dict[str, Any]] = queue.Queue()
         self.msg_id = 0

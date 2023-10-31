@@ -20,16 +20,19 @@ from ayon_server.api.messaging import Messaging
 from ayon_server.api.metadata import app_meta, tags_meta
 from ayon_server.api.responses import ErrorResponse
 from ayon_server.auth.session import Session
+
+# # This needs to be imported first!
+# # me after a year: why??
+# from ayon_server.logs import log_collector
+from ayon_server.background import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import AyonException, UnauthorizedException
 from ayon_server.graphql import router as graphql_router
-from ayon_server.helpers.thumbnail_cleaner import thumbnail_cleaner
-from ayon_server.installer import background_installer
-from ayon_server.lib.postgres import Postgres
 
-# This needs to be imported first!
-from ayon_server.logs import log_collector
+# from ayon_server.helpers.thumbnail_cleaner import thumbnail_cleaner
+# from ayon_server.installer import background_installer
+from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import parse_access_token
 
 app = fastapi.FastAPI(
@@ -421,10 +424,9 @@ async def startup_event() -> None:
 
     # Start background tasks
 
-    log_collector.start()
+    background_workers.start()
+
     messaging.start()
-    thumbnail_cleaner.start()
-    background_installer.start()
 
     # Initialize addons
 
@@ -520,9 +522,7 @@ async def shutdown_event() -> None:
     """Shutdown event."""
     logging.info("Server is shutting down")
 
-    await background_installer.shutdown()
-    await log_collector.shutdown()
-    await thumbnail_cleaner.shutdown()
+    await background_workers.shutdown()
     await messaging.shutdown()
     await Postgres.shutdown()
     logging.info("Server stopped", handlers=None)

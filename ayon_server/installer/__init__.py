@@ -2,7 +2,7 @@ import asyncio
 
 from nxtools import log_traceback, logging
 
-from ayon_server.background import BackgroundTask
+from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.events import update_event
 from ayon_server.installer.addons import install_addon_from_url, unpack_addon
 from ayon_server.installer.dependency_packages import download_dependency_package
@@ -21,7 +21,7 @@ class TooManyRetries(Exception):
     pass
 
 
-class BackgroundInstaller(BackgroundTask):
+class BackgroundInstaller(BackgroundWorker):
     def initialize(self):
         self.event_queue: asyncio.Queue[str] = asyncio.Queue()
 
