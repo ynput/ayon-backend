@@ -1,6 +1,7 @@
 from fastapi import Request
 from nxtools import logging
 
+from ayon_server.api.clientinfo import get_real_ip
 from ayon_server.auth.session import Session, SessionModel
 from ayon_server.auth.utils import (
     create_password,
@@ -10,6 +11,21 @@ from ayon_server.auth.utils import (
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
+
+
+async def check_failed_login(ip_address: str) -> int:
+    ns = "login-failed-ip"
+    failed_attempts = await Redis.incr(ns, ip_address)
+
+    if failed_attempts > 10:
+        logging.warning(f"Too many failed login attempts from {ip_address}")
+        await Redis.expire("ns", ip_address, 600)
+        raise ForbiddenException("Too many failed login attempts")
+    else:
+        await Redis.expire("ns", ip_address, 120)
+
+    return failed_attempts
 
 
 class PasswordAuth:
@@ -25,6 +41,9 @@ class PasswordAuth:
         Return a SessionModel object if the credentials are valid.
         Return None otherwise.
         """
+
+        if request is not None:
+            await check_failed_login(get_real_ip(request))
 
         name = name.strip()
 
