@@ -8,6 +8,7 @@ from ayon_server.auth.utils import (
     hash_password,
 )
 from ayon_server.entities import UserEntity
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 
 
@@ -33,23 +34,23 @@ class PasswordAuth:
             "SELECT * FROM public.users WHERE name ilike $1", name
         )
         if not result:
-            logging.error(f"User {name} not found")
-            return None
+            raise ForbiddenException("Invalid login/password combination")
 
         user = UserEntity.from_record(result[0])
 
+        if user.is_service:
+            raise ForbiddenException("Service users cannot log in")
+
         if not user.active:
-            logging.error(f"User {name} is not active")
-            return None
+            raise ForbiddenException("User is not active")
 
         if "password" not in user.data:
-            logging.error("Log-in using password is not available", user=name)
-            return None
+            raise ForbiddenException("Password login is not enabled for this user")
 
         pass_hash, pass_salt = user.data["password"].split(":")
 
         if pass_hash != hash_password(password, pass_salt):
-            return None
+            raise ForbiddenException("Invalid login/password combination")
 
         return await Session.create(user, request)
 

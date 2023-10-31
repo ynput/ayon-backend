@@ -105,7 +105,6 @@ async def custom_404_handler(request: fastapi.Request, _):
     """Redirect 404s to frontend."""
 
     if request.url.path.startswith("/api"):
-        logging.error(f"404 {request.method} {request.url.path}")
         return fastapi.responses.JSONResponse(
             status_code=404,
             content={
@@ -116,7 +115,6 @@ async def custom_404_handler(request: fastapi.Request, _):
         )
 
     elif request.url.path.startswith("/addons"):
-        logging.error(f"404 {request.method} {request.url.path}")
         return fastapi.responses.JSONResponse(
             status_code=404,
             content={
@@ -132,7 +130,6 @@ async def custom_404_handler(request: fastapi.Request, _):
             index_path, status_code=200, media_type="text/html"
         )
 
-    logging.error(f"404 {request.method} {request.url.path}")
     return fastapi.responses.JSONResponse(
         status_code=404,
         content={
@@ -148,8 +145,18 @@ async def ayon_exception_handler(
     request: fastapi.Request,
     exc: AyonException,
 ) -> fastapi.responses.JSONResponse:
-    user_name = await user_name_from_request(request)
 
+    if exc.status in [401, 403]:
+        # do not store 401 and 403 errors in the logs
+        return fastapi.responses.JSONResponse(
+            status_code=exc.status,
+            content={
+                "code": exc.status,
+                "detail": exc.detail,
+            },
+        )
+
+    user_name = await user_name_from_request(request)
     path = f"[{request.method.upper()}]"
     path += f" {request.url.path.removeprefix('/api')}"
 
