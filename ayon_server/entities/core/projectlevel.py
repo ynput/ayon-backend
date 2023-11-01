@@ -92,7 +92,7 @@ class ProjectLevelEntity(BaseEntity):
         # TODO: Clean-up. use model.attrb_model.__fields__ to create blacklist
         attrib = self._payload.attrib.dict()
         if not user.is_manager:
-            kw["exclude"]["data"] = True
+            # kw["exclude"]["data"] = True
 
             attr_perm = user.permissions(self.project_name).attrib_read
             if attr_perm.enabled:

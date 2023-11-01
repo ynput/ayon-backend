@@ -124,6 +124,8 @@ async def get_events(
     )
     sql_conditions.extend(paging_conds)
 
+    # TODO: select data only when needed
+
     query = f"""
         SELECT {cursor}, * FROM events
         {SQLTool.conditions(sql_conditions)}

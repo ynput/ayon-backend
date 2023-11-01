@@ -57,6 +57,7 @@ class RepresentationNode(BaseNode):
     status: str
     tags: list[str]
     attrib: RepresentationAttribType
+    data: str | None
 
     # GraphQL specifics
 
@@ -116,6 +117,7 @@ def representation_from_record(
             user=context["user"],
             project_name=project_name,
         ),
+        data=json_dumps(data) if data else None,
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],

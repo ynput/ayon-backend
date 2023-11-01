@@ -106,6 +106,7 @@ async def get_folders(
         "folders.created_at AS created_at",
         "folders.updated_at AS updated_at",
         "folders.creation_order AS creation_order",
+        "folders.data AS data",
         "pr.attrib AS project_attributes",
         "ex.attrib AS inherited_attributes",
     ]

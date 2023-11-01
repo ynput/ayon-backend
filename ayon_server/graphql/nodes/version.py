@@ -8,7 +8,7 @@ from ayon_server.entities import VersionEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.representations import get_representations
 from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.utils import get_nickname
+from ayon_server.utils import get_nickname, json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import RepresentationsConnection
@@ -34,6 +34,7 @@ class VersionNode(BaseNode):
     author: str | None
     status: str
     attrib: VersionAttribType
+    data: str | None
     tags: list[str]
 
     # GraphQL specifics
@@ -83,6 +84,8 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
     if current_user.is_guest and author is not None:
         author = get_nickname(author)
 
+    data = record.get("data", {})
+
     return VersionNode(  # type: ignore
         project_name=project_name,
         id=record["id"],
@@ -100,6 +103,7 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
             user=context["user"],
             project_name=project_name,
         ),
+        data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )
