@@ -20,11 +20,7 @@ from ayon_server.api.messaging import Messaging
 from ayon_server.api.metadata import app_meta, tags_meta
 from ayon_server.api.responses import ErrorResponse
 from ayon_server.auth.session import Session
-
-# # This needs to be imported first!
-# # me after a year: why??
-# from ayon_server.logs import log_collector
-from ayon_server.background import background_workers
+from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import AyonException, UnauthorizedException

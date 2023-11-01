@@ -115,7 +115,8 @@ class LogCollector(BackgroundWorker):
             await self.process_message(record)
 
 
+log_collector = LogCollector()
+
 if has_nxtools:
-    log_collector = LogCollector()
     logging.add_handler(log_collector)
     logging.info("Log collector initialized", handlers=None)
