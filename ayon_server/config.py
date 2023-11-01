@@ -70,6 +70,16 @@ class AyonConfig(BaseModel):
         description="Session lifetime in seconds",
     )
 
+    max_failed_login_attempts: int = Field(
+        default=10,
+        description="Maximum number of failed login attempts",
+    )
+
+    failed_login_ban_time: int = Field(
+        default=600,
+        description="Interval in seconds to ban IP addresses with too many failed login attempts",
+    )
+
     motd: str | None = Field(
         default=None,
         description="Message of the day",
@@ -101,6 +111,11 @@ class AyonConfig(BaseModel):
     force_create_admin: bool = Field(
         default=False,
         description="Ensure creation of admin user on first run",
+    )
+
+    disable_rest_docs: bool = Field(
+        default=False,
+        description="Disable REST API documentation",
     )
 
     audit_trail: bool = Field(
