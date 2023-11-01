@@ -1,6 +1,6 @@
 import asyncio
 
-from ayon_server.background import BackgroundTask
+from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.lib.postgres import Postgres
 
 
@@ -31,7 +31,7 @@ async def clear_thumbnails(project_name: str) -> None:
     await Postgres.execute(query)
 
 
-class ThumbnailCleaner(BackgroundTask):
+class ThumbnailCleaner(BackgroundWorker):
     """Background task for cleaning unused thumbnails."""
 
     async def run(self):

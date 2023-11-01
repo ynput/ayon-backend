@@ -10,8 +10,6 @@ import fastapi
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
-
-# from fastapi.middleware.cors import CORSMiddleware
 from nxtools import log_traceback, logging, slugify
 
 from ayon_server.access.access_groups import AccessGroups
@@ -20,16 +18,12 @@ from ayon_server.api.messaging import Messaging
 from ayon_server.api.metadata import app_meta, tags_meta
 from ayon_server.api.responses import ErrorResponse
 from ayon_server.auth.session import Session
+from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import AyonException, UnauthorizedException
 from ayon_server.graphql import router as graphql_router
-from ayon_server.helpers.thumbnail_cleaner import thumbnail_cleaner
-from ayon_server.installer import background_installer
 from ayon_server.lib.postgres import Postgres
-
-# This needs to be imported first!
-from ayon_server.logs import log_collector
 from ayon_server.utils import parse_access_token
 
 app = fastapi.FastAPI(
@@ -38,14 +32,6 @@ app = fastapi.FastAPI(
     openapi_tags=tags_meta,
     **app_meta,
 )
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
 
 #
 # Static files
@@ -274,11 +260,6 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                     project=message.get("project"),
                 )
     except WebSocketDisconnect:
-        # NOTE: Too noisy
-        # if client.user_name:
-        #     logging.info(f"{client.user_name} disconnected")
-        # else:
-        #     logging.info("Anonymous client disconnected")
         try:
             del messaging.clients[client.id]
         except KeyError:
@@ -328,7 +309,6 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
                     continue
 
                 path = f"/api/addons/{addon_name}/{version}/{path}"
-                logging.info(f"Adding endpoint {path}")
                 target_app.add_api_route(
                     path,
                     endpoint["handler"],
@@ -347,23 +327,29 @@ def init_addon_static(target_app: fastapi.FastAPI) -> None:
     for addon_name, addon_definition in AddonLibrary.items():
         for version in addon_definition.versions:
             addon = addon_definition.versions[version]
+            static_dirs = []
             if (fedir := addon.get_frontend_dir()) is not None:
-                logging.debug(f"Initializing frontend dir {addon_name}:{version}")
+                static_dirs.append("frontend")
                 target_app.mount(
                     f"/addons/{addon_name}/{version}/frontend/",
                     StaticFiles(directory=fedir, html=True),
                 )
             if (resdir := addon.get_public_dir()) is not None:
-                logging.debug(f"Initializing public dir for {addon_name}:{version}")
+                static_dirs.append("public")
                 target_app.mount(
                     f"/addons/{addon_name}/{version}/public/",
                     StaticFiles(directory=resdir),
                 )
             if (resdir := addon.get_private_dir()) is not None:
-                logging.debug(f"Initializing private dir for {addon_name}:{version}")
+                static_dirs.append("private")
                 target_app.mount(
                     f"/addons/{addon_name}/{version}/private/",
                     AuthStaticFiles(directory=resdir),
+                )
+
+            if static_dirs:
+                logging.debug(
+                    f"Initialized static dirs for {addon_name}:{version}: {', '.join(static_dirs)}"
                 )
 
 
@@ -392,7 +378,7 @@ async def startup_event() -> None:
     """Startup event.
 
     This is called after the server is started and:
-        - initializes the log
+        - initializes background workers
         - initializes redis2websocket bridge
         - connects to the database
         - loads access groups
@@ -421,10 +407,9 @@ async def startup_event() -> None:
 
     # Start background tasks
 
-    log_collector.start()
+    background_workers.start()
+
     messaging.start()
-    thumbnail_cleaner.start()
-    background_installer.start()
 
     # Initialize addons
 
@@ -520,9 +505,7 @@ async def shutdown_event() -> None:
     """Shutdown event."""
     logging.info("Server is shutting down")
 
-    await background_installer.shutdown()
-    await log_collector.shutdown()
-    await thumbnail_cleaner.shutdown()
+    await background_workers.shutdown()
     await messaging.shutdown()
     await Postgres.shutdown()
     logging.info("Server stopped", handlers=None)

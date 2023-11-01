@@ -123,6 +123,11 @@ class AyonConfig(BaseModel):
         description="Enable audit trail",
     )
 
+    log_retention_days: int = Field(
+        default=7,
+        description="Number of days to keep logs in the event log",
+    )
+
     ynput_connect_url: str | None = Field(
         "https://connect.ynput.io",
         description="YnputConnect URL",
