@@ -39,7 +39,9 @@ class LogCleaner(BackgroundWorker):
                 )
 
                 if res:
-                    logging.info(f"Deleted {res[0]['del']} old log entries")
+                    deleted = res[0]["del"]
+                    if deleted:
+                        logging.info(f"Deleted {deleted} old log entries")
             except Exception:
                 log_traceback()
                 await asyncio.sleep(60)

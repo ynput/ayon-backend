@@ -1,5 +1,12 @@
 import asyncio
 
+try:
+    from nxtools import logging
+
+    has_nxtools = True
+except ModuleNotFoundError:
+    has_nxtools = False
+
 
 class BackgroundWorker:
     def __init__(self):
@@ -11,6 +18,8 @@ class BackgroundWorker:
         pass
 
     def start(self):
+        if has_nxtools:
+            logging.info(f"Starting background worker {self.__class__.__name__}")
         self.task = asyncio.create_task(self._run())
 
     async def shutdown(self):
