@@ -8,6 +8,7 @@ from strawberry.types import Info
 from ayon_server.entities import WorkfileEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.task import TaskNode
@@ -54,6 +55,8 @@ def workfile_from_record(
 ) -> WorkfileNode:
     """Construct a version node from a DB row."""
 
+    data = record.get("data", {})
+
     return WorkfileNode(  # type: ignore
         project_name=project_name,
         id=record["id"],
@@ -71,6 +74,7 @@ def workfile_from_record(
             user=context["user"],
             project_name=project_name,
         ),
+        data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

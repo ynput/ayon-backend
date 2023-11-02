@@ -45,6 +45,7 @@ async def folder_loader(keys: list[KeyType]) -> list[dict | None]:
             folders.tags AS tags,
             folders.created_at AS created_at,
             folders.updated_at AS updated_at,
+            folders.data as data,
             hierarchy.path AS path,
             pr.attrib AS project_attributes,
             ex.attrib AS inherited_attributes

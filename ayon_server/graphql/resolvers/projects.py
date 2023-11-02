@@ -10,6 +10,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
+    FieldInfo,
     argdesc,
     create_pagination,
     resolve,
@@ -42,6 +43,21 @@ async def get_projects(
         validate_name(name)
         sql_conditions.append(f"projects.name ILIKE '{name}'")
 
+    fields = FieldInfo(info, ["projects.edges.node", "project"])
+
+    cols = [
+        "name",
+        "code",
+        "library",
+        "attrib",
+        "active",
+        "created_at",
+        "updated_at",
+    ]
+
+    if fields.has_any("data"):
+        cols.append("data")
+
     #
     # Pagination
     #
@@ -51,13 +67,15 @@ async def get_projects(
         order_by, first, after, last, before
     )
     sql_conditions.extend(paging_conds)
+    cols.append(cursor)
 
     #
     #
     #
 
     query = f"""
-        SELECT {cursor}, * FROM projects
+        SELECT {', '.join(cols)}
+        FROM projects
         {SQLTool.conditions(sql_conditions)}
         {pagination}
     """

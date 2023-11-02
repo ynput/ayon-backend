@@ -20,6 +20,7 @@ class EventNode:
     summary: str
     created_at: datetime
     updated_at: datetime
+    data: str | None
 
 
 def event_from_record(record: dict, context: dict) -> EventNode:
@@ -31,6 +32,7 @@ def event_from_record(record: dict, context: dict) -> EventNode:
             record["user_name"] = get_nickname(record["user_name"])
         if record["topic"].startswith("log") and record["description"]:
             record["description"] = obscure(record["description"])
+    data = record.get("data", {})
 
     return EventNode(
         id=record["id"],
@@ -46,6 +48,7 @@ def event_from_record(record: dict, context: dict) -> EventNode:
         summary=json_dumps(record["summary"]),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        data=json_dumps(data) if data else None,
     )
 
 

@@ -9,7 +9,7 @@ from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.utils import get_nickname
+from ayon_server.utils import get_nickname, json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import VersionsConnection, WorkfilesConnection
@@ -34,6 +34,7 @@ class TaskNode(BaseNode):
     status: str
     tags: list[str]
     attrib: TaskAttribType
+    data: str | None
     own_attrib: list[str]
 
     # GraphQL specifics
@@ -96,6 +97,7 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
         assignees = record["assignees"]
 
     own_attrib = list(record["attrib"].keys())
+    data = record.get("data", {})
 
     return TaskNode(
         project_name=project_name,
@@ -114,6 +116,7 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
             project_name=project_name,
             inherited_attrib=record["parent_folder_attrib"],
         ),
+        data=json_dumps(data) if data else None,
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
