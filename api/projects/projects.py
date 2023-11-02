@@ -25,6 +25,13 @@ async def get_project(
 ) -> ProjectEntity.model.main_model:  # type: ignore
     """Retrieve a project by its name."""
 
+    if not user.is_manager:
+        access_groups = user.data.get("accessGroups", {})
+        if project_name not in access_groups:
+            raise ForbiddenException(
+                f"You are not allowed to access {project_name} project"
+            )
+
     project = await ProjectEntity.load(project_name)
     return project.as_user(user)
 
@@ -37,6 +44,13 @@ async def get_project(
 @router.get("/projects/{project_name}/stats")
 async def get_project_stats(user: CurrentUser, project_name: ProjectName):
     """Retrieve a project statistics by its name."""
+
+    if not user.is_manager:
+        access_groups = user.data.get("accessGroups", {})
+        if project_name not in access_groups:
+            raise ForbiddenException(
+                f"You are not allowed to access {project_name} project statistics"
+            )
 
     counts = {}
     for entity in ["folders", "products", "versions", "representations", "tasks"]:
