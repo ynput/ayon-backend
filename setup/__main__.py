@@ -102,6 +102,8 @@ async def main(force: bool | None = None) -> None:
                 data: dict[str, Any] = json_loads(raw_data)
             except Exception:
                 logging.warning("Invalid setup file provided. Using defaults")
+            else:
+                logging.debug("Setting up from /template.json")
         else:
             logging.warning("No setup file provided. Using defaults")
 
