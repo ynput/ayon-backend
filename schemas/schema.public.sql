@@ -190,3 +190,6 @@ CREATE TABLE IF NOT EXISTS public.services(
   data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
+
+-- CREATE THE SITE ID
+INSERT INTO config VALUES ('siteId', to_jsonb(gen_random_uuid()::text)) ON CONFLICT DO NOTHING;
