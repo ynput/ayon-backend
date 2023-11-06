@@ -1,6 +1,9 @@
 """User entity."""
 
 import re
+from typing import Any
+
+from nxtools import logging
 
 from ayon_server.access.access_groups import AccessGroups
 from ayon_server.access.permissions import Permissions
@@ -9,6 +12,7 @@ from ayon_server.auth.utils import (
     ensure_password_complexity,
     hash_password,
 )
+from ayon_server.constraints import Constraints
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
@@ -23,10 +27,20 @@ from ayon_server.utils import SQLTool, dict_exclude
 class UserEntity(TopLevelEntity):
     entity_type: str = "user"
     model = ModelSet("user", attribute_library["user"], has_id=False)
+    was_active: bool = False
 
     #
     # Load
     #
+
+    def __init__(
+        self,
+        payload: dict[str, Any],
+        exists: bool = False,
+        validate: bool = True,  # deprecated
+    ) -> None:
+        super().__init__(payload, exists, validate)
+        self.was_active = self.active and self.exists
 
     @classmethod
     async def load(
@@ -55,6 +69,17 @@ class UserEntity(TopLevelEntity):
         """Save the user to the database."""
 
         conn = transaction or Postgres
+
+        if self.active and not self.was_active:
+            logging.info(f"Activating user {self.name}")
+
+            if (max_users := await Constraints.check("maxActiveUsers")) is not None:
+                max_users = max_users or 1
+                res = await conn.fetch(
+                    "SELECT count(*) as cnt FROM users WHERE active is TRUE"
+                )
+                if res and res[0]["cnt"] >= max_users:
+                    raise ForbiddenException("Maximum number of users reached")
 
         if self.exists:
             data = dict_exclude(
