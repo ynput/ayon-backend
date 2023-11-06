@@ -28,6 +28,8 @@ types-toml = "^0.10.8"
 user-agents = "^2.2.0"
 uvicorn = {extras = ["standard"], version = "^0.22.0"}
 semver = "^3.0.1"
+pyjwt = "^2.8.0"
+cryptography = "^41.0.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"
