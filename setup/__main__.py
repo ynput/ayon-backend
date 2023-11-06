@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -95,6 +96,14 @@ async def main(force: bool | None = None) -> None:
                 critical_error("Invalid setup file provided")
 
             DATA.update(data)
+        elif os.path.exists("/template.json"):
+            try:
+                raw_data = Path("/template.json").read_text()
+                data: dict[str, Any] = json_loads(raw_data)
+            except Exception:
+                logging.warning("Invalid setup file provided. Using defaults")
+            else:
+                logging.debug("Setting up from /template.json")
         else:
             logging.warning("No setup file provided. Using defaults")
 
