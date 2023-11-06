@@ -79,7 +79,9 @@ class UserEntity(TopLevelEntity):
                     "SELECT count(*) as cnt FROM users WHERE active is TRUE"
                 )
                 if res and res[0]["cnt"] >= max_users:
-                    raise ForbiddenException("Maximum number of users reached")
+                    raise ForbiddenException(
+                        f"Maximum number of users ({max_users}) reached"
+                    )
 
         if self.exists:
             data = dict_exclude(

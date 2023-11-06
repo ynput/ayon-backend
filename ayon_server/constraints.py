@@ -1,8 +1,15 @@
 import time
 
+from pydantic import BaseModel, Field
+
 from ayon_server.lib.postgres import Postgres
 
 ConVal = int | bool
+
+
+class ConstraintsModel(BaseModel):
+    exp: int = Field(..., alias="exp")
+    data: dict[str, ConVal] = Field(default_factory=dict, alias="data")
 
 
 async def load_licenses() -> list[str]:
@@ -13,8 +20,7 @@ async def load_licenses() -> list[str]:
 
 
 class Constraints:
-    expires: int = 0
-    data: dict[str, ConVal] | None = None
+    constraints: ConstraintsModel | None = None
     parser = None
 
     @classmethod
@@ -22,19 +28,15 @@ class Constraints:
         if cls.parser is None:
             return
         lics = await load_licenses()
-        cls.data = await cls.parser(lics)
+        cls.constraints = await cls.parser(lics)
 
     @classmethod
     async def check(cls, key: str) -> ConVal | None:
         if cls.parser is None:
             return None
 
-        if cls.data is None or time.time() > cls.expires:
+        if cls.constraints is None or time.time() > cls.constraints.exp:
             await cls.load()
 
-        assert cls.data is not None, "Licenses not loaded"
-
-        if key not in cls.data:
-            return False
-
-        return cls.data["key"]
+        assert cls.constraints is not None, "Licenses not loaded"
+        return cls.constraints.data.get(key, False)
