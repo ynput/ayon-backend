@@ -9,7 +9,7 @@ async def load_licenses() -> list[str]:
     res = await Postgres.fetch("SELECT value FROM config WHERE key = 'licenses'")
     if not res:
         return []
-    return res[0]["licenses"]
+    return res[0]["value"]
 
 
 class Constraints:
@@ -21,8 +21,8 @@ class Constraints:
     async def load(cls):
         if cls.parser is None:
             return
-        lics = load_licenses()
-        cls.data = cls.parser(lics)
+        lics = await load_licenses()
+        cls.data = await cls.parser(lics)
 
     @classmethod
     async def check(cls, key: str) -> ConVal | None:
@@ -30,7 +30,7 @@ class Constraints:
             return None
 
         if cls.data is None or time.time() > cls.expires:
-            cls.load()
+            await cls.load()
 
         assert cls.data is not None, "Licenses not loaded"
 

@@ -21,6 +21,7 @@ DATA: dict[str, Any] = {
     "settings": {},
     "users": [],
     "roles": [],
+    "config": {},
 }
 
 if ayonconfig.force_create_admin:
@@ -125,6 +126,17 @@ async def main(force: bool | None = None) -> None:
                 ON CONFLICT (name) DO UPDATE SET value = $2
                 """,
                 name,
+                value,
+            )
+
+        for key, value in DATA.get("config", {}).items():
+            await Postgres.execute(
+                """
+                INSERT INTO config (key, value)
+                VALUES ($1, $2)
+                ON CONFLICT (key) DO UPDATE SET value = $2
+                """,
+                key,
                 value,
             )
 
