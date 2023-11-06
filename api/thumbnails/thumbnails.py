@@ -63,13 +63,15 @@ async def store_thumbnail(
     """
     await Postgres.execute(query, thumbnail_id, mime, payload)
     for entity_type in ["workfiles", "versions", "folders"]:
-        await Postgres.execute(
-            f"""
-            UPDATE project_{project_name}.{entity_type}
-            SET updated_at = NOW() WHERE thumbnail_id = $1
-            """,
-            thumbnail_id,
-        )
+        async with Postgres.acquire() as conn:
+            async with conn.transaction():
+                conn.execute(
+                    f"""
+                    UPDATE project_{project_name}.{entity_type}
+                    SET updated_at = NOW() WHERE thumbnail_id = $1
+                    """,
+                    thumbnail_id,
+                )
 
 
 async def retrieve_thumbnail(project_name: str, thumbnail_id: str | None) -> Response:
