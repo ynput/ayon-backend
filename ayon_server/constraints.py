@@ -21,6 +21,7 @@ class StatusModel(BaseModel):
 
 class ConstraintsModel(BaseModel):
     exp: int = Field(default_factory=now, alias="exp")
+    site: str | None = Field(None)
     data: dict[str, ConVal] = Field(default_factory=dict, alias="data")
     status: list[StatusModel] = Field(default_factory=list, alias="status")
 
