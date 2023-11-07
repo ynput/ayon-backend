@@ -7,9 +7,22 @@ from ayon_server.lib.postgres import Postgres
 ConVal = int | bool
 
 
+def now() -> int:
+    return int(time.time())
+
+
+class StatusModel(BaseModel):
+    exp: int = Field(default_factory=now, alias="exp")
+    sub: str = Field("unknown")
+    val: ConVal = Field(False)
+    valid: bool = Field(False)
+    message: str = Field("unknown")
+
+
 class ConstraintsModel(BaseModel):
-    exp: int = Field(..., alias="exp")
+    exp: int = Field(default_factory=now, alias="exp")
     data: dict[str, ConVal] = Field(default_factory=dict, alias="data")
+    status: list[StatusModel] = Field(default_factory=list, alias="status")
 
 
 async def load_licenses() -> list[str]:
