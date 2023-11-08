@@ -99,6 +99,13 @@ class ServerAddonDefinition:
 
         return self._versions
 
+    @property
+    def is_system(self) -> bool:
+        for version in self.versions.values():
+            if version.system:
+                return True
+        return False
+
     def __getitem__(self, item) -> BaseServerAddon:
         return self.versions[item]
 
