@@ -30,6 +30,7 @@ class WorkfileNode(BaseNode):
     updated_by: str | None
     status: str
     attrib: WorkfileAttribType
+    data: str | None
     tags: list[str]
 
     @strawberry.field(description="Workfile name")
