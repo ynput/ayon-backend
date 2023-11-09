@@ -8,7 +8,7 @@ from fastapi import APIRouter
 from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import NAME_REGEX, Field, OPModel
+from ayon_server.types import NAME_REGEX, Field, OPModel, ProjectLevelEntityType
 
 from .templating import StringTemplate
 
@@ -73,27 +73,28 @@ class ResolvedEntityModel(OPModel):
         description="Path to the file if a representation is specified",
         example="/path/to/file.ma",
     )
+    target: ProjectLevelEntityType | None = Field(None, example="version")
 
 
 class ResolvedURIModel(OPModel):
     uri: str = Field(
         ...,
         title="Resolved URI",
-        example="ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004",
+        example="ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004&representation=ma",
     )
     entities: list[ResolvedEntityModel] = Field(
         ...,
         title="Resolved entities",
         example=[
             {
-                "project_name": "demo_Big_Feature",
-                "folder_id": "0254c370005811ee9a740242ac130004",
-                "product_id": "0255ce50005811ee9a740242ac130004",
-                "task_id": None,
-                "version_id": "0256ba2c005811ee9a740242ac130004",
-                "representation_id": None,
-                "workfile_id": None,
-                "file_path": "/path/to/file.ma",
+                "projectName": "demo_Big_Feature",
+                "folderId": "0254c370005811ee9a740242ac130004",
+                "productId": "0255ce50005811ee9a740242ac130004",
+                "taskId": None,
+                "versionId": "0256ba2c005811ee9a740242ac130004",
+                "representationId": None,
+                "workfileId": None,
+                "filePath": "/path/to/file.ma",
             }
         ],
     )
@@ -252,6 +253,7 @@ async def resolve_entities(
 
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
+    target_entity: ProjectLevelEntityType | None = None
 
     platform = None
     if site_id:
@@ -261,10 +263,12 @@ async def resolve_entities(
         cols.append("t.id as task_id")
         joins.append("INNER JOIN tasks AS t ON h.id = t.folder_id")
         conds.append(f"t.name = '{req.task_name}'")
+        target_entity = "task"
         if req.workfile_name is not None:
             cols.append("w.id as workfile_id")
             joins.append("INNER JOIN workfiles AS w ON t.id = w.task_id")
             conds.append(f"w.name = '{req.workfile_name}'")
+            target_entity = "workfile"
 
         conds.extend(get_path_conditions(req.path))
 
@@ -286,6 +290,7 @@ async def resolve_entities(
             conds.extend(get_version_conditions(req.version_name))
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
+            target_entity = "representation"
 
         elif req.version_name is not None:
             cols.extend(["s.id as product_id", "v.id as version_id"])
@@ -294,15 +299,18 @@ async def resolve_entities(
             conds.extend(get_version_conditions(req.version_name))
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
+            target_entity = "version"
 
         elif req.product_name is not None:
             cols.append("s.id as product_id")
             joins.append("INNER JOIN products AS s ON h.id = s.folder_id")
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
+            target_entity = "product"
 
         else:
             conds.extend(get_path_conditions(req.path))
+            target_entity = "folder"
 
     query = f"""
         SELECT {", ".join(cols)}
@@ -333,6 +341,7 @@ async def resolve_entities(
             ResolvedEntityModel(
                 project_name=req.project_name,
                 file_path=file_path,
+                target=target_entity,
                 **row,
             )
         )
@@ -395,6 +404,37 @@ async def resolve_uris(
     site_id: SiteID,
     user: CurrentUser,
 ) -> list[ResolvedURIModel]:
+    """Resolve a list of ayon:// URIs to entities.
+
+    Each URI starts with `ayon://{project_name}/{path}` which determines the requested folder.
+
+    Schemes `ayon://` and `ayon+entity://` are equivalent (ayon is just a shorter alias).
+
+    Additional query arguments [`product`, `version`, `representation`] or [`task`, `workfile`]
+    are allowed. Note that arguments from product/version/representations cannot be mixed with
+    task/workfile arguments.
+
+    ### Implicit wildcards
+
+    The response contains a list of resolved URIs with the requested entities.
+    One URI can match multiple entities - for example when **product** and **representation** are requested,
+    the response will contain all matching **representations** from all **versions** of the product.
+
+    ### Explicit wildcards
+
+    It is possible to use a `*` wildcard for querying multiple entities at the deepest level
+    of the data structure:
+
+    `ayon://my_project/assets/characters?product=setdress?version=*` will return all versions
+    of the given product.
+
+    ### Representation paths
+
+    When a representation is requested, the response will contain the resolved file path,
+    and if the request contains `X-ayon-site-id` header and `resolve_roots` is set to `true`,
+    in the request, the server will resolve the file path to the actual absolute path.
+
+    """
     roots = {}
     if request.resolve_roots and site_id:
         projects = [parse_uri(uri).project_name for uri in request.uris]
