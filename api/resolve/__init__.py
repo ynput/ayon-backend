@@ -73,7 +73,6 @@ class ResolvedEntityModel(OPModel):
         description="Path to the file if a representation is specified",
         example="/path/to/file.ma",
     )
-    target: ProjectLevelEntityType | None = Field(None, example="version")
 
 
 class ResolvedURIModel(OPModel):
@@ -253,7 +252,7 @@ async def resolve_entities(
 
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
-    target_entity: ProjectLevelEntityType | None = None
+    target_entity_type: ProjectLevelEntityType | None = None
 
     platform = None
     if site_id:
@@ -263,12 +262,12 @@ async def resolve_entities(
         cols.append("t.id as task_id")
         joins.append("INNER JOIN tasks AS t ON h.id = t.folder_id")
         conds.append(f"t.name = '{req.task_name}'")
-        target_entity = "task"
+        target_entity_type = "task"
         if req.workfile_name is not None:
             cols.append("w.id as workfile_id")
             joins.append("INNER JOIN workfiles AS w ON t.id = w.task_id")
             conds.append(f"w.name = '{req.workfile_name}'")
-            target_entity = "workfile"
+            target_entity_type = "workfile"
 
         conds.extend(get_path_conditions(req.path))
 
@@ -290,7 +289,7 @@ async def resolve_entities(
             conds.extend(get_version_conditions(req.version_name))
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
-            target_entity = "representation"
+            target_entity_type = "representation"
 
         elif req.version_name is not None:
             cols.extend(["s.id as product_id", "v.id as version_id"])
@@ -299,18 +298,18 @@ async def resolve_entities(
             conds.extend(get_version_conditions(req.version_name))
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
-            target_entity = "version"
+            target_entity_type = "version"
 
         elif req.product_name is not None:
             cols.append("s.id as product_id")
             joins.append("INNER JOIN products AS s ON h.id = s.folder_id")
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
-            target_entity = "product"
+            target_entity_type = "product"
 
         else:
             conds.extend(get_path_conditions(req.path))
-            target_entity = "folder"
+            target_entity_type = "folder"
 
     query = f"""
         SELECT {", ".join(cols)}
@@ -320,6 +319,8 @@ async def resolve_entities(
         query += f""" WHERE {" AND ".join(conds)}"""
 
     query += " LIMIT 1000"
+
+    _ = target_entity_type
 
     statement = await conn.prepare(query)
     async for row in statement.cursor():
@@ -341,7 +342,6 @@ async def resolve_entities(
             ResolvedEntityModel(
                 project_name=req.project_name,
                 file_path=file_path,
-                target=target_entity,
                 **row,
             )
         )
