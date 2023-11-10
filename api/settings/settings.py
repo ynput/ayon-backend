@@ -70,7 +70,6 @@ async def get_all_settings(
     variant: str = Query("production"),
     summary: bool = Query(False, title="Summary", description="Summary mode"),
 ) -> AllSettingsResponseModel:
-
     if variant not in ("production", "staging"):
         query = [
             """

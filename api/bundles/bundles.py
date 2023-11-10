@@ -168,7 +168,6 @@ async def create_bundle(
     try:
         async with Postgres.acquire() as conn:
             async with conn.transaction():
-
                 # Clear constrained values if they are being updated
                 if bundle.is_production:
                     await conn.execute("UPDATE bundles SET is_production = FALSE")

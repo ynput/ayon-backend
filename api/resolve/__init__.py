@@ -327,7 +327,6 @@ async def resolve_entities(
         file_path = None
         if ("file_template" in row) and ("context" in row):
             if row["file_template"]:
-
                 file_path = get_representation_path(
                     row["file_template"],
                     row["context"],
