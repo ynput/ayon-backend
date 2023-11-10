@@ -64,10 +64,10 @@ async def store_thumbnail(
         RETURNING id
     """
     await Postgres.execute(query, thumbnail_id, mime, payload)
-    for entity_type in ["workfiles", "versions", "folders"]:
+    for entity_type in ["workfiles", "versions", "folders", "tasks"]:
         async with Postgres.acquire() as conn:
             async with conn.transaction():
-                conn.execute(
+                await conn.execute(
                     f"""
                     UPDATE project_{project_name}.{entity_type}
                     SET updated_at = NOW() WHERE thumbnail_id = $1
