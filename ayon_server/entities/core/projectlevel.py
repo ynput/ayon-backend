@@ -1,4 +1,5 @@
 from contextlib import suppress
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
@@ -212,9 +213,10 @@ class ProjectLevelEntity(BaseEntity):
 
             fields = dict_exclude(
                 self.dict(exclude_none=True),
-                ["id", "ctime"] + self.model.dynamic_fields,
+                ["id", "created_at", "updated_at"] + self.model.dynamic_fields,
             )
             fields["attrib"] = attrib
+            fields["updated_at"] = datetime.now()
 
             try:
                 await self.pre_save(False, transaction)
