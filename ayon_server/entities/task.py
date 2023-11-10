@@ -37,6 +37,7 @@ class TaskEntity(ProjectLevelEntity):
                 t.name as name,
                 t.label as label,
                 t.task_type as task_type,
+                t.thumbnail_id as thumbnail_id,
                 t.assignees as assignees,
                 t.folder_id as folder_id,
                 t.attrib as attrib,
