@@ -29,7 +29,7 @@ class TaskAttribType:
 class TaskNode(BaseNode):
     label: str | None
     task_type: str
-    task_id: str | None = None
+    thumbnail_id: str | None = None
     assignees: list[str]
     folder_id: str
     status: str
