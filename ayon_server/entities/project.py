@@ -4,6 +4,7 @@ along with the project data, this entity also handles
 folder_types of the project and the folder hierarchy.
 """
 
+from datetime import datetime
 from typing import Any, Dict
 
 from ayon_server.entities.core import TopLevelEntity, attribute_library
@@ -220,24 +221,27 @@ class ProjectEntity(TopLevelEntity):
 
         project_name = self.name
         if self.exists:
+
+            fields = dict_exclude(
+                self.dict(exclude_none=True),
+                [
+                    "folder_types",
+                    "task_types",
+                    "link_types",
+                    "statuses",
+                    "tags",
+                    "created_at",
+                    "name",
+                    "own_attrib",
+                ],
+            )
+
+            fields["updated_at"] = datetime.now()
+
             try:
                 await transaction.execute(
                     *SQLTool.update(
-                        "public.projects",
-                        f"WHERE name='{project_name}'",
-                        **dict_exclude(
-                            self.dict(exclude_none=True),
-                            [
-                                "folder_types",
-                                "task_types",
-                                "link_types",
-                                "statuses",
-                                "tags",
-                                "ctime",
-                                "name",
-                                "own_attrib",
-                            ],
-                        ),
+                        "public.projects", f"WHERE name='{project_name}'", **fields
                     )
                 )
 
