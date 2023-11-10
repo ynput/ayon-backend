@@ -47,6 +47,7 @@ class AddonListItem(OPModel):
         None,
         description="Staging version of the addon",
     )
+    system: bool | None = Field(None, description="Is the addon a system addon?")
 
 
 class AddonList(OPModel):
@@ -75,9 +76,12 @@ async def list_addons(
     for _name, definition in library.data.items():
         vers = active_versions.get(definition.name, {})
         versions = {}
+        is_system = False
         for version, addon in definition.versions.items():
-            if addon.system and not user.is_admin:
-                continue
+            if addon.system:
+                if not user.is_admin:
+                    continue
+                is_system = True
 
             vinf = {
                 "has_settings": bool(addon.get_settings_model()),
@@ -109,6 +113,7 @@ async def list_addons(
                 versions=versions,
                 description=definition.__doc__ or "",
                 production_version=vers.get("production"),
+                system=is_system or None,
                 staging_version=vers.get("staging"),
             )
         )

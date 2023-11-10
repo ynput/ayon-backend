@@ -1,4 +1,5 @@
-VERSION=$(shell poetry run python -c "import ayon_server; print(ayon_server.__version__, end='')")
+VERSION=$(shell sed -n 's/__version__ = \"\(.*\)\"/\1/p' ayon_server/version.py)
+
 
 default:
 	poetry run pre-commit install

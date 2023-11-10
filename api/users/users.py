@@ -490,7 +490,6 @@ async def set_frontend_preferences(
     user: CurrentUser,
     user_name: UserName,
 ) -> EmptyResponse:
-
     if (user_name != user.name) and not (user.is_manager):
         # users can only change their own preferences
         # managers can change any preferences

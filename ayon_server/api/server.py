@@ -131,7 +131,6 @@ async def ayon_exception_handler(
     request: fastapi.Request,
     exc: AyonException,
 ) -> fastapi.responses.JSONResponse:
-
     if exc.status in [401, 403]:
         # do not store 401 and 403 errors in the logs
         return fastapi.responses.JSONResponse(
