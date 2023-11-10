@@ -57,7 +57,7 @@ CREATE TABLE folders(
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
-    tags VARCHAR[] NOT NULL DEFAULT '{}',
+    tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -118,18 +118,18 @@ CREATE TABLE exported_attributes(
 
 CREATE TABLE tasks(
     id UUID NOT NULL PRIMARY KEY,
-
     name VARCHAR NOT NULL,
     label VARCHAR,
     folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
     task_type VARCHAR REFERENCES task_types(name) ON UPDATE CASCADE,
-    assignees VARCHAR[] NOT NULL DEFAULT '{}',
+    assignees VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+    thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
-    tags VARCHAR[] NOT NULL DEFAULT '{}',
+    tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -155,7 +155,7 @@ CREATE TABLE products(
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
-    tags VARCHAR[] NOT NULL DEFAULT '{}',
+    tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -183,7 +183,7 @@ CREATE TABLE versions(
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
-    tags VARCHAR[] NOT NULL DEFAULT '{}',
+    tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -223,7 +223,7 @@ CREATE TABLE representations(
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
-    tags VARCHAR[] NOT NULL DEFAULT '{}',
+    tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -251,7 +251,7 @@ CREATE TABLE workfiles(
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
-    tags VARCHAR[] NOT NULL DEFAULT '{}',
+    tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL

@@ -130,3 +130,29 @@ END $$;
 
 DROP TABLE IF EXISTS public.addon_versions; -- replaced by bundles
 DROP TABLE IF EXISTS public.dependency_packages; -- stored as json files
+
+---------------
+-- Ayon 0.6 --
+---------------
+
+-- To every project project schema, add thumbnail_id column to tasks table
+-- and create a foreign key constraint to the thumbnails table
+
+CREATE OR REPLACE FUNCTION add_thumbnail_id_to_tasks () 
+   RETURNS VOID  AS
+   $$
+   DECLARE rec RECORD; 
+   BEGIN
+        FOR rec IN select distinct nspname from pg_namespace where nspname like 'project_%'  
+        LOOP
+             EXECUTE 
+              'ALTER TABLE IF EXISTS ' || rec.nspname || '.tasks ' || 
+              'ADD COLUMN IF NOT EXISTS thumbnail_id UUID ' ||
+              'REFERENCES ' || rec.nspname || '.thumbnails(id) ON DELETE SET NULL';
+        END LOOP; 
+        RETURN; 
+   END;
+   $$ LANGUAGE plpgsql;
+
+SELECT add_thumbnail_id_to_tasks();
+DROP FUNCTION IF EXISTS add_thumbnail_id_to_tasks();
