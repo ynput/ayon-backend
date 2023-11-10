@@ -140,3 +140,11 @@ class TaskEntity(ProjectLevelEntity):
     @property
     def entity_subtype(self) -> str:
         return self.task_type
+
+    @property
+    def thumbnail_id(self) -> str | None:
+        return self._payload.thumbnail_id
+
+    @thumbnail_id.setter
+    def thumbnail_id(self, value: str) -> None:
+        self._payload.thumbnail_id = value
