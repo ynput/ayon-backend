@@ -48,6 +48,20 @@ class BaseServerAddon:
         """Return the friendly name of the addon."""
         return f"{self.definition.friendly_name} {self.version}"
 
+    async def is_production(self) -> bool:
+        """Return True if the addon is in production bundle."""
+        res = await Postgres.fetch(
+            "SELECT data FROM bundles WHERE is_production IS true"
+        )
+        if not res:
+            return False
+        production_addons = res[0]["data"].get("addons", {}) or {}
+        if self.name not in production_addons:
+            return False
+        if production_addons[self.name] != self.version:
+            return False
+        return True
+
     def initialize(self) -> None:
         """Initialize the addon.
 
