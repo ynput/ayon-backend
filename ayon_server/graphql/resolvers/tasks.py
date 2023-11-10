@@ -86,6 +86,7 @@ async def get_tasks(
         "tasks.label AS label",
         "tasks.folder_id AS folder_id",
         "tasks.task_type AS task_type",
+        "tasks.thumbnail_id AS thumbnail_id",
         "tasks.assignees AS assignees",
         "tasks.attrib AS attrib",
         "tasks.data AS data",
