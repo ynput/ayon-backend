@@ -34,7 +34,7 @@ class ReleaseInfo(OPModel):
     backend_commit: str = Field(..., title="Backend commit", example="1234567")
 
 
-release_info = {}
+release_info: dict[str, Any] = {}
 
 
 def get_release_info() -> ReleaseInfo | None:
