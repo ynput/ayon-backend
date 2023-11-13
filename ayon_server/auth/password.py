@@ -15,6 +15,7 @@ from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.utils import json_dumps
 
 
 async def check_failed_login(ip_address: str) -> None:
@@ -42,7 +43,7 @@ async def set_failed_login(ip_address: str):
         await Redis.set(
             "banned-ip-until",
             ip_address,
-            time.time() + ayonconfig.failed_login_ban_time,
+            json_dumps(time.time() + ayonconfig.failed_login_ban_time),
         )
 
 
@@ -57,12 +58,13 @@ class PasswordAuth:
         name: str,
         password: str,
         request: Request | None = None,
-    ) -> SessionModel | None:
+    ) -> SessionModel:
         """Login using username/password credentials.
 
         Return a SessionModel object if the credentials are valid.
-        Return None otherwise.
+        Raise 403 if the credentials are invalid.
         """
+        # TODO: this should raise 401, not 403
 
         if request is not None:
             await check_failed_login(get_real_ip(request))

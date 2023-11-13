@@ -34,7 +34,7 @@ class FolderNode(BaseNode):
     tags: list[str]
     attrib: FolderAttribType
     own_attrib: list[str]
-    data: str
+    data: str | None
 
     # GraphQL specifics
 
