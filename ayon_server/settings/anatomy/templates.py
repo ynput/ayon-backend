@@ -147,12 +147,12 @@ class Templates(BaseSettingsModel):
         title="Others",
     )
 
-    staging_directories: list[StagingDirectory] = Field(
+    staging_dir: list[StagingDirectory] = Field(
         default_factory=list,
         title="Staging directories",
     )
 
-    @validator("work", "publish", "hero", "delivery", "others", "staging_directories")
+    @validator("work", "publish", "hero", "delivery", "others", "staging_dir")
     def validate_template_group(cls, value):
         ensure_unique_names(value)
         return value
