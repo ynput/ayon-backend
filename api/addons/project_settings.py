@@ -53,6 +53,7 @@ async def get_addon_project_settings_schema(
         "project_name": project_name,
         "site_id": site,
         "user_name": user.name,
+        "addon": addon,
     }
 
     schema = copy.deepcopy(model.schema())

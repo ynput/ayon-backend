@@ -38,8 +38,13 @@ async def get_addon_settings_schema(
     if model is None:
         return {}
 
+    context = {
+        "addon": addon,
+        "user_name": user.name,
+    }
+
     schema = copy.deepcopy(model.schema())
-    await postprocess_settings_schema(schema, model)
+    await postprocess_settings_schema(schema, model, context=context)
     schema["title"] = addon.friendly_name
     return schema
 
