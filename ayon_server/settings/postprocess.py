@@ -1,5 +1,4 @@
 import collections
-import copy
 import inspect
 from typing import Any, Deque, Type
 
@@ -29,15 +28,16 @@ async def process_enum(
     context: dict[str, Any] | None = None,
 ) -> tuple[list[str], dict[str, str]]:
     if context is None:
-        ctx_data = {}
-    else:
-        ctx_data = copy.deepcopy(context)
+        context = {}
 
     resolver_args = inspect.getfullargspec(enum_resolver).args
-    available_keys = list(ctx_data.keys())
-    for key in available_keys:
-        if key not in resolver_args:
-            del ctx_data[key]
+
+    ctx_data = {}
+    for key in resolver_args:
+        if key in context:
+            ctx_data[key] = context[key]
+        else:
+            ctx_data[key] = None
 
     if inspect.iscoroutinefunction(enum_resolver):
         enum = await enum_resolver(**ctx_data)
@@ -46,16 +46,17 @@ async def process_enum(
 
     enum_values = []
     enum_labels = {}
-    if type(enum) is list:
-        for item in enum:
-            if type(item) is str:
-                enum_values.append(item)
-            elif type(item) is dict:
-                if "value" not in item or "label" not in item:
-                    logging.warning(f"Invalid enumerator item: {item}")
-                    continue
-                enum_values.append(item["value"])
-                enum_labels[item["value"]] = item["label"]
+    if not isinstance(enum, list):
+        return [], {}
+    for item in enum:
+        if type(item) is str:
+            enum_values.append(item)
+        elif type(item) is dict:
+            if "value" not in item or "label" not in item:
+                logging.warning(f"Invalid enumerator item: {item}")
+                continue
+            enum_values.append(item["value"])
+            enum_labels[item["value"]] = item["label"]
     return enum_values, enum_labels
 
 

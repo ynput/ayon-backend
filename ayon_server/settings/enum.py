@@ -1,10 +1,18 @@
-from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.settings.anatomy import Anatomy
+
+
+async def get_primary_anatomy_preset():
+    query = "SELECT * FROM anatomy_presets WHERE is_primary is TRUE"
+    async for row in Postgres.iterate(query):
+        return Anatomy(**row["data"])
+    return Anatomy()
 
 
 async def folder_types_enum(project_name: str | None = None):
     if project_name is None:
-        raise AyonException("Only available in project context")
+        anatomy = await get_primary_anatomy_preset()
+        return [folder_type.name for folder_type in anatomy.folder_types]
 
     return [
         row["name"]
@@ -20,7 +28,8 @@ async def folder_types_enum(project_name: str | None = None):
 
 async def task_types_enum(project_name: str | None = None):
     if project_name is None:
-        raise AyonException("Only available in project context")
+        anatomy = await get_primary_anatomy_preset()
+        return [task_type.name for task_type in anatomy.task_types]
 
     return [
         row["name"]
