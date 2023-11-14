@@ -152,7 +152,7 @@ class Templates(BaseSettingsModel):
         title="Others",
     )
 
-    @validator("work", "publish", "hero", "delivery", "others", "staging_dir")
+    @validator("work", "publish", "hero", "delivery", "others", "staging")
     def validate_template_group(cls, value):
         ensure_unique_names(value)
         return value
