@@ -142,14 +142,14 @@ class Templates(BaseSettingsModel):
         title="Delivery",
     )
 
+    staging: list[StagingDirectory] = Field(
+        default_factory=list,
+        title="Staging directories",
+    )
+
     others: list[CustomTemplate] = Field(
         default_factory=list,
         title="Others",
-    )
-
-    staging_dir: list[StagingDirectory] = Field(
-        default_factory=list,
-        title="Staging directories",
     )
 
     @validator("work", "publish", "hero", "delivery", "others", "staging_dir")
