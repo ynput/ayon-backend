@@ -47,7 +47,7 @@ async def process_enum(
     enum_values = []
     enum_labels = {}
     if not isinstance(enum, list):
-        return [], []
+        return [], {}
     for item in enum:
         if type(item) is str:
             enum_values.append(item)
