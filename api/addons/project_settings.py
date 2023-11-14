@@ -36,6 +36,7 @@ async def get_addon_project_settings_schema(
     version: str,
     project_name: ProjectName,
     user: CurrentUser,
+    variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ) -> dict[str, Any]:
     """Return the JSON schema of the addon settings."""
@@ -50,10 +51,11 @@ async def get_addon_project_settings_schema(
         return {}
 
     context = {
+        "addon": addon,
         "project_name": project_name,
+        "settings_variant": variant,
         "site_id": site,
         "user_name": user.name,
-        "addon": addon,
     }
 
     schema = copy.deepcopy(model.schema())

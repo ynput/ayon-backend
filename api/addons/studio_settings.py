@@ -27,6 +27,7 @@ async def get_addon_settings_schema(
     addon_name: str,
     addon_version: str,
     user: CurrentUser,
+    variant: str = Query("production"),
 ) -> dict[str, Any]:
     """Return the JSON schema of the addon settings."""
 
@@ -40,6 +41,7 @@ async def get_addon_settings_schema(
 
     context = {
         "addon": addon,
+        "settings_variant": variant,
         "user_name": user.name,
     }
 
