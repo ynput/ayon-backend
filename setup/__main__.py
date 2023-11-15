@@ -88,8 +88,10 @@ async def main(force: bool | None = None) -> None:
     await deploy_attributes()
 
     if force_install:
+        logging.info("Force install requested")
         template_data: dict[str, Any] = {}
         if "-" in sys.argv:
+            logging.info("Reading setup file from stdin")
             raw_data = sys.stdin.read()
             try:
                 template_data = json_loads(raw_data)
@@ -98,6 +100,7 @@ async def main(force: bool | None = None) -> None:
                 critical_error("Invalid setup file provided")
 
         elif os.path.exists("/template.json"):
+            logging.info("Reading setup file from /template.json")
             try:
                 raw_data = Path("/template.json").read_text()
                 template_data = json_loads(raw_data)
