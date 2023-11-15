@@ -52,7 +52,7 @@ def list_overrides(
     override: dict[str, Any],
     crumbs: list[str] | None = None,
     level: str = "studio",
-    in_group: bool = False,
+    in_group: list[str] | None = None,
 ) -> dict[str, Any]:
     """Returns values which are overriden.
 
@@ -64,6 +64,7 @@ def list_overrides(
                 "type": type,  // type of the field: branch, leaf, group, array
                 "value": value, // value of the field (only present on leaves)
                 "level": level, // source of the override: studio, project or site
+                "inGroup": path // path of the group the field is in
             }
         }
 

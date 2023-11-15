@@ -7,10 +7,12 @@ from nxtools import logging
 from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.common import BaseSettingsModel
-from ayon_server.types import AttributeEnumItem, camelize
+from ayon_server.types import AttributeEnumItem, SimpleValue, camelize
 
 
-async def get_attrib_enum(name: str) -> tuple[list[str], dict[str, str]]:
+async def get_attrib_enum(
+    name: str,
+) -> tuple[list[SimpleValue], dict[SimpleValue, str]]:
     enum_values = []
     enum_labels = {}
 
@@ -26,7 +28,7 @@ async def get_attrib_enum(name: str) -> tuple[list[str], dict[str, str]]:
 async def process_enum(
     enum_resolver,
     context: dict[str, Any] | None = None,
-) -> tuple[list[str], dict[str, str]]:
+) -> tuple[list[SimpleValue], dict[SimpleValue, str]]:
     if context is None:
         context = {}
 
@@ -44,10 +46,10 @@ async def process_enum(
     else:
         enum = enum_resolver(**ctx_data)
 
-    enum_values = []
-    enum_labels = {}
+    enum_values: list[SimpleValue] = []
+    enum_labels: dict[SimpleValue, str] = {}
     if not isinstance(enum, list):
-        return [], {}
+        return enum_values, enum_labels
     for item in enum:
         if type(item) is str:
             enum_values.append(item)
@@ -99,8 +101,8 @@ async def postprocess_settings_schema(  # noqa
                 del prop[key]
 
         if field := model.__fields__.get(name):
-            enum_values = []
-            enum_labels = {}
+            enum_values: list[SimpleValue] = []
+            enum_labels: dict[SimpleValue, str] = {}
             is_enum = False
             if enum := field.field_info.extra.get("enum"):
                 is_enum = True

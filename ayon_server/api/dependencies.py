@@ -16,7 +16,12 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX, USER_NAME_REGEX
+from ayon_server.types import (
+    API_KEY_REGEX,
+    NAME_REGEX,
+    PROJECT_NAME_REGEX,
+    USER_NAME_REGEX,
+)
 from ayon_server.utils import (
     EntityID,
     json_dumps,
@@ -68,7 +73,7 @@ ThumbnailContentType = Annotated[str, Depends(dep_thumbnail_content_type)]
 async def dep_current_user(
     request: Request,
     x_as_user: str | None = Header(None, regex=USER_NAME_REGEX),
-    x_api_key: str | None = Header(None),  # TODO: some validation here
+    x_api_key: str | None = Header(None, regex=API_KEY_REGEX),
     access_token: str | None = Depends(dep_access_token),
     api_key: str | None = Depends(dep_api_key),
 ) -> UserEntity:
@@ -127,10 +132,10 @@ CurrentUser = Annotated[UserEntity, Depends(dep_current_user)]
 
 async def dep_current_user_optional(
     request: Request,
+    access_token: AccessToken,
+    api_key: ApiKey,
     x_as_user: str | None = Header(None, regex=USER_NAME_REGEX),
-    x_api_key: str | None = Header(None),  # TODO: some validation here
-    access_token: str | None = Depends(dep_access_token),
-    api_key: str | None = Depends(dep_api_key),
+    x_api_key: str | None = Header(None, regex=API_KEY_REGEX),
 ) -> UserEntity | None:
     try:
         user = await dep_current_user(
