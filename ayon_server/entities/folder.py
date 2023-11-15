@@ -160,6 +160,7 @@ class FolderEntity(ProjectLevelEntity):
                         status=self.status,
                         tags=self.tags,
                         attrib=attrib,
+                        data=self.data,
                         updated_at=datetime.now(),
                     )
                 )
