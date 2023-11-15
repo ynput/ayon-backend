@@ -5,6 +5,7 @@ from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import VersionEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
+from ayon_server.exceptions import ForbiddenException
 
 router = APIRouter(tags=["Versions"])
 
@@ -46,7 +47,17 @@ async def create_version(
     Use a POST request to create a new version (with a new id).
     """
 
-    version = VersionEntity(project_name=project_name, payload=post_data.dict())
+    payload = post_data.dict(exclude_unset=True)
+    if "author" not in payload:
+        payload["author"] = user.name
+
+    if not user.is_admin:
+        if payload["author"] != user.name:
+            raise ForbiddenException(
+                "You can only create versions for yourself, unless you are an admin."
+            )
+
+    version = VersionEntity(project_name=project_name, payload=payload)
     await version.ensure_create_access(user)
     event = {
         "topic": "entity.version.created",
