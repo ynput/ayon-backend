@@ -29,6 +29,7 @@ class TaskAttribType:
 class TaskNode(BaseNode):
     label: str | None
     task_type: str
+    thumbnail_id: str | None = None
     assignees: list[str]
     folder_id: str
     status: str
@@ -105,6 +106,7 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
         name=record["name"],
         label=record["label"],
         task_type=record["task_type"],
+        thumbnail_id=record["thumbnail_id"],
         assignees=assignees,
         folder_id=record["folder_id"],
         status=record["status"],

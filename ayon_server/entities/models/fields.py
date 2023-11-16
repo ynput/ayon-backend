@@ -175,6 +175,14 @@ task_fields = [
         "example": "Modeling",
     },
     {
+        "name": "thumbnail_id",
+        "type": "string",
+        "title": "Thumbnail ID",
+        "required": False,
+        "regex": ENTITY_ID_REGEX,
+        "example": ENTITY_ID_EXAMPLE,
+    },
+    {
         "name": "assignees",
         "type": "list_of_strings",
         "title": "Assignees",

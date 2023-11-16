@@ -6,6 +6,7 @@ from ayon_server.api.dependencies import (
     CurrentUser,
     FolderID,
     ProjectName,
+    TaskID,
     ThumbnailContentType,
     ThumbnailID,
     VersionID,
@@ -13,6 +14,7 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities.folder import FolderEntity
+from ayon_server.entities.task import TaskEntity
 from ayon_server.entities.version import VersionEntity
 from ayon_server.entities.workfile import WorkfileEntity
 from ayon_server.exceptions import (
@@ -61,11 +63,11 @@ async def store_thumbnail(
         DO UPDATE SET data = EXCLUDED.data
         RETURNING id
     """
-    await Postgres.execute(query, thumbnail_id, mime, payload)
-    for entity_type in ["workfiles", "versions", "folders"]:
-        async with Postgres.acquire() as conn:
-            async with conn.transaction():
-                conn.execute(
+    async with Postgres.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(query, thumbnail_id, mime, payload)
+            for entity_type in ["workfiles", "versions", "folders", "tasks"]:
+                await conn.execute(
                     f"""
                     UPDATE project_{project_name}.{entity_type}
                     SET updated_at = NOW() WHERE thumbnail_id = $1
@@ -301,3 +303,46 @@ async def get_workfile_thumbnail(
     except AyonException:
         return get_fake_thumbnail()
     return await retrieve_thumbnail(project_name, workfile.thumbnail_id)
+
+
+#
+# Task endpoints
+#
+
+
+@router.post("/projects/{project_name}/tasks/{task_id}/thumbnail", status_code=201)
+async def create_task_thumbnail(
+    request: Request,
+    user: CurrentUser,
+    project_name: ProjectName,
+    task_id: TaskID,
+    content_type: ThumbnailContentType,
+) -> CreateThumbnailResponseModel:
+    payload = await request.body()
+    task = await TaskEntity.load(project_name, task_id)
+    await task.ensure_update_access(user)
+
+    thumbnail_id = EntityID.create()
+    await store_thumbnail(
+        project_name=project_name,
+        thumbnail_id=thumbnail_id,
+        mime=content_type,
+        payload=payload,
+    )
+    task.thumbnail_id = thumbnail_id
+    await task.save()
+    return CreateThumbnailResponseModel(id=thumbnail_id)
+
+
+@router.get(
+    "/projects/{project_name}/tasks/{task_id}/thumbnail",
+)
+async def get_task_thumbnail(
+    user: CurrentUser, project_name: ProjectName, task_id: TaskID
+) -> Response:
+    try:
+        task = await TaskEntity.load(project_name, task_id)
+        await task.ensure_read_access(user)
+    except AyonException:
+        return get_fake_thumbnail()
+    return await retrieve_thumbnail(project_name, task.thumbnail_id)

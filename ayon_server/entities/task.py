@@ -37,6 +37,7 @@ class TaskEntity(ProjectLevelEntity):
                 t.name as name,
                 t.label as label,
                 t.task_type as task_type,
+                t.thumbnail_id as thumbnail_id,
                 t.assignees as assignees,
                 t.folder_id as folder_id,
                 t.attrib as attrib,
@@ -140,3 +141,11 @@ class TaskEntity(ProjectLevelEntity):
     @property
     def entity_subtype(self) -> str:
         return self.task_type
+
+    @property
+    def thumbnail_id(self) -> str | None:
+        return self._payload.thumbnail_id
+
+    @thumbnail_id.setter
+    def thumbnail_id(self, value: str) -> None:
+        self._payload.thumbnail_id = value
