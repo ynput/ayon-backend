@@ -357,21 +357,38 @@ async def get_raw_addon_project_overrides(
     user: CurrentUser,
     project_name: ProjectName,
     variant: str = Query("production"),
+    site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ) -> dict[str, Any]:
-    if not user.is_admin:
-        raise ForbiddenException("Only admins can access raw overrides")
 
-    result = await Postgres.fetch(
-        f"""
-        SELECT data FROM project_{project_name}.settings
-        WHERE addon_name = $1
-        AND addon_version = $2
-        AND variant = $3
-        """,
-        addon_name,
-        addon_version,
-        variant,
-    )
+    if site:
+        result = await Postgres.fetch(
+            f"""
+            SELECT data FROM project_{project_name}.project_site_settings
+            WHERE addon_name = $1
+            AND addon_version = $2
+            AND site_id = $3
+            AND user_name = $4
+            """,
+            addon_name,
+            addon_version,
+            site,
+            user.name,
+        )
+
+    elif user.is_admin:
+        result = await Postgres.fetch(
+            f"""
+            SELECT data FROM project_{project_name}.settings
+            WHERE addon_name = $1
+            AND addon_version = $2
+            AND variant = $3
+            """,
+            addon_name,
+            addon_version,
+            variant,
+        )
+    else:
+        raise ForbiddenException("Only admins can access raw overrides")
 
     if not result:
         return {}
@@ -391,22 +408,41 @@ async def set_raw_addon_project_overrides(
     user: CurrentUser,
     project_name: ProjectName,
     variant: str = Query("production"),
+    site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ) -> EmptyResponse:
-    if not user.is_admin:
-        raise ForbiddenException("Only admins can access raw overrides")
 
-    await Postgres.execute(
-        f"""
-        INSERT INTO project_{project_name}.settings
-            (addon_name, addon_version, variant, data)
-        VALUES
-            ($1, $2, $3, $4)
-        ON CONFLICT (addon_name, addon_version, variant)
-            DO UPDATE SET data = $4
-        """,
-        addon_name,
-        addon_version,
-        variant,
-        payload,
-    )
+    if site:
+        await Postgres.execute(
+            f"""
+            INSERT INTO project_{project_name}.project_site_settings
+                (addon_name, addon_version, site_id, user_name, data)
+            VALUES
+                ($1, $2, $3, $4, $5)
+            ON CONFLICT (addon_name, addon_version, site_id, user_name)
+                DO UPDATE SET data = $5
+            """,
+            addon_name,
+            addon_version,
+            site,
+            user.name,
+            payload,
+        )
+
+    elif user.is_admin:
+        await Postgres.execute(
+            f"""
+            INSERT INTO project_{project_name}.settings
+                (addon_name, addon_version, variant, data)
+            VALUES
+                ($1, $2, $3, $4)
+            ON CONFLICT (addon_name, addon_version, variant)
+                DO UPDATE SET data = $4
+            """,
+            addon_name,
+            addon_version,
+            variant,
+            payload,
+        )
+    else:
+        raise ForbiddenException("Only admins can access raw overrides")
     return EmptyResponse()
