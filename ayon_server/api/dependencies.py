@@ -403,7 +403,7 @@ async def dep_ynput_cloud_key() -> str:
     res = await Postgres.fetch(
         """
         SELECT value FROM secrets
-        WHERE name IN ('ynput_connect_key')
+        WHERE name IN ('ynput_cloud_key')
         """
     )
     if not res:
@@ -412,3 +412,17 @@ async def dep_ynput_cloud_key() -> str:
 
 
 YnputCloudKey = Annotated[str, Depends(dep_ynput_cloud_key)]
+
+YNPUT_SITE_ID: str | None = None
+
+
+async def dep_ynput_site_id() -> str:
+    global SITE_ID
+    if SITE_ID is None:
+        res = await Postgres.fetch("SELECT value FROM config WHERE key = 'siteId'")
+        assert res, "siteId not set. This shouldn't happen."
+        SITE_ID = res[0]["value"]
+    return SITE_ID
+
+
+YnputSiteID = Annotated[str, Depends(dep_ynput_site_id)]

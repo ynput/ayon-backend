@@ -6,6 +6,7 @@ from ayon_server.api.dependencies import (
     CurrentUser,
     CurrentUserOptional,
     YnputCloudKey,
+    YnputSiteID,
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
@@ -18,17 +19,6 @@ router = APIRouter(
     prefix="/connect",
     tags=["YnputConnect"],
 )
-
-SITE_ID: str | None = None
-
-
-async def get_site_id() -> str:
-    global SITE_ID
-    if SITE_ID is None:
-        res = await Postgres.fetch("SELECT value FROM config WHERE key = 'siteId'")
-        assert res, "siteId not set. This shouldn't happen."
-        SITE_ID = res[0]["value"]
-    return SITE_ID
 
 
 class YnputConnectRequestModel(OPModel):
@@ -72,16 +62,14 @@ class YnputConnectResponseModel(OPModel):
 
 @router.get("")
 async def get_ynput_connect_info(
-    user: CurrentUser, ynput_connect_key: YnputCloudKey
+    user: CurrentUser, ynput_connect_key: YnputCloudKey, site_id: YnputSiteID
 ) -> YnputConnectResponseModel:
     """
     Check whether the Ynput connect key is set and return the Ynput connect info
     """
 
-    siteid = await get_site_id()
-
     headers = {
-        "x-ynput-cloud-site": siteid,
+        "x-ynput-cloud-site": site_id,
         "x-ynput-cloud-key": ynput_connect_key,
     }
 
@@ -110,12 +98,11 @@ async def get_ynput_connect_info(
 
 
 @router.get("/authorize")
-async def authorize_ynput_connect(origin_url: str = Query(...)):
+async def authorize_ynput_connect(site_id: YnputSiteID, origin_url: str = Query(...)):
     """Redirect to Ynput connect authorization page"""
 
-    siteid = await get_site_id()
     base_url = f"{ayonconfig.ynput_cloud_api_url}/api/v1/connect"
-    params = f"instance_redirect={origin_url}&siteid={siteid}"
+    params = f"instance_redirect={origin_url}&siteid={site_id}"
     return RedirectResponse(f"{base_url}?{params}")
 
 
@@ -123,6 +110,7 @@ async def authorize_ynput_connect(origin_url: str = Query(...)):
 async def set_ynput_connect_key(
     request: YnputConnectRequestModel,
     user: CurrentUserOptional,
+    site_id: YnputSiteID,
 ) -> EmptyResponse:
     """Store the Ynput connect key in the database and return the user info"""
 
@@ -134,9 +122,8 @@ async def set_ynput_connect_key(
         if has_admin:
             raise ForbiddenException("Connecting to Ynput is allowed only on first run")
 
-    siteid = await get_site_id()
     headers = {
-        "x-ynput-cloud-site": siteid,
+        "x-ynput-cloud-site": site_id,
         "x-ynput-cloud-key": request.key,
     }
 
@@ -153,7 +140,7 @@ async def set_ynput_connect_key(
     await Postgres.execute(
         """
         INSERT INTO secrets (name, value)
-        VALUES ('ynput_connect_key', $1)
+        VALUES ('ynput_cloud_key', $1)
         ON CONFLICT (name) DO UPDATE SET value = $1
         """,
         request.key,
