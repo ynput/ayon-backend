@@ -413,16 +413,16 @@ async def dep_ynput_cloud_key() -> str:
 
 YnputCloudKey = Annotated[str, Depends(dep_ynput_cloud_key)]
 
-YNPUT_SITE_ID: str | None = None
+INSTANCE_ID: str | None = None
 
 
-async def dep_ynput_site_id() -> str:
-    global YNPUT_SITE_ID
-    if YNPUT_SITE_ID is None:
-        res = await Postgres.fetch("SELECT value FROM config WHERE key = 'siteId'")
-        assert res, "siteId not set. This shouldn't happen."
-        YNPUT_SITE_ID = res[0]["value"]
-    return YNPUT_SITE_ID
+async def dep_instance_id() -> str:
+    global INSTANCE_ID
+    if INSTANCE_ID is None:
+        res = await Postgres.fetch("SELECT value FROM config WHERE key = 'instanceId'")
+        assert res, "instance id not set. This shouldn't happen."
+        INSTANCE_ID = res[0]["value"]
+    return INSTANCE_ID
 
 
-YnputSiteID = Annotated[str, Depends(dep_ynput_site_id)]
+InstanceID = Annotated[str, Depends(dep_instance_id)]

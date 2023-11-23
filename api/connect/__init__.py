@@ -5,8 +5,8 @@ from fastapi.responses import RedirectResponse
 from ayon_server.api.dependencies import (
     CurrentUser,
     CurrentUserOptional,
+    InstanceID,
     YnputCloudKey,
-    YnputSiteID,
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
@@ -62,14 +62,14 @@ class YnputConnectResponseModel(OPModel):
 
 @router.get("")
 async def get_ynput_connect_info(
-    user: CurrentUser, ynput_connect_key: YnputCloudKey, site_id: YnputSiteID
+    user: CurrentUser, ynput_connect_key: YnputCloudKey, instance_id: InstanceID
 ) -> YnputConnectResponseModel:
     """
     Check whether the Ynput connect key is set and return the Ynput connect info
     """
 
     headers = {
-        "x-ynput-cloud-site": site_id,
+        "x-ynput-cloud-instance": instance_id,
         "x-ynput-cloud-key": ynput_connect_key,
     }
 
@@ -98,11 +98,13 @@ async def get_ynput_connect_info(
 
 
 @router.get("/authorize")
-async def authorize_ynput_connect(site_id: YnputSiteID, origin_url: str = Query(...)):
+async def authorize_ynput_connect(
+    instance_id: InstanceID, origin_url: str = Query(...)
+):
     """Redirect to Ynput connect authorization page"""
 
     base_url = f"{ayonconfig.ynput_cloud_api_url}/api/v1/connect"
-    params = f"instance_redirect={origin_url}&siteid={site_id}"
+    params = f"instance_redirect={origin_url}&instance_id={instance_id}"
     return RedirectResponse(f"{base_url}?{params}")
 
 
@@ -110,7 +112,7 @@ async def authorize_ynput_connect(site_id: YnputSiteID, origin_url: str = Query(
 async def set_ynput_connect_key(
     request: YnputConnectRequestModel,
     user: CurrentUserOptional,
-    site_id: YnputSiteID,
+    instance_id: InstanceID,
 ) -> EmptyResponse:
     """Store the Ynput connect key in the database and return the user info"""
 
@@ -123,7 +125,7 @@ async def set_ynput_connect_key(
             raise ForbiddenException("Connecting to Ynput is allowed only on first run")
 
     headers = {
-        "x-ynput-cloud-site": site_id,
+        "x-ynput-cloud-instance": instance_id,
         "x-ynput-cloud-key": request.key,
     }
 
