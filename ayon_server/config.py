@@ -128,8 +128,8 @@ class AyonConfig(BaseModel):
         description="Number of days to keep logs in the event log",
     )
 
-    ynput_connect_url: str | None = Field(
-        "https://connect.ynput.io",
+    ynput_cloud_api_url: str | None = Field(
+        "https://im.ynput.cloud",
         description="YnputConnect URL",
     )
 

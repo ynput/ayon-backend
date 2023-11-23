@@ -399,11 +399,11 @@ async def dep_site_id(
 SiteID = Annotated[str, Depends(dep_site_id)]
 
 
-async def dep_ynput_connect_key() -> str:
+async def dep_ynput_cloud_key() -> str:
     res = await Postgres.fetch(
         """
         SELECT value FROM secrets
-        WHERE name = 'ynput_connect_key'
+        WHERE name IN ('ynput_connect_key')
         """
     )
     if not res:
@@ -411,4 +411,4 @@ async def dep_ynput_connect_key() -> str:
     return res[0]["value"]
 
 
-YnputConnectKey = Annotated[str, Depends(dep_ynput_connect_key)]
+YnputCloudKey = Annotated[str, Depends(dep_ynput_cloud_key)]

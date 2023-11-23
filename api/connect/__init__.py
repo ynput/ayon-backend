@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from ayon_server.api.dependencies import (
     CurrentUser,
     CurrentUserOptional,
-    YnputConnectKey,
+    YnputCloudKey,
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
@@ -19,6 +19,17 @@ router = APIRouter(
     tags=["YnputConnect"],
 )
 
+SITE_ID: str | None = None
+
+
+async def get_site_id() -> str:
+    global SITE_ID
+    if SITE_ID is None:
+        res = await Postgres.fetch("SELECT value FROM config WHERE key = 'siteId'")
+        assert res, "siteId not set. This shouldn't happen."
+        SITE_ID = res[0]["value"]
+    return SITE_ID
+
 
 class YnputConnectRequestModel(OPModel):
     """Model for the request to set the Ynput connect key"""
@@ -29,25 +40,55 @@ class YnputConnectRequestModel(OPModel):
 class YnputConnectResponseModel(OPModel):
     """Model for the response of YnputConnect user info"""
 
+    instance_id: str = Field(
+        ...,
+        description="ID of the instance",
+    )
+    instance_name: str = Field(
+        ...,
+        description="Name of the instance",
+        example="Ayon - staging",
+    )
+    org_id: str = Field(
+        ...,
+        description="ID of the organization",
+    )
+    org_name: str = Field(
+        ...,
+        description="Name of the organization",
+        example="Ynput",
+    )
+
+    managed: bool = Field(
+        default=False,
+        description="Is the instance managed by Ynput Cloud?",
+    )
+
+    # backwards compatibility with the original YnputConnect
+    # TODO: remove
     user_name: str = Field(..., description="User name")
     user_email: str = Field(..., description="User email")
 
 
 @router.get("")
 async def get_ynput_connect_info(
-    user: CurrentUser, ynput_connect_key: YnputConnectKey
+    user: CurrentUser, ynput_connect_key: YnputCloudKey
 ) -> YnputConnectResponseModel:
     """
     Check whether the Ynput connect key is set and return the Ynput connect info
     """
 
-    params = {"key": ynput_connect_key}
+    siteid = await get_site_id()
 
-    # TODO: handle errors
-    # TODO: cache this
+    headers = {
+        "x-ynput-cloud-site": siteid,
+        "x-ynput-cloud-key": ynput_connect_key,
+    }
+
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
-            f"{ayonconfig.ynput_connect_url}/api/connect/info", params=params
+            f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
+            headers=headers,
         )
 
     if res.status_code == 401:
@@ -62,17 +103,20 @@ async def get_ynput_connect_info(
     data = res.json()
 
     return YnputConnectResponseModel(
-        user_name=data["userName"],
-        user_email=data["userEmail"],
+        **data,
+        user_name=data["instanceName"],
+        user_email=data["orgName"],
     )
 
 
 @router.get("/authorize")
 async def authorize_ynput_connect(origin_url: str = Query(...)):
     """Redirect to Ynput connect authorization page"""
-    return RedirectResponse(
-        f"{ayonconfig.ynput_connect_url}/api/connect?origin_url={origin_url}"
-    )
+
+    siteid = await get_site_id()
+    base_url = f"{ayonconfig.ynput_cloud_api_url}/api/v1/connect"
+    params = f"instance_redirect={origin_url}&siteid={siteid}"
+    return RedirectResponse(f"{base_url}?{params}")
 
 
 @router.post("")
@@ -90,11 +134,19 @@ async def set_ynput_connect_key(
         if has_admin:
             raise ForbiddenException("Connecting to Ynput is allowed only on first run")
 
+    siteid = await get_site_id()
+    headers = {
+        "x-ynput-cloud-site": siteid,
+        "x-ynput-cloud-key": request.key,
+    }
+
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
-            f"{ayonconfig.ynput_connect_url}/api/connect/info?key={request.key}"
+            f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
+            headers=headers,
         )
         if res.status_code != 200:
+            print(res.text)
             raise ForbiddenException("Invalid Ynput connect key")
         data = res.json()
 
@@ -108,8 +160,9 @@ async def set_ynput_connect_key(
     )
 
     return YnputConnectResponseModel(
-        user_name=data["userName"],
-        user_email=data["userEmail"],
+        **data,
+        user_name=data["instanceName"],
+        user_email=data["orgName"],
     )
 
 
@@ -119,11 +172,5 @@ async def delete_ynput_connect_key(user: CurrentUser) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can remove the Ynput connect key")
 
-    await Postgres.execute(
-        """
-        DELETE FROM secrets
-        WHERE name = 'ynput_connect_key'
-        """
-    )
-
+    await Postgres.execute("DELETE FROM secrets WHERE name = 'ynput_connect_key'")
     return EmptyResponse()

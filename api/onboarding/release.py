@@ -5,7 +5,7 @@ import httpx
 from fastapi import Request
 from pydantic import Field
 
-from ayon_server.api.dependencies import CurrentUser, YnputConnectKey
+from ayon_server.api.dependencies import CurrentUser, YnputCloudKey
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
@@ -104,7 +104,7 @@ async def restart_onboarding(request: Request, user: CurrentUser) -> EmptyRespon
 
 
 @router.get("/releases", response_model_exclude_none=True)
-async def get_releases(ynput_connect_key: YnputConnectKey) -> ReleaseListModel:
+async def get_releases(ynput_connect_key: YnputCloudKey) -> ReleaseListModel:
     """Get the releases"""
 
     params = {"key": ynput_connect_key}
@@ -120,7 +120,7 @@ async def get_releases(ynput_connect_key: YnputConnectKey) -> ReleaseListModel:
 
 @router.get("/releases/{release_name}", response_model_exclude_none=True)
 async def get_release_info(
-    ynput_connect_key: YnputConnectKey, release_name: str
+    ynput_connect_key: YnputCloudKey, release_name: str
 ) -> ReleaseInfoModel:
     """Get the release info"""
 
