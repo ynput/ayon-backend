@@ -417,12 +417,12 @@ YNPUT_SITE_ID: str | None = None
 
 
 async def dep_ynput_site_id() -> str:
-    global SITE_ID
-    if SITE_ID is None:
+    global YNPUT_SITE_ID
+    if YNPUT_SITE_ID is None:
         res = await Postgres.fetch("SELECT value FROM config WHERE key = 'siteId'")
         assert res, "siteId not set. This shouldn't happen."
-        SITE_ID = res[0]["value"]
-    return SITE_ID
+        YNPUT_SITE_ID = res[0]["value"]
+    return YNPUT_SITE_ID
 
 
 YnputSiteID = Annotated[str, Depends(dep_ynput_site_id)]
