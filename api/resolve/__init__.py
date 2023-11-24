@@ -73,6 +73,11 @@ class ResolvedEntityModel(OPModel):
         description="Path to the file if a representation is specified",
         example="/path/to/file.ma",
     )
+    target: ProjectLevelEntityType | None = Field(
+        None,
+        title="Target entity type",
+        description="The deepest entity type queried",
+    )
 
 
 class ResolvedURIModel(OPModel):
@@ -320,8 +325,6 @@ async def resolve_entities(
 
     query += " LIMIT 1000"
 
-    _ = target_entity_type
-
     statement = await conn.prepare(query)
     async for row in statement.cursor():
         file_path = None
@@ -341,6 +344,7 @@ async def resolve_entities(
             ResolvedEntityModel(
                 project_name=req.project_name,
                 file_path=file_path,
+                target=target_entity_type,
                 **row,
             )
         )

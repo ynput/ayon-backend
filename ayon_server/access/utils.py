@@ -14,6 +14,17 @@ def path_to_paths(
     include_parents: bool = False,
     include_self: bool = True,
 ) -> list[str]:
+    """Convert a path to a list of paths
+
+    If include_parents is True, the result will include all parent folders,
+    if include_self is True, the result will include the path itself.
+
+    The result is a list of strings, each string is a path WITHOUT a trailing slash,
+    in order to be used directly in an SQL query.
+
+    Bottom-level path conains a trailing wildcard, so it can be used in a LIKE query,
+    and will match all subfolders.
+    """
     path = path.strip().strip("/")
     pelms = path.split("/")
     result = [f'"{path}/%"']
@@ -44,6 +55,9 @@ async def folder_access_list(
 
     Raises ForbiddenException in case it is obvious the user
     does not have rights to access any of the folders in the project.
+
+    The list is returned as a list of strings WITHOUT leading slash,
+    so it can be used directly in an SQL query.
     """
 
     if access_types is None:

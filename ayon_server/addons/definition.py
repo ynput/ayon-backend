@@ -1,6 +1,7 @@
 import os
 from typing import TYPE_CHECKING
 
+import semver
 from nxtools import logging, slugify
 
 from ayon_server.addons.addon import BaseServerAddon
@@ -98,6 +99,14 @@ class ServerAddonDefinition:
                         self.restart_requested = True
 
         return self._versions
+
+    @property
+    def latest(self) -> BaseServerAddon | None:
+        if not self.versions:
+            return None
+        versions = list(self.versions.keys())
+        max_version = max(versions, key=semver.VersionInfo.parse)
+        return self.versions[max_version]
 
     @property
     def is_system(self) -> bool:
