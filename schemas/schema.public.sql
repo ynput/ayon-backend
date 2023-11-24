@@ -192,4 +192,5 @@ CREATE TABLE IF NOT EXISTS public.services(
 
 
 -- CREATE THE SITE ID
-INSERT INTO config VALUES ('siteId', to_jsonb(gen_random_uuid()::text)) ON CONFLICT DO NOTHING;
+INSERT INTO config VALUES ('instanceId', to_jsonb(gen_random_uuid()::text)) ON CONFLICT DO NOTHING;
+

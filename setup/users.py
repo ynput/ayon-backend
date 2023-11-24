@@ -28,6 +28,10 @@ async def deploy_users(
             logging.debug(f"Creating password for user {name}")
             data["password"] = create_password(user["password"])
 
+        if "hashedPassword" in user:
+            logging.debug(f"Adding password for user {name}")
+            data["password"] = user["hashedPassword"]
+
         if "apiKey" in user:
             api_key = user["apiKey"]
             logging.debug(f"Creating api key for user {name}")

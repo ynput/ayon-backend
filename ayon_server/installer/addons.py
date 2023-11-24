@@ -38,11 +38,18 @@ def get_addon_zip_info(path: str) -> tuple[str, str]:
 
 def unpack_addon_sync(zip_path: str, addon_name: str, addon_version) -> None:
     addon_root_dir = ayonconfig.addons_dir
+    os.makedirs(addon_root_dir, exist_ok=True)
     target_dir = os.path.join(addon_root_dir, addon_name, addon_version)
 
     with tempfile.TemporaryDirectory(dir=addon_root_dir) as tmpdirname:
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
-            zip_ref.extractall(tmpdirname)
+            for member in zip_ref.infolist():
+                extracted_path = zip_ref.extract(member, tmpdirname)
+
+                # Preserve the file permissions
+                original_mode = member.external_attr >> 16
+                if original_mode:
+                    os.chmod(extracted_path, original_mode)
 
         if os.path.isdir(target_dir):
             logging.info(f"Removing existing addon {addon_name} {addon_version}")

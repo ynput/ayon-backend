@@ -32,27 +32,6 @@ router = APIRouter(
 )
 
 #
-# [GET] /api/users
-#
-
-# TODO: REMOVE!
-
-
-class UserListItemModel(OPModel):
-    name: str
-
-
-class UserListModel(OPModel):
-    users: list[UserListItemModel] = Field(default_factory=list)
-
-
-@router.get("", deprecated=True)
-async def list_users():
-    """This endpoint is deprecated. Use GraphQL instead."""
-    pass
-
-
-#
 # [GET] /api/users/me
 #
 
@@ -238,10 +217,6 @@ async def patch_user(
     target_user.patch(payload)
     await target_user.save()
 
-    # TODO: reload service accounts too?
-    # if access_token and (user_name == user.name):
-    #    await Session.update(access_token, target_user)
-
     async for session in Session.list(user_name):
         token = session.token
         if not target_user.active:
@@ -373,7 +348,11 @@ async def change_user_name(
                 """
                 await conn.execute(query)
 
-    # TODO: Force the user to log out (e.g. invalidate all sessions)
+    # Renaming user has many side effects, so we need to log out all Sessions
+    # and let the user log in again
+    async for session in Session.list(user_name):
+        token = session.token
+        await Session.delete(token)
     return EmptyResponse()
 
 

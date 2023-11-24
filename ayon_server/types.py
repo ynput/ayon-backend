@@ -4,7 +4,7 @@ __all__ = [
 ]
 
 import re
-from typing import Any, Literal, NamedTuple
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +16,7 @@ from ayon_server.utils import json_dumps, json_loads
 #
 
 Platform = Literal["windows", "linux", "darwin"]
+SimpleValue = str | int | float | bool
 
 AccessType = Literal[
     "create",
@@ -75,6 +76,9 @@ PROJECT_NAME_REGEX = r"^[a-zA-Z0-9_]*$"
 
 # TODO: consider length limit for project code
 PROJECT_CODE_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_]*[a-zA-Z0-9_]$"
+
+# api key can contain alphanumeric characters and hyphens
+API_KEY_REGEX = r"^[a-zA-Z0-9\-]*$"
 
 
 def validate_name(name: str, regex: str = NAME_REGEX) -> str:
@@ -220,5 +224,5 @@ class ColorRGBA_float(NamedTuple):
 class AttributeEnumItem(OPModel):
     """Attribute enum item."""
 
-    value: Any = Field(..., title="Enum value")
+    value: SimpleValue = Field(..., title="Enum value")
     label: str = Field(..., title="Enum label")
