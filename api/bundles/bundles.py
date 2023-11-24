@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import Header, Query
+from nxtools import logging
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
@@ -247,9 +248,10 @@ async def create_new_bundle(
     for system_addon_name, addon_definition in AddonLibrary.items():
         if addon_definition.is_system:
             if system_addon_name not in bundle.addons:
-                raise BadRequestException(
-                    f"System addon {system_addon_name} is missing from bundle"
+                logging.debug(
+                    f"Adding missing system addon {system_addon_name} to bundle {bundle.name}"
                 )
+                bundle.addons[system_addon_name] = addon_definition.latest.version
 
     await create_bundle(bundle, user, x_sender)
 
