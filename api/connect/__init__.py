@@ -17,18 +17,18 @@ from ayon_server.types import Field, OPModel
 
 router = APIRouter(
     prefix="/connect",
-    tags=["YnputConnect"],
+    tags=["Ynput Cloud"],
 )
 
 
 class YnputConnectRequestModel(OPModel):
-    """Model for the request to set the Ynput connect key"""
+    """Model for the request to set the Ynput Cloud key"""
 
-    key: str = Field(..., description="Ynput connect key")
+    key: str = Field(..., description="Ynput cloud key")
 
 
 class YnputConnectResponseModel(OPModel):
-    """Model for the response of YnputConnect user info"""
+    """Model for the response of Ynput Cloud user info"""
 
     instance_id: str = Field(
         ...,
@@ -61,16 +61,18 @@ class YnputConnectResponseModel(OPModel):
 
 
 @router.get("")
-async def get_ynput_connect_info(
-    user: CurrentUser, ynput_connect_key: YnputCloudKey, instance_id: InstanceID
+async def get_ynput_cloud_info(
+    user: CurrentUser,
+    ynput_cloud_key: YnputCloudKey,
+    instance_id: InstanceID,
 ) -> YnputConnectResponseModel:
     """
-    Check whether the Ynput connect key is set and return the Ynput connect info
+    Check whether the Ynput Cloud key is set and return the Ynput Cloud info
     """
 
     headers = {
         "x-ynput-cloud-instance": instance_id,
-        "x-ynput-cloud-key": ynput_connect_key,
+        "x-ynput-cloud-key": ynput_cloud_key,
     }
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
@@ -83,7 +85,7 @@ async def get_ynput_connect_info(
         await Postgres.execute(
             """
             DELETE FROM secrets
-            WHERE name = 'ynput_connect_key'
+            WHERE name = 'ynput_cloud_key'
             """
         )
         raise ForbiddenException("Invalid Ynput connect key")
@@ -129,13 +131,15 @@ async def set_ynput_connect_key(
         "x-ynput-cloud-key": request.key,
     }
 
+    print("Validating incoming key", headers)
+
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
             headers=headers,
         )
         if res.status_code != 200:
-            print(res.text)
+            print("Err response while validating incoming key", res.text)
             raise ForbiddenException("Invalid Ynput connect key")
         data = res.json()
 

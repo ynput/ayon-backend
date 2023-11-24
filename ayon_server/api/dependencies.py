@@ -403,7 +403,7 @@ async def dep_ynput_cloud_key() -> str:
     res = await Postgres.fetch(
         """
         SELECT value FROM secrets
-        WHERE name IN ('ynput_cloud_key')
+        WHERE name = 'ynput_cloud_key'
         """
     )
     if not res:
