@@ -35,7 +35,7 @@ async def query_entities(
     if folder_type is not None:
         conditions.append(f"folder_type = '{folder_type}'")
     if folder_path is not None:
-        conditions.append(f"h.path ~* '{folder_path}'")
+        conditions.append(f"h.path ~* '{folder_path.strip('/')}'")
     if product_name is not None:
         conditions.append(f"s.name ~* '{product_name}'")
 

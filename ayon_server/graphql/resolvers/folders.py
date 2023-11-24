@@ -259,11 +259,12 @@ async def get_folders(
         if not paths:
             return FoldersConnection()
         # TODO: sanitize
+        paths = [p.strip("/") for p in paths]
         sql_conditions.append(f"hierarchy.path IN {SQLTool.array(paths)}")
 
     if path_ex is not None:
         # TODO: sanitize
-        sql_conditions.append(f"hierarchy.path ~ '{path_ex}'")
+        sql_conditions.append(f"'/' || hierarchy.path ~ '{path_ex}'")
 
     if attributes:
         for attribute_input in attributes:

@@ -23,10 +23,11 @@ class FolderAccess(BaseSettingsModel):
     )
 
     path: str | None = Field(
-        "",
+        "/",
         title="Path",
         description="The path of the folder to allow access to. "
         "Required for access_type 'hierarchy and 'children'",
+        example="/assets/characters",
         widget="hierarchy",
     )
 
@@ -38,6 +39,10 @@ class FolderAccess(BaseSettingsModel):
         # Do not store path if the access_type does not support it
         if values["access_type"] not in ["hierarchy", "children"]:
             return None
+        # We display path WITH a leading slash
+        # access control filters remove it when conditions are evaluated
+        # but in the access list we want to have it
+        value = "/" + value.strip("/")
         return value
 
 
