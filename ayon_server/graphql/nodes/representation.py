@@ -1,4 +1,3 @@
-import enum
 from typing import TYPE_CHECKING, Any
 
 import strawberry
@@ -17,32 +16,13 @@ else:
     VersionNode = LazyType["VersionNode", ".version"]
 
 
-class StatusEnum(enum.IntEnum):
-    NOT_AVAILABLE = -1
-    IN_PROGRESS = 0
-    QUEUED = 1
-    FAILED = 2
-    PAUSED = 3
-    SYNCED = 4
-
-
-@strawberry.type
-class SyncStatusType:
-    status: int
-    size: int = 0
-    total_size: int = 0
-    timestamp: int = 0
-    message: str = ""
-    retries: int = 0
-
-
 @strawberry.type
 class FileNode:
     id: str
     name: str
     path: str
     hash: str | None = None
-    size: int = 0
+    size: str = "0"
     hash_type: str = "md5"
 
 
@@ -93,6 +73,8 @@ def parse_files(
     for fdata in files:
         if "name" not in fdata:
             fdata["name"] = get_base_name(fdata["path"])
+            # Transfer size as string to overcome GraphQL int limit
+            fdata["size"] = str(fdata["size"])
         result.append(FileNode(**fdata))
     return result
 
