@@ -12,7 +12,7 @@ fi
 
 # Setup
 
-echo "start.sh: Starting setup"
+echo "start.sh: Starting setup" | tee -a "$AYON_LOG_FILE"
 python -m setup --ensure-installed
 
 # Reload server on signal
@@ -30,7 +30,7 @@ trap stop_server SIGTERM SIGINT
 
 # Start server
 
-echo "start.sh: Starting server"
+echo "start.sh: Starting server" | tee -a "$AYON_LOG_FILE"
 gunicorn \
   -k uvicorn.workers.UvicornWorker \
   --log-level ${GUNICORN_LOG_LEVEL} \
