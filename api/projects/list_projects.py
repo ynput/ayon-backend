@@ -115,7 +115,7 @@ async def list_projects(
         # Or rather use graphql-like approach with cursor?
         if not user.is_manager:
             access_groups = user.data.get("accessGroups", {})
-            if type(access_groups) is not dict:
+            if isinstance(access_groups, dict):
                 continue
             if not access_groups.get(row["name"]):
                 continue

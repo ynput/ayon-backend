@@ -82,7 +82,7 @@ async def user_name_from_request(request: fastapi.Request) -> str:
     if not session_data:
         return "anonymous"
     user_name = session_data.user.name
-    assert type(user_name) is str
+    assert isinstance(user_name, str)
     return user_name
 
 

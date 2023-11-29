@@ -51,9 +51,9 @@ async def process_enum(
     if not isinstance(enum, list):
         return enum_values, enum_labels
     for item in enum:
-        if type(item) is str:
+        if isinstance(item, str):
             enum_values.append(item)
-        elif type(item) is dict:
+        elif isinstance(item, dict):
             if "value" not in item or "label" not in item:
                 logging.warning(f"Invalid enumerator item: {item}")
                 continue
@@ -64,7 +64,7 @@ async def process_enum(
 
 async def postprocess_settings_schema(  # noqa
     schema: dict[str, Any],
-    model: type["BaseSettingsModel"],
+    model: Type["BaseSettingsModel"],
     is_top_level: bool = True,
     context: dict[str, Any] | None = None,
 ) -> None:
@@ -114,9 +114,9 @@ async def postprocess_settings_schema(  # noqa
                         if isinstance(item, AttributeEnumItem):
                             enum_values.append(item.value)
                             enum_labels[item.value] = item.label
-                        elif type(item) is str:
+                        elif isinstance(item, str):
                             enum_values.append(item)
-                        elif type(item) is dict:
+                        elif isinstance(item, dict):
                             if "value" not in item or "label" not in item:
                                 logging.warning(f"Invalid enumerator item: {item}")
                                 continue
@@ -150,7 +150,7 @@ async def postprocess_settings_schema(  # noqa
                     prop["enumLabels"] = enum_labels
 
             scope = field.field_info.extra.get("scope")
-            if scope is None or (type(scope) != list):
+            if scope is None or (not isinstance(scope, list)):
                 prop["scope"] = ["project", "studio"]
             else:
                 # TODO assert scope is valid ('project', 'studio' and/or 'site')
