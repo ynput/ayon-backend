@@ -18,7 +18,7 @@ from ayon_server.entities import (
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
-from ayon_server.exceptions import AyonException
+from ayon_server.exceptions import AyonException, BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
@@ -165,6 +165,8 @@ async def process_operation(
         if ayonconfig.audit_trail:
             events[0]["payload"] = {"entityData": entity.dict_simple()}
         await entity.delete(transaction=transaction)
+    else:
+        raise BadRequestException(f"Unknown operation type {operation.type}")
 
     return (
         entity,
@@ -287,6 +289,24 @@ async def operations(
     Always check the `success` field of the response.
     """
 
+    # sanity check
+
+    affected_entities: list[tuple[ProjectLevelEntityType, str]] = []
+    for operation in payload.operations:
+        if operation.type == "create":
+            # create should be safe. It will fail if the is provided and is already exists,
+            # but it will fail gracefully. No need to check for duplicates.
+            continue
+        assert (
+            operation.entity_id is not None
+        ), "entity id is required for update/delete"
+        key = (operation.entity_type, operation.entity_id)
+        if key in affected_entities:
+            raise BadRequestException(
+                f"Duplicate operation for {operation.entity_type} {operation.entity_id}"
+            )
+        affected_entities.append(key)
+
     if payload.can_fail:
         events, response = await process_operations(
             project_name,
@@ -299,6 +319,7 @@ async def operations(
     # If can_fail is false, process all items in a transaction
     # and roll back on error
 
+    events = []
     with suppress(RollbackException):
         async with Postgres.acquire() as conn:
             async with conn.transaction():
