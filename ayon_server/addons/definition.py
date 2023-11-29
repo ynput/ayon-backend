@@ -123,6 +123,5 @@ class ServerAddonDefinition:
 
     def unload_version(self, version: str) -> None:
         """Unload the given version of the addon."""
-        if version not in self.versions:
-            return None
-        del self._versions[version]
+        if self._versions and version in self._versions:
+            del self._versions[version]

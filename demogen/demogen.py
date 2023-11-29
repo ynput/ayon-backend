@@ -167,12 +167,12 @@ class DemoGen:
             await self.create_product(conn, folder, tasks=tasks, **product)
 
         if "_children" in kwargs:
-            if type(kwargs["_children"]) == str:
+            if isinstance(kwargs["_children"], str):
                 async for child in generators[kwargs["_children"]](kwargs):
                     await self.create_folder(
                         conn, folder.id, parents=parents + [folder.name], **child
                     )
-            elif type(kwargs["_children"]) is list:
+            elif isinstance(kwargs["_children"], list):
                 for child in kwargs["_children"]:
                     await self.create_folder(
                         conn, folder.id, parents=parents + [folder.name], **child

@@ -48,7 +48,7 @@ def json_dumps(data: Any, *, default: Callable[[Any], Any] | None = None) -> str
 
 def hash_data(data: Any) -> str:
     """Create a SHA-256 hash from arbitrary (json-serializable) data."""
-    if type(data) in (int, float, bool, dict, list, tuple):
+    if isinstance(data, (int, float, bool, dict, list, tuple)):
         data = json_dumps(data)
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
@@ -103,7 +103,7 @@ def parse_access_token(authorization: str) -> str | None:
     string or None if the input value does not match
     the expected format (64 bytes string)
     """
-    if (not authorization) or type(authorization) != str:
+    if (not authorization) or not isinstance(authorization, str):
         return None
     try:
         # ttype is not a ttypo :)
@@ -118,7 +118,7 @@ def parse_access_token(authorization: str) -> str | None:
 
 
 def parse_api_key(authorization: str) -> str | None:
-    if (not authorization) or type(authorization) != str:
+    if (not authorization) or not isinstance(authorization, str):
         return None
     try:
         ttype, token = authorization.split()
@@ -198,7 +198,7 @@ class SQLTool:
             + (
                 ", ".join(
                     [
-                        (f"'{e}'" if type(e) == str and not curly else str(e))
+                        (f"'{e}'" if isinstance(e, str) and not curly else str(e))
                         for e in elements
                     ]
                 )

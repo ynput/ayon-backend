@@ -39,7 +39,7 @@ async def query_entities(
     if product_name is not None:
         conditions.append(f"s.name ~* '{product_name}'")
 
-    if type(version) is int:
+    if isinstance(version, int):
         conditions.append(f"v.version = {version}")
     elif version in ("hero", "latest"):
         # TODO: hero's not implemented yet

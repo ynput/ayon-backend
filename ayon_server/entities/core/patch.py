@@ -21,9 +21,9 @@ def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
             )
             update_data[key] = ndata
 
-        elif type(getattr(original, key)) == dict:
+        elif isinstance(getattr(original, key), dict):
             # Patch arbitrary dict (one level only!)
-            if type(value) == dict:
+            if isinstance(value, dict):
                 new_dict = copy.deepcopy(getattr(original, key))
                 for dkey, dval in value.items():
                     if dval is None:
