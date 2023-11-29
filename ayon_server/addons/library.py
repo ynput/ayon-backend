@@ -1,5 +1,5 @@
 import os
-from typing import Any, ItemsView
+from typing import Any, ItemsView, Optional
 
 from nxtools import log_traceback, logging
 
@@ -24,7 +24,7 @@ class AddonLibrary:
 
     def __init__(self) -> None:
         self.data = {}
-        self.broken_addons = {}
+        self.broken_addons: dict[tuple[str, str], dict[str, str]] = {}
         self.restart_requested = False
         addons_dir = self.get_addons_dir()
         if addons_dir is None:
@@ -91,7 +91,7 @@ class AddonLibrary:
     def __iter__(self):
         return iter(self.data)
 
-    async def get_active_versions(self) -> dict[str, dict[str, str]]:
+    async def get_active_versions(self) -> dict[str, dict[str, Optional[str]]]:
         production_bundle = await Postgres.fetch(
             "SELECT data->'addons' as addons FROM bundles WHERE is_production is true"
         )
@@ -99,7 +99,7 @@ class AddonLibrary:
             "SELECT data->'addons' as addons FROM bundles WHERE is_staging is true"
         )
 
-        res = {}
+        res: dict[str, dict[str, Optional[str]]] = {}
         for addon_name in self.data.keys():
             res[addon_name] = {
                 "production": None,
