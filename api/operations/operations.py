@@ -289,6 +289,24 @@ async def operations(
     Always check the `success` field of the response.
     """
 
+    # sanity check
+
+    affected_entities: list[tuple[ProjectLevelEntityType, str]] = []
+    for operation in payload.operations:
+        if operation.type == "create":
+            # create should be safe. It will fail if the is provided and is already exists,
+            # but it will fail gracefully. No need to check for duplicates.
+            continue
+        assert (
+            operation.entity_id is not None
+        ), "entity id is required for update/delete"
+        key = (operation.entity_type, operation.entity_id)
+        if key in affected_entities:
+            raise BadRequestException(
+                f"Duplicate operation for {operation.entity_type} {operation.entity_id}"
+            )
+        affected_entities.append(key)
+
     if payload.can_fail:
         events, response = await process_operations(
             project_name,
