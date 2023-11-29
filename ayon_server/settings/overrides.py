@@ -31,7 +31,8 @@ def apply_overrides(
                 # Naive types
                 if name in override:
                     try:
-                        type(child)(override[name])
+                        # TODO: WTF??
+                        type(child)(override[name])  # type: ignore
                     except ValueError:
                         logging.warning(f"Invalid value for {name}: {override[name]}")
                         continue
@@ -101,7 +102,7 @@ def list_overrides(
                 )
             )
 
-        elif type(child) is list:
+        elif isinstance(child, list):
             if name in override:
                 result[path] = {
                     "path": chcrumbs,

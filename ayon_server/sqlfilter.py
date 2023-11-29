@@ -94,7 +94,7 @@ def build_condition(c: Condition, **kwargs) -> str:
         if key in ["project", "user"]:
             key = f"{key}_name"
 
-        if type(value) == str:
+        if isinstance(value, str):
             value = value.replace("'", "''")
             value = f"'{value}'"
 
@@ -102,8 +102,8 @@ def build_condition(c: Condition, **kwargs) -> str:
         for k in path[1:]:
             key += f"->'{k}'"
 
-        if type(value) in [str, int, float]:
-            if type(value) == str:
+        if isinstance(value, (str, int, float)):
+            if isinstance(value, str):
                 value = value.replace("'", "''")
             value = f"'{json.dumps(value)}'"
 
@@ -113,11 +113,11 @@ def build_condition(c: Condition, **kwargs) -> str:
     if table_prefix:
         key = f"{table_prefix}.{key}"
 
-    if type(value) == list:
-        if all(type(v) == str for v in value):
+    if isinstance(value, list):
+        if all(isinstance(v, str) for v in value):
             value = [v.replace("'", "''") for v in value]  # type: ignore
             arr_value = "array[" + ", ".join([f"'{v}'" for v in value]) + "]"
-        elif all(type(v) in [int, float] for v in value):
+        elif all(isinstance(v, (int, float)) for v in value):
             arr_value = "array[" + ", ".join([str(v) for v in value]) + "]"
         else:
             raise ValueError("Invalid value type in list")
@@ -170,10 +170,10 @@ def build_filter(f: Filter | None, **kwargs) -> str | None:
 
     result = []
     for c in f.conditions:
-        if type(c) == Filter:
+        if isinstance(c, Filter):
             if r := build_filter(c, **kwargs):
                 result.append(r)
-        elif type(c) == Condition:
+        elif isinstance(c, Condition):
             if r := build_condition(c, **kwargs):
                 result.append(r)
         else:
