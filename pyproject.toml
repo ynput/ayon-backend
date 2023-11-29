@@ -56,6 +56,7 @@ select = [
 
 ignore = [
     "E501",  # line too long, handled by black
+    "E721",  # do not compare types, i'll fix this later :)
     "B008",  # do not perform function calls in argument defaults
     "C901",  # too complex. C'mon - this is a complex project
 ]

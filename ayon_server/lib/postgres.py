@@ -53,7 +53,11 @@ class Postgres:
             print("Unable to connect to Postgres while shutting down.")
             return
         cls.pool = await asyncpg.create_pool(
-            ayonconfig.postgres_url, init=cls.init_connection
+            ayonconfig.postgres_url,
+            min_size=10,
+            max_size=30,
+            max_inactive_connection_lifetime=20,
+            init=cls.init_connection,
         )
 
     @classmethod
@@ -70,20 +74,20 @@ class Postgres:
                 cls.shutting_down = True
 
     @classmethod
-    async def execute(cls, query: str, *args: Any) -> str:
+    async def execute(cls, query: str, *args: Any, timeout: float = 60) -> str:
         """Execute a SQL query and return a status (e.g. 'INSERT 0 2')"""
         if cls.pool is None:
             raise ConnectionError
         async with cls.pool.acquire() as connection:
-            return await connection.execute(query, *args)
+            return await connection.execute(query, *args, timeout=timeout)
 
     @classmethod
-    async def fetch(cls, query: str, *args: Any):
+    async def fetch(cls, query: str, *args: Any, timeout: float = 60):
         """Run a query and return the results as a list of Record."""
         if cls.pool is None:
             raise ConnectionError
         async with cls.pool.acquire() as connection:
-            return await connection.fetch(query, *args)
+            return await connection.fetch(query, *args, timeout=timeout)
 
     @classmethod
     async def iterate(cls, query: str, *args: Any, transaction=None):
