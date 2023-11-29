@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 from typing import Any
 
 import asyncpg
@@ -24,14 +25,23 @@ class Postgres:
     Transaction = asyncpg.transaction.Transaction
 
     @classmethod
-    def acquire(cls) -> asyncpg.Connection:
+    @asynccontextmanager
+    async def acquire(cls):
         """Acquire a connection from the pool."""
+
+        # TODO: write a proper type hint for this method.
+
         if cls.pool is None:
-            raise ConnectionError
-        return cls.pool.acquire()
+            raise ConnectionError("Connection pool is not initialized.")
+
+        conn = await cls.pool.acquire()
+        try:
+            yield conn
+        finally:
+            await cls.pool.release(conn)
 
     @classmethod
-    async def init_connection(self, conn) -> None:
+    async def init_connection(cls, conn) -> None:
         """Set up the connection pool"""
         await conn.set_type_codec(
             "jsonb",
