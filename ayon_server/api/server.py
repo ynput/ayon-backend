@@ -159,7 +159,10 @@ async def ayon_exception_handler(
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request, exc) -> fastapi.responses.JSONResponse:
+async def validation_exception_handler(
+    request: fastapi.Request,
+    exc: RequestValidationError,
+) -> fastapi.responses.JSONResponse:
     logging.error(f"Validation error\n{exc}")
     detail = "Validation error"  # TODO: Be descriptive, but not too much
     return fastapi.responses.JSONResponse(
@@ -223,7 +226,10 @@ async def unhandled_exception_handler(
 #
 
 app.include_router(
-    graphql_router, prefix="/graphql", tags=["GraphQL"], include_in_schema=False
+    graphql_router,
+    prefix="/graphql",
+    tags=["GraphQL"],
+    include_in_schema=False,
 )
 
 

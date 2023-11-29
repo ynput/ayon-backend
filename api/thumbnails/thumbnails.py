@@ -1,6 +1,7 @@
 import base64
 
 from fastapi import APIRouter, Request, Response
+from nxtools import logging
 
 from ayon_server.api.dependencies import (
     CurrentUser,
@@ -36,6 +37,15 @@ router = APIRouter(
 
 #
 # Common
+#
+
+
+async def body_from_request(request: Request) -> bytes:
+    result = b""
+    async for chunk in request.stream():
+        result += chunk
+    logging.debug(f"Received thumbnail payload of {len(result)} bytes")
+    return result
 
 
 def get_fake_thumbnail():
@@ -63,17 +73,15 @@ async def store_thumbnail(
         DO UPDATE SET data = EXCLUDED.data
         RETURNING id
     """
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(query, thumbnail_id, mime, payload)
-            for entity_type in ["workfiles", "versions", "folders", "tasks"]:
-                await conn.execute(
-                    f"""
-                    UPDATE project_{project_name}.{entity_type}
-                    SET updated_at = NOW() WHERE thumbnail_id = $1
-                    """,
-                    thumbnail_id,
-                )
+    await Postgres.execute(query, thumbnail_id, mime, payload)
+    for entity_type in ["workfiles", "versions", "folders", "tasks"]:
+        await Postgres.execute(
+            f"""
+            UPDATE project_{project_name}.{entity_type}
+            SET updated_at = NOW() WHERE thumbnail_id = $1
+            """,
+            thumbnail_id,
+        )
 
 
 async def retrieve_thumbnail(project_name: str, thumbnail_id: str | None) -> Response:
@@ -116,7 +124,7 @@ async def create_thumbnail(
     an entity.
     """
     thumbnail_id = EntityID.create()
-    payload = await request.body()
+    payload = await body_from_request(request)
     await store_thumbnail(project_name, thumbnail_id, content_type, payload)
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
@@ -141,7 +149,7 @@ async def update_thumbnail(
 
     if not user.is_manager:
         raise ForbiddenException("Only managers can update arbitrary thumbnails")
-    payload = await request.body()
+    payload = await body_from_request(request)
     await store_thumbnail(project_name, thumbnail_id, content_type, payload)
     return EmptyResponse()
 
@@ -185,7 +193,7 @@ async def create_folder_thumbnail(
     Returns a thumbnail ID, which is also saved into the entity
     database record.
     """
-    payload = await request.body()
+    payload = await body_from_request(request)
     folder = await FolderEntity.load(project_name, folder_id)
     await folder.ensure_update_access(user)
 
@@ -230,7 +238,7 @@ async def create_version_thumbnail(
     version_id: VersionID,
     content_type: ThumbnailContentType,
 ) -> CreateThumbnailResponseModel:
-    payload = await request.body()
+    payload = await body_from_request(request)
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_update_access(user)
 
@@ -275,7 +283,7 @@ async def create_workfile_thumbnail(
     workfile_id: WorkfileID,
     content_type: ThumbnailContentType,
 ) -> CreateThumbnailResponseModel:
-    payload = await request.body()
+    payload = await body_from_request(request)
     workfile = await WorkfileEntity.load(project_name, workfile_id)
     await workfile.ensure_update_access(user)
 
@@ -318,7 +326,7 @@ async def create_task_thumbnail(
     task_id: TaskID,
     content_type: ThumbnailContentType,
 ) -> CreateThumbnailResponseModel:
-    payload = await request.body()
+    payload = await body_from_request(request)
     task = await TaskEntity.load(project_name, task_id)
     await task.ensure_update_access(user)
 
