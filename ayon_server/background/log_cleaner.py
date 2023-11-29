@@ -36,6 +36,7 @@ class LogCleaner(BackgroundWorker):
                     ) SELECT count(*) as del FROM deleted;
                     """,
                     last_log_to_keep,
+                    timeout=60 * 5,
                 )
 
                 if res:
