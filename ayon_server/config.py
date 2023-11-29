@@ -139,6 +139,11 @@ class AyonConfig(BaseModel):
         "to connect to external services",
     )
 
+    log_file: str | None = Field(
+        default=None,
+        description="Path to the log file",
+    )
+
 
 #
 # Load configuration from environment variables
