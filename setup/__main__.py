@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+from base64 import b64decode
 from pathlib import Path
 from typing import Any
 
@@ -87,6 +88,8 @@ async def main(force: bool | None = None) -> None:
     # This is something we can do every time.
     await deploy_attributes()
 
+    TEMPLATE_ENV = "AYON_SETTINGS_TEMPLATE"
+
     if force_install:
         logging.info("Force install requested")
         template_data: dict[str, Any] = {}
@@ -108,6 +111,16 @@ async def main(force: bool | None = None) -> None:
                 logging.warning("Invalid setup file provided. Using defaults")
             else:
                 logging.debug("Setting up from /template.json")
+        elif raw_template_data := os.environ.get(TEMPLATE_ENV, ""):
+            logging.info(f"Reading setup file from {TEMPLATE_ENV} env variable")
+            try:
+                template_data = json_loads(b64decode(raw_template_data).decode())
+            except Exception:
+                logging.warning(
+                    f"Unable to parse {TEMPLATE_ENV} env variable. Using defaults"
+                )
+            else:
+                logging.debug(f"Setting up from {TEMPLATE_ENV} env variable")
         else:
             logging.warning("No setup file provided. Using defaults")
         DATA.update(template_data)
