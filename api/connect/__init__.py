@@ -70,6 +70,9 @@ async def get_ynput_cloud_info(
     Check whether the Ynput Cloud key is set and return the Ynput Cloud info
     """
 
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can get the Ynput Cloud info")
+
     headers = {
         "x-ynput-cloud-instance": instance_id,
         "x-ynput-cloud-key": ynput_cloud_key,
@@ -92,11 +95,7 @@ async def get_ynput_cloud_info(
 
     data = res.json()
 
-    return YnputConnectResponseModel(
-        **data,
-        user_name=data["instanceName"],
-        user_email=data["orgName"],
-    )
+    return YnputConnectResponseModel(**data)
 
 
 @router.get("/authorize")
@@ -115,7 +114,7 @@ async def set_ynput_connect_key(
     request: YnputConnectRequestModel,
     user: CurrentUserOptional,
     instance_id: InstanceID,
-) -> EmptyResponse:
+) -> YnputConnectResponseModel:
     """Store the Ynput connect key in the database and return the user info"""
 
     if user and not user.is_admin:
@@ -131,15 +130,12 @@ async def set_ynput_connect_key(
         "x-ynput-cloud-key": request.key,
     }
 
-    print("Validating incoming key", headers)
-
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
             headers=headers,
         )
         if res.status_code != 200:
-            print("Err response while validating incoming key", res.text)
             raise ForbiddenException("Invalid Ynput connect key")
         data = res.json()
 
@@ -152,11 +148,7 @@ async def set_ynput_connect_key(
         request.key,
     )
 
-    return YnputConnectResponseModel(
-        **data,
-        user_name=data["instanceName"],
-        user_email=data["orgName"],
-    )
+    return YnputConnectResponseModel(**data)
 
 
 @router.delete("")
