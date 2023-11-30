@@ -54,11 +54,6 @@ class YnputConnectResponseModel(OPModel):
         description="Is the instance managed by Ynput Cloud?",
     )
 
-    # backwards compatibility with the original YnputConnect
-    # TODO: remove
-    user_name: str = Field(..., description="User name")
-    user_email: str = Field(..., description="User email")
-
 
 @router.get("")
 async def get_ynput_cloud_info(
