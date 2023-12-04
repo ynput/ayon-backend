@@ -88,6 +88,7 @@ class BundlePatchModel(BaseBundleModel):
         description="Changing addons is available only for dev bundles",
         example={"ftrack": None, "kitsu": "1.2.3"},
     )
+    installer_version: str | None = Field(None, example="1.2.3")
     dependency_packages: dict[Platform, str | None] = Field(
         default_factory=dict,
         **dependency_packages_meta,
@@ -310,6 +311,8 @@ async def patch_bundle(
 
             orig_bundle.dependency_packages = dep_packages
             orig_bundle.addon_development = bundle.addon_development
+            if orig_bundle.is_dev:
+                orig_bundle.installer_version = bundle.installer_version
 
             if bundle.is_archived:
                 if (
