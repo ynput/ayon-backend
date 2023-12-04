@@ -1,4 +1,5 @@
 import time
+from typing import Awaitable, Callable
 
 from pydantic import BaseModel, Field
 
@@ -35,7 +36,7 @@ async def load_licenses() -> list[str]:
 
 class Constraints:
     constraints: ConstraintsModel | None = None
-    parser = None
+    parser: Callable[[list[str]], Awaitable[ConstraintsModel]] | None = None
 
     @classmethod
     async def load(cls):
