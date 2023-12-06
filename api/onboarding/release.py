@@ -81,6 +81,7 @@ async def abort_onboarding(request: Request, user: CurrentUser) -> EmptyResponse
         """
         INSERT INTO config (key, value)
         VALUES ('onboardingFinished', 'true'::jsonb)
+        ON CONFLICT (key) DO UPDATE SET value = 'true'::jsonb
         """
     )
 
