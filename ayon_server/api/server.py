@@ -307,6 +307,14 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
     for addon_name, addon_definition in library.items():
         for version in addon_definition.versions:
             addon = addon_definition.versions[version]
+
+            if hasattr(addon, "ws"):
+                target_app.add_api_websocket_route(
+                    f"/api/addons/{addon_name}/{version}/ws",
+                    addon.ws,
+                    name=f"{addon_name}_{version}_ws",
+                )
+
             for endpoint in addon.endpoints:
                 path = endpoint["path"].lstrip("/")
                 first_element = path.split("/")[0]
