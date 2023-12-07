@@ -2,9 +2,7 @@ import asyncio
 
 from ayon_server.background.background_worker import BackgroundWorker
 
-
-async def is_connection_available():
-    pass
+# from ayon_server.metrics import Metrics
 
 
 class MetricsCollector(BackgroundWorker):
@@ -13,7 +11,8 @@ class MetricsCollector(BackgroundWorker):
     async def run(self):
         while True:
             # Not implemented
-            await asyncio.sleep(3600)
+            await asyncio.sleep(20)
+            continue
 
 
 metrics_collector = MetricsCollector()
