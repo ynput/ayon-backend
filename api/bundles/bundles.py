@@ -88,6 +88,7 @@ class BundlePatchModel(BaseBundleModel):
         description="Changing addons is available only for dev bundles",
         example={"ftrack": None, "kitsu": "1.2.3"},
     )
+    installer_version: str | None = Field(None, example="1.2.3")
     dependency_packages: dict[Platform, str | None] = Field(
         default_factory=dict,
         **dependency_packages_meta,
@@ -251,7 +252,8 @@ async def create_new_bundle(
                 logging.debug(
                     f"Adding missing system addon {system_addon_name} to bundle {bundle.name}"
                 )
-                bundle.addons[system_addon_name] = addon_definition.latest.version
+                if addon_definition.latest:
+                    bundle.addons[system_addon_name] = addon_definition.latest.version
 
     await create_bundle(bundle, user, x_sender)
 
@@ -304,11 +306,13 @@ async def patch_bundle(
             for key, value in bundle.dependency_packages.items():
                 if value is None:
                     dep_packages.pop(key, None)
-                elif type(value) is str:
+                elif isinstance(value, str):
                     dep_packages[key] = value
 
             orig_bundle.dependency_packages = dep_packages
             orig_bundle.addon_development = bundle.addon_development
+            if orig_bundle.is_dev:
+                orig_bundle.installer_version = bundle.installer_version
 
             if bundle.is_archived:
                 if (

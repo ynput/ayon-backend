@@ -71,6 +71,8 @@ class FolderNode(BaseNode):
 
     @strawberry.field()
     def parents(self) -> list[str]:
+        if not self.path:
+            return []
         path = self.path.strip("/")
         return path.split("/")[:-1] if path else []
 

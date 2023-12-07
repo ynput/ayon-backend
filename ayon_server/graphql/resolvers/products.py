@@ -43,6 +43,12 @@ async def get_products(
         list[str] | None, argdesc("List of parent folder IDs to filter by")
     ] = None,
     names: Annotated[list[str] | None, argdesc("Filter by a list of names")] = None,
+    name_ex: Annotated[
+        str | None, argdesc("Match product names by a regular expression")
+    ] = None,
+    path_ex: Annotated[
+        str | None, argdesc("Match product by a regex of the parent folder path regex")
+    ] = None,
     product_types: Annotated[
         list[str] | None, argdesc("List of product types to filter by")
     ] = None,
@@ -122,6 +128,13 @@ async def get_products(
             get_has_links_conds(project_name, "products.id", has_links)
         )
 
+    if name_ex is not None:
+        sql_conditions.append(f"products.name ~ '{name_ex}'")
+
+    if path_ex is not None:
+        # TODO: sanitize
+        sql_conditions.append(f"'/' || hierarchy.path ~ '{path_ex}'")
+
     access_list = None
     if root.__class__.__name__ == "ProjectNode":
         # Selecting products directly from the project node,
@@ -137,7 +150,7 @@ async def get_products(
     # Join with folders if parent folder is requested
     #
 
-    if "folder" in fields or (access_list is not None):
+    if "folder" in fields or (access_list is not None) or (path_ex is not None):
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
@@ -190,7 +203,9 @@ async def get_products(
             )
 
         if any(
-            field.endswith("folder.path") or field.endswith("folder.parents")
+            field.endswith("folder.path")
+            or field.endswith("folder.parents")
+            or (path_ex is not None)
             for field in fields
         ) or (access_list is not None):
             sql_columns.append("hierarchy.path AS _folder_path")

@@ -21,7 +21,7 @@ class AyonException(Exception):
         self.extra = kwargs
         if log is True:
             logging.error(f"EXCEPTION: {self.status} {self.detail}")
-        elif type(log) is str:
+        elif isinstance(log, str):
             logging.error(f"EXCEPTION: {self.status} {log}")
 
         super().__init__(self.detail)

@@ -11,7 +11,7 @@ from ayon_server.lib.postgres import Postgres
 
 
 def normalize_to_dict(s: Any):
-    if type(s) is dict:
+    if isinstance(s, dict):
         return s
     return s.dict()
 

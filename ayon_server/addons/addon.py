@@ -345,7 +345,7 @@ class BaseServerAddon:
         settings._has_studio_overrides = has_studio_overrides
         return settings
 
-    async def get_site_settings(self, user_name: str, site_id: str) -> dict:
+    async def get_site_settings(self, user_name: str, site_id: str) -> dict | None:
         site_settings_model = self.get_site_settings_model()
         if site_settings_model is None:
             return None
