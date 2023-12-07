@@ -1,6 +1,4 @@
 import contextlib
-import os
-import time
 from typing import Any
 from urllib.parse import urlparse
 
@@ -9,89 +7,17 @@ from fastapi import Request
 from nxtools import log_traceback
 from pydantic import ValidationError
 
-from ayon_server import __version__
 from ayon_server.addons import AddonLibrary, SSOOption
 from ayon_server.api.dependencies import CurrentUserOptional
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .router import router
 from .sites import SiteInfo
-
-BOOT_TIME = time.time()
-
-
-class ReleaseInfo(OPModel):
-    version: str = Field(..., title="Backend version", example="1.0.0")
-    build_date: str = Field(..., title="Build date", example="20231013")
-    build_time: str = Field(..., title="Build time", example="1250")
-    frontend_branch: str = Field(..., title="Frontend branch", example="main")
-    backend_branch: str = Field(..., title="Backend branch", example="main")
-    frontend_commit: str = Field(..., title="Frontend commit", example="1234567")
-    backend_commit: str = Field(..., title="Backend commit", example="1234567")
-
-
-release_info: dict[str, Any] = {}
-
-
-def get_release_info() -> ReleaseInfo | None:
-    """
-    Get the release info from RELEASE file.
-    This file is created when building the docker image.
-    and contains key=value pairs.
-
-    If file is not found, return None - server is probably running from
-    a mounted local directory.
-    """
-
-    try:
-        if release_info.get("error", False):
-            return None
-
-        if release_info:
-            return ReleaseInfo(**release_info)
-
-        if not os.path.isfile("RELEASE"):
-            release_info["error"] = True
-            return None
-
-        with open("RELEASE") as f:
-            for line in f:
-                key, value = line.strip().split("=")
-                release_info[key] = value
-
-        return ReleaseInfo(**release_info)
-    except Exception:
-        return None
-
-
-def get_uptime():
-    return time.time() - BOOT_TIME
-
-
-def get_build_date() -> str | None:
-    """
-    Get the build date from the BUILD_DATE file
-    This file is created when building the docker image.
-    """
-    if os.path.isfile("BUILD_DATE"):
-        return open("BUILD_DATE").read().strip()
-    return None
-
-
-def get_version():
-    """
-    Get the version of the Ayon API
-    If the BUILD_DATE file exists, append the build date to the version
-    """
-    version = __version__
-    build_date = get_build_date()
-    if build_date:
-        version += f"+{build_date}"
-    return version
 
 
 class InfoResponseModel(OPModel):

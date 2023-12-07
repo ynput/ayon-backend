@@ -6,6 +6,7 @@ from fastapi.responses import PlainTextResponse
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.metrics import Metrics, get_metrics
 
 from .router import router
 
@@ -43,3 +44,9 @@ async def get_system_metrics(user: CurrentUser) -> PlainTextResponse:
         result += f"ayon_{k} {v}\n"
 
     return PlainTextResponse(result)
+
+
+@router.get("/metrics2", tags=["System"])
+async def get_system_metrics2(user: CurrentUser) -> Metrics:
+    metrics = await get_metrics(saturated=True)
+    return metrics
