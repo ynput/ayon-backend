@@ -79,7 +79,10 @@ async def get_project_metrics(project_name: str, saturated: bool) -> ProjectMetr
         FROM project_{project_name}.{entity_type}s
         """
 
-        res = await Postgres.fetch(query)
+        try:
+            res = await Postgres.fetch(query)
+        except Exception:
+            continue
         data[f"{entity_type}_count"] = res[0]["c"]
 
     # TODO: root_count, team_count, duration
@@ -91,13 +94,16 @@ async def get_project_metrics(project_name: str, saturated: bool) -> ProjectMetr
             FROM project_{project_name}.{entity_type}s
             """
 
-            res = await Postgres.fetch(query)
+            try:
+                res = await Postgres.fetch(query)
+            except Exception:
+                continue
             data[f"{entity_type}_types"] = [r["t"] for r in res]
 
     return ProjectMetrics(**data)
 
 
-async def get_projects(saturated: bool) -> list[ProjectMetrics]:
+async def get_projects(saturated: bool) -> list[ProjectMetrics] | None:
     """Project specific metrics
 
     Contain information about size and usage of each active project.
@@ -108,7 +114,10 @@ async def get_projects(saturated: bool) -> list[ProjectMetrics]:
     WHERE active IS TRUE;
     """
 
-    res = await Postgres.fetch(query)
+    try:
+        res = await Postgres.fetch(query)
+    except Exception:
+        return None
     return [await get_project_metrics(r["name"], saturated) for r in res]
 
 
