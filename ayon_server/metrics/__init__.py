@@ -15,6 +15,7 @@ from .projects import (
     get_project_counts,
     get_projects,
 )
+from .services import ServiceInfo, get_active_services
 from .settings import SettingsOverrides, get_studio_settings_overrides
 from .users import UserCounts, get_user_counts
 
@@ -48,8 +49,8 @@ class Metrics(OPModel):
     uptime: float = Field(
         default_factory=get_uptime,
         title="Uptime",
-        description="Time (seconds) since the server was started",
-        example=get_uptime(),
+        description="Time (seconds) since the server was (re)started",
+        example=518163,
     )
 
     user_counts: UserCounts | None = Field(
@@ -60,11 +61,16 @@ class Metrics(OPModel):
     project_counts: ProjectCounts | None = Field(
         None,
         title="Project counts",
+        example=1,
     )
 
-    projects: list[ProjectMetrics] | None = Field(None, title="Project statistics")
+    projects: list[ProjectMetrics] | None = Field(
+        None,
+        title="Project statistics",
+        description=docfm(get_projects),
+    )
 
-    average_project_event_count: int = Field(
+    average_project_event_count: int | None = Field(
         None,
         title="Average project event count",
         description=docfm(get_average_project_event_count),
@@ -87,7 +93,17 @@ class Metrics(OPModel):
         description=docfm(get_production_bundle),
     )
 
-    studio_settings_overrides: list[SettingsOverrides] | None = Field(None)
+    studio_settings_overrides: list[SettingsOverrides] | None = Field(
+        None,
+        title="Studio settings overrides",
+        description=docfm(get_studio_settings_overrides),
+    )
+
+    services: list[ServiceInfo] | None = Field(
+        None,
+        title="Services",
+        description=docfm(get_active_services),
+    )
 
 
 METRICS_SNAPSHOT = {}
@@ -95,37 +111,34 @@ METRICS_SETUP = [
     {
         "name": "project_counts",
         "getter": get_project_counts,
-        "ttl": 60,
     },
     {
         "name": "user_counts",
         "getter": get_user_counts,
-        "ttl": 60,
     },
     {
         "name": "average_project_event_count",
         "getter": get_average_project_event_count,
-        "ttl": 60,
     },
     {
         "name": "projects",
         "getter": get_projects,
-        "ttl": 60,
     },
     {
         "name": "studio_settings_overrides",
         "getter": get_studio_settings_overrides,
-        "ttl": 60,
     },
     {
         "name": "production_bundle",
         "getter": get_production_bundle,
-        "ttl": 60,
     },
     {
         "name": "installed_addons",
         "getter": get_installed_addons,
-        "ttl": 60,
+    },
+    {
+        "name": "active_services",
+        "getter": get_active_services,
     },
 ]
 
@@ -136,7 +149,12 @@ async def get_metrics(saturated: bool = True) -> Metrics:
     for metric in METRICS_SETUP:
         name = metric["name"]
         getter = metric["getter"]
-        ttl = metric["ttl"]
+        ttl_h = metric.get("ttl", 24)
+
+        assert isinstance(ttl_h, int), f"ttl must be an integer, got {ttl_h}"
+        assert isinstance(name, str), f"name must be a string, got {name}"
+        assert callable(getter), f"getter must be callable, got {getter}"
+        ttl = ttl_h * 60 * 60
 
         if name not in METRICS_SNAPSHOT:
             value = await getter(saturated=saturated)

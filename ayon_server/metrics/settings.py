@@ -7,13 +7,32 @@ from ayon_server.types import Field, OPModel
 class SettingsOverrides(OPModel):
     """Settings overrides model"""
 
-    project_name: str | None = Field(None, title="Project name")
-    addon_name: str | None = Field(None, title="Addon name")
-    addon_version: str | None = Field(None, title="Addon version")
-    paths: list[list[str]] | None = Field(None, title="Path")
+    addon_name: str | None = Field(
+        None,
+        title="Addon name",
+        example="resolve",
+    )
+    addon_version: str | None = Field(
+        None,
+        title="Addon version",
+        example="1.0.0",
+    )
+    paths: list[list[str]] | None = Field(
+        None,
+        title="Path",
+        description="List of paths to settings, which have a studio override",
+        example=[["imageio", "ocio_config", "override_global_config"]],
+    )
 
 
 async def get_studio_settings_overrides(saturated: bool) -> list[SettingsOverrides]:
+    """Studio settings overrides
+
+    We track what settings are overridden in the studio settings.
+    This helps us determine, which settins are used the most and which
+    settings are not used at all. This is used to determine how we should
+    organize the settings in the UI and how the settings could be improved.
+    """
 
     query = "SELECT addon_name, addon_version, data FROM settings WHERE variant = 'production';"
 

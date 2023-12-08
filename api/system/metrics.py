@@ -28,11 +28,26 @@ class SystemMetrics:
         }
 
 
-metrics = SystemMetrics()
+system_metrics = SystemMetrics()
 
 
-@router.get("/metrics", tags=["System"])
+#
+# Endpoints
+#
+
+
+@router.get("/metrics", tags=["System"], response_model_exclude_none=True)
+async def get_production_metrics(user: CurrentUser) -> Metrics:
+    """Get production related metrics"""
+
+    metrics = await get_metrics(saturated=True)
+    return metrics
+
+
+@router.get("/metrics/system", tags=["System"])
 async def get_system_metrics(user: CurrentUser) -> PlainTextResponse:
+    """Get system metrics in Prometheus format"""
+
     result = ""
     async for record in Postgres.iterate("SELECT name FROM users"):
         name = record["name"]
@@ -40,13 +55,7 @@ async def get_system_metrics(user: CurrentUser) -> PlainTextResponse:
         num_requests = 0 if requests is None else int(requests)
         result += f'ayon_user_requests{{name="{name}"}} {num_requests}\n'
 
-    for k, v in metrics.status().items():
+    for k, v in system_metrics.status().items():
         result += f"ayon_{k} {v}\n"
 
     return PlainTextResponse(result)
-
-
-@router.get("/metrics2", tags=["System"])
-async def get_system_metrics2(user: CurrentUser) -> Metrics:
-    metrics = await get_metrics(saturated=True)
-    return metrics
