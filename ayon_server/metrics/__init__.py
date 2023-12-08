@@ -28,9 +28,9 @@ async def get_average_project_event_count(saturated: bool) -> int:
 
     async for row in Postgres.iterate(query):
         res = row["average_event_count_per_project"]
-        print("AVG", res)
+        if not res:
+            return 0
         return int(res)
-    print("AVG FAIL ")
 
 
 class ProductionBundle(OPModel):
