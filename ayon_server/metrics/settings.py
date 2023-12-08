@@ -52,7 +52,17 @@ async def get_studio_settings_overrides(saturated: bool) -> list[SettingsOverrid
             continue
 
         paths = []
-        overrides = list_overrides(default_settings, data)
+        try:
+            overrides = list_overrides(default_settings, data)
+        except Exception:
+            # TODO:
+            # Catched because of this exception. Fix later:
+            # File "/backend/ayon_server/settings/overrides.py", line 115, in list_overrides
+            #     ovr = override[name][i]
+            #                         ^^^
+            # IndexError: list index out of range
+            continue
+
         for override in overrides.values():
             if override.get("inGroup"):
                 continue
@@ -60,6 +70,8 @@ async def get_studio_settings_overrides(saturated: bool) -> list[SettingsOverrid
                 continue
             paths.append(override["path"])
 
+        if not paths:
+            continue
         results.append(
             SettingsOverrides(
                 project_name=None,
