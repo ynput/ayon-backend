@@ -84,3 +84,27 @@ async def get_projects(saturated: bool) -> list[ProjectMetrics]:
 
     res = await Postgres.fetch(query)
     return [await get_project_metrics(r["name"], saturated) for r in res]
+
+
+async def get_average_project_event_count(saturated: bool) -> int:
+    """Average number of events per project
+
+    This disregards projects with less than 300 events
+    (such as testing projects).
+    """
+
+    query = """
+        SELECT AVG(event_count) AS average_event_count_per_project
+        FROM (
+            SELECT project_name, COUNT(*) AS event_count
+            FROM events
+            GROUP BY project_name
+            HAVING COUNT(*) >= 300 and project_name is not null
+        ) AS subquery;
+    """
+
+    async for row in Postgres.iterate(query):
+        res = row["average_event_count_per_project"]
+        if not res:
+            return 0
+        return int(res)

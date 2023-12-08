@@ -23,7 +23,7 @@ class AddonLibrary:
         return cls._instance
 
     def __init__(self) -> None:
-        self.data = {}
+        self.data: dict[str, ServerAddonDefinition] = {}
         self.broken_addons: dict[tuple[str, str], dict[str, str]] = {}
         self.restart_requested = False
         addons_dir = self.get_addons_dir()
