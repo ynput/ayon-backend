@@ -120,6 +120,9 @@ async def process_operation(
         payload_dict = payload.dict()
         if operation.entity_id is not None:
             payload_dict["id"] = operation.entity_id
+        if operation.entity_type == "version":
+            if not payload_dict.get("author"):
+                payload_dict["author"] = user.name
         entity = entity_class(project_name, payload_dict)
         await entity.ensure_create_access(user)
         description = f"{operation.entity_type.capitalize()} {entity.name} created"

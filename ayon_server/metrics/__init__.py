@@ -1,62 +1,56 @@
 import time
 
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
-from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
-from .projects import ProjectCounts, ProjectMetrics, get_project_counts, get_projects
+from .bundles import (
+    ProductionBundle,
+    get_installed_addons,
+    get_production_bundle,
+)
+from .projects import (
+    ProjectCounts,
+    ProjectMetrics,
+    get_average_project_event_count,
+    get_project_counts,
+    get_projects,
+)
+from .services import ServiceInfo, get_active_services
 from .settings import SettingsOverrides, get_studio_settings_overrides
 from .users import UserCounts, get_user_counts
 
 
-async def get_average_project_event_count(saturated: bool) -> int:
-    """Average number of events per project
+def docfm(obj) -> str:
+    """Format a docstring"""
 
-    This disregards projects with less than 300 events
-    (such as testing projects).
-    """
-
-    query = """
-        SELECT AVG(event_count) AS average_event_count_per_project
-        FROM (
-            SELECT project_name, COUNT(*) AS event_count
-            FROM events
-            GROUP BY project_name
-            HAVING COUNT(*) >= 300 and project_name is not null
-        ) AS subquery;
-    """
-
-    async for row in Postgres.iterate(query):
-        res = row["average_event_count_per_project"]
-        if not res:
-            return 0
-        return int(res)
-
-
-class ProductionBundle(OPModel):
-    addons: dict[str, str] = Field(
-        default_factory=dict,
-        title="Addons",
-        description="Addons and their versions used in the production bundle",
-    )
-    launcher_version: str = Field(..., title="Launcher version")
+    docstring = obj.__doc__
+    lines = []
+    for line in docstring.split("\n"):
+        lines.append(line.strip())
+    return "\n".join(lines)
 
 
 class Metrics(OPModel):
     """Metrics model"""
 
-    version: str = Field(default_factory=get_version, title="Ayon version")
+    version: str = Field(
+        default_factory=get_version,
+        title="Ayon version",
+        example=get_version(),
+    )
 
     release_info: ReleaseInfo | None = Field(
         default_factory=get_release_info,
         title="Release info",
         description="Information about the exact branch and commit of the current release",
+        example=get_release_info(),
     )
 
     uptime: float = Field(
         default_factory=get_uptime,
         title="Uptime",
-        description="Time (seconds) since the server was started",
+        description="Time (seconds) since the server was (re)started",
+        example=518163,
     )
 
     user_counts: UserCounts | None = Field(
@@ -67,19 +61,49 @@ class Metrics(OPModel):
     project_counts: ProjectCounts | None = Field(
         None,
         title="Project counts",
+        example=1,
     )
 
-    projects: list[ProjectMetrics] | None = Field(None, title="List of projects")
+    projects: list[ProjectMetrics] | None = Field(
+        None,
+        title="Project statistics",
+        description=docfm(get_projects),
+    )
 
-    average_project_event_count: int = Field(
+    average_project_event_count: int | None = Field(
         None,
         title="Average project event count",
-        description=get_average_project_event_count.__doc__,
+        description=docfm(get_average_project_event_count),
     )
 
-    installed_addons: list[tuple[str, str]] = Field(default_factory=list)
+    installed_addons: list[tuple[str, str]] | None = Field(
+        None,
+        title="Installed addons",
+        description=docfm(get_installed_addons),
+        example=[
+            ("maya", "1.0.0"),
+            ("maya", "1.0.1"),
+            ("ftrack", "1.2.3"),
+        ],
+    )
 
-    studio_settings_overrides: list[SettingsOverrides] | None = Field(None)
+    production_bundle: ProductionBundle | None = Field(
+        None,
+        title="Production bundle",
+        description=docfm(get_production_bundle),
+    )
+
+    studio_settings_overrides: list[SettingsOverrides] | None = Field(
+        None,
+        title="Studio settings overrides",
+        description=docfm(get_studio_settings_overrides),
+    )
+
+    services: list[ServiceInfo] | None = Field(
+        None,
+        title="Services",
+        description=docfm(get_active_services),
+    )
 
 
 METRICS_SNAPSHOT = {}
@@ -87,27 +111,34 @@ METRICS_SETUP = [
     {
         "name": "project_counts",
         "getter": get_project_counts,
-        "ttl": 60,
     },
     {
         "name": "user_counts",
         "getter": get_user_counts,
-        "ttl": 60,
     },
     {
         "name": "average_project_event_count",
         "getter": get_average_project_event_count,
-        "ttl": 60,
     },
     {
         "name": "projects",
         "getter": get_projects,
-        "ttl": 60,
     },
     {
         "name": "studio_settings_overrides",
         "getter": get_studio_settings_overrides,
-        "ttl": 60,
+    },
+    {
+        "name": "production_bundle",
+        "getter": get_production_bundle,
+    },
+    {
+        "name": "installed_addons",
+        "getter": get_installed_addons,
+    },
+    {
+        "name": "active_services",
+        "getter": get_active_services,
     },
 ]
 
@@ -118,7 +149,12 @@ async def get_metrics(saturated: bool = True) -> Metrics:
     for metric in METRICS_SETUP:
         name = metric["name"]
         getter = metric["getter"]
-        ttl = metric["ttl"]
+        ttl_h = metric.get("ttl", 24)
+
+        assert isinstance(ttl_h, int), f"ttl must be an integer, got {ttl_h}"
+        assert isinstance(name, str), f"name must be a string, got {name}"
+        assert callable(getter), f"getter must be callable, got {getter}"
+        ttl = ttl_h * 60 * 60
 
         if name not in METRICS_SNAPSHOT:
             value = await getter(saturated=saturated)

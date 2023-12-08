@@ -3,13 +3,15 @@ from ayon_server.types import Field, OPModel
 
 
 class UserCounts(OPModel):
-    total: int = Field(0, title="Total users")
-    active: int = Field(0, title="Active users")
-    admins: int = Field(0, title="Admin users")
-    managers: int = Field(0, title="Manager users")
+    total: int = Field(0, title="Total users", example=69)
+    active: int = Field(0, title="Active users", example=42)
+    admins: int = Field(0, title="Admin users", example=1)
+    managers: int = Field(0, title="Manager users", example=8)
 
 
-async def get_user_counts(saturated: bool) -> UserCounts:
+async def get_user_counts(saturated: bool) -> UserCounts | None:
+    """Number of total and active users, admins and managers"""
+
     query = """
     SELECT
     COUNT(*) AS total,
@@ -19,10 +21,15 @@ async def get_user_counts(saturated: bool) -> UserCounts:
     FROM users;
     """
 
-    async for row in Postgres.iterate(query):
-        return UserCounts(
-            total=row["total"] or 0,
-            active=row["active"] or 0,
-            admins=row["admins"] or 0,
-            managers=row["managers"] or 0,
-        )
+    res = await Postgres.fetch(query)
+
+    if not res:
+        return None
+    row = res[0]
+
+    return UserCounts(
+        total=row["total"] or 0,
+        active=row["active"] or 0,
+        admins=row["admins"] or 0,
+        managers=row["managers"] or 0,
+    )
