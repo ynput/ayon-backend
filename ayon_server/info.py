@@ -65,6 +65,9 @@ def get_version():
     build_date = rel_info.build_date if rel_info else None
     build_time = rel_info.build_time if rel_info else None
     version = rel_info.version if rel_info else __version__
-    version += f"+{build_date}" if build_date else ""
-    version += f"{build_time}" if build_time else ""
+
+    if build_date and build_time:
+        version += f"+{build_date}{build_time}"
+    else:
+        version += "+DEVELOP"
     return version

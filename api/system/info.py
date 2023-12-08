@@ -63,6 +63,8 @@ class InfoResponseModel(OPModel):
     )
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
+
+    # TODO: use list | None, but ensure it won't break the frontend
     sites: list[SiteInfo] = Field(default_factory=list, title="List of sites")
     sso_options: list[SSOOption] = Field(default_factory=list, title="SSO options")
 
@@ -199,7 +201,7 @@ async def get_site_info(
         has_admin_user = await admin_exists()
         additional_info = {
             "sso_options": sso_options,
-            "no_admin_user": not has_admin_user,
+            "no_admin_user": (not has_admin_user) or None,
         }
     user_payload = current_user.payload if (current_user is not None) else None
     return InfoResponseModel(user=user_payload, **additional_info)
