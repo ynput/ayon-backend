@@ -164,12 +164,20 @@ DROP FUNCTION IF EXISTS add_thumbnail_id_to_tasks();
 -- Copy siteId to instanceId, if instanceId does not exist
 -- (this is a one-time migration)
 
-INSERT INTO config (key, value)
-SELECT 'instanceId', value
-FROM config
-WHERE key = 'siteId'
-AND NOT EXISTS (
-    SELECT 1
-    FROM config
-    WHERE key = 'instanceId'
-);
+
+DO $$
+BEGIN
+    -- Check if the 'config' table exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'config') THEN
+        -- Execute your insert query
+        INSERT INTO config (key, value)
+        SELECT 'instanceId', value
+        FROM config
+        WHERE key = 'siteId'
+        AND NOT EXISTS (
+            SELECT 1
+            FROM config
+            WHERE key = 'instanceId'
+        );
+    END IF;
+END $$;
