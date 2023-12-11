@@ -115,10 +115,12 @@ METRICS_SETUP = [
     {
         "name": "user_counts",
         "getter": get_user_counts,
+        "ttl": 50,
     },
     {
         "name": "average_project_event_count",
         "getter": get_average_project_event_count,
+        "ttl": 50,
     },
     {
         "name": "projects",
@@ -127,6 +129,7 @@ METRICS_SETUP = [
     {
         "name": "studio_settings_overrides",
         "getter": get_studio_settings_overrides,
+        "ttl": 30,
     },
     {
         "name": "production_bundle",
@@ -135,10 +138,12 @@ METRICS_SETUP = [
     {
         "name": "installed_addons",
         "getter": get_installed_addons,
+        "ttl": 24,
     },
     {
         "name": "active_services",
         "getter": get_active_services,
+        "ttl": 10,
     },
 ]
 

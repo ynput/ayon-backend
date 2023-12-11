@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Any
+
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
@@ -16,10 +19,10 @@ class ProjectMetrics(OPModel):
     representation_count: int = Field(0, title="Representation count", example=2888)
     task_count: int = Field(0, title="Task count", example=222)
     workfile_count: int = Field(0, title="Workfile count", example=323)
-    root_count: int = Field(0, title="Root count", example=2)
-    team_count: int = Field(0, title="Team count", example=2)
-    duration: int = Field(
-        0,
+    root_count: int | None = Field(None, title="Root count", example=2)
+    team_count: int | None = Field(None, title="Team count", example=2)
+    duration: int | None = Field(
+        None,
         title="Duration",
         description="Duration in days",
         example=30,
@@ -63,9 +66,15 @@ async def get_project_counts(saturated: bool) -> ProjectCounts | None:
     return None
 
 
-async def get_project_metrics(project_name: str, saturated: bool) -> ProjectMetrics:
+async def get_project_metrics(
+    project_name: str,
+    attrib: dict[str, Any],
+    config: dict[str, Any],
+    data: dict[str, Any],
+    saturated: bool,
+) -> ProjectMetrics:
 
-    data = {}
+    result = {}
     for entity_type in [
         "folder",
         "product",
@@ -83,9 +92,20 @@ async def get_project_metrics(project_name: str, saturated: bool) -> ProjectMetr
             res = await Postgres.fetch(query)
         except Exception:
             continue
-        data[f"{entity_type}_count"] = res[0]["c"]
+        result[f"{entity_type}_count"] = res[0]["c"]
 
-    # TODO: root_count, team_count, duration
+    if roots := config.get("roots", {}):
+        result["root_count"] = len(roots)
+
+    if teams := data.get("teams", []):
+        result["team_count"] = len(teams)
+
+    start_date = attrib.get("startDate")
+    end_date = attrib.get("endDate")
+    if start_date and end_date:
+        start_date_dt = datetime.fromisoformat(start_date)
+        end_date_dt = datetime.fromisoformat(end_date)
+        result["duration"] = (end_date_dt - start_date_dt).days
 
     if saturated:
         for entity_type in ["folder", "task"]:
@@ -98,9 +118,9 @@ async def get_project_metrics(project_name: str, saturated: bool) -> ProjectMetr
                 res = await Postgres.fetch(query)
             except Exception:
                 continue
-            data[f"{entity_type}_types"] = [r["t"] for r in res]
+            result[f"{entity_type}_types"] = [r["t"] for r in res]
 
-    return ProjectMetrics(**data)
+    return ProjectMetrics(**result)
 
 
 async def get_projects(saturated: bool) -> list[ProjectMetrics] | None:
@@ -109,7 +129,11 @@ async def get_projects(saturated: bool) -> list[ProjectMetrics] | None:
     Contain information about size and usage of each active project.
     """
     query = """
-    SELECT name
+    SELECT
+        name,
+        attrib,
+        config,
+        data
     FROM projects
     WHERE active IS TRUE;
     """
@@ -118,7 +142,16 @@ async def get_projects(saturated: bool) -> list[ProjectMetrics] | None:
         res = await Postgres.fetch(query)
     except Exception:
         return None
-    return [await get_project_metrics(r["name"], saturated) for r in res]
+    return [
+        await get_project_metrics(
+            r["name"],
+            attrib=r["attrib"] or {},
+            config=r["config"] or {},
+            data=r["data"] or {},
+            saturated=saturated,
+        )
+        for r in res
+    ]
 
 
 async def get_average_project_event_count(saturated: bool) -> int | None:

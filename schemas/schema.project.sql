@@ -76,10 +76,6 @@ CREATE UNIQUE INDEX folder_root_unique_name ON folders (name)
     WHERE (active IS TRUE AND parent_id IS NULL);
 
 
--- Temporary workaround for beta
-CREATE UNIQUE INDEX folder_unique_name ON folders (name);
-
-
 -- Hierarchy view
 -- Materialized view used as a shorthand to get folder parents/full path
 
