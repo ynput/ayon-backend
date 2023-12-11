@@ -44,6 +44,8 @@ async def post_metrics(instance_id: str):
             headers=headers,
         )
 
+    assert res.status_code != 401, "Invalid Ynput Cloud key"
+
     res.raise_for_status()
 
 
