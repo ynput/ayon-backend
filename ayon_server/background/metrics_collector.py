@@ -79,8 +79,8 @@ class MetricsCollector(BackgroundWorker):
             else:
                 has_error = False
 
-            # otherwise, wait for 12 hours
-            await asyncio.sleep(3600 * 12)
+            # otherwise, wait for 6 hours
+            await asyncio.sleep(3600 * 6)
 
 
 metrics_collector = MetricsCollector()
