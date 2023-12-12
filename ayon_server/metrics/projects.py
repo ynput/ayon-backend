@@ -73,7 +73,6 @@ async def get_project_metrics(
     data: dict[str, Any],
     saturated: bool,
 ) -> ProjectMetrics:
-
     result = {}
     for entity_type in [
         "folder",

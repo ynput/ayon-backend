@@ -430,8 +430,8 @@ class AssignAccessGroupsRequestModel(OPModel):
         default_factory=list,
         description="List of access groups to assign",
         example=[
-            {"project": "project1", "roles": ["artist", "viewer"]},
-            {"project": "project2", "roles": ["viewer"]},
+            {"project": "project1", "accessGroups": ["artist", "viewer"]},
+            {"project": "project2", "accessGroups": ["viewer"]},
         ],
     )
 

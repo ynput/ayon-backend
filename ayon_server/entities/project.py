@@ -221,7 +221,6 @@ class ProjectEntity(TopLevelEntity):
 
         project_name = self.name
         if self.exists:
-
             fields = dict_exclude(
                 self.dict(exclude_none=True),
                 [

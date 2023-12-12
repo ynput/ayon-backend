@@ -359,7 +359,6 @@ async def get_raw_addon_project_overrides(
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ) -> dict[str, Any]:
-
     if site:
         result = await Postgres.fetch(
             f"""
@@ -410,7 +409,6 @@ async def set_raw_addon_project_overrides(
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ) -> EmptyResponse:
-
     if site:
         await Postgres.execute(
             f"""
