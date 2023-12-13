@@ -157,9 +157,9 @@ CREATE OR REPLACE FUNCTION add_thumbnail_id_to_tasks ()
 SELECT add_thumbnail_id_to_tasks();
 DROP FUNCTION IF EXISTS add_thumbnail_id_to_tasks();
 
---------------
--- Ayon 0.8 --
---------------
+----------------
+-- Ayon 1.0.0 --
+----------------
 
 -- Copy siteId to instanceId, if instanceId does not exist
 -- (this is a one-time migration)
