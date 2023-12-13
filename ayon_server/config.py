@@ -128,8 +128,8 @@ class AyonConfig(BaseModel):
         description="Number of days to keep logs in the event log",
     )
 
-    ynput_connect_url: str | None = Field(
-        "https://connect.ynput.io",
+    ynput_cloud_api_url: str | None = Field(
+        "https://im.ynput.cloud",
         description="YnputConnect URL",
     )
 
@@ -137,6 +137,11 @@ class AyonConfig(BaseModel):
         default=120,
         description="Timeout for HTTP requests the server uses "
         "to connect to external services",
+    )
+
+    log_file: str | None = Field(
+        default=None,
+        description="Path to the log file",
     )
 
 

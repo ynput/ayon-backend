@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import asyncpg
-from nxtools import critical_error, log_traceback, logging
+from nxtools import critical_error, log_to_file, log_traceback, logging
 
 from ayon_server.config import ayonconfig
 from ayon_server.lib.postgres import Postgres
@@ -161,4 +161,7 @@ async def main(force: bool | None = None) -> None:
 
 
 if __name__ == "__main__":
+    logging.user = "setup"
+    if ayonconfig.log_file is not None:
+        logging.add_handler(log_to_file(ayonconfig.log_file))
     asyncio.run(main())

@@ -1,4 +1,5 @@
 import time
+from typing import Awaitable, Callable
 
 from pydantic import BaseModel, Field
 
@@ -20,8 +21,8 @@ class StatusModel(BaseModel):
 
 
 class ConstraintsModel(BaseModel):
+    instance_id: str | None = Field(None)
     exp: int = Field(default_factory=now, alias="exp")
-    site: str | None = Field(None)
     data: dict[str, ConVal] = Field(default_factory=dict, alias="data")
     status: list[StatusModel] = Field(default_factory=list, alias="status")
 
@@ -35,7 +36,7 @@ async def load_licenses() -> list[str]:
 
 class Constraints:
     constraints: ConstraintsModel | None = None
-    parser = None
+    parser: Callable[[list[str]], Awaitable[ConstraintsModel]] | None = None
 
     @classmethod
     async def load(cls):

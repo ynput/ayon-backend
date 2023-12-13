@@ -8,7 +8,6 @@ from ayon_server.events.patch import build_pl_entity_change_events
 
 from .router import router
 
-
 #
 # [GET]
 #

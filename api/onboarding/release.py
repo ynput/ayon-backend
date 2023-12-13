@@ -5,7 +5,7 @@ import httpx
 from fastapi import Request
 from pydantic import Field
 
-from ayon_server.api.dependencies import CurrentUser, YnputConnectKey
+from ayon_server.api.dependencies import CurrentUser, InstanceID, YnputCloudKey
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
@@ -81,6 +81,7 @@ async def abort_onboarding(request: Request, user: CurrentUser) -> EmptyResponse
         """
         INSERT INTO config (key, value)
         VALUES ('onboardingFinished', 'true'::jsonb)
+        ON CONFLICT (key) DO UPDATE SET value = 'true'::jsonb
         """
     )
 
@@ -104,15 +105,19 @@ async def restart_onboarding(request: Request, user: CurrentUser) -> EmptyRespon
 
 
 @router.get("/releases", response_model_exclude_none=True)
-async def get_releases(ynput_connect_key: YnputConnectKey) -> ReleaseListModel:
+async def get_releases(
+    ynput_connect_key: YnputCloudKey,
+    instance_id: InstanceID,
+) -> ReleaseListModel:
     """Get the releases"""
-
-    params = {"key": ynput_connect_key}
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
-            f"{ayonconfig.ynput_connect_url}/api/releases",
-            params=params,
+            f"{ayonconfig.ynput_cloud_api_url}/api/v1/releases",
+            headers={
+                "x-ynput-cloud-instance": instance_id,
+                "x-ynput-cloud-key": ynput_connect_key,
+            },
         )
 
     return ReleaseListModel(**res.json())
@@ -120,16 +125,19 @@ async def get_releases(ynput_connect_key: YnputConnectKey) -> ReleaseListModel:
 
 @router.get("/releases/{release_name}", response_model_exclude_none=True)
 async def get_release_info(
-    ynput_connect_key: YnputConnectKey, release_name: str
+    ynput_connect_key: YnputCloudKey,
+    instance_id: InstanceID,
+    release_name: str,
 ) -> ReleaseInfoModel:
     """Get the release info"""
 
-    params = {"key": ynput_connect_key}
-
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
-            f"{ayonconfig.ynput_connect_url}/api/releases/{release_name}",
-            params=params,
+            f"{ayonconfig.ynput_cloud_api_url}/api/v1/releases/{release_name}",
+            headers={
+                "x-ynput-cloud-instance": instance_id,
+                "x-ynput-cloud-key": ynput_connect_key,
+            },
         )
 
     return ReleaseInfoModel(**res.json())

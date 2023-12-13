@@ -7,6 +7,7 @@ import shortuuid
 from fastapi import BackgroundTasks, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.constraints import Constraints
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.installer import background_installer
@@ -70,6 +71,12 @@ async def upload_addon_zip_file(
         return InstallAddonResponseModel(event_id=event_id)
 
     # Store the zip file in a temporary location
+
+    if (
+        allow_custom_addons := await Constraints.check("allowCustomAddons")
+    ) is not None:
+        if not allow_custom_addons:
+            raise ForbiddenException("Custom addons uploads are not allowed")
 
     temp_path = f"/tmp/{shortuuid.uuid()}.zip"
     async with aiofiles.open(temp_path, "wb") as f:

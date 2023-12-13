@@ -3,6 +3,7 @@ from ayon_server.installer import background_installer
 from .background_worker import BackgroundWorker
 from .log_cleaner import log_cleaner
 from .log_collector import log_collector
+from .metrics_collector import metrics_collector
 from .thumbnail_cleaner import thumbnail_cleaner
 
 
@@ -12,6 +13,7 @@ class BackgroundWorkers:
             background_installer,
             log_collector,
             log_cleaner,
+            metrics_collector,
             thumbnail_cleaner,
         ]
 

@@ -10,7 +10,7 @@ import fastapi
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
-from nxtools import log_traceback, logging, slugify
+from nxtools import log_to_file, log_traceback, logging, slugify
 
 from ayon_server.access.access_groups import AccessGroups
 from ayon_server.addons import AddonLibrary
@@ -67,6 +67,8 @@ class AuthStaticFiles(StaticFiles):
 #
 
 logging.user = "server"
+if ayonconfig.log_file:
+    logging.add_handler(log_to_file(ayonconfig.log_file))
 
 
 async def user_name_from_request(request: fastapi.Request) -> str:
@@ -305,6 +307,14 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
     for addon_name, addon_definition in library.items():
         for version in addon_definition.versions:
             addon = addon_definition.versions[version]
+
+            if hasattr(addon, "ws"):
+                target_app.add_api_websocket_route(
+                    f"/api/addons/{addon_name}/{version}/ws",
+                    addon.ws,
+                    name=f"{addon_name}_{version}_ws",
+                )
+
             for endpoint in addon.endpoints:
                 path = endpoint["path"].lstrip("/")
                 first_element = path.split("/")[0]

@@ -148,7 +148,7 @@ METRICS_SETUP = [
 ]
 
 
-async def get_metrics(saturated: bool = True) -> Metrics:
+async def get_metrics(saturated: bool = False) -> Metrics:
     """Get metrics"""
 
     for metric in METRICS_SETUP:
