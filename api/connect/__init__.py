@@ -49,6 +49,11 @@ class YnputConnectResponseModel(OPModel):
         example="Ynput",
     )
 
+    collect_saturated_metrics: bool = Field(
+        False,
+        description="Collect saturated metrics",
+    )
+
     managed: bool = Field(
         default=False,
         description="Is the instance managed by Ynput Cloud?",
@@ -65,8 +70,15 @@ async def get_ynput_cloud_info(
     Check whether the Ynput Cloud key is set and return the Ynput Cloud info
     """
 
-    if not user.is_admin:
+    if user and not user.is_admin:
         raise ForbiddenException("Only admins can get the Ynput Cloud info")
+
+    if user is None:
+        has_admin = await admin_exists()
+        if has_admin:
+            raise ForbiddenException(
+                "Connecting to Ynput Cloud is allowed only on first run"
+            )
 
     headers = {
         "x-ynput-cloud-instance": instance_id,
@@ -87,6 +99,8 @@ async def get_ynput_cloud_info(
             """
         )
         raise ForbiddenException("Invalid Ynput connect key")
+
+    res.raise_for_status()  # should not happen
 
     data = res.json()
 
