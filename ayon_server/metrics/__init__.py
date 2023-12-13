@@ -56,12 +56,14 @@ class Metrics(OPModel):
     user_counts: UserCounts | None = Field(
         None,
         title="User counts",
+        description=docfm(get_user_counts),
     )
 
     project_counts: ProjectCounts | None = Field(
         None,
         title="Project counts",
         example=1,
+        description=docfm(get_project_counts),
     )
 
     projects: list[ProjectMetrics] | None = Field(

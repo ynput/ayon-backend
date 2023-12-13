@@ -1,6 +1,7 @@
 import time
 
 import psutil
+from fastapi import Query
 from fastapi.responses import PlainTextResponse
 
 from ayon_server.api.dependencies import CurrentUser
@@ -37,10 +38,16 @@ system_metrics = SystemMetrics()
 
 
 @router.get("/metrics", tags=["System"], response_model_exclude_none=True)
-async def get_production_metrics(user: CurrentUser) -> Metrics:
+async def get_production_metrics(
+    user: CurrentUser,
+    saturated: bool = Query(
+        False,
+        description="Collect saturated (more granular) metrics",
+    ),
+) -> Metrics:
     """Get production related metrics"""
 
-    metrics = await get_metrics(saturated=True)
+    metrics = await get_metrics(saturated=saturated)
     return metrics
 
 

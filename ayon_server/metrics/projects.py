@@ -4,6 +4,8 @@ from typing import Any
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
+SATURATED_ONLY = "Collected only in the 'saturated' mode."
+
 
 class ProjectCounts(OPModel):
     total: int = Field(0, title="Total projects", example=6)
@@ -33,20 +35,21 @@ class ProjectMetrics(OPModel):
     folder_types: list[str] | None = Field(
         None,
         title="Folder types",
+        description=f"List of folder types in the project. {SATURATED_ONLY}",
         example=["Folder", "Asset", "Episode", "Sequence"],
     )
     task_types: list[str] | None = Field(
         None,
         title="Task types",
+        description=f"List of task types in the project. {SATURATED_ONLY}",
         example=["Art", "Modeling", "Texture", "Lookdev"],
     )
     statuses: list[str] | None = Field(
         None,
         title="Statuses",
+        description=f"List of statuses in the project. {SATURATED_ONLY}",
         example=["Not ready", "In progress", "Pending review", "Approved"],
     )
-    # Do not include tags (may be huge and sensitive)
-    # tags: list[str] | None = Field(None, title="Tags")
 
 
 async def get_project_counts(saturated: bool) -> ProjectCounts | None:
@@ -117,7 +120,16 @@ async def get_project_metrics(
                 res = await Postgres.fetch(query)
             except Exception:
                 continue
-            result[f"{entity_type}_types"] = [r["t"] for r in res]
+            else:
+                result[f"{entity_type}_types"] = [r["t"] for r in res]
+
+        query = f"SELECT name FROM project_{project_name}.statuses"
+        try:
+            res = await Postgres.fetch(query)
+        except Exception:
+            pass
+        else:
+            result["statuses"] = [r["name"] for r in res]
 
     return ProjectMetrics(**result)
 
