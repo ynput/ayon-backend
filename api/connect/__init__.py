@@ -62,7 +62,7 @@ class YnputConnectResponseModel(OPModel):
 
 @router.get("")
 async def get_ynput_cloud_info(
-    user: CurrentUser,
+    user: CurrentUserOptional,
     ynput_cloud_key: YnputCloudKey,
     instance_id: InstanceID,
 ) -> YnputConnectResponseModel:
