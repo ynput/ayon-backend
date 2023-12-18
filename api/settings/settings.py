@@ -1,3 +1,4 @@
+import traceback
 from typing import Any
 
 from fastapi import Query
@@ -177,8 +178,20 @@ async def get_all_settings(
                 settings = await addon.get_studio_settings(variant)
 
         except Exception:
-            log_traceback(
-                "fUnable to load settings of {addon_name} {addon_version}. Skipping."
+            log_traceback(f"Unable to load {addon_name} {addon_version} settings")
+            addon_result.append(
+                AddonSettingsItemModel(
+                    name=addon_name,
+                    title=addon_name,
+                    version=addon_version,
+                    settings={},
+                    site_settings=None,
+                    is_broken=True,
+                    reason={
+                        "error": "Unable to load settings",
+                        "traceback": traceback.format_exc(),
+                    },
+                )
             )
             continue
 
