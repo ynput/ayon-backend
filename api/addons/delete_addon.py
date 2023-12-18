@@ -44,7 +44,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
             raise AyonException(f"Failed to delete {addon_name} directory: {e}")
 
 
-@router.delete("/{addon_name}")
+@router.delete("/{addon_name}", tags=["Addons"])
 async def delete_addon(
     user: CurrentUser,
     addon_name: str,
@@ -62,7 +62,7 @@ async def delete_addon(
         # TODO: implement purge
 
 
-@router.delete("/{addon_name}/{addon_version}")
+@router.delete("/{addon_name}/{addon_version}", tags=["Addons"])
 async def delete_addon_version(
     user: CurrentUser,
     addon_name: str,
