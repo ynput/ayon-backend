@@ -8,6 +8,7 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundException
 
+# from ayon_server.lib.postgres import Postgres
 from .router import router
 
 
@@ -56,6 +57,10 @@ async def delete_addon(
 
     await delete_addon_directory(addon_name)
 
+    if purge:
+        pass
+        # TODO: implement purge
+
 
 @router.delete("/{addon_name}/{addon_version}")
 async def delete_addon_version(
@@ -70,3 +75,7 @@ async def delete_addon_version(
         raise ForbiddenException("Only admins can delete addons")
 
     await delete_addon_directory(addon_name, addon_version)
+
+    if purge:
+        pass
+        # TODO: implement purge
