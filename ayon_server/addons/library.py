@@ -68,7 +68,7 @@ class AddonLibrary:
         """
 
         instance = cls.getinstance()
-        if (definition := instance.get(name)) is None:
+        if (definition := instance.data.get(name)) is None:
             raise NotFoundException(f"Addon {name} does not exist")
         if (addon := definition.versions.get(version)) is None:
             raise NotFoundException(f"Addon {name} version {version} does not exist")
@@ -79,8 +79,10 @@ class AddonLibrary:
         instance = cls.getinstance()
         return instance.data.items()
 
-    def get(self, key: str, default=None) -> ServerAddonDefinition:
-        return self.data.get(key, default)
+    @classmethod
+    def get(cls, key: str, default=None) -> ServerAddonDefinition:
+        instance = cls.getinstance()
+        return instance.data.get(key, default)
 
     def __getitem__(self, key) -> ServerAddonDefinition:
         return self.data[key]
