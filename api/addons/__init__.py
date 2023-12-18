@@ -14,13 +14,14 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
-from . import install, project_settings, site_settings, studio_settings
+from . import delete_addon, install, project_settings, site_settings, studio_settings
 from .router import route_meta, router
 
 assert install
 assert site_settings
 assert studio_settings
 assert project_settings
+assert delete_addon
 
 
 class VersionInfo(OPModel):
