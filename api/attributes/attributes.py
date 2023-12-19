@@ -156,8 +156,6 @@ async def save_attribute(attribute: AttributeModel):
     )
 
     if (enum := attribute.data.enum) is not None:
-        # print(f"Enum of {attribute.name} is {enum}")
-
         for name, field in ProjectEntity.model.attrib_model.__fields__.items():
             if name != attribute.name:
                 continue
@@ -172,7 +170,6 @@ async def save_attribute(attribute: AttributeModel):
             if name != attribute.name:
                 continue
             field_enum = field.field_info.extra.get("enum")
-            print(field_enum)
 
 
 async def list_raw_attributes() -> list[dict[str, Any]]:
