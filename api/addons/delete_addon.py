@@ -34,6 +34,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
             raise AyonException(
                 f"Failed to delete {addon_name} {addon_version} directory: {e}"
             )
+        addon_definition.versions.pop(addon_version, None)
 
     is_empty = not os.listdir(addon_dir)
 
@@ -42,6 +43,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
             await aioshutil.rmtree(addon_dir)
         except Exception as e:
             raise AyonException(f"Failed to delete {addon_name} directory: {e}")
+        AddonLibrary.data.pop(addon_name, None)
 
 
 @router.delete("/{addon_name}", tags=["Addons"])
