@@ -11,7 +11,7 @@ HEADERS: dict[str, str] = {}
 
 
 async def get_headers() -> dict[str, str]:
-    """Get the headers for the marketplace API"""
+    """Get the headers for the market API"""
 
     if HEADERS:
         return HEADERS
@@ -36,10 +36,10 @@ async def get_headers() -> dict[str, str]:
     return HEADERS
 
 
-async def get_marketplace_data(
+async def get_market_data(
     *args: str,
 ) -> dict[str, Any]:
-    """Get data from the marketplace API"""
+    """Get data from the market API"""
 
     endpoint = "/".join(args)
 
@@ -50,7 +50,7 @@ async def get_marketplace_data(
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
-            f"{ayonconfig.ynput_cloud_api_url}/api/v1/marketplace/{endpoint}",
+            f"{ayonconfig.ynput_cloud_api_url}/api/v1/market/{endpoint}",
             headers=headers,
         )
 
@@ -71,6 +71,8 @@ async def get_local_latest_addon_versions() -> dict[str, str]:
 
     result = {}
     for addon_name, definition in AddonLibrary.items():
+        if not definition.latest:
+            continue
         result[addon_name] = definition.latest.version
     return result
 

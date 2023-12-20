@@ -1,6 +1,6 @@
 __all__ = ["router"]
 
-from . import marketplace
+from . import market
 from .router import router
 
-assert marketplace
+assert market
