@@ -1,3 +1,6 @@
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.exceptions import ForbiddenException
+
 from .common import (
     get_local_latest_addon_versions,
     get_local_production_addon_versions,
@@ -7,7 +10,11 @@ from .router import router
 
 
 @router.get("/addons")
-async def market_addon_list():
+async def market_addon_list(user: CurrentUser):
+
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can access the marketplace")
+
     result = await get_marketplace_data("addons")
     installed_addons = await get_local_latest_addon_versions()
     production_addons = await get_local_production_addon_versions()
@@ -19,7 +26,10 @@ async def market_addon_list():
 
 
 @router.get("/addons/{addon_name}")
-async def market_addon_detail(addon_name: str):
+async def market_addon_detail(user: CurrentUser, addon_name: str):
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can access the marketplace")
+
     result = await get_marketplace_data("addons", addon_name)
     installed_addons = await get_local_latest_addon_versions()
     production_addons = await get_local_production_addon_versions()
@@ -36,7 +46,15 @@ async def market_addon_detail(addon_name: str):
 
 
 @router.get("/addons/{addon_name}/{addon_version}")
-async def market_addon_version_detail(addon_name: str, addon_version: str):
+async def market_addon_version_detail(
+    user: CurrentUser,
+    addon_name: str,
+    addon_version: str,
+):
+
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can access the marketplace")
+
     result = await get_marketplace_data("addons", addon_name, addon_version)
 
     # is installed?
