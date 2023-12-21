@@ -32,6 +32,8 @@ async def upload_addon_zip_file(
     user: CurrentUser,
     request: Request,
     url: str | None = Query(None, title="URL to the addon zip file"),
+    addonName: str | None = Query(None, title="Addon name"),
+    addonVersion: str | None = Query(None, title="Addon version"),
 ) -> InstallAddonResponseModel:
     """Upload an addon zip file and install it"""
 
@@ -49,12 +51,22 @@ async def upload_addon_zip_file(
             AND hash = $1
         """
 
+        summary = {"url": url}
+        if addonName and addonVersion:
+            summary.update(
+                {
+                    "addonName": addonName,
+                    "addonVersion": addonVersion,
+                }
+            )
+
         res = await Postgres.fetch(query, hash)
         if res:
             event_id = res[0]["id"]
             await update_event(
                 event_id,
                 description="Reinstalling addon from URL",
+                summary=summary,
                 status="pending",
             )
         else:
@@ -62,7 +74,7 @@ async def upload_addon_zip_file(
                 "addon.install_from_url",
                 hash=hash,
                 description="Installing addon from URL",
-                summary={"url": url},
+                summary=summary,
                 user=user.name,
                 finished=False,
             )
