@@ -34,7 +34,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
             raise AyonException(
                 f"Failed to delete {addon_name} {addon_version} directory: {e}"
             )
-        addon_definition.versions.pop(addon_version, None)
+        AddonLibrary.unload_addon(addon_name, addon_version, {"error": "Addon deleted"})
 
     is_empty = not os.listdir(addon_dir)
 

@@ -90,7 +90,10 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
     active_versions = await library.get_active_versions()
 
     for _name, definition in library.data.items():
-        vers = active_versions.get(definition.name, {})
+        try:
+            vers = active_versions.get(definition.name, {})
+        except ValueError:
+            continue
         production_version = vers.get("production", None)
         if not production_version:
             continue

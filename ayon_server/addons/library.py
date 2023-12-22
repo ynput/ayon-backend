@@ -137,12 +137,14 @@ class AddonLibrary:
             return None
         return self[addon_name][staging_version]
 
+    @classmethod
     def unload_addon(
-        self, addon_name: str, addon_version: str, reason: dict[str, str] | None = None
+        cls, addon_name: str, addon_version: str, reason: dict[str, str] | None = None
     ) -> None:
+        instance = cls.getinstance()
         if reason is not None:
-            self.broken_addons[(addon_name, addon_version)] = reason
-        definition = self.data.get(addon_name)
+            instance.broken_addons[(addon_name, addon_version)] = reason
+        definition = instance.data.get(addon_name)
         if definition is None:
             return
         logging.info("Unloading addon", addon_name, addon_version)
@@ -150,7 +152,7 @@ class AddonLibrary:
 
         if not definition._versions:
             logging.info("Unloading addon", addon_name)
-            del self.data[addon_name]
+            del instance.data[addon_name]
 
     @classmethod
     def is_broken(cls, addon_name: str, addon_version: str) -> dict[str, Any] | None:
