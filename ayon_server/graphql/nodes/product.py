@@ -41,6 +41,7 @@ class ProductAttribType:
 
 @strawberry.type
 class ProductNode(BaseNode):
+    name: str
     folder_id: str
     product_type: str
     status: str

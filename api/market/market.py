@@ -11,7 +11,6 @@ from .router import router
 
 @router.get("/addons")
 async def market_addon_list(user: CurrentUser):
-
     if not user.is_admin:
         raise ForbiddenException("Only admins can access the market")
 
@@ -51,7 +50,6 @@ async def market_addon_version_detail(
     addon_name: str,
     addon_version: str,
 ):
-
     if not user.is_admin:
         raise ForbiddenException("Only admins can access the market")
 

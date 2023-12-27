@@ -33,6 +33,7 @@ class RepresentationAttribType:
 
 @strawberry.type
 class RepresentationNode(BaseNode):
+    name: str
     version_id: str
     status: str
     tags: list[str]
