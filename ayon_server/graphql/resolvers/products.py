@@ -43,6 +43,9 @@ async def get_products(
         list[str] | None, argdesc("List of parent folder IDs to filter by")
     ] = None,
     names: Annotated[list[str] | None, argdesc("Filter by a list of names")] = None,
+    names_ci: Annotated[
+        list[str] | None, argdesc("Filter by a list of names (case insensitive)")
+    ] = None,
     name_ex: Annotated[
         str | None, argdesc("Match product names by a regular expression")
     ] = None,
@@ -103,6 +106,13 @@ async def get_products(
             return ProductsConnection()
         validate_name_list(names)
         sql_conditions.append(f"products.name IN {SQLTool.array(names)}")
+
+    if names_ci is not None:
+        if not names_ci:
+            return ProductsConnection()
+        validate_name_list(names_ci)
+        names_ci = [name.lower() for name in names_ci]
+        sql_conditions.append(f"LOWER(products.name) IN {SQLTool.array(names_ci)}")
 
     if product_types is not None:
         if not product_types:
