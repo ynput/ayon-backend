@@ -121,6 +121,7 @@ async def create_project_from_anatomy(
             users = await conn.fetch(query)
 
             for row in users:
+                logging.debug(f"Assigning project {project.name} to user {row['name']}")
                 user = UserEntity.from_record(row)
                 access_groups = user.data.get("accessGroups", {})
                 access_groups[project.name] = user.data["defaultAccessGroups"]
