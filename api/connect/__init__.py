@@ -27,6 +27,11 @@ class YnputConnectRequestModel(OPModel):
     key: str = Field(..., description="Ynput cloud key")
 
 
+class YnputConnectSubscriptionModel(OPModel):
+    name: str = Field(..., description="Name of the subscription")
+    product_type: str = Field(..., description="Type of the subscription")
+
+
 class YnputConnectResponseModel(OPModel):
     """Model for the response of Ynput Cloud user info"""
 
@@ -57,6 +62,11 @@ class YnputConnectResponseModel(OPModel):
     managed: bool = Field(
         default=False,
         description="Is the instance managed by Ynput Cloud?",
+    )
+
+    subscriptions: list[YnputConnectSubscriptionModel] = Field(
+        default_factory=list,
+        description="List of subscriptions",
     )
 
 
