@@ -15,6 +15,7 @@ from projects.router import router
 class ListProjectsItemModel(OPModel):
     name: str = Field(..., title="Project name")
     code: str = Field(..., title="Project code")
+    active: bool = Field(..., title="Project is active")
     createdAt: datetime = Field(..., title="Creation time")
     updatedAt: datetime = Field(..., title="Last modified time")
 
@@ -33,6 +34,7 @@ class ListProjectsResponseModel(OPModel):
                 code="ex",
                 createdAt=datetime.now().isoformat(),
                 updatedAt=datetime.now().isoformat(),
+                active=True,
             )
         ],
     )
@@ -43,7 +45,7 @@ async def list_projects(
     user: CurrentUser,
     page: int = Query(1, title="Page", ge=1),
     length: int = Query(
-        50,
+        200,
         title="Records per page",
         description="If not provided, the result will not be limited",
         ge=1,
@@ -60,9 +62,8 @@ async def list_projects(
         title="Show active projects",
         description="If not provided, return projects regardless the flag",
     ),
-    order: Literal["name", "createdAt", "updatedAt"] = Query(
-        "name", title="Attribute to order the list by"
-    ),
+    order: Literal["name", "createdAt", "updatedAt"]
+    | None = Query(None, title="Attribute to order the list by"),
     desc: bool = Query(False, title="Sort in descending order"),
     name: str
     | None = Query(
@@ -90,6 +91,11 @@ async def list_projects(
     if name:
         conditions.append(f"name ILIKE '{name}'")
 
+    if order:
+        sql_order = order
+    else:
+        sql_order = "active desc, name"
+
     for row in await Postgres.fetch(
         f"""
             SELECT
@@ -97,11 +103,12 @@ async def list_projects(
                 name,
                 code,
                 created_at,
-                updated_at
+                updated_at,
+                active
             FROM projects
             {SQLTool.conditions(conditions)}
             {SQLTool.order(
-                (order if order in ["name"] else ""),
+                sql_order,
                 desc,
                 length,
                 max(0, (page-1)*length)
@@ -126,6 +133,7 @@ async def list_projects(
                 code=row["code"],
                 createdAt=row["created_at"],
                 updatedAt=row["updated_at"],
+                active=row.get("active", True),
             )
         )
 
