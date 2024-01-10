@@ -282,7 +282,6 @@ CREATE TABLE links (
 CREATE INDEX link_input_idx ON links(input_id);
 CREATE INDEX link_output_idx ON links(output_id);
 CREATE UNIQUE INDEX link_creation_order_idx ON links(creation_order);
-CREATE UNIQUE INDEX link_unique_idx ON links(input_id, output_id, link_name);
 
 --------------
 -- SETTINGS --
