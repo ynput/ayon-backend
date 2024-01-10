@@ -8,8 +8,8 @@ from ayon_server.lib.postgres import Postgres
 from linker.linker import make_links
 
 
-async def create_link_type(project_name: str, link_type_name: str) -> None:
-    link_type, input_type, output_type = link_type_name.split("|")
+async def create_link_type(project_name: str, link_type: str) -> None:
+    link_type_name, input_type, output_type = link_type.split("|")
     await Postgres.execute(
         f"""
         INSERT INTO project_{project_name}.link_types
@@ -17,10 +17,10 @@ async def create_link_type(project_name: str, link_type_name: str) -> None:
         VALUES
             ($1, $2, $3, $4)
         """,
-        link_type_name,
+        link_type,
         input_type,
         output_type,
-        link_type,
+        link_type_name,
     )
 
 
