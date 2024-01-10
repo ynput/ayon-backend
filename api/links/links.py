@@ -127,11 +127,14 @@ class CreateLinkRequestModel(OPModel):
 
     input: str = Field(..., description="The ID of the input entity.")
     output: str = Field(..., description="The ID of the output entity.")
-    link: str = Field(
-        ...,
-        description="The name of the link type to create.",
+    name: str | None = Field(None, description="The name of the link.")
+    link: str | None = Field(
+        None,
+        description="Link type to create. This is deprecated. Use linkType instead.",
         example="reference|folder|version",
     )
+    link_type: str | None = Field(None, description="Link type to create.")
+    data: dict[str, Any] = Field(default_factory=dict, description="Link data")
 
 
 @router.post("/projects/{project_name}/links")
@@ -140,14 +143,18 @@ async def create_entity_link(
 ) -> EntityIdResponse:
     """Create a new entity link."""
 
-    link_type, input_type, output_type = post_data.link.split("|")
+    # TODO: access control. Since we need entity class for that,
+    # we could get rid of the following check and use Entity.load instead
+
+    link_type = post_data.link_type or post_data.link
+    assert link_type is not None, "Link type is not specified"
+    assert len(link_type.split("|")) == 3, "Invalid link type format"
+
+    link_type_name, input_type, output_type = link_type.split("|")
     link_id = EntityID.create()
 
     if input_type == output_type and post_data.input == post_data.output:
         raise BadRequestException("Cannot link an entity to itself.")
-
-    # TODO: access control. Since we need entity class for that,
-    # we could get rid of the following check and use Entity.load instead
 
     # Ensure input_id is in the project
 
@@ -179,15 +186,17 @@ async def create_entity_link(
         await Postgres.execute(
             f"""
             INSERT INTO project_{project_name}.links
-                (id, input_id, output_id, link_name, data)
+                (id, name, input_id, output_id, link_type, author, data)
             VALUES
                 ($1, $2, $3, $4, $5)
             """,
             link_id,
+            post_data.name,
             post_data.input,
             post_data.output,
-            post_data.link,
-            {"author": user.name},
+            link_type,
+            user.name,
+            post_data.data,
         )
     except Postgres.ForeignKeyViolationError:
         raise BadRequestException("Unsupported link type.") from None
@@ -195,7 +204,7 @@ async def create_entity_link(
         raise ConstraintViolationException("Link already exists.") from None
 
     logging.debug(
-        f"Created {link_type} link between "
+        f"Created {link_type_name} link between "
         f"{input_type} {post_data.input} and "
         f"{output_type} {post_data.output}.",
         user=user.name,
@@ -220,7 +229,7 @@ async def delete_entity_link(
     """
 
     query = f"""
-        SELECT data->'author' as author
+        SELECT author
         FROM project_{project_name}.links
         WHERE id = $1
     """
