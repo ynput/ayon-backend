@@ -19,6 +19,7 @@ class LinkEdge(BaseEdge):
     project_name: str = strawberry.field()
     entity_type: str = strawberry.field()
     entity_id: str = strawberry.field()
+    name: str | None = strawberry.field(default=None)
     link_type: str = strawberry.field(default="something")
     direction: str = strawberry.field(default="in")
     description: str = strawberry.field(default="")
