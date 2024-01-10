@@ -91,6 +91,7 @@ async def list_projects(
     if name:
         conditions.append(f"name ILIKE '{name}'")
 
+    sql_order: str
     if order:
         sql_order = order
     else:
