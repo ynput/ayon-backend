@@ -269,9 +269,11 @@ CREATE UNIQUE INDEX link_type_unique_idx ON link_types(input_type, output_type, 
 
 CREATE TABLE links (
     id UUID NOT NULL PRIMARY KEY,
+    name VARCHAR,
+    link_type VARCHAR NOT NULL REFERENCES link_types(name) ON DELETE CASCADE,
     input_id UUID NOT NULL,
     output_id UUID NOT NULL,
-    link_name VARCHAR NOT NULL REFERENCES link_types(name) ON DELETE CASCADE,
+    author VARCHAR, -- REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL

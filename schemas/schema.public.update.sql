@@ -157,9 +157,9 @@ CREATE OR REPLACE FUNCTION add_thumbnail_id_to_tasks ()
 SELECT add_thumbnail_id_to_tasks();
 DROP FUNCTION IF EXISTS add_thumbnail_id_to_tasks();
 
-----------------
--- Ayon 1.0.0 --
-----------------
+-------------------
+-- Ayon 1.0.0-RC --
+-------------------
 
 -- Copy siteId to instanceId, if instanceId does not exist
 -- (this is a one-time migration)
@@ -169,7 +169,7 @@ DO $$
 BEGIN
     -- Check if the 'config' table exists
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'config') THEN
-        -- Execute your insert query
+
         INSERT INTO config (key, value)
         SELECT 'instanceId', value
         FROM config
@@ -181,3 +181,44 @@ BEGIN
         );
     END IF;
 END $$;
+
+--------------------
+-- Ayon 1.0.0-RC5 --
+--------------------
+
+-- refactor links
+
+CREATE OR REPLACE FUNCTION refactor_links() RETURNS VOID  AS
+$$
+DECLARE rec RECORD; 
+BEGIN
+  FOR rec IN select distinct nspname from pg_namespace where nspname like 'project_%'  
+  LOOP
+    IF NOT EXISTS(
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = rec.nspname 
+      AND table_name = 'links' 
+      AND column_name = 'name'
+    ) 
+    THEN
+      -- project links table does not have name column, so we need to create it
+      -- and do some data migration
+      RAISE WARNING 'Refactoring links in %', rec.nspname;
+      EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
+      
+      ALTER TABLE IF EXISTS links ADD COLUMN name VARCHAR;
+      ALTER TABLE links RENAME COLUMN link_name TO link_type;
+      ALTER TABLE links ADD COLUMN author VARCHAR NULL;
+      UPDATE links SET author = data->>'author';
+
+      DROP INDEX link_unique_idx;
+    END IF;
+  END LOOP; 
+  RETURN; 
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT refactor_links();
+DROP FUNCTION IF EXISTS refactor_links();
+
+
