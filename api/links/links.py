@@ -133,7 +133,11 @@ class CreateLinkRequestModel(OPModel):
         description="Link type to create. This is deprecated. Use linkType instead.",
         example="reference|folder|version",
     )
-    link_type: str | None = Field(None, description="Link type to create.")
+    link_type: str | None = Field(
+        None,
+        description="Link type to create.",
+        example="reference|folder|version",
+    )
     data: dict[str, Any] = Field(default_factory=dict, description="Link data")
 
 
