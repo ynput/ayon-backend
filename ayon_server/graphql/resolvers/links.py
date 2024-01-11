@@ -12,13 +12,19 @@ async def get_links(
     root,
     info: Info,
     direction: Literal["in", "out"] | None,
-    link_types: list[str],
-    first: int,
-    after: str,
+    link_types: list[str] | None,
+    first: int = 100,
+    after: str | None = None,
+    names: list[str] | None = None,
+    name_ex: str | None = None,
 ) -> LinksConnection:
     project_name = root.project_name
 
     edges: list[LinkEdge] = []
+
+    print("names", names)
+    print("name_ex", name_ex)
+    print("link_types", link_types)
 
     sql_conditions = []
     if direction == "in":
@@ -29,13 +35,22 @@ async def get_links(
         sql_conditions.append(f"(input_id = '{root.id}' or output_id = '{root.id}')")
 
     type_conditions = []
-    for lt in link_types:
-        type_conditions.append(f"link_type LIKE '{lt}|%'")
-    if type_conditions:
-        sql_conditions.append(f"({' or '.join(type_conditions)})")
+    if link_types is not None:
+        for lt in link_types:
+            type_conditions.append(f"link_type LIKE '{lt}|%'")
+        if type_conditions:
+            sql_conditions.append(f"({' or '.join(type_conditions)})")
 
     if after is not None and after.isdigit():
         sql_conditions.append(f"creation_order > {after}")
+
+    if names is not None:
+        sql_conditions.append(f"name in {SQLTool.array(names)}")
+
+    if name_ex is not None:
+        sql_conditions.append(f"name ~ '{name_ex}'")
+
+    print(sql_conditions)
 
     query = f"""
         SELECT id, name, input_id, output_id, link_type, author, data, created_at

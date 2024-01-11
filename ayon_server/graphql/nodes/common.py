@@ -66,7 +66,9 @@ class BaseNode:
         self,
         info: Info,
         direction: str | None = None,
-        link_types: list[str] = [],
+        link_types: list[str] | None = None,
+        names: list[str] | None = None,
+        name_ex: str | None = None,
         first: int = 100,
         after: str | None = None,
     ) -> LinksConnection:
@@ -76,6 +78,8 @@ class BaseNode:
             info=info,
             direction=direction,
             link_types=link_types,
+            names=names,
+            name_ex=name_ex,
             first=first,
             after=after,
         )

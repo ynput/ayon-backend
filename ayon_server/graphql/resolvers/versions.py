@@ -110,7 +110,7 @@ async def get_versions(
             return VersionsConnection()
         sql_conditions.append(f"versions.id IN {SQLTool.id_array(ids)}")
     if version:
-        sql_conditions.append(f"version.version = {version}")
+        sql_conditions.append(f"versions.version = {version}")
     if versions is not None:
         if not versions:
             return VersionsConnection()
