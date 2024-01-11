@@ -22,10 +22,6 @@ async def get_links(
 
     edges: list[LinkEdge] = []
 
-    print("names", names)
-    print("name_ex", name_ex)
-    print("link_types", link_types)
-
     sql_conditions = []
     if direction == "in":
         sql_conditions.append(f"output_id = '{root.id}'")
@@ -49,8 +45,6 @@ async def get_links(
 
     if name_ex is not None:
         sql_conditions.append(f"name ~ '{name_ex}'")
-
-    print(sql_conditions)
 
     query = f"""
         SELECT id, name, input_id, output_id, link_type, author, data, created_at
