@@ -192,7 +192,7 @@ async def create_entity_link(
             INSERT INTO project_{project_name}.links
                 (id, name, input_id, output_id, link_type, author, data)
             VALUES
-                ($1, $2, $3, $4, $5)
+                ($1, $2, $3, $4, $5, $6, $7)
             """,
             link_id,
             post_data.name,
