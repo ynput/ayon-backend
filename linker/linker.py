@@ -13,29 +13,29 @@ async def create_link(
     project_name: str,
     input_id: str,
     output_id: str,
-    link_type_name: str,
+    link_type: str,
     **kwargs,
 ) -> None:
-    link_type, input_type, output_type = link_type_name.split("|")
+    link_type_name, input_type, output_type = link_type.split("|")
     link_id = EntityID.create()
 
     if DEBUG:
         logging.debug(
-            f"Creating {link_type} link between "
+            f"Creating {link_type_name} link between "
             f"{input_type} {input_id} and "
             f"{output_type} {output_id}"
         )
     await Postgres.execute(
         f"""
         INSERT INTO project_{project_name}.links
-            (id, input_id, output_id, link_name, data)
+            (id, input_id, output_id, link_type, data)
         VALUES
             ($1, $2, $3, $4, $5)
         """,
         link_id,
         input_id,
         output_id,
-        link_type_name,
+        link_type,
         kwargs,
     )
 
@@ -45,13 +45,13 @@ async def make_links(
     link_type_config: dict[str, Any],
 ) -> None:
     logging.info(f"Creating links in project {project_name}")
-    link_type_name = link_type_config["link_type"]
-    link_type, input_type, output_type = link_type_name.split("|")
+    link_type = link_type_config["link_type"]
+    link_type_name, input_type, output_type = link_type.split("|")
 
     if "input" not in link_type_config:
-        raise ValueError(f"Missing input config in link type {link_type_name}")
+        raise ValueError(f"Missing input config in link type {link_type}")
     if "output" not in link_type_config:
-        raise ValueError(f"Missing output config in link type {link_type_name}")
+        raise ValueError(f"Missing output config in link type {link_type}")
 
     count = 0
     async for input_entity in query_entities(
@@ -72,10 +72,8 @@ async def make_links(
                 project_name,
                 input_entity.id,
                 output_entity.id,
-                link_type_name,
+                link_type,
                 author="martas",
             )
             count += 1
-    logging.goodnews(
-        f"Created {count} {link_type_name} links for project {project_name}"
-    )
+    logging.goodnews(f"Created {count} {link_type} links for project {project_name}")
