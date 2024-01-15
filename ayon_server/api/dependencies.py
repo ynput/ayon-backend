@@ -97,9 +97,7 @@ async def dep_current_user(
                 hashed_key,
             )
             if not result:
-                raise UnauthorizedException(
-                    f"Invalid API key {hashed_key}",
-                )
+                raise UnauthorizedException("Invalid API key")
             user = UserEntity.from_record(result[0])
             session_data = await Session.create(user, request, token=api_key)
 
