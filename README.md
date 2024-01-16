@@ -1,8 +1,7 @@
-Ayon server
-===========
+Ayon server backend
+===================
 
-Ayon server aims to provide a comprehensive backend with API access for Ayon. It fully replaces v3 mongoDB based infrastructure. 
+This repository contains Python backend code for Ayon server.
 
-**This repository is under heavy development and is subject to change at any time. Please do not use for production of any kind for now.** 
-
-❓ Please use the **discussions** feature on respective repositories to ask questions about architecture decision or to submit suggestions. 
+Visit [AYON documentation](https://ayon.ynput.io/docs/system_introduction/) for more information
+or check out [ayon-docker](https://github.com/ynput/ayon-docker) repository for the reference Docker setup.
