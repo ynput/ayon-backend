@@ -1,5 +1,6 @@
 from typing import NoReturn
 
+from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import ConstraintViolationException
@@ -41,6 +42,18 @@ class VersionEntity(ProjectLevelEntity):
             REFRESH MATERIALIZED VIEW CONCURRENTLY
             project_{self.project_name}.version_list
             """
+        )
+
+    async def ensure_create_access(self, user) -> None:
+        if user.is_manager:
+            return
+
+        await ensure_entity_access(
+            user,
+            self.project_name,
+            "product",
+            self.product_id,
+            "publish",
         )
 
     #

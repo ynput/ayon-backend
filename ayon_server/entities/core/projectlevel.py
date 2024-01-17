@@ -6,7 +6,11 @@ from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core.base import BaseEntity
-from ayon_server.exceptions import ConstraintViolationException, NotFoundException
+from ayon_server.exceptions import (
+    ConstraintViolationException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.helpers.statuses import get_default_status_for_entity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
@@ -112,8 +116,18 @@ class ProjectLevelEntity(BaseEntity):
 
         Raises FobiddenException if the user does not have access.
         """
+        if user.is_manager:
+            return
+
+        if self.parent_id is None:
+            raise ForbiddenException("Only managers can create root folders")
+
         await ensure_entity_access(
-            user, self.project_name, self.entity_type, self.id, "create"
+            user,
+            self.project_name,
+            self.entity_type,
+            self.parent_id,
+            "create",
         )
 
     async def ensure_read_access(self, user) -> None:
