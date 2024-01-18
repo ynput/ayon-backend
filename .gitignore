@@ -4,6 +4,8 @@ __pycache__
 /addons/
 /openpype/trigger.py
 
+test_*.py
+
 .python-version
 .vscode
 BUILD_DATE
