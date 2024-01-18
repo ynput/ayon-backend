@@ -1,3 +1,4 @@
+import time
 from typing import Any
 
 from fastapi import APIRouter, Path
@@ -8,7 +9,7 @@ from ayon_server.api.clientinfo import ClientInfo
 from ayon_server.api.dependencies import AccessToken, CurrentUser, UserName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.session import Session
-from ayon_server.auth.utils import validate_password
+from ayon_server.auth.utils import create_hash, validate_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
@@ -482,3 +483,100 @@ async def set_frontend_preferences(
 
     await target_user.save()
     return EmptyResponse()
+
+
+#
+# Password reset
+#
+
+
+TOKEN_TTL = 3600
+PASSWORD_RESET_EMAIL_TEMPLATE = """
+
+Hello,
+it seems that you have requested a password reset for your account for Ayon
+
+Please follow this link to reset your password:
+
+{reset_url}?token={token}
+
+"""
+
+
+class RequestResetPasswordModel(OPModel):
+    email: str = Field(..., title="Email", example="you@somewhere.com")
+    url: str = Field(...)
+
+
+@router.post("/requestResetPassword")
+async def request_reset_password(request: RequestResetPasswordModel):
+    pass
+
+    async for row in Postgres.iterate(
+        "SELECT name, data FROM users WHERE attrib->>'email' = $1", request.email
+    ):
+        user_data = row["data"]
+        break
+    else:
+        logging.error(
+            f"Attempted password reset using non-existent email: {request.email}"
+        )
+        return
+
+    password_reset_request = user_data.get("passwordResetRequest", {})
+    password_requet_time = password_reset_request.get("time", None)
+
+    if password_requet_time and (time.time() - password_requet_time) < TOKEN_TTL:
+        raise ForbiddenException(
+            "Attempted password reset too soon after previous attempt"
+        )
+
+    token = create_hash()
+    password_reset_request = {
+        "time": time.time(),
+        "token": token,
+    }
+
+    user = await UserEntity.load(row["name"])
+    user.data["passwordResetRequest"] = password_reset_request
+    await user.save()
+    await user.send_mail(
+        "Ayon password reset",
+        text=PASSWORD_RESET_EMAIL_TEMPLATE.format(token=token, reset_url=request.url),
+    )
+    logging.info(f"Sent password reset email to {request.email}")
+
+
+class ResetPasswordModel(OPModel):
+    token: str = Field(..., title="Token")
+    password: str = Field(..., title="New password")
+
+
+@router.post("/resetPassword")
+async def reset_password(request: ResetPasswordModel):
+
+    query = (
+        "SELECT name, data FROM users WHERE data->'passwordResetRequest'->>'token' = $1"
+    )
+
+    ERROR_MESSAGE = "Invalid reset token or token has expired"
+
+    async for row in Postgres.iterate(query, request.token):
+        user_name = row["name"]
+        user_data = row["data"]
+        break
+    else:
+        logging.error(ERROR_MESSAGE)
+        raise ForbiddenException("Invalid token")
+        return
+
+    password_reset_request = user_data.get("passwordResetRequest", {})
+    password_requet_time = password_reset_request.get("time", None)
+
+    if not password_requet_time or (time.time() - password_requet_time) > TOKEN_TTL:
+        raise ForbiddenException(ERROR_MESSAGE)
+
+    user = await UserEntity.load(user_name)
+    user.data["passwordResetRequest"] = {}
+    user.set_password(request.password, complexity_check=True)
+    await user.save()
