@@ -10,9 +10,9 @@ import httpx
 from nxtools import logging
 from pydantic import BaseModel, Field
 
-from ayon_server.api.dependencies import dep_instance_id, dep_ynput_cloud_key
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import AyonException, ForbiddenException
+from ayon_server.exceptions import AyonException
+from ayon_server.helpers.cloud import get_cloud_api_headers
 
 if TYPE_CHECKING:
     from ayon_server.entities import UserEntity
@@ -84,27 +84,18 @@ async def send_api_email(
 ) -> None:
     global EMAIL_NOT_CONFIGURED
 
-    try:
-        ynput_cloud_key = await dep_ynput_cloud_key()
-        instance_id = await dep_instance_id()
-    except (AssertionError, ForbiddenException):
-        raise AssertionError("Not connected to ynput cloud")
+    headers = await get_cloud_api_headers()
 
+    payload = {
+        "recipients": recipients,
+        "subject": subject,
+        "text": text,
+        "html": html,
+    }
+
+    url = (f"{ayonconfig.ynput_cloud_api_url}/api/v1/sendmail",)
     async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{ayonconfig.ynput_cloud_api_url}/api/v1/sendmail",
-            json={
-                "recipients": recipients,
-                "subject": subject,
-                "text": text,
-                "html": html,
-            },
-            headers={
-                "x-ynput-cloud-instance": instance_id,
-                "x-ynput-cloud-key": ynput_cloud_key,
-            },
-        )
-
+        response = await client.post(url, json=payload, headers=headers)
         if response.status_code == 403:
             EMAIL_NOT_CONFIGURED = True
             raise AssertionError("No email subscription available")
@@ -112,7 +103,7 @@ async def send_api_email(
         response.raise_for_status()
 
 
-async def send_email(
+async def send_mail(
     recipients: list[Union[str, EmailRecipient, "UserEntity"]],
     subject: str,
     text: str | None = None,
