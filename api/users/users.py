@@ -8,6 +8,7 @@ from ayon_server.api import ResponseFactory
 from ayon_server.api.clientinfo import ClientInfo
 from ayon_server.api.dependencies import AccessToken, CurrentUser, UserName
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.auth.models import LoginResponseModel
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import create_hash, validate_password
 from ayon_server.entities import UserEntity
@@ -491,25 +492,31 @@ async def set_frontend_preferences(
 
 
 TOKEN_TTL = 3600
-PASSWORD_RESET_EMAIL_TEMPLATE = """
-
-Hello,
-it seems that you have requested a password reset for your account for Ayon
-
+PASSWORD_RESET_EMAIL_TEMPLATE_PLAIN = """
+Hello {name},
+it seems that you have requested a password reset for your account for Ayon.
 Please follow this link to reset your password:
 
 {reset_url}?token={token}
+"""
 
+PASSWORD_RESET_EMAIL_TEMPLATE_HTML = """
+<p>Hello, {name}</p>
+
+<p>it seems that you have requested a password reset for your account for Ayon.
+Please follow this link to reset your password:</p>
+
+<p><a href="{reset_url}?token={token}">Reset password</a></p>
 """
 
 
-class RequestResetPasswordModel(OPModel):
+class PasswordResetRequestModel(OPModel):
     email: str = Field(..., title="Email", example="you@somewhere.com")
     url: str = Field(...)
 
 
-@router.post("/requestResetPassword")
-async def request_reset_password(request: RequestResetPasswordModel):
+@router.post("/passwordResetRequest")
+async def password_reset_request(request: PasswordResetRequestModel):
     pass
 
     async for row in Postgres.iterate(
@@ -539,21 +546,29 @@ async def request_reset_password(request: RequestResetPasswordModel):
 
     user = await UserEntity.load(row["name"])
     user.data["passwordResetRequest"] = password_reset_request
+
+    tplvars = {
+        "token": token,
+        "reset_url": request.url,
+        "name": user.attrib.fullName or user.name,
+    }
+
     await user.save()
     await user.send_mail(
         "Ayon password reset",
-        text=PASSWORD_RESET_EMAIL_TEMPLATE.format(token=token, reset_url=request.url),
+        text=PASSWORD_RESET_EMAIL_TEMPLATE_PLAIN.format(**tplvars),
+        html=PASSWORD_RESET_EMAIL_TEMPLATE_HTML.format(**tplvars),
     )
     logging.info(f"Sent password reset email to {request.email}")
 
 
-class ResetPasswordModel(OPModel):
+class PasswordResetModel(OPModel):
     token: str = Field(..., title="Token")
-    password: str = Field(..., title="New password")
+    password: str | None = Field(None, title="New password")
 
 
-@router.post("/resetPassword")
-async def reset_password(request: ResetPasswordModel):
+@router.post("/passwordReset")
+async def password_reset(request: PasswordResetModel) -> LoginResponseModel:
 
     query = (
         "SELECT name, data FROM users WHERE data->'passwordResetRequest'->>'token' = $1"
@@ -566,17 +581,30 @@ async def reset_password(request: ResetPasswordModel):
         user_data = row["data"]
         break
     else:
-        logging.error(ERROR_MESSAGE)
+        logging.error("Attempted password reset using invalid token")
         raise ForbiddenException("Invalid token")
         return
 
     password_reset_request = user_data.get("passwordResetRequest", {})
-    password_requet_time = password_reset_request.get("time", None)
+    password_request_time = password_reset_request.get("time", None)
 
-    if not password_requet_time or (time.time() - password_requet_time) > TOKEN_TTL:
+    if not password_request_time or (time.time() - password_request_time) > TOKEN_TTL:
+        logging.error("Attempted password reset using expired token")
         raise ForbiddenException(ERROR_MESSAGE)
 
+    if request.password is None:
+        # just checking whether the token is valid
+        # we don't set the password
+        return LoginResponseModel(message="Token is valid")
+
     user = await UserEntity.load(user_name)
-    user.data["passwordResetRequest"] = {}
+    user.data["passwordResetRequest"] = None
     user.set_password(request.password, complexity_check=True)
     await user.save()
+
+    session = await Session.create(user)
+    return LoginResponseModel(
+        description="Password changed",
+        token=session.token,
+        user=session.user,
+    )
