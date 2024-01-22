@@ -106,7 +106,7 @@ class TaskEntity(ProjectLevelEntity):
             self.project_name,
             "folder",
             self.folder_id,
-            "publish",
+            "create",
         )
 
     #

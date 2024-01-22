@@ -64,6 +64,15 @@ async def folder_access_list(
     if user.is_manager:
         return None
 
+    if (
+        plist := user.path_access_cache.get(project_name, {}).get(access_type)
+    ) is not None:
+        if not plist:
+            raise ForbiddenException(
+                f"User {user.name} does not have access to any folders in project {project_name}"
+            )
+        return plist
+
     perms = user.permissions(project_name)
     assert perms is not None, "folder_access_list without selected project"
     fpaths = set()
@@ -108,10 +117,17 @@ async def folder_access_list(
                 ):
                     fpaths.add(path)
 
-    if not fpaths:
+    path_list = list(fpaths)
+
+    # cache the result for the lifetime of the request
+    if project_name not in user.path_access_cache:
+        user.path_access_cache[project_name] = {}
+    user.path_access_cache[project_name][access_type] = path_list
+
+    if not path_list:
         raise ForbiddenException("No paths")
 
-    return list(fpaths)
+    return path_list
 
 
 async def ensure_entity_access(
