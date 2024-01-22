@@ -12,6 +12,7 @@ from ayon_server.api.dependencies import CurrentUserOptional
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.helpers.email import is_mailing_enabled
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -61,6 +62,7 @@ class InfoResponseModel(OPModel):
         None,
         title="Onboarding",
     )
+    password_recovery_available: bool | None = Field(None, title="Password recovery")
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
 
@@ -205,6 +207,7 @@ async def get_site_info(
         additional_info = {
             "sso_options": sso_options,
             "no_admin_user": (not has_admin_user) or None,
+            "password_recovery_available": await is_mailing_enabled(),
         }
     user_payload = current_user.payload if (current_user is not None) else None
     return InfoResponseModel(user=user_payload, **additional_info)

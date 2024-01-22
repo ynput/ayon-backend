@@ -7,7 +7,7 @@ from email.mime.text import MIMEText
 from typing import TYPE_CHECKING, Union
 
 import httpx
-from nxtools import logging
+from nxtools import log_traceback
 from pydantic import BaseModel, Field
 
 from ayon_server.config import ayonconfig
@@ -17,7 +17,41 @@ from ayon_server.helpers.cloud import get_cloud_api_headers
 if TYPE_CHECKING:
     from ayon_server.entities import UserEntity
 
-EMAIL_NOT_CONFIGURED: bool = False
+MAILING_ENABLED: bool | None = None
+
+
+async def is_mailing_enabled() -> bool:
+    """Check if mailing is enabled"""
+
+    global MAILING_ENABLED
+
+    if MAILING_ENABLED is not None:
+        return MAILING_ENABLED
+
+    if ayonconfig.email_smtp_host:
+        MAILING_ENABLED = True
+        return MAILING_ENABLED
+
+    headers = await get_cloud_api_headers()
+    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+        res = await client.get(
+            f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
+            headers=headers,
+        )
+
+    try:
+        res.raise_for_status()
+    except httpx.HTTPStatusError:
+        MAILING_ENABLED = False
+        return MAILING_ENABLED
+
+    data = res.json()
+    if data.get("subscriptions"):
+        MAILING_ENABLED = True
+        return MAILING_ENABLED
+
+    MAILING_ENABLED = False
+    return MAILING_ENABLED
 
 
 class EmailRecipient(BaseModel):
@@ -32,13 +66,13 @@ def build_body(
     body: MIMEMultipart | MIMEText
     if html:
         body = MIMEMultipart("alternative")
-        body.attach(MIMEText(html, "html"))
         if text:
             body.attach(MIMEText(text, "plain"))
         else:
             body.attach(
                 MIMEText("No plain text version of the message is available", "plain")
             )
+        body.attach(MIMEText(html, "html"))
     else:
         assert text is not None, "No text or html version of the message is available"
         body = MIMEText(text, "plain")
@@ -82,7 +116,7 @@ async def send_api_email(
     text: str | None = None,
     html: str | None = None,
 ) -> None:
-    global EMAIL_NOT_CONFIGURED
+    global MAILING_ENABLED
 
     headers = await get_cloud_api_headers()
 
@@ -93,14 +127,16 @@ async def send_api_email(
         "html": html,
     }
 
-    url = (f"{ayonconfig.ynput_cloud_api_url}/api/v1/sendmail",)
+    url = f"{ayonconfig.ynput_cloud_api_url}/api/v1/sendmail"
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=payload, headers=headers)
-        if response.status_code == 403:
-            EMAIL_NOT_CONFIGURED = True
-            raise AssertionError("No email subscription available")
 
+    try:
         response.raise_for_status()
+    except Exception as e:
+        log_traceback()
+        MAILING_ENABLED = False
+        raise AyonException("Error while sending email via API") from e
 
 
 async def send_mail(
@@ -109,9 +145,9 @@ async def send_mail(
     text: str | None = None,
     html: str | None = None,
 ) -> None:
-    global EMAIL_NOT_CONFIGURED
 
-    if EMAIL_NOT_CONFIGURED:
+    mailing_enabled = await is_mailing_enabled()
+    if not mailing_enabled:
         raise AyonException("Email is not configured")
 
     recipient_list: list[str] = []
@@ -142,17 +178,10 @@ async def send_mail(
     except AssertionError:
         pass
     except Exception:
-        logging.traceback("Error while sending email")
+        log_traceback("Error while sending email")
         return
     else:
         return
 
     # if send_smtp_email fails, try send_api_email
-
-    try:
-        await send_api_email(recipient_list, subject, text, html)
-    except AssertionError:
-        EMAIL_NOT_CONFIGURED = True
-        raise AyonException("Email is not configured")
-    except Exception:
-        raise AyonException("Error while sending email via API")
+    await send_api_email(recipient_list, subject, text, html)
