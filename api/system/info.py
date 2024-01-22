@@ -207,7 +207,7 @@ async def get_site_info(
         additional_info = {
             "sso_options": sso_options,
             "no_admin_user": (not has_admin_user) or None,
-            "password_recovery_available": await is_mailing_enabled(),
+            "password_recovery_available": bool(await is_mailing_enabled()),
         }
     user_payload = current_user.payload if (current_user is not None) else None
     return InfoResponseModel(user=user_payload, **additional_info)

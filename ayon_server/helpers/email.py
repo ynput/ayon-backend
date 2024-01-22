@@ -4,10 +4,10 @@ import ssl
 from concurrent.futures import ThreadPoolExecutor
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Literal, Union
 
 import httpx
-from nxtools import log_traceback
+from nxtools import log_traceback, logging
 from pydantic import BaseModel, Field
 
 from ayon_server.config import ayonconfig
@@ -17,7 +17,7 @@ from ayon_server.helpers.cloud import get_cloud_api_headers
 if TYPE_CHECKING:
     from ayon_server.entities import UserEntity
 
-MAILING_ENABLED: bool | None = None
+MAILING_ENABLED: Literal[False] | Literal["smtp", "api"] | None = None
 
 
 async def is_mailing_enabled() -> bool:
@@ -29,7 +29,8 @@ async def is_mailing_enabled() -> bool:
         return MAILING_ENABLED
 
     if ayonconfig.email_smtp_host:
-        MAILING_ENABLED = True
+        MAILING_ENABLED = "smtp"
+        logging.debug("Enabled SMTP email support")
         return MAILING_ENABLED
 
     headers = await get_cloud_api_headers()
@@ -47,7 +48,8 @@ async def is_mailing_enabled() -> bool:
 
     data = res.json()
     if data.get("subscriptions"):
-        MAILING_ENABLED = True
+        MAILING_ENABLED = "api"
+        logging.debug("Enabled Ynput Cloud API email support")
         return MAILING_ENABLED
 
     MAILING_ENABLED = False
@@ -163,25 +165,26 @@ async def send_mail(
 
     # run send_smtp_email in a thread (we are in an async function)
 
-    loop = asyncio.get_event_loop()
-    try:
-        with ThreadPoolExecutor() as executor:
-            task = loop.run_in_executor(
-                executor,
-                send_smtp_email,
-                recipient_list,
-                subject,
-                text,
-                html,
-            )
-            await asyncio.gather(task)
-    except AssertionError:
-        pass
-    except Exception:
-        log_traceback("Error while sending email")
-        return
-    else:
-        return
+    if mailing_enabled == "smtp":
+        loop = asyncio.get_event_loop()
+        try:
+            with ThreadPoolExecutor() as executor:
+                task = loop.run_in_executor(
+                    executor,
+                    send_smtp_email,
+                    recipient_list,
+                    subject,
+                    text,
+                    html,
+                )
+                await asyncio.gather(task)
+        except AssertionError:
+            pass
+        except Exception:
+            log_traceback("Error while sending email")
+            return
+        else:
+            return
 
-    # if send_smtp_email fails, try send_api_email
-    await send_api_email(recipient_list, subject, text, html)
+    elif mailing_enabled == "api":
+        await send_api_email(recipient_list, subject, text, html)
