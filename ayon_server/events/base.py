@@ -13,6 +13,7 @@ from ayon_server.events.typing import (
     SUMMARY_FIELD,
     USER_FIELD,
 )
+from ayon_server.exceptions import ConstraintViolationException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
@@ -100,7 +101,7 @@ async def dispatch_event(
     payload: dict | None = None,
     finished: bool = True,
     store: bool = True,
-) -> str | None:
+) -> str:
     if summary is None:
         summary = {}
     if payload is None:
@@ -144,11 +145,18 @@ async def dispatch_event(
             summary=event.summary,
             payload=event.payload,
         )
+
         try:
             await Postgres.execute(*query)
-        except Postgres.ForeignKeyViolationError:
-            print(f"Unable to dispatch {event.topic}")
-            return None
+        except Postgres.ForeignKeyViolationError as e:
+            raise ConstraintViolationException(
+                "Event depends on non-existing event"
+            ) from e
+
+        except Postgres.UniqueViolationError as e:
+            raise ConstraintViolationException(
+                "Event with same hash already exists"
+            ) from e
 
     await Redis.publish(
         json_dumps(

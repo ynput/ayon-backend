@@ -144,6 +144,13 @@ class AyonConfig(BaseModel):
         description="Path to the log file",
     )
 
+    email_from: str = Field("noreply@ynput.cloud", description="Email sender address")
+    email_smtp_host: str | None = Field(None, description="SMTP server hostname")
+    email_smtp_port: int | None = Field(None, description="SMTP server port")
+    email_smtp_tls: bool = Field(False, description="Use SSL for SMTP connection")
+    email_smtp_user: str | None = Field(None, description="SMTP server username")
+    email_smtp_pass: str | None = Field(None, description="SMTP server password")
+
 
 #
 # Load configuration from environment variables
