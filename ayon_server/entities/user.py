@@ -20,6 +20,7 @@ from ayon_server.exceptions import (
     LowPasswordComplexityException,
     NotFoundException,
 )
+from ayon_server.helpers.email import send_mail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import SQLTool, dict_exclude
 
@@ -214,3 +215,20 @@ class UserEntity(TopLevelEntity):
 
         self._payload.data["apiKey"] = hash_password(api_key)
         self._payload.data["apiKeyPreview"] = api_key_preview
+
+    async def send_mail(
+        self,
+        subject: str,
+        text: str | None = None,
+        html: str | None = None,
+    ) -> None:
+        """Send email to user."""
+
+        recipient = self.attrib.email
+        if not recipient:
+            raise ValueError(f"User {self.name} has no email address")
+
+        if self.attrib.fullName:
+            recipient = f"{self.attrib.fullName} <{recipient}>"
+
+        await send_mail([recipient], subject, text, html)
