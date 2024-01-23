@@ -34,7 +34,12 @@ async def is_mailing_enabled() -> MailingEnabled:
         logging.debug("Enabled SMTP email support")
         return MAILING_ENABLED
 
-    headers = await get_cloud_api_headers()
+    try:
+        headers = await get_cloud_api_headers()
+    except AyonException:
+        MAILING_ENABLED = False
+        return MAILING_ENABLED
+
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
