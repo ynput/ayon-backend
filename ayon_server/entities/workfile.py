@@ -11,7 +11,7 @@ class WorkfileEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "workfile"
     model = ModelSet("workfile", attribute_library["workfile"])
 
-    async def ensure_create_access(self, user) -> None:
+    async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
             return
 

@@ -277,7 +277,7 @@ class FolderEntity(ProjectLevelEntity):
             """
         return [row["version_id"] async for row in Postgres.iterate(query, self.id)]
 
-    async def ensure_create_access(self, user):
+    async def ensure_create_access(self, user, **kwargs):
         """Check if the user has access to create a new entity.
 
         Raises FobiddenException if the user does not have access.
@@ -295,6 +295,32 @@ class FolderEntity(ProjectLevelEntity):
                 self.parent_id,
                 "create",
             )
+
+    async def ensure_update_access(self, user, **kwargs) -> None:
+        """Check if the user has access to update the folder.
+
+        Raises FobiddenException if the user does not have access.
+        """
+
+        if user.is_manager:
+            return
+
+        # if only thumbnail is updated, check publish access,
+        # which is less restrictive than update access and it is
+        # good enough for thumbnail updates
+        if kwargs.get("thumbnail_only"):
+            try:
+                await ensure_entity_access(
+                    user, self.project_name, self.entity_type, self.id, "publish"
+                )
+            except ForbiddenException:
+                pass
+            else:
+                return
+
+        await ensure_entity_access(
+            user, self.project_name, self.entity_type, self.id, "update"
+        )
 
     #
     # Properties

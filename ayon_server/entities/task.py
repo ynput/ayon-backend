@@ -97,7 +97,7 @@ class TaskEntity(ProjectLevelEntity):
 
         return await super().save(transaction=transaction)
 
-    async def ensure_create_access(self, user) -> None:
+    async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
             return
 

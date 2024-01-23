@@ -7,8 +7,8 @@ from pydantic import BaseModel
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core.base import BaseEntity
 from ayon_server.exceptions import (
+    AyonException,
     ConstraintViolationException,
-    ForbiddenException,
     NotFoundException,
 )
 from ayon_server.helpers.statuses import get_default_status_for_entity
@@ -111,33 +111,24 @@ class ProjectLevelEntity(BaseEntity):
         result = self._payload.copy(**kw)
         return result
 
-    async def ensure_create_access(self, user) -> None:
+    async def ensure_create_access(self, user, **kwargs) -> None:
         """Check if the user has access to create a new entity.
 
         Raises FobiddenException if the user does not have access.
         """
-        if user.is_manager:
-            return
 
-        if self.parent_id is None:
-            raise ForbiddenException("Only managers can create root folders")
-
-        await ensure_entity_access(
-            user,
-            self.project_name,
-            self.entity_type,
-            self.parent_id,
-            "create",
+        raise AyonException(
+            "Ensure created access called on base class. This is a bug."
         )
 
-    async def ensure_read_access(self, user) -> None:
+    async def ensure_read_access(self, user, **kwargs) -> None:
         """Check if the user has access to read the entity.
 
         Raises FobiddenException if the user does not have access.
         """
         await ensure_entity_access(user, self.project_name, self.entity_type, self.id)
 
-    async def ensure_update_access(self, user) -> None:
+    async def ensure_update_access(self, user, **kwargs) -> None:
         """Check if the user has access to update the entity.
 
         Raises FobiddenException if the user does not have access.
@@ -146,7 +137,7 @@ class ProjectLevelEntity(BaseEntity):
             user, self.project_name, self.entity_type, self.id, "update"
         )
 
-    async def ensure_delete_access(self, user) -> None:
+    async def ensure_delete_access(self, user, **kwargs) -> None:
         """Check if the user has access to delete the entity.
 
         Raises FobiddenException if the user does not have access.

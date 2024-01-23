@@ -44,7 +44,7 @@ class VersionEntity(ProjectLevelEntity):
             """
         )
 
-    async def ensure_create_access(self, user) -> None:
+    async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
             return
 

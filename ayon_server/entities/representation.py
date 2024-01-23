@@ -8,7 +8,7 @@ class RepresentationEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "representation"
     model = ModelSet("representation", attribute_library["representation"])
 
-    async def ensure_create_access(self, user) -> None:
+    async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
             return
 
