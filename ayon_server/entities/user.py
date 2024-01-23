@@ -34,7 +34,7 @@ class UserEntity(TopLevelEntity):
     # Cache for path access lists
     # the structure is as follows:
     # project_name[access_type]: [path1, path2, ...]
-    path_access_cache: dict[str, dict[AccessType, list[str]]] = {}
+    path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
 
     #
     # Load

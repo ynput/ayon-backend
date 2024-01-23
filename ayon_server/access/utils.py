@@ -64,6 +64,8 @@ async def folder_access_list(
     if user.is_manager:
         return None
 
+    if user.path_access_cache is None:
+        user.path_access_cache = {}
     if (
         plist := user.path_access_cache.get(project_name, {}).get(access_type)
     ) is not None:
