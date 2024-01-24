@@ -1,9 +1,9 @@
-from fastapi import APIRouter, BackgroundTasks, Header
+from fastapi import APIRouter, BackgroundTasks, Header, Query
 
 from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.config import ayonconfig
-from ayon_server.entities import FolderEntity
+from ayon_server.entities import FolderEntity, ProductEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
@@ -138,6 +138,9 @@ async def delete_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
+    force: bool = Query(
+        False, description="Force delete (including products, versions, etc.)"
+    ),
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Delete a folder.
@@ -158,6 +161,17 @@ async def delete_folder(
         event["payload"] = {
             "entityData": folder.dict_simple(),
         }
+
+    if force:
+        async for row in Postgres.iterate(
+            f"""
+            SELECT id FROM project_{project_name}.products
+            WHERE folder_id = $1
+            """,
+            folder.id,
+        ):
+            product = await ProductEntity.load(project_name, row["id"])
+            await product.delete()
 
     await folder.delete()
     background_tasks.add_task(
