@@ -44,14 +44,6 @@ class VersionNode(BaseNode):
         description=get_representations.__doc__,
     )
 
-    @strawberry.field(description="Version name")
-    def name(self) -> str:
-        """Return a version name based on the version number."""
-        if self.version < 0:
-            return "HERO"
-        # TODO: configurable zero pad / format?
-        return f"v{self.version:03d}"
-
     @strawberry.field(description="Parent product of the version")
     async def product(self, info: Info) -> ProductNode:
         record = await info.context["product_loader"].load(
@@ -85,10 +77,16 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
         author = get_nickname(author)
 
     data = record.get("data", {})
+    version_no = record["version"]
+    if version_no < 0:
+        name = "HERO"
+    else:
+        name = f"v{record['version']:03d}"
 
     return VersionNode(  # type: ignore
         project_name=project_name,
         id=record["id"],
+        name=name,
         version=record["version"],
         active=record["active"],
         product_id=record["product_id"],
