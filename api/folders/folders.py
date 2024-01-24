@@ -138,9 +138,7 @@ async def delete_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
-    force: bool = Query(
-        False, description="Force delete (including products, versions, etc.)"
-    ),
+    force: bool = Query(False, description="Allow recursive deletion"),
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Delete a folder.

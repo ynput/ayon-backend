@@ -61,6 +61,7 @@ class OperationModel(OPModel):
         title="Data",
         description="Data to be used for create or update. Ignored for delete.",
     )
+    force: bool = Field(False, title="Force recursive deletion")
 
 
 class OperationsRequestModel(OPModel):
@@ -157,6 +158,18 @@ async def process_operation(
         entity = await entity_class.load(project_name, operation.entity_id)
         await entity.ensure_delete_access(user)
         description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
+
+        if operation.force and operation.entity_type == "folder":
+            async for row in Postgres.iterate(
+                f"""
+                SELECT id FROM project_{project_name}.products
+                WHERE folder_id = $1
+                """,
+                entity.id,
+            ):
+                product = await ProductEntity.load(project_name, row["id"])
+                await product.delete()
+
         events = [
             {
                 "topic": f"entity.{operation.entity_type}.deleted",
