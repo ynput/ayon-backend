@@ -22,6 +22,7 @@ class LogCleaner(BackgroundWorker):
 
             now = datetime.datetime.now()
             last_log_to_keep = now - datetime.timedelta(seconds=log_retention)
+            delete_from = now - datetime.timedelta(seconds=log_retention * 2)
 
             # Delete all logs older than the last log to keep
 
@@ -30,11 +31,13 @@ class LogCleaner(BackgroundWorker):
                     """
                     WITH deleted AS (
                         DELETE FROM events WHERE
-                        topic LIKE 'log.%' AND
-                        created_at < $1
+                        topic LIKE 'log.%'
+                        AND created_at > $1
+                        AND created_at < $2
                         RETURNING *
                     ) SELECT count(*) as del FROM deleted;
                     """,
+                    delete_from,
                     last_log_to_keep,
                     timeout=60 * 20,
                 )
