@@ -1,4 +1,4 @@
-from ayon_server.addons.library import AddonLibrary
+from ayon_server.addons import AddonLibrary
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.overrides import list_overrides
 from ayon_server.types import Field, OPModel
@@ -44,7 +44,9 @@ async def get_studio_settings_overrides(saturated: bool) -> list[SettingsOverrid
         data = row["data"]
 
         try:
-            addon = AddonLibrary.addon(addon_name, addon_version)
+            addon = AddonLibrary.get_addon(addon_name, addon_version)
+            if not addon:
+                continue
         except Exception:
             continue
 

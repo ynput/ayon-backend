@@ -1,4 +1,4 @@
-from ayon_server.addons.library import AddonLibrary
+from ayon_server.addons import RezRepo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
@@ -50,8 +50,12 @@ async def get_installed_addons(saturated: bool) -> list[tuple[str, str]]:
     addons which are actually used in the production bundle.
     """
 
-    result = []
-    for addon_name, definition in AddonLibrary.items():
-        for version in definition.versions.keys():
-            result.append((addon_name, version))
-    return result
+    rezrepo = RezRepo.get_instance()
+    installed_packages = []
+    for package, package_dict in rezrepo.packages.items():
+        for version in package_dict.get("versions"):
+            [[version_number, rez_package]] = version.items()
+            installed_packages.append((str(package), str(version_number)))
+
+    return installed_packages
+
