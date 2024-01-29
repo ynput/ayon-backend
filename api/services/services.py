@@ -78,8 +78,8 @@ async def spawn_service(
     if not user.is_admin:
         raise ForbiddenException("Only admins can spawn services")
 
-    library = AddonLibrary.getinstance()
-    addon = library.addon(payload.addon_name, payload.addon_version)
+    addon = AddonLibrary.get_addon(payload.addon_name, payload.addon_version)
+
     if payload.service not in addon.services:
         # TODO: be more verbose
         raise NotFoundException("This addon does not have this service")

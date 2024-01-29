@@ -11,7 +11,7 @@ from ayon_server.constraints import Constraints
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.installer import background_installer
-from ayon_server.installer.addons import get_addon_zip_info
+from ayon_server.addons import AddonLibrary
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
@@ -97,7 +97,7 @@ async def upload_addon_zip_file(
 
     # Get addon name and version from the zip file
 
-    addon_name, addon_version = get_addon_zip_info(temp_path)
+    addon_name, addon_version = AddonLibrary.get_addon_zip_info(temp_path)
 
     # We don't create the event before we know that the zip file is valid
     # and contains an addon. If it doesn't, an exception is raised before

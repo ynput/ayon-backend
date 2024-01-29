@@ -88,21 +88,15 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
         base_url = "http://localhost:5000"
 
     result = []
-    library = AddonLibrary.getinstance()
-    active_versions = await library.get_active_versions()
 
-    for _name, definition in library.data.items():
-        try:
-            vers = active_versions.get(definition.name, {})
-        except ValueError:
-            continue
-        production_version = vers.get("production", None)
-        if not production_version:
-            continue
+    library = AddonLibrary().get_instance()
+    production_addons = await library.get_variant_addons("production")
 
-        try:
-            addon = definition[production_version]
-        except KeyError:
+    for addon in production_addons:
+        addon_name_and_version, addon = addon
+
+        if not addon:
+            # Broken Addon
             continue
 
         options = await addon.get_sso_options(base_url)

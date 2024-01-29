@@ -21,8 +21,7 @@ async def get_addon_site_settings_schema(
     user: CurrentUser,
 ) -> dict[str, Any]:
     """Return the JSON schema of the addon site settings."""
-
-    if (addon := AddonLibrary.addon(addon_name, version)) is None:
+    if (addon := AddonLibrary.get_addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
     model = addon.get_site_settings_model()
@@ -54,8 +53,7 @@ async def get_addon_site_settings(
     site: str = Query(...),
 ) -> dict[str, Any]:
     """Return the JSON schema of the addon site settings."""
-
-    if (addon := AddonLibrary.addon(addon_name, version)) is None:
+    if (addon := AddonLibrary.get_addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
     model = addon.get_site_settings_model()
@@ -84,7 +82,7 @@ async def set_addon_site_settings(
     user: CurrentUser,
     site: str = Query(..., title="Site ID", regex="^[a-z0-9-]+$"),
 ) -> EmptyResponse:
-    if (addon := AddonLibrary.addon(addon_name, version)) is None:
+    if (addon := AddonLibrary.get_addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
     model = addon.get_site_settings_model()

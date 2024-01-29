@@ -245,16 +245,17 @@ async def create_new_bundle(
             # a bundle with an addon that does not exist
             if not addon_version:
                 continue
-            _ = AddonLibrary.addon(addon_name, addon_version)
+            _ = AddonLibrary.get_addon(addon_name, addon_version)
 
-    for system_addon_name, addon_definition in AddonLibrary.items():
-        if addon_definition.is_system:
-            if system_addon_name not in bundle.addons:
-                logging.debug(
-                    f"Adding missing system addon {system_addon_name} to bundle {bundle.name}"
-                )
-                if addon_definition.latest:
-                    bundle.addons[system_addon_name] = addon_definition.latest.version
+    # TODO reimplement so it looks at the package for this info
+    # for system_addon_name, addon_definition in rezrepo.packages():
+    #     if addon_definition.is_system:
+    #         if system_addon_name not in bundle.addons:
+    #             logging.debug(
+    #                 f"Adding missing system addon {system_addon_name} to bundle {bundle.name}"
+    #             )
+    #             if addon_definition.latest:
+    #                 bundle.addons[system_addon_name] = addon_definition.latest.version
 
     await create_bundle(bundle, user, x_sender)
 

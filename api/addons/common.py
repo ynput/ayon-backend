@@ -22,7 +22,7 @@ async def remove_override(
     variant: str = "production",
     project_name: str | None = None,
 ):
-    if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
+    if (addon := AddonLibrary.get_addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
     # TODO: ensure the path is not a part of a group
@@ -62,7 +62,7 @@ async def pin_override(
     variant: str = "production",
     project_name: str | None = None,
 ):
-    if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
+    if (addon := AddonLibrary.get_addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
     if project_name:
@@ -136,7 +136,7 @@ async def remove_site_override(
     user_name: str,
     path: list[str],
 ):
-    if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
+    if (addon := AddonLibrary.get_addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
     overrides = await addon.get_project_site_overrides(project_name, user_name, site_id)
@@ -171,7 +171,7 @@ async def pin_site_override(
     user_name: str,
     path: list[str],
 ):
-    if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
+    if (addon := AddonLibrary.get_addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
     overrides = await addon.get_project_site_overrides(project_name, user_name, site_id)

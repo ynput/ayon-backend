@@ -40,8 +40,7 @@ async def get_addon_project_settings_schema(
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ) -> dict[str, Any]:
     """Return the JSON schema of the addon settings."""
-
-    if (addon := AddonLibrary.addon(addon_name, version)) is None:
+    if (addon := AddonLibrary.get_addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
     model = addon.get_settings_model()
@@ -77,7 +76,7 @@ async def get_addon_project_settings(
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ) -> dict[str, Any]:
-    if (addon := AddonLibrary.addon(addon_name, version)) is None:
+    if (addon := AddonLibrary.get_addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
     if site:
@@ -101,7 +100,7 @@ async def get_addon_project_overrides(
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
-    addon = AddonLibrary.addon(addon_name, version)
+    addon = AddonLibrary.get_addon(addon_name, version)
     studio_settings = await addon.get_studio_settings(variant=variant)
     if studio_settings is None:
         return {}
@@ -142,8 +141,7 @@ async def set_addon_project_settings(
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ) -> EmptyResponse:
     """Set the studio overrides of the given addon."""
-
-    addon = AddonLibrary.addon(addon_name, version)
+    addon = AddonLibrary.get_addon(addon_name, version)
     model = addon.get_settings_model()
     if model is None:
         raise BadRequestException(f"Addon {addon_name} has no settings")
@@ -242,7 +240,7 @@ async def delete_addon_project_overrides(
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
     # Ensure the addon and the project exist
-    _ = AddonLibrary.addon(addon_name, version)
+    _ = AddonLibrary.get_addon(addon_name, version)
     _ = await ProjectEntity.load(project_name)
 
     if not site:

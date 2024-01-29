@@ -42,9 +42,7 @@ async def get_all_addons_settings(
 ) -> AddonSettingsResponse:
     """Return all addon settings for the project."""
 
-    library = AddonLibrary.getinstance()
-
-    active_versions = await library.get_active_versions()
+    active_versions = await AddonLibrary.get_enabled_addons()
 
     result: dict[str, dict[str, Any]] = {}
     versions: dict[str, str] = {}
@@ -108,9 +106,7 @@ async def get_all_site_settings(
     return the default settings provided by the model.
     """
 
-    library = AddonLibrary.getinstance()
-
-    active_versions = await library.get_active_versions()
+    active_versions = await AddonLibrary.get_enabled_addons()
 
     result: dict[str, dict[str, Any]] = {}
     versions: dict[str, str] = {}

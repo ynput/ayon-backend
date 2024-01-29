@@ -3,7 +3,7 @@ from typing import Any, Literal
 from fastapi import Query, Request, Response
 from nxtools import logging
 
-from ayon_server.addons import AddonLibrary
+from ayon_server.addons import AddonLibrary, RezRepo
 from ayon_server.addons.models import SourceInfo
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import (
@@ -63,56 +63,45 @@ async def list_addons(
 ) -> AddonList:
     """List all available addons."""
 
-    base_url = f"{request.url.scheme}://{request.url.netloc}"
+    # base_url = f"{request.url.scheme}://{request.url.netloc}"
 
     result = []
-    library = AddonLibrary.getinstance()
+    rezrepo = RezRepo.get_instance()
 
     # maybe some ttl here?
-    active_versions = await library.get_active_versions()
+    active_versions = await AddonLibrary.get_enabled_addons()
 
-    # TODO: for each version, return the information
-    # whether it has settings (and don't show the addon in the settings editor if not)
-
-    for _name, definition in library.data.items():
-        vers = active_versions.get(definition.name, {})
+    for addon_name, addon_dict in rezrepo.packages.items():
+        vers = active_versions.get(addon_name, {})
         versions = {}
         is_system = False
-        for version, addon in definition.versions.items():
-            if addon.system:
+        addon_title = ""
+        addon_description = ""
+
+        for version_dict in addon_dict.get("versions", []):
+            ((version_number, addon_rez_package),) = version_dict.items()
+            versions[version_number] = VersionInfo()
+
+            if getattr(addon_rez_package, "system", False):
                 if not user.is_admin:
                     continue
                 is_system = True
 
-            vinf = {
-                "has_settings": bool(addon.get_settings_model()),
-                "has_site_settings": bool(addon.get_site_settings_model()),
-                "frontend_scopes": addon.frontend_scopes,
-            }
-            if details:
-                vinf["client_pyproject"] = await addon.get_client_pyproject()
+            if not addon_title:
+                addon_title = getattr(addon_rez_package, "nice_name", "")
 
-                source_info = await addon.get_client_source_info(base_url=base_url)
-                if source_info is None:
-                    pass
-
-                elif not all(isinstance(x, SourceInfo) for x in source_info):
-                    logging.error(f"Invalid source info for {addon.name} {version}")
-                    source_info = [x for x in source_info if isinstance(x, SourceInfo)]
-                vinf["client_source_info"] = source_info
-
-                vinf["services"] = addon.services or None
-            versions[version] = VersionInfo(**vinf)
+            if not addon_description:
+                addon_description = getattr(addon_rez_package, "description", "")
 
         if not versions:
             continue
 
         result.append(
             AddonListItem(
-                name=definition.name,
-                title=definition.friendly_name,
+                name=addon_name,
+                title=addon_title if addon_title else addon_name,
                 versions=versions,
-                description=definition.__doc__ or "",
+                description=addon_description if addon_description else "",
                 production_version=vers.get("production"),
                 system=is_system or None,
                 staging_version=vers.get("staging"),
