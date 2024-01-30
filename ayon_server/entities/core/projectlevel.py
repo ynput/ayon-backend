@@ -218,45 +218,33 @@ class ProjectLevelEntity(BaseEntity):
             fields["attrib"] = attrib
             fields["updated_at"] = datetime.now()
 
-            try:
-                await self.pre_save(False, transaction)
-                await transaction.execute(
-                    *SQLTool.update(
-                        f"project_{self.project_name}.{self.entity_type}s",
-                        f"WHERE id = '{self.id}'",
-                        **fields,
-                    )
+            await self.pre_save(False, transaction)
+            await transaction.execute(
+                *SQLTool.update(
+                    f"project_{self.project_name}.{self.entity_type}s",
+                    f"WHERE id = '{self.id}'",
+                    **fields,
                 )
-            except Postgres.ForeignKeyViolationError as e:
-                raise ConstraintViolationException(e.detail)
-
-            except Postgres.UniqueViolationError as e:
-                raise ConstraintViolationException(e.detail)
+            )
 
             if commit:
                 await self.commit(transaction)
             return True
 
         # Create a new entity
-        try:
-            fields = dict_exclude(
-                self.dict(exclude_none=True),
-                self.model.dynamic_fields,
-            )
-            fields["attrib"] = attrib
+        fields = dict_exclude(
+            self.dict(exclude_none=True),
+            self.model.dynamic_fields,
+        )
+        fields["attrib"] = attrib
 
-            await self.pre_save(True, transaction)
-            await transaction.execute(
-                *SQLTool.insert(
-                    f"project_{self.project_name}.{self.entity_type}s",
-                    **fields,
-                )
+        await self.pre_save(True, transaction)
+        await transaction.execute(
+            *SQLTool.insert(
+                f"project_{self.project_name}.{self.entity_type}s",
+                **fields,
             )
-        except Postgres.ForeignKeyViolationError as e:
-            raise ConstraintViolationException(e.detail)
-
-        except Postgres.UniqueViolationError as e:
-            raise ConstraintViolationException(e.detail)
+        )
 
         if commit:
             await self.commit(transaction)

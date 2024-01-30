@@ -8,7 +8,6 @@ from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
     AyonException,
-    ConstraintViolationException,
     ForbiddenException,
     NotFoundException,
 )
@@ -154,44 +153,32 @@ class FolderEntity(ProjectLevelEntity):
                 """
             )
 
-            try:
-                await transaction.execute(
-                    *SQLTool.update(
-                        f"project_{self.project_name}.{self.entity_type}s",
-                        f"WHERE id = '{self.id}'",
-                        name=self.name,
-                        label=self.label,
-                        folder_type=self.folder_type,
-                        parent_id=self.parent_id,
-                        thumbnail_id=self.thumbnail_id,
-                        status=self.status,
-                        tags=self.tags,
-                        attrib=attrib,
-                        data=self.data,
-                        active=self.active,
-                        updated_at=datetime.now(),
-                    )
+            await transaction.execute(
+                *SQLTool.update(
+                    f"project_{self.project_name}.{self.entity_type}s",
+                    f"WHERE id = '{self.id}'",
+                    name=self.name,
+                    label=self.label,
+                    folder_type=self.folder_type,
+                    parent_id=self.parent_id,
+                    thumbnail_id=self.thumbnail_id,
+                    status=self.status,
+                    tags=self.tags,
+                    attrib=attrib,
+                    data=self.data,
+                    active=self.active,
+                    updated_at=datetime.now(),
                 )
-            except Postgres.ForeignKeyViolationError as e:
-                raise ConstraintViolationException(e.detail)
-
-            except Postgres.UniqueViolationError as e:
-                raise ConstraintViolationException(e.detail)
+            )
 
         else:
             # Create a new entity
-            try:
-                await transaction.execute(
-                    *SQLTool.insert(
-                        f"project_{self.project_name}.{self.entity_type}s",
-                        **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
-                    )
+            await transaction.execute(
+                *SQLTool.insert(
+                    f"project_{self.project_name}.{self.entity_type}s",
+                    **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
                 )
-            except Postgres.ForeignKeyViolationError as e:
-                raise ConstraintViolationException(e.detail)
-
-            except Postgres.UniqueViolationError as e:
-                raise ConstraintViolationException(e.detail)
+            )
 
         if commit:
             await self.commit(transaction)

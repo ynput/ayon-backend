@@ -11,7 +11,6 @@ from ayon_server.entities import UserEntity
 from ayon_server.events import dispatch_event
 from ayon_server.exceptions import (
     BadRequestException,
-    ConflictException,
     ForbiddenException,
     NotFoundException,
 )
@@ -168,51 +167,48 @@ async def create_bundle(
     user: UserEntity | None = None,
     sender: str | None = None,
 ):
-    try:
-        async with Postgres.acquire() as conn:
-            async with conn.transaction():
-                # Clear constrained values if they are being updated
-                if bundle.is_production:
-                    await conn.execute("UPDATE bundles SET is_production = FALSE")
-                if bundle.is_staging:
-                    await conn.execute("UPDATE bundles SET is_staging = FALSE")
-                if bundle.active_user:
-                    await conn.execute(
-                        "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
-                        bundle.active_user,
-                    )
-
-                query = """
-                    INSERT INTO bundles
-                    (name, data, is_production, is_staging, is_dev, active_user, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                """
-
-                # Get original bundle data
-                data = {**bundle.dict(exclude_none=True)}
-                data.pop("name", None)
-                data.pop("created_at", None)
-                data.pop("is_production", None)
-                data.pop("is_staging", None)
-                data.pop("is_archived", None)
-                data.pop("is_dev", None)
-                data.pop("active_user", None)
-
-                # we ignore is_archived. it does not make sense to create
-                # an archived bundle
-
+    async with Postgres.acquire() as conn:
+        async with conn.transaction():
+            # Clear constrained values if they are being updated
+            if bundle.is_production:
+                await conn.execute("UPDATE bundles SET is_production = FALSE")
+            if bundle.is_staging:
+                await conn.execute("UPDATE bundles SET is_staging = FALSE")
+            if bundle.active_user:
                 await conn.execute(
-                    query,
-                    bundle.name,
-                    data,
-                    bundle.is_production,
-                    bundle.is_staging,
-                    bundle.is_dev,
+                    "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
                     bundle.active_user,
-                    bundle.created_at,
                 )
-    except Postgres.UniqueViolationError:
-        raise ConflictException("Bundle with this name already exists")
+
+            query = """
+                INSERT INTO bundles
+                (name, data, is_production, is_staging, is_dev, active_user, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            """
+
+            # Get original bundle data
+            data = {**bundle.dict(exclude_none=True)}
+            data.pop("name", None)
+            data.pop("created_at", None)
+            data.pop("is_production", None)
+            data.pop("is_staging", None)
+            data.pop("is_archived", None)
+            data.pop("is_dev", None)
+            data.pop("active_user", None)
+
+            # we ignore is_archived. it does not make sense to create
+            # an archived bundle
+
+            await conn.execute(
+                query,
+                bundle.name,
+                data,
+                bundle.is_production,
+                bundle.is_staging,
+                bundle.is_dev,
+                bundle.active_user,
+                bundle.created_at,
+            )
 
     await dispatch_event(
         "bundle.created",
