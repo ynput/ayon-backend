@@ -87,13 +87,16 @@ async def update_folder(
     cannot be changed.
     """
 
+    patch_data = post_data.dict(exclude_unset=True)
+    thumbnail_only = len(patch_data) == 1 and "thumbnail_id" in patch_data
+
     async with Postgres.acquire() as conn:
         async with conn.transaction():
             folder = await FolderEntity.load(
                 project_name, folder_id, transaction=conn, for_update=True
             )
 
-            await folder.ensure_update_access(user)
+            await folder.ensure_update_access(user, thumbnail_only=thumbnail_only)
             has_versions = bool(await folder.get_versions(conn))
 
             # If the folder has versions, we can't update the name,

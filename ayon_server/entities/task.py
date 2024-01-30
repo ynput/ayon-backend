@@ -2,6 +2,7 @@ from typing import Any
 
 from nxtools import logging
 
+from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import AyonException, NotFoundException
@@ -95,6 +96,18 @@ class TaskEntity(ProjectLevelEntity):
             self.folder_type = res[0]["name"]
 
         return await super().save(transaction=transaction)
+
+    async def ensure_create_access(self, user, **kwargs) -> None:
+        if user.is_manager:
+            return
+
+        await ensure_entity_access(
+            user,
+            self.project_name,
+            "folder",
+            self.folder_id,
+            "create",
+        )
 
     #
     # Properties

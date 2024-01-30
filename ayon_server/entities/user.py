@@ -22,6 +22,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.email import send_mail
 from ayon_server.lib.postgres import Postgres
+from ayon_server.types import AccessType
 from ayon_server.utils import SQLTool, dict_exclude
 
 
@@ -29,6 +30,11 @@ class UserEntity(TopLevelEntity):
     entity_type: str = "user"
     model = ModelSet("user", attribute_library["user"], has_id=False)
     was_active: bool = False
+
+    # Cache for path access lists
+    # the structure is as follows:
+    # project_name[access_type]: [path1, path2, ...]
+    path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
 
     #
     # Load
