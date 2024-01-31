@@ -16,10 +16,10 @@ async def get_market_data(
 
     endpoint = "/".join(args)
 
-    headers = await get_cloud_api_headers()
-
-    if not headers:
-        raise ForbiddenException("Ayon is not connected to Ynput Cloud [ERR 2]")
+    try:
+        headers = await get_cloud_api_headers()
+    except ForbiddenException:
+        headers = {}
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
