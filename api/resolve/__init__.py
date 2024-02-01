@@ -3,7 +3,7 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.exceptions import BadRequestException
@@ -32,8 +32,8 @@ class ResolveRequestModel(OPModel):
 
 
 class ResolvedEntityModel(OPModel):
-    project_name: str = Field(
-        ...,
+    project_name: str | None = Field(
+        None,
         title="Project name",
         example="demo_Big_Feature",
     )
@@ -249,6 +249,7 @@ async def resolve_entities(
     req: ParsedURIModel,
     roots: dict[str, str],
     site_id: str | None = None,
+    path_only: bool = False,
 ) -> list[ResolvedEntityModel]:
     result = []
     cols = ["h.id as folder_id"]
@@ -340,14 +341,17 @@ async def resolve_entities(
                 if platform == "windows":
                     file_path = file_path.replace("/", "\\")
 
-        result.append(
-            ResolvedEntityModel(
-                project_name=req.project_name,
-                file_path=file_path,
-                target=target_entity_type,
-                **row,
+        if path_only:
+            result.append(ResolvedEntityModel(file_path=file_path))
+        else:
+            result.append(
+                ResolvedEntityModel(
+                    project_name=req.project_name,
+                    file_path=file_path,
+                    target=target_entity_type,
+                    **row,
+                )
             )
-        )
 
     return result
 
@@ -406,6 +410,9 @@ async def resolve_uris(
     request: ResolveRequestModel,
     site_id: SiteID,
     user: CurrentUser,
+    path_only: bool = Query(
+        False, alias="pathOnly", description="Return only file paths"
+    ),
 ) -> list[ResolvedURIModel]:
     """Resolve a list of ayon:// URIs to entities.
 
@@ -455,7 +462,11 @@ async def resolve_uris(
                     )
                     current_project = parsed_uri.project_name
                 entities = await resolve_entities(
-                    conn, parsed_uri, roots.get(current_project, {}), site_id
+                    conn,
+                    parsed_uri,
+                    roots.get(current_project, {}),
+                    site_id,
+                    path_only=path_only,
                 )
                 result.append(ResolvedURIModel(uri=uri, entities=entities))
     return result
