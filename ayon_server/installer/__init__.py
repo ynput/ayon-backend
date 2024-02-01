@@ -4,7 +4,7 @@ from nxtools import log_traceback, logging
 
 from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.events import update_event
-from ayon_server.installer.addons import install_addon_from_url, unpack_addon
+from ayon_server.addons import AddonLibrary
 from ayon_server.installer.dependency_packages import download_dependency_package
 from ayon_server.installer.installers import download_installer
 from ayon_server.lib.postgres import Postgres
@@ -48,7 +48,7 @@ class BackgroundInstaller(BackgroundWorker):
         logging.info(f"Background installer: processing {topic} event: {event_id}")
 
         if topic == "addon.install":
-            await unpack_addon(
+            await AddonLibrary.install_addon(
                 event_id,
                 summary["zip_path"],
                 summary["addon_name"],
@@ -56,7 +56,7 @@ class BackgroundInstaller(BackgroundWorker):
             )
 
         elif topic == "addon.install_from_url":
-            await install_addon_from_url(event_id, summary["url"])
+            await AddonLibrary.install_addon_from_url(event_id, summary["url"])
 
         elif topic == "dependency_package.install_from_url":
             await download_dependency_package(event_id, summary["url"])

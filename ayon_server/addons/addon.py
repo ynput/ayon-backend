@@ -15,7 +15,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, apply_overrides
 
 if TYPE_CHECKING:
-    from ayon_server.addons.definition import ServerAddonDefinition
+    from rez.packages import Package
 
 
 class BaseServerAddon:
@@ -23,7 +23,7 @@ class BaseServerAddon:
     version: str
     title: str | None = None
     app_host_name: str | None = None
-    definition: "ServerAddonDefinition"
+    rez_package: "Package"
     endpoints: list[dict[str, Any]]
     settings_model: Type[BaseSettingsModel] | None = None
     site_settings_model: Type[BaseSettingsModel] | None = None
@@ -31,9 +31,9 @@ class BaseServerAddon:
     services: dict[str, Any] = {}
     system: bool = False  # Hide settings for non-admins and make the addon mandatory
 
-    def __init__(self, definition: "ServerAddonDefinition", addon_dir: str):
+    def __init__(self, rez_package: "Package", addon_dir: str):
         assert self.name and self.version
-        self.definition = definition
+        self.rez_package = rez_package
         self.addon_dir = addon_dir
         self.endpoints = []
         self.restart_requested = False
@@ -41,12 +41,20 @@ class BaseServerAddon:
         self.initialize()
 
     def __repr__(self) -> str:
-        return f"<Addon name='{self.definition.name}' version='{self.version}'>"
+        return f"<Addon name='{self.rez_package.name}' version='{self.version}'>"
+
+    @property
+    def definition(self) -> "Package":
+        return self.rez_package
 
     @property
     def friendly_name(self) -> str:
         """Return the friendly name of the addon."""
-        return f"{self.definition.friendly_name} {self.version}"
+        try:
+            friendly_name = self.rez_package.friendly_name
+        except AttributeError:
+            friendly_name = self.name.capitalize()
+        return f"{friendly_name} {self.version}"
 
     async def is_production(self) -> bool:
         """Return True if the addon is in production bundle."""
@@ -224,7 +232,7 @@ class BaseServerAddon:
             WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
             """
 
-        res = await Postgres.fetch(query, self.definition.name, self.version, variant)
+        res = await Postgres.fetch(query, self.rez_package.name, self.version, variant)
         if res:
             return dict(res[0]["data"])
         return {}
@@ -243,7 +251,7 @@ class BaseServerAddon:
 
         try:
             res = await Postgres.fetch(
-                query, self.definition.name, self.version, variant
+                query, self.rez_package.name, self.version, variant
             )
         except Postgres.UndefinedTableError:
             raise NotFoundException(f"Project {project_name} does not exists") from None
@@ -265,7 +273,7 @@ class BaseServerAddon:
             WHERE addon_name = $1 AND addon_version = $2
             AND user_name = $3 AND site_id = $4
             """,
-            self.definition.name,
+            self.rez_package.name,
             self.version,
             user_name,
             site_id,

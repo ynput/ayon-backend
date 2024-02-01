@@ -30,8 +30,7 @@ async def get_addon_settings_schema(
     variant: str = Query("production"),
 ) -> dict[str, Any]:
     """Return the JSON schema of the addon settings."""
-
-    if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
+    if (addon := AddonLibrary.get_addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
     model = addon.get_settings_model()
@@ -63,8 +62,7 @@ async def get_addon_studio_settings(
     variant: str = Query("production"),
 ) -> dict[str, Any]:
     """Return the settings (including studio overrides) of the given addon."""
-
-    if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
+    if (addon := AddonLibrary.get_addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
     settings = await addon.get_studio_settings(variant=variant)
@@ -86,7 +84,7 @@ async def set_addon_studio_settings(
     if not user.is_manager:
         raise ForbiddenException
 
-    addon = AddonLibrary.addon(addon_name, addon_version)
+    addon = AddonLibrary.get_addon(addon_name, addon_version)
     original = await addon.get_studio_settings(variant=variant)
     existing = await addon.get_studio_overrides(variant=variant)
     model = addon.get_settings_model()
@@ -143,7 +141,7 @@ async def get_addon_studio_overrides(
     if not user.is_manager:
         raise ForbiddenException
 
-    addon = AddonLibrary.addon(addon_name, addon_version)
+    addon = AddonLibrary.get_addon(addon_name, addon_version)
     settings = await addon.get_studio_settings(variant=variant)
     if settings is None:
         return {}
@@ -164,7 +162,7 @@ async def delete_addon_studio_overrides(
         raise ForbiddenException
 
     # Ensure addon exists
-    _ = AddonLibrary.addon(addon_name, addon_version)
+    _ = get_addon(addon_name, addon_version)
 
     await Postgres.execute(
         """

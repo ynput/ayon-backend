@@ -2,12 +2,10 @@ import traceback
 from typing import Any
 
 from fastapi import Query
-from nxtools import log_traceback, logging
+from nxtools import log_traceback, logging, slugify
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.exceptions import NotFoundException
-from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
@@ -70,73 +68,57 @@ async def get_all_settings(
     ),
     variant: str = Query("production"),
     summary: bool = Query(False, title="Summary", description="Summary mode"),
-) -> AllSettingsResponseModel:
-    if variant not in ("production", "staging"):
-        query = [
-            """
-            SELECT name, is_production, is_staging, data->'addons' as addons
-            FROM bundles WHERE name = $1
-            """,
-            variant,
-        ]
-    elif bundle_name is None:
-        query = [
-            f"""
-            SELECT name, is_production, is_staging, data->'addons' as addons
-            FROM bundles WHERE is_{variant} IS TRUE
-            """
-        ]
+) -> AllSettingsResponseModel | None:
+
+    addons_settings = []
+    library = AddonLibrary.get_instance()
+
+    if bundle_name:
+        addons = await library.get_bundle_addons(bundle_name)
     else:
-        query = [
-            """
-            SELECT name, is_production, is_staging, data->'addons' as addons
-            FROM bundles WHERE name = $1
-            """,
-            bundle_name,
-        ]
+        variants_bundle_names = await library.get_variants_bundle_name()
+        bundle_name = variants_bundle_names.get(variant)
+        addons = await library.get_bundle_addons(bundle_name)
 
-    brow = await Postgres.fetch(*query)
-    if not brow:
-        raise NotFoundException(status_code=404, detail="Bundle not found")
+    for addon in addons:
+        addon_name_and_version, addon = addon
 
-    bundle_name = brow[0]["name"]
-    addons = brow[0]["addons"]
-
-    addon_result = []
-    for addon_name, addon_version in addons.items():
-        if addon_version is None:
-            continue
-
-        try:
-            addon = AddonLibrary.addon(addon_name, addon_version)
-        except NotFoundException:
+        if not addon:
+            addon_name, addon_version = addon_name_and_version.split("-", 1)
             logging.warning(
                 f"Addon {addon_name} {addon_version} "
-                f"declared in {bundle_name} not found"
+                f"declared in {bundle_name} not initialized."
             )
 
-            broken_reason = AddonLibrary.is_broken(addon_name, addon_version)
+            is_broken = library.broken_addons.get(addon_name_and_version, None)
 
-            addon_result.append(
+            broken_reason = {"error": "Addon is not initialized"}
+
+            if is_broken:
+                broken_reason["traceback"] = str(is_broken)
+
+            addons_settings.append(
                 AddonSettingsItemModel(
                     name=addon_name,
                     title=addon_name,
                     version=addon_version,
                     settings={},
                     site_settings=None,
-                    is_broken=bool(broken_reason),
+                    is_broken=bool(is_broken),
                     reason=broken_reason,
                 )
             )
             continue
 
+        addon_name = addon.name
+        addon_version = addon.version
         # Determine which scopes addon has settings for
-
         model = addon.get_settings_model()
         has_settings = False
         has_project_settings = False
         has_project_site_settings = False
         has_site_settings = bool(addon.site_settings_model)
+
         if model:
             has_project_settings = False
             for field_name, field in model.__fields__.items():
@@ -149,7 +131,6 @@ async def get_all_settings(
                     has_settings = True
 
         # Load settings for the addon
-
         site_settings = None
         settings: BaseSettingsModel | None = None
 
@@ -179,7 +160,7 @@ async def get_all_settings(
 
         except Exception:
             log_traceback(f"Unable to load {addon_name} {addon_version} settings")
-            addon_result.append(
+            addons_settings.append(
                 AddonSettingsItemModel(
                     name=addon_name,
                     title=addon_name,
@@ -197,7 +178,7 @@ async def get_all_settings(
 
         # Add addon to the result
 
-        addon_result.append(
+        addons_settings.append(
             AddonSettingsItemModel(
                 name=addon_name,
                 title=addon.title if addon.title else addon_name,
@@ -221,9 +202,9 @@ async def get_all_settings(
             )
         )
 
-    addon_result.sort(key=lambda x: x.title.lower())
+    addons_settings.sort(key=lambda x: x.title.lower())
 
     return AllSettingsResponseModel(
         bundle_name=bundle_name,
-        addons=addon_result,
+        addons=addons_settings,
     )

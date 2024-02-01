@@ -2,7 +2,7 @@ from typing import Any
 
 import httpx
 
-from ayon_server.addons.library import AddonLibrary
+from ayon_server.addons import AddonLibrary
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.cloud import get_cloud_api_headers
@@ -41,12 +41,8 @@ async def get_local_latest_addon_versions() -> dict[str, str]:
     Used to check if there are new versions available
     """
 
-    result = {}
-    for addon_name, definition in AddonLibrary.items():
-        if not definition.latest:
-            continue
-        result[addon_name] = definition.latest.version
-    return result
+    return AddonLibrary.get_addons_latest_versions()
+
 
 
 async def get_local_production_addon_versions() -> dict[str, str]:
