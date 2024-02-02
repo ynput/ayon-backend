@@ -30,8 +30,23 @@ class BaseServerAddon:
     frontend_scopes: dict[str, Any] = {}
     services: dict[str, Any] = {}
     system: bool = False  # Hide settings for non-admins and make the addon mandatory
+    legacy: bool = False
 
-    def __init__(self, definition: "ServerAddonDefinition", addon_dir: str):
+    def __init__(
+        self,
+        definition: "ServerAddonDefinition",
+        addon_dir: str,
+        name: str | None = None,
+        version: str | None = None,
+    ):
+        # name and version is pushed from the definition when addon has package.py
+        # while legacy addons depend on name and versions defined in the class
+        if name is not None:
+            self.name = name
+
+        if version is not None:
+            self.version = version
+
         assert self.name and self.version
         self.definition = definition
         self.addon_dir = addon_dir

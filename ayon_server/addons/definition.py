@@ -54,7 +54,7 @@ class ServerAddonDefinition:
     def name(self) -> str:
         for version in self.versions.values():
             return version.name
-        raise ValueError("No versions found")
+        return os.path.split(self.addon_dir)[-1]
 
     @property
     def friendly_name(self) -> str:
@@ -71,34 +71,90 @@ class ServerAddonDefinition:
         if self._versions is None:
             self._versions = {}
             for version_name in os.listdir(self.addon_dir):
-                mdir = os.path.join(self.addon_dir, version_name)
-                mfile = os.path.join(mdir, "__init__.py")
-                if not os.path.exists(os.path.join(mfile)):
+                version_dir = os.path.join(self.addon_dir, version_name)
+
+                if os.path.exists(os.path.join(version_dir, "__init__.py")):
+                    self.init_legacy_addon(version_dir)
                     continue
 
-                vname = slugify(f"{self.dir_name}-{version_name}")
-                try:
-                    module = import_module(vname, mfile)
-                except AttributeError:
-                    logging.error(f"Addon {vname} is not valid")
+                if os.path.exists(os.path.join(version_dir, "package.py")):
+                    self.init_addon(version_dir)
                     continue
-
-                for Addon in classes_from_module(BaseServerAddon, module):
-                    try:
-                        self._versions[Addon.version] = Addon(self, mdir)
-                    except ValueError as e:
-                        logging.error(
-                            f"Error loading addon {vname} versions: {e.args[0]}"
-                        )
-
-                    if self._versions[Addon.version].restart_requested:
-                        logging.warning(
-                            f"Addon {self.name} version {Addon.version} "
-                            "requested server restart"
-                        )
-                        self.restart_requested = True
 
         return self._versions
+
+    def init_addon(self, addon_dir: str):
+        vname = slugify(f"{self.dir_name}-{os.path.split(addon_dir)[-1]}")
+        package_module_name = f"{vname}-package"
+
+        server_module_path = os.path.join(addon_dir, "server", "__init__.py")
+        package_path = os.path.join(addon_dir, "package.py")
+
+        if not os.path.exists(server_module_path):
+            logging.error(f"Addon {vname} is missing server module")
+            return
+
+        try:
+            package_module = import_module(package_module_name, package_path)
+        except AttributeError:
+            logging.error(f"Package {package_path} is not valid")
+            return
+
+        if not hasattr(package_module, "name"):
+            logging.error(f"Package {package_path} is missing name")
+            return
+
+        if not hasattr(package_module, "version"):
+            logging.error(f"Package {package_path} is missing version")
+            return
+
+        try:
+            module = import_module(vname, server_module_path)
+        except AttributeError:
+            logging.error(f"Addon {vname} is not valid")
+            return
+
+        for Addon in classes_from_module(BaseServerAddon, module):
+            try:
+                addon = Addon(
+                    self,
+                    addon_dir=addon_dir,
+                    name=package_module.name,
+                    version=package_module.version,
+                )
+            except ValueError as e:
+                logging.error(f"Error loading addon {vname} versions: {e.args[0]}")
+                return
+
+            if addon.restart_requested:
+                logging.warning(f"{addon}requested server restart")
+                self.restart_requested = True
+
+            self._versions[package_module.version] = addon
+
+    def init_legacy_addon(self, addon_dir: str):
+        mfile = os.path.join(addon_dir, "__init__.py")
+        vname = slugify(f"{self.dir_name}-{os.path.split(addon_dir)[-1]}")
+
+        try:
+            module = import_module(vname, mfile)
+        except AttributeError:
+            logging.error(f"Addon {vname} is not valid")
+            return
+
+        for Addon in classes_from_module(BaseServerAddon, module):
+            try:
+                self._versions[Addon.version] = Addon(self, addon_dir)
+                self._versions[Addon.version].legacy = True
+            except ValueError as e:
+                logging.error(f"Error loading addon {vname} versions: {e.args[0]}")
+
+            if self._versions[Addon.version].restart_requested:
+                logging.warning(
+                    f"Addon {self.name} version {Addon.version} "
+                    "requested server restart"
+                )
+                self.restart_requested = True
 
     @property
     def latest(self) -> BaseServerAddon | None:
