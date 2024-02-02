@@ -138,6 +138,7 @@ async def process_operation(
 
     elif operation.type == "update":
         # in this case, thumbnailId is camelCase, since we pass a dict
+        assert operation.data is not None, "data is required for update"
         thumbnail_only = len(operation.data) == 1 and "thumbnailId" in operation.data
 
         payload = entity_class.model.patch_model(**operation.data)
