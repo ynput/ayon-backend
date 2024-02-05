@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import aiofiles
 import httpx
 import semver
+import yaml
 from nxtools import logging
 from pydantic import BaseModel
 
@@ -29,10 +30,12 @@ class AddonZipInfo(BaseModel):
     version: str
     min_ayon_version: str  # inclusive
     max_ayon_version: str | None = None  # exclusive
+    is_rez: bool = False
 
 
-def get_addon_info_from_manifest(manifest: dict) -> AddonZipInfo:
+def get_addon_info_from_manifest(manifest_data: str) -> AddonZipInfo:
     """Returns the addon name and version from the manifest"""
+    manifest = json.loads(manifest_data)
     if not (manifest.get("addon_name") and manifest.get("addon_version")):
         raise UnsupportedAddonException("Addon name or version not found in manifest")
     return AddonZipInfo(
@@ -43,7 +46,7 @@ def get_addon_info_from_manifest(manifest: dict) -> AddonZipInfo:
     )
 
 
-def get_addon_info_from_package(package_py_content: str) -> AddonZipInfo:
+def get_addon_info_from_package_py(manifest_data: str) -> AddonZipInfo:
     """Returns the addon name and version from the package file
 
     This will be reimplemented using Rez in the future
@@ -52,8 +55,8 @@ def get_addon_info_from_package(package_py_content: str) -> AddonZipInfo:
     name_pattern = r'name\s*=\s*"([^"]+)"'
     version_pattern = r'version\s*=\s*"([^"]+)"'
 
-    name_match = re.search(name_pattern, package_py_content)
-    version_match = re.search(version_pattern, package_py_content)
+    name_match = re.search(name_pattern, manifest_data)
+    version_match = re.search(version_pattern, manifest_data)
 
     package_name = name_match.group(1) if name_match else None
     package_version = version_match.group(1) if version_match else None
@@ -64,6 +67,22 @@ def get_addon_info_from_package(package_py_content: str) -> AddonZipInfo:
     return AddonZipInfo(
         name=package_name,
         version=package_version,
+        is_rez=True,
+        min_ayon_version="1.0.3",
+    )
+
+
+def get_addon_info_from_package_yaml(manifest_data: str) -> AddonZipInfo:
+    manifest = yaml.safe_load(manifest_data)
+    if not (manifest.get("name") and manifest.get("version")):
+        raise UnsupportedAddonException(
+            "Addon name or version not found in package.yaml"
+        )
+
+    return AddonZipInfo(
+        name=manifest.get("name"),
+        version=manifest.get("version"),
+        is_rez=True,
         min_ayon_version="1.0.3",
     )
 
@@ -71,18 +90,21 @@ def get_addon_info_from_package(package_py_content: str) -> AddonZipInfo:
 def get_addon_zip_info(path: str) -> AddonZipInfo:
     """Returns the addon name and version from the zip file"""
     zip_info: AddonZipInfo | None = None
+    PARSERS = [
+        ("manifest.json", get_addon_info_from_manifest),
+        ("package.yaml", get_addon_info_from_package_yaml),
+        ("package.yml", get_addon_info_from_package_yaml),
+        ("package.py", get_addon_info_from_package_py),
+    ]
     with zipfile.ZipFile(path, "r") as zip_ref:
         names = zip_ref.namelist()
 
-        if "manifest.json" in names:
-            with zip_ref.open("manifest.json") as manifest_file:
-                manifest = json.load(manifest_file)
-                zip_info = get_addon_info_from_manifest(manifest)
-
-        elif "package.py" in names:
-            with zip_ref.open("package.py") as package_file:
-                package_py_content = package_file.read().decode("utf-8")
-                zip_info = get_addon_info_from_package(package_py_content)
+        for manifest_name, parser in PARSERS:
+            if manifest_name in names:
+                with zip_ref.open(manifest_name) as manifest_file:
+                    manifest = manifest_file.read().decode("utf-8")
+                    zip_info = parser(manifest)
+                    break
 
     if zip_info is None:
         raise UnsupportedAddonException("Unsupported addon format")
@@ -103,10 +125,10 @@ def get_addon_zip_info(path: str) -> AddonZipInfo:
     return zip_info
 
 
-def unpack_addon_sync(zip_path: str, addon_name: str, addon_version) -> None:
+def unpack_addon_sync(zip_path: str, zip_info: AddonZipInfo) -> None:
     addon_root_dir = ayonconfig.addons_dir
     os.makedirs(addon_root_dir, exist_ok=True)
-    target_dir = os.path.join(addon_root_dir, addon_name, addon_version)
+    target_dir = os.path.join(addon_root_dir, zip_info.name, zip_info.version)
 
     with tempfile.TemporaryDirectory(dir=addon_root_dir) as tmpdirname:
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
@@ -119,19 +141,31 @@ def unpack_addon_sync(zip_path: str, addon_name: str, addon_version) -> None:
                     os.chmod(extracted_path, original_mode)
 
         if os.path.isdir(target_dir):
-            logging.info(f"Removing existing addon {addon_name} {addon_version}")
+            logging.info(f"Removing existing addon {zip_info.name} {zip_info.version}")
             shutil.rmtree(target_dir)
 
         # move the extracted files to the target directory
-        shutil.move(os.path.join(tmpdirname, "addon"), target_dir)
+        if zip_info.is_rez:
+            # rez packages don't have 'addon' directory, we need to move all files
+            # from the temp directory to the target directory
+
+            for root, dirs, files in os.walk(tmpdirname):
+                for file in files:
+                    source_file = os.path.join(root, file)
+                    target_file = os.path.join(
+                        target_dir, os.path.relpath(source_file, tmpdirname)
+                    )
+                    os.makedirs(os.path.dirname(target_file), exist_ok=True)
+                    shutil.move(source_file, target_file)
+
+            # and remove the temp directory
+            shutil.rmtree(tmpdirname)
+
+        else:
+            shutil.move(os.path.join(tmpdirname, "addon"), target_dir)
 
 
-async def unpack_addon(
-    event_id: str,
-    zip_path: str,
-    addon_name: str,
-    addon_version: str,
-):
+async def unpack_addon(event_id: str, zip_path: str, zip_info: AddonZipInfo):
     """Unpack the addon from the zip file and install it
 
     Unpacking is done in a separate thread to avoid blocking the main thread
@@ -142,7 +176,7 @@ async def unpack_addon(
 
     await update_event(
         event_id,
-        description=f"Unpacking addon {addon_name} {addon_version}",
+        description=f"Unpacking addon {zip_info.name} {zip_info.version}",
         status="in_progress",
     )
 
@@ -150,13 +184,7 @@ async def unpack_addon(
 
     try:
         with ThreadPoolExecutor() as executor:
-            task = loop.run_in_executor(
-                executor,
-                unpack_addon_sync,
-                zip_path,
-                addon_name,
-                addon_version,
-            )
+            task = loop.run_in_executor(executor, unpack_addon_sync, zip_path, zip_info)
             await asyncio.gather(task)
     except Exception as e:
         logging.error(f"Error while unpacking addon: {e}")
@@ -173,7 +201,7 @@ async def unpack_addon(
 
     await update_event(
         event_id,
-        description=f"Addon {addon_name} {addon_version} installed",
+        description=f"Addon {zip_info.name} {zip_info.version} installed",
         status="finished",
     )
 
@@ -222,8 +250,7 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
             description=f"Installing addon {zip_info.name} {zip_info.version}",
             status="in_progress",
             summary={
-                "addon_name": zip_info.name,
-                "addon_version": zip_info.version,
+                "zip_info": zip_info.dict(),
                 "url": url,
             },
             progress=50,
@@ -238,8 +265,7 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
                 executor,
                 unpack_addon_sync,
                 zip_path,
-                zip_info.name,
-                zip_info.version,
+                zip_info,
             )
             await asyncio.gather(task)
 
