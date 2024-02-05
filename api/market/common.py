@@ -1,6 +1,7 @@
 from typing import Any
 
 import httpx
+import semver
 
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.config import ayonconfig
@@ -65,3 +66,14 @@ async def get_local_production_addon_versions() -> dict[str, str]:
         return {}
 
     return res[0]["addons"] or {}
+
+
+def is_compatible(requirement: str | None = None) -> bool:
+    if requirement is None:
+        return True
+    conditions = requirement.split(",")
+    for condition in conditions:
+        condition = condition.strip()
+        if not semver.match(ayon_version, condition):
+            return False
+    return True
