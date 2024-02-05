@@ -11,13 +11,13 @@ from concurrent.futures import ThreadPoolExecutor
 import aiofiles
 import httpx
 import semver
-from ayon_config.version import __version__ as ayon_version
 from nxtools import logging
 from pydantic import BaseModel
 
 from ayon_server.config import ayonconfig
 from ayon_server.events import update_event
 from ayon_server.exceptions import AyonException
+from ayon_server.version import __version__ as ayon_version
 
 
 class UnsupportedAddonException(AyonException):
@@ -216,14 +216,14 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
 
         # Get the addon name and version from the zip file
 
-        addon_name, addon_version = get_addon_zip_info(zip_path)
+        zip_info = get_addon_zip_info(zip_path)
         await update_event(
             event_id,
-            description=f"Installing addon {addon_name} {addon_version}",
+            description=f"Installing addon {zip_info.name} {zip_info.version}",
             status="in_progress",
             summary={
-                "addon_name": addon_name,
-                "addon_version": addon_version,
+                "addon_name": zip_info.name,
+                "addon_version": zip_info.version,
                 "url": url,
             },
             progress=50,
@@ -238,13 +238,13 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
                 executor,
                 unpack_addon_sync,
                 zip_path,
-                addon_name,
-                addon_version,
+                zip_info.name,
+                zip_info.version,
             )
             await asyncio.gather(task)
 
     await update_event(
         event_id,
-        description=f"Addon {addon_name} {addon_version} installed",
+        description=f"Addon {zip_info.name} {zip_info.version} installed",
         status="finished",
     )
