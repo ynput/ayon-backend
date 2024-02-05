@@ -7,6 +7,7 @@ from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.cloud import get_cloud_api_headers
 from ayon_server.lib.postgres import Postgres
+from ayon_server.version import __version__ as ayon_version
 
 
 async def get_market_data(
@@ -20,6 +21,8 @@ async def get_market_data(
         headers = await get_cloud_api_headers()
     except ForbiddenException:
         headers = {}
+
+    headers["X-Ayon-Version"] = ayon_version
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
