@@ -39,8 +39,8 @@ def get_addon_info_from_manifest(manifest_data: str) -> AddonZipInfo:
     if not (manifest.get("addon_name") and manifest.get("addon_version")):
         raise UnsupportedAddonException("Addon name or version not found in manifest")
     return AddonZipInfo(
-        name=manifest.get("name"),
-        version=manifest.get("version"),
+        name=manifest.get("addon_name"),
+        version=manifest.get("addon_version"),
         min_ayon_version="1.0.0",
         max_ayon_version="1.2.0",
     )
