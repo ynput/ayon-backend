@@ -2,6 +2,7 @@ import os
 from typing import TYPE_CHECKING
 
 import semver
+import yaml
 from nxtools import logging, slugify
 
 from ayon_server.addons.addon import BaseServerAddon
@@ -81,31 +82,59 @@ class ServerAddonDefinition:
                     self.init_addon(version_dir)
                     continue
 
+                if os.path.exists(os.path.join(version_dir, "package.yml")):
+                    self.init_addon(version_dir)
+                    continue
+
+                if os.path.exists(os.path.join(version_dir, "package.yaml")):
+                    self.init_addon(version_dir)
+                    continue
+
         return self._versions
 
     def init_addon(self, addon_dir: str):
         vname = slugify(f"{self.dir_name}-{os.path.split(addon_dir)[-1]}")
-        package_module_name = f"{vname}-package"
 
         server_module_path = os.path.join(addon_dir, "server", "__init__.py")
+
+        addon_name: str | None = None
+        addon_version: str | None = None
+
         package_path = os.path.join(addon_dir, "package.py")
+        if os.path.exists(package_path):
+            package_module_name = f"{vname}-package"
 
-        if not os.path.exists(server_module_path):
-            logging.error(f"Addon {vname} is missing server module")
-            return
+            try:
+                package_module = import_module(package_module_name, package_path)
+            except AttributeError:
+                logging.error(f"Package {package_path} is not valid")
+                return
 
-        try:
-            package_module = import_module(package_module_name, package_path)
-        except AttributeError:
-            logging.error(f"Package {package_path} is not valid")
-            return
+            if not hasattr(package_module, "name"):
+                logging.error(f"Package {package_path} is missing name")
+                return
 
-        if not hasattr(package_module, "name"):
-            logging.error(f"Package {package_path} is missing name")
-            return
+            if not hasattr(package_module, "version"):
+                logging.error(f"Package {package_path} is missing version")
+                return
 
-        if not hasattr(package_module, "version"):
-            logging.error(f"Package {package_path} is missing version")
+            addon_name = package_module.name
+            addon_version = package_module.version
+
+        elif os.path.exists(os.path.join(addon_dir, "package.yml")):
+            with open(os.path.join(addon_dir, "package.yml"), "r") as f:
+                package = yaml.safe_load(f)
+                addon_name = package.get("name")
+                addon_version = package.get("version")
+
+        elif os.path.exists(os.path.join(addon_dir, "package.yaml")):
+            with open(os.path.join(addon_dir, "package.yaml"), "r") as f:
+                package = yaml.safe_load(f)
+                addon_name = package.get("name")
+                addon_version = package.get("version")
+
+        if not (addon_name and addon_version):
+            logging.error(f"Addon {vname} is missing package information")
             return
 
         try:
