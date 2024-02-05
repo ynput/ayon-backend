@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import shutil
 import tempfile
 import time
@@ -9,31 +10,97 @@ from concurrent.futures import ThreadPoolExecutor
 
 import aiofiles
 import httpx
+import semver
+from ayon_config.version import __version__ as ayon_version
 from nxtools import logging
+from pydantic import BaseModel
 
 from ayon_server.config import ayonconfig
 from ayon_server.events import update_event
+from ayon_server.exceptions import AyonException
 
 
-def get_addon_zip_info(path: str) -> tuple[str, str]:
+class UnsupportedAddonException(AyonException):
+    status = 409
+
+
+class AddonZipInfo(BaseModel):
+    name: str
+    version: str
+    min_ayon_version: str  # inclusive
+    max_ayon_version: str | None = None  # exclusive
+
+
+def get_addon_info_from_manifest(manifest: dict) -> AddonZipInfo:
+    """Returns the addon name and version from the manifest"""
+    if not (manifest.get("addon_name") and manifest.get("addon_version")):
+        raise UnsupportedAddonException("Addon name or version not found in manifest")
+    return AddonZipInfo(
+        name=manifest.get("name"),
+        version=manifest.get("version"),
+        min_ayon_version="1.0.0",
+        max_ayon_version="1.2.0",
+    )
+
+
+def get_addon_info_from_package(package_py_content: str) -> AddonZipInfo:
+    """Returns the addon name and version from the package file
+
+    This will be reimplemented using Rez in the future
+    """
+
+    name_pattern = r'name\s*=\s*"([^"]+)"'
+    version_pattern = r'version\s*=\s*"([^"]+)"'
+
+    name_match = re.search(name_pattern, package_py_content)
+    version_match = re.search(version_pattern, package_py_content)
+
+    package_name = name_match.group(1) if name_match else None
+    package_version = version_match.group(1) if version_match else None
+
+    if not (package_name and package_version):
+        raise UnsupportedAddonException("Addon name or version not found in package.py")
+
+    return AddonZipInfo(
+        name=package_name,
+        version=package_version,
+        min_ayon_version="1.0.3",
+    )
+
+
+def get_addon_zip_info(path: str) -> AddonZipInfo:
     """Returns the addon name and version from the zip file"""
+    zip_info: AddonZipInfo | None = None
     with zipfile.ZipFile(path, "r") as zip_ref:
         names = zip_ref.namelist()
-        if "manifest.json" not in names:
-            raise RuntimeError("Addon manifest not found in zip file")
 
-        if "addon/__init__.py" not in names:
-            raise RuntimeError("Addon __init__.py not found in zip file")
+        if "manifest.json" in names:
+            with zip_ref.open("manifest.json") as manifest_file:
+                manifest = json.load(manifest_file)
+                zip_info = get_addon_info_from_manifest(manifest)
 
-        with zip_ref.open("manifest.json") as manifest_file:
-            manifest = json.load(manifest_file)
+        elif "package.py" in names:
+            with zip_ref.open("package.py") as package_file:
+                package_py_content = package_file.read().decode("utf-8")
+                zip_info = get_addon_info_from_package(package_py_content)
 
-            addon_name = manifest.get("addon_name")
-            addon_version = manifest.get("addon_version")
+    if zip_info is None:
+        raise UnsupportedAddonException("Unsupported addon format")
 
-            if not (addon_name and addon_version):
-                raise RuntimeError("Addon name or version not found in manifest")
-        return addon_name, addon_version
+    if semver.compare(ayon_version, zip_info.min_ayon_version) < 0:
+        raise UnsupportedAddonException(
+            f"Ayon version {ayon_version} is not supported by this addon"
+        )
+
+    if (
+        zip_info.max_ayon_version
+        and semver.compare(ayon_version, zip_info.max_ayon_version) >= 0
+    ):
+        raise UnsupportedAddonException(
+            f"Ayon version {ayon_version} is not supported by this addon"
+        )
+
+    return zip_info
 
 
 def unpack_addon_sync(zip_path: str, addon_name: str, addon_version) -> None:
