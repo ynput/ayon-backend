@@ -53,11 +53,8 @@ async def upload_addon_zip_file(
 
         summary = {"url": url}
         if addonName and addonVersion:
-            # TODO - we should populate all available fields
-            summary["zip_info"] = {
-                "name": addonName,
-                "version": addonVersion,
-            }
+            summary["addon_name"] = addonName
+            summary["version"] = addonVersion
 
         res = await Postgres.fetch(query, hash)
         if res:
@@ -97,6 +94,7 @@ async def upload_addon_zip_file(
     # Get addon name and version from the zip file
 
     zip_info = get_addon_zip_info(temp_path)
+    zip_info.zip_path = temp_path
 
     # We don't create the event before we know that the zip file is valid
     # and contains an addon. If it doesn't, an exception is raised before
@@ -107,8 +105,8 @@ async def upload_addon_zip_file(
     query = """
         SELECT id FROM events
         WHERE topic = 'addon.install'
-        AND summary->>'addon_name' = $1
-        AND summary->>'addon_version' = $2
+        AND summary->>'name' = $1
+        AND summary->>'version' = $2
         LIMIT 1
     """
 
@@ -118,10 +116,7 @@ async def upload_addon_zip_file(
         await update_event(
             event_id,
             description="Reinstalling addon from zip file",
-            summary={
-                "zip_info": zip_info.dict(),
-                "zip_path": temp_path,
-            },
+            summary=zip_info.dict(exclude_none=True),
             status="pending",
         )
     else:
@@ -129,10 +124,7 @@ async def upload_addon_zip_file(
         event_id = await dispatch_event(
             "addon.install",
             description=f"Installing addon {zip_info.name} {zip_info.version}",
-            summary={
-                "zip_info": zip_info.dict(),
-                "zip_path": temp_path,
-            },
+            summary=zip_info.dict(exclude_none=True),
             user=user.name,
             finished=False,
         )
@@ -187,16 +179,13 @@ async def get_installed_addons_list(
             last_change = row["updated_at"]
         else:
             last_change = max(last_change, row["updated_at"])
-        if "zip_info" not in summary:
-            # deprecated event structure
-            continue
         items.append(
             AddonInstallListItemModel(
                 id=row["id"],
                 topic=row["topic"],
                 description=row["description"],
-                addon_name=summary["zip_info"]["name"],
-                addon_version=summary["zip_info"]["addon_version"],
+                addon_name=summary["addon_name"],
+                addon_version=summary["addon_version"],
                 user=row["user"],
                 status=row["status"],
                 created_at=row["created_at"],

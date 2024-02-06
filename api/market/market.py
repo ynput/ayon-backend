@@ -27,7 +27,8 @@ async def market_addon_list(user: CurrentUser):
 
         if (
             semver.compare(
-                addon["latestVersion"], addon["currentProductionVersion"] or "0.0.0"
+                addon["latestVersion"],
+                addon["currentProductionVersion"] or "0.0.0",
             )
             > 0
         ):

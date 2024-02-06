@@ -52,8 +52,7 @@ class BackgroundInstaller(BackgroundWorker):
         if topic == "addon.install":
             await unpack_addon(
                 event_id,
-                summary["zip_path"],
-                AddonZipInfo(**summary["zip_info"]),
+                AddonZipInfo(**summary),
             )
 
         elif topic == "addon.install_from_url":
