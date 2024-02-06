@@ -137,6 +137,12 @@ class ServerAddonDefinition:
             logging.error(f"Addon {vname} is missing package information")
             return
 
+        if os.path.exists(os.path.join(addon_dir, ".git")):
+            if "+" in addon_version:
+                addon_version += "-git"
+            else:
+                addon_version += "+git"
+
         try:
             module = import_module(vname, server_module_path)
         except AttributeError:
@@ -148,18 +154,20 @@ class ServerAddonDefinition:
                 addon = Addon(
                     self,
                     addon_dir=addon_dir,
-                    name=package_module.name,
-                    version=package_module.version,
+                    name=addon_name,
+                    version=addon_version,
                 )
-            except ValueError as e:
-                logging.error(f"Error loading addon {vname} versions: {e.args[0]}")
+            except ValueError:
+                logging.error(
+                    f"Error loading addon {addon_name} versions: {addon_version}"
+                )
                 return
 
             if addon.restart_requested:
                 logging.warning(f"{addon}requested server restart")
                 self.restart_requested = True
 
-            self._versions[package_module.version] = addon
+            self._versions[addon_version] = addon
 
     def init_legacy_addon(self, addon_dir: str):
         mfile = os.path.join(addon_dir, "__init__.py")
