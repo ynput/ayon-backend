@@ -1,12 +1,14 @@
 from typing import Any
 
 import httpx
+import semver
 
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.cloud import get_cloud_api_headers
 from ayon_server.lib.postgres import Postgres
+from ayon_server.version import __version__ as ayon_version
 
 
 async def get_market_data(
@@ -20,6 +22,8 @@ async def get_market_data(
         headers = await get_cloud_api_headers()
     except ForbiddenException:
         headers = {}
+
+    headers["X-Ayon-Version"] = ayon_version
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
@@ -62,3 +66,14 @@ async def get_local_production_addon_versions() -> dict[str, str]:
         return {}
 
     return res[0]["addons"] or {}
+
+
+def is_compatible(requirement: str | None = None) -> bool:
+    if requirement is None:
+        return True
+    conditions = requirement.split(",")
+    for condition in conditions:
+        condition = condition.strip()
+        if not semver.match(ayon_version, condition):
+            return False
+    return True
