@@ -84,12 +84,11 @@ class ServerAddonDefinition:
 
                     if os.path.exists(os.path.join(version_dir, "__init__.py")):
                         self.init_legacy_addon(version_dir)
-                    elif os.path.exists(os.path.join(version_dir, "package.py")):
-                        self.init_addon(version_dir)
-                    elif os.path.exists(os.path.join(version_dir, "package.yml")):
-                        self.init_addon(version_dir)
-                    elif os.path.exists(os.path.join(version_dir, "package.yaml")):
-                        self.init_addon(version_dir)
+
+                    for filename in ["package.py", "package.yml", "package.yaml"]:
+                        if os.path.exists(os.path.join(version_dir, filename)):
+                            self.init_addon(version_dir)
+                            break
 
                 except AssertionError as e:
                     logging.error(f"Failed to init addon {version_dir}: {e}")
