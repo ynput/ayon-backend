@@ -6,6 +6,7 @@ import tempfile
 import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 import aiofiles
 import httpx
@@ -54,7 +55,7 @@ def get_addon_info_from_package_py(manifest_data: str) -> AddonZipInfo:
 
     # no. i don't like this either.
 
-    namespace = {}
+    namespace: dict[str, Any] = {}
     try:
         exec(manifest_data, {}, namespace)
     except Exception:
