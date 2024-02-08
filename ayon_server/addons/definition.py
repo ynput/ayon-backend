@@ -142,8 +142,12 @@ class ServerAddonDefinition:
             else:
                 metadata["version"] += "+git"
 
-        # TODO: check if the version is a valid semver here??
-        # Because if it is not, it will hurt eventually
+        try:
+            semver.VersionInfo.parse(metadata["version"])
+        except ValueError:
+            raise AssertionError(
+                f"Addon {metadata['name']} has invalid version {metadata['version']}"
+            )
 
         # Import the server module
 
