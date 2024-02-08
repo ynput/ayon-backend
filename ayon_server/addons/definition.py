@@ -84,6 +84,7 @@ class ServerAddonDefinition:
 
                     if os.path.exists(os.path.join(version_dir, "__init__.py")):
                         self.init_legacy_addon(version_dir)
+                        continue
 
                     for filename in ["package.py", "package.yml", "package.yaml"]:
                         if os.path.exists(os.path.join(version_dir, filename)):
