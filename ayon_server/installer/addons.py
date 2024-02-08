@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import re
 import shutil
 import tempfile
 import time
@@ -12,7 +11,7 @@ import aiofiles
 import httpx
 import semver
 import yaml
-from nxtools import logging
+from nxtools import log_traceback, logging
 from pydantic import BaseModel
 
 from ayon_server.config import ayonconfig
@@ -53,29 +52,26 @@ def get_addon_info_from_package_py(manifest_data: str) -> AddonZipInfo:
     This will be reimplemented using Rez in the future
     """
 
-    name_pattern = r'name\s*=\s*"([^"]+)"'
-    version_pattern = r'version\s*=\s*"([^"]+)"'
-    ayon_version_pattern = r'ayon_version\s*=\s*"([^"]+)"'
+    # no. i don't like this either.
 
-    name_match = re.search(name_pattern, manifest_data)
-    version_match = re.search(version_pattern, manifest_data)
-    ayon_version_match = re.search(ayon_version_pattern, manifest_data)
+    namespace = {}
+    try:
+        exec(manifest_data, {}, namespace)
+    except Exception:
+        log_traceback()
+        raise UnsupportedAddonException("Error parsing package.py")
+    extracted_values = {
+        field: namespace.get(field) for field in ["name", "version", "ayon_version"]
+    }
 
-    package_name = name_match.group(1) if name_match else None
-    package_version = version_match.group(1) if version_match else None
-    package_ayon_version = (
-        ayon_version_match.group(1) if ayon_version_match else ">=1.0.3"
-    )
+    # remove None values
+    extracted_values = {k: v for k, v in extracted_values.items() if v is not None}
 
-    if not (package_name and package_version):
-        raise UnsupportedAddonException("Addon name or version not found in package.py")
-
-    return AddonZipInfo(
-        name=package_name,
-        version=package_version,
-        is_rez=True,
-        ayon_version=package_ayon_version,
-    )
+    if "name" not in extracted_values:
+        raise UnsupportedAddonException("Addon name not found in package.py")
+    if "version" not in extracted_values:
+        raise UnsupportedAddonException("Addon version not found in package.py")
+    return AddonZipInfo(is_rez=True, **extracted_values)
 
 
 def get_addon_info_from_package_yaml(manifest_data: str) -> AddonZipInfo:
