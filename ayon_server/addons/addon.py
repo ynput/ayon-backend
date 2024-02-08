@@ -17,37 +17,45 @@ from ayon_server.settings import BaseSettingsModel, apply_overrides
 if TYPE_CHECKING:
     from ayon_server.addons.definition import ServerAddonDefinition
 
+METADATA_KEYS = [
+    "name",
+    "version",
+    "title",
+    "services",
+]
+
 
 class BaseServerAddon:
+    # metadata from package.py
     name: str
     version: str
     title: str | None = None
-    app_host_name: str | None = None
-    definition: "ServerAddonDefinition"
-    endpoints: list[dict[str, Any]]
+    services: dict[str, Any] = {}
+
+    # should be defined on addon class
+    system: bool = False  # Hide settings for non-admins and make the addon mandatory
     settings_model: Type[BaseSettingsModel] | None = None
     site_settings_model: Type[BaseSettingsModel] | None = None
+    app_host_name: str | None = None
     frontend_scopes: dict[str, Any] = {}
-    services: dict[str, Any] = {}
-    system: bool = False  # Hide settings for non-admins and make the addon mandatory
-    legacy: bool = False
 
-    def __init__(
-        self,
-        definition: "ServerAddonDefinition",
-        addon_dir: str,
-        name: str | None = None,
-        version: str | None = None,
-    ):
-        # name and version is pushed from the definition when addon has package.py
-        # while legacy addons depend on name and versions defined in the class
-        if name is not None:
-            self.name = name
+    # automatically set
+    definition: "ServerAddonDefinition"
+    legacy: bool = False  # auto-set to true if it is the old style addon
+    endpoints: list[dict[str, Any]]
 
-        if version is not None:
-            self.version = version
+    def __init__(self, definition: "ServerAddonDefinition", addon_dir: str, **kwargs):
 
-        assert self.name and self.version
+        # populate metadata from package.py
+        for key in METADATA_KEYS:
+            if key in kwargs:
+                setattr(self, key, kwargs[key])
+
+        # ensure name and version are set
+        assert (
+            self.name and self.version
+        ), f"Addon {addon_dir} is missing name or version"
+
         self.definition = definition
         self.addon_dir = addon_dir
         self.endpoints = []
