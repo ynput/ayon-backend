@@ -93,8 +93,8 @@ class ServerAddonDefinition:
 
                 except AssertionError as e:
                     logging.error(f"Failed to init addon {version_dir}: {e}")
-                except Exception as e:
-                    log_traceback(e, f"Failed to init addon {version_dir}")
+                except Exception:
+                    log_traceback(f"Failed to init addon {version_dir}")
 
         return self._versions
 
@@ -137,10 +137,10 @@ class ServerAddonDefinition:
         # on the server
 
         if os.path.exists(os.path.join(addon_dir, ".git")):
-            if "+" in metadata["version"]:
-                metadata["version"] += "-git"
-            else:
-                metadata["version"] += "+git"
+            version = metadata["version"].split("-")[0]
+            version = version.split("+")[0]
+            version += "+git"
+            metadata["version"] = version
 
         try:
             semver.VersionInfo.parse(metadata["version"])
