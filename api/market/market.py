@@ -19,16 +19,15 @@ async def market_addon_list(user: CurrentUser):
 
     result = await get_market_data("addons")
     installed_addons = await get_local_latest_addon_versions()
-    production_addons = await get_local_production_addon_versions()
+    # production_addons = await get_local_production_addon_versions()
 
     for addon in result.get("addons", []):
-        addon["currentProductionVersion"] = production_addons.get(addon["name"])
         addon["currentLatestVersion"] = installed_addons.get(addon["name"])
 
         if (
             semver.compare(
                 addon["latestVersion"],
-                addon["currentProductionVersion"] or "0.0.0",
+                addon["currentLatestVersion"] or "0.0.0",
             )
             > 0
         ):
