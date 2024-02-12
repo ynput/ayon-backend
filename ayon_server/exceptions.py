@@ -109,3 +109,13 @@ class NotImplementedException(AyonException):
 
     detail: str = "Not implemented"
     status: int = 501
+
+
+class ServiceUnavailableException(AyonException):
+    """Exception raised when a service is unavailable.
+
+    Request should be retried later.
+    """
+
+    detail: str = "Service unavailable"
+    status: int = 503
