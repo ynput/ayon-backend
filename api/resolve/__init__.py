@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlparse
 from fastapi import APIRouter, Query
 
 from ayon_server.api.dependencies import CurrentUser, SiteID
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, ServiceUnavailableException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel, ProjectLevelEntityType
 
@@ -258,6 +258,12 @@ async def resolve_entities(
 
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
+
+    if Postgres.get_available_connections() < 3:
+        raise ServiceUnavailableException(
+            f"Postgres pool size: {Postgres.pool.get_size()} Idle {Postgres.pool.get_idle_size()}"
+        )
+
     target_entity_type: ProjectLevelEntityType | None = None
 
     platform = None
@@ -374,7 +380,9 @@ async def get_roots_for_projects(
     roots: dict[str, dict[str, str]] = {}
 
     site_res = await Postgres.fetch(
-        "SELECT data->>'platform' as platform FROM sites WHERE id = $1", site_id
+        "SELECT data->>'platform' as platform FROM sites WHERE id = $1",
+        site_id,
+        timeout=5,
     )
     if not site_res:
         raise BadRequestException(status_code=404, detail="Site not found")
@@ -383,9 +391,12 @@ async def get_roots_for_projects(
 
     # get roots from project anatomies
 
-    async for row in Postgres.iterate(
-        "SELECT name, config FROM projects WHERE name = ANY($1)", projects
-    ):
+    result = await Postgres.fetch(
+        "SELECT name, config FROM projects WHERE name = ANY($1)",
+        projects,
+        timeout=5,
+    )
+    for row in result:
         _project_name = row["name"]
         _roots = row["config"].get("roots", {})
         roots[_project_name] = {}
@@ -395,11 +406,12 @@ async def get_roots_for_projects(
     # root project overrides
 
     for project_name in projects:
-        async for row in Postgres.iterate(
-            f"SELECT data FROM project_{project_name}.custom_roots WHERE user_name = $1 AND site_id = $2",
-            user_name,
-            site_id,
-        ):
+        query = f"""
+            SELECT data FROM project_{project_name}.custom_roots
+            WHERE user_name = $1 AND site_id = $2"
+        """
+        result = await Postgres.fetch(query, user_name, site_id, timeout=5)
+        for row in result:
             roots[project_name].update(row["data"])
 
     return roots
