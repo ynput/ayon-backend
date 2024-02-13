@@ -70,7 +70,8 @@ class AuthStaticFiles(StaticFiles):
 # Error handling
 #
 
-logging.user = f"server_{os.getpid()}"
+# logging.user = f"server_{os.getpid()}"
+logging.user = "server"
 if ayonconfig.log_file:
     logging.add_handler(log_to_file(ayonconfig.log_file))
 
