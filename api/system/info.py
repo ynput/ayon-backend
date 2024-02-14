@@ -89,7 +89,7 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
 
     result = []
 
-    library = AddonLibrary().get_instance()
+    library = AddonLibrary.get_instance()
     production_addons = await library.get_variant_addons("production")
 
     for addon in production_addons:
