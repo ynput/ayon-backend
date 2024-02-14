@@ -66,7 +66,7 @@ class InvalidSettingsException(AyonException):
     """Exception raised when addon settings are invalid."""
 
     detail: str = "Invalid settings"
-    status: int = 503
+    status: int = 500
 
 
 class ConflictException(AyonException):
