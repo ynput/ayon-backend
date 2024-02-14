@@ -8,7 +8,7 @@ This expects a certain folder structure:
 
 Other folders might or might not be present, but they are essentially ignored.
 
-Will zip up the `client/ayon_<addon_name>` and place it into `private/client.zip`
+Will zip up the `client/<client module name>` and place it into `private/client.zip`
 and copy the contents of `server` into the root of the package.
 
 <package root>
