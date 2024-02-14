@@ -53,7 +53,7 @@ async def upload_addon_zip_file(
 
         summary = {"url": url}
         if addonName and addonVersion:
-            summary["addon_name"] = addonName
+            summary["name"] = addonName
             summary["version"] = addonVersion
 
         res = await Postgres.fetch(query, hash)
