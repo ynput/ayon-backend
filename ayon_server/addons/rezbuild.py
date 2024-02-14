@@ -2,7 +2,7 @@
 
 This expects a certain folder structure:
 ├── client
-│   └── ayon_<addon_name>
+│   └── <client module name>  # Example: ayon_core
 ├── package.py
 └── server
 
