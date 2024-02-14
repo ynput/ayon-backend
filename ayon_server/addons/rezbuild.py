@@ -12,14 +12,14 @@ Will zip up the `client/ayon_<addon_name>` and place it into `private/client.zip
 and copy the contents of `server` into the root of the package.
 
 <package root>
-├── addon
-│   ├── frontend
+├── frontend
+│   ├── dist
+├── server
 │   ├── __init__.py
-│   ├── private
-│   │   ├── client.zip
-│   │   └── pyproject.toml
-│   ├── settings
-│   └── version.py
+│   └── settings
+├── private
+│   ├── client.zip
+│   └── pyproject.toml
 ├── package.py
 └── build.rtx
 
