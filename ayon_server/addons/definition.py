@@ -92,9 +92,9 @@ class ServerAddonDefinition:
                             break
 
                 except AssertionError as e:
-                    logging.error(f"Failed to init addon {version_dir}: {e}")
+                    logging.error(f"Failed to initialize addon {version_dir}: {e}")
                 except Exception:
-                    log_traceback(f"Failed to init addon {version_dir}")
+                    log_traceback(f"Failed to initialize addon {version_dir}")
 
         return self._versions
 
@@ -158,7 +158,9 @@ class ServerAddonDefinition:
         for Addon in classes_from_module(BaseServerAddon, module):
             addon = Addon(self, addon_dir=addon_dir, **metadata)
             if addon.restart_requested:
-                logging.warning(f"{addon}requested server restart during init.")
+                logging.warning(
+                    f"{addon}requested server restart during initialization."
+                )
                 self.restart_requested = True
             self._versions[metadata["version"]] = addon
 
@@ -179,7 +181,9 @@ class ServerAddonDefinition:
             addon = Addon(self, addon_dir)
             addon.legacy = True
             if addon.restart_requested:
-                logging.warning(f"{addon} requested server restart during init.")
+                logging.warning(
+                    f"{addon} requested server restart during initialization."
+                )
                 self.restart_requested = True
             self._versions[Addon.version] = addon
 

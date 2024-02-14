@@ -1,8 +1,9 @@
 from fastapi import Path
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.api.dependencies import CurrentUser, ProjectName, SiteID
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
+from ayon_server.helpers.roots import get_roots_for_projects
 from ayon_server.lib.postgres import Postgres
 from projects.router import router
 
@@ -55,3 +56,14 @@ async def set_project_roots_overrides(
     await Postgres.execute(query, site_id, user.name, payload)
 
     return EmptyResponse()
+
+
+@router.get("/projects/{project_name}/siteRoots")
+async def get_project_site_roots(
+    project_name: ProjectName,
+    user: CurrentUser,
+    site_id: SiteID,
+) -> dict[str, str]:
+
+    all_roots = await get_roots_for_projects(user.name, site_id, [project_name])
+    return all_roots[project_name]

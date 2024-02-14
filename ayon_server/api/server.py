@@ -70,6 +70,7 @@ class AuthStaticFiles(StaticFiles):
 # Error handling
 #
 
+# logging.user = f"server_{os.getpid()}"
 logging.user = "server"
 if ayonconfig.log_file:
     logging.add_handler(log_to_file(ayonconfig.log_file))
@@ -137,7 +138,7 @@ async def ayon_exception_handler(
     request: fastapi.Request,
     exc: AyonException,
 ) -> fastapi.responses.JSONResponse:
-    if exc.status in [401, 403]:
+    if exc.status in [401, 403, 503]:
         # do not store 401 and 403 errors in the logs
         return fastapi.responses.JSONResponse(
             status_code=exc.status,

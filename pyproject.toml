@@ -31,6 +31,7 @@ uvicorn = {extras = ["standard"], version = "^0.25"}
 semver = "^3.0.1"
 pyjwt = "^2.8.0"
 cryptography = "^41.0.7"
+granian = "^1.0.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"

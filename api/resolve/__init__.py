@@ -6,7 +6,8 @@ from urllib.parse import parse_qs, urlparse
 from fastapi import APIRouter, Query
 
 from ayon_server.api.dependencies import CurrentUser, SiteID
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, ServiceUnavailableException
+from ayon_server.helpers.roots import get_roots_for_projects
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel, ProjectLevelEntityType
 
@@ -258,6 +259,12 @@ async def resolve_entities(
 
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
+
+    if Postgres.get_available_connections() < 3:
+        raise ServiceUnavailableException(
+            f"Postgres pool size: {Postgres.pool.get_size()} Idle {Postgres.pool.get_idle_size()}"
+        )
+
     target_entity_type: ProjectLevelEntityType | None = None
 
     platform = None
@@ -364,45 +371,6 @@ async def get_platform_for_site_id(site_id: str) -> str:
     if not res:
         raise BadRequestException(status_code=404, detail="Site not found")
     return res[0]["platform"]
-
-
-async def get_roots_for_projects(
-    user_name: str, site_id: str, projects: list[str]
-) -> dict[str, dict[str, str]]:
-    # platform specific roots for each requested project
-    # e.g. roots[project][root_name] = root_path
-    roots: dict[str, dict[str, str]] = {}
-
-    site_res = await Postgres.fetch(
-        "SELECT data->>'platform' as platform FROM sites WHERE id = $1", site_id
-    )
-    if not site_res:
-        raise BadRequestException(status_code=404, detail="Site not found")
-
-    platform = site_res[0]["platform"]
-
-    # get roots from project anatomies
-
-    async for row in Postgres.iterate(
-        "SELECT name, config FROM projects WHERE name = ANY($1)", projects
-    ):
-        _project_name = row["name"]
-        _roots = row["config"].get("roots", {})
-        roots[_project_name] = {}
-        for _root_name, _root_paths in _roots.items():
-            roots[_project_name][_root_name] = _root_paths[platform]
-
-    # root project overrides
-
-    for project_name in projects:
-        async for row in Postgres.iterate(
-            f"SELECT data FROM project_{project_name}.custom_roots WHERE user_name = $1 AND site_id = $2",
-            user_name,
-            site_id,
-        ):
-            roots[project_name].update(row["data"])
-
-    return roots
 
 
 @router.post("/resolve", response_model_exclude_none=True)
