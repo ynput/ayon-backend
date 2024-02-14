@@ -408,7 +408,7 @@ async def get_roots_for_projects(
     for project_name in projects:
         query = f"""
             SELECT data FROM project_{project_name}.custom_roots
-            WHERE user_name = $1 AND site_id = $2"
+            WHERE user_name = $1 AND site_id = $2
         """
         result = await Postgres.fetch(query, user_name, site_id, timeout=5)
         for row in result:
