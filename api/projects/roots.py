@@ -42,6 +42,8 @@ async def set_project_roots_overrides(
     project_name: ProjectName,
     site_id: str = Path(...),
 ) -> EmptyResponse:
+    """Set overrides for project roots."""
+
     project = await ProjectEntity.load(project_name)
     for root_name in project.config["roots"]:
         if root_name not in payload:
@@ -64,6 +66,15 @@ async def get_project_site_roots(
     user: CurrentUser,
     site_id: SiteID,
 ) -> dict[str, str]:
+    """Return roots for a project on a specific site.
+
+    Thist takes in account roots declared in the project anatomy
+    as well as site overrides. The result is combined and returned
+    as a dictionary with root names as keys and root paths as values.
+
+    As the site also defines the platform, the result is specific to
+    the platform of the site.
+    """
 
     all_roots = await get_roots_for_projects(user.name, site_id, [project_name])
     return all_roots[project_name]
