@@ -239,7 +239,11 @@ class BaseServerAddon:
 
     # Load overrides from the database
 
-    async def get_studio_overrides(self, variant: str = "production") -> dict[str, Any]:
+    async def get_studio_overrides(
+        self,
+        variant: str = "production",
+        as_version: str | None = None,
+    ) -> dict[str, Any]:
         """Load the studio overrides from the database."""
 
         query = """
@@ -302,16 +306,27 @@ class BaseServerAddon:
     async def get_studio_settings(
         self,
         variant: str = "production",
+        as_version: str | None = None,
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio overrides.
 
         You shouldn't override this method, unless absolutely necessary.
         """
 
-        settings = await self.get_default_settings()
+        if as_version:
+            try:
+                settings = self.definition[as_version].get_default_settings()
+            except KeyError:
+                raise NotFoundException(
+                    f"Version {as_version} does not exists"
+                ) from None
+        else:
+            settings = await self.get_default_settings()
         if settings is None:
             return None  # this addon has no settings at all
-        overrides = await self.get_studio_overrides(variant=variant)
+        overrides = await self.get_studio_overrides(
+            variant=variant, as_version=as_version
+        )
         if overrides:
             settings = apply_overrides(settings, overrides)
             settings._has_studio_overrides = True
@@ -410,20 +425,12 @@ class BaseServerAddon:
             return None
         return model()
 
-    def convert_system_overrides(
+    def convert_settings_overrides(
         self,
         source_version: str,
         overrides: dict[str, Any],
     ) -> dict[str, Any]:
-        """Convert system overrides from a previous version."""
-        return overrides
-
-    def convert_project_overrides(
-        self,
-        from_version: str,
-        overrides: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Convert project overrides from a previous version."""
+        """Convert settings overrides from a previous version."""
         return overrides
 
     async def get_sso_options(self, base_url: str) -> list[SSOOption] | None:

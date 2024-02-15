@@ -61,13 +61,14 @@ async def get_addon_studio_settings(
     addon_version: str,
     user: CurrentUser,
     variant: str = Query("production"),
+    as_version: str | None = Query(None, alias="as"),
 ) -> dict[str, Any]:
     """Return the settings (including studio overrides) of the given addon."""
 
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
-    settings = await addon.get_studio_settings(variant=variant)
+    settings = await addon.get_studio_settings(variant=variant, as_version=as_version)
     if not settings:
         return {}
     return settings
@@ -139,15 +140,16 @@ async def get_addon_studio_overrides(
     addon_version: str,
     user: CurrentUser,
     variant: str = Query("production"),
+    as_version: str | None = Query(None, alias="as"),
 ):
     if not user.is_manager:
         raise ForbiddenException
 
     addon = AddonLibrary.addon(addon_name, addon_version)
-    settings = await addon.get_studio_settings(variant=variant)
+    settings = await addon.get_studio_settings(variant=variant, as_version=as_version)
     if settings is None:
         return {}
-    overrides = await addon.get_studio_overrides(variant=variant)
+    overrides = await addon.get_studio_overrides(variant=variant, as_version=as_version)
     return list_overrides(settings, overrides)
 
 
