@@ -160,18 +160,7 @@ async def delete_folder(
             "entityData": folder.dict_simple(),
         }
 
-    if force:
-        async for row in Postgres.iterate(
-            f"""
-            SELECT id FROM project_{project_name}.products
-            WHERE folder_id = $1
-            """,
-            folder.id,
-        ):
-            product = await ProductEntity.load(project_name, row["id"])
-            await product.delete()
-
-    await folder.delete()
+    await folder.delete(force=force)
     background_tasks.add_task(
         dispatch_event,
         sender=x_sender,

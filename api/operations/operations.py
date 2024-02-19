@@ -159,17 +159,6 @@ async def process_operation(
         await entity.ensure_delete_access(user)
         description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
 
-        if operation.force and operation.entity_type == "folder":
-            async for row in Postgres.iterate(
-                f"""
-                SELECT id FROM project_{project_name}.products
-                WHERE folder_id = $1
-                """,
-                entity.id,
-            ):
-                product = await ProductEntity.load(project_name, row["id"])
-                await product.delete()
-
         events = [
             {
                 "topic": f"entity.{operation.entity_type}.deleted",
@@ -180,7 +169,7 @@ async def process_operation(
         ]
         if ayonconfig.audit_trail:
             events[0]["payload"] = {"entityData": entity.dict_simple()}
-        await entity.delete(transaction=transaction)
+        await entity.delete(transaction=transaction, force=operation.force)
     else:
         raise BadRequestException(f"Unknown operation type {operation.type}")
 

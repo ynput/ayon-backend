@@ -266,6 +266,25 @@ class FolderEntity(ProjectLevelEntity):
                 attr,
             )
 
+    async def delete(self, transaction=None, **kwargs) -> None:
+        if "force" in kwargs:
+            async for row in Postgres.iterate(
+                f"""
+                SELECT id FROM project_{self.project_name}.products
+                WHERE folder_id = $1
+                """,
+                self.id,
+            ):
+                conn = transaction or Postgres
+                conn.execute(
+                    f"""
+                    DELETE FROM project_{self.project_name}.products
+                    WHERE folder_id = $1
+                    """
+                )
+
+        super().delete(transaction=transaction, **kwargs)
+
     async def get_versions(self, transaction=None):
         """Return of version ids associated with this folder."""
         query = f"""

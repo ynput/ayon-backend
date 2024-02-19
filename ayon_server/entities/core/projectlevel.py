@@ -266,7 +266,7 @@ class ProjectLevelEntity(BaseEntity):
     # Delete
     #
 
-    async def delete(self, transaction=None) -> bool:
+    async def delete(self, transaction=None, **kwargs) -> bool:
         """Delete an existing entity."""
         if not self.id:
             raise NotFoundException(f"Unable to delete unloaded {self.entity_type}.")
