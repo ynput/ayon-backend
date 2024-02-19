@@ -9,6 +9,8 @@ from ayon_server.installer.dependency_packages import download_dependency_packag
 from ayon_server.installer.installers import download_installer
 from ayon_server.lib.postgres import Postgres
 
+from .addons import AddonZipInfo
+
 TOPICS = [
     "addon.install",
     "addon.install_from_url",
@@ -50,9 +52,7 @@ class BackgroundInstaller(BackgroundWorker):
         if topic == "addon.install":
             await unpack_addon(
                 event_id,
-                summary["zip_path"],
-                summary["addon_name"],
-                summary["addon_version"],
+                AddonZipInfo(**summary),
             )
 
         elif topic == "addon.install_from_url":

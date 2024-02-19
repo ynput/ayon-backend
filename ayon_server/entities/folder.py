@@ -8,7 +8,6 @@ from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
     AyonException,
-    ConstraintViolationException,
     ForbiddenException,
     NotFoundException,
 )
@@ -154,44 +153,32 @@ class FolderEntity(ProjectLevelEntity):
                 """
             )
 
-            try:
-                await transaction.execute(
-                    *SQLTool.update(
-                        f"project_{self.project_name}.{self.entity_type}s",
-                        f"WHERE id = '{self.id}'",
-                        name=self.name,
-                        label=self.label,
-                        folder_type=self.folder_type,
-                        parent_id=self.parent_id,
-                        thumbnail_id=self.thumbnail_id,
-                        status=self.status,
-                        tags=self.tags,
-                        attrib=attrib,
-                        data=self.data,
-                        active=self.active,
-                        updated_at=datetime.now(),
-                    )
+            await transaction.execute(
+                *SQLTool.update(
+                    f"project_{self.project_name}.{self.entity_type}s",
+                    f"WHERE id = '{self.id}'",
+                    name=self.name,
+                    label=self.label,
+                    folder_type=self.folder_type,
+                    parent_id=self.parent_id,
+                    thumbnail_id=self.thumbnail_id,
+                    status=self.status,
+                    tags=self.tags,
+                    attrib=attrib,
+                    data=self.data,
+                    active=self.active,
+                    updated_at=datetime.now(),
                 )
-            except Postgres.ForeignKeyViolationError as e:
-                raise ConstraintViolationException(e.detail)
-
-            except Postgres.UniqueViolationError as e:
-                raise ConstraintViolationException(e.detail)
+            )
 
         else:
             # Create a new entity
-            try:
-                await transaction.execute(
-                    *SQLTool.insert(
-                        f"project_{self.project_name}.{self.entity_type}s",
-                        **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
-                    )
+            await transaction.execute(
+                *SQLTool.insert(
+                    f"project_{self.project_name}.{self.entity_type}s",
+                    **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
                 )
-            except Postgres.ForeignKeyViolationError as e:
-                raise ConstraintViolationException(e.detail)
-
-            except Postgres.UniqueViolationError as e:
-                raise ConstraintViolationException(e.detail)
+            )
 
         if commit:
             await self.commit(transaction)
@@ -296,7 +283,7 @@ class FolderEntity(ProjectLevelEntity):
             """
         return [row["version_id"] async for row in Postgres.iterate(query, self.id)]
 
-    async def ensure_create_access(self, user):
+    async def ensure_create_access(self, user, **kwargs):
         """Check if the user has access to create a new entity.
 
         Raises FobiddenException if the user does not have access.
@@ -314,6 +301,32 @@ class FolderEntity(ProjectLevelEntity):
                 self.parent_id,
                 "create",
             )
+
+    async def ensure_update_access(self, user, **kwargs) -> None:
+        """Check if the user has access to update the folder.
+
+        Raises FobiddenException if the user does not have access.
+        """
+
+        if user.is_manager:
+            return
+
+        # if only thumbnail is updated, check publish access,
+        # which is less restrictive than update access and it is
+        # good enough for thumbnail updates
+        if kwargs.get("thumbnail_only"):
+            try:
+                await ensure_entity_access(
+                    user, self.project_name, self.entity_type, self.id, "publish"
+                )
+            except ForbiddenException:
+                pass
+            else:
+                return
+
+        await ensure_entity_access(
+            user, self.project_name, self.entity_type, self.id, "update"
+        )
 
     #
     # Properties

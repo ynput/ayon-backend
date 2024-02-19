@@ -6,7 +6,11 @@ from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core.base import BaseEntity
-from ayon_server.exceptions import ConstraintViolationException, NotFoundException
+from ayon_server.exceptions import (
+    AyonException,
+    ConstraintViolationException,
+    NotFoundException,
+)
 from ayon_server.helpers.statuses import get_default_status_for_entity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
@@ -107,23 +111,24 @@ class ProjectLevelEntity(BaseEntity):
         result = self._payload.copy(**kw)
         return result
 
-    async def ensure_create_access(self, user) -> None:
+    async def ensure_create_access(self, user, **kwargs) -> None:
         """Check if the user has access to create a new entity.
 
         Raises FobiddenException if the user does not have access.
         """
-        await ensure_entity_access(
-            user, self.project_name, self.entity_type, self.id, "create"
+
+        raise AyonException(
+            "Ensure created access called on base class. This is a bug."
         )
 
-    async def ensure_read_access(self, user) -> None:
+    async def ensure_read_access(self, user, **kwargs) -> None:
         """Check if the user has access to read the entity.
 
         Raises FobiddenException if the user does not have access.
         """
         await ensure_entity_access(user, self.project_name, self.entity_type, self.id)
 
-    async def ensure_update_access(self, user) -> None:
+    async def ensure_update_access(self, user, **kwargs) -> None:
         """Check if the user has access to update the entity.
 
         Raises FobiddenException if the user does not have access.
@@ -132,7 +137,7 @@ class ProjectLevelEntity(BaseEntity):
             user, self.project_name, self.entity_type, self.id, "update"
         )
 
-    async def ensure_delete_access(self, user) -> None:
+    async def ensure_delete_access(self, user, **kwargs) -> None:
         """Check if the user has access to delete the entity.
 
         Raises FobiddenException if the user does not have access.
@@ -218,45 +223,33 @@ class ProjectLevelEntity(BaseEntity):
             fields["attrib"] = attrib
             fields["updated_at"] = datetime.now()
 
-            try:
-                await self.pre_save(False, transaction)
-                await transaction.execute(
-                    *SQLTool.update(
-                        f"project_{self.project_name}.{self.entity_type}s",
-                        f"WHERE id = '{self.id}'",
-                        **fields,
-                    )
+            await self.pre_save(False, transaction)
+            await transaction.execute(
+                *SQLTool.update(
+                    f"project_{self.project_name}.{self.entity_type}s",
+                    f"WHERE id = '{self.id}'",
+                    **fields,
                 )
-            except Postgres.ForeignKeyViolationError as e:
-                raise ConstraintViolationException(e.detail)
-
-            except Postgres.UniqueViolationError as e:
-                raise ConstraintViolationException(e.detail)
+            )
 
             if commit:
                 await self.commit(transaction)
             return True
 
         # Create a new entity
-        try:
-            fields = dict_exclude(
-                self.dict(exclude_none=True),
-                self.model.dynamic_fields,
-            )
-            fields["attrib"] = attrib
+        fields = dict_exclude(
+            self.dict(exclude_none=True),
+            self.model.dynamic_fields,
+        )
+        fields["attrib"] = attrib
 
-            await self.pre_save(True, transaction)
-            await transaction.execute(
-                *SQLTool.insert(
-                    f"project_{self.project_name}.{self.entity_type}s",
-                    **fields,
-                )
+        await self.pre_save(True, transaction)
+        await transaction.execute(
+            *SQLTool.insert(
+                f"project_{self.project_name}.{self.entity_type}s",
+                **fields,
             )
-        except Postgres.ForeignKeyViolationError as e:
-            raise ConstraintViolationException(e.detail)
-
-        except Postgres.UniqueViolationError as e:
-            raise ConstraintViolationException(e.detail)
+        )
 
         if commit:
             await self.commit(transaction)

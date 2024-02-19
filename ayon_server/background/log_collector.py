@@ -57,6 +57,8 @@ class LogCollector(BackgroundWorker):
         # We need to add messages to the queue even if the
         # collector is not running to catch the messages
         # that are logged during the startup.
+        if kwargs["message_type"] == 0:
+            return
         if len(self.queue.queue) > 1000:
             logging.warning("Log collector queue is full", handlers=None)
             return

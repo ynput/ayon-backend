@@ -37,6 +37,7 @@ class SSOOption(OPModel):
     icon: str | None = Field(None)
     color: str = Field("#47b7da")
     text_color: str = Field("#ffffff")
+    redirect_key: str | None = Field(None)
     url: str = Field(...)
     args: dict[str, str] = Field(default_factory=dict)
     callback: str = Field(...)

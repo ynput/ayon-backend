@@ -195,7 +195,7 @@ async def create_folder_thumbnail(
     """
     payload = await body_from_request(request)
     folder = await FolderEntity.load(project_name, folder_id)
-    await folder.ensure_update_access(user)
+    await folder.ensure_update_access(user, thumbnail_only=True)
 
     thumbnail_id = EntityID.create()
     await store_thumbnail(

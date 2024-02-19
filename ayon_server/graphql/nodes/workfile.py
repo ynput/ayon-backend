@@ -33,11 +33,6 @@ class WorkfileNode(BaseNode):
     data: str | None
     tags: list[str]
 
-    @strawberry.field(description="Workfile name")
-    def name(self) -> str:
-        """Return a version name based on the workfile path."""
-        return os.path.basename(self.path)
-
     @strawberry.field(description="Parent task of the workfile")
     async def task(self, info: Info) -> TaskNode:
         record = await info.context["task_loader"].load(
@@ -57,10 +52,12 @@ def workfile_from_record(
     """Construct a version node from a DB row."""
 
     data = record.get("data", {})
+    name = os.path.basename(record["path"])
 
     return WorkfileNode(  # type: ignore
         project_name=project_name,
         id=record["id"],
+        name=name,
         path=record["path"],
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],

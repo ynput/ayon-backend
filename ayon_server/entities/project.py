@@ -10,7 +10,7 @@ from typing import Any, Dict
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.entities.models.submodels import LinkTypeModel
-from ayon_server.exceptions import ConstraintViolationException, NotFoundException
+from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import SQLTool, dict_exclude
 
@@ -237,37 +237,30 @@ class ProjectEntity(TopLevelEntity):
 
             fields["updated_at"] = datetime.now()
 
-            try:
-                await transaction.execute(
-                    *SQLTool.update(
-                        "public.projects", f"WHERE name='{project_name}'", **fields
-                    )
+            await transaction.execute(
+                *SQLTool.update(
+                    "public.projects", f"WHERE name='{project_name}'", **fields
                 )
-
-            except Postgres.ForeignKeyViolationError as e:
-                raise ConstraintViolationException(e.detail)
+            )
 
         else:
             # Create a project record
-            try:
-                await transaction.execute(
-                    *SQLTool.insert(
-                        "projects",
-                        **dict_exclude(
-                            self.dict(exclude_none=True),
-                            [
-                                "folder_types",
-                                "task_types",
-                                "link_types",
-                                "statuses",
-                                "tags",
-                                "own_attrib",
-                            ],
-                        ),
-                    )
+            await transaction.execute(
+                *SQLTool.insert(
+                    "projects",
+                    **dict_exclude(
+                        self.dict(exclude_none=True),
+                        [
+                            "folder_types",
+                            "task_types",
+                            "link_types",
+                            "statuses",
+                            "tags",
+                            "own_attrib",
+                        ],
+                    ),
                 )
-            except Postgres.UniqueViolationError:
-                raise ConstraintViolationException(f"{self.name} already exists")
+            )
             # Create a new schema for the project tablespace
             await transaction.execute(f"CREATE SCHEMA project_{project_name}")
 

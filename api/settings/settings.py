@@ -9,15 +9,17 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel
-from ayon_server.types import NAME_REGEX, Field, OPModel
+from ayon_server.types import NAME_REGEX, SEMVER_REGEX, Field, OPModel
 
 from .router import router
 
 
 class AddonSettingsItemModel(OPModel):
     name: str = Field(..., title="Addon name", regex=NAME_REGEX, example="my-addon")
+    version: str = Field(
+        ..., title="Addon version", regex=SEMVER_REGEX, example="1.0.0"
+    )
     title: str = Field(..., title="Addon title", example="My Addon")
-    version: str = Field(..., title="Addon version", regex=NAME_REGEX, example="1.0.0")
 
     # None value means that project does not have overrides or project/site was not specified
     # in the request

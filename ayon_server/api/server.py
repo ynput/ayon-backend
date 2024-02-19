@@ -16,6 +16,10 @@ from ayon_server.access.access_groups import AccessGroups
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.messaging import Messaging
 from ayon_server.api.metadata import app_meta, tags_meta
+from ayon_server.api.postgres_exceptions import (
+    IntegrityConstraintViolationError,
+    parse_posgres_exception,
+)
 from ayon_server.api.responses import ErrorResponse
 from ayon_server.auth.session import Session
 from ayon_server.background.workers import background_workers
@@ -66,6 +70,7 @@ class AuthStaticFiles(StaticFiles):
 # Error handling
 #
 
+# logging.user = f"server_{os.getpid()}"
 logging.user = "server"
 if ayonconfig.log_file:
     logging.add_handler(log_to_file(ayonconfig.log_file))
@@ -133,7 +138,7 @@ async def ayon_exception_handler(
     request: fastapi.Request,
     exc: AyonException,
 ) -> fastapi.responses.JSONResponse:
-    if exc.status in [401, 403]:
+    if exc.status in [401, 403, 503]:
         # do not store 401 and 403 errors in the logs
         return fastapi.responses.JSONResponse(
             status_code=exc.status,
@@ -171,6 +176,28 @@ async def validation_exception_handler(
         status_code=400,
         content=ErrorResponse(code=400, detail=detail).dict(),
     )
+
+
+@app.exception_handler(IntegrityConstraintViolationError)
+async def integrity_constraint_violation_error_handler(
+    request: fastapi.Request,
+    exc: IntegrityConstraintViolationError,
+) -> fastapi.responses.JSONResponse:
+    path = f"[{request.method.upper()}]"
+    path += f" {request.url.path.removeprefix('/api')}"
+
+    tb = traceback.extract_tb(exc.__traceback__)
+    fname, line_no, func, _ = tb[-1]
+
+    payload = {
+        "path": path,
+        "file": fname,
+        "function": func,
+        "line": line_no,
+        **parse_posgres_exception(exc),
+    }
+
+    return fastapi.responses.JSONResponse(status_code=payload["code"], content=payload)
 
 
 @app.exception_handler(AssertionError)

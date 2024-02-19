@@ -136,9 +136,12 @@ async def process_operation(
             }
         ]
         await entity.save(transaction=transaction)
-        # print(f"created {entity_class.__name__} {entity.id} {entity.name}")
 
     elif operation.type == "update":
+        # in this case, thumbnailId is camelCase, since we pass a dict
+        assert operation.data is not None, "data is required for update"
+        thumbnail_only = len(operation.data) == 1 and "thumbnailId" in operation.data
+
         payload = entity_class.model.patch_model(**operation.data)
         assert operation.entity_id is not None, "entity_id is required for update"
         entity = await entity_class.load(
@@ -147,11 +150,10 @@ async def process_operation(
             for_update=True,
             transaction=transaction,
         )
-        await entity.ensure_update_access(user)
+        await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)
         events = build_pl_entity_change_events(entity, payload)
         entity.patch(payload)
         await entity.save(transaction=transaction)
-        # print(f"updated {entity_class.__name__} {entity.id}")
 
     elif operation.type == "delete":
         assert operation.entity_id is not None, "entity_id is required for delete"

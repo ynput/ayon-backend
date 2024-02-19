@@ -57,7 +57,7 @@ async def create_task(
     """
 
     task = TaskEntity(project_name=project_name, payload=post_data.dict())
-    # TODO: how to solve access control?
+    await task.ensure_create_access(user)
     event = {
         "topic": "entity.task.created",
         "description": f"Task {task.name} created",
