@@ -20,6 +20,7 @@ class ServiceConfigModel(OPModel):
     mem_limit: str | None = Field(None, title="Memory Limit", example="1g")
     user: str | None = Field(None, title="User", example="1000")
     env: dict[str, Any] = Field(default_factory=dict)
+    storage_path: str | None = Field(None, title="Storage", example="/mnt/storage")
 
 
 class ServiceDataModel(ServiceConfigModel):
