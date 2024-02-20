@@ -18,7 +18,11 @@ from ayon_server.entities import (
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
-from ayon_server.exceptions import AyonException, BadRequestException
+from ayon_server.exceptions import (
+    AyonException,
+    BadRequestException,
+    ForbiddenException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
@@ -160,6 +164,9 @@ async def process_operation(
         entity = await entity_class.load(project_name, operation.entity_id)
         await entity.ensure_delete_access(user)
         description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
+
+        if operation.force and not user.is_manager:
+            raise ForbiddenException("Only managers can force delete")
 
         events = [
             {

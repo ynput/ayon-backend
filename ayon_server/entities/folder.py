@@ -253,7 +253,7 @@ class FolderEntity(ProjectLevelEntity):
                 attr,
             )
 
-    async def delete(self, transaction=None, **kwargs) -> None:
+    async def delete(self, transaction=None, **kwargs) -> bool:
         if kwargs.get("force", False):
             conn = transaction or Postgres
             logging.info(f"Force deleting folder and all its children. {self.path}")
@@ -268,7 +268,7 @@ class FolderEntity(ProjectLevelEntity):
                 """,
                 self.path.lstrip("/"),
             )
-        await super().delete(transaction=transaction, **kwargs)
+        return await super().delete(transaction=transaction, **kwargs)
 
     async def get_versions(self, transaction=None):
         """Return of version ids associated with this folder."""

@@ -3,7 +3,7 @@ from fastapi import APIRouter, BackgroundTasks, Header, Query
 from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.config import ayonconfig
-from ayon_server.entities import FolderEntity, ProductEntity
+from ayon_server.entities import FolderEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
@@ -162,6 +162,9 @@ async def delete_folder(
         event["payload"] = {
             "entityData": folder.dict_simple(),
         }
+
+    if force and not user.is_manager:
+        raise ForbiddenException("Only managers can force delete folders")
 
     await folder.delete(force=force)
     background_tasks.add_task(
