@@ -48,6 +48,9 @@ class AddonListItem(OPModel):
         None,
         description="Staging version of the addon",
     )
+    addon_type: Literal["server", "pipeline"] = Field(
+        ..., description="Type of the addon"
+    )
     system: bool | None = Field(None, description="Is the addon a system addon?")
 
 
@@ -116,6 +119,7 @@ async def list_addons(
                 production_version=vers.get("production"),
                 system=is_system or None,
                 staging_version=vers.get("staging"),
+                addon_type=addon.addon_type,
             )
         )
     result.sort(key=lambda x: x.name)
