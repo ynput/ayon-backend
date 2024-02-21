@@ -1,9 +1,8 @@
 from typing import Any, Literal
 
+import semver
 from fastapi import Query, Request, Response
 from nxtools import logging
-
-import semver
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import SourceInfo
