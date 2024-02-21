@@ -202,6 +202,16 @@ class ServerAddonDefinition:
                 return True
         return False
 
+    @property
+    def addon_type(self) -> str:
+        sorted_versions = sorted(
+            self.versions.values(),
+            key=lambda x: semver.VersionInfo.parse(x.version),
+        )
+        if not sorted_versions:
+            return "pipeline"
+        return sorted_versions[-1].addon_type
+
     def __getitem__(self, item) -> BaseServerAddon:
         return self.versions[item]
 
