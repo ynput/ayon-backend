@@ -252,9 +252,13 @@ class BaseServerAddon:
             """
 
         res = await Postgres.fetch(query, self.definition.name, self.version, variant)
-        if res:
-            return dict(res[0]["data"])
-        return {}
+        if not res:
+            return {}
+        data = dict(res[0]["data"])
+
+        # TODO: migration here
+
+        return data
 
     async def get_project_overrides(
         self,
