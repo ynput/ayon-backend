@@ -262,7 +262,7 @@ async def resolve_entities(
 
     if Postgres.get_available_connections() < 3:
         raise ServiceUnavailableException(
-            f"Postgres pool size: {Postgres.pool.get_size()} Idle {Postgres.pool.get_idle_size()}"
+            f"Postgres remaining pool size: {Postgres.get_available_connections()}"
         )
 
     target_entity_type: ProjectLevelEntityType | None = None

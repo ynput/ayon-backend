@@ -69,9 +69,9 @@ class Postgres:
         """Return a number of connections available for use"""
         if not cls.pool:
             return 0
-        max_size = Postgres.pool.get_max_size()
-        current_size = Postgres.pool.get_size()
-        idle_size = Postgres.pool.get_idle_size()
+        max_size = cls.pool.get_max_size()
+        current_size = cls.pool.get_size()
+        idle_size = cls.pool.get_idle_size()
         return max_size - (current_size - idle_size)
 
     @classmethod

@@ -354,7 +354,8 @@ async def patch_bundle(
                 # otherwise, we need to check if the addon is a server addon
                 # we cannot change a version of a pipeline addon
                 addon_dict = orig_bundle.addons.copy()
-                for key, value in bundle.addons.items():
+                # reusing variables, so keep mypy happy
+                for key, value in bundle.addons.items():  # type: ignore
                     if AddonLibrary.get(key).addon_type != "server":
                         continue
                     if value is None:
