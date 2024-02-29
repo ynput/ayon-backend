@@ -10,9 +10,10 @@ from typing import TYPE_CHECKING, Any, Callable, Type
 from nxtools import logging
 
 from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
-from ayon_server.exceptions import AyonException, NotFoundException
+from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, apply_overrides
+from ayon_server.settings.common import migrate_settings
 
 if TYPE_CHECKING:
     from ayon_server.addons.definition import ServerAddonDefinition
@@ -256,7 +257,15 @@ class BaseServerAddon:
             return {}
         data = dict(res[0]["data"])
 
-        # TODO: migration here
+        if as_version:
+            target_addon = self.definition.get(as_version)
+            if target_addon is None:
+                raise BadRequestException(
+                    f"Unable to parse {self} settings as {as_version}"
+                    "Target addon not found"
+                )
+
+            return target_addon.convert_settings_overrides(self.version, data)
 
         return data
 
@@ -319,7 +328,7 @@ class BaseServerAddon:
 
         if as_version:
             try:
-                settings = self.definition[as_version].get_default_settings()
+                settings = await self.definition[as_version].get_default_settings()
             except KeyError:
                 raise NotFoundException(
                     f"Version {as_version} does not exists"
@@ -416,6 +425,10 @@ class BaseServerAddon:
     # Overridable settings-related methods
     #
 
+    async def get_sso_options(self, base_url: str) -> list[SSOOption] | None:
+        """Return a list of SSO options provided by the addon"""
+        return None
+
     async def get_default_settings(self) -> BaseSettingsModel | None:
         """Get the default addon settings.
 
@@ -434,8 +447,37 @@ class BaseServerAddon:
         source_version: str,
         overrides: dict[str, Any],
     ) -> dict[str, Any]:
-        """Convert settings overrides from a previous version."""
-        return overrides
+        """Convert settings overrides from a previous version.
 
-    async def get_sso_options(self, base_url: str) -> list[SSOOption] | None:
-        return None
+        By default, migrate_setting helper is used to perform a "best guess"
+        in order to create compatible version of the settings, but you may
+        override this method and set up a custom logic.
+
+        Result should be a dictionary cotaining override data (same as they are
+        stored in the database)
+
+        You may extend migrate_settings functionality using custom parsers.
+
+        Assuming a field "submodel.info" (where . is used for nesting),
+        has been changed from `str` to `list[str]`, you may use:
+
+        ```python
+        def convert_str_to_list_str(value: str | list[str]) -> list[str]:
+            if isinstance(value, str):
+                return [value]
+            elif isinstance(value, list):
+                return value
+            return []
+
+        result = migrate_settings(
+            overrides,
+            new_model_class=self.get_settings_model(),
+            custom_conversions={
+                "submodel.info": convert_str_to_list_str
+            }
+        )
+
+        ```
+        """
+        result = migrate_settings(overrides, new_model_class=self.get_settings_model())
+        return result.dict(exclude_unset=True, exclude_none=True, exclude_defaults=True)
