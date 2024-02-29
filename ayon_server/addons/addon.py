@@ -5,7 +5,7 @@ try:
 except ModuleNotFoundError:
     toml = None  # type: ignore
 
-from typing import TYPE_CHECKING, Any, Callable, Type
+from typing import TYPE_CHECKING, Any, Callable, Literal, Type
 
 from nxtools import logging
 
@@ -34,6 +34,7 @@ class BaseServerAddon:
     services: dict[str, Any] = {}
 
     # should be defined on addon class
+    addon_type: Literal["server", "pipeline"] = "pipeline"
     system: bool = False  # Hide settings for non-admins and make the addon mandatory
     settings_model: Type[BaseSettingsModel] | None = None
     site_settings_model: Type[BaseSettingsModel] | None = None

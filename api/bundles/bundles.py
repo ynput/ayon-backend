@@ -84,7 +84,7 @@ class BundlePatchModel(BaseBundleModel):
     addons: dict[str, str | None] = Field(
         default_factory=dict,
         title="Addons",
-        description="Changing addons is available only for dev bundles",
+        description="Changing addons is available only for dev bundles or server addons",
         example={"ftrack": None, "kitsu": "1.2.3"},
     )
     installer_version: str | None = Field(None, example="1.2.3")
@@ -351,7 +351,17 @@ async def patch_bundle(
             if bundle.addons and orig_bundle.is_dev:
                 addon_dict = bundle.addons.copy()
             else:
+                # otherwise, we need to check if the addon is a server addon
+                # we cannot change a version of a pipeline addon
                 addon_dict = orig_bundle.addons.copy()
+                # reusing variables, so keep mypy happy
+                for key, value in bundle.addons.items():  # type: ignore
+                    if AddonLibrary.get(key).addon_type != "server":
+                        continue
+                    if value is None:
+                        addon_dict.pop(key, None)
+                    elif isinstance(value, str):
+                        addon_dict[key] = value
             orig_bundle.addons = addon_dict
 
             data = {**orig_bundle.dict(exclude_none=True)}

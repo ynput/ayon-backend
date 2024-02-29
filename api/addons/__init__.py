@@ -1,5 +1,6 @@
 from typing import Any, Literal
 
+import semver
 from fastapi import Query, Request, Response
 from nxtools import logging
 
@@ -48,6 +49,9 @@ class AddonListItem(OPModel):
         None,
         description="Staging version of the addon",
     )
+    addon_type: Literal["server", "pipeline"] = Field(
+        ..., description="Type of the addon"
+    )
     system: bool | None = Field(None, description="Is the addon a system addon?")
 
 
@@ -71,14 +75,13 @@ async def list_addons(
     # maybe some ttl here?
     active_versions = await library.get_active_versions()
 
-    # TODO: for each version, return the information
-    # whether it has settings (and don't show the addon in the settings editor if not)
-
-    for _name, definition in library.data.items():
+    for definition in library.data.values():
         vers = active_versions.get(definition.name, {})
         versions = {}
         is_system = False
-        for version, addon in definition.versions.items():
+        items = list(definition.versions.items())
+        items.sort(key=lambda x: semver.VersionInfo.parse(x[0]))
+        for version, addon in items:
             if addon.system:
                 if not user.is_admin:
                     continue
@@ -116,6 +119,7 @@ async def list_addons(
                 production_version=vers.get("production"),
                 system=is_system or None,
                 staging_version=vers.get("staging"),
+                addon_type=addon.addon_type,
             )
         )
     result.sort(key=lambda x: x.name)
@@ -128,16 +132,6 @@ async def list_addons(
 
 
 AddonEnvironment = Literal["production", "staging"]
-
-
-def semver_sort_key(item):
-    parts = item.split(".")
-    for i in range(len(parts)):
-        if not parts[i].isdigit():
-            parts[i:] = ["".join(parts[i:])]
-            break
-    parts = [int(part) if part.isdigit() else part for part in parts]
-    return parts
 
 
 async def copy_addon_variant(
@@ -174,7 +168,7 @@ async def copy_addon_variant(
         source_settings.append({"addon_version": source_version, "data": {}})
 
     source_settings.sort(
-        key=lambda x: semver_sort_key(x["addon_version"]),
+        key=lambda x: semver.VersionInfo.parse(x["addon_version"]),
         reverse=True,
     )
 

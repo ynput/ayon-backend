@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Header
+from fastapi import APIRouter, BackgroundTasks, Header, Query
 
 from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
@@ -141,6 +141,7 @@ async def delete_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
+    force: bool = Query(False, description="Allow recursive deletion"),
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Delete a folder.
@@ -162,7 +163,10 @@ async def delete_folder(
             "entityData": folder.dict_simple(),
         }
 
-    await folder.delete()
+    if force and not user.is_manager:
+        raise ForbiddenException("Only managers can force delete folders")
+
+    await folder.delete(force=force)
     background_tasks.add_task(
         dispatch_event,
         sender=x_sender,
