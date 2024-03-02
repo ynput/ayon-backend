@@ -7,7 +7,7 @@ except ModuleNotFoundError:
 
 from typing import TYPE_CHECKING, Any, Callable, Literal, Type
 
-from nxtools import logging
+from nxtools import log_traceback, logging
 
 from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
@@ -258,7 +258,7 @@ class BaseServerAddon:
             return {}
         data = dict(res[0]["data"])
 
-        if as_version:
+        if as_version and as_version != self.version:
             target_addon = self.definition.get(as_version)
             if target_addon is None:
                 raise BadRequestException(
@@ -266,7 +266,11 @@ class BaseServerAddon:
                     "Target addon not found"
                 )
 
-            return target_addon.convert_settings_overrides(self.version, data)
+            try:
+                return target_addon.convert_settings_overrides(self.version, data)
+            except Exception:
+                log_traceback(f"Unable to migrate {self} settings to {as_version}")
+                return {}
 
         return data
 
@@ -327,7 +331,7 @@ class BaseServerAddon:
         You shouldn't override this method, unless absolutely necessary.
         """
 
-        if as_version:
+        if as_version and as_version != self.version:
             try:
                 settings = await self.definition[as_version].get_default_settings()
             except KeyError:
