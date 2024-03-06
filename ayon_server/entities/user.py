@@ -109,6 +109,7 @@ class UserEntity(TopLevelEntity):
                 **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
             )
         )
+        self.exists = True
         return True
 
     #

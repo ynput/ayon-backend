@@ -160,3 +160,10 @@ class AddonLibrary:
         if summary := instance.broken_addons.get((addon_name, addon_version), None):
             return summary
         return None
+
+    def get_broken_versions(self, addon_name: str) -> dict[str, dict[str, str]]:
+        return {
+            version: summary
+            for (name, version), summary in self.broken_addons.items()
+            if name == addon_name
+        }
