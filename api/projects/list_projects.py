@@ -32,8 +32,8 @@ class ListProjectsResponseModel(OPModel):
             ListProjectsItemModel(
                 name="Example project",
                 code="ex",
-                createdAt=datetime.now().isoformat(),
-                updatedAt=datetime.now().isoformat(),
+                createdAt=datetime.now(),
+                updatedAt=datetime.now(),
                 active=True,
             )
         ],
@@ -44,11 +44,10 @@ class ListProjectsResponseModel(OPModel):
 async def list_projects(
     user: CurrentUser,
     page: int = Query(1, title="Page", ge=1),
-    length: int = Query(
-        200,
+    length: int | None = Query(
+        None,
         title="Records per page",
         description="If not provided, the result will not be limited",
-        ge=1,
     ),
     library: bool
     | None = Query(
@@ -97,6 +96,11 @@ async def list_projects(
     else:
         sql_order = "active desc, name"
 
+    ordering = [sql_order, desc]
+    if length:
+        ordering.append(length)
+        ordering.append(max(0, (page - 1) * length))
+
     for row in await Postgres.fetch(
         f"""
             SELECT
@@ -108,12 +112,7 @@ async def list_projects(
                 active
             FROM projects
             {SQLTool.conditions(conditions)}
-            {SQLTool.order(
-                sql_order,
-                desc,
-                length,
-                max(0, (page-1)*length)
-            )}
+            {SQLTool.order(*ordering)}
         """,
     ):
         count = row["count"]
