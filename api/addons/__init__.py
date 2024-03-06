@@ -32,6 +32,8 @@ class VersionInfo(OPModel):
     client_pyproject: dict[str, Any] | None = Field(None)
     client_source_info: list[SourceInfo] | None = Field(None)
     services: dict[str, Any] | None = Field(None)
+    is_broken: bool = Field(False)
+    reason: dict[str, str] | None = Field(None)
 
 
 class AddonListItem(OPModel):
@@ -106,6 +108,9 @@ async def list_addons(
 
                 vinf["services"] = addon.services or None
             versions[version] = VersionInfo(**vinf)
+
+        for version, reason in library.get_broken_versions(definition.name).items():
+            versions[version] = VersionInfo(is_broken=True, reason=reason)
 
         if not versions:
             continue

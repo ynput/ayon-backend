@@ -483,6 +483,12 @@ async def startup_event() -> None:
                         f"Restart requested during addon {addon_name} pre-setup."
                     )
                     restart_requested = True
+            except AssertionError as e:
+                logging.error(
+                    f"Unable to pre-setup addon {addon_name} {version.version}: {e}"
+                )
+                reason = {"error": str(e)}
+                bad_addons[(addon_name, version.version)] = reason
             except Exception as e:
                 log_traceback(f"Error during {addon_name} {version.version} pre-setup")
                 reason = {
@@ -503,6 +509,12 @@ async def startup_event() -> None:
                         f"Restart requested during addon {addon_name} setup."
                     )
                     restart_requested = True
+            except AssertionError as e:
+                logging.error(
+                    f"Unable to setup addon {addon_name} {version.version}: {e}"
+                )
+                reason = {"error": str(e)}
+                bad_addons[(addon_name, version.version)] = reason
             except Exception as e:
                 log_traceback(f"Error during {addon_name} {version.version} setup")
                 reason = {
