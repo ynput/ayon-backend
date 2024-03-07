@@ -23,7 +23,9 @@ class ListProjectsItemModel(OPModel):
 class ListProjectsResponseModel(OPModel):
     detail: str = Field("OK", example="Showing LENGTH of COUNT projects")
     count: int = Field(
-        0, description="Total count of projects (regardless the pagination)", example=1,
+        0,
+        description="Total count of projects (regardless the pagination)",
+        example=1,
     )
     projects: list[ListProjectsItemModel] = Field(
         [],
@@ -44,7 +46,8 @@ class ListProjectsResponseModel(OPModel):
 async def list_projects(
     user: CurrentUser,
     page: int = Query(1, title="Page", ge=1),
-    length: int | None = Query(
+    length: int
+    | None = Query(
         None,
         title="Records per page",
         description="If not provided, the result will not be limited",
@@ -96,10 +99,8 @@ async def list_projects(
     else:
         sql_order = "active desc, name"
 
-    ordering = [sql_order, desc]
-    if length:
-        ordering.append(length)
-        ordering.append(max(0, (page - 1) * length))
+    length = length or None
+    offset = max(0, (page - 1) * length) if length else None
 
     for row in await Postgres.fetch(
         f"""
@@ -112,7 +113,7 @@ async def list_projects(
                 active
             FROM projects
             {SQLTool.conditions(conditions)}
-            {SQLTool.order(*ordering)}
+            {SQLTool.order(sql_order, desc, length, offset)}
         """,
     ):
         count = row["count"]
