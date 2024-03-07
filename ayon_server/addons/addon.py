@@ -7,12 +7,13 @@ except ModuleNotFoundError:
 
 from typing import TYPE_CHECKING, Any, Callable, Literal, Type
 
-from nxtools import logging
+from nxtools import log_traceback, logging
 
 from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
-from ayon_server.exceptions import AyonException, NotFoundException
+from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, apply_overrides
+from ayon_server.settings.common import migrate_settings
 
 if TYPE_CHECKING:
     from ayon_server.addons.definition import ServerAddonDefinition
@@ -46,7 +47,6 @@ class BaseServerAddon:
     endpoints: list[dict[str, Any]]
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str, **kwargs):
-
         # populate metadata from package.py
         for key in METADATA_KEYS:
             if key in kwargs:
@@ -240,7 +240,11 @@ class BaseServerAddon:
 
     # Load overrides from the database
 
-    async def get_studio_overrides(self, variant: str = "production") -> dict[str, Any]:
+    async def get_studio_overrides(
+        self,
+        variant: str = "production",
+        as_version: str | None = None,
+    ) -> dict[str, Any]:
         """Load the studio overrides from the database."""
 
         query = """
@@ -249,14 +253,31 @@ class BaseServerAddon:
             """
 
         res = await Postgres.fetch(query, self.definition.name, self.version, variant)
-        if res:
-            return dict(res[0]["data"])
-        return {}
+        if not res:
+            return {}
+        data = dict(res[0]["data"])
+
+        if as_version and as_version != self.version:
+            target_addon = self.definition.get(as_version)
+            if target_addon is None:
+                raise BadRequestException(
+                    f"Unable to parse {self} settings as {as_version}"
+                    "Target addon not found"
+                )
+
+            try:
+                return target_addon.convert_settings_overrides(self.version, data)
+            except Exception:
+                log_traceback(f"Unable to migrate {self} settings to {as_version}")
+                return {}
+
+        return data
 
     async def get_project_overrides(
         self,
         project_name: str,
         variant: str = "production",
+        as_version: str | None = None,
     ) -> dict[str, Any]:
         """Load the project overrides from the database."""
 
@@ -271,15 +292,32 @@ class BaseServerAddon:
             )
         except Postgres.UndefinedTableError:
             raise NotFoundException(f"Project {project_name} does not exists") from None
-        if res:
-            return dict(res[0]["data"])
-        return {}
+        if not res:
+            return {}
+        data = dict(res[0]["data"])
+
+        if as_version and as_version != self.version:
+            target_addon = self.definition.get(as_version)
+            if target_addon is None:
+                raise BadRequestException(
+                    f"Unable to parse {self} settings as {as_version}"
+                    "Target addon not found"
+                )
+
+            try:
+                return target_addon.convert_settings_overrides(self.version, data)
+            except Exception:
+                log_traceback(f"Unable to migrate {self} settings to {as_version}")
+                return {}
+
+        return data
 
     async def get_project_site_overrides(
         self,
         project_name: str,
         user_name: str,
         site_id: str,
+        as_version: str | None = None,
     ) -> dict[str, Any]:
         """Load the site overrides from the database."""
 
@@ -294,8 +332,24 @@ class BaseServerAddon:
             user_name,
             site_id,
         )
-        if res:
-            return dict(res[0]["data"] or {})
+        if not res:
+            return {}
+
+        data = dict(res[0]["data"])
+
+        if as_version and as_version != self.version:
+            target_addon = self.definition.get(as_version)
+            if target_addon is None:
+                raise BadRequestException(
+                    f"Unable to parse {self} settings as {as_version}"
+                    "Target addon not found"
+                )
+
+            try:
+                return target_addon.convert_settings_overrides(self.version, data)
+            except Exception:
+                log_traceback(f"Unable to migrate {self} settings to {as_version}")
+                return {}
         return {}
 
     # Get settings and apply the overrides
@@ -303,16 +357,27 @@ class BaseServerAddon:
     async def get_studio_settings(
         self,
         variant: str = "production",
+        as_version: str | None = None,
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio overrides.
 
         You shouldn't override this method, unless absolutely necessary.
         """
 
-        settings = await self.get_default_settings()
+        if as_version and as_version != self.version:
+            try:
+                settings = await self.definition[as_version].get_default_settings()
+            except KeyError:
+                raise NotFoundException(
+                    f"Version {as_version} does not exists"
+                ) from None
+        else:
+            settings = await self.get_default_settings()
         if settings is None:
             return None  # this addon has no settings at all
-        overrides = await self.get_studio_overrides(variant=variant)
+        overrides = await self.get_studio_overrides(
+            variant=variant, as_version=as_version
+        )
         if overrides:
             settings = apply_overrides(settings, overrides)
             settings._has_studio_overrides = True
@@ -323,19 +388,23 @@ class BaseServerAddon:
         self,
         project_name: str,
         variant: str = "production",
+        as_version: str | None = None,
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio and project overrides.
 
         You shouldn't override this method, unless absolutely necessary.
         """
 
-        settings = await self.get_studio_settings(variant=variant)
+        settings = await self.get_studio_settings(
+            variant=variant,
+            as_version=as_version,
+        )
         if settings is None:
             return None  # this addon has no settings at all
         has_studio_overrides = settings._has_studio_overrides
 
         project_overrides = await self.get_project_overrides(
-            project_name, variant=variant
+            project_name, variant=variant, as_version=as_version
         )
         if project_overrides:
             settings = apply_overrides(settings, project_overrides)
@@ -349,18 +418,21 @@ class BaseServerAddon:
         user_name: str,
         site_id: str,
         variant: str = "production",
+        as_version: str | None = None,
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio, project and site overrides.
 
         You shouldn't override this method, unless absolutely necessary.
         """
-        settings = await self.get_project_settings(project_name, variant=variant)
+        settings = await self.get_project_settings(
+            project_name, variant=variant, as_version=as_version
+        )
         if settings is None:
             return None
         has_project_overrides = settings._has_project_overrides
         has_studio_overrides = settings._has_studio_overrides
         site_overrides = await self.get_project_site_overrides(
-            project_name, user_name, site_id
+            project_name, user_name, site_id, as_version=as_version
         )
         if site_overrides:
             settings = apply_overrides(settings, site_overrides)
@@ -398,6 +470,10 @@ class BaseServerAddon:
     # Overridable settings-related methods
     #
 
+    async def get_sso_options(self, base_url: str) -> list[SSOOption] | None:
+        """Return a list of SSO options provided by the addon"""
+        return None
+
     async def get_default_settings(self) -> BaseSettingsModel | None:
         """Get the default addon settings.
 
@@ -411,21 +487,45 @@ class BaseServerAddon:
             return None
         return model()
 
-    def convert_system_overrides(
+    def convert_settings_overrides(
         self,
         source_version: str,
         overrides: dict[str, Any],
     ) -> dict[str, Any]:
-        """Convert system overrides from a previous version."""
-        return overrides
+        """Convert settings overrides from a previous version.
 
-    def convert_project_overrides(
-        self,
-        from_version: str,
-        overrides: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Convert project overrides from a previous version."""
-        return overrides
+        By default, migrate_setting helper is used to perform a "best guess"
+        in order to create compatible version of the settings, but you may
+        override this method and set up a custom logic.
 
-    async def get_sso_options(self, base_url: str) -> list[SSOOption] | None:
-        return None
+        Result should be a dictionary cotaining override data (same as they are
+        stored in the database)
+
+        You may extend migrate_settings functionality using custom parsers.
+
+        Assuming a field "submodel.info" (where . is used for nesting),
+        has been changed from `str` to `list[str]`, you may use:
+
+        ```python
+        def convert_str_to_list_str(value: str | list[str]) -> list[str]:
+            if isinstance(value, str):
+                return [value]
+            elif isinstance(value, list):
+                return value
+            return []
+
+        result = migrate_settings(
+            overrides,
+            new_model_class=self.get_settings_model(),
+            custom_conversions={
+                "submodel.info": convert_str_to_list_str
+            }
+        )
+
+        ```
+        """
+        model_class = self.get_settings_model()
+        if model_class is None:
+            return {}
+        result = migrate_settings(overrides, new_model_class=model_class)
+        return result.dict(exclude_unset=True, exclude_none=True, exclude_defaults=True)

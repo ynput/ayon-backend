@@ -155,6 +155,9 @@ class ServerAddonDefinition:
 
         # And initialize the addon
 
+        if self._versions is None:
+            self._versions = {}
+
         for Addon in classes_from_module(BaseServerAddon, module):
             addon = Addon(self, addon_dir=addon_dir, **metadata)
             if addon.restart_requested:
@@ -174,6 +177,9 @@ class ServerAddonDefinition:
         mfile = os.path.join(addon_dir, "__init__.py")
         vname = slugify(f"{self.dir_name}-{os.path.split(addon_dir)[-1]}")
         module = import_module(vname, mfile)
+
+        if self._versions is None:
+            self._versions = {}
 
         for Addon in classes_from_module(BaseServerAddon, module):
             # legacy addons don't have metadata in the package file,

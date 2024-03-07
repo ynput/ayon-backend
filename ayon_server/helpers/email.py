@@ -17,7 +17,7 @@ from ayon_server.helpers.cloud import get_cloud_api_headers
 if TYPE_CHECKING:
     from ayon_server.entities import UserEntity
 
-MailingEnabled = Literal[False] | Literal["smtp", "api"]
+MailingEnabled = Literal[False, "smtp", "api"]
 MAILING_ENABLED: MailingEnabled | None = None
 
 

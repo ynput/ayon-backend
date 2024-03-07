@@ -76,16 +76,19 @@ async def get_addon_project_settings(
     user: CurrentUser,
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
+    as_version: str | None = Query(None, alias="as"),
 ) -> dict[str, Any]:
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
     if site:
         settings = await addon.get_project_site_settings(
-            project_name, user.name, site, variant=variant
+            project_name, user.name, site, variant=variant, as_version=as_version
         )
     else:
-        settings = await addon.get_project_settings(project_name, variant=variant)
+        settings = await addon.get_project_settings(
+            project_name, variant=variant, as_version=as_version
+        )
 
     if not settings:
         return {}
@@ -100,14 +103,29 @@ async def get_addon_project_overrides(
     user: CurrentUser,
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
+    as_version: str | None = Query(None, alias="as"),
 ):
     addon = AddonLibrary.addon(addon_name, version)
-    studio_settings = await addon.get_studio_settings(variant=variant)
+    studio_settings = await addon.get_studio_settings(
+        variant=variant,
+        as_version=as_version,
+    )
     if studio_settings is None:
         return {}
-    studio_overrides = await addon.get_studio_overrides(variant=variant)
-    project_settings = await addon.get_project_settings(project_name, variant=variant)
-    project_overrides = await addon.get_project_overrides(project_name, variant=variant)
+    studio_overrides = await addon.get_studio_overrides(
+        variant=variant,
+        as_version=as_version,
+    )
+    project_settings = await addon.get_project_settings(
+        project_name,
+        variant=variant,
+        as_version=as_version,
+    )
+    project_overrides = await addon.get_project_overrides(
+        project_name,
+        variant=variant,
+        as_version=as_version,
+    )
 
     result = list_overrides(studio_settings, studio_overrides, level="studio")
 
@@ -118,10 +136,16 @@ async def get_addon_project_overrides(
 
     if site:
         site_overrides = await addon.get_project_site_overrides(
-            project_name, user.name, site
+            project_name,
+            user.name,
+            site,
+            as_version=as_version,
         )
         site_settings = await addon.get_project_site_settings(
-            project_name, user.name, site
+            project_name,
+            user.name,
+            site,
+            as_version=as_version,
         )
         for k, v in list_overrides(site_settings, site_overrides, level="site").items():
             result[k] = v
