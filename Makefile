@@ -7,7 +7,7 @@ default:
 check:
 	sed -i "s/^version = \".*\"/version = \"$(VERSION)\"/" pyproject.toml
 	poetry run black .
-	poetry run ruff --fix .
+	poetry run ruff check . --fix
 	poetry run mypy .
 
 reload:
