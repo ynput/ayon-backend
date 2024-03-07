@@ -23,7 +23,7 @@ class ListProjectsItemModel(OPModel):
 class ListProjectsResponseModel(OPModel):
     detail: str = Field("OK", example="Showing LENGTH of COUNT projects")
     count: int = Field(
-        0, description="Total count of projects (regardless the pagination)", example=1
+        0, description="Total count of projects (regardless the pagination)", example=1,
     )
     projects: list[ListProjectsItemModel] = Field(
         [],
@@ -143,7 +143,7 @@ async def list_projects(
         return ListProjectsResponseModel(detail="No projects", count=count)
 
     return ListProjectsResponseModel(
-        detail=f"Showing {len(projects)} of {count} projects)",
+        detail=f"Showing {len(projects)} of {count} projects",
         count=count,
         projects=projects,
     )
