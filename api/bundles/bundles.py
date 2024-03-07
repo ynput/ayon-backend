@@ -42,10 +42,6 @@ async def list_bundles(
 
         data = row["data"]
 
-        addon_development_dict: dict[str, AddonDevelopmentItem] = {}
-        for key, value in data.get("addon_development", {}).items():
-            addon_development_dict[key] = AddonDevelopmentItem(**value)
-
         bundle = BundleModel(
             name=row["name"],
             created_at=row["created_at"],
@@ -57,7 +53,7 @@ async def list_bundles(
             is_archived=row["is_archived"],
             is_dev=row["is_dev"],
             active_user=row["active_user"],
-            addon_development=addon_development_dict,
+            addon_development=data.get("addon_development", {}),
         )
 
         # helper top-level attributes (for convenience not crawling the list)
@@ -105,8 +101,12 @@ async def _create_new_bundle(
                 "addons": bundle.addons,
                 "installer_version": bundle.installer_version,
                 "dependency_packages": bundle.dependency_packages,
-                "addon_development": bundle.addon_development,
             }
+            if bundle.addon_development:
+                addon_development_dict = {}
+                for key, value in bundle.addon_development.items():
+                    addon_development_dict[key] = value.dict()
+                data["addon_development"] = addon_development_dict
 
             query = """
                 INSERT INTO bundles
