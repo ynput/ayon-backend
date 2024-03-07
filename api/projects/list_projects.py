@@ -99,10 +99,8 @@ async def list_projects(
     else:
         sql_order = "active desc, name"
 
-    ordering = [sql_order, desc]
-    if length:
-        ordering.append(length)
-        ordering.append(max(0, (page - 1) * length))
+    length = length or None
+    offset = max(0, (page - 1) * length) if length else None
 
     for row in await Postgres.fetch(
         f"""
@@ -115,7 +113,7 @@ async def list_projects(
                 active
             FROM projects
             {SQLTool.conditions(conditions)}
-            {SQLTool.order(*ordering)}
+            {SQLTool.order(sql_order, desc, length, offset)}
         """,
     ):
         count = row["count"]

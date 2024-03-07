@@ -44,7 +44,9 @@ class BundleModel(BaseBundleModel):
         example=datetime.now(),
     )
 
-    # patchables
+    ## patchables
+
+    # data
     addons: dict[str, str | None] = Field(
         default_factory=dict,
         title="Addons",
@@ -54,15 +56,17 @@ class BundleModel(BaseBundleModel):
     dependency_packages: dict[Platform, str | None] = Field(
         default_factory=dict, **dependency_packages_meta
     )
+    addon_development: dict[str, AddonDevelopmentItem] = Field(
+        default_factory=dict,
+        example={"ftrack": {"enabled": True, "path": "~/devel/ftrack"}},
+    )
+
+    # flags
     is_production: bool = Field(False, example=False)
     is_staging: bool = Field(False, example=False)
     is_archived: bool = Field(False, example=False)
     is_dev: bool = Field(False, example=False)
     active_user: str | None = Field(None, example="admin")
-    addon_development: dict[str, AddonDevelopmentItem] = Field(
-        default_factory=dict,
-        example={"ftrack": {"enabled": True, "path": "~/devel/ftrack"}},
-    )
 
 
 class BundlePatchModel(BaseBundleModel):
