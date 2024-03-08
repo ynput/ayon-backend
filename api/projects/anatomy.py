@@ -89,6 +89,7 @@ async def set_project_anatomy(
     project.patch(patch)
 
     await project.save()
+
     await dispatch_event(
         "entity.project.changed",
         sender=x_sender,

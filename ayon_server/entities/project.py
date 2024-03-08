@@ -11,6 +11,7 @@ from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.exceptions import NotFoundException
+from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import SQLTool, dict_exclude
 
@@ -105,6 +106,7 @@ async def link_types_update(conn, table: str, update_data: list[LinkTypeModel]):
 class ProjectEntity(TopLevelEntity):
     entity_type: str = "project"
     model: ModelSet = ModelSet("project", attribute_library["project"], False)
+    original_attributes: dict[str, Any] = {}
 
     #
     # Load
@@ -199,6 +201,7 @@ class ProjectEntity(TopLevelEntity):
             "statuses": statuses,
             "tags": tags,
         }
+        cls.original_attributes = project_data[0]["attrib"]
         return cls.from_record(payload=payload)
 
     #
@@ -242,6 +245,9 @@ class ProjectEntity(TopLevelEntity):
                     "public.projects", f"WHERE name='{project_name}'", **fields
                 )
             )
+
+            if self.original_attributes != fields["attrib"]:
+                await rebuild_inherited_attributes(self.name, fields["attrib"])
 
         else:
             # Create a project record
