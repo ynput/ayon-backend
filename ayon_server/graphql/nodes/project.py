@@ -187,7 +187,8 @@ class ProjectNode:
                 f"""
                 SELECT name, data FROM product_types
                 WHERE name IN (
-                    SELECT DISTINCT(product_type) FROM project_{self.project_name}.products
+                    SELECT DISTINCT(product_type)
+                    FROM project_{self.project_name}.products
                 )
                 ORDER BY name ASC
             """

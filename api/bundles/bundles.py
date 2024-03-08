@@ -165,7 +165,7 @@ async def create_new_bundle(
         if addon_definition.is_system:
             if system_addon_name not in bundle.addons:
                 logging.debug(
-                    f"Adding missing system addon {system_addon_name} to bundle {bundle.name}"
+                    f"Adding system addon {system_addon_name} to bundle {bundle.name}"
                 )
                 if addon_definition.latest:
                     bundle.addons[system_addon_name] = addon_definition.latest.version
@@ -254,7 +254,8 @@ async def update_bundle(
             if bundle.is_dev:
                 logging.debug(f"Updating dev bundle {bundle.name}")
                 if patch.active_user is not None:
-                    # remove user from previously assigned bundles to avoid constraint violation
+                    # remove user from previously assigned bundles
+                    # to avoid constraint violation
                     await conn.execute(
                         "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
                         patch.active_user,

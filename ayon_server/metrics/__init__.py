@@ -42,7 +42,7 @@ class Metrics(OPModel):
     release_info: ReleaseInfo | None = Field(
         default_factory=get_release_info,
         title="Release info",
-        description="Information about the exact branch and commit of the current release",
+        description="Information about the branch and commit of the current release",
         example=get_release_info(),
     )
 

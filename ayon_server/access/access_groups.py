@@ -58,8 +58,8 @@ class AccessGroups:
         """Create aggregated permissions object for a given list of access_groups.
 
         If a project name is specified and there is a project-level override
-        for a given access group, it will be used. Ohterwise a "_" (default) access group will
-        be used.
+        for a given access group, it will be used.
+        Ohterwise a "_" (default) access group will be used.
         """
 
         result: Permissions | None = None

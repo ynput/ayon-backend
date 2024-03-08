@@ -36,7 +36,8 @@ class ServerAddonDefinition:
             if version.app_host_name != self.app_host_name:
                 raise ValueError(
                     f"Addon {self.name} has version {version.version} with "
-                    f"mismatched app host name {version.app_host_name} != {self.app_host_name}"
+                    "mismatched app host name "
+                    f"{version.app_host_name} != {self.app_host_name}"
                 )
 
             if version.name != self.name:
@@ -71,9 +72,10 @@ class ServerAddonDefinition:
     def versions(self) -> dict[str, BaseServerAddon]:
         """Return a list of addon versions.
 
-        The list is a dictionary with version names as keys and addon instances as values.
-        Addons are initialized when this property is accessed for the first time
-        (which should happen right after server startup)
+        The list is a dictionary with version names as keys and addon
+        instances as values. Addons are initialized when this property
+        is accessed for the first time, which should happen
+        right after server startup.
         """
         if self._versions is None:
             self._versions = {}
@@ -131,8 +133,9 @@ class ServerAddonDefinition:
         assert "name" in metadata, f"Addon {vname} is missing name"
         assert "version" in metadata, f"Addon {metadata['name']} is missing version"
 
-        # when the addon directory is a git repository, append -git to the version
-        # this is useful for development server-part of the addon directly from the git repository
+        # when the addon directory is a git repository,
+        # append -git to the version this is useful for development
+        # the server-part of the addon directly from the git repository
         # on the server
 
         if os.path.exists(os.path.join(addon_dir, ".git")):

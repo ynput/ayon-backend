@@ -308,7 +308,8 @@ async def operations(
     affected_entities: list[tuple[ProjectLevelEntityType, str]] = []
     for operation in payload.operations:
         if operation.type == "create":
-            # create should be safe. It will fail if the is provided and is already exists,
+            # create should be safe.
+            # It will fail if the is provided and is already exists,
             # but it will fail gracefully. No need to check for duplicates.
             continue
         assert (

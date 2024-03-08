@@ -52,7 +52,10 @@ def parse_posgres_exception(exc: IntegrityConstraintViolationError):
             detail = "Unique constraint violation."
         else:
             record_type = exc.table_name.rstrip("s").capitalize()
-            detail = f"{record_type} with {m.group('field')} '{m.group('value')}' already exists."
+            detail = (
+                f"{record_type} with {m.group('field')} "
+                f"'{m.group('value')}' already exists."
+            )
 
         return {
             "detail": detail,

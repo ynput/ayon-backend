@@ -77,7 +77,8 @@ class AyonConfig(BaseModel):
 
     failed_login_ban_time: int = Field(
         default=600,
-        description="Interval in seconds to ban IP addresses with too many failed login attempts",
+        description="Interval in seconds to ban IP addresses "
+        "with too many failed login attempts",
     )
 
     motd: str | None = Field(

@@ -21,12 +21,13 @@ class AddonSettingsItemModel(OPModel):
     )
     title: str = Field(..., title="Addon title", example="My Addon")
 
-    # None value means that project does not have overrides or project/site was not specified
-    # in the request
     has_settings: bool = Field(False)
     has_project_settings: bool = Field(False)
     has_project_site_settings: bool = Field(False)
     has_site_settings: bool = Field(False)
+
+    # None value means that project does not have overrides
+    # or project/site was not specified in the request
     has_studio_overrides: bool | None = Field(None)
     has_project_overrides: bool | None = Field(None)
     has_project_site_overrides: bool | None = Field(None)

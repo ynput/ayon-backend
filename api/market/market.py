@@ -80,7 +80,10 @@ async def market_addon_detail(user: CurrentUser, addon_name: str):
 
     warning = None
     if result["latestVersion"] != latest_compatible_version:
-        warning = "There are newer versions available, but they are not compatible with your Ayon version"
+        warning = (
+            "There are newer versions available, "
+            "but they are not compatible with your Ayon version"
+        )
 
     result["latestVersion"] = latest_compatible_version
     result["warning"] = warning

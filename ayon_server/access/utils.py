@@ -71,7 +71,8 @@ async def folder_access_list(
     ) is not None:
         if not plist:
             raise ForbiddenException(
-                f"User {user.name} does not have access to any folders in project {project_name}"
+                f"User {user.name} does not have access "
+                f"to any folders in project {project_name}"
             )
         return plist
 
@@ -128,7 +129,8 @@ async def folder_access_list(
 
     if not path_list:
         raise ForbiddenException(
-            f"{access_type.capitalize()} access denied for {user.name} in project {project_name}"
+            f"{access_type.capitalize()} access denied "
+            f"for {user.name} in project {project_name}"
         )
 
     return path_list

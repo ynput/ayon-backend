@@ -93,7 +93,10 @@ async def list_installers(
 
     if variant in ["production", "staging"]:
         r = await Postgres.fetch(
-            f"SELECT data->>'installer_version' as v FROM bundles WHERE is_{variant} IS TRUE"
+            f"""
+            SELECT data->>'installer_version' as v
+            FROM bundles WHERE is_{variant} IS TRUE
+            """
         )
         if r:
             version = r[0]["v"]
@@ -109,7 +112,7 @@ async def list_installers(
 
         if filename != manifest.filename:
             logging.warning(
-                f"Filename in manifest does not match: {filename} != {manifest.filename}"
+                f"Filenames in manifest don't match: {filename} != {manifest.filename}"
             )
             continue
 

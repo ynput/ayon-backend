@@ -15,20 +15,21 @@ from .templating import StringTemplate
 
 router = APIRouter(tags=["URI resolver"])
 
+EXAMPLE_URI = "ayon+entity://myproject/assets/env/beach?product=layout&version=v004"
+
 
 class ResolveRequestModel(OPModel):
     resolve_roots: bool = Field(
         False,
         title="Resolve roots",
-        description="If x-ayon-site-id header is provided, resolve representation path roots",
+        description="If x-ayon-site-id header is provided, "
+        "resolve representation path roots",
     )
     uris: list[str] = Field(
         ...,
         title="URIs",
         description="List of uris to resolve",
-        example=[
-            "ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004"
-        ],
+        example=[EXAMPLE_URI],
     )
 
 
@@ -384,33 +385,38 @@ async def resolve_uris(
 ) -> list[ResolvedURIModel]:
     """Resolve a list of ayon:// URIs to entities.
 
-    Each URI starts with `ayon://{project_name}/{path}` which determines the requested folder.
+    Each URI starts with `ayon://{project_name}/{path}` which
+    determines the requested folder.
 
-    Schemes `ayon://` and `ayon+entity://` are equivalent (ayon is just a shorter alias).
+    Schemes `ayon://` and `ayon+entity://` are equivalent (ayon is a shorter alias).
 
-    Additional query arguments [`product`, `version`, `representation`] or [`task`, `workfile`]
-    are allowed. Note that arguments from product/version/representations cannot be mixed with
+    Additional query arguments [`product`, `version`, `representation`]
+    or [`task`, `workfile`] are allowed.
+    Note that arguments from product/version/representations cannot be mixed with
     task/workfile arguments.
 
     ### Implicit wildcards
 
     The response contains a list of resolved URIs with the requested entities.
-    One URI can match multiple entities - for example when **product** and **representation** are requested,
-    the response will contain all matching **representations** from all **versions** of the product.
+    One URI can match multiple entities - for example when
+    **product** and **representation** are requested,
+    the response will contain all matching **representations**
+    from all **versions** of the product.
 
     ### Explicit wildcards
 
-    It is possible to use a `*` wildcard for querying multiple entities at the deepest level
-    of the data structure:
+    It is possible to use a `*` wildcard for querying multiple
+    entities at the deepest level of the data structure:
 
-    `ayon://my_project/assets/characters?product=setdress?version=*` will return all versions
-    of the given product.
+    `ayon://my_project/assets/characters?product=setdress?version=*`
+    will return all versions of the given product.
 
     ### Representation paths
 
-    When a representation is requested, the response will contain the resolved file path,
-    and if the request contains `X-ayon-site-id` header and `resolve_roots` is set to `true`,
-    in the request, the server will resolve the file path to the actual absolute path.
+    When a representation is requested, the response will contain the
+    resolved file path, and if the request contains `X-ayon-site-id`
+    header and `resolve_roots` is set to `true`, in the request,
+    the server will resolve the file path to the actual absolute path.
 
     """
     roots = {}

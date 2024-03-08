@@ -391,7 +391,8 @@ def init_addon_static(target_app: fastapi.FastAPI) -> None:
 
             if static_dirs:
                 logging.debug(
-                    f"Initialized static dirs for {addon_name}:{version}: {', '.join(static_dirs)}"
+                    f"Initialized static dirs for {addon_name}:{version}:"
+                    f"{', '.join(static_dirs)}"
                 )
 
 

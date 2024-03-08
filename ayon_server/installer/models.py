@@ -94,7 +94,7 @@ class InstallerManifest(BasePackageModel):
     python_modules: dict[str, Union[str, dict[str, str]]] = Field(
         default_factory=dict,
         title="Python modules",
-        description="mapping of module_name:module_version used to create the installer",
+        description="mapping of module name:version used to create the installer",
         example={"requests": "2.25.1", "pydantic": "1.8.2"},
     )
     runtime_python_modules: dict[str, str] = Field(

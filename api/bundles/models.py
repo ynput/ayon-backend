@@ -73,7 +73,6 @@ class BundlePatchModel(BaseBundleModel):
     addons: dict[str, str | None] | None = Field(
         None,
         title="Addons",
-        description="Changing addons is available only for dev bundles or server addons",
         example={"ftrack": None, "kitsu": "1.2.3"},
     )
     installer_version: str | None = Field(None, example="1.2.3")

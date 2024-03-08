@@ -34,7 +34,10 @@ async def get_studio_settings_overrides(saturated: bool) -> list[SettingsOverrid
     organize the settings in the UI and how the settings could be improved.
     """
 
-    query = "SELECT addon_name, addon_version, data FROM settings WHERE variant = 'production';"
+    query = """
+    SELECT addon_name, addon_version, data
+    FROM settings WHERE variant = 'production';
+    """
 
     results = []
 
@@ -57,7 +60,8 @@ async def get_studio_settings_overrides(saturated: bool) -> list[SettingsOverrid
         except Exception:
             # TODO:
             # Catched because of this exception. Fix later:
-            # File "/backend/ayon_server/settings/overrides.py", line 115, in list_overrides
+            # File "/backend/ayon_server/settings/overrides.py",
+            # line 115, in list_overrides
             #     ovr = override[name][i]
             #                         ^^^
             # IndexError: list index out of range

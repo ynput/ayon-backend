@@ -69,7 +69,8 @@ class BaseEntity:
                 # and drop any attributes that are not allowed
                 # from the patch data.
 
-                # TODO: don't forget to use user.is_developer to include developerMode attribute
+                # TODO: don't forget to use user.is_developer
+                # to include developerMode attribute
                 if not user.is_developer and "developerMode" in patch_data:
                     patch_data.pop("developerMode")
 

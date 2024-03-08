@@ -163,9 +163,8 @@ async def send_mail(
         elif isinstance(recipient, EmailRecipient):
             recipient_list.append(f"{recipient.name} <{recipient.email}>")
         elif isinstance(recipient, UserEntity):
-            recipient_list.append(
-                f"{recipient.attrib.full_name or recipient.name } <{recipient.attrib.email}>"
-            )
+            full_name = recipient.attrib.full_name or recipient.name
+            recipient_list.append(f"{full_name} <{recipient.attrib.email}>")
 
     # run send_smtp_email in a thread (we are in an async function)
 
