@@ -38,9 +38,6 @@ pytest = "^7.0.0"
 pytest-order = "^1.0.1"
 mypy = "^1.8"
 pre-commit = "^2.20.0"
-
-
-[tool.poetry.group.dev.dependencies]
 ruff = "^0.3.1"
 
 [tool.ruff]
