@@ -19,9 +19,7 @@ async def rebuild_inherited_attributes(project_name: str, pattr: dict[str, Any])
             if not attr_type.get("inherit", True):
                 del project_attrib[attr_type["name"]]
 
-        logging.debug("Rebuilding using", project_attrib)
-
-        statement = await conn.prepare(
+        st_crawl = await conn.prepare(
             f"""
             SELECT h.id, h.path, f.attrib as own, e.attrib as exported
             FROM project_{project_name}.hierarchy h
@@ -33,8 +31,21 @@ async def rebuild_inherited_attributes(project_name: str, pattr: dict[str, Any])
             """
         )
 
+        st_upsert = await conn.prepare(
+            f"""
+             INSERT INTO project_{project_name}.exported_attributes
+                 (folder_id, path, attrib)
+             VALUES
+                ($1, $2, $3)
+             ON CONFLICT (folder_id)
+             DO UPDATE SET attrib = EXCLUDED.attrib, path = EXCLUDED.path
+             """
+        )
+
         current_attrib_set: dict[str, Any] = {}
-        async for record in statement.cursor():
+        buff: list[tuple[str, str, dict[str, Any]]] = []
+
+        async for record in st_crawl.cursor():
             path_elements = record["path"].split("/")
             if len(path_elements) == 1:
                 current_attrib_set = project_attrib.copy()
@@ -48,18 +59,19 @@ async def rebuild_inherited_attributes(project_name: str, pattr: dict[str, Any])
                 # print("Using", record["own"])
                 # print(new_attrib_set)
                 # print()
-                await conn.execute(
-                    f"""
-                     INSERT INTO project_{project_name}.exported_attributes
-                         (folder_id, path, attrib)
-                     VALUES
-                        ($1, $2, $3)
-                     ON CONFLICT (folder_id)
-                     DO UPDATE SET attrib = EXCLUDED.attrib, path = EXCLUDED.path
-                     """,
-                    record["id"],
-                    record["path"],
-                    new_attrib_set,
+                buff.append(
+                    (
+                        record["id"],
+                        record["path"],
+                        new_attrib_set,
+                    )
                 )
 
+            if len(buff) > 100:
+                await st_upsert.executemany(buff)
+                buff = []
+
             current_attrib_set = new_attrib_set
+
+        if buff:
+            await st_upsert.executemany(buff)
