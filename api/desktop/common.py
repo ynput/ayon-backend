@@ -31,7 +31,7 @@ def load_json_file(*args) -> dict[str, Any]:
     if not os.path.isfile(path):
         raise FileNotFoundError(f"File does not exist: {path}")
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             return json.load(f)
     except Exception as e:
         raise ValueError(f"Failed to load file {path}: {e}")

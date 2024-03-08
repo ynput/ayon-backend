@@ -81,7 +81,6 @@ class ServerAddonDefinition:
                 version_dir = os.path.join(self.addon_dir, version_name)
 
                 try:
-
                     if os.path.exists(os.path.join(version_dir, "__init__.py")):
                         self.init_legacy_addon(version_dir)
                         continue
@@ -122,11 +121,11 @@ class ServerAddonDefinition:
                     metadata[key] = getattr(package_module, key)
 
         elif os.path.exists(os.path.join(addon_dir, "package.yml")):
-            with open(os.path.join(addon_dir, "package.yml"), "r") as f:
+            with open(os.path.join(addon_dir, "package.yml")) as f:
                 metadata = yaml.safe_load(f)
 
         elif os.path.exists(os.path.join(addon_dir, "package.yaml")):
-            with open(os.path.join(addon_dir, "package.yaml"), "r") as f:
+            with open(os.path.join(addon_dir, "package.yaml")) as f:
                 metadata = yaml.safe_load(f)
 
         assert "name" in metadata, f"Addon {vname} is missing name"

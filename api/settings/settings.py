@@ -51,22 +51,19 @@ class AllSettingsResponseModel(OPModel):
 @router.get("/settings", response_model_exclude_none=True)
 async def get_all_settings(
     user: CurrentUser,
-    bundle_name: str
-    | None = Query(
+    bundle_name: str | None = Query(
         None,
         title="Bundle name",
         description="Production if not set",
         regex=NAME_REGEX,
     ),
-    project_name: str
-    | None = Query(
+    project_name: str | None = Query(
         None,
         title="Project name",
         description="Studio settings if not set",
         regex=NAME_REGEX,
     ),
-    site_id: str
-    | None = Query(
+    site_id: str | None = Query(
         None,
         title="Site ID",
     ),

@@ -43,7 +43,7 @@ async def upload_addon_zip_file(
         raise ForbiddenException("Only admins can install addons")
 
     if url:
-        hash = hashlib.sha256(f"addon_install_{url}".encode("utf-8")).hexdigest()
+        hash = hashlib.sha256(f"addon_install_{url}".encode()).hexdigest()
 
         query = """
             SELECT id FROM events

@@ -9,7 +9,6 @@ from asyncpg.exceptions import (
 
 
 def parse_posgres_exception(exc: IntegrityConstraintViolationError):
-
     if isinstance(exc, NotNullViolationError):
         return {
             "detail": f"Missing required field: {exc.column_name}",

@@ -173,7 +173,7 @@ def load_config() -> AyonConfig:
 
     if (config.motd) is None and (config.motd_path is not None):
         if os.path.exists(config.motd_path):
-            with open(config.motd_path, "r") as motd_file:
+            with open(config.motd_path) as motd_file:
                 config.motd = motd_file.read()
 
     return config

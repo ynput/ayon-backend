@@ -1,6 +1,5 @@
 """Settings and configuration related models and utilities."""
 
-
 __all__ = [
     "BaseSettingsModel",
     "Field",

@@ -93,7 +93,6 @@ def send_smtp_email(
     text: str | None = None,
     html: str | None = None,
 ) -> None:
-
     assert ayonconfig.email_smtp_host is not None, "SMTP server is not configured"
     assert ayonconfig.email_smtp_port is not None, "SMTP server is not configured"
     user = ayonconfig.email_smtp_user
@@ -153,7 +152,6 @@ async def send_mail(
     text: str | None = None,
     html: str | None = None,
 ) -> None:
-
     mailing_enabled = await is_mailing_enabled()
     if not mailing_enabled:
         raise AyonException("Email is not configured")

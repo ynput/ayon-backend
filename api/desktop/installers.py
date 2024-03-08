@@ -163,7 +163,7 @@ async def create_installer(
             )
 
     if url:
-        hash = hashlib.sha256(f"installer_install_{url}".encode("utf-8")).hexdigest()
+        hash = hashlib.sha256(f"installer_install_{url}".encode()).hexdigest()
 
         query = """
             SELECT id FROM events

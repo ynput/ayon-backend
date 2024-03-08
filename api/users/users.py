@@ -569,7 +569,6 @@ class PasswordResetModel(OPModel):
 
 @router.post("/passwordReset")
 async def password_reset(request: PasswordResetModel) -> LoginResponseModel:
-
     query = (
         "SELECT name, data FROM users WHERE data->'passwordResetRequest'->>'token' = $1"
     )

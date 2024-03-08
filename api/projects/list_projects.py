@@ -46,29 +46,26 @@ class ListProjectsResponseModel(OPModel):
 async def list_projects(
     user: CurrentUser,
     page: int = Query(1, title="Page", ge=1),
-    length: int
-    | None = Query(
+    length: int | None = Query(
         None,
         title="Records per page",
         description="If not provided, the result will not be limited",
     ),
-    library: bool
-    | None = Query(
+    library: bool | None = Query(
         None,
         title="Show library projects",
         description="If not provided, return projects regardless the flag",
     ),
-    active: bool
-    | None = Query(
+    active: bool | None = Query(
         None,
         title="Show active projects",
         description="If not provided, return projects regardless the flag",
     ),
-    order: Literal["name", "createdAt", "updatedAt"]
-    | None = Query(None, title="Attribute to order the list by"),
+    order: Literal["name", "createdAt", "updatedAt"] | None = Query(
+        None, title="Attribute to order the list by"
+    ),
     desc: bool = Query(False, title="Sort in descending order"),
-    name: str
-    | None = Query(
+    name: str | None = Query(
         None,
         title="Filter by name",
         description="""Limit the result to project with the matching name,

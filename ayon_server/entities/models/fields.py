@@ -11,7 +11,6 @@ See .generator.FieldDefinition model for more information on specifiing
 field parameters.
 """
 
-
 from ayon_server.entities.models.submodels import LinkTypeModel, RepresentationFileModel
 from ayon_server.types import (
     ENTITY_ID_EXAMPLE,

@@ -185,15 +185,13 @@ async def update_bundle(
     bundle_name: str,
     patch: BundlePatchModel,
     user: CurrentUser,
-    build: list[Platform]
-    | None = Query(
+    build: list[Platform] | None = Query(
         None,
         title="Request build",
         description="Build dependency packages for selected platforms",
     ),
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
-
     if not user.is_admin:
         raise ForbiddenException("Only admins can patch bundles")
 

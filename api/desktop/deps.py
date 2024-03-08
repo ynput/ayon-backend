@@ -133,7 +133,7 @@ async def create_dependency_package(
         await f.write(payload.json(exclude_none=True))
 
     if url:
-        hash = hashlib.sha256(f"dep_pkg_install_{url}".encode("utf-8")).hexdigest()
+        hash = hashlib.sha256(f"dep_pkg_install_{url}".encode()).hexdigest()
 
         query = """
             SELECT id FROM events

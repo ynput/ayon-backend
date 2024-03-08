@@ -1,7 +1,7 @@
 """API endpoints related to a user authentication. (excluding SSO)
 
- - Login using username/password credentials
- - Logout (revoke access token)
+- Login using username/password credentials
+- Logout (revoke access token)
 """
 
 from fastapi import Request

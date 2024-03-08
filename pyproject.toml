@@ -44,6 +44,14 @@ pre-commit = "^2.20.0"
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.3.1"
 
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.format]
+indent-style = "space"
+line-ending = "auto"
+
+
 [tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
@@ -53,9 +61,11 @@ select = [
     "C",   # flake8-comprehensions
     "ISC", # flake8-implicit-str-concat
     "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
 ]
 
 ignore = [
+    "ISC001",
     "E501",  # line too long, handled by black
     "E721",  # do not compare types, i'll fix this later :)
     "B008",  # do not perform function calls in argument defaults

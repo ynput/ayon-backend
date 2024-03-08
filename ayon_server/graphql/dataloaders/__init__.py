@@ -4,7 +4,6 @@ because they don't have access to the context object, which we
 need for access control.
 """
 
-
 from typing import Any, NewType
 
 from ayon_server.exceptions import AyonException
