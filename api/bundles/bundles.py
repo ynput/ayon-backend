@@ -240,7 +240,7 @@ async def update_bundle(
             if patch.is_production is not None:
                 if patch.is_production:
                     await conn.execute("UPDATE bundles SET is_production = FALSE")
-                bundle.is_production = bundle.is_production
+                bundle.is_production = patch.is_production
 
             if patch.is_staging is not None:
                 if patch.is_staging:
