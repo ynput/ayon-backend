@@ -20,6 +20,18 @@ class RepresentationEntity(ProjectLevelEntity):
             "publish",
         )
 
+    async def ensure_update_access(self, user, **kwargs) -> None:
+        if user.is_manager:
+            return
+
+        await ensure_entity_access(
+            user,
+            self.project_name,
+            "version",
+            self.version_id,
+            "publish",
+        )
+
     #
     # Properties
     #
