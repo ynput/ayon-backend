@@ -127,7 +127,9 @@ async def folder_access_list(
     user.path_access_cache[project_name][access_type] = path_list
 
     if not path_list:
-        raise ForbiddenException("No paths")
+        raise ForbiddenException(
+            f"{access_type.capitalize()} access denied for {user.name} in project {project_name}"
+        )
 
     return path_list
 
