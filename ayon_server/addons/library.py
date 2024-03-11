@@ -150,10 +150,6 @@ class AddonLibrary:
         logging.info("Unloading addon", addon_name, addon_version)
         definition.unload_version(addon_version)
 
-        if not definition._versions:
-            logging.info("Unloading addon", addon_name)
-            del instance.data[addon_name]
-
     @classmethod
     def is_broken(cls, addon_name: str, addon_version: str) -> dict[str, Any] | None:
         instance = cls.getinstance()

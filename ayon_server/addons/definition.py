@@ -66,7 +66,7 @@ class ServerAddonDefinition:
                 return self.title
             if hasattr(self, "name"):
                 return self.name.capitalize()
-        return f"(Empty addon {self.dir_name})"
+        return f"[{self.dir_name.capitalize()}]"
 
     @property
     def versions(self) -> dict[str, BaseServerAddon]:

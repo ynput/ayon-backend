@@ -526,7 +526,7 @@ async def startup_event() -> None:
 
     for _addon_name, _addon_version in bad_addons:
         logging.error(
-            f"Addon {_addon_name} {_addon_version} failed to initialize. Unloading."
+            f"Addon {_addon_name} {_addon_version} failed to start. Unloading."
         )
         reason = bad_addons[(_addon_name, _addon_version)]
         library.unload_addon(_addon_name, _addon_version, reason=reason)
