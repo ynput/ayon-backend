@@ -266,7 +266,9 @@ class BaseServerAddon:
                 )
 
             try:
-                return target_addon.convert_settings_overrides(self.version, data)
+                return await target_addon.convert_settings_overrides(
+                    self.version, overrides=data
+                )
             except Exception:
                 log_traceback(f"Unable to migrate {self} settings to {as_version}")
                 return {}
@@ -305,7 +307,9 @@ class BaseServerAddon:
                 )
 
             try:
-                return target_addon.convert_settings_overrides(self.version, data)
+                return await target_addon.convert_settings_overrides(
+                    self.version, overrides=data
+                )
             except Exception:
                 log_traceback(f"Unable to migrate {self} settings to {as_version}")
                 return {}
@@ -346,7 +350,9 @@ class BaseServerAddon:
                 )
 
             try:
-                return target_addon.convert_settings_overrides(self.version, data)
+                return await target_addon.convert_settings_overrides(
+                    self.version, overrides=data
+                )
             except Exception:
                 log_traceback(f"Unable to migrate {self} settings to {as_version}")
                 return {}
@@ -487,7 +493,7 @@ class BaseServerAddon:
             return None
         return model()
 
-    def convert_settings_overrides(
+    async def convert_settings_overrides(
         self,
         source_version: str,
         overrides: dict[str, Any],
@@ -507,7 +513,7 @@ class BaseServerAddon:
         has been changed from `str` to `list[str]`, you may use:
 
         ```python
-        def convert_str_to_list_str(value: str | list[str]) -> list[str]:
+        await def convert_str_to_list_str(value: str | list[str]) -> list[str]:
             if isinstance(value, str):
                 return [value]
             elif isinstance(value, list):
@@ -527,5 +533,8 @@ class BaseServerAddon:
         model_class = self.get_settings_model()
         if model_class is None:
             return {}
-        result = migrate_settings(overrides, new_model_class=model_class)
+        defaults = await self.get_default_settings()
+        result = migrate_settings(
+            overrides, new_model_class=model_class, defaults=defaults.dict()
+        )
         return result.dict(exclude_unset=True, exclude_none=True, exclude_defaults=True)
