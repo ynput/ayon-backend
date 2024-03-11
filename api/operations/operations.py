@@ -77,6 +77,7 @@ class OperationResponseModel(OPModel):
     id: str = Field(..., title="Operation ID")
     type: OperationType = Field(..., title="Operation type")
     success: bool = Field(..., title="Operation success")
+    status: int | None = Field(None, title="HTTP-like status code")
     detail: str | None = Field(None, title="Error message")
     entity_type: ProjectLevelEntityType = Field(..., title="Entity type")
     entity_id: str | None = Field(
@@ -230,12 +231,12 @@ async def process_operations(
             if entity.entity_type not in [e.entity_type for e in to_commit]:
                 to_commit.append(entity)
         except AyonException as e:
-            print(e)
             result.append(
                 OperationResponseModel(
                     success=False,
                     id=operation.id,
                     type=operation.type,
+                    status=e.status,
                     detail=e.detail,
                     entity_id=operation.entity_id,
                     entity_type=operation.entity_type,
@@ -250,6 +251,7 @@ async def process_operations(
                     success=False,
                     id=operation.id,
                     type=operation.type,
+                    status=500,
                     detail=str(exc),
                     entity_id=operation.entity_id,
                     entity_type=operation.entity_type,
@@ -259,6 +261,16 @@ async def process_operations(
             if not can_fail:
                 # No need to continue
                 break
+
+    for op in result:
+        if op.status:
+            continue
+        elif op.type == "create":
+            op.status = 201
+        elif op.type == "update":
+            op.status = 200
+        elif op.type == "delete":
+            op.status = 204
 
     # Create overall success value
     success = all(op.success for op in result)
