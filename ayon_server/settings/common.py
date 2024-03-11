@@ -2,6 +2,7 @@ import inspect
 import re
 from typing import Any, Callable, Type
 
+from nxtools import logging
 from pydantic import BaseModel, ValidationError, parse_obj_as
 
 from ayon_server.utils import json_dumps, json_loads
@@ -28,6 +29,7 @@ class BaseSettingsModel(BaseModel):
 def migrate_settings(
     old_data: dict[str, Any],
     new_model_class: Type[BaseSettingsModel],
+    defaults: dict[str, Any],
     custom_conversions: dict[str, Callable[[Any], Any]] = {},
     parent_key: str = "",
 ) -> Any:
@@ -51,27 +53,36 @@ def migrate_settings(
                         migrate_settings(
                             old_value,
                             field_type.type_,
+                            defaults.get(field_name, []),
                             custom_conversions,
                             key_path,
                         )
                         for old_value in old_value
                     ]
-                else:
+                elif isinstance(old_value, dict):
                     new_instance_data[field_name] = migrate_settings(
                         old_value,
                         field_type.outer_type_,
+                        defaults.get(field_name, {}),
                         custom_conversions,
                         key_path,
+                    )
+                else:
+                    logging.warning(
+                        f"Unsupported type for {key_path} model: {old_value}"
                     )
             else:
                 try:
                     validated_value = parse_obj_as(field_type.outer_type_, old_value)
                     new_instance_data[field_name] = validated_value
                 except ValidationError:
+                    logging.warning(
+                        f"Failed to validate {field_name} with value {old_value}"
+                    )
                     # Skip incompatible fields
                     continue
         else:
-            # Skip fields not in the old data, allowing new model's defaults to apply
-            continue
+            if field_name in defaults:
+                new_instance_data[field_name] = defaults.get(field_name, None)
 
     return new_model_class.parse_obj(new_instance_data)
