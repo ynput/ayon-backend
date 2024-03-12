@@ -1,4 +1,3 @@
-import asyncio
 import os
 import signal
 
@@ -25,7 +24,8 @@ def restart_server():
 
 
 async def require_server_restart(
-    user_name: str | None = None, description: str | None = None
+    user_name: str | None = None,
+    reason: str | None = None,
 ):
     """Mark the server as requiring a restart.
 
@@ -37,11 +37,11 @@ async def require_server_restart(
     """
 
     topic = "server.restart_required"
-    if description is None:
-        description = "Server restart is required"
+    if reason is None:
+        reason = "Server restart is required"
 
     try:
-        await dispatch_event(topic, hash=topic, description=description, user=user_name)
+        await dispatch_event(topic, hash=topic, description=reason, user=user_name)
     except ConstraintViolationException:
         # we don't need to do anything here. If the event fails,
         # it means the event was already triggered, and the server
@@ -59,6 +59,4 @@ async def clear_server_restart_required():
     restarted.
     """
 
-    await asyncio.sleep(5)
     await Postgres.execute("DELETE FROM events WHERE hash = 'server.restart_required'")
-    logging.debug("Server restart required flag cleared")

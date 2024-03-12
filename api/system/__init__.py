@@ -34,30 +34,49 @@ async def request_server_restart(user: CurrentUser):
 
 class RestartRequiredModel(OPModel):
     required: bool = Field(..., description="Whether the server requires a restart")
+    reason: str | None = Field(None, description="The reason for the restart")
 
 
 @router.get("/system/restartRequired", tags=["System"])
 async def get_restart_required() -> RestartRequiredModel:
+    """Get the server restart required flag.
+
+    This will return whether the server requires a restart, and the reason for it.
+    """
+
     # we ignore super new restart required events,
     # because they might not be cleared yet.
 
-    await Postgres.fetch(
+    res = await Postgres.fetch(
         """
-        SELECT * FROM events
+        SELECT description FROM events
         WHERE topic='server.restart_required'
         AND created_at < now() - interval ' 2 seconds'
         """
     )
+    if not res:
+        return RestartRequiredModel(required=False, reason=None)
 
-    return RestartRequiredModel(required=False)
+    return RestartRequiredModel(required=True, reason=res[0]["description"])
 
 
-@router.post("/system/restartRequired", tags=["System"])
+@router.post(
+    "/system/restartRequired", tags=["System"], response_model_exclude_none=True
+)
 async def set_restart_required(
     request: RestartRequiredModel,
     user: CurrentUser,
 ):
-    """Set the server restart required flag."""
+    """Set the server restart required flag.
+
+    This will notify the administrators that the server needs to be restarted.
+    When the server is ready to restart, the administrator can use
+    restart_server (using /api/system/restart) to trigger server.restart_requested
+    event, which (captured by messaging) will trigger restart_server function
+    and restart the server.
+
+    Human-readable reason for the restart can be provided in the `reason` field.
+    """
     if request.required:
         await require_server_restart(user.name)
     else:
