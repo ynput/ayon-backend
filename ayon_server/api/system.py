@@ -1,3 +1,4 @@
+import asyncio
 import os
 import signal
 
@@ -5,6 +6,7 @@ from nxtools import logging
 
 from ayon_server.events import dispatch_event
 from ayon_server.exceptions import ConstraintViolationException
+from ayon_server.lib.postgres import Postgres
 
 
 def restart_server():
@@ -34,7 +36,7 @@ async def require_server_restart(
     and restart the server.
     """
 
-    topic = "server.restart_requested"
+    topic = "server.restart_required"
     if description is None:
         description = "Server restart is required"
 
@@ -45,3 +47,18 @@ async def require_server_restart(
         # it means the event was already triggered, and the server
         # is pending restart.
         pass
+
+
+async def clear_server_restart_required():
+    """Clear the server restart required flag.
+
+    This will clear the server.restart_requested event, and the server
+    will not restart until the flag is set again.
+
+    This is called from ayon_server.api.server, when the server is actually
+    restarted.
+    """
+
+    await asyncio.sleep(5)
+    await Postgres.execute("DELETE FROM events WHERE hash = 'server.restart_required'")
+    logging.debug("Server restart required flag cleared")
