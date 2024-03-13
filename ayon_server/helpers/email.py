@@ -40,11 +40,15 @@ async def is_mailing_enabled() -> MailingEnabled:
         MAILING_ENABLED = False
         return MAILING_ENABLED
 
-    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
-        res = await client.get(
-            f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
-            headers=headers,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+            res = await client.get(
+                f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
+                headers=headers,
+            )
+    except (httpx.ConnectError, httpx.TimeoutException):
+        MAILING_ENABLED = False
+        return MAILING_ENABLED
 
     try:
         res.raise_for_status()
