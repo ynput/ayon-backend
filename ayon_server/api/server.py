@@ -21,6 +21,7 @@ from ayon_server.api.postgres_exceptions import (
     parse_posgres_exception,
 )
 from ayon_server.api.responses import ErrorResponse
+from ayon_server.api.system import clear_server_restart_required
 from ayon_server.auth.session import Session
 from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
@@ -552,6 +553,8 @@ async def startup_event() -> None:
                 status="finished",
                 description="Server started",
             )
+
+        asyncio.create_task(clear_server_restart_required())
         logging.goodnews("Server is now ready to connect")
 
 

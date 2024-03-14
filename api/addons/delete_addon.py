@@ -6,6 +6,7 @@ from fastapi import Query
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.api.system import require_server_restart
 from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundException
 
 # from ayon_server.lib.postgres import Postgres
@@ -44,6 +45,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
         except Exception as e:
             raise AyonException(f"Failed to delete {addon_name} directory: {e}")
         library.data.pop(addon_name, None)
+    await require_server_restart(None, "Restart the server to apply the addon changes.")
 
 
 @router.delete("/{addon_name}", tags=["Addons"])
@@ -60,8 +62,8 @@ async def delete_addon(
     await delete_addon_directory(addon_name)
 
     if purge:
-        pass
         # TODO: implement purge
+        pass
 
     return EmptyResponse()
 

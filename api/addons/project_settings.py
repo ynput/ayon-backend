@@ -165,7 +165,7 @@ async def set_addon_project_settings(
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ) -> EmptyResponse:
-    """Set the studio overrides of the given addon."""
+    """Set the project overrides of the given addon."""
 
     addon = AddonLibrary.addon(addon_name, version)
     model = addon.get_settings_model()

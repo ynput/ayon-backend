@@ -128,6 +128,7 @@ async def dispatch_event(
         description=description,
         summary=summary,
         payload=payload,
+        retries=0,
     )
 
     if store:

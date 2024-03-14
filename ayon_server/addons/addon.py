@@ -356,7 +356,7 @@ class BaseServerAddon:
             except Exception:
                 log_traceback(f"Unable to migrate {self} settings to {as_version}")
                 return {}
-        return {}
+        return data
 
     # Get settings and apply the overrides
 
