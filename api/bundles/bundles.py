@@ -417,6 +417,6 @@ async def bundle_actions(
                 raise BadRequestException("Archived bundles cannot be modified")
 
             if action.action == "promote":
-                return await promote_bundle(bundle, user, conn)
+                await promote_bundle(bundle, user, conn)
 
     return EmptyResponse(status_code=204)

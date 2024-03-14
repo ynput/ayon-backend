@@ -14,8 +14,8 @@ from .router import router
 
 async def delete_addon_directory(addon_name: str, addon_version: str | None = None):
     """Delete an addon or addon version"""
-
-    addon_definition = AddonLibrary.get(addon_name)
+    library = AddonLibrary.getinstance()
+    addon_definition = library.get(addon_name)
     if addon_definition is None:
         raise NotFoundException("Addon not found")
 
@@ -34,7 +34,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
             raise AyonException(
                 f"Failed to delete {addon_name} {addon_version} directory: {e}"
             )
-        AddonLibrary.unload_addon(addon_name, addon_version, {"error": "Addon deleted"})
+        library.unload_addon(addon_name, addon_version, {"error": "Addon deleted"})
 
     is_empty = not os.listdir(addon_dir)
 
@@ -43,7 +43,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
             await aioshutil.rmtree(addon_dir)
         except Exception as e:
             raise AyonException(f"Failed to delete {addon_name} directory: {e}")
-        AddonLibrary.data.pop(addon_name, None)
+        library.data.pop(addon_name, None)
 
 
 @router.delete("/{addon_name}", tags=["Addons"])
@@ -63,6 +63,8 @@ async def delete_addon(
         pass
         # TODO: implement purge
 
+    return EmptyResponse()
+
 
 @router.delete("/{addon_name}/{addon_version}", tags=["Addons"])
 async def delete_addon_version(
@@ -81,3 +83,5 @@ async def delete_addon_version(
     if purge:
         pass
         # TODO: implement purge
+
+    return EmptyResponse()
