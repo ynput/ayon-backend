@@ -36,11 +36,6 @@ def parse_posgres_exception(exc: IntegrityConstraintViolationError):
             "code": 409,
         }
 
-        return {
-            "detail": f"Invalid foreign key: {exc.constraint_name}",
-            "code": 400,
-        }
-
     elif isinstance(exc, UniqueViolationError):
         pg_detail = exc.detail
         # exctract field name and value from pg_detail
