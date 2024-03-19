@@ -49,16 +49,19 @@ def migrate_settings(
             ):
                 # Recurse nested models or lists of models
                 if isinstance(old_value, list):
-                    new_instance_data[field_name] = [
-                        migrate_settings(
-                            old_value,
-                            field_type.type_,
-                            defaults.get(field_name, []),
-                            custom_conversions,
-                            key_path,
+                    ndata = []
+                    for i, ov in enumerate(old_value):
+                        ndata.append(
+                            migrate_settings(
+                                ov,
+                                field_type.type_,
+                                {},
+                                custom_conversions,
+                                key_path,
+                            )
                         )
-                        for old_value in old_value
-                    ]
+                    new_instance_data[field_name] = ndata
+
                 elif isinstance(old_value, dict):
                     new_instance_data[field_name] = migrate_settings(
                         old_value,

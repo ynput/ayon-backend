@@ -21,12 +21,13 @@ from ayon_server.api.postgres_exceptions import (
     parse_posgres_exception,
 )
 from ayon_server.api.responses import ErrorResponse
+from ayon_server.api.static import addon_static_router
 from ayon_server.api.system import clear_server_restart_required
 from ayon_server.auth.session import Session
 from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event, update_event
-from ayon_server.exceptions import AyonException, UnauthorizedException
+from ayon_server.exceptions import AyonException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import parse_access_token
@@ -37,35 +38,6 @@ app = fastapi.FastAPI(
     openapi_tags=tags_meta,
     **app_meta,
 )
-
-#
-# Static files
-#
-
-
-class AuthStaticFiles(StaticFiles):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-    async def __call__(self, scope, receive, send) -> None:
-        request = fastapi.Request(scope, receive)
-        # TODO: use dep_current_user here in order to keep the behaviour consistent
-        access_token = parse_access_token(request.headers.get("Authorization", ""))
-        if access_token is None:
-            access_token = request.headers.get("x-api-key")
-
-        if access_token:
-            try:
-                session_data = await Session.check(access_token, None)
-            except AyonException:
-                pass
-            else:
-                if session_data:
-                    await super().__call__(scope, receive, send)
-                    return
-        err_msg = "You need to be logged in in order to download this file"
-        raise UnauthorizedException(err_msg)
-
 
 #
 # Error handling
@@ -367,34 +339,8 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
 
 def init_addon_static(target_app: fastapi.FastAPI) -> None:
     """Serve static files for addon frontends."""
-    for addon_name, addon_definition in AddonLibrary.items():
-        for version in addon_definition.versions:
-            addon = addon_definition.versions[version]
-            static_dirs = []
-            if (fedir := addon.get_frontend_dir()) is not None:
-                static_dirs.append("frontend")
-                target_app.mount(
-                    f"/addons/{addon_name}/{version}/frontend/",
-                    StaticFiles(directory=fedir, html=True),
-                )
-            if (resdir := addon.get_public_dir()) is not None:
-                static_dirs.append("public")
-                target_app.mount(
-                    f"/addons/{addon_name}/{version}/public/",
-                    StaticFiles(directory=resdir),
-                )
-            if (resdir := addon.get_private_dir()) is not None:
-                static_dirs.append("private")
-                target_app.mount(
-                    f"/addons/{addon_name}/{version}/private/",
-                    AuthStaticFiles(directory=resdir),
-                )
 
-            if static_dirs:
-                logging.debug(
-                    f"Initialized static dirs for {addon_name}:{version}:"
-                    f"{', '.join(static_dirs)}"
-                )
+    target_app.include_router(addon_static_router)
 
 
 def init_frontend(target_app: fastapi.FastAPI, frontend_dir: str) -> None:
