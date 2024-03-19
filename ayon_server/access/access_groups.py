@@ -3,8 +3,11 @@ from typing import Any
 from nxtools import logging
 
 from ayon_server.access.permissions import (
+    AttributeAccessList,
     BasePermissionsModel,
+    EndpointsAccessList,
     FolderAccess,
+    FolderAccessList,
     Permissions,
 )
 from ayon_server.lib.postgres import Postgres
@@ -62,7 +65,7 @@ class AccessGroups:
         Ohterwise a "_" (default) access group will be used.
         """
 
-        result: Permissions | None = None
+        result: dict[str, Any] | None = None
 
         for access_group_name in access_group_names:
             if (access_group_name, project_name) in cls.access_groups:
@@ -86,6 +89,7 @@ class AccessGroups:
 
                 if perm_name in ("create", "read", "update", "delete"):
                     # TODO: deduplicate
+                    assert isinstance(value, FolderAccessList)
                     result[perm_name]["access_list"] = list(
                         {
                             FolderAccess(**normalize_to_dict(r))
@@ -95,11 +99,13 @@ class AccessGroups:
                     )
 
                 elif perm_name in ("attrib_read", "attrib_write"):
+                    assert isinstance(value, AttributeAccessList)
                     result[perm_name]["attributes"] = list(
                         set(result[perm_name].get("attributes", []))
                         | set(value.attributes)
                     )
                 elif perm_name == "endpoints":
+                    assert isinstance(value, EndpointsAccessList)
                     result[perm_name]["endpoints"] = list(
                         set(result[perm_name].get("endpoints", []))
                         | set(value.endpoints)

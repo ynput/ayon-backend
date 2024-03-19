@@ -52,7 +52,7 @@ if ayonconfig.log_file:
 async def user_name_from_request(request: fastapi.Request) -> str:
     """Get user from request"""
 
-    access_token = parse_access_token(request.headers.get("Authorization"))
+    access_token = parse_access_token(request.headers.get("Authorization", ""))
     if not access_token:
         return "anonymous"
     try:

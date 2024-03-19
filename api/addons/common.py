@@ -74,10 +74,13 @@ async def pin_override(
         overrides = await addon.get_studio_overrides(variant=variant)
         settings = await addon.get_studio_settings(variant=variant)
 
+    if not settings:
+        return
+
     c_field = settings
     c_overr = overrides
 
-    for _i, key in enumerate(path):
+    for key in path:
         if key not in c_field.__fields__:
             raise KeyError(f"{key} is not present in {c_field}")
 
@@ -177,10 +180,13 @@ async def pin_site_override(
     overrides = await addon.get_project_site_overrides(project_name, user_name, site_id)
     settings = await addon.get_project_site_settings(project_name, user_name, site_id)
 
+    if not settings:
+        return
+
     c_field = settings
     c_overr = overrides
 
-    for _i, key in enumerate(path):
+    for key in path:
         if key not in c_field.__fields__:
             raise KeyError(f"{key} is not present in {c_field}")
 
