@@ -4,7 +4,6 @@ from nxtools import logging
 
 from ayon_server.access.permissions import (
     AttributeAccessList,
-    BasePermissionsModel,
     EndpointsAccessList,
     FolderAccess,
     FolderAccessList,
@@ -80,12 +79,11 @@ class AccessGroups:
                 continue
 
             for perm_name, value in access_group:
-                if isinstance(value, BasePermissionsModel):
-                    if not value.enabled:
-                        result[perm_name] = {"enabled": False}
-                        continue
-                    elif not result[perm_name]["enabled"]:
-                        continue
+                if not value.enabled:
+                    result[perm_name] = {"enabled": False}
+                    continue
+                elif not result[perm_name]["enabled"]:
+                    continue
 
                 if perm_name in ("create", "read", "update", "delete"):
                     # TODO: deduplicate

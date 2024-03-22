@@ -27,7 +27,7 @@ router = APIRouter(prefix="", tags=["Access Groups"])
 async def get_access_group_schema():
     schema = copy.deepcopy(Permissions.schema())
     await postprocess_settings_schema(schema, Permissions)
-    return Permissions.schema()
+    return schema
 
 
 @router.get("/accessGroups/{project_name}")

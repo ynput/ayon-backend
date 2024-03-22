@@ -1,8 +1,16 @@
-from pydantic import Field, validator
+from pydantic import validator
 
 from ayon_server.lib.postgres import Postgres
-from ayon_server.settings import BaseSettingsModel
+from ayon_server.settings import BaseSettingsModel, SettingsField
 from ayon_server.utils import json_dumps
+
+
+def get_folder_access_types():
+    return [
+        {"value": "assigned", "label": "Assigned"},
+        {"value": "hierarchy", "label": "Hierarchy"},
+        {"value": "children", "label": "Children"},
+    ]
 
 
 async def attr_enum():
@@ -16,13 +24,14 @@ class FolderAccess(BaseSettingsModel):
     """FolderAccess model defines a single whitelist item on accessing a folder."""
 
     _layout: str = "compact"
-    access_type: str = Field(
+
+    access_type: str = SettingsField(
         "assigned",
         title="Type",
-        enum_resolver=lambda: ["assigned", "hierarchy", "children"],
+        enum_resolver=get_folder_access_types,
     )
 
-    path: str | None = Field(
+    path: str | None = SettingsField(
         "/",
         title="Path",
         description="The path of the folder to allow access to. "
@@ -48,22 +57,22 @@ class FolderAccess(BaseSettingsModel):
 
 class BasePermissionsModel(BaseSettingsModel):
     _isGroup = True
-    enabled: bool = Field(False)
+    enabled: bool = SettingsField(False)
 
 
 class FolderAccessList(BasePermissionsModel):
-    access_list: list[FolderAccess] = Field(default_factory=list, layout="compact")
+    access_list: list[FolderAccess] = SettingsField(default_factory=list)
 
 
 class AttributeAccessList(BasePermissionsModel):
-    attributes: list[str] = Field(
+    attributes: list[str] = SettingsField(
         default_factory=list,
         enum_resolver=attr_enum,
     )
 
 
 class EndpointsAccessList(BasePermissionsModel):
-    endpoints: list[str] = Field(default_factory=list)
+    endpoints: list[str] = SettingsField(default_factory=list)
 
 
 class Permissions(BaseSettingsModel):
@@ -74,50 +83,50 @@ class Permissions(BaseSettingsModel):
 
     _layout: str = "root"
 
-    create: FolderAccessList = Field(
-        default_factory=FolderAccessList,
+    create: FolderAccessList = SettingsField(
+        default_factory=FolderAccessList,  # type: ignore
         title="Restrict folder creation",
         description="Whitelist folders a user can create",
     )
 
-    read: FolderAccessList = Field(
-        default_factory=FolderAccessList,
+    read: FolderAccessList = SettingsField(
+        default_factory=FolderAccessList,  # type: ignore
         title="Restrict folder read",
         description="Whitelist folders a user can read",
     )
 
-    update: FolderAccessList = Field(
-        default_factory=FolderAccessList,
+    update: FolderAccessList = SettingsField(
+        default_factory=FolderAccessList,  # type: ignore
         title="Restrict folder update",
         description="Whitelist folders a user can update",
     )
 
-    publish: FolderAccessList = Field(
-        default_factory=FolderAccessList,
+    publish: FolderAccessList = SettingsField(
+        default_factory=FolderAccessList,  # type: ignore
         title="Restrict publishing",
         description="Whitelist folders a user can publish to",
     )
 
-    delete: FolderAccessList = Field(
-        default_factory=FolderAccessList,
+    delete: FolderAccessList = SettingsField(
+        default_factory=FolderAccessList,  # type: ignore
         title="Restrict folder delete",
         description="Whitelist folders a user can delete",
     )
 
-    attrib_read: AttributeAccessList = Field(
-        default_factory=AttributeAccessList,
+    attrib_read: AttributeAccessList = SettingsField(
+        default_factory=AttributeAccessList,  # type: ignore
         title="Restrict attribute read",
         description="Whitelist attributes a user can read",
     )
 
-    attrib_write: AttributeAccessList = Field(
-        default_factory=AttributeAccessList,
+    attrib_write: AttributeAccessList = SettingsField(
+        default_factory=AttributeAccessList,  # type: ignore
         title="Restrict attribute update",
         description="Whitelist attributes a user can write",
     )
 
-    endpoints: EndpointsAccessList = Field(
-        default_factory=EndpointsAccessList,
+    endpoints: EndpointsAccessList = SettingsField(
+        default_factory=EndpointsAccessList,  # type: ignore
         title="Restrict REST endpoints",
         description="Whitelist REST endpoints a user can access",
     )
