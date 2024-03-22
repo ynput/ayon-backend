@@ -101,7 +101,7 @@ async def get_ynput_cloud_info(
             headers=headers,
         )
 
-    if res.status_code == 401:
+    if res.status_code in [401, 403]:
         await Postgres.execute(
             """
             DELETE FROM secrets
