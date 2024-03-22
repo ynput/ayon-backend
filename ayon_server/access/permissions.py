@@ -61,7 +61,9 @@ class BasePermissionsModel(BaseSettingsModel):
 
 
 class FolderAccessList(BasePermissionsModel):
-    access_list: list[FolderAccess] = SettingsField(default_factory=list)
+    access_list: list[FolderAccess] = SettingsField(
+        default_factory=list, layout="compact"
+    )
 
 
 class AttributeAccessList(BasePermissionsModel):
