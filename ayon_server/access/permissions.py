@@ -32,7 +32,7 @@ class FolderAccess(BaseSettingsModel):
     )
 
     path: str | None = SettingsField(
-        "/",
+        "",
         title="Path",
         description="The path of the folder to allow access to. "
         "Required for access_type 'hierarchy and 'children'",
