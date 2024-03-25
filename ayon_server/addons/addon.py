@@ -472,6 +472,16 @@ class BaseServerAddon:
 
         return site_settings_model(**data).dict()
 
+    async def on_settings_changed(
+        self,
+        old_settings: BaseSettingsModel,
+        new_settings: BaseSettingsModel,
+        variant: str = "production",
+        project_name: str | None = None,
+    ) -> None:
+        """Hook called when the addon settings are changed."""
+        pass
+
     #
     # Overridable settings-related methods
     #
