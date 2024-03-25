@@ -118,7 +118,13 @@ async def set_addon_studio_settings(
             "newValue": data,
         }
     else:
-        payload = None
+        payload = {}
+
+    new_settings = await addon.get_studio_settings(variant=variant)
+    if original and new_settings:
+        await addon.on_settings_changed(
+            old_settings=original, new_settings=new_settings, variant=variant
+        )
 
     await dispatch_event(
         topic="settings.changed",
@@ -166,7 +172,9 @@ async def delete_addon_studio_overrides(
         raise ForbiddenException
 
     # Ensure addon exists
-    _ = AddonLibrary.addon(addon_name, addon_version)
+    addon = AddonLibrary.addon(addon_name, addon_version)
+
+    old_settings = await addon.get_studio_settings(variant=variant)
 
     await Postgres.execute(
         """
@@ -179,6 +187,13 @@ async def delete_addon_studio_overrides(
         addon_version,
         variant,
     )
+
+    new_settings = await addon.get_default_settings()
+    if old_settings and new_settings:
+        await addon.on_settings_changed(
+            old_settings=old_settings, new_settings=new_settings, variant=variant
+        )
+
     await dispatch_event(
         topic="settings.deleted",
         description=f"{addon_name}:{addon_version} studio overrides deleted",
@@ -203,10 +218,24 @@ async def modify_studio_overrides(
     if not user.is_manager:
         raise ForbiddenException
 
+    addon = AddonLibrary.addon(addon_name, addon_version)
+    if addon is None:
+        raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
+
+    old_settings = await addon.get_studio_settings(variant=variant)
+
     if payload.action == "delete":
         await remove_override(addon_name, addon_version, payload.path, variant=variant)
     elif payload.action == "pin":
         await pin_override(addon_name, addon_version, payload.path, variant=variant)
+
+    new_settings = await addon.get_studio_settings(variant=variant)
+
+    if old_settings and new_settings:
+        await addon.on_settings_changed(
+            old_settings=old_settings, new_settings=new_settings, variant=variant
+        )
+
     return EmptyResponse()
 
 
@@ -246,6 +275,15 @@ async def set_raw_addon_studio_overrides(
     user: CurrentUser,
     variant: str = Query("production"),
 ) -> EmptyResponse:
+    """Set raw studio overrides for an addon.
+
+    Warning: this endpoint is not intended for general use and should only be used by
+    administrators. It bypasses the normal validation and processing that occurs when
+    modifying studio overrides through the normal API.
+
+    It won't trigger any events or validation checks, and may result in unexpected
+    behaviour if used incorrectly.
+    """
     if not user.is_admin:
         raise ForbiddenException("Only admins can access raw overrides")
 
