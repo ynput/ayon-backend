@@ -1,3 +1,4 @@
+import datetime
 import time
 
 from ayon_server.access.utils import folder_access_list
@@ -9,18 +10,21 @@ from ayon_server.utils import json_loads
 
 from .router import router
 
-# Models here are just for documentation. We don't use them in the code.
-
 
 class FolderListItem(OPModel):
     id: str
     path: str
     parent_id: str | None = None
+    parents: list[str]
     name: str
+    label: str | None = None
     folder_type: str
+    has_tasks: bool = False
+    task_names: list[str] | None
     status: str
     attrib: dict[str, str]
     own_attrib: list[str]
+    updated_at: datetime.datetime
 
 
 class FolderListModel(OPModel):
@@ -70,5 +74,6 @@ async def get_folder_list(
         f"of {project_name} fetched in {elapsed_time:.2f} seconds"
     )
     result["detail"] = detail
-    # skip constructing the model. it just slows things down
-    return result  # type: ignore
+
+    # we need to do the validation here in order to convert snake_case to camelCase
+    return FolderListModel(**result)

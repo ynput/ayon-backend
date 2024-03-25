@@ -16,28 +16,47 @@ async def rebuild_hierarchy_cache(
     start_time = time.monotonic()
     query = f"""
         SELECT
-            f.id, f.parent_id, f.name, f.folder_type, f.status, f.attrib,
-            ea.attrib as all_attrib, ea.path as path
+            f.id,
+            f.parent_id,
+            f.name,
+            f.label,
+            f.folder_type,
+            f.status,
+            f.attrib,
+            f.updated_at,
+            ea.attrib as all_attrib,
+            ea.path as path,
+            COUNT (tasks.id) AS task_count,
+            array_agg(tasks.name) AS task_names
         FROM
             project_{project_name}.folders f
         INNER JOIN
             project_{project_name}.exported_attributes ea
         ON f.id = ea.folder_id
+        LEFT JOIN
+            project_{project_name}.tasks AS tasks
+        ON
+            tasks.folder_id = f.id
+        GROUP BY f.id, ea.attrib, ea.path
     """
 
     result = []
     async for row in Postgres.iterate(query, transaction=transaction):
-        # save microseconds by not converting to entity type
         result.append(
             {
                 "id": row["id"],
                 "path": row["path"],
                 "parent_id": row["parent_id"],
+                "parents": row["path"].strip("/").split("/")[:-1],
                 "name": row["name"],
+                "label": row["label"],
                 "folder_type": row["folder_type"],
+                "has_tasks": row["task_count"] > 0,
+                "task_names": row["task_names"] if row["task_names"] != [None] else [],
                 "status": row["status"],
                 "attrib": row["all_attrib"],
                 "own_attrib": list(row["attrib"].keys()),
+                "updated_at": row["updated_at"],
             }
         )
     await Redis.set("project.folders", project_name, json_dumps(result), 3600)
