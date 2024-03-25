@@ -138,10 +138,12 @@ async def get_folder_hierarchy(
         hierarchy.commit()
         hresult = hierarchy()
 
-    elapsed = round(time.time() - start_time, 4)
-
-    return HierarchyResponseModel.construct(
-        detail=f"Hierarchy loaded in {elapsed}s",
+    res = HierarchyResponseModel.construct(
+        detail="Working",
         projectName=project_name,
         hierarchy=hresult,
     )
+    elapsed = round(time.time() - start_time, 4)
+    detail = f"Hierarchy loaded in {elapsed}s"
+    res.detail = detail
+    return res

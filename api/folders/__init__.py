@@ -1,3 +1,4 @@
 __all__ = ["router"]
 
-from folders.folders import router
+from . import folders, list_folders  # noqa
+from .router import router

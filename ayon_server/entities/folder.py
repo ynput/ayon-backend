@@ -11,6 +11,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import EntityID, SQLTool, dict_exclude
@@ -252,6 +253,7 @@ class FolderEntity(ProjectLevelEntity):
                 row["path"],
                 attr,
             )
+        await rebuild_hierarchy_cache(self.project_name, transaction=transaction)
 
     async def delete(self, transaction=None, **kwargs) -> bool:
         if kwargs.get("force", False):
@@ -269,6 +271,7 @@ class FolderEntity(ProjectLevelEntity):
                 self.path.lstrip("/"),
             )
         return await super().delete(transaction=transaction, **kwargs)
+        await rebuild_hierarchy_cache(self.project_name, transaction=transaction)
 
     async def get_versions(self, transaction=None):
         """Return of version ids associated with this folder."""
