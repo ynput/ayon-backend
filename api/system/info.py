@@ -165,7 +165,7 @@ async def get_additional_info(user: UserEntity, request: Request):
     for row in attribute_library.info_data:
         row = {**row}
         if row["name"] in enums:
-            row["enum"] = enums[row["name"]]
+            row["data"]["enum"] = enums[row["name"]]
         try:
             attr_list.append(AttributeModel(**row))
         except ValidationError:
