@@ -17,6 +17,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.settings.models import BaseSettingsModel
 from ayon_server.settings.overrides import extract_overrides, list_overrides
 from ayon_server.settings.postprocess import postprocess_settings_schema
 
@@ -77,7 +78,7 @@ async def get_addon_project_settings(
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
     as_version: str | None = Query(None, alias="as"),
-) -> dict[str, Any]:
+) -> BaseSettingsModel:
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
 
@@ -91,7 +92,7 @@ async def get_addon_project_settings(
         )
 
     if not settings:
-        return {}
+        raise NotFoundException(f"Settings for {addon_name} {version} not found")
     return settings
 
 
@@ -147,8 +148,11 @@ async def get_addon_project_overrides(
             site,
             as_version=as_version,
         )
-        for k, v in list_overrides(site_settings, site_overrides, level="site").items():
-            result[k] = v
+        if site_settings:
+            for k, v in list_overrides(
+                site_settings, site_overrides, level="site"
+            ).items():
+                result[k] = v
 
     return result
 
@@ -206,7 +210,16 @@ async def set_addon_project_settings(
                 "newValue": data,
             }
         else:
-            payload = None
+            payload = {}
+
+        new_settings = await addon.get_project_settings(project_name, variant=variant)
+        if new_settings:
+            await addon.on_settings_changed(
+                old_settings=original,
+                new_settings=new_settings,
+                project_name=project_name,
+                variant=variant,
+            )
 
         await dispatch_event(
             topic="settings.changed",
@@ -251,6 +264,19 @@ async def set_addon_project_settings(
         user.name,
         data,
     )
+
+    new_settings = await addon.get_project_site_settings(
+        project_name, user.name, site, variant=variant
+    )
+    if new_settings:
+        await addon.on_settings_changed(
+            old_settings=original,
+            new_settings=new_settings,
+            project_name=project_name,
+            variant=variant,
+            site_id=site,
+            user_name=user.name,
+        )
     return EmptyResponse()
 
 
@@ -266,12 +292,15 @@ async def delete_addon_project_overrides(
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
     # Ensure the addon and the project exist
-    _ = AddonLibrary.addon(addon_name, version)
+    addon = AddonLibrary.addon(addon_name, version)
     _ = await ProjectEntity.load(project_name)
 
     if not site:
         if not user.is_manager:
             raise ForbiddenException
+
+        old_settings = await addon.get_project_settings(project_name, variant=variant)
+        new_settings = await addon.get_studio_settings(variant=variant)
 
         await Postgres.execute(
             f"""
@@ -284,6 +313,14 @@ async def delete_addon_project_overrides(
             version,
             variant,
         )
+
+        if new_settings and old_settings:
+            await addon.on_settings_changed(
+                old_settings=old_settings,
+                new_settings=new_settings,
+                project_name=project_name,
+                variant=variant,
+            )
 
         await dispatch_event(
             topic="settings.deleted",
@@ -314,6 +351,22 @@ async def delete_addon_project_overrides(
         site,
         user.name,
     )
+
+    old_settings = await addon.get_project_site_settings(
+        project_name, user.name, site, variant=variant
+    )
+    new_settings = await addon.get_project_settings(project_name, variant=variant)
+
+    if new_settings and old_settings:
+        await addon.on_settings_changed(
+            old_settings=old_settings,
+            new_settings=new_settings,
+            project_name=project_name,
+            variant=variant,
+            site_id=site,
+            user_name=user.name,
+        )
+
     return EmptyResponse()
 
 
@@ -329,7 +382,15 @@ async def modify_project_overrides(
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ):
+    addon = AddonLibrary.addon(addon_name, version)
+    if not addon:
+        raise NotFoundException(f"Addon {addon_name}:{version} not found")
+
     if site:
+        old_settings = await addon.get_project_site_settings(
+            project_name, user.name, site, variant=variant
+        )
+
         if payload.action == "delete":
             await remove_site_override(
                 addon_name,
@@ -350,10 +411,26 @@ async def modify_project_overrides(
                 payload.path,
             )
 
+        new_settings = await addon.get_project_site_settings(
+            project_name, user.name, site, variant=variant
+        )
+
+        if new_settings and old_settings:
+            await addon.on_settings_changed(
+                old_settings=old_settings,
+                new_settings=new_settings,
+                project_name=project_name,
+                variant=variant,
+                site_id=site,
+                user_name=user.name,
+            )
+
         return EmptyResponse()
 
     if not user.is_manager:
         raise ForbiddenException
+
+    old_settings = await addon.get_project_settings(project_name, variant=variant)
 
     if payload.action == "delete":
         await remove_override(
@@ -371,6 +448,17 @@ async def modify_project_overrides(
             project_name=project_name,
             variant=variant,
         )
+
+    new_settings = await addon.get_project_settings(project_name, variant=variant)
+
+    if new_settings and old_settings:
+        await addon.on_settings_changed(
+            old_settings=old_settings,
+            new_settings=new_settings,
+            project_name=project_name,
+            variant=variant,
+        )
+
     return EmptyResponse()
 
 
@@ -433,6 +521,16 @@ async def set_raw_addon_project_overrides(
     variant: str = Query("production"),
     site: str | None = Query(None, regex="^[a-z0-9-]+$"),
 ) -> EmptyResponse:
+    """Set raw studio overrides for an addon.
+
+    Warning: this endpoint is not intended for general use and should only be used by
+    administrators. It bypasses the normal validation and processing that occurs when
+    modifying studio overrides through the normal API.
+
+    It won't trigger any events or validation checks, and may result in unexpected
+    behaviour if used incorrectly.
+    """
+
     if site:
         await Postgres.execute(
             f"""

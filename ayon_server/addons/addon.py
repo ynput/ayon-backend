@@ -477,7 +477,9 @@ class BaseServerAddon:
         old_settings: BaseSettingsModel,
         new_settings: BaseSettingsModel,
         variant: str = "production",
-        project_name: str | None = None,
+        project_name: str | None = None,  # for project overrides
+        site_id: str | None = None,  # for site overrides
+        user_name: str | None = None,  # for site overrides
     ) -> None:
         """Hook called when the addon settings are changed."""
         pass
