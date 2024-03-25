@@ -4,7 +4,7 @@ __all__ = [
 ]
 
 import re
-from typing import Literal, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, Field
 
@@ -227,3 +227,19 @@ class AttributeEnumItem(OPModel):
 
     value: SimpleValue = Field(..., title="Enum value")
     label: str = Field(..., title="Enum label")
+
+
+def normalize_to_dict(s: dict[Any, Any] | BaseModel) -> dict[Any, Any]:
+    """Normalize the input data to a dictionary format.
+
+    The input data can be either a dictionary or an instance of a Pydantic BaseModel.
+
+    Raises:
+    ValueError: If the input data is neither a dictionary nor a Pydantic BaseModel.
+    """
+
+    if isinstance(s, dict):
+        return s
+    elif isinstance(s, BaseModel):
+        return s.dict()
+    raise ValueError(f"Can't normalize {s}")
