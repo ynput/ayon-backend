@@ -10,12 +10,7 @@ from ayon_server.access.permissions import (
     Permissions,
 )
 from ayon_server.lib.postgres import Postgres
-
-
-def normalize_to_dict(s: Any):
-    if isinstance(s, dict):
-        return s
-    return s.dict()
+from ayon_server.types import normalize_to_dict
 
 
 class AccessGroups:
