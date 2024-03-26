@@ -41,6 +41,7 @@ async def rebuild_hierarchy_cache(
     """
 
     result = []
+    ids_with_children = set()
     async for row in Postgres.iterate(query, transaction=transaction):
         result.append(
             {
@@ -59,6 +60,12 @@ async def rebuild_hierarchy_cache(
                 "updated_at": row["updated_at"],
             }
         )
+        if row["parent_id"] is not None:
+            ids_with_children.add(row["parent_id"])
+
+    for folder in result:
+        folder["has_children"] = folder["id"] in ids_with_children
+
     await Redis.set("project.folders", project_name, json_dumps(result), 3600)
     elapsed_time = time.monotonic() - start_time
     logging.debug(f"Rebuilt hierarchy cache for {project_name} in {elapsed_time:.2f} s")

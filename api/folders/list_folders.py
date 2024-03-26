@@ -1,5 +1,6 @@
 import datetime
 import time
+from typing import Any
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
@@ -20,16 +21,17 @@ class FolderListItem(OPModel):
     label: str | None = None
     folder_type: str
     has_tasks: bool = False
+    has_children: bool = False
     task_names: list[str] | None
     status: str
-    attrib: dict[str, str]
-    own_attrib: list[str]
+    attrib: dict[str, Any] | None = None
+    own_attrib: list[str] | None = None
     updated_at: datetime.datetime
 
 
 class FolderListModel(OPModel):
     detail: str
-    entities: list[FolderListItem]
+    folders: list[FolderListItem]
 
 
 async def get_entities(project_name: str) -> list[dict[str, str]]:
@@ -40,10 +42,11 @@ async def get_entities(project_name: str) -> list[dict[str, str]]:
         return json_loads(entities_data)
 
 
-@router.get("")
+@router.get("", response_model_exclude_unset=True)
 async def get_folder_list(
     user: CurrentUser,
     project_name: ProjectName,
+    attrib: bool = False,
 ) -> FolderListModel:
     """Return all folders in the project. Fast.
 
@@ -59,21 +62,22 @@ async def get_folder_list(
     access_list = await folder_access_list(user, project_name, "read")
     entities = await get_entities(project_name)
 
-    result = {
-        "detail": "",
-        "entities": [
-            entity
-            for entity in entities
-            if access_list is None or entity["path"] in access_list
-        ],
-    }
+    result = []
+    for folder in entities:
+        if access_list is not None and folder["path"] not in access_list:
+            continue
+        if not attrib:
+            folder.pop("attrib", None)
+            folder.pop("own_attrib", None)
+        else:
+            pass  # TODO: handle attrib whitelist
+        result.append(folder)
 
     elapsed_time = time.monotonic() - start_time
     detail = (
-        f"{len(result['entities'])} folders "
+        f"{len(result)} folders "
         f"of {project_name} fetched in {elapsed_time:.2f} seconds"
     )
-    result["detail"] = detail
 
     # we need to do the validation here in order to convert snake_case to camelCase
-    return FolderListModel(**result)
+    return FolderListModel(folders=result, detail=detail)
