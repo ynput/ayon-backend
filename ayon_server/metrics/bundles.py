@@ -37,8 +37,14 @@ async def get_production_bundle(saturated: bool) -> ProductionBundle | None:
 
     bundle_data = res[0]["data"]
 
+    addons = {}
+    for addon_name, version in bundle_data.get("addons", {}).items():
+        if version is None:
+            continue
+        addons[addon_name] = version
+
     return ProductionBundle(
-        addons=bundle_data.get("addons", {}),
+        addons=addons,
         launcher_version=bundle_data.get("installer_version", ""),
     )
 
