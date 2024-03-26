@@ -184,6 +184,7 @@ class FolderEntity(ProjectLevelEntity):
                 """
             )
             await rebuild_inherited_attributes(self.project_name, transaction=conn)
+            await rebuild_hierarchy_cache(self.project_name, transaction=conn)
 
         if transaction is not None:
             await _commit(transaction)
