@@ -1,9 +1,13 @@
-import datetime
 import time
 from typing import Any
 
+from fastapi import Response
+from nxtools import log_traceback
+from pydantic.error_wrappers import ValidationError
+
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.exceptions import AyonException
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
@@ -26,7 +30,7 @@ class FolderListItem(OPModel):
     status: str
     attrib: dict[str, Any] | None = None
     own_attrib: list[str] | None = None
-    updated_at: datetime.datetime
+    updated_at: str
 
 
 class FolderListModel(OPModel):
@@ -42,12 +46,12 @@ async def get_entities(project_name: str) -> list[dict[str, str]]:
         return json_loads(entities_data)
 
 
-@router.get("", response_model_exclude_unset=True)
+@router.get("", response_class=Response, responses={200: {"model": FolderListModel}})
 async def get_folder_list(
     user: CurrentUser,
     project_name: ProjectName,
     attrib: bool = False,
-) -> FolderListModel:
+):
     """Return all folders in the project. Fast.
 
     This is a similar endpoint to /hierarchy, but the result
@@ -80,4 +84,16 @@ async def get_folder_list(
     )
 
     # we need to do the validation here in order to convert snake_case to camelCase
-    return FolderListModel(folders=result, detail=detail)
+    # dumping to json here to bypass fastapi re-validation, which takes ages
+
+    try:
+        r = FolderListModel(detail=detail, folders=result).json(
+            by_alias=True,
+            exclude_unset=True,
+        )
+    except ValidationError:
+        await rebuild_hierarchy_cache(project_name)
+        log_traceback("Wrong model. Revalidating")
+        raise AyonException("Invalid cache data. Please try again")
+
+    return Response(content=r, media_type="application/json")
