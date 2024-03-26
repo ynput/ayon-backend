@@ -12,6 +12,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
+from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import EntityID, SQLTool, dict_exclude
@@ -141,19 +142,6 @@ class FolderEntity(ProjectLevelEntity):
         if self.exists:
             # Update existing entity
 
-            # Delete all affected exported attributes
-            # we will re-populate all non-existent records in the commit
-
-            # TODO: do not delete when attributes don't change
-            await transaction.execute(
-                f"""
-                DELETE FROM project_{self.project_name}.exported_attributes
-                WHERE
-                    path LIKE '{self.path.strip("/")}'
-                OR  path LIKE '{self.path.strip("/")}/%'
-                """
-            )
-
             await transaction.execute(
                 *SQLTool.update(
                     f"project_{self.project_name}.{self.entity_type}s",
@@ -188,72 +176,21 @@ class FolderEntity(ProjectLevelEntity):
     async def commit(self, transaction=None) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
-        transaction = transaction or Postgres
-
-        await transaction.execute(
-            f"""
-            REFRESH MATERIALIZED VIEW CONCURRENTLY
-            project_{self.project_name}.hierarchy
-            """
-        )
-
-        query = f"""
-            SELECT
-                h.id as id,
-                h.path as path,
-                f.attrib as own_attrib,
-                f.parent_id as parent_id,
-                p.attrib as project_attrib,
-                e.attrib as inherited_attrib
-            FROM
-                project_{self.project_name}.hierarchy AS h
-            INNER JOIN
-                project_{self.project_name}.folders AS f
-                ON h.id = f.id
-            LEFT JOIN
-                project_{self.project_name}.exported_attributes AS e
-                ON e.folder_id = f.parent_id
-            INNER JOIN
-                public.projects AS p
-                ON p.name ILIKE '{self.project_name}'
-            WHERE h.path NOT IN
-                (SELECT path FROM project_{self.project_name}.exported_attributes)
-            ORDER BY h.path ASC
-        """
-
-        cache: dict[str, dict[str, Any]] = {}
-
-        async for row in Postgres.iterate(query, transaction=transaction):
-            parent_path = "/".join(row["path"].strip("/").split("/")[:-1])
-            attr: dict[str, Any] = {}
-            if (inherited := row["inherited_attrib"]) is not None:
-                for key, value in inherited.items():
-                    if key in attribute_library.inheritable_attributes():
-                        attr[key] = value
-            elif not row["parent_id"]:
-                for key, value in row["project_attrib"].items():
-                    if key in attribute_library.inheritable_attributes():
-                        attr[key] = value
-            elif parent_path in cache:
-                attr |= cache[parent_path]
-            else:
-                logging.error(f"Unable to build exported attrs for {row['path']}.")
-                continue
-
-            if row["own_attrib"] is not None:
-                attr |= row["own_attrib"]
-
-            cache[row["path"].strip("/")] = attr
-            await transaction.execute(
+        async def _commit(conn):
+            await conn.execute(
                 f"""
-                INSERT INTO project_{self.project_name}.exported_attributes
-                (folder_id, path, attrib) VALUES ($1, $2, $3)
-                """,
-                row["id"],
-                row["path"],
-                attr,
+                REFRESH MATERIALIZED VIEW CONCURRENTLY
+                project_{self.project_name}.hierarchy
+                """
             )
-        await rebuild_hierarchy_cache(self.project_name, transaction=transaction)
+            await rebuild_inherited_attributes(self.project_name, transaction=conn)
+
+        if transaction is not None:
+            await _commit(transaction)
+            return
+        else:
+            async with Postgres.acquire() as transaction:
+                await _commit(transaction)
 
     async def delete(self, transaction=None, **kwargs) -> bool:
         if kwargs.get("force", False):
@@ -270,8 +207,10 @@ class FolderEntity(ProjectLevelEntity):
                 """,
                 self.path.lstrip("/"),
             )
-        return await super().delete(transaction=transaction, **kwargs)
-        await rebuild_hierarchy_cache(self.project_name, transaction=transaction)
+        res = await super().delete(transaction=transaction, **kwargs)
+        if res:
+            await rebuild_hierarchy_cache(self.project_name, transaction=transaction)
+        return res
 
     async def get_versions(self, transaction=None):
         """Return of version ids associated with this folder."""
