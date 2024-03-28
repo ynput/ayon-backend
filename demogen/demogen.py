@@ -167,9 +167,7 @@ class DemoGen:
                 user = await self.get_random_user()
                 if user not in assignees:
                     assignees.append(user)
-
-            if task["task_type"] == "Modeling":
-                task["assignees"] = assignees
+            task["assignees"] = assignees
             task_entity = await self.create_task(
                 conn,
                 folder=folder,
