@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Header, Query
+from fastapi import BackgroundTasks, Header, Query
 
 from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
@@ -9,7 +9,7 @@ from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 
-router = APIRouter(prefix="/projects/{project_name}/folders", tags=["Folders"])
+from .router import router
 
 #
 # [GET]
