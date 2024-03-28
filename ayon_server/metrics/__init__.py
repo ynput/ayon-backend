@@ -8,6 +8,7 @@ from .bundles import (
     get_installed_addons,
     get_production_bundle,
 )
+from .events import get_event_count_per_topic
 from .projects import (
     ProjectCounts,
     ProjectMetrics,
@@ -89,6 +90,12 @@ class Metrics(OPModel):
         ],
     )
 
+    event_topics: dict[str, int] | None = Field(
+        None,
+        title="Event topics count",
+        description=(docfm(get_event_count_per_topic)),
+    )
+
     production_bundle: ProductionBundle | None = Field(
         None,
         title="Production bundle",
@@ -145,6 +152,11 @@ METRICS_SETUP = [
     {
         "name": "active_services",
         "getter": get_active_services,
+        "ttl": 10,
+    },
+    {
+        "name": "event_topics",
+        "getter": get_event_count_per_topic,
         "ttl": 10,
     },
 ]

@@ -1,7 +1,12 @@
 from ayon_server.lib.postgres import Postgres
 
 
-async def get_event_count_per_topic() -> dict[str, int]:
+async def get_event_count_per_topic(saturated: bool = False) -> dict[str, int]:
+    """Return the count of events per topic.
+
+    This helps us with optimization of event clean-up,
+    and other maintenance tasks.
+    """
     result = {}
     query = "SELECT topic, COUNT(*) as count FROM events GROUP BY topic"
     async for row in Postgres.iterate(query):
