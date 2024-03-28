@@ -49,3 +49,15 @@ async def secrets_enum(project_name: str | None = None) -> list[str]:
         row["name"]
         async for row in Postgres.iterate("SELECT name FROM secrets ORDER BY name")
     ]
+
+
+async def anatomy_presets_enum():
+    result = [{"label": "<built-in>", "value": "_"}]
+    query = "SELECT name, is_primary FROM anatomy_presets ORDER BY name"
+    async for row in Postgres.iterate(query):
+        if row["is_primary"]:
+            label = f"{row['name']} (default)"
+        else:
+            label = row["name"]
+        result.append({"label": label, "value": row["name"]})
+    return result
