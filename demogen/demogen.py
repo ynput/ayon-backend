@@ -162,11 +162,13 @@ class DemoGen:
         for task in kwargs.get("_tasks", []):
             assignees = []
             _ = await self.get_random_user()
-            num_users = random.randint(0, len(self._users) - 1)
-            while len(assignees) < num_users:
+            for _ in range(len(self._users)):
                 user = await self.get_random_user()
                 if user not in assignees:
                     assignees.append(user)
+                if len(assignees) == 2:
+                    break
+
             task["assignees"] = assignees
             task_entity = await self.create_task(
                 conn,
