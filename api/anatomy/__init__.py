@@ -143,6 +143,26 @@ async def set_primary_preset(preset_name: str, user: CurrentUser) -> EmptyRespon
     return EmptyResponse()
 
 
+@router.delete("/presets/{preset_name}/primary", status_code=204)
+async def unset_primary_preset(preset_name: str, user: CurrentUser) -> EmptyResponse:
+    """Unset the primary preset."""
+
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can unset primary preset.")
+
+    async with Postgres.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """
+                UPDATE anatomy_presets
+                SET is_primary = FALSE
+                WHERE name = $1
+                """,
+                preset_name,
+            )
+    return EmptyResponse()
+
+
 @router.delete("/presets/{preset_name}", status_code=204)
 async def delete_anatomy_preset(preset_name: str, user: CurrentUser) -> EmptyResponse:
     """Delete the anatomy preset with the given name."""
