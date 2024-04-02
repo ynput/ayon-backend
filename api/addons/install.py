@@ -7,6 +7,7 @@ import shortuuid
 from fastapi import BackgroundTasks, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.constraints import Constraints
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.installer import background_installer
@@ -31,6 +32,8 @@ async def upload_addon_zip_file(
     user: CurrentUser,
     request: Request,
     url: str | None = Query(None, title="URL to the addon zip file"),
+    addonName: str | None = Query(None, title="Addon name"),
+    addonVersion: str | None = Query(None, title="Addon version"),
 ) -> InstallAddonResponseModel:
     """Upload an addon zip file and install it"""
 
@@ -40,7 +43,7 @@ async def upload_addon_zip_file(
         raise ForbiddenException("Only admins can install addons")
 
     if url:
-        hash = hashlib.sha256(f"addon_install_{url}".encode("utf-8")).hexdigest()
+        hash = hashlib.sha256(f"addon_install_{url}".encode()).hexdigest()
 
         query = """
             SELECT id FROM events
@@ -48,12 +51,18 @@ async def upload_addon_zip_file(
             AND hash = $1
         """
 
+        summary = {"url": url}
+        if addonName and addonVersion:
+            summary["name"] = addonName
+            summary["version"] = addonVersion
+
         res = await Postgres.fetch(query, hash)
         if res:
             event_id = res[0]["id"]
             await update_event(
                 event_id,
                 description="Reinstalling addon from URL",
+                summary=summary,
                 status="pending",
             )
         else:
@@ -61,7 +70,7 @@ async def upload_addon_zip_file(
                 "addon.install_from_url",
                 hash=hash,
                 description="Installing addon from URL",
-                summary={"url": url},
+                summary=summary,
                 user=user.name,
                 finished=False,
             )
@@ -71,6 +80,12 @@ async def upload_addon_zip_file(
 
     # Store the zip file in a temporary location
 
+    if (
+        allow_custom_addons := await Constraints.check("allowCustomAddons")
+    ) is not None:
+        if not allow_custom_addons:
+            raise ForbiddenException("Custom addons uploads are not allowed")
+
     temp_path = f"/tmp/{shortuuid.uuid()}.zip"
     async with aiofiles.open(temp_path, "wb") as f:
         async for chunk in request.stream():
@@ -78,7 +93,8 @@ async def upload_addon_zip_file(
 
     # Get addon name and version from the zip file
 
-    addon_name, addon_version = get_addon_zip_info(temp_path)
+    zip_info = get_addon_zip_info(temp_path)
+    zip_info.zip_path = temp_path
 
     # We don't create the event before we know that the zip file is valid
     # and contains an addon. If it doesn't, an exception is raised before
@@ -89,34 +105,26 @@ async def upload_addon_zip_file(
     query = """
         SELECT id FROM events
         WHERE topic = 'addon.install'
-        AND summary->>'addon_name' = $1
-        AND summary->>'addon_version' = $2
+        AND summary->>'name' = $1
+        AND summary->>'version' = $2
         LIMIT 1
     """
 
-    res = await Postgres.fetch(query, addon_name, addon_version)
+    res = await Postgres.fetch(query, zip_info.name, zip_info.version)
     if res:
         event_id = res[0]["id"]
         await update_event(
             event_id,
             description="Reinstalling addon from zip file",
-            summary={
-                "addon_name": addon_name,
-                "addon_version": addon_version,
-                "zip_path": temp_path,
-            },
+            summary=zip_info.dict(exclude_none=True),
             status="pending",
         )
     else:
         # If not, dispatch a new event
         event_id = await dispatch_event(
             "addon.install",
-            description=f"Installing addon {addon_name} {addon_version}",
-            summary={
-                "addon_name": addon_name,
-                "addon_version": addon_version,
-                "zip_path": temp_path,
-            },
+            description=f"Installing addon {zip_info.name} {zip_info.version}",
+            summary=zip_info.dict(exclude_none=True),
             user=user.name,
             finished=False,
         )

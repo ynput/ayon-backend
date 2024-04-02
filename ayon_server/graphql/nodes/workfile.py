@@ -8,6 +8,7 @@ from strawberry.types import Info
 from ayon_server.entities import WorkfileEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.task import TaskNode
@@ -29,12 +30,8 @@ class WorkfileNode(BaseNode):
     updated_by: str | None
     status: str
     attrib: WorkfileAttribType
+    data: str | None
     tags: list[str]
-
-    @strawberry.field(description="Workfile name")
-    def name(self) -> str:
-        """Return a version name based on the workfile path."""
-        return os.path.basename(self.path)
 
     @strawberry.field(description="Parent task of the workfile")
     async def task(self, info: Info) -> TaskNode:
@@ -54,9 +51,13 @@ def workfile_from_record(
 ) -> WorkfileNode:
     """Construct a version node from a DB row."""
 
+    data = record.get("data", {})
+    name = os.path.basename(record["path"])
+
     return WorkfileNode(  # type: ignore
         project_name=project_name,
         id=record["id"],
+        name=name,
         path=record["path"],
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
@@ -71,6 +72,7 @@ def workfile_from_record(
             user=context["user"],
             project_name=project_name,
         ),
+        data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

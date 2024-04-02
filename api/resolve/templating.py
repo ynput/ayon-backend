@@ -15,8 +15,8 @@ class TemplateMissingKey(Exception):
     msg = "Template key does not exist: `{}`."
 
     def __init__(self, parents):
-        parent_join = "".join(['["{0}"]'.format(key) for key in parents])
-        super(TemplateMissingKey, self).__init__(self.msg.format(parent_join))
+        parent_join = "".join([f'["{key}"]' for key in parents])
+        super().__init__(self.msg.format(parent_join))
 
 
 class TemplateUnsolved(Exception):
@@ -31,19 +31,14 @@ class TemplateUnsolved(Exception):
         if invalid_types:
             invalid_types_msg = self.invalid_types_msg.format(
                 ", ".join(
-                    [
-                        '"{0}" {1}'.format(_key, str(_type))
-                        for _key, _type in invalid_types.items()
-                    ]
+                    [f'"{_key}" {str(_type)}' for _key, _type in invalid_types.items()]
                 )
             )
 
         missing_keys_msg = ""
         if missing_keys:
             missing_keys_msg = self.missing_keys_msg.format(", ".join(missing_keys))
-        super(TemplateUnsolved, self).__init__(
-            self.msg.format(template, missing_keys_msg, invalid_types_msg)
-        )
+        super().__init__(self.msg.format(template, missing_keys_msg, invalid_types_msg))
 
 
 class TemplateResult(str):
@@ -72,7 +67,7 @@ class TemplateResult(str):
     def __new__(
         cls, filled_template, template, solved, used_values, missing_keys, invalid_types
     ):
-        new_obj = super(TemplateResult, cls).__new__(cls, filled_template)
+        new_obj = super().__new__(cls, filled_template)
         new_obj.used_values = used_values
         new_obj.solved = solved
         new_obj.template = template
@@ -250,7 +245,7 @@ class TemplatePartResult:
             self._invalid_types[key] = type(value)
 
 
-class FormatObject(object):
+class FormatObject:
     """Object that can be used for formatting.
 
     This is base that is valid for to be used in 'StringTemplate' value.
@@ -345,7 +340,7 @@ class FormattingPart:
                 for idx, sub_key in enumerate(used_keys):
                     if idx == 0:
                         continue
-                    invalid_key += "[{0}]".format(sub_key)
+                    invalid_key += f"[{sub_key}]"
 
             if missing_key:
                 result.add_missing_key(invalid_key)
@@ -415,16 +410,14 @@ class OptionalPart:
         return result
 
 
-class StringTemplate(object):
+class StringTemplate:
     """String that can be formatted."""
 
     def __init__(self, template):
         if not isinstance(template, str):
             raise TypeError(
-                (
-                    f"<{self.__class__.__name__}> argument must"
-                    f" be a string, not {type(template)}."
-                )
+                f"<{self.__class__.__name__}> argument must"
+                f" be a string, not {type(template)}."
             )
 
         self._template = template

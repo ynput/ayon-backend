@@ -3,37 +3,39 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from ayon_server.api.dependencies import CurrentUser, SiteID
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, ServiceUnavailableException
+from ayon_server.helpers.roots import get_roots_for_projects
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import NAME_REGEX, Field, OPModel
+from ayon_server.types import NAME_REGEX, Field, OPModel, ProjectLevelEntityType
 
 from .templating import StringTemplate
 
 router = APIRouter(tags=["URI resolver"])
+
+EXAMPLE_URI = "ayon+entity://myproject/assets/env/beach?product=layout&version=v004"
 
 
 class ResolveRequestModel(OPModel):
     resolve_roots: bool = Field(
         False,
         title="Resolve roots",
-        description="If x-ayon-site-id header is provided, resolve representation path roots",
+        description="If x-ayon-site-id header is provided, "
+        "resolve representation path roots",
     )
     uris: list[str] = Field(
         ...,
         title="URIs",
         description="List of uris to resolve",
-        example=[
-            "ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004"
-        ],
+        example=[EXAMPLE_URI],
     )
 
 
 class ResolvedEntityModel(OPModel):
-    project_name: str = Field(
-        ...,
+    project_name: str | None = Field(
+        None,
         title="Project name",
         example="demo_Big_Feature",
     )
@@ -73,27 +75,32 @@ class ResolvedEntityModel(OPModel):
         description="Path to the file if a representation is specified",
         example="/path/to/file.ma",
     )
+    target: ProjectLevelEntityType | None = Field(
+        None,
+        title="Target entity type",
+        description="The deepest entity type queried",
+    )
 
 
 class ResolvedURIModel(OPModel):
     uri: str = Field(
         ...,
         title="Resolved URI",
-        example="ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004",
+        example="ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004&representation=ma",
     )
     entities: list[ResolvedEntityModel] = Field(
         ...,
         title="Resolved entities",
         example=[
             {
-                "project_name": "demo_Big_Feature",
-                "folder_id": "0254c370005811ee9a740242ac130004",
-                "product_id": "0255ce50005811ee9a740242ac130004",
-                "task_id": None,
-                "version_id": "0256ba2c005811ee9a740242ac130004",
-                "representation_id": None,
-                "workfile_id": None,
-                "file_path": "/path/to/file.ma",
+                "projectName": "demo_Big_Feature",
+                "folderId": "0254c370005811ee9a740242ac130004",
+                "productId": "0255ce50005811ee9a740242ac130004",
+                "taskId": None,
+                "versionId": "0256ba2c005811ee9a740242ac130004",
+                "representationId": None,
+                "workfileId": None,
+                "filePath": "/path/to/file.ma",
             }
         ],
     )
@@ -244,6 +251,7 @@ async def resolve_entities(
     req: ParsedURIModel,
     roots: dict[str, str],
     site_id: str | None = None,
+    path_only: bool = False,
 ) -> list[ResolvedEntityModel]:
     result = []
     cols = ["h.id as folder_id"]
@@ -253,6 +261,13 @@ async def resolve_entities(
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
 
+    if Postgres.get_available_connections() < 3:
+        raise ServiceUnavailableException(
+            f"Postgres remaining pool size: {Postgres.get_available_connections()}"
+        )
+
+    target_entity_type: ProjectLevelEntityType | None = None
+
     platform = None
     if site_id:
         platform = await get_platform_for_site_id(site_id)
@@ -261,10 +276,12 @@ async def resolve_entities(
         cols.append("t.id as task_id")
         joins.append("INNER JOIN tasks AS t ON h.id = t.folder_id")
         conds.append(f"t.name = '{req.task_name}'")
+        target_entity_type = "task"
         if req.workfile_name is not None:
             cols.append("w.id as workfile_id")
             joins.append("INNER JOIN workfiles AS w ON t.id = w.task_id")
             conds.append(f"w.name = '{req.workfile_name}'")
+            target_entity_type = "workfile"
 
         conds.extend(get_path_conditions(req.path))
 
@@ -286,6 +303,7 @@ async def resolve_entities(
             conds.extend(get_version_conditions(req.version_name))
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
+            target_entity_type = "representation"
 
         elif req.version_name is not None:
             cols.extend(["s.id as product_id", "v.id as version_id"])
@@ -294,15 +312,18 @@ async def resolve_entities(
             conds.extend(get_version_conditions(req.version_name))
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
+            target_entity_type = "version"
 
         elif req.product_name is not None:
             cols.append("s.id as product_id")
             joins.append("INNER JOIN products AS s ON h.id = s.folder_id")
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
+            target_entity_type = "product"
 
         else:
             conds.extend(get_path_conditions(req.path))
+            target_entity_type = "folder"
 
     query = f"""
         SELECT {", ".join(cols)}
@@ -318,7 +339,6 @@ async def resolve_entities(
         file_path = None
         if ("file_template" in row) and ("context" in row):
             if row["file_template"]:
-
                 file_path = get_representation_path(
                     row["file_template"],
                     row["context"],
@@ -329,13 +349,17 @@ async def resolve_entities(
                 if platform == "windows":
                     file_path = file_path.replace("/", "\\")
 
-        result.append(
-            ResolvedEntityModel(
-                project_name=req.project_name,
-                file_path=file_path,
-                **row,
+        if path_only:
+            result.append(ResolvedEntityModel(file_path=file_path))
+        else:
+            result.append(
+                ResolvedEntityModel(
+                    project_name=req.project_name,
+                    file_path=file_path,
+                    target=target_entity_type,
+                    **row,
+                )
             )
-        )
 
     return result
 
@@ -350,51 +374,51 @@ async def get_platform_for_site_id(site_id: str) -> str:
     return res[0]["platform"]
 
 
-async def get_roots_for_projects(
-    user_name: str, site_id: str, projects: list[str]
-) -> dict[str, dict[str, str]]:
-    # platform specific roots for each requested project
-    # e.g. roots[project][root_name] = root_path
-    roots: dict[str, dict[str, str]] = {}
-
-    site_res = await Postgres.fetch(
-        "SELECT data->>'platform' as platform FROM sites WHERE id = $1", site_id
-    )
-    if not site_res:
-        raise BadRequestException(status_code=404, detail="Site not found")
-
-    platform = site_res[0]["platform"]
-
-    # get roots from project anatomies
-
-    async for row in Postgres.iterate(
-        "SELECT name, config FROM projects WHERE name = ANY($1)", projects
-    ):
-        _project_name = row["name"]
-        _roots = row["config"].get("roots", {})
-        roots[_project_name] = {}
-        for _root_name, _root_paths in _roots.items():
-            roots[_project_name][_root_name] = _root_paths[platform]
-
-    # root project overrides
-
-    for project_name in projects:
-        async for row in Postgres.iterate(
-            f"SELECT data FROM project_{project_name}.custom_roots WHERE user_name = $1 AND site_id = $2",
-            user_name,
-            site_id,
-        ):
-            roots[project_name].update(row["data"])
-
-    return roots
-
-
 @router.post("/resolve", response_model_exclude_none=True)
 async def resolve_uris(
     request: ResolveRequestModel,
     site_id: SiteID,
     user: CurrentUser,
+    path_only: bool = Query(
+        False, alias="pathOnly", description="Return only file paths"
+    ),
 ) -> list[ResolvedURIModel]:
+    """Resolve a list of ayon:// URIs to entities.
+
+    Each URI starts with `ayon://{project_name}/{path}` which
+    determines the requested folder.
+
+    Schemes `ayon://` and `ayon+entity://` are equivalent (ayon is a shorter alias).
+
+    Additional query arguments [`product`, `version`, `representation`]
+    or [`task`, `workfile`] are allowed.
+    Note that arguments from product/version/representations cannot be mixed with
+    task/workfile arguments.
+
+    ### Implicit wildcards
+
+    The response contains a list of resolved URIs with the requested entities.
+    One URI can match multiple entities - for example when
+    **product** and **representation** are requested,
+    the response will contain all matching **representations**
+    from all **versions** of the product.
+
+    ### Explicit wildcards
+
+    It is possible to use a `*` wildcard for querying multiple
+    entities at the deepest level of the data structure:
+
+    `ayon://my_project/assets/characters?product=setdress?version=*`
+    will return all versions of the given product.
+
+    ### Representation paths
+
+    When a representation is requested, the response will contain the
+    resolved file path, and if the request contains `X-ayon-site-id`
+    header and `resolve_roots` is set to `true`, in the request,
+    the server will resolve the file path to the actual absolute path.
+
+    """
     roots = {}
     if request.resolve_roots and site_id:
         projects = [parse_uri(uri).project_name for uri in request.uris]
@@ -412,7 +436,11 @@ async def resolve_uris(
                     )
                     current_project = parsed_uri.project_name
                 entities = await resolve_entities(
-                    conn, parsed_uri, roots.get(current_project, {}), site_id
+                    conn,
+                    parsed_uri,
+                    roots.get(current_project, {}),
+                    site_id,
+                    path_only=path_only,
                 )
                 result.append(ResolvedURIModel(uri=uri, entities=entities))
     return result

@@ -4,7 +4,6 @@ because they don't have access to the context object, which we
 need for access control.
 """
 
-
 from typing import Any, NewType
 
 from ayon_server.exceptions import AyonException
@@ -45,6 +44,7 @@ async def folder_loader(keys: list[KeyType]) -> list[dict | None]:
             folders.tags AS tags,
             folders.created_at AS created_at,
             folders.updated_at AS updated_at,
+            folders.data as data,
             hierarchy.path AS path,
             pr.attrib AS project_attributes,
             ex.attrib AS inherited_attributes
@@ -109,6 +109,7 @@ async def task_loader(keys: list[KeyType]) -> list[dict | None]:
             tasks.label AS label,
             tasks.folder_id AS folder_id,
             tasks.task_type AS task_type,
+            tasks.thumbnail_id AS thumbnail_id,
             tasks.assignees AS assignees,
             tasks.attrib AS attrib,
             tasks.data AS data,

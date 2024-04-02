@@ -22,7 +22,7 @@ default_link_types = [
     LinkType(
         link_type="generative",
         input_type="version",
-        output_type="representation",
+        output_type="version",
         color="#2626e0",
     ),
     LinkType(

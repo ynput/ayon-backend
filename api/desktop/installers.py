@@ -73,7 +73,7 @@ def get_manifest(filename: str) -> Installer:
         raise AyonException(f"Failed to load installer manifest {filename}")
     if manifest.has_local_file:
         if "server" not in [s.type for s in manifest.sources]:
-            manifest.sources.append(SourceModel(type="server"))
+            manifest.sources.insert(0, SourceModel(type="server"))
     return manifest
 
 
@@ -93,7 +93,10 @@ async def list_installers(
 
     if variant in ["production", "staging"]:
         r = await Postgres.fetch(
-            f"SELECT data->>'installer_version' as v FROM bundles WHERE is_{variant} IS TRUE"
+            f"""
+            SELECT data->>'installer_version' as v
+            FROM bundles WHERE is_{variant} IS TRUE
+            """
         )
         if r:
             version = r[0]["v"]
@@ -109,7 +112,7 @@ async def list_installers(
 
         if filename != manifest.filename:
             logging.warning(
-                f"Filename in manifest does not match: {filename} != {manifest.filename}"
+                f"Filenames in manifest don't match: {filename} != {manifest.filename}"
             )
             continue
 
@@ -163,7 +166,7 @@ async def create_installer(
             )
 
     if url:
-        hash = hashlib.sha256(f"installer_install_{url}".encode("utf-8")).hexdigest()
+        hash = hashlib.sha256(f"installer_install_{url}".encode()).hexdigest()
 
         query = """
             SELECT id FROM events

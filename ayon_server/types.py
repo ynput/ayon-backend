@@ -4,7 +4,7 @@ __all__ = [
 ]
 
 import re
-from typing import Literal, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +16,7 @@ from ayon_server.utils import json_dumps, json_loads
 #
 
 Platform = Literal["windows", "linux", "darwin"]
+SimpleValue = str | int | float | bool
 
 AccessType = Literal[
     "create",
@@ -52,14 +53,33 @@ AttributeType = Literal[
     "dict",
 ]
 
+#
+# Common regexes
+#
+
 ENTITY_ID_REGEX = r"^[0-f]{32}$"
 ENTITY_ID_EXAMPLE = "c10d5bc73dcab7da4cba0f3e0b3c0aea"
-# NAME_REGEX = r"^[a-zA-Z0-9_-]{2,64}$"
-NAME_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_\.\-]*[a-zA-Z0-9_]$"
-STATUS_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{2,64}[a-zA-Z0-9_]$"
+STATUS_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{1,64}[a-zA-Z0-9_]$"
 TOPIC_REGEX = r"^[a-zA-Z][a-zA-Z0-9_\.\*]{2,64}$"
+
+# labels should not contain single quotes or semicolons (sql injection prevention)
 LABEL_REGEX = r"^[^';]*$"
+
+# entity names
+NAME_REGEX = r"^[a-zA-Z0-9_]([a-zA-Z0-9_\.\-]*[a-zA-Z0-9_])?$"
+
+# user names shouldn't start or end with underscores
 USER_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
+
+# project name cannot contain - / . (sql hard limit for schema names)
+PROJECT_NAME_REGEX = r"^[a-zA-Z0-9_]*$"
+
+# TODO: consider length limit for project code
+PROJECT_CODE_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_]*[a-zA-Z0-9_]$"
+
+# api key can contain alphanumeric characters and hyphens
+API_KEY_REGEX = r"^[a-zA-Z0-9\-]*$"
+SEMVER_REGEX = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"  # noqa: E501
 
 
 def validate_name(name: str, regex: str = NAME_REGEX) -> str:
@@ -200,3 +220,26 @@ class ColorRGBA_float(NamedTuple):
     g: float
     b: float
     a: float
+
+
+class AttributeEnumItem(OPModel):
+    """Attribute enum item."""
+
+    value: SimpleValue = Field(..., title="Enum value")
+    label: str = Field(..., title="Enum label")
+
+
+def normalize_to_dict(s: dict[Any, Any] | BaseModel) -> dict[Any, Any]:
+    """Normalize the input data to a dictionary format.
+
+    The input data can be either a dictionary or an instance of a Pydantic BaseModel.
+
+    Raises:
+    ValueError: If the input data is neither a dictionary nor a Pydantic BaseModel.
+    """
+
+    if isinstance(s, dict):
+        return s
+    elif isinstance(s, BaseModel):
+        return s.dict()
+    raise ValueError(f"Can't normalize {s}")

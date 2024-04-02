@@ -43,7 +43,7 @@ def process_link_types(src: list[LinkTypeModel]) -> list[dict[str, Any]]:
     return result
 
 
-@router.get("/projects/{project_name}/anatomy", response_model_exclude_none=True)
+@router.get("/projects/{project_name}/anatomy")
 async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> Anatomy:
     """Retrieve a project anatomy."""
 
@@ -89,6 +89,7 @@ async def set_project_anatomy(
     project.patch(patch)
 
     await project.save()
+
     await dispatch_event(
         "entity.project.changed",
         sender=x_sender,

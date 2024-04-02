@@ -10,83 +10,49 @@ import fastapi
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
-
-# from fastapi.middleware.cors import CORSMiddleware
-from nxtools import log_traceback, logging, slugify
+from nxtools import log_to_file, log_traceback, logging, slugify
 
 from ayon_server.access.access_groups import AccessGroups
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.messaging import Messaging
 from ayon_server.api.metadata import app_meta, tags_meta
+from ayon_server.api.postgres_exceptions import (
+    IntegrityConstraintViolationError,
+    parse_posgres_exception,
+)
 from ayon_server.api.responses import ErrorResponse
+from ayon_server.api.static import addon_static_router
+from ayon_server.api.system import clear_server_restart_required
 from ayon_server.auth.session import Session
+from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event, update_event
-from ayon_server.exceptions import AyonException, UnauthorizedException
+from ayon_server.exceptions import AyonException
 from ayon_server.graphql import router as graphql_router
-from ayon_server.helpers.thumbnail_cleaner import thumbnail_cleaner
-from ayon_server.installer import background_installer
 from ayon_server.lib.postgres import Postgres
-
-# This needs to be imported first!
-from ayon_server.logs import log_collector
 from ayon_server.utils import parse_access_token
 
 app = fastapi.FastAPI(
     docs_url=None,
-    redoc_url="/docs",
+    redoc_url="/docs" if not ayonconfig.disable_rest_docs else None,
     openapi_tags=tags_meta,
     **app_meta,
 )
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-#
-# Static files
-#
-
-
-class AuthStaticFiles(StaticFiles):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-
-    async def __call__(self, scope, receive, send) -> None:
-        request = fastapi.Request(scope, receive)
-        # TODO: use dep_current_user here in order to keep the behaviour consistent
-        access_token = parse_access_token(request.headers.get("Authorization"))
-        if access_token is None:
-            access_token = request.headers.get("x-api-key")
-
-        if access_token:
-            try:
-                session_data = await Session.check(access_token, None)
-            except AyonException:
-                pass
-            else:
-                if session_data:
-                    await super().__call__(scope, receive, send)
-                    return
-        err_msg = "You need to be logged in in order to download this file"
-        raise UnauthorizedException(err_msg)
-
 
 #
 # Error handling
 #
 
+# logging.user = f"server_{os.getpid()}"
 logging.user = "server"
+if ayonconfig.log_file:
+    logging.add_handler(log_to_file(ayonconfig.log_file))
 
 
 async def user_name_from_request(request: fastapi.Request) -> str:
     """Get user from request"""
 
-    access_token = parse_access_token(request.headers.get("Authorization"))
+    access_token = parse_access_token(request.headers.get("Authorization", ""))
     if not access_token:
         return "anonymous"
     try:
@@ -96,7 +62,7 @@ async def user_name_from_request(request: fastapi.Request) -> str:
     if not session_data:
         return "anonymous"
     user_name = session_data.user.name
-    assert type(user_name) is str
+    assert isinstance(user_name, str)
     return user_name
 
 
@@ -105,7 +71,6 @@ async def custom_404_handler(request: fastapi.Request, _):
     """Redirect 404s to frontend."""
 
     if request.url.path.startswith("/api"):
-        logging.error(f"404 {request.method} {request.url.path}")
         return fastapi.responses.JSONResponse(
             status_code=404,
             content={
@@ -116,7 +81,6 @@ async def custom_404_handler(request: fastapi.Request, _):
         )
 
     elif request.url.path.startswith("/addons"):
-        logging.error(f"404 {request.method} {request.url.path}")
         return fastapi.responses.JSONResponse(
             status_code=404,
             content={
@@ -132,7 +96,6 @@ async def custom_404_handler(request: fastapi.Request, _):
             index_path, status_code=200, media_type="text/html"
         )
 
-    logging.error(f"404 {request.method} {request.url.path}")
     return fastapi.responses.JSONResponse(
         status_code=404,
         content={
@@ -148,8 +111,17 @@ async def ayon_exception_handler(
     request: fastapi.Request,
     exc: AyonException,
 ) -> fastapi.responses.JSONResponse:
-    user_name = await user_name_from_request(request)
+    if exc.status in [401, 403, 503]:
+        # do not store 401 and 403 errors in the logs
+        return fastapi.responses.JSONResponse(
+            status_code=exc.status,
+            content={
+                "code": exc.status,
+                "detail": exc.detail,
+            },
+        )
 
+    user_name = await user_name_from_request(request)
     path = f"[{request.method.upper()}]"
     path += f" {request.url.path.removeprefix('/api')}"
 
@@ -167,13 +139,38 @@ async def ayon_exception_handler(
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request, exc) -> fastapi.responses.JSONResponse:
+async def validation_exception_handler(
+    request: fastapi.Request,
+    exc: RequestValidationError,
+) -> fastapi.responses.JSONResponse:
     logging.error(f"Validation error\n{exc}")
     detail = "Validation error"  # TODO: Be descriptive, but not too much
     return fastapi.responses.JSONResponse(
         status_code=400,
         content=ErrorResponse(code=400, detail=detail).dict(),
     )
+
+
+@app.exception_handler(IntegrityConstraintViolationError)
+async def integrity_constraint_violation_error_handler(
+    request: fastapi.Request,
+    exc: IntegrityConstraintViolationError,
+) -> fastapi.responses.JSONResponse:
+    path = f"[{request.method.upper()}]"
+    path += f" {request.url.path.removeprefix('/api')}"
+
+    tb = traceback.extract_tb(exc.__traceback__)
+    fname, line_no, func, _ = tb[-1]
+
+    payload = {
+        "path": path,
+        "file": fname,
+        "function": func,
+        "line": line_no,
+        **parse_posgres_exception(exc),
+    }
+
+    return fastapi.responses.JSONResponse(status_code=payload["code"], content=payload)
 
 
 @app.exception_handler(AssertionError)
@@ -231,7 +228,10 @@ async def unhandled_exception_handler(
 #
 
 app.include_router(
-    graphql_router, prefix="/graphql", tags=["GraphQL"], include_in_schema=False
+    graphql_router,
+    prefix="/graphql",
+    tags=["GraphQL"],
+    include_in_schema=False,
 )
 
 
@@ -267,11 +267,6 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                     project=message.get("project"),
                 )
     except WebSocketDisconnect:
-        # NOTE: Too noisy
-        # if client.user_name:
-        #     logging.info(f"{client.user_name} disconnected")
-        # else:
-        #     logging.info("Anonymous client disconnected")
         try:
             del messaging.clients[client.id]
         except KeyError:
@@ -312,6 +307,14 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
     for addon_name, addon_definition in library.items():
         for version in addon_definition.versions:
             addon = addon_definition.versions[version]
+
+            if hasattr(addon, "ws"):
+                target_app.add_api_websocket_route(
+                    f"/api/addons/{addon_name}/{version}/ws",
+                    addon.ws,
+                    name=f"{addon_name}_{version}_ws",
+                )
+
             for endpoint in addon.endpoints:
                 path = endpoint["path"].lstrip("/")
                 first_element = path.split("/")[0]
@@ -321,7 +324,6 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
                     continue
 
                 path = f"/api/addons/{addon_name}/{version}/{path}"
-                logging.info(f"Adding endpoint {path}")
                 target_app.add_api_route(
                     path,
                     endpoint["handler"],
@@ -337,27 +339,8 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
 
 def init_addon_static(target_app: fastapi.FastAPI) -> None:
     """Serve static files for addon frontends."""
-    for addon_name, addon_definition in AddonLibrary.items():
-        for version in addon_definition.versions:
-            addon = addon_definition.versions[version]
-            if (fedir := addon.get_frontend_dir()) is not None:
-                logging.debug(f"Initializing frontend dir {addon_name}:{version}")
-                target_app.mount(
-                    f"/addons/{addon_name}/{version}/frontend/",
-                    StaticFiles(directory=fedir, html=True),
-                )
-            if (resdir := addon.get_public_dir()) is not None:
-                logging.debug(f"Initializing public dir for {addon_name}:{version}")
-                target_app.mount(
-                    f"/addons/{addon_name}/{version}/public/",
-                    StaticFiles(directory=resdir),
-                )
-            if (resdir := addon.get_private_dir()) is not None:
-                logging.debug(f"Initializing private dir for {addon_name}:{version}")
-                target_app.mount(
-                    f"/addons/{addon_name}/{version}/private/",
-                    AuthStaticFiles(directory=resdir),
-                )
+
+    target_app.include_router(addon_static_router)
 
 
 def init_frontend(target_app: fastapi.FastAPI, frontend_dir: str) -> None:
@@ -385,7 +368,7 @@ async def startup_event() -> None:
     """Startup event.
 
     This is called after the server is started and:
-        - initializes the log
+        - initializes background workers
         - initializes redis2websocket bridge
         - connects to the database
         - loads access groups
@@ -414,10 +397,9 @@ async def startup_event() -> None:
 
     # Start background tasks
 
-    log_collector.start()
+    background_workers.start()
+
     messaging.start()
-    thumbnail_cleaner.start()
-    background_installer.start()
 
     # Initialize addons
 
@@ -434,7 +416,7 @@ async def startup_event() -> None:
         return
 
     restart_requested = False
-    bad_addons = []
+    bad_addons = {}
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
             try:
@@ -449,9 +431,19 @@ async def startup_event() -> None:
                         f"Restart requested during addon {addon_name} pre-setup."
                     )
                     restart_requested = True
-            except Exception:
+            except AssertionError as e:
+                logging.error(
+                    f"Unable to pre-setup addon {addon_name} {version.version}: {e}"
+                )
+                reason = {"error": str(e)}
+                bad_addons[(addon_name, version.version)] = reason
+            except Exception as e:
                 log_traceback(f"Error during {addon_name} {version.version} pre-setup")
-                bad_addons.append((addon_name, version.version))
+                reason = {
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                }
+                bad_addons[(addon_name, version.version)] = reason
 
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
@@ -465,15 +457,26 @@ async def startup_event() -> None:
                         f"Restart requested during addon {addon_name} setup."
                     )
                     restart_requested = True
-            except Exception:
+            except AssertionError as e:
+                logging.error(
+                    f"Unable to setup addon {addon_name} {version.version}: {e}"
+                )
+                reason = {"error": str(e)}
+                bad_addons[(addon_name, version.version)] = reason
+            except Exception as e:
                 log_traceback(f"Error during {addon_name} {version.version} setup")
-                bad_addons.append((addon_name, version.version))
+                reason = {
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                }
+                bad_addons[(addon_name, version.version)] = reason
 
     for _addon_name, _addon_version in bad_addons:
         logging.error(
-            f"Addon {_addon_name} {_addon_version} failed to initialize. Unloading."
+            f"Addon {_addon_name} {_addon_version} failed to start. Unloading."
         )
-        library.unload_addon(_addon_name, _addon_version)
+        reason = bad_addons[(_addon_name, _addon_version)]
+        library.unload_addon(_addon_name, _addon_version, reason=reason)
 
     if restart_requested:
         await dispatch_event(
@@ -496,6 +499,8 @@ async def startup_event() -> None:
                 status="finished",
                 description="Server started",
             )
+
+        asyncio.create_task(clear_server_restart_required())
         logging.goodnews("Server is now ready to connect")
 
 
@@ -504,9 +509,7 @@ async def shutdown_event() -> None:
     """Shutdown event."""
     logging.info("Server is shutting down")
 
-    await background_installer.shutdown()
-    await log_collector.shutdown()
-    await thumbnail_cleaner.shutdown()
+    await background_workers.shutdown()
     await messaging.shutdown()
     await Postgres.shutdown()
     logging.info("Server stopped", handlers=None)

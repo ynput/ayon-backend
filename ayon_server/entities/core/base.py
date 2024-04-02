@@ -36,6 +36,20 @@ class BaseEntity:
             exclude_none=exclude_none,
         )
 
+    def dict_simple(self):
+        """Return the entity data as a dict.
+        Use aliases instead of the original field names
+        and drop inherited attributes.
+        """
+        result = self._payload.dict(exclude_none=True, by_alias=True)
+        attrib = result.pop("attrib", {})
+        for key in list(attrib.keys()):
+            if key not in self.own_attrib:
+                attrib.pop(key)
+        result["attrib"] = attrib
+        result.pop("ownAttrib", None)
+        return result
+
     #
     # Modification
     #
@@ -54,6 +68,11 @@ class BaseEntity:
                 # TODO: check for attribute whitelist
                 # and drop any attributes that are not allowed
                 # from the patch data.
+
+                # TODO: don't forget to use user.is_developer
+                # to include developerMode attribute
+                if not user.is_developer and "developerMode" in patch_data:
+                    patch_data.pop("developerMode")
 
         if (attrib := patch_data.dict().get("attrib")) is not None:
             for key in attrib:

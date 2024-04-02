@@ -4,6 +4,7 @@ from typing import Annotated
 from nxtools import slugify
 from strawberry.types import Info
 
+from ayon_server.constraints import Constraints
 from ayon_server.graphql.connections import EventsConnection
 from ayon_server.graphql.edges import EventEdge
 from ayon_server.graphql.nodes.event import EventNode
@@ -123,6 +124,12 @@ async def get_events(
         need_cursor=need_cursor,
     )
     sql_conditions.extend(paging_conds)
+
+    if (event_history := await Constraints.check("eventHistory")) is not None:
+        event_history = event_history or 7
+        sql_conditions.append(f"updated_at > NOW() - INTERVAL '{event_history} days'")
+
+    # TODO: select data only when needed
 
     query = f"""
         SELECT {cursor}, * FROM events

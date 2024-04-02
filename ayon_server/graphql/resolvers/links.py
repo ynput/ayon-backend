@@ -12,9 +12,11 @@ async def get_links(
     root,
     info: Info,
     direction: Literal["in", "out"] | None,
-    link_types: list[str],
-    first: int,
-    after: str,
+    link_types: list[str] | None,
+    first: int = 100,
+    after: str | None = None,
+    names: list[str] | None = None,
+    name_ex: str | None = None,
 ) -> LinksConnection:
     project_name = root.project_name
 
@@ -29,16 +31,23 @@ async def get_links(
         sql_conditions.append(f"(input_id = '{root.id}' or output_id = '{root.id}')")
 
     type_conditions = []
-    for lt in link_types:
-        type_conditions.append(f"link_name LIKE '{lt}|%'")
-    if type_conditions:
-        sql_conditions.append(f"({' or '.join(type_conditions)})")
+    if link_types is not None:
+        for lt in link_types:
+            type_conditions.append(f"link_type LIKE '{lt}|%'")
+        if type_conditions:
+            sql_conditions.append(f"({' or '.join(type_conditions)})")
 
     if after is not None and after.isdigit():
-        sql_conditions.append(f"id > {after}")
+        sql_conditions.append(f"creation_order > {after}")
+
+    if names is not None:
+        sql_conditions.append(f"name in {SQLTool.array(names)}")
+
+    if name_ex is not None:
+        sql_conditions.append(f"name ~ '{name_ex}'")
 
     query = f"""
-        SELECT id, input_id, output_id, link_name, data, created_at
+        SELECT id, name, input_id, output_id, link_type, author, data, created_at
         FROM project_{project_name}.links
         {SQLTool.conditions(sql_conditions)}
         ORDER BY creation_order
@@ -49,7 +58,7 @@ async def get_links(
         if first <= len(edges):
             break
 
-        link_type, input_type, output_type = row["link_name"].split("|")
+        link_type, input_type, output_type = row["link_type"].split("|")
         input_id = row["input_id"]
         output_id = row["output_id"]
         link_id = row["id"]
@@ -74,10 +83,11 @@ async def get_links(
                 direction=direction,
                 entity_id=entity_id,
                 entity_type=entity_type,
+                name=row["name"],
                 link_type=link_type,
                 cursor=link_id,
                 description=description,
-                author=row["data"].get("author"),
+                author=row["author"],
             )
         )
 

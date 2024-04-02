@@ -1,3 +1,4 @@
+import time
 from typing import Any
 
 from fastapi import APIRouter, Path
@@ -7,8 +8,9 @@ from ayon_server.api import ResponseFactory
 from ayon_server.api.clientinfo import ClientInfo
 from ayon_server.api.dependencies import AccessToken, CurrentUser, UserName
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.auth.models import LoginResponseModel
 from ayon_server.auth.session import Session
-from ayon_server.auth.utils import validate_password
+from ayon_server.auth.utils import create_hash, validate_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
@@ -30,27 +32,6 @@ router = APIRouter(
     tags=["Users"],
     responses={401: ResponseFactory.error(401)},
 )
-
-#
-# [GET] /api/users
-#
-
-# TODO: REMOVE!
-
-
-class UserListItemModel(OPModel):
-    name: str
-
-
-class UserListModel(OPModel):
-    users: list[UserListItemModel] = Field(default_factory=list)
-
-
-@router.get("", deprecated=True)
-async def list_users():
-    """This endpoint is deprecated. Use GraphQL instead."""
-    pass
-
 
 #
 # [GET] /api/users/me
@@ -115,21 +96,27 @@ class NewUserModel(UserEntity.model.post_model):  # type: ignore
 def validate_user_data(data: dict[str, Any]):
     try:
         if default_access_groups := data.get("defaultAccessGroups"):
-            assert (
-                type(default_access_groups) == list
+            assert isinstance(
+                default_access_groups, list
             ), "defaultAccessGroups must be a list"
             assert all(
-                type(access_group) == str for access_group in default_access_groups
+                isinstance(access_group, str) for access_group in default_access_groups
             ), "defaultAccessGroups must be a list of str"
 
         if access_groups := data.get("accessGroups"):
-            assert type(access_groups) == dict, "accessGroups must be a dict"
+            assert isinstance(access_groups, dict), "accessGroups must be a dict"
+            ag_to_remove = []
             for project, ag_list in access_groups.items():
-                assert type(project) == str, "project name must be a string"
-                assert type(ag_list) == list, "access group list must be a list"
+                assert isinstance(project, str), "project name must be a string"
+                assert isinstance(ag_list, list), "access group list must be a list"
                 assert all(
-                    type(ag) == str for ag in ag_list
+                    isinstance(ag, str) for ag in ag_list
                 ), "acces group list must be a list of str"
+                if not ag_list:
+                    ag_to_remove.append(project)
+            for project in ag_to_remove:
+                del access_groups[project]
+
     except AssertionError as e:
         raise BadRequestException(str(e)) from e
 
@@ -210,10 +197,12 @@ async def patch_user(
             )
         # user cannot change any user's guest status
         payload.data.pop("isGuest", None)
+        payload.data.pop("isDeveloper", None)
 
     if not user.is_admin:
         # Non-admins cannot change any user's admin status
         payload.data.pop("isAdmin", None)
+        payload.data.pop("isDeveloper", None)
     elif target_user.name == user.name:
         # Admins cannot demote themselves
         payload.data.pop("isAdmin", None)
@@ -229,10 +218,6 @@ async def patch_user(
 
     target_user.patch(payload)
     await target_user.save()
-
-    # TODO: reload service accounts too?
-    # if access_token and (user_name == user.name):
-    #    await Session.update(access_token, target_user)
 
     async for session in Session.list(user_name):
         token = session.token
@@ -274,8 +259,8 @@ async def change_password(
 
     if "password" in patch_data_dict:
         if (user_name != user.name) and not (user.is_manager):
-            # Users can only change their own password
-            # Managers can change any password
+            # users can only change their own password
+            # managers can change any password
             raise ForbiddenException()
 
         target_user = await UserEntity.load(user_name)
@@ -306,7 +291,6 @@ class CheckPasswordRequestModel(OPModel):
     password: str = Field(..., title="Password", example="5up3r5ecr3t_p455W0rd.123")
 
 
-@router.post("/{user_name}/check_password", deprecated=True)
 @router.post("/{user_name}/checkPassword")
 async def check_password(
     post_data: CheckPasswordRequestModel,
@@ -366,7 +350,11 @@ async def change_user_name(
                 """
                 await conn.execute(query)
 
-    # TODO: Force the user to log out (e.g. invalidate all sessions)
+    # Renaming user has many side effects, so we need to log out all Sessions
+    # and let the user log in again
+    async for session in Session.list(user_name):
+        token = session.token
+        await Session.delete(token)
     return EmptyResponse()
 
 
@@ -444,8 +432,8 @@ class AssignAccessGroupsRequestModel(OPModel):
         default_factory=list,
         description="List of access groups to assign",
         example=[
-            {"project": "project1", "roles": ["artist", "viewer"]},
-            {"project": "project2", "roles": ["viewer"]},
+            {"project": "project1", "accessGroups": ["artist", "viewer"]},
+            {"project": "project2", "accessGroups": ["viewer"]},
         ],
     )
 
@@ -475,3 +463,147 @@ async def assign_access_groups(
     await target_user.save()
 
     return EmptyResponse()
+
+
+@router.patch("/{user_name}/frontendPreferences")
+async def set_frontend_preferences(
+    patch_data: dict[str, Any],
+    user: CurrentUser,
+    user_name: UserName,
+) -> EmptyResponse:
+    if (user_name != user.name) and not (user.is_manager):
+        # users can only change their own preferences
+        # managers can change any preferences
+        raise ForbiddenException()
+
+    target_user = await UserEntity.load(user_name)
+
+    preferences = target_user.data.get("frontendPreferences", {})
+    preferences.update(patch_data)
+    target_user.data["frontendPreferences"] = preferences
+
+    await target_user.save()
+    return EmptyResponse()
+
+
+#
+# Password reset
+#
+
+
+TOKEN_TTL = 3600
+PASSWORD_RESET_EMAIL_TEMPLATE_PLAIN = """
+Hello {name},
+it seems that you have requested a password reset for your account for Ayon.
+Please follow this link to reset your password:
+
+{reset_url}?token={token}
+"""
+
+PASSWORD_RESET_EMAIL_TEMPLATE_HTML = """
+<p>Hello, {name}</p>
+
+<p>it seems that you have requested a password reset for your account for Ayon.
+Please follow this link to reset your password:</p>
+
+<p><a href="{reset_url}?token={token}">Reset password</a></p>
+"""
+
+
+class PasswordResetRequestModel(OPModel):
+    email: str = Field(..., title="Email", example="you@somewhere.com")
+    url: str = Field(...)
+
+
+@router.post("/passwordResetRequest")
+async def password_reset_request(request: PasswordResetRequestModel):
+    pass
+
+    async for row in Postgres.iterate(
+        "SELECT name, data FROM users WHERE attrib->>'email' = $1", request.email
+    ):
+        user_data = row["data"]
+        break
+    else:
+        logging.error(
+            f"Attempted password reset using non-existent email: {request.email}"
+        )
+        return
+
+    password_reset_request = user_data.get("passwordResetRequest", {})
+    password_requet_time = password_reset_request.get("time", None)
+
+    if password_requet_time and (time.time() - password_requet_time) < TOKEN_TTL:
+        raise ForbiddenException(
+            "Attempted password reset too soon after previous attempt"
+        )
+
+    token = create_hash()
+    password_reset_request = {
+        "time": time.time(),
+        "token": token,
+    }
+
+    user = await UserEntity.load(row["name"])
+    user.data["passwordResetRequest"] = password_reset_request
+
+    tplvars = {
+        "token": token,
+        "reset_url": request.url,
+        "name": user.attrib.fullName or user.name,
+    }
+
+    await user.save()
+    await user.send_mail(
+        "Ayon password reset",
+        text=PASSWORD_RESET_EMAIL_TEMPLATE_PLAIN.format(**tplvars),
+        html=PASSWORD_RESET_EMAIL_TEMPLATE_HTML.format(**tplvars),
+    )
+    logging.info(f"Sent password reset email to {request.email}")
+
+
+class PasswordResetModel(OPModel):
+    token: str = Field(..., title="Token")
+    password: str | None = Field(None, title="New password")
+
+
+@router.post("/passwordReset")
+async def password_reset(request: PasswordResetModel) -> LoginResponseModel:
+    query = (
+        "SELECT name, data FROM users WHERE data->'passwordResetRequest'->>'token' = $1"
+    )
+
+    ERROR_MESSAGE = "Invalid reset token or token has expired"
+
+    async for row in Postgres.iterate(query, request.token):
+        user_name = row["name"]
+        user_data = row["data"]
+        break
+    else:
+        logging.error("Attempted password reset using invalid token")
+        raise ForbiddenException("Invalid token")
+        return
+
+    password_reset_request = user_data.get("passwordResetRequest", {})
+    password_request_time = password_reset_request.get("time", None)
+
+    if not password_request_time or (time.time() - password_request_time) > TOKEN_TTL:
+        logging.error("Attempted password reset using expired token")
+        raise ForbiddenException(ERROR_MESSAGE)
+
+    if request.password is None:
+        # just checking whether the token is valid
+        # we don't set the password
+        return LoginResponseModel(message="Token is valid")
+
+    user = await UserEntity.load(user_name)
+    user.data["passwordResetRequest"] = None
+    user.set_password(request.password, complexity_check=True)
+    await user.save()
+
+    session = await Session.create(user)
+    return LoginResponseModel(
+        description="Password changed",
+        token=session.token,
+        user=session.user,
+    )

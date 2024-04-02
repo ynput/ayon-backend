@@ -15,6 +15,7 @@ from projects.router import router
 class ListProjectsItemModel(OPModel):
     name: str = Field(..., title="Project name")
     code: str = Field(..., title="Project code")
+    active: bool = Field(..., title="Project is active")
     createdAt: datetime = Field(..., title="Creation time")
     updatedAt: datetime = Field(..., title="Last modified time")
 
@@ -22,7 +23,9 @@ class ListProjectsItemModel(OPModel):
 class ListProjectsResponseModel(OPModel):
     detail: str = Field("OK", example="Showing LENGTH of COUNT projects")
     count: int = Field(
-        0, description="Total count of projects (regardless the pagination)", example=1
+        0,
+        description="Total count of projects (regardless the pagination)",
+        example=1,
     )
     projects: list[ListProjectsItemModel] = Field(
         [],
@@ -31,8 +34,9 @@ class ListProjectsResponseModel(OPModel):
             ListProjectsItemModel(
                 name="Example project",
                 code="ex",
-                createdAt=datetime.now().isoformat(),
-                updatedAt=datetime.now().isoformat(),
+                createdAt=datetime.now(),
+                updatedAt=datetime.now(),
+                active=True,
             )
         ],
     )
@@ -42,30 +46,26 @@ class ListProjectsResponseModel(OPModel):
 async def list_projects(
     user: CurrentUser,
     page: int = Query(1, title="Page", ge=1),
-    length: int = Query(
-        50,
+    length: int | None = Query(
+        None,
         title="Records per page",
         description="If not provided, the result will not be limited",
-        ge=1,
     ),
-    library: bool
-    | None = Query(
+    library: bool | None = Query(
         None,
         title="Show library projects",
         description="If not provided, return projects regardless the flag",
     ),
-    active: bool
-    | None = Query(
+    active: bool | None = Query(
         None,
         title="Show active projects",
         description="If not provided, return projects regardless the flag",
     ),
-    order: Literal["name", "createdAt", "updatedAt"] = Query(
-        "name", title="Attribute to order the list by"
+    order: Literal["name", "createdAt", "updatedAt"] | None = Query(
+        None, title="Attribute to order the list by"
     ),
     desc: bool = Query(False, title="Sort in descending order"),
-    name: str
-    | None = Query(
+    name: str | None = Query(
         None,
         title="Filter by name",
         description="""Limit the result to project with the matching name,
@@ -90,6 +90,15 @@ async def list_projects(
     if name:
         conditions.append(f"name ILIKE '{name}'")
 
+    sql_order: str
+    if order:
+        sql_order = order
+    else:
+        sql_order = "active desc, name"
+
+    length = length or None
+    offset = max(0, (page - 1) * length) if length else None
+
     for row in await Postgres.fetch(
         f"""
             SELECT
@@ -97,15 +106,11 @@ async def list_projects(
                 name,
                 code,
                 created_at,
-                updated_at
+                updated_at,
+                active
             FROM projects
             {SQLTool.conditions(conditions)}
-            {SQLTool.order(
-                (order if order in ["name"] else ""),
-                desc,
-                length,
-                max(0, (page-1)*length)
-            )}
+            {SQLTool.order(sql_order, desc, length, offset)}
         """,
     ):
         count = row["count"]
@@ -115,7 +120,7 @@ async def list_projects(
         # Or rather use graphql-like approach with cursor?
         if not user.is_manager:
             access_groups = user.data.get("accessGroups", {})
-            if type(access_groups) is not dict:
+            if not isinstance(access_groups, dict):
                 continue
             if not access_groups.get(row["name"]):
                 continue
@@ -126,6 +131,7 @@ async def list_projects(
                 code=row["code"],
                 createdAt=row["created_at"],
                 updatedAt=row["updated_at"],
+                active=row.get("active", True),
             )
         )
 
@@ -135,7 +141,7 @@ async def list_projects(
         return ListProjectsResponseModel(detail="No projects", count=count)
 
     return ListProjectsResponseModel(
-        detail=f"Showing {len(projects)} of {count} projects)",
+        detail=f"Showing {len(projects)} of {count} projects",
         count=count,
         projects=projects,
     )

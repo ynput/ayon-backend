@@ -1,22 +1,23 @@
-from typing import Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
-from pydantic import Field
+from pydantic import Field, validator
 
 from ayon_server.types import OPModel, Platform
 
+# For type=server, we do not use absolute url, because base server url can
+# be different for different users. Instead, we provide just the information
+# the source is availabe and the client can construct the url from the
+# filename attribute of BasePackageModel
+# e.g. http://server/api/desktop/{installers|dependency_packages}/{filename}
+# type = url is deprecated!
+
 
 class SourceModel(OPModel):
-    # For type=server, we do not use absolute url, because base server url can
-    # be different for different users. Instead, we provide just the information
-    # the source is availabe and the client can construct the url from the
-    # filename attribute of BasePackageModel
-    # e.g. http://server/api/desktop/{installers|dependency_packages}/{filename}
-
-    type: Literal["server", "url"] = Field(
+    type: Literal["server", "http"] = Field(
         ...,
         title="Source type",
         description="If set to server, the file is stored on the server. "
-        "If set to url, the file is downloaded from the specified URL.",
+        "If set to http, the file is downloaded from the specified URL.",
         example="url",
     )
     url: str | None = Field(
@@ -25,6 +26,13 @@ class SourceModel(OPModel):
         description="URL to download the file from. Only used if type is url",
         example="https://example.com/file.zip",
     )
+
+    @validator("type", pre=True)
+    def validate_type(cls, value: Any):
+        # if type is "url", change it to "http"
+        if value == "url":
+            return "http"
+        return value
 
 
 SOURCES_META = Field(
@@ -86,7 +94,7 @@ class InstallerManifest(BasePackageModel):
     python_modules: dict[str, Union[str, dict[str, str]]] = Field(
         default_factory=dict,
         title="Python modules",
-        description="mapping of module_name:module_version used to create the installer",
+        description="mapping of module name:version used to create the installer",
         example={"requests": "2.25.1", "pydantic": "1.8.2"},
     )
     runtime_python_modules: dict[str, str] = Field(

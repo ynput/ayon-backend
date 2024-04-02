@@ -15,6 +15,12 @@ def parse_json_data(target_type, data):
     return target_type(**result)
 
 
+ATTRIB_WHITELIST = [
+    "fullName",
+    "avatarUrl",
+]
+
+
 def parse_attrib_data(
     target_type,
     own_attrib: dict[str, Any],
@@ -35,6 +41,11 @@ def parse_attrib_data(
         attr_limit = perms.attrib_read.attributes
     else:
         attr_limit = "all"
+
+    if attr_limit != "all":
+        for k in ATTRIB_WHITELIST:
+            if k not in attr_limit:
+                attr_limit.append(k)
 
     data = own_attrib or {}
     if inherited_attrib is not None:

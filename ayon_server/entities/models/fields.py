@@ -11,13 +11,13 @@ See .generator.FieldDefinition model for more information on specifiing
 field parameters.
 """
 
-
 from ayon_server.entities.models.submodels import LinkTypeModel, RepresentationFileModel
 from ayon_server.types import (
     ENTITY_ID_EXAMPLE,
     ENTITY_ID_REGEX,
     LABEL_REGEX,
     NAME_REGEX,
+    PROJECT_NAME_REGEX,
 )
 
 project_fields = [
@@ -26,7 +26,7 @@ project_fields = [
     {
         "name": "code",
         "type": "string",
-        "regex": NAME_REGEX,
+        "regex": PROJECT_NAME_REGEX,
         "example": "prj",
         "title": "Project code",
         "required": True,
@@ -144,7 +144,7 @@ folder_fields = [
         "name": "path",
         "type": "string",
         "title": "Path",
-        "example": "assets/characters/st_javelin",
+        "example": "/assets/characters/xenomorph",
         "dynamic": True,
     },
 ]
@@ -172,6 +172,14 @@ task_fields = [
         "required": True,
         "title": "Task type",
         "example": "Modeling",
+    },
+    {
+        "name": "thumbnail_id",
+        "type": "string",
+        "title": "Thumbnail ID",
+        "required": False,
+        "regex": ENTITY_ID_REGEX,
+        "example": ENTITY_ID_EXAMPLE,
     },
     {
         "name": "assignees",

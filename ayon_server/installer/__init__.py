@@ -2,12 +2,15 @@ import asyncio
 
 from nxtools import log_traceback, logging
 
-from ayon_server.background import BackgroundTask
+from ayon_server.api.system import require_server_restart
+from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.events import update_event
 from ayon_server.installer.addons import install_addon_from_url, unpack_addon
 from ayon_server.installer.dependency_packages import download_dependency_package
 from ayon_server.installer.installers import download_installer
 from ayon_server.lib.postgres import Postgres
+
+from .addons import AddonZipInfo
 
 TOPICS = [
     "addon.install",
@@ -21,9 +24,18 @@ class TooManyRetries(Exception):
     pass
 
 
-class BackgroundInstaller(BackgroundTask):
+async def handle_need_restart(installer: "BackgroundInstaller"):
+    await asyncio.sleep(1)
+    if installer.event_queue.empty() and installer.restart_needed:
+        await require_server_restart(
+            None, "Restart the server to apply the addon changes."
+        )
+
+
+class BackgroundInstaller(BackgroundWorker):
     def initialize(self):
         self.event_queue: asyncio.Queue[str] = asyncio.Queue()
+        self.restart_needed: bool = False
 
     async def enqueue(self, event_id: str):
         logging.debug(f"Background installer: enquing event {event_id}")
@@ -50,13 +62,13 @@ class BackgroundInstaller(BackgroundTask):
         if topic == "addon.install":
             await unpack_addon(
                 event_id,
-                summary["zip_path"],
-                summary["addon_name"],
-                summary["addon_version"],
+                AddonZipInfo(**summary),
             )
+            self.restart_needed = True
 
         elif topic == "addon.install_from_url":
             await install_addon_from_url(event_id, summary["url"])
+            self.restart_needed = True
 
         elif topic == "dependency_package.install_from_url":
             await download_dependency_package(event_id, summary["url"])
@@ -67,6 +79,8 @@ class BackgroundInstaller(BackgroundTask):
         logging.info(
             f"Background installer: finished processing {topic} event: {event_id}"
         )
+
+        asyncio.create_task(handle_need_restart(self))
 
     async def run(self):
         # load past unprocessed events

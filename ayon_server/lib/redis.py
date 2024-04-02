@@ -46,11 +46,19 @@ class Redis:
         await cls.redis_pool.delete(f"{namespace}-{key}")
 
     @classmethod
-    async def incr(cls, namespace: str, key: str) -> None:
+    async def incr(cls, namespace: str, key: str) -> int:
         """Increment a value in Redis"""
         if not cls.connected:
             await cls.connect()
-        await cls.redis_pool.incr(f"{namespace}-{key}")
+        res = await cls.redis_pool.incr(f"{namespace}-{key}")
+        return res
+
+    @classmethod
+    async def expire(cls, namespace: str, key: str, ttl: int) -> None:
+        """Set a TTL for a key in Redis"""
+        if not cls.connected:
+            await cls.connect()
+        await cls.redis_pool.expire(f"{namespace}-{key}", ttl)
 
     @classmethod
     async def pubsub(cls) -> PubSub:

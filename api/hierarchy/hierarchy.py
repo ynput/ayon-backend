@@ -76,7 +76,7 @@ async def get_folder_hierarchy(
     if type_list:
         conds.append(f"folder_type IN {SQLTool.array(type_list)}")
 
-    access_list = await folder_access_list(user, project_name, ["read"])
+    access_list = await folder_access_list(user, project_name, "read")
 
     if access_list is not None:
         conds.append(f"path like ANY ('{{ {','.join(access_list)} }}')")
@@ -138,62 +138,12 @@ async def get_folder_hierarchy(
         hierarchy.commit()
         hresult = hierarchy()
 
-    elapsed = round(time.time() - start_time, 4)
-
-    return HierarchyResponseModel.construct(
-        detail=f"Hierarchy loaded in {elapsed}s",
+    res = HierarchyResponseModel.construct(
+        detail="Working",
         projectName=project_name,
         hierarchy=hresult,
     )
-
-
-#
-# Change hierarchy
-# TODO: Use a list of changes to allow modification of multiple folders at once
-#
-
-#
-# class HierarchyChangeModel(OPModel):
-#     id: Optional[str] = EntityID.field("folder")
-#     children: list[str] = Field(default_factory=list, example=[])
-#
-#
-# @router.post(
-#     "/projects/{project_name}/hierarchy",
-#     status_code=204,
-#     response_class=Response,
-# )
-# async def change_hierarchy(
-#     body: HierarchyChangeModel,
-#     project_name: str = Depends(dep_project_name),
-#     user: UserEntity = Depends(dep_current_user),
-# ):
-#     """
-#     Change the hierarchy of a project.
-#
-#     Set a folder as a parent of another folder(s)
-#     """
-#
-#     # TODO: Error handling
-#
-#     children = [ch for ch in body.children if ch != body.id]
-#
-#     async with Postgres.acquire() as conn:
-#         async with conn.transaction():
-#             await conn.execute(
-#                 f"""
-#                 UPDATE project_{project_name}.folders SET
-#                 parent_id = $1
-#                 WHERE id IN {SQLTool.id_array(children)}
-#                 """,
-#                 body.id,
-#             )
-#
-#             await conn.execute(
-#                 f"""
-#                 REFRESH MATERIALIZED VIEW CONCURRENTLY
-#                 project_{project_name}.hierarchy
-#                 """
-#             )
-#
-#     return Response(status_code=204)
+    elapsed = round(time.time() - start_time, 4)
+    detail = f"Hierarchy loaded in {elapsed}s"
+    res.detail = detail
+    return res

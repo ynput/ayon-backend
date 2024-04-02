@@ -1,7 +1,11 @@
+import time
 from typing import Any
+
+from nxtools import logging
 
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
+from ayon_server.events import dispatch_event
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 
@@ -97,6 +101,7 @@ async def create_project_from_anatomy(
         },
     )
 
+    start_time = time.monotonic()
     async with Postgres.acquire() as conn:
         async with conn.transaction():
             await project.save(transaction=conn)
@@ -116,8 +121,20 @@ async def create_project_from_anatomy(
             users = await conn.fetch(query)
 
             for row in users:
+                logging.debug(f"Assigning project {project.name} to user {row['name']}")
                 user = UserEntity.from_record(row)
                 access_groups = user.data.get("accessGroups", {})
                 access_groups[project.name] = user.data["defaultAccessGroups"]
                 user.data["accessGroups"] = access_groups
                 await user.save(transaction=conn)
+
+    end_time = time.monotonic()
+    logging.info(f"Deployed project {project.name} in {end_time - start_time:.2f}s")
+
+    await dispatch_event(
+        "entity.project.created",
+        sender="ayon",
+        project=project.name,
+        user="",
+        description=f"Created project {project.name}",
+    )

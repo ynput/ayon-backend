@@ -41,6 +41,7 @@ class UserNode:
     is_manager: bool
     is_service: bool
     is_guest: bool
+    is_developer: bool
     has_password: bool
     apiKeyPreview: str | None
 
@@ -55,6 +56,7 @@ def user_from_record(record: dict, context: dict) -> UserNode:
     access_groups = data.get("accessGroups", {})
     is_admin = data.get("isAdmin", False)
     is_service = data.get("isService", False)
+    is_developer = data.get("isDeveloper", False)
     is_manager = is_admin or is_service or data.get("isManager", False)
     is_guest = data.get("isGuest", False)
 
@@ -85,6 +87,7 @@ def user_from_record(record: dict, context: dict) -> UserNode:
         is_manager=is_manager,
         is_service=is_service,
         is_guest=is_guest,
+        is_developer=is_developer,
         has_password=bool(data.get("password")),
         default_access_groups=data.get("defaultAccessGroups", []),
         apiKeyPreview=data.get("apiKeyPreview"),

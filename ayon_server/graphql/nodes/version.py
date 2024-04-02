@@ -8,7 +8,7 @@ from ayon_server.entities import VersionEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.representations import get_representations
 from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.utils import get_nickname
+from ayon_server.utils import get_nickname, json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import RepresentationsConnection
@@ -34,6 +34,7 @@ class VersionNode(BaseNode):
     author: str | None
     status: str
     attrib: VersionAttribType
+    data: str | None
     tags: list[str]
 
     # GraphQL specifics
@@ -42,14 +43,6 @@ class VersionNode(BaseNode):
         resolver=get_representations,
         description=get_representations.__doc__,
     )
-
-    @strawberry.field(description="Version name")
-    def name(self) -> str:
-        """Return a version name based on the version number."""
-        if self.version < 0:
-            return "HERO"
-        # TODO: configurable zero pad / format?
-        return f"v{self.version:03d}"
 
     @strawberry.field(description="Parent product of the version")
     async def product(self, info: Info) -> ProductNode:
@@ -83,9 +76,17 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
     if current_user.is_guest and author is not None:
         author = get_nickname(author)
 
+    data = record.get("data", {})
+    version_no = record["version"]
+    if version_no < 0:
+        name = "HERO"
+    else:
+        name = f"v{record['version']:03d}"
+
     return VersionNode(  # type: ignore
         project_name=project_name,
         id=record["id"],
+        name=name,
         version=record["version"],
         active=record["active"],
         product_id=record["product_id"],
@@ -100,6 +101,7 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
             user=context["user"],
             project_name=project_name,
         ),
+        data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

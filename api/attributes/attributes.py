@@ -5,9 +5,12 @@ from pydantic import Field, ValidationError
 
 from ayon_server.api.dependencies import AttributeName, CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.api.system import require_server_restart
+from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import (
+    AttributeEnumItem,
     AttributeType,
     OPModel,
     ProjectLevelEntityType,
@@ -15,13 +18,6 @@ from ayon_server.types import (
 )
 
 router = APIRouter(prefix="/attributes", tags=["Attributes"])
-
-
-class AttributeEnumItem(OPModel):
-    """Attribute enum item."""
-
-    value: Any = Field(..., title="Enum value")
-    label: str = Field(..., title="Enum label")
 
 
 class AttributeData(OPModel):
@@ -160,6 +156,22 @@ async def save_attribute(attribute: AttributeModel):
         attribute.data.dict(exclude_none=True),
     )
 
+    if (enum := attribute.data.enum) is not None:
+        for name, field in ProjectEntity.model.attrib_model.__fields__.items():
+            if name != attribute.name:
+                continue
+
+            field_enum = field.field_info.extra.get("enum")
+            if field_enum is None:
+                continue
+            field_enum.clear()
+            field_enum.extend(enum)
+
+        for name, field in ProjectEntity.model.attrib_model.__fields__.items():
+            if name != attribute.name:
+                continue
+            field_enum = field.field_info.extra.get("enum")
+
 
 async def list_raw_attributes() -> list[dict[str, Any]]:
     """Return a list of attributes as they are stored in the DB"""
@@ -234,6 +246,7 @@ async def set_attribute_list(
     for attr in new_attributes:
         await save_attribute(attr)
 
+    await require_server_restart()
     return EmptyResponse()
 
 
@@ -258,6 +271,9 @@ async def set_attribute_config(
         raise ForbiddenException("Only administrators are allowed to modify attributes")
     attribute = AttributeModel(name=attribute_name, **payload.dict())
     await save_attribute(attribute)
+    await require_server_restart(
+        None, "Restart the server to apply the attribute changes."
+    )
     return EmptyResponse()
 
 
@@ -269,4 +285,7 @@ async def delete_attribute(
         raise ForbiddenException("Only administrators are allowed to delete attributes")
 
     await remove_attribute(attribute_name)
+    await require_server_restart(
+        None, "Restart the server to apply the attribute changes."
+    )
     return EmptyResponse()

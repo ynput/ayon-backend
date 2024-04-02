@@ -21,7 +21,7 @@ class AyonException(Exception):
         self.extra = kwargs
         if log is True:
             logging.error(f"EXCEPTION: {self.status} {self.detail}")
-        elif type(log) is str:
+        elif isinstance(log, str):
             logging.error(f"EXCEPTION: {self.status} {log}")
 
         super().__init__(self.detail)
@@ -60,6 +60,13 @@ class NotFoundException(AyonException):
 
     detail: str = "Not found"
     status: int = 404
+
+
+class InvalidSettingsException(AyonException):
+    """Exception raised when addon settings are invalid."""
+
+    detail: str = "Invalid settings"
+    status: int = 500
 
 
 class ConflictException(AyonException):
@@ -102,3 +109,13 @@ class NotImplementedException(AyonException):
 
     detail: str = "Not implemented"
     status: int = 501
+
+
+class ServiceUnavailableException(AyonException):
+    """Exception raised when a service is unavailable.
+
+    Request should be retried later.
+    """
+
+    detail: str = "Service unavailable"
+    status: int = 503

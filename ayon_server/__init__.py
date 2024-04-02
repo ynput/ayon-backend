@@ -1,8 +1,8 @@
-__version__ = "0.4.2"
+from ayon_server.background.log_collector import log_collector
+from ayon_server.version import __version__
 
+# We need to import log_collector before everything,
+# since it is used to collect the logs during the startup.
 
-# Initialize logging
-
-import ayon_server.logs
-
-assert ayon_server.logs  # silence linter
+assert log_collector  # silence linter
+assert __version__

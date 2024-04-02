@@ -1,54 +1,70 @@
 import collections
-import copy
 import inspect
 from typing import Any, Deque, Type
 
 from nxtools import logging
 
-from ayon_server.entities.models.generator import EnumFieldDefinition
 from ayon_server.exceptions import AyonException
+from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.common import BaseSettingsModel
-from ayon_server.types import camelize
+from ayon_server.types import AttributeEnumItem, SimpleValue, camelize
+
+
+async def get_attrib_enum(
+    name: str,
+) -> tuple[list[SimpleValue], dict[SimpleValue, str]]:
+    enum_values = []
+    enum_labels = {}
+
+    res = await Postgres.fetch("SELECT data FROM attributes WHERE name=$1", name)
+    if res:
+        for item in res[0]["data"].get("enum", []):
+            enum_values.append(item["value"])
+            enum_labels[item["value"]] = item["label"]
+
+    return enum_values, enum_labels
 
 
 async def process_enum(
     enum_resolver,
     context: dict[str, Any] | None = None,
-) -> tuple[list[str], dict[str, str]]:
+) -> tuple[list[SimpleValue], dict[SimpleValue, str]]:
     if context is None:
-        ctx_data = {}
-    else:
-        ctx_data = copy.deepcopy(context)
+        context = {}
 
     resolver_args = inspect.getfullargspec(enum_resolver).args
-    available_keys = list(ctx_data.keys())
-    for key in available_keys:
-        if key not in resolver_args:
-            del ctx_data[key]
+
+    ctx_data = {}
+    for key in resolver_args:
+        if key in context:
+            ctx_data[key] = context[key]
+        else:
+            ctx_data[key] = None
 
     if inspect.iscoroutinefunction(enum_resolver):
         enum = await enum_resolver(**ctx_data)
     else:
         enum = enum_resolver(**ctx_data)
 
-    enum_values = []
-    enum_labels = {}
-    if type(enum) is list:
-        for item in enum:
-            if type(item) is str:
-                enum_values.append(item)
-            elif type(item) is dict:
-                if "value" not in item or "label" not in item:
-                    logging.warning(f"Invalid enumerator item: {item}")
-                    continue
-                enum_values.append(item["value"])
-                enum_labels[item["value"]] = item["label"]
+    enum_values: list[SimpleValue] = []
+    enum_labels: dict[SimpleValue, str] = {}
+    if not isinstance(enum, list):
+        return enum_values, enum_labels
+    for item in enum:
+        if isinstance(item, str):
+            enum_values.append(item)
+        elif isinstance(item, dict):
+            if "value" not in item or "label" not in item:
+                logging.warning(f"Invalid enumerator item: {item}")
+                continue
+            enum_values.append(item["value"])
+            enum_labels[item["value"]] = item["label"]
     return enum_values, enum_labels
 
 
 async def postprocess_settings_schema(  # noqa
     schema: dict[str, Any],
-    model: type["BaseSettingsModel"],
+    model: Type["BaseSettingsModel"],
     is_top_level: bool = True,
     context: dict[str, Any] | None = None,
 ) -> None:
@@ -85,23 +101,27 @@ async def postprocess_settings_schema(  # noqa
                 del prop[key]
 
         if field := model.__fields__.get(name):
-            enum_values = []
-            enum_labels = {}
+            enum_values: list[SimpleValue] = []
+            enum_labels: dict[SimpleValue, str] = {}
             is_enum = False
             if enum := field.field_info.extra.get("enum"):
                 is_enum = True
-                for item in enum:
-                    if isinstance(item, EnumFieldDefinition):
-                        enum_values.append(item.value)
-                        enum_labels[item.value] = item.label
-                    elif type(item) is str:
-                        enum_values.append(item)
-                    elif type(item) is dict:
-                        if "value" not in item or "label" not in item:
-                            logging.warning(f"Invalid enumerator item: {item}")
-                            continue
-                        enum_values.append(item["value"])
-                        enum_labels[item["value"]] = item["label"]
+
+                if field.field_info.extra.get("_attrib_enum"):
+                    enum_values, enum_labels = await get_attrib_enum(name)
+                else:
+                    for item in enum:
+                        if isinstance(item, AttributeEnumItem):
+                            enum_values.append(item.value)
+                            enum_labels[item.value] = item.label
+                        elif isinstance(item, str):
+                            enum_values.append(item)
+                        elif isinstance(item, dict):
+                            if "value" not in item or "label" not in item:
+                                logging.warning(f"Invalid enumerator item: {item}")
+                                continue
+                            enum_values.append(item["value"])
+                            enum_labels[item["value"]] = item["label"]
 
             elif enum_resolver := field.field_info.extra.get("enum_resolver"):
                 is_enum = True
@@ -130,7 +150,7 @@ async def postprocess_settings_schema(  # noqa
                     prop["enumLabels"] = enum_labels
 
             scope = field.field_info.extra.get("scope")
-            if scope is None or (type(scope) != list):
+            if scope is None or (not isinstance(scope, list)):
                 prop["scope"] = ["project", "studio"]
             else:
                 # TODO assert scope is valid ('project', 'studio' and/or 'site')

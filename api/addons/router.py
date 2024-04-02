@@ -1,8 +1,10 @@
+from typing import Any
+
 from fastapi import APIRouter
 
 from ayon_server.api import ResponseFactory
 
-route_meta = {
+route_meta: dict[str, Any] = {
     "tags": ["Addon settings"],
 }
 

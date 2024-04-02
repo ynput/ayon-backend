@@ -5,6 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Header
 from nxtools import log_traceback
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.config import ayonconfig
 from ayon_server.entities import (
     FolderEntity,
     ProductEntity,
@@ -17,7 +18,11 @@ from ayon_server.entities import (
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
-from ayon_server.exceptions import AyonException
+from ayon_server.exceptions import (
+    AyonException,
+    BadRequestException,
+    ForbiddenException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
@@ -60,6 +65,7 @@ class OperationModel(OPModel):
         title="Data",
         description="Data to be used for create or update. Ignored for delete.",
     )
+    force: bool = Field(False, title="Force recursive deletion")
 
 
 class OperationsRequestModel(OPModel):
@@ -71,6 +77,7 @@ class OperationResponseModel(OPModel):
     id: str = Field(..., title="Operation ID")
     type: OperationType = Field(..., title="Operation type")
     success: bool = Field(..., title="Operation success")
+    status: int | None = Field(None, title="HTTP-like status code")
     detail: str | None = Field(None, title="Error message")
     entity_type: ProjectLevelEntityType = Field(..., title="Entity type")
     entity_id: str | None = Field(
@@ -119,6 +126,9 @@ async def process_operation(
         payload_dict = payload.dict()
         if operation.entity_id is not None:
             payload_dict["id"] = operation.entity_id
+        if operation.entity_type == "version":
+            if not payload_dict.get("author"):
+                payload_dict["author"] = user.name
         entity = entity_class(project_name, payload_dict)
         await entity.ensure_create_access(user)
         description = f"{operation.entity_type.capitalize()} {entity.name} created"
@@ -131,9 +141,12 @@ async def process_operation(
             }
         ]
         await entity.save(transaction=transaction)
-        # print(f"created {entity_class.__name__} {entity.id} {entity.name}")
 
     elif operation.type == "update":
+        # in this case, thumbnailId is camelCase, since we pass a dict
+        assert operation.data is not None, "data is required for update"
+        thumbnail_only = len(operation.data) == 1 and "thumbnailId" in operation.data
+
         payload = entity_class.model.patch_model(**operation.data)
         assert operation.entity_id is not None, "entity_id is required for update"
         entity = await entity_class.load(
@@ -142,17 +155,20 @@ async def process_operation(
             for_update=True,
             transaction=transaction,
         )
-        await entity.ensure_update_access(user)
+        await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)
         events = build_pl_entity_change_events(entity, payload)
         entity.patch(payload)
         await entity.save(transaction=transaction)
-        # print(f"updated {entity_class.__name__} {entity.id}")
 
     elif operation.type == "delete":
         assert operation.entity_id is not None, "entity_id is required for delete"
         entity = await entity_class.load(project_name, operation.entity_id)
         await entity.ensure_delete_access(user)
         description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
+
+        if operation.force and not user.is_manager:
+            raise ForbiddenException("Only managers can force delete")
+
         events = [
             {
                 "topic": f"entity.{operation.entity_type}.deleted",
@@ -161,7 +177,11 @@ async def process_operation(
                 "project": project_name,
             }
         ]
-        await entity.delete(transaction=transaction)
+        if ayonconfig.audit_trail:
+            events[0]["payload"] = {"entityData": entity.dict_simple()}
+        await entity.delete(transaction=transaction, force=operation.force)
+    else:
+        raise BadRequestException(f"Unknown operation type {operation.type}")
 
     return (
         entity,
@@ -211,12 +231,12 @@ async def process_operations(
             if entity.entity_type not in [e.entity_type for e in to_commit]:
                 to_commit.append(entity)
         except AyonException as e:
-            print(e)
             result.append(
                 OperationResponseModel(
                     success=False,
                     id=operation.id,
                     type=operation.type,
+                    status=e.status,
                     detail=e.detail,
                     entity_id=operation.entity_id,
                     entity_type=operation.entity_type,
@@ -231,6 +251,7 @@ async def process_operations(
                     success=False,
                     id=operation.id,
                     type=operation.type,
+                    status=500,
                     detail=str(exc),
                     entity_id=operation.entity_id,
                     entity_type=operation.entity_type,
@@ -240,6 +261,16 @@ async def process_operations(
             if not can_fail:
                 # No need to continue
                 break
+
+    for op in result:
+        if op.status:
+            continue
+        elif op.type == "create":
+            op.status = 201
+        elif op.type == "update":
+            op.status = 200
+        elif op.type == "delete":
+            op.status = 204
 
     # Create overall success value
     success = all(op.success for op in result)
@@ -284,6 +315,25 @@ async def operations(
     Always check the `success` field of the response.
     """
 
+    # sanity check
+
+    affected_entities: list[tuple[ProjectLevelEntityType, str]] = []
+    for operation in payload.operations:
+        if operation.type == "create":
+            # create should be safe.
+            # It will fail if the is provided and is already exists,
+            # but it will fail gracefully. No need to check for duplicates.
+            continue
+        assert (
+            operation.entity_id is not None
+        ), "entity id is required for update/delete"
+        key = (operation.entity_type, operation.entity_id)
+        if key in affected_entities:
+            raise BadRequestException(
+                f"Duplicate operation for {operation.entity_type} {operation.entity_id}"
+            )
+        affected_entities.append(key)
+
     if payload.can_fail:
         events, response = await process_operations(
             project_name,
@@ -296,6 +346,7 @@ async def operations(
     # If can_fail is false, process all items in a transaction
     # and roll back on error
 
+    events = []
     with suppress(RollbackException):
         async with Postgres.acquire() as conn:
             async with conn.transaction():

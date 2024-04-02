@@ -1,10 +1,12 @@
 import asyncio
+import os
 import sys
+from base64 import b64decode
 from pathlib import Path
 from typing import Any
 
 import asyncpg
-from nxtools import critical_error, log_traceback, logging
+from nxtools import critical_error, log_to_file, log_traceback, logging
 
 from ayon_server.config import ayonconfig
 from ayon_server.lib.postgres import Postgres
@@ -20,6 +22,7 @@ DATA: dict[str, Any] = {
     "settings": {},
     "users": [],
     "roles": [],
+    "config": {},
 }
 
 if ayonconfig.force_create_admin:
@@ -85,18 +88,42 @@ async def main(force: bool | None = None) -> None:
     # This is something we can do every time.
     await deploy_attributes()
 
+    TEMPLATE_ENV = "AYON_SETTINGS_TEMPLATE"
+
     if force_install:
+        logging.info("Force install requested")
+        template_data: dict[str, Any] = {}
         if "-" in sys.argv:
+            logging.info("Reading setup file from stdin")
             raw_data = sys.stdin.read()
             try:
-                data: dict[str, Any] = json_loads(raw_data)
+                template_data = json_loads(raw_data)
             except Exception:
                 log_traceback()
                 critical_error("Invalid setup file provided")
 
-            DATA.update(data)
+        elif os.path.exists("/template.json"):
+            logging.info("Reading setup file from /template.json")
+            try:
+                raw_data = Path("/template.json").read_text()
+                template_data = json_loads(raw_data)
+            except Exception:
+                logging.warning("Invalid setup file provided. Using defaults")
+            else:
+                logging.debug("Setting up from /template.json")
+        elif raw_template_data := os.environ.get(TEMPLATE_ENV, ""):
+            logging.info(f"Reading setup file from {TEMPLATE_ENV} env variable")
+            try:
+                template_data = json_loads(b64decode(raw_template_data).decode())
+            except Exception:
+                logging.warning(
+                    f"Unable to parse {TEMPLATE_ENV} env variable. Using defaults"
+                )
+            else:
+                logging.debug(f"Setting up from {TEMPLATE_ENV} env variable")
         else:
             logging.warning("No setup file provided. Using defaults")
+        DATA.update(template_data)
 
         projects: list[str] = []
         async for row in Postgres.iterate("SELECT name FROM projects"):
@@ -119,8 +146,22 @@ async def main(force: bool | None = None) -> None:
                 value,
             )
 
+        for key, value in DATA.get("config", {}).items():
+            await Postgres.execute(
+                """
+                INSERT INTO config (key, value)
+                VALUES ($1, $2)
+                ON CONFLICT (key) DO UPDATE SET value = $2
+                """,
+                key,
+                value,
+            )
+
     logging.goodnews("Setup is finished")
 
 
 if __name__ == "__main__":
+    logging.user = "setup"
+    if ayonconfig.log_file is not None:
+        logging.add_handler(log_to_file(ayonconfig.log_file))
     asyncio.run(main())

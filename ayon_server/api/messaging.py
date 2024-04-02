@@ -10,7 +10,7 @@ from nxtools import log_traceback, logging
 
 from ayon_server.api.system import restart_server
 from ayon_server.auth.session import Session
-from ayon_server.background import BackgroundTask
+from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.lib.redis import Redis
@@ -79,7 +79,7 @@ class Client:
         data = await self.sock.receive_text()
         try:
             message = json_loads(data)
-            assert type(message) is dict
+            assert isinstance(message, dict)
             assert "topic" in message
         except AssertionError:
             return None
@@ -97,7 +97,7 @@ class Client:
         return True
 
 
-class Messaging(BackgroundTask):
+class Messaging(BackgroundWorker):
     def initialize(self):
         self.clients: dict[str, Client] = {}
 

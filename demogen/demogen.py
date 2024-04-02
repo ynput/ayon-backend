@@ -51,6 +51,15 @@ class DemoGen:
         self.representation_count = 0
         self.task_count = 0
         self.workfile_count = 0
+        self._users = []
+
+    async def get_random_user(self) -> str:
+        if not self._users:
+            async for row in Postgres.iterate("SELECT name FROM users"):
+                self._users.append(row["name"])
+            if not self._users:
+                self.users = ["artist", "editor", "admin"]
+        return random.choice(self._users)
 
     async def populate(
         self,
@@ -151,10 +160,16 @@ class DemoGen:
         tasks = {}
 
         for task in kwargs.get("_tasks", []):
-            if task["task_type"] == "Modeling":
-                task["assignees"] = random.choice(
-                    [["artist"], ["artist", "visitor"], [], [], []]
-                )
+            assignees = []
+            _ = await self.get_random_user()
+            for _ in range(len(self._users)):
+                user = await self.get_random_user()
+                if user not in assignees:
+                    assignees.append(user)
+                if len(assignees) == 2:
+                    break
+
+            task["assignees"] = assignees
             task_entity = await self.create_task(
                 conn,
                 folder=folder,
@@ -167,12 +182,12 @@ class DemoGen:
             await self.create_product(conn, folder, tasks=tasks, **product)
 
         if "_children" in kwargs:
-            if type(kwargs["_children"]) == str:
+            if isinstance(kwargs["_children"], str):
                 async for child in generators[kwargs["_children"]](kwargs):
                     await self.create_folder(
                         conn, folder.id, parents=parents + [folder.name], **child
                     )
-            elif type(kwargs["_children"]) is list:
+            elif isinstance(kwargs["_children"], list):
                 for child in kwargs["_children"]:
                     await self.create_folder(
                         conn, folder.id, parents=parents + [folder.name], **child
@@ -222,7 +237,7 @@ class DemoGen:
                     "product_id": product.id,
                     "task_id": task_id,
                     "version": i,
-                    "author": "admin",
+                    "author": await self.get_random_user(),
                     "attrib": attrib,
                     "tags": self.get_entity_tags(),
                     "status": self.get_entity_status(),

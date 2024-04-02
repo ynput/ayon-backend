@@ -1,9 +1,11 @@
 import os
 from typing import TYPE_CHECKING
 
-from nxtools import logging, slugify
+import semver
+import yaml
+from nxtools import log_traceback, logging, slugify
 
-from ayon_server.addons.addon import BaseServerAddon
+from ayon_server.addons.addon import METADATA_KEYS, BaseServerAddon
 from ayon_server.addons.utils import classes_from_module, import_module
 
 if TYPE_CHECKING:
@@ -34,7 +36,8 @@ class ServerAddonDefinition:
             if version.app_host_name != self.app_host_name:
                 raise ValueError(
                     f"Addon {self.name} has version {version.version} with "
-                    f"mismatched app host name {version.app_host_name} != {self.app_host_name}"
+                    "mismatched app host name "
+                    f"{version.app_host_name} != {self.app_host_name}"
                 )
 
             if version.name != self.name:
@@ -53,7 +56,7 @@ class ServerAddonDefinition:
     def name(self) -> str:
         for version in self.versions.values():
             return version.name
-        raise ValueError("No versions found")
+        return os.path.split(self.addon_dir)[-1]
 
     @property
     def friendly_name(self) -> str:
@@ -63,41 +66,159 @@ class ServerAddonDefinition:
                 return self.title
             if hasattr(self, "name"):
                 return self.name.capitalize()
-        return f"(Empty addon {self.dir_name})"
+        return f"[{self.dir_name.capitalize()}]"
 
     @property
     def versions(self) -> dict[str, BaseServerAddon]:
+        """Return a list of addon versions.
+
+        The list is a dictionary with version names as keys and addon
+        instances as values. Addons are initialized when this property
+        is accessed for the first time, which should happen
+        right after server startup.
+        """
         if self._versions is None:
             self._versions = {}
             for version_name in os.listdir(self.addon_dir):
-                mdir = os.path.join(self.addon_dir, version_name)
-                mfile = os.path.join(mdir, "__init__.py")
-                if not os.path.exists(os.path.join(mfile)):
-                    continue
+                version_dir = os.path.join(self.addon_dir, version_name)
 
-                vname = slugify(f"{self.dir_name}-{version_name}")
                 try:
-                    module = import_module(vname, mfile)
-                except AttributeError:
-                    logging.error(f"Addon {vname} is not valid")
-                    continue
+                    if os.path.exists(os.path.join(version_dir, "__init__.py")):
+                        self.init_legacy_addon(version_dir)
+                        continue
 
-                for Addon in classes_from_module(BaseServerAddon, module):
-                    try:
-                        self._versions[Addon.version] = Addon(self, mdir)
-                    except ValueError as e:
-                        logging.error(
-                            f"Error loading addon {vname} versions: {e.args[0]}"
-                        )
+                    for filename in ["package.py", "package.yml", "package.yaml"]:
+                        if os.path.exists(os.path.join(version_dir, filename)):
+                            self.init_addon(version_dir)
+                            break
 
-                    if self._versions[Addon.version].restart_requested:
-                        logging.warning(
-                            f"Addon {self.name} version {Addon.version} "
-                            "requested server restart"
-                        )
-                        self.restart_requested = True
+                except AssertionError as e:
+                    logging.error(f"Failed to initialize addon {version_dir}: {e}")
+                except Exception:
+                    log_traceback(f"Failed to initialize addon {version_dir}")
 
         return self._versions
+
+    def init_addon(self, addon_dir: str):
+        """Initialize the addon using package.py/package.yml/package.yaml file.
+
+        package file must contain at least name and version keys.
+        additional metadata (title, services) are optional, may be as well
+        defined in the addon class itself, but it is recommended to keep
+        them in the package file for better readability and maintainability.
+        """
+        vname = slugify(f"{self.dir_name}-{os.path.split(addon_dir)[-1]}")
+
+        server_module_path = os.path.join(addon_dir, "server", "__init__.py")
+        package_path = os.path.join(addon_dir, "package.py")
+
+        # addon metadata
+        metadata = {}
+
+        if os.path.exists(package_path):
+            package_module_name = f"{vname}-package"
+            package_module = import_module(package_module_name, package_path)
+            for key in METADATA_KEYS:
+                if hasattr(package_module, key):
+                    metadata[key] = getattr(package_module, key)
+
+        elif os.path.exists(os.path.join(addon_dir, "package.yml")):
+            with open(os.path.join(addon_dir, "package.yml")) as f:
+                metadata = yaml.safe_load(f)
+
+        elif os.path.exists(os.path.join(addon_dir, "package.yaml")):
+            with open(os.path.join(addon_dir, "package.yaml")) as f:
+                metadata = yaml.safe_load(f)
+
+        assert "name" in metadata, f"Addon {vname} is missing name"
+        assert "version" in metadata, f"Addon {metadata['name']} is missing version"
+
+        # when the addon directory is a git repository,
+        # append -git to the version this is useful for development
+        # the server-part of the addon directly from the git repository
+        # on the server
+
+        if os.path.exists(os.path.join(addon_dir, ".git")):
+            version = metadata["version"].split("-")[0]
+            version = version.split("+")[0]
+            version += "+git"
+            metadata["version"] = version
+
+        try:
+            semver.VersionInfo.parse(metadata["version"])
+        except ValueError:
+            raise AssertionError(
+                f"Addon {metadata['name']} has invalid version {metadata['version']}"
+            )
+
+        # Import the server module
+
+        module = import_module(vname, server_module_path)
+
+        # And initialize the addon
+
+        if self._versions is None:
+            self._versions = {}
+
+        for Addon in classes_from_module(BaseServerAddon, module):
+            addon = Addon(self, addon_dir=addon_dir, **metadata)
+            if addon.restart_requested:
+                logging.warning(
+                    f"{addon}requested server restart during initialization."
+                )
+                self.restart_requested = True
+            self._versions[metadata["version"]] = addon
+
+    def init_legacy_addon(self, addon_dir: str):
+        """Initialize old-style addon with __init__.py in the root directory.
+
+        This style is deprecated and will be removed in the future.
+        New style is supported since 1.0.3
+        """
+
+        mfile = os.path.join(addon_dir, "__init__.py")
+        vname = slugify(f"{self.dir_name}-{os.path.split(addon_dir)[-1]}")
+        module = import_module(vname, mfile)
+
+        if self._versions is None:
+            self._versions = {}
+
+        for Addon in classes_from_module(BaseServerAddon, module):
+            # legacy addons don't have metadata in the package file,
+            # and they depend on class attributes.
+            addon = Addon(self, addon_dir)
+            addon.legacy = True
+            if addon.restart_requested:
+                logging.warning(
+                    f"{addon} requested server restart during initialization."
+                )
+                self.restart_requested = True
+            self._versions[Addon.version] = addon
+
+    @property
+    def latest(self) -> BaseServerAddon | None:
+        if not self.versions:
+            return None
+        versions = list(self.versions.keys())
+        max_version = max(versions, key=semver.VersionInfo.parse)
+        return self.versions[max_version]
+
+    @property
+    def is_system(self) -> bool:
+        for version in self.versions.values():
+            if version.system:
+                return True
+        return False
+
+    @property
+    def addon_type(self) -> str:
+        sorted_versions = sorted(
+            self.versions.values(),
+            key=lambda x: semver.VersionInfo.parse(x.version),
+        )
+        if not sorted_versions:
+            return "pipeline"
+        return sorted_versions[-1].addon_type
 
     def __getitem__(self, item) -> BaseServerAddon:
         return self.versions[item]
@@ -107,6 +228,5 @@ class ServerAddonDefinition:
 
     def unload_version(self, version: str) -> None:
         """Unload the given version of the addon."""
-        if version not in self.versions:
-            return None
-        del self._versions[version]
+        if self._versions and version in self._versions:
+            del self._versions[version]

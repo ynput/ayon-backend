@@ -114,6 +114,12 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "type": "string",
         "title": "Avatar URL",
     },
+    "developerMode": {
+        "scope": "U",
+        "type": "boolean",
+        "title": "Developer mode",
+        "example": True,
+    },
     "productGroup": {
         "scope": "S",
         "type": "string",

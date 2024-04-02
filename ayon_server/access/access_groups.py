@@ -3,17 +3,14 @@ from typing import Any
 from nxtools import logging
 
 from ayon_server.access.permissions import (
-    BasePermissionsModel,
+    AttributeAccessList,
+    EndpointsAccessList,
     FolderAccess,
+    FolderAccessList,
     Permissions,
 )
 from ayon_server.lib.postgres import Postgres
-
-
-def normalize_to_dict(s: Any):
-    if type(s) is dict:
-        return s
-    return s.dict()
+from ayon_server.types import normalize_to_dict
 
 
 class AccessGroups:
@@ -58,11 +55,11 @@ class AccessGroups:
         """Create aggregated permissions object for a given list of access_groups.
 
         If a project name is specified and there is a project-level override
-        for a given access group, it will be used. Ohterwise a "_" (default) access group will
-        be used.
+        for a given access group, it will be used.
+        Ohterwise a "_" (default) access group will be used.
         """
 
-        result: Permissions | None = None
+        result: dict[str, Any] | None = None
 
         for access_group_name in access_group_names:
             if (access_group_name, project_name) in cls.access_groups:
@@ -77,15 +74,15 @@ class AccessGroups:
                 continue
 
             for perm_name, value in access_group:
-                if isinstance(value, BasePermissionsModel):
-                    if not value.enabled:
-                        result[perm_name] = {"enabled": False}
-                        continue
-                    elif not result[perm_name]["enabled"]:
-                        continue
+                if not value.enabled:
+                    result[perm_name] = {"enabled": False}
+                    continue
+                elif not result[perm_name]["enabled"]:
+                    continue
 
                 if perm_name in ("create", "read", "update", "delete"):
                     # TODO: deduplicate
+                    assert isinstance(value, FolderAccessList)
                     result[perm_name]["access_list"] = list(
                         {
                             FolderAccess(**normalize_to_dict(r))
@@ -95,11 +92,13 @@ class AccessGroups:
                     )
 
                 elif perm_name in ("attrib_read", "attrib_write"):
+                    assert isinstance(value, AttributeAccessList)
                     result[perm_name]["attributes"] = list(
                         set(result[perm_name].get("attributes", []))
                         | set(value.attributes)
                     )
                 elif perm_name == "endpoints":
+                    assert isinstance(value, EndpointsAccessList)
                     result[perm_name]["endpoints"] = list(
                         set(result[perm_name].get("endpoints", []))
                         | set(value.endpoints)

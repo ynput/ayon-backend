@@ -70,6 +70,17 @@ class AyonConfig(BaseModel):
         description="Session lifetime in seconds",
     )
 
+    max_failed_login_attempts: int = Field(
+        default=10,
+        description="Maximum number of failed login attempts",
+    )
+
+    failed_login_ban_time: int = Field(
+        default=600,
+        description="Interval in seconds to ban IP addresses "
+        "with too many failed login attempts",
+    )
+
     motd: str | None = Field(
         default=None,
         description="Message of the day",
@@ -103,13 +114,23 @@ class AyonConfig(BaseModel):
         description="Ensure creation of admin user on first run",
     )
 
+    disable_rest_docs: bool = Field(
+        default=False,
+        description="Disable REST API documentation",
+    )
+
     audit_trail: bool = Field(
         default=True,
         description="Enable audit trail",
     )
 
-    ynput_connect_url: str | None = Field(
-        "https://connect.ynput.io",
+    log_retention_days: int = Field(
+        default=7,
+        description="Number of days to keep logs in the event log",
+    )
+
+    ynput_cloud_api_url: str | None = Field(
+        "https://im.ynput.cloud",
         description="YnputConnect URL",
     )
 
@@ -118,6 +139,18 @@ class AyonConfig(BaseModel):
         description="Timeout for HTTP requests the server uses "
         "to connect to external services",
     )
+
+    log_file: str | None = Field(
+        default=None,
+        description="Path to the log file",
+    )
+
+    email_from: str = Field("noreply@ynput.cloud", description="Email sender address")
+    email_smtp_host: str | None = Field(None, description="SMTP server hostname")
+    email_smtp_port: int | None = Field(None, description="SMTP server port")
+    email_smtp_tls: bool = Field(False, description="Use SSL for SMTP connection")
+    email_smtp_user: str | None = Field(None, description="SMTP server username")
+    email_smtp_pass: str | None = Field(None, description="SMTP server password")
 
 
 #
@@ -141,7 +174,7 @@ def load_config() -> AyonConfig:
 
     if (config.motd) is None and (config.motd_path is not None):
         if os.path.exists(config.motd_path):
-            with open(config.motd_path, "r") as motd_file:
+            with open(config.motd_path) as motd_file:
                 config.motd = motd_file.read()
 
     return config

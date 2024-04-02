@@ -67,7 +67,8 @@ async def get_users(
     if project_name is not None:
         cnd1 = "users.data->>'isAdmin' = 'true'"
         cnd2 = "users.data->>'isManager' = 'true'"
-        cnd3 = f"users.data->'accessGroups'->'{project_name}' IS NOT NULL"
+        cnd3 = f"""(users.data->'accessGroups'->'{project_name}' IS NOT NULL
+        AND users.data->'accessGroups'->>'{project_name}' != '[]')"""
         cnd = f"({cnd1} OR {cnd2} OR {cnd3})"
         sql_conditions.append(cnd)
 

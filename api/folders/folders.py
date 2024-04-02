@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Header
+from fastapi import BackgroundTasks, Header, Query
 
 from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
@@ -9,7 +9,7 @@ from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 
-router = APIRouter(prefix="/projects/{project_name}/folders", tags=["Folders"])
+from .router import router
 
 #
 # [GET]
@@ -87,13 +87,16 @@ async def update_folder(
     cannot be changed.
     """
 
+    patch_data = post_data.dict(exclude_unset=True)
+    thumbnail_only = len(patch_data) == 1 and "thumbnail_id" in patch_data
+
     async with Postgres.acquire() as conn:
         async with conn.transaction():
             folder = await FolderEntity.load(
                 project_name, folder_id, transaction=conn, for_update=True
             )
 
-            await folder.ensure_update_access(user)
+            await folder.ensure_update_access(user, thumbnail_only=thumbnail_only)
             has_versions = bool(await folder.get_versions(conn))
 
             # If the folder has versions, we can't update the name,
@@ -138,9 +141,14 @@ async def delete_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
+    force: bool = Query(False, description="Allow recursive deletion"),
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
-    """Delete a folder."""
+    """Delete a folder.
+
+    Returns 409 error in there's a published product in the folder or any of
+    its subfolders. Otherwise, deletes the folder and all its subfolders.
+    """
 
     folder = await FolderEntity.load(project_name, folder_id)
     await folder.ensure_delete_access(user)
@@ -152,10 +160,13 @@ async def delete_folder(
     }
     if ayonconfig.audit_trail:
         event["payload"] = {
-            "originalValue": folder.payload.dict(exclude_none=True),
+            "entityData": folder.dict_simple(),
         }
 
-    await folder.delete()
+    if force and not user.is_manager:
+        raise ForbiddenException("Only managers can force delete folders")
+
+    await folder.delete(force=force)
     background_tasks.add_task(
         dispatch_event,
         sender=x_sender,

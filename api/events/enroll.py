@@ -116,11 +116,11 @@ async def enroll(
                 WHERE topic = $2
                 AND (
 
-                    -- DO NOT enroll events that are already finished
+                    -- skip events that are already finished
 
                     status = 'finished'
 
-                    -- DO NOT enroll events that are already failed and have
+                    -- skip events that are already failed and have
                     -- reached max retries
 
                     OR (status = 'failed' AND retries > $3)
@@ -211,4 +211,5 @@ async def enroll(
         elif payload.sequential:
             return EmptyResponse()
 
+    # nothing to do. return empty response
     return EmptyResponse()

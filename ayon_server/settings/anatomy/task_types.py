@@ -7,12 +7,13 @@ class TaskType(BaseSettingsModel):
     _layout: str = "compact"
     name: str = Field(..., title="Name", min_length=1, max_length=100)
     shortName: str = Field("", title="Short name")
-    icon: str = Field("", title="Icon", widget="icon")
-    original_name: str | None = Field(
-        None,
-        title="Original name",
-        scope=[],
-    )  # Used for renaming
+    icon: str = Field("task_alt", title="Icon", widget="icon")
+
+    # Set to old name when renaming
+    original_name: str | None = Field(None, title="Original name", scope=[])
+
+    def __hash__(self):
+        return hash(self.name)
 
     @validator("original_name")
     def validate_original_name(cls, v, values):

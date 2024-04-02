@@ -32,7 +32,10 @@ class ClientInfo(BaseModel):
 
 
 def get_real_ip(request: Request) -> str:
-    return request.headers.get("x-forwarded-for", request.client.host)
+    if request.client is None:
+        return "0.0.0.0"
+    xff = request.headers.get("x-forwarded-for", request.client.host)
+    return xff.split(",")[0].strip()
 
 
 def geo_lookup(ip: str):

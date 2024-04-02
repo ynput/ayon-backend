@@ -113,6 +113,7 @@ class Query:
             is_admin=user.is_admin,
             is_manager=user.is_manager,
             is_service=user.is_service,
+            is_developer=user.is_developer,
             is_guest=False,  # TODO
             default_access_groups=user.data.get("defaultAccessGroups", []),
             has_password=bool(user.data.get("password")),

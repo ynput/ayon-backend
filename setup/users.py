@@ -28,6 +28,10 @@ async def deploy_users(
             logging.debug(f"Creating password for user {name}")
             data["password"] = create_password(user["password"])
 
+        if "hashedPassword" in user:
+            logging.debug(f"Adding password for user {name}")
+            data["password"] = user["hashedPassword"]
+
         if "apiKey" in user:
             api_key = user["apiKey"]
             logging.debug(f"Creating api key for user {name}")
@@ -36,8 +40,8 @@ async def deploy_users(
             data["apiKeyPreview"] = api_key_preview
 
         data["defaultAccessGroups"] = user.get("defaultAccessGroups", [])
-        assert type(data["defaultAccessGroups"]) == list
-        assert all(type(role) == str for role in data["defaultAccessGroups"])
+        assert isinstance(data["defaultAccessGroups"], list)
+        assert all(isinstance(role, str) for role in data["defaultAccessGroups"])
 
         data["accessGroups"] = {
             project_name: data["defaultAccessGroups"]

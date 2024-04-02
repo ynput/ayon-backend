@@ -9,6 +9,7 @@ from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.products import get_products
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import ProductsConnection, TasksConnection
@@ -24,6 +25,7 @@ class FolderAttribType:
 
 @strawberry.type
 class FolderNode(BaseNode):
+    name: str
     label: str | None
     folder_type: str
     parent_id: str | None
@@ -33,6 +35,7 @@ class FolderNode(BaseNode):
     tags: list[str]
     attrib: FolderAttribType
     own_attrib: list[str]
+    data: str | None
 
     # GraphQL specifics
 
@@ -69,7 +72,10 @@ class FolderNode(BaseNode):
 
     @strawberry.field()
     def parents(self) -> list[str]:
-        return self.path.split("/")[:-1] if self.path else []
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
 
     @strawberry.field
     async def parent(self, info: Info) -> Optional["FolderNode"]:
@@ -94,6 +100,7 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
     """Construct a folder node from a DB row."""
 
     own_attrib = list(record["attrib"].keys())
+    data = record.get("data")
 
     return FolderNode(
         project_name=project_name,
@@ -114,12 +121,13 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
             project_attrib=record["project_attributes"],
             inherited_attrib=record["inherited_attributes"],
         ),
+        data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         child_count=record.get("child_count", 0),
         product_count=record.get("product_count", 0),
         task_count=record.get("task_count", 0),
-        path=record.get("path"),
+        path="/" + record.get("path", "").strip("/"),
         own_attrib=own_attrib,
     )
 

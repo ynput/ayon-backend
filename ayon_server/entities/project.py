@@ -4,12 +4,14 @@ along with the project data, this entity also handles
 folder_types of the project and the folder hierarchy.
 """
 
+from datetime import datetime
 from typing import Any, Dict
 
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.entities.models.submodels import LinkTypeModel
-from ayon_server.exceptions import ConstraintViolationException, NotFoundException
+from ayon_server.exceptions import NotFoundException
+from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import SQLTool, dict_exclude
 
@@ -104,6 +106,7 @@ async def link_types_update(conn, table: str, update_data: list[LinkTypeModel]):
 class ProjectEntity(TopLevelEntity):
     entity_type: str = "project"
     model: ModelSet = ModelSet("project", attribute_library["project"], False)
+    original_attributes: dict[str, Any] = {}
 
     #
     # Load
@@ -198,6 +201,7 @@ class ProjectEntity(TopLevelEntity):
             "statuses": statuses,
             "tags": tags,
         }
+        cls.original_attributes = project_data[0]["attrib"]
         return cls.from_record(payload=payload)
 
     #
@@ -220,51 +224,49 @@ class ProjectEntity(TopLevelEntity):
 
         project_name = self.name
         if self.exists:
-            try:
-                await transaction.execute(
-                    *SQLTool.update(
-                        "public.projects",
-                        f"WHERE name='{project_name}'",
-                        **dict_exclude(
-                            self.dict(exclude_none=True),
-                            [
-                                "folder_types",
-                                "task_types",
-                                "link_types",
-                                "statuses",
-                                "tags",
-                                "ctime",
-                                "name",
-                                "own_attrib",
-                            ],
-                        ),
-                    )
-                )
+            fields = dict_exclude(
+                self.dict(exclude_none=True),
+                [
+                    "folder_types",
+                    "task_types",
+                    "link_types",
+                    "statuses",
+                    "tags",
+                    "created_at",
+                    "name",
+                    "own_attrib",
+                ],
+            )
 
-            except Postgres.ForeignKeyViolationError as e:
-                raise ConstraintViolationException(e.detail)
+            fields["updated_at"] = datetime.now()
+
+            await transaction.execute(
+                *SQLTool.update(
+                    "public.projects", f"WHERE name='{project_name}'", **fields
+                )
+            )
+
+            if self.original_attributes != fields["attrib"]:
+                await rebuild_inherited_attributes(self.name, fields["attrib"])
 
         else:
             # Create a project record
-            try:
-                await transaction.execute(
-                    *SQLTool.insert(
-                        "projects",
-                        **dict_exclude(
-                            self.dict(exclude_none=True),
-                            [
-                                "folder_types",
-                                "task_types",
-                                "link_types",
-                                "statuses",
-                                "tags",
-                                "own_attrib",
-                            ],
-                        ),
-                    )
+            await transaction.execute(
+                *SQLTool.insert(
+                    "projects",
+                    **dict_exclude(
+                        self.dict(exclude_none=True),
+                        [
+                            "folder_types",
+                            "task_types",
+                            "link_types",
+                            "statuses",
+                            "tags",
+                            "own_attrib",
+                        ],
+                    ),
                 )
-            except Postgres.UniqueViolationError:
-                raise ConstraintViolationException(f"{self.name} already exists")
+            )
             # Create a new schema for the project tablespace
             await transaction.execute(f"CREATE SCHEMA project_{project_name}")
 

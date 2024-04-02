@@ -1,6 +1,9 @@
 """User entity."""
 
 import re
+from typing import Any
+
+from nxtools import logging
 
 from ayon_server.access.access_groups import AccessGroups
 from ayon_server.access.permissions import Permissions
@@ -9,6 +12,7 @@ from ayon_server.auth.utils import (
     ensure_password_complexity,
     hash_password,
 )
+from ayon_server.constraints import Constraints
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
@@ -16,17 +20,34 @@ from ayon_server.exceptions import (
     LowPasswordComplexityException,
     NotFoundException,
 )
+from ayon_server.helpers.email import send_mail
 from ayon_server.lib.postgres import Postgres
+from ayon_server.types import AccessType
 from ayon_server.utils import SQLTool, dict_exclude
 
 
 class UserEntity(TopLevelEntity):
     entity_type: str = "user"
     model = ModelSet("user", attribute_library["user"], has_id=False)
+    was_active: bool = False
+
+    # Cache for path access lists
+    # the structure is as follows:
+    # project_name[access_type]: [path1, path2, ...]
+    path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
 
     #
     # Load
     #
+
+    def __init__(
+        self,
+        payload: dict[str, Any],
+        exists: bool = False,
+        validate: bool = True,  # deprecated
+    ) -> None:
+        super().__init__(payload, exists, validate)
+        self.was_active = self.active and self.exists
 
     @classmethod
     async def load(
@@ -56,6 +77,19 @@ class UserEntity(TopLevelEntity):
 
         conn = transaction or Postgres
 
+        if self.active and not self.was_active:
+            logging.info(f"Activating user {self.name}")
+
+            if (max_users := await Constraints.check("maxActiveUsers")) is not None:
+                max_users = max_users or 1
+                res = await conn.fetch(
+                    "SELECT count(*) as cnt FROM users WHERE active is TRUE"
+                )
+                if res and res[0]["cnt"] >= max_users:
+                    raise ForbiddenException(
+                        f"Maximum number of users ({max_users}) reached"
+                    )
+
         if self.exists:
             data = dict_exclude(
                 self.dict(exclude_none=True), ["ctime", "name", "own_attrib"]
@@ -75,6 +109,7 @@ class UserEntity(TopLevelEntity):
                 **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
             )
         )
+        self.exists = True
         return True
 
     #
@@ -121,11 +156,17 @@ class UserEntity(TopLevelEntity):
 
     @property
     def is_admin(self) -> bool:
+        if self.is_guest:
+            return False
         return self._payload.data.get("isAdmin", False) or self.is_service
 
     @property
     def is_guest(self) -> bool:
         return self._payload.data.get("isGuest", False)
+
+    @property
+    def is_developer(self) -> bool:
+        return self._payload.data.get("isDeveloper", False)
 
     @property
     def is_manager(self) -> bool:
@@ -181,3 +222,20 @@ class UserEntity(TopLevelEntity):
 
         self._payload.data["apiKey"] = hash_password(api_key)
         self._payload.data["apiKeyPreview"] = api_key_preview
+
+    async def send_mail(
+        self,
+        subject: str,
+        text: str | None = None,
+        html: str | None = None,
+    ) -> None:
+        """Send email to user."""
+
+        recipient = self.attrib.email
+        if not recipient:
+            raise ValueError(f"User {self.name} has no email address")
+
+        if self.attrib.fullName:
+            recipient = f"{self.attrib.fullName} <{recipient}>"
+
+        await send_mail([recipient], subject, text, html)

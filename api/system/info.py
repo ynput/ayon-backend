@@ -1,6 +1,5 @@
 import contextlib
-import os
-import time
+from typing import Any
 from urllib.parse import urlparse
 
 from attributes.attributes import AttributeModel
@@ -8,45 +7,18 @@ from fastapi import Request
 from nxtools import log_traceback
 from pydantic import ValidationError
 
-from ayon_server import __version__
 from ayon_server.addons import AddonLibrary, SSOOption
 from ayon_server.api.dependencies import CurrentUserOptional
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.helpers.email import is_mailing_enabled
+from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .router import router
 from .sites import SiteInfo
-
-BOOT_TIME = time.time()
-
-
-def get_uptime():
-    return time.time() - BOOT_TIME
-
-
-def get_build_date() -> str | None:
-    """
-    Get the build date from the BUILD_DATE file
-    This file is created when building the docker image.
-    """
-    if os.path.isfile("BUILD_DATE"):
-        return open("BUILD_DATE").read().strip()
-    return None
-
-
-def get_version():
-    """
-    Get the version of the Ayon API
-    If the BUILD_DATE file exists, append the build date to the version
-    """
-    version = __version__
-    build_date = get_build_date()
-    if build_date:
-        version += f"+{build_date}"
-    return version
 
 
 class InfoResponseModel(OPModel):
@@ -65,6 +37,11 @@ class InfoResponseModel(OPModel):
         default=ayonconfig.login_page_brand,
         title="Brand logo",
         description="URL of the brand logo for the login page",
+    )
+    release_info: ReleaseInfo | None = Field(
+        default_factory=get_release_info,
+        title="Release info",
+        description="Information about the current release",
     )
     version: str = Field(
         default_factory=get_version,
@@ -85,8 +62,11 @@ class InfoResponseModel(OPModel):
         None,
         title="Onboarding",
     )
+    password_recovery_available: bool | None = Field(None, title="Password recovery")
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
+
+    # TODO: use list | None, but ensure it won't break the frontend
     sites: list[SiteInfo] = Field(default_factory=list, title="List of sites")
     sso_options: list[SSOOption] = Field(default_factory=list, title="SSO options")
 
@@ -112,7 +92,10 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
     active_versions = await library.get_active_versions()
 
     for _name, definition in library.data.items():
-        vers = active_versions.get(definition.name, {})
+        try:
+            vers = active_versions.get(definition.name, {})
+        except ValueError:
+            continue
         production_version = vers.get("production", None)
         if not production_version:
             continue
@@ -171,8 +154,18 @@ async def get_additional_info(user: UserEntity, request: Request):
 
         sites.insert(0, current_site)
 
+    # load dynamic_enums
+    enums: dict[str, Any] = {}
+    async for row in Postgres.iterate(
+        "SELECT name, data FROM attributes WHERE data->'enum' is not null"
+    ):
+        enums[row["name"]] = row["data"]["enum"]
+
     attr_list: list[AttributeModel] = []
     for row in attribute_library.info_data:
+        row = {**row}
+        if row["name"] in enums:
+            row["data"]["enum"] = enums[row["name"]]
         try:
             attr_list.append(AttributeModel(**row))
         except ValidationError:
@@ -213,7 +206,8 @@ async def get_site_info(
         has_admin_user = await admin_exists()
         additional_info = {
             "sso_options": sso_options,
-            "no_admin_user": not has_admin_user,
+            "no_admin_user": (not has_admin_user) or None,
+            "password_recovery_available": bool(await is_mailing_enabled()),
         }
     user_payload = current_user.payload if (current_user is not None) else None
     return InfoResponseModel(user=user_payload, **additional_info)

@@ -8,10 +8,11 @@ from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
     AyonException,
-    ConstraintViolationException,
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
+from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import EntityID, SQLTool, dict_exclude
@@ -74,6 +75,11 @@ class FolderEntity(ProjectLevelEntity):
 
         try:
             async for record in Postgres.iterate(query, entity_id, project_name):
+                record = dict(record)
+                path = record.pop("path")
+                if path is not None:
+                    # ensure path starts with / but does not end with /
+                    record["path"] = f"/{path.strip('/')}"
                 attrib: dict[str, Any] = {}
 
                 for key, value in record.get("project_attrib", {}).items():
@@ -136,53 +142,32 @@ class FolderEntity(ProjectLevelEntity):
         if self.exists:
             # Update existing entity
 
-            # Delete all affected exported attributes
-            # we will re-populate all non-existent records in the commit
-
-            # TODO: do not delete when attributes don't change
             await transaction.execute(
-                f"""
-                DELETE FROM project_{self.project_name}.exported_attributes
-                WHERE path LIKE '{self.path}%'
-                """
-            )
-
-            try:
-                await transaction.execute(
-                    *SQLTool.update(
-                        f"project_{self.project_name}.{self.entity_type}s",
-                        f"WHERE id = '{self.id}'",
-                        name=self.name,
-                        label=self.label,
-                        folder_type=self.folder_type,
-                        parent_id=self.parent_id,
-                        thumbnail_id=self.thumbnail_id,
-                        status=self.status,
-                        tags=self.tags,
-                        attrib=attrib,
-                        updated_at=datetime.now(),
-                    )
+                *SQLTool.update(
+                    f"project_{self.project_name}.{self.entity_type}s",
+                    f"WHERE id = '{self.id}'",
+                    name=self.name,
+                    label=self.label,
+                    folder_type=self.folder_type,
+                    parent_id=self.parent_id,
+                    thumbnail_id=self.thumbnail_id,
+                    status=self.status,
+                    tags=self.tags,
+                    attrib=attrib,
+                    data=self.data,
+                    active=self.active,
+                    updated_at=datetime.now(),
                 )
-            except Postgres.ForeignKeyViolationError as e:
-                raise ConstraintViolationException(e.detail)
-
-            except Postgres.UniqueViolationError as e:
-                raise ConstraintViolationException(e.detail)
+            )
 
         else:
             # Create a new entity
-            try:
-                await transaction.execute(
-                    *SQLTool.insert(
-                        f"project_{self.project_name}.{self.entity_type}s",
-                        **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
-                    )
+            await transaction.execute(
+                *SQLTool.insert(
+                    f"project_{self.project_name}.{self.entity_type}s",
+                    **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
                 )
-            except Postgres.ForeignKeyViolationError as e:
-                raise ConstraintViolationException(e.detail)
-
-            except Postgres.UniqueViolationError as e:
-                raise ConstraintViolationException(e.detail)
+            )
 
         if commit:
             await self.commit(transaction)
@@ -191,71 +176,42 @@ class FolderEntity(ProjectLevelEntity):
     async def commit(self, transaction=None) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
-        transaction = transaction or Postgres
-
-        await transaction.execute(
-            f"""
-            REFRESH MATERIALIZED VIEW CONCURRENTLY
-            project_{self.project_name}.hierarchy
-            """
-        )
-
-        query = f"""
-            SELECT
-                h.id as id,
-                h.path as path,
-                f.attrib as own_attrib,
-                f.parent_id as parent_id,
-                p.attrib as project_attrib,
-                e.attrib as inherited_attrib
-            FROM
-                project_{self.project_name}.hierarchy AS h
-            INNER JOIN
-                project_{self.project_name}.folders AS f
-                ON h.id = f.id
-            LEFT JOIN
-                project_{self.project_name}.exported_attributes AS e
-                ON e.folder_id = f.parent_id
-            INNER JOIN
-                public.projects AS p
-                ON p.name ILIKE '{self.project_name}'
-            WHERE h.path NOT IN
-                (SELECT path FROM project_{self.project_name}.exported_attributes)
-            ORDER BY h.path ASC
-        """
-
-        cache: dict[str, dict[str, Any]] = {}
-
-        async for row in Postgres.iterate(query, transaction=transaction):
-            parent_path = "/".join(row["path"].split("/")[:-1])
-            attr: dict[str, Any] = {}
-            if (inherited := row["inherited_attrib"]) is not None:
-                for key, value in inherited.items():
-                    if key in attribute_library.inheritable_attributes():
-                        attr[key] = value
-            elif not row["parent_id"]:
-                for key, value in row["project_attrib"].items():
-                    if key in attribute_library.inheritable_attributes():
-                        attr[key] = value
-            elif parent_path in cache:
-                attr |= cache[parent_path]
-            else:
-                logging.error(f"Unable to build exported attrs for {row['path']}.")
-                continue
-
-            if row["own_attrib"] is not None:
-                attr |= row["own_attrib"]
-
-            cache[row["path"]] = attr
-            await transaction.execute(
+        async def _commit(conn):
+            await conn.execute(
                 f"""
-                INSERT INTO project_{self.project_name}.exported_attributes
-                (folder_id, path, attrib) VALUES ($1, $2, $3)
-                """,
-                row["id"],
-                row["path"],
-                attr,
+                REFRESH MATERIALIZED VIEW CONCURRENTLY
+                project_{self.project_name}.hierarchy
+                """
             )
+            await rebuild_inherited_attributes(self.project_name, transaction=conn)
+            await rebuild_hierarchy_cache(self.project_name, transaction=conn)
+
+        if transaction is not None:
+            await _commit(transaction)
+            return
+        else:
+            async with Postgres.acquire() as transaction:
+                await _commit(transaction)
+
+    async def delete(self, transaction=None, **kwargs) -> bool:
+        if kwargs.get("force", False):
+            conn = transaction or Postgres
+            logging.info(f"Force deleting folder and all its children. {self.path}")
+            await conn.execute(
+                f"""
+                DELETE FROM project_{self.project_name}.products
+                WHERE folder_id IN (
+                    SELECT id FROM project_{self.project_name}.hierarchy
+                    WHERE path = $1
+                    OR path LIKE $1 || '/%'
+                ) RETURNING name
+                """,
+                self.path.lstrip("/"),
+            )
+        res = await super().delete(transaction=transaction, **kwargs)
+        if res:
+            await rebuild_hierarchy_cache(self.project_name, transaction=transaction)
+        return res
 
     async def get_versions(self, transaction=None):
         """Return of version ids associated with this folder."""
@@ -268,7 +224,7 @@ class FolderEntity(ProjectLevelEntity):
             """
         return [row["version_id"] async for row in Postgres.iterate(query, self.id)]
 
-    async def ensure_create_access(self, user):
+    async def ensure_create_access(self, user, **kwargs):
         """Check if the user has access to create a new entity.
 
         Raises FobiddenException if the user does not have access.
@@ -286,6 +242,32 @@ class FolderEntity(ProjectLevelEntity):
                 self.parent_id,
                 "create",
             )
+
+    async def ensure_update_access(self, user, **kwargs) -> None:
+        """Check if the user has access to update the folder.
+
+        Raises FobiddenException if the user does not have access.
+        """
+
+        if user.is_manager:
+            return
+
+        # if only thumbnail is updated, check publish access,
+        # which is less restrictive than update access and it is
+        # good enough for thumbnail updates
+        if kwargs.get("thumbnail_only"):
+            try:
+                await ensure_entity_access(
+                    user, self.project_name, self.entity_type, self.id, "publish"
+                )
+            except ForbiddenException:
+                pass
+            else:
+                return
+
+        await ensure_entity_access(
+            user, self.project_name, self.entity_type, self.id, "update"
+        )
 
     #
     # Properties

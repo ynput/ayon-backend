@@ -31,7 +31,8 @@ def apply_overrides(
                 # Naive types
                 if name in override:
                     try:
-                        type(child)(override[name])
+                        # TODO: WTF??
+                        type(child)(override[name])  # type: ignore
                     except ValueError:
                         logging.warning(f"Invalid value for {name}: {override[name]}")
                         continue
@@ -52,7 +53,7 @@ def list_overrides(
     override: dict[str, Any],
     crumbs: list[str] | None = None,
     level: str = "studio",
-    in_group: bool = False,
+    in_group: list[str] | None = None,
 ) -> dict[str, Any]:
     """Returns values which are overriden.
 
@@ -64,6 +65,7 @@ def list_overrides(
                 "type": type,  // type of the field: branch, leaf, group, array
                 "value": value, // value of the field (only present on leaves)
                 "level": level, // source of the override: studio, project or site
+                "inGroup": path // path of the group the field is in
             }
         }
 
@@ -96,11 +98,11 @@ def list_overrides(
                     override.get(name, {}),
                     chcrumbs,
                     level,
-                    in_group=child._isGroup,
+                    in_group=chcrumbs if child._isGroup else in_group,
                 )
             )
 
-        elif type(child) is list:
+        elif isinstance(child, list):
             if name in override:
                 result[path] = {
                     "path": chcrumbs,
@@ -118,7 +120,7 @@ def list_overrides(
                                 ovr,
                                 [*chcrumbs, f"{i}"],
                                 level=level,
-                                in_group=True,
+                                in_group=in_group or chcrumbs,
                             )
                         )
                     else:
@@ -126,7 +128,7 @@ def list_overrides(
                             "path": [*chcrumbs, f"{i}"],
                             "level": "default",
                             "value": item,
-                            "inGroup": True,
+                            "inGroup": in_group or chcrumbs,
                         }
 
         elif isinstance(child, tuple):

@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
 
-# This script is used to reload the server without restarting the whole container
-# by sending a HUP signal to the gunicorn process.
+SERVER_TYPE=${AYON_SERVER_TYPE:-gunicorn}
 
-pid=$(ps aux | grep 'gunicorn' | awk '{print $2}' | head -n 1)
-kill -HUP $pid 2> /dev/null
+function get_server_pid () {
+  if [ $SERVER_TYPE = "gunicorn" ]; then
+    pid=$(ps aux | grep 'gunicorn' | awk '{print $2}')
+  elif [ $SERVER_TYPE = "granian" ]; then
+    pid=$(ps aux | grep 'granian' | awk '{print $2}')
+  fi
+  echo $pid
+}
+
+echo ""
+echo "Reloading the server..."
+echo ""
+kill -HUP $(get_server_pid) 2> /dev/null
+exit 0

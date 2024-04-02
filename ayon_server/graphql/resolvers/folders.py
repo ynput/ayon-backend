@@ -106,6 +106,7 @@ async def get_folders(
         "folders.created_at AS created_at",
         "folders.updated_at AS updated_at",
         "folders.creation_order AS creation_order",
+        "folders.data AS data",
         "pr.attrib AS project_attributes",
         "ex.attrib AS inherited_attributes",
     ]
@@ -258,11 +259,12 @@ async def get_folders(
         if not paths:
             return FoldersConnection()
         # TODO: sanitize
+        paths = [p.strip("/") for p in paths]
         sql_conditions.append(f"hierarchy.path IN {SQLTool.array(paths)}")
 
     if path_ex is not None:
         # TODO: sanitize
-        sql_conditions.append(f"hierarchy.path ~ '{path_ex}'")
+        sql_conditions.append(f"'/' || hierarchy.path ~ '{path_ex}'")
 
     if attributes:
         for attribute_input in attributes:

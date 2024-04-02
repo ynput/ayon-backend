@@ -68,7 +68,7 @@ def get_manifest(filename: str) -> DependencyPackage:
         raise AyonException(f"Failed to load dependency package manifest {filename}")
     if manifest.has_local_file:
         if "server" not in [s.type for s in manifest.sources]:
-            manifest.sources.append(SourceModel(type="server"))
+            manifest.sources.insert(0, SourceModel(type="server"))
     return manifest
 
 
@@ -133,7 +133,7 @@ async def create_dependency_package(
         await f.write(payload.json(exclude_none=True))
 
     if url:
-        hash = hashlib.sha256(f"dep_pkg_install_{url}".encode("utf-8")).hexdigest()
+        hash = hashlib.sha256(f"dep_pkg_install_{url}".encode()).hexdigest()
 
         query = """
             SELECT id FROM events

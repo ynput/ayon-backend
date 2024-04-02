@@ -31,7 +31,7 @@ def load_json_file(*args) -> dict[str, Any]:
     if not os.path.isfile(path):
         raise FileNotFoundError(f"File does not exist: {path}")
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             return json.load(f)
     except Exception as e:
         raise ValueError(f"Failed to load file {path}: {e}")
@@ -63,7 +63,7 @@ def iter_names(directory: str) -> Generator[str, None, None]:
 async def handle_upload(request: Request, target_path: str) -> None:
     """Store raw body from the request to a file."""
 
-    directory, filename = os.path.split(target_path)
+    directory, _ = os.path.split(target_path)
 
     if not os.path.isdir(directory):
         try:
@@ -88,7 +88,7 @@ async def handle_download(
     media_type: str = "application/octet-stream",
     filename: str | None = None,
 ) -> FileResponse:
-    directory, _filename = os.path.split(path)
+    _, _filename = os.path.split(path)
     if filename is None:
         filename = _filename
     if not os.path.isfile(path):

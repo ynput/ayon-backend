@@ -27,7 +27,7 @@ router = APIRouter(prefix="", tags=["Access Groups"])
 async def get_access_group_schema():
     schema = copy.deepcopy(Permissions.schema())
     await postprocess_settings_schema(schema, Permissions)
-    return Permissions.schema()
+    return schema
 
 
 @router.get("/accessGroups/{project_name}")
@@ -84,7 +84,7 @@ async def save_access_group(
     """
 
     if not user.is_manager:
-        raise ForbiddenException
+        raise ForbiddenException("Only managers can create or update access groups")
 
     scope = "public" if project_name == "_" else f"project_{project_name}"
 
@@ -120,7 +120,7 @@ async def delete_access_group(
     """Delete an access group"""
 
     if not user.is_manager:
-        raise ForbiddenException
+        raise ForbiddenException("Only managers can delete access groups")
 
     if (access_group_name, project_name) not in AccessGroups.access_groups:
         raise NotFoundException(

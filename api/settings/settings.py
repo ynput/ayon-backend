@@ -1,4 +1,5 @@
-from typing import Any, Literal
+import traceback
+from typing import Any
 
 from fastapi import Query
 from nxtools import log_traceback, logging
@@ -8,22 +9,25 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel
-from ayon_server.types import NAME_REGEX, Field, OPModel
+from ayon_server.types import NAME_REGEX, SEMVER_REGEX, Field, OPModel
 
 from .router import router
 
 
 class AddonSettingsItemModel(OPModel):
     name: str = Field(..., title="Addon name", regex=NAME_REGEX, example="my-addon")
+    version: str = Field(
+        ..., title="Addon version", regex=SEMVER_REGEX, example="1.0.0"
+    )
     title: str = Field(..., title="Addon title", example="My Addon")
-    version: str = Field(..., title="Addon version", regex=NAME_REGEX, example="1.0.0")
 
-    # None value means that project does not have overrides or project/site was not specified
-    # in the request
     has_settings: bool = Field(False)
     has_project_settings: bool = Field(False)
     has_project_site_settings: bool = Field(False)
     has_site_settings: bool = Field(False)
+
+    # None value means that project does not have overrides
+    # or project/site was not specified in the request
     has_studio_overrides: bool | None = Field(None)
     has_project_overrides: bool | None = Field(None)
     has_project_site_overrides: bool | None = Field(None)
@@ -36,6 +40,9 @@ class AddonSettingsItemModel(OPModel):
     # return studio level site settings here
     site_settings: dict[str, Any] | None = Field(default_factory=dict)
 
+    is_broken: bool = Field(False)
+    reason: dict[str, str] | None = Field(None)
+
 
 class AllSettingsResponseModel(OPModel):
     bundle_name: str = Field(..., regex=NAME_REGEX)
@@ -45,31 +52,34 @@ class AllSettingsResponseModel(OPModel):
 @router.get("/settings", response_model_exclude_none=True)
 async def get_all_settings(
     user: CurrentUser,
-    bundle_name: str
-    | None = Query(
+    bundle_name: str | None = Query(
         None,
         title="Bundle name",
         description="Production if not set",
         regex=NAME_REGEX,
     ),
-    project_name: str
-    | None = Query(
+    project_name: str | None = Query(
         None,
         title="Project name",
         description="Studio settings if not set",
         regex=NAME_REGEX,
     ),
-    site_id: str
-    | None = Query(
+    site_id: str | None = Query(
         None,
         title="Site ID",
     ),
-    variant: Literal["production", "staging"] = Query("production"),
+    variant: str = Query("production"),
     summary: bool = Query(False, title="Summary", description="Summary mode"),
 ) -> AllSettingsResponseModel:
-    pass
-
-    if bundle_name is None:
+    if variant not in ("production", "staging"):
+        query = [
+            """
+            SELECT name, is_production, is_staging, data->'addons' as addons
+            FROM bundles WHERE name = $1
+            """,
+            variant,
+        ]
+    elif bundle_name is None:
         query = [
             f"""
             SELECT name, is_production, is_staging, data->'addons' as addons
@@ -105,6 +115,8 @@ async def get_all_settings(
                 f"declared in {bundle_name} not found"
             )
 
+            broken_reason = AddonLibrary.is_broken(addon_name, addon_version)
+
             addon_result.append(
                 AddonSettingsItemModel(
                     name=addon_name,
@@ -112,6 +124,8 @@ async def get_all_settings(
                     version=addon_version,
                     settings={},
                     site_settings=None,
+                    is_broken=bool(broken_reason),
+                    reason=broken_reason,
                 )
             )
             continue
@@ -164,8 +178,20 @@ async def get_all_settings(
                 settings = await addon.get_studio_settings(variant)
 
         except Exception:
-            log_traceback(
-                "Unable to load settings of {addon_name} {addon_version}. Skipping."
+            log_traceback(f"Unable to load {addon_name} {addon_version} settings")
+            addon_result.append(
+                AddonSettingsItemModel(
+                    name=addon_name,
+                    title=addon_name,
+                    version=addon_version,
+                    settings={},
+                    site_settings=None,
+                    is_broken=True,
+                    reason={
+                        "error": "Unable to load settings",
+                        "traceback": traceback.format_exc(),
+                    },
+                )
             )
             continue
 

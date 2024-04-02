@@ -3,7 +3,7 @@ import queue
 import time
 from typing import Any
 
-from ayon_server.background import BackgroundTask
+from ayon_server.background.background_worker import BackgroundWorker
 
 # Fallback to the default logging module
 # This is just used when ayon_server is loaded in order
@@ -47,7 +47,7 @@ def parse_log_message(message):
     }
 
 
-class LogCollector(BackgroundTask):
+class LogCollector(BackgroundWorker):
     def initialize(self):
         self.queue: queue.Queue[dict[str, Any]] = queue.Queue()
         self.msg_id = 0
@@ -57,6 +57,8 @@ class LogCollector(BackgroundTask):
         # We need to add messages to the queue even if the
         # collector is not running to catch the messages
         # that are logged during the startup.
+        if kwargs["message_type"] == 0:
+            return
         if len(self.queue.queue) > 1000:
             logging.warning("Log collector queue is full", handlers=None)
             return
@@ -115,7 +117,8 @@ class LogCollector(BackgroundTask):
             await self.process_message(record)
 
 
+log_collector = LogCollector()
+
 if has_nxtools:
-    log_collector = LogCollector()
     logging.add_handler(log_collector)
     logging.info("Log collector initialized", handlers=None)

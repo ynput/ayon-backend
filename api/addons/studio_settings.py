@@ -27,6 +27,7 @@ async def get_addon_settings_schema(
     addon_name: str,
     addon_version: str,
     user: CurrentUser,
+    variant: str = Query("production"),
 ) -> dict[str, Any]:
     """Return the JSON schema of the addon settings."""
 
@@ -38,8 +39,14 @@ async def get_addon_settings_schema(
     if model is None:
         return {}
 
+    context = {
+        "addon": addon,
+        "settings_variant": variant,
+        "user_name": user.name,
+    }
+
     schema = copy.deepcopy(model.schema())
-    await postprocess_settings_schema(schema, model)
+    await postprocess_settings_schema(schema, model, context=context)
     schema["title"] = addon.friendly_name
     return schema
 
@@ -54,13 +61,14 @@ async def get_addon_studio_settings(
     addon_version: str,
     user: CurrentUser,
     variant: str = Query("production"),
+    as_version: str | None = Query(None, alias="as"),
 ) -> dict[str, Any]:
     """Return the settings (including studio overrides) of the given addon."""
 
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
-    settings = await addon.get_studio_settings(variant=variant)
+    settings = await addon.get_studio_settings(variant=variant, as_version=as_version)
     if not settings:
         return {}
     return settings
@@ -110,7 +118,13 @@ async def set_addon_studio_settings(
             "newValue": data,
         }
     else:
-        payload = None
+        payload = {}
+
+    new_settings = await addon.get_studio_settings(variant=variant)
+    if original and new_settings:
+        await addon.on_settings_changed(
+            old_settings=original, new_settings=new_settings, variant=variant
+        )
 
     await dispatch_event(
         topic="settings.changed",
@@ -132,15 +146,16 @@ async def get_addon_studio_overrides(
     addon_version: str,
     user: CurrentUser,
     variant: str = Query("production"),
+    as_version: str | None = Query(None, alias="as"),
 ):
     if not user.is_manager:
         raise ForbiddenException
 
     addon = AddonLibrary.addon(addon_name, addon_version)
-    settings = await addon.get_studio_settings(variant=variant)
+    settings = await addon.get_studio_settings(variant=variant, as_version=as_version)
     if settings is None:
         return {}
-    overrides = await addon.get_studio_overrides(variant=variant)
+    overrides = await addon.get_studio_overrides(variant=variant, as_version=as_version)
     return list_overrides(settings, overrides)
 
 
@@ -157,7 +172,9 @@ async def delete_addon_studio_overrides(
         raise ForbiddenException
 
     # Ensure addon exists
-    _ = AddonLibrary.addon(addon_name, addon_version)
+    addon = AddonLibrary.addon(addon_name, addon_version)
+
+    old_settings = await addon.get_studio_settings(variant=variant)
 
     await Postgres.execute(
         """
@@ -170,6 +187,13 @@ async def delete_addon_studio_overrides(
         addon_version,
         variant,
     )
+
+    new_settings = await addon.get_default_settings()
+    if old_settings and new_settings:
+        await addon.on_settings_changed(
+            old_settings=old_settings, new_settings=new_settings, variant=variant
+        )
+
     await dispatch_event(
         topic="settings.deleted",
         description=f"{addon_name}:{addon_version} studio overrides deleted",
@@ -194,8 +218,87 @@ async def modify_studio_overrides(
     if not user.is_manager:
         raise ForbiddenException
 
+    addon = AddonLibrary.addon(addon_name, addon_version)
+    if addon is None:
+        raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
+
+    old_settings = await addon.get_studio_settings(variant=variant)
+
     if payload.action == "delete":
         await remove_override(addon_name, addon_version, payload.path, variant=variant)
     elif payload.action == "pin":
         await pin_override(addon_name, addon_version, payload.path, variant=variant)
+
+    new_settings = await addon.get_studio_settings(variant=variant)
+
+    if old_settings and new_settings:
+        await addon.on_settings_changed(
+            old_settings=old_settings, new_settings=new_settings, variant=variant
+        )
+
+    return EmptyResponse()
+
+
+@router.get("/{addon_name}/{addon_version}/rawOverrides", **route_meta)
+async def get_raw_addon_studio_overrides(
+    addon_name: str,
+    addon_version: str,
+    user: CurrentUser,
+    variant: str = Query("production"),
+) -> dict[str, Any]:
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can access raw overrides")
+
+    result = await Postgres.fetch(
+        """
+        SELECT data FROM settings
+        WHERE addon_name = $1
+        AND addon_version = $2
+        AND variant = $3
+        """,
+        addon_name,
+        addon_version,
+        variant,
+    )
+
+    if not result:
+        return {}
+
+    return result[0]["data"]
+
+
+@router.put("/{addon_name}/{addon_version}/rawOverrides", status_code=204, **route_meta)
+async def set_raw_addon_studio_overrides(
+    addon_name: str,
+    addon_version: str,
+    payload: dict[str, Any],
+    user: CurrentUser,
+    variant: str = Query("production"),
+) -> EmptyResponse:
+    """Set raw studio overrides for an addon.
+
+    Warning: this endpoint is not intended for general use and should only be used by
+    administrators. It bypasses the normal validation and processing that occurs when
+    modifying studio overrides through the normal API.
+
+    It won't trigger any events or validation checks, and may result in unexpected
+    behaviour if used incorrectly.
+    """
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can access raw overrides")
+
+    await Postgres.execute(
+        """
+        INSERT INTO settings
+            (addon_name, addon_version, variant, data)
+        VALUES
+            ($1, $2, $3, $4)
+        ON CONFLICT (addon_name, addon_version, variant)
+            DO UPDATE SET data = $4
+        """,
+        addon_name,
+        addon_version,
+        variant,
+        payload,
+    )
     return EmptyResponse()

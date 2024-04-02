@@ -17,6 +17,7 @@ from ayon_server.graphql.resolvers.versions import get_version, get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfile, get_workfiles
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.lib.postgres import Postgres
+from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import (
@@ -74,6 +75,7 @@ class ProjectNode:
     project_name: str = strawberry.field()
     code: str = strawberry.field()
     attrib: ProjectAttribType
+    data: str | None
     active: bool
     library: bool
     created_at: datetime
@@ -185,7 +187,8 @@ class ProjectNode:
                 f"""
                 SELECT name, data FROM product_types
                 WHERE name IN (
-                    SELECT DISTINCT(product_type) FROM project_{self.project_name}.products
+                    SELECT DISTINCT(product_type)
+                    FROM project_{self.project_name}.products
                 )
                 ORDER BY name ASC
             """
@@ -195,6 +198,7 @@ class ProjectNode:
 
 def project_from_record(record: dict, context: dict) -> ProjectNode:
     """Construct a project node from a DB row."""
+    data = record.get("data", {})
     return ProjectNode(
         name=record["name"],
         code=record["code"],
@@ -207,6 +211,7 @@ def project_from_record(record: dict, context: dict) -> ProjectNode:
             user=context["user"],
             project_name=record["name"],
         ),
+        data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

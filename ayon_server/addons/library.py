@@ -1,5 +1,5 @@
 import os
-from typing import ItemsView
+from typing import Any, ItemsView, Optional
 
 from nxtools import log_traceback, logging
 
@@ -23,7 +23,8 @@ class AddonLibrary:
         return cls._instance
 
     def __init__(self) -> None:
-        self.data = {}
+        self.data: dict[str, ServerAddonDefinition] = {}
+        self.broken_addons: dict[tuple[str, str], dict[str, str]] = {}
         self.restart_requested = False
         addons_dir = self.get_addons_dir()
         if addons_dir is None:
@@ -47,7 +48,7 @@ class AddonLibrary:
             if not definition.versions:
                 continue
 
-            logging.info("Initializing addon", definition.name)
+            logging.debug("Initializing addon", definition.name)
             self.data[definition.name] = definition
             if definition.restart_requested:
                 self.restart_requested = True
@@ -67,7 +68,7 @@ class AddonLibrary:
         """
 
         instance = cls.getinstance()
-        if (definition := instance.get(name)) is None:
+        if (definition := instance.data.get(name)) is None:
             raise NotFoundException(f"Addon {name} does not exist")
         if (addon := definition.versions.get(version)) is None:
             raise NotFoundException(f"Addon {name} version {version} does not exist")
@@ -78,8 +79,10 @@ class AddonLibrary:
         instance = cls.getinstance()
         return instance.data.items()
 
-    def get(self, key: str, default=None) -> ServerAddonDefinition:
-        return self.data.get(key, default)
+    @classmethod
+    def get(cls, key: str) -> ServerAddonDefinition | None:
+        instance = cls.getinstance()
+        return instance.data.get(key, None)
 
     def __getitem__(self, key) -> ServerAddonDefinition:
         return self.data[key]
@@ -90,7 +93,7 @@ class AddonLibrary:
     def __iter__(self):
         return iter(self.data)
 
-    async def get_active_versions(self) -> dict[str, dict[str, str]]:
+    async def get_active_versions(self) -> dict[str, dict[str, Optional[str]]]:
         production_bundle = await Postgres.fetch(
             "SELECT data->'addons' as addons FROM bundles WHERE is_production is true"
         )
@@ -98,7 +101,7 @@ class AddonLibrary:
             "SELECT data->'addons' as addons FROM bundles WHERE is_staging is true"
         )
 
-        res = {}
+        res: dict[str, dict[str, Optional[str]]] = {}
         for addon_name in self.data.keys():
             res[addon_name] = {
                 "production": None,
@@ -134,13 +137,29 @@ class AddonLibrary:
             return None
         return self[addon_name][staging_version]
 
-    def unload_addon(self, addon_name: str, addon_version: str) -> None:
-        definition = self.data.get(addon_name)
+    @classmethod
+    def unload_addon(
+        cls, addon_name: str, addon_version: str, reason: dict[str, str] | None = None
+    ) -> None:
+        instance = cls.getinstance()
+        if reason is not None:
+            instance.broken_addons[(addon_name, addon_version)] = reason
+        definition = instance.data.get(addon_name)
         if definition is None:
             return
         logging.info("Unloading addon", addon_name, addon_version)
         definition.unload_version(addon_version)
 
-        if not definition._versions:
-            logging.info("Unloading addon", addon_name)
-            del self.data[addon_name]
+    @classmethod
+    def is_broken(cls, addon_name: str, addon_version: str) -> dict[str, Any] | None:
+        instance = cls.getinstance()
+        if summary := instance.broken_addons.get((addon_name, addon_version), None):
+            return summary
+        return None
+
+    def get_broken_versions(self, addon_name: str) -> dict[str, dict[str, str]]:
+        return {
+            version: summary
+            for (name, version), summary in self.broken_addons.items()
+            if name == addon_name
+        }

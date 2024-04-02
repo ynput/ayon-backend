@@ -1,9 +1,9 @@
 """Settings and configuration related models and utilities."""
 
-
 __all__ = [
     "BaseSettingsModel",
     "Field",
+    "SettingsField",
     "MultiplatformPathModel",
     "MultiplatformPathListModel",
     "TemplateWorkfileBaseOptions",
@@ -37,3 +37,5 @@ from ayon_server.settings.overrides import (
     list_overrides,
 )
 from ayon_server.settings.validators import ensure_unique_names, normalize_name
+
+SettingsField = Field

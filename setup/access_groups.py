@@ -11,5 +11,8 @@ async def deploy_access_groups(access_groups: list[dict[str, Any]]) -> None:
         return
 
     await Postgres.execute(
-        """INSERT INTO access_groups (name, data) VALUES ('editor', '{}'::jsonb)"""
+        """
+        INSERT INTO access_groups (name, data)
+        VALUES ('editor', '{}'::jsonb)
+        """
     )
