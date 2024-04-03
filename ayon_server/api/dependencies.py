@@ -1,6 +1,6 @@
 """Request dependencies."""
 
-from typing import Annotated
+from typing import Annotated, get_args
 
 from fastapi import Depends, Header, Path, Query, Request
 
@@ -21,6 +21,7 @@ from ayon_server.types import (
     NAME_REGEX,
     PROJECT_NAME_REGEX,
     USER_NAME_REGEX,
+    ProjectLevelEntityType,
 )
 from ayon_server.utils import (
     EntityID,
@@ -264,6 +265,31 @@ async def dep_secret_name(
 
 
 SecretName = Annotated[str, Depends(dep_secret_name)]
+
+
+async def dep_path_project_level_entity_type(
+    entity_type: str = Path(...),
+) -> ProjectLevelEntityType:
+    """Validate and return a project level entity type specified in an endpoint path."""
+    entity_type = entity_type.rstrip("s")
+    if entity_type not in get_args(ProjectLevelEntityType):
+        raise ValueError(f"Invalid entity type: {entity_type}")
+    return entity_type  # type: ignore
+
+
+PathProjectLevelEntityType = Annotated[
+    ProjectLevelEntityType, Depends(dep_path_project_level_entity_type)
+]
+
+
+async def dep_path_entity_id(
+    entity_id: str = Path(..., title="Entity ID", **EntityID.META),
+) -> str:
+    """Validate and return an entity id specified in an endpoint path."""
+    return entity_id
+
+
+PathEntityID = Annotated[str, Depends(dep_path_entity_id)]
 
 
 async def dep_folder_id(
