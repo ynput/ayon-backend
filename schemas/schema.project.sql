@@ -51,19 +51,21 @@ CREATE TABLE activity_entity_references(
     activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
     entity_type VARCHAR NOT NULL,
     entity_id UUID NOT NULL,
+    reference_type VARCHAR NOT NULL,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY(activity_id, entity_id, entity_type)
+    PRIMARY KEY(activity_id, entity_id, entity_type, reference_type)
 );
 
 CREATE TABLE activity_user_references(
     activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
-    user_name str NOT NULL,
+    user_name VARCHAR NOT NULL,
+    reference_type VARCHAR NOT NULL,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY(activity_id, user_id)
+    PRIMARY KEY(activity_id, user_name, reference_type)
 );
 
 
