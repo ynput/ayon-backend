@@ -36,6 +36,38 @@ CREATE TABLE tags(
     data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
+
+CREATE TABLE activities(
+    id UUID NOT NULL PRIMARY KEY,
+    activity_type VARCHAR NOT NULL,
+    body TEXT NOT NULL,
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    creation_order SERIAL NOT NULL
+);
+
+CREATE TABLE activity_entity_references(
+    activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    entity_type VARCHAR NOT NULL,
+    entity_id UUID NOT NULL,
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY(activity_id, entity_id, entity_type)
+);
+
+CREATE TABLE activity_user_references(
+    activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    user_name str NOT NULL,
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY(activity_id, user_id)
+);
+
+
+
 -------------------
 -- BASE ENTITIES --
 -------------------

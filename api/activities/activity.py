@@ -1,5 +1,6 @@
+from ayon_server.activities.create_activity import create_activity
 from ayon_server.activities.models import (
-    ActivityTopic,
+    ActivityType,
     EntityReferenceModel,
     UserReferenceModel,
 )
@@ -10,12 +11,8 @@ from ayon_server.types import Field, OPModel
 from .router import router
 
 
-async def ensure_project_activity_table_exists():
-    pass
-
-
 class ProjectActivityPostModel(OPModel):
-    topic: ActivityTopic = Field(ActivityTopic.comment, example="comment")
+    type: ActivityType = Field(ActivityType.comment, example="comment")
     body: str = Field("", example="This is a comment")
     entity_references: list[EntityReferenceModel] = Field(default_factory=list)
     user_references: list[UserReferenceModel] = Field(default_factory=list)
@@ -27,4 +24,13 @@ async def post_project_activity(
     user: CurrentUser,
     activity: ProjectActivityPostModel,
 ) -> EmptyResponse:
-    pass
+    await create_activity(
+        project_name=project_name,
+        activity_type=activity.type,
+        body=activity.body,
+        entity_references=activity.entity_references,
+        user_references=activity.user_references,
+        user=user.name,
+    )
+
+    return EmptyResponse()
