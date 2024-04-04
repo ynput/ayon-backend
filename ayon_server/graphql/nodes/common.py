@@ -3,6 +3,7 @@ from datetime import datetime
 import strawberry
 from strawberry.types import Info
 
+from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.types import BaseConnection, BaseEdge
 
 
@@ -81,6 +82,21 @@ class BaseNode:
             link_types=link_types,
             names=names,
             name_ex=name_ex,
+            first=first,
+            after=after,
+        )
+
+    @strawberry.field
+    async def activities(
+        self,
+        info: Info,
+        first: int = 100,
+        after: str | None = None,
+    ) -> ActivitiesConnection:
+        resolver = info.context["activities_resolver"]
+        return await resolver(
+            root=self,
+            info=info,
             first=first,
             after=after,
         )
