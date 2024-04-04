@@ -11,7 +11,7 @@ from .base import EventModel, EventStatus, create_id
 HandlerType = Callable[[EventModel], Coroutine[None, None, None]]
 
 
-class Event:
+class EventStream:
     model: Type[EventModel] = EventModel
     hooks: dict[str, list[HandlerType]] = {}
 

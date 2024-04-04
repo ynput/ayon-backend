@@ -1,5 +1,5 @@
 __all__ = [
-    "Event",
+    "EventStream",
     "EventModel",
     "EventStatus",
     "dispatch_event",
@@ -9,7 +9,7 @@ __all__ = [
 from typing import Any
 
 from ayon_server.events.base import EventModel, EventStatus
-from ayon_server.events.event import Event
+from ayon_server.events.eventstream import EventStream
 
 
 async def dispatch_event(
@@ -26,7 +26,7 @@ async def dispatch_event(
     finished: bool = True,
     store: bool = True,
 ) -> str:
-    return await Event.dispatch(
+    return await EventStream.dispatch(
         topic=topic,
         sender=sender,
         hash=hash,
@@ -55,7 +55,7 @@ async def update_event(
     store: bool = True,
     retries: int | None = None,
 ) -> bool:
-    return await Event.update(
+    return await EventStream.update(
         event_id=event_id,
         sender=sender,
         project=project,
