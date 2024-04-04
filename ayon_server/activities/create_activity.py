@@ -74,20 +74,22 @@ async def create_activity(
         INSERT INTO project_{project_name}.activities
         (id, activity_type, body, data)
         VALUES
-        ($1, $2, $3, $4, $5)
+        ($1, $2, $3, $4)
     """
 
     data = data or {}
 
-    await Postgres.execute(activity_id, query, activity_type, body, data)
+    await Postgres.execute(query, activity_id, activity_type, body, data)
 
     if entity_references:
         query = f"""
             INSERT INTO project_{project_name}.activity_entity_references
             (activity_id, entity_id, entity_type, reference_type)
             VALUES
-            ($1, $2, $3)
+            ($1, $2, $3, $4)
         """
 
         for ref in entity_references:
-            await Postgres.execute(query, activity_id, ref.entity_id, ref.entity_type)
+            await Postgres.execute(
+                query, activity_id, ref.entity_id, ref.entity_type, ref.reference_type
+            )
