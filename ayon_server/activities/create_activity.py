@@ -33,6 +33,9 @@ async def create_activity(
 
     data = data or {}
 
+    data["origin_type"] = entity_type
+    data["origin_id"] = entity_id
+
     #
     # Extract references
     #

@@ -12,7 +12,7 @@ async def get_references_from_task(task: TaskEntity) -> list[ActivityReferenceMo
             ActivityReferenceModel(
                 entity_type="user",
                 entity_name=assignee,
-                entity_id=assignee,
+                entity_id=None,
                 reference_type="relation",
             )
         )
@@ -26,7 +26,7 @@ async def get_references_from_task(task: TaskEntity) -> list[ActivityReferenceMo
         references.append(
             ActivityReferenceModel(
                 entity_type="version",
-                entity_name=row["id"],
+                entity_name=None,
                 entity_id=row["id"],
                 reference_type="relation",
             )
@@ -45,7 +45,7 @@ async def get_references_from_version(
             ActivityReferenceModel(
                 entity_type="user",
                 entity_name=version.author,
-                entity_id=version.author,
+                entity_id=None,
                 reference_type="relation",
             )
         )
@@ -54,7 +54,7 @@ async def get_references_from_version(
         references.append(
             ActivityReferenceModel(
                 entity_type="task",
-                entity_name=version.task_id,
+                entity_name=None,
                 entity_id=version.task_id,
                 reference_type="relation",
             )

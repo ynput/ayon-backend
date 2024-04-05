@@ -24,7 +24,7 @@ async def get_activities(
     last: ARGLast = None,
     before: ARGBefore = None,
     entity_type: str | None = None,
-    entity_id: str | None = None,
+    entity_ids: list[str] | None = None,
     activity_types: list[str] | None = None,
     reference_types: list[str] | None = None,
 ) -> ActivitiesConnection:
@@ -32,16 +32,38 @@ async def get_activities(
 
     sql_conditions = []
 
+    if not (entity_type and entity_ids):
+        if root.__class__.__name__ == "FolderNode":
+            entity_type = "folder"
+            entity_ids = [root.id]
+        elif root.__class__.__name__ == "ProductNode":
+            entity_type = "product"
+            entity_ids = [root.id]
+        elif root.__class__.__name__ == "VersionNode":
+            entity_type = "version"
+            entity_ids = [root.id]
+        elif root.__class__.__name__ == "TaskNode":
+            entity_type = "task"
+            entity_ids = [root.id]
+        elif root.__class__.__name__ == "WorkfileNode":
+            entity_type = "workfile"
+            entity_ids = [root.id]
+        elif root.__class__.__name__ == "RepresentationNode":
+            entity_type = "representation"
+            entity_ids = [root.id]
+        else:
+            reference_types = ["origin"]
+
     if activity_types is not None:
         validate_name_list(activity_types)
         sql_conditions.append(f"activity_type IN {SQLTool.array(activity_types)}")
 
-    if not (entity_type and entity_id):
-        reference_types = ["origin"]
-
     if reference_types is not None:
         validate_name_list(reference_types)
         sql_conditions.append(f"reference_type IN {SQLTool.array(reference_types)}")
+
+    if entity_ids is not None:
+        sql_conditions.append(f"entity_id IN {SQLTool.array(entity_ids)}")
 
     #
     # Pagination
