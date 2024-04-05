@@ -68,7 +68,7 @@ class Session:
                 session.client_info = get_client_info(request)
                 session.last_used = time.time()
                 await Redis.set(cls.ns, token, session.json())
-            else:
+            elif not ayonconfig.disable_check_session_ip:
                 real_ip = get_real_ip(request)
                 if not is_local_ip(real_ip):
                     if session.client_info.ip != real_ip:

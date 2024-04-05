@@ -70,6 +70,11 @@ class AyonConfig(BaseModel):
         description="Session lifetime in seconds",
     )
 
+    disable_check_session_ip: bool = Field(
+        default=False,
+        description="Skip checking session IP match real IP",
+    )
+
     max_failed_login_attempts: int = Field(
         default=10,
         description="Maximum number of failed login attempts",
