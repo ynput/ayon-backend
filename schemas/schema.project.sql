@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS activity_references (
     creation_order SERIAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_activity_reference_created_at ON activity_references(created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_reference_unique ON activity_references(activity_id, entity_id, entity_name, reference_type);
 
 
 -- This will be implemented later. 
