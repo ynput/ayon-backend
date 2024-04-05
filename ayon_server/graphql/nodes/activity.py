@@ -26,7 +26,7 @@ class ActivityNode:
     body: str = strawberry.field()
     activity_data: str = strawberry.field()
     reference_data: str = strawberry.field()
-    active: bool = strawberry.field()
+    active: bool = strawberry.field(default=True)
 
 
 def activity_from_record(
@@ -34,8 +34,11 @@ def activity_from_record(
 ) -> ActivityNode:
     """Construct a folder node from a DB row."""
 
-    activity_data = record.pop("activity_data")
-    reference_data = record.pop("reference_data")
+    record = dict(record)
+    record.pop("cursor", None)
+
+    activity_data = record.pop("activity_data", {})
+    reference_data = record.pop("reference_data", {})
 
     return ActivityNode(
         project_name=project_name,

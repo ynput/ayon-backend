@@ -1,6 +1,6 @@
 import re
 
-from .models import EntityLinkTuple, EntityReferenceModel, UserReferenceModel
+from .models import ActivityReferenceModel, EntityLinkTuple
 
 LINK_PATTERN = re.compile(r"\[(.*?)\]\((.*?)\)")
 
@@ -15,31 +15,32 @@ def extract_link_tuples(md_text: str) -> list[EntityLinkTuple]:
 
 def extract_mentions(
     md_text: str,
-) -> tuple[list[EntityReferenceModel], list[UserReferenceModel]]:
+) -> list[ActivityReferenceModel]:
     """Extract entity and user mentions from markdown text.
 
     Mentions are in the format (label)[entity_type:entity_id],
     label is ignored.
-
-    Returns a tuple of entity references and user references.
     """
 
-    entity_references: list[EntityReferenceModel] = []
-    user_references: list[UserReferenceModel] = []
+    references: list[ActivityReferenceModel] = []
+
     for entity_type, entity_id in extract_link_tuples(md_text):
         if entity_type == "user":
-            user_references.append(
-                UserReferenceModel(
-                    user_name=entity_id,
+            references.append(
+                ActivityReferenceModel(
+                    entity_name=entity_id,
                     reference_type="mention",
+                    entity_type="user",
+                    entity_id=None,
                 )
             )
         else:
-            entity_references.append(
-                EntityReferenceModel(
+            references.append(
+                ActivityReferenceModel(
                     entity_id=entity_id,
                     entity_type=entity_type,
+                    entity_name=None,
                     reference_type="mention",
                 )
             )
-    return entity_references, user_references
+    return references

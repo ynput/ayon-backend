@@ -8,6 +8,7 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException
+from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -37,14 +38,13 @@ async def post_project_activity(
         if activity.activity_type != "comment":
             raise BadRequestException("Humans can only create comments")
 
-    # TODO: Add ACL check here
-    # - load the actual entity (we need to avoid using non-existing entities anyways)
-    # - check for permissions (TBD: what permissions control this?)
+    entity_class = get_entity_class(entity_type)
+    entity = await entity_class.load(project_name, entity_id)
+
+    await entity.ensure_read_access(user)  # TODO: different acl level?
 
     await create_activity(
-        project_name=project_name,
-        entity_type=entity_type,
-        entity_id=entity_id,
+        entity=entity,
         activity_type=activity.activity_type,
         body=activity.body,
         user_name=user.name,

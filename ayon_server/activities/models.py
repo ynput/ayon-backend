@@ -1,22 +1,32 @@
-from typing import Literal
+from typing import Any, Literal
 
 from ayon_server.types import Field, OPModel
+from ayon_server.utils import create_uuid
 
 EntityLinkTuple = tuple[str, str]
-
 ActivityType = Literal["comment"]
-EntityReferenceType = Literal["origin", "mention"]
-UserReferenceType = Literal["author", "mention", "watcher"]
+ActionReferenceType = Literal["origin", "mention", "author", "relation"]
 
 
-class EntityReferenceModel(OPModel):
-    entity_id: str = Field(..., example="1234567890")
+class ActivityReferenceModel(OPModel):
+    id: str = Field(default_factory=create_uuid)
+    reference_type: ActionReferenceType = Field(..., example="mention")
     entity_type: str = Field(..., example="task")
-    reference_type: EntityReferenceType = Field(..., example="mention")
-    data: dict[str, str] = Field(default_factory=dict)
+    entity_id: str | None = Field(None, example="1234567890")
+    entity_name: str | None = Field(None, example="admin")
 
+    data: dict[str, Any] = Field(default_factory=dict)
 
-class UserReferenceModel(OPModel):
-    user_name: str = Field(..., example="user1")
-    reference_type: UserReferenceType = Field(..., example="mention")
-    data: dict[str, str] = Field(default_factory=dict)
+    # TODO: validate whether the entity_id is present when the entity_type is not user
+    # TODO: validate whether the entity_name is present when the entity_type is user
+
+    def insertable_tuple(self, activity_id: str) -> tuple:
+        return (
+            self.id,
+            activity_id,
+            self.reference_type,
+            self.entity_type,
+            self.entity_id,
+            self.entity_name,
+            self.data,
+        )

@@ -41,13 +41,13 @@ async def get_activities(
 
     if reference_types is not None:
         validate_name_list(reference_types)
-        sql_conditions.append(f"reference_types IN {SQLTool.array(reference_types)}")
+        sql_conditions.append(f"reference_type IN {SQLTool.array(reference_types)}")
 
     #
     # Pagination
     #
 
-    order_by = ["activities.created_at", "activitity.creation_order"]
+    order_by = ["created_at", "creation_order"]
     paging_fields = FieldInfo(info, ["activities"])
     need_cursor = paging_fields.has_any(
         "activities.pageInfo.startCursor",
