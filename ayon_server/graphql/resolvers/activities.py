@@ -1,5 +1,3 @@
-from typing import Literal
-
 from strawberry.types import Info
 
 from ayon_server.graphql.connections import ActivitiesConnection
@@ -25,10 +23,7 @@ async def get_activities(
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
-    entity_type: Literal[
-        "folder", "version", "task", "workfile", "representation", "activity"
-    ]
-    | None = None,
+    entity_type: str | None = None,
     entity_id: str | None = None,
     activity_types: list[str] | None = None,
     reference_types: list[str] | None = None,
