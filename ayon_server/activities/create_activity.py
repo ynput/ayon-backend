@@ -67,11 +67,6 @@ async def create_activity(
     # Create the activity
     #
 
-    for ref in references:
-        print()
-        print(ref.json())
-        print()
-
     activity_id = create_uuid()
 
     query = f"""
