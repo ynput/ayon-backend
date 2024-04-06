@@ -68,5 +68,7 @@ async def get_references_from_entity(
 ) -> list[ActivityReferenceModel]:
     if isinstance(entity, TaskEntity):
         return await get_references_from_task(entity)
+    elif isinstance(entity, VersionEntity):
+        return await get_references_from_version(entity)
     else:
         return []
