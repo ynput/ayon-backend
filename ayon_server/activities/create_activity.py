@@ -33,8 +33,16 @@ async def create_activity(
 
     data = data or {}
 
-    data["origin_type"] = entity_type
-    data["origin_id"] = entity_id
+    # Origin object (for displaying in mentions etc)
+
+    origin = {
+        "type": entity_type,
+        "id": entity_id,
+        "name": entity.name,
+    }
+    if hasattr(entity, "label"):
+        origin["label"] = entity.label
+    data["origin"] = origin
 
     #
     # Extract references

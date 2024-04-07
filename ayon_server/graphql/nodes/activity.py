@@ -14,6 +14,22 @@ else:
 
 
 @strawberry.type
+class ActivityOriginNode:
+    type: str = strawberry.field()
+    id: str = strawberry.field()
+    name: str = strawberry.field(default=None)
+    label: str | None = strawberry.field(default=None)
+
+    @property
+    def markdownlink(self) -> str:
+        return f"[{self.name}]({self.type}:{self.id})"
+
+    @strawberry.field
+    def link(self) -> str:
+        return self.markdownlink
+
+
+@strawberry.type
 class ActivityNode:
     project_name: str = strawberry.field()
 
@@ -26,9 +42,6 @@ class ActivityNode:
     entity_name: str | None = strawberry.field()
     entity_path: str | None = strawberry.field()
 
-    origin_type: str | None = strawberry.field()
-    origin_id: str | None = strawberry.field()
-
     created_at: datetime = strawberry.field()
     updated_at: datetime = strawberry.field()
     creation_order: int = strawberry.field()
@@ -39,6 +52,8 @@ class ActivityNode:
     reference_data: str = strawberry.field()
     active: bool = strawberry.field(default=True)
 
+    origin: ActivityOriginNode | None = strawberry.field()
+
     @strawberry.field
     async def author(self, info: Info) -> Optional[UserNode]:
         data = json_loads(self.activity_data)
@@ -47,6 +62,27 @@ class ActivityNode:
             loader = info.context["user_loader"]
             record = await loader.load(author)
             return info.context["user_from_record"](record, info.context)
+
+
+def replace_reference_body(node: ActivityNode) -> ActivityNode:
+    if not node.origin:
+        return node  # should not happen
+
+    if node.reference_type == "mention":
+        node.body = (
+            f"mentioned in a {node.activity_type} " f"on {node.origin.markdownlink}"
+        )
+        return node
+
+    if node.reference_type == "relation":
+        if node.activity_type == "comment":
+            r = "commented on"
+        elif node.activity_type == "status_change":
+            r = "changed status of"
+        node.body = f"{r} a related {node.origin.markdownlink}"
+
+        return node
+    return node
 
 
 def activity_from_record(
@@ -60,14 +96,21 @@ def activity_from_record(
     activity_data = record.pop("activity_data", {})
     reference_data = record.pop("reference_data", {})
 
-    return ActivityNode(
+    origin_data = activity_data.get("origin")
+    if origin_data:
+        origin = ActivityOriginNode(**origin_data)
+    else:
+        origin = None
+
+    node = ActivityNode(
         project_name=project_name,
         activity_data=json_dumps(activity_data),
         reference_data=json_dumps(reference_data),
-        origin_type=activity_data.get("origin_type"),
-        origin_id=activity_data.get("origin_id"),
+        origin=origin,
         **record,
     )
+    node = replace_reference_body(node)
+    return node
 
 
 ActivityNode.from_record = staticmethod(activity_from_record)  # type: ignore
