@@ -607,3 +607,13 @@ async def password_reset(request: PasswordResetModel) -> LoginResponseModel:
         token=session.token,
         user=session.user,
     )
+
+
+@router.get("/avatar")
+async def get_avatar(user: CurrentUser):
+    pass
+
+
+@router.post("/avatar")
+async def set_avatar(user: CurrentUser):
+    pass
