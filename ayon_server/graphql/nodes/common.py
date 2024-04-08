@@ -90,13 +90,21 @@ class BaseNode:
     async def activities(
         self,
         info: Info,
-        first: int = 100,
+        first: int | None = None,
+        last: int | None = 100,
         after: str | None = None,
+        before: str | None = None,
+        activity_types: list[str] | None = None,
+        reference_types: list[str] | None = None,
     ) -> ActivitiesConnection:
         resolver = info.context["activities_resolver"]
         return await resolver(
             root=self,
             info=info,
             first=first,
+            last=last,
             after=after,
+            before=before,
+            activity_types=activity_types,
+            reference_types=reference_types,
         )
