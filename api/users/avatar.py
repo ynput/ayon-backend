@@ -73,7 +73,7 @@ async def obtain_avatar(user_name: str) -> bytes:
 
 
 @router.get("/{user_name}/avatar")
-async def get_avatar(user_name: UserName) -> Response:  # user: CurrentUser):
+async def get_avatar(user_name: UserName, _: CurrentUser) -> Response:
     avatar_bytes = await Redis.get(REDIS_NS, user_name)
 
     if not avatar_bytes:
