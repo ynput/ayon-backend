@@ -109,7 +109,8 @@ def activity_from_record(
         origin=origin,
         **record,
     )
-    node = replace_reference_body(node)
+    # probably won't be used
+    # node = replace_reference_body(node)
     return node
 
 
