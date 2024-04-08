@@ -64,7 +64,9 @@ async def anatomy_presets_enum():
         result.append({"label": label, "value": row["name"]})
 
     if primary is not None:
-        result.insert(0, "__primary__")
+        primary_label = f"<PRIMARY ({primary})>"
     else:
-        result.insert(0, "__builtin__")
+        primary_label = "<PRIMARY (built-in)>"
+    result.insert(0, {"value": "__primary__", "label": primary_label})
+    result.insert(1, {"value": "__builtin__", "label": "<BUILT-IN>"})
     return result
