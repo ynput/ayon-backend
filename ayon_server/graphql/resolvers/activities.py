@@ -65,14 +65,15 @@ async def get_activities(
     if entity_ids is not None:
         sql_conditions.append(f"entity_id IN {SQLTool.array(entity_ids)}")
         # do not list mentions on the same entity
-        sql_conditions.append(
-            f"""
-            (
-                reference_type != 'origin'
-                AND reference_id IN {SQLTool.array(entity_ids)}
-            )
-            """
-        )
+        # FIXME
+        # sql_conditions.append(
+        #     f"""
+        #     (
+        #         reference_type != 'origin'
+        #         AND reference_id IN {SQLTool.array(entity_ids)}
+        #     )
+        #     """
+        # )
 
     #
     # Pagination
