@@ -582,7 +582,6 @@ async def password_reset(request: PasswordResetModel) -> LoginResponseModel:
     else:
         logging.error("Attempted password reset using invalid token")
         raise ForbiddenException("Invalid token")
-        return
 
     password_reset_request = user_data.get("passwordResetRequest", {})
     password_request_time = password_reset_request.get("time", None)
@@ -594,7 +593,7 @@ async def password_reset(request: PasswordResetModel) -> LoginResponseModel:
     if request.password is None:
         # just checking whether the token is valid
         # we don't set the password
-        return LoginResponseModel(message="Token is valid")
+        return LoginResponseModel(detail="Token is valid")
 
     user = await UserEntity.load(user_name)
     user.data["passwordResetRequest"] = None
@@ -603,7 +602,7 @@ async def password_reset(request: PasswordResetModel) -> LoginResponseModel:
 
     session = await Session.create(user)
     return LoginResponseModel(
-        description="Password changed",
+        detail="Password changed",
         token=session.token,
         user=session.user,
     )
@@ -614,6 +613,6 @@ async def get_avatar(user: CurrentUser):
     pass
 
 
-@router.post("/avatar")
+@router.put("/avatar")
 async def set_avatar(user: CurrentUser):
     pass
