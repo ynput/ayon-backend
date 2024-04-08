@@ -6,7 +6,6 @@ from ayon_server.api.dependencies import (
     PathProjectLevelEntityType,
     ProjectName,
 )
-from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.types import Field, OPModel
@@ -15,8 +14,13 @@ from .router import router
 
 
 class ProjectActivityPostModel(OPModel):
+    id: str | None = Field(None, description="Explicitly set the ID of the activity")
     activity_type: ActivityType = Field(..., example="comment")
     body: str = Field("", example="This is a comment")
+
+
+class CreateActivityResponseModel(OPModel):
+    id: str = Field(..., example="123")
 
 
 @router.post("/{entity_type}/{entity_id}/activities", status_code=201)
@@ -26,7 +30,7 @@ async def post_project_activity(
     entity_id: PathEntityID,
     user: CurrentUser,
     activity: ProjectActivityPostModel,
-) -> EmptyResponse:
+) -> CreateActivityResponseModel:
     """Create an activity.
 
     Comment on an entity for example.
@@ -44,11 +48,12 @@ async def post_project_activity(
     # TODO: remove before merge
     # await entity.ensure_read_access(user)  # TODO: different acl level?
 
-    await create_activity(
+    id = await create_activity(
         entity=entity,
+        activity_id=activity.id,
         activity_type=activity.activity_type,
         body=activity.body,
         user_name=user.name,
     )
 
-    return EmptyResponse()
+    return CreateActivityResponseModel(id=id)

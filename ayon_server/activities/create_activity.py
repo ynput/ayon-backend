@@ -15,10 +15,11 @@ async def create_activity(
     entity: ProjectLevelEntity,
     activity_type: ActivityType,
     body: str,
+    activity_id: str | None = None,
     user_name: str | None = None,
     extra_references: list[ActivityReferenceModel] | None = None,
     data: dict[str, Any] | None = None,
-):
+) -> str:
     """Create an activity.
 
     extra_references is an optional
@@ -78,7 +79,8 @@ async def create_activity(
     # Create the activity
     #
 
-    activity_id = create_uuid()
+    if not activity_id:
+        activity_id = create_uuid()
 
     query = f"""
         INSERT INTO project_{project_name}.activities
@@ -103,3 +105,5 @@ async def create_activity(
         await st_ref.executemany(
             ref.insertable_tuple(activity_id) for ref in references
         )
+
+    return activity_id
