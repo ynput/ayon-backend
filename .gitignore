@@ -9,3 +9,4 @@ test_*.py
 .python-version
 .vscode
 BUILD_DATE
+venv/

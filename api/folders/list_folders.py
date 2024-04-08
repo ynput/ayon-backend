@@ -1,3 +1,4 @@
+import datetime
 import time
 from typing import Any
 
@@ -30,7 +31,7 @@ class FolderListItem(OPModel):
     status: str
     attrib: dict[str, Any] | None = None
     own_attrib: list[str] | None = None
-    updated_at: str
+    updated_at: datetime.datetime
 
 
 class FolderListModel(OPModel):

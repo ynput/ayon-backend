@@ -52,12 +52,21 @@ async def secrets_enum(project_name: str | None = None) -> list[str]:
 
 
 async def anatomy_presets_enum():
-    result = [{"label": "<built-in>", "value": "_"}]
     query = "SELECT name, is_primary FROM anatomy_presets ORDER BY name"
+    primary: str | None = None
+    result = []
     async for row in Postgres.iterate(query):
         if row["is_primary"]:
-            label = f"{row['name']} (default)"
+            label = f"{row['name']} (primary)"
+            primary = row["name"]
         else:
             label = row["name"]
         result.append({"label": label, "value": row["name"]})
+
+    if primary is not None:
+        primary_label = f"<PRIMARY ({primary})>"
+    else:
+        primary_label = "<PRIMARY (built-in)>"
+    result.insert(0, {"value": "__primary__", "label": primary_label})
+    result.insert(1, {"value": "__builtin__", "label": "<BUILT-IN>"})
     return result

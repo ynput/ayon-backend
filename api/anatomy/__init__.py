@@ -66,14 +66,27 @@ async def get_anatomy_presets(user: CurrentUser) -> AnatomyPresetListModel:
 async def get_anatomy_preset(preset_name: str, user: CurrentUser) -> Anatomy:
     """Returns the anatomy preset with the given name.
 
-    Use `_` character as a preset name to return the default preset.
+    - Use `__builtin__` character as a preset name to return the builtin preset.
+    - Use `__primary__` character as a preset name to return the primary preset.
+    - `_` is an alias for built in preset (deprecated, kept for backward compatibility).
     """
-    if preset_name == "_":
+
+    if preset_name == "__builtin__" or preset_name == "_":
         tpl = Anatomy()
         return tpl
-    query = "SELECT * FROM anatomy_presets WHERE name = $1 AND version = $2"
+
+    if preset_name == "__primary__":
+        query = "SELECT * FROM anatomy_presets WHERE is_primary = TRUE"
+    else:
+        query = "SELECT * FROM anatomy_presets WHERE name = $1 AND version = $2"
+
     async for row in Postgres.iterate(query, preset_name, VERSION):
         tpl = Anatomy(**row["data"])
+        return tpl
+
+    if preset_name == "__primary__":
+        # Primary preset not found, return the builtin preset
+        tpl = Anatomy()
         return tpl
     raise NotFoundException(f"Anatomy preset {preset_name} not found.")
 
@@ -127,6 +140,26 @@ async def set_primary_preset(preset_name: str, user: CurrentUser) -> EmptyRespon
                     """,
                     preset_name,
                 )
+    return EmptyResponse()
+
+
+@router.delete("/presets/{preset_name}/primary", status_code=204)
+async def unset_primary_preset(preset_name: str, user: CurrentUser) -> EmptyResponse:
+    """Unset the primary preset."""
+
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can unset primary preset.")
+
+    async with Postgres.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                """
+                UPDATE anatomy_presets
+                SET is_primary = FALSE
+                WHERE name = $1
+                """,
+                preset_name,
+            )
     return EmptyResponse()
 
 
