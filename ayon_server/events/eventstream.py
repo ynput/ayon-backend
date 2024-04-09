@@ -16,7 +16,7 @@ class EventStream:
     hooks: dict[str, list[HandlerType]] = {}
 
     @classmethod
-    def register_hook(cls, topic: str, handler: HandlerType) -> None:
+    def subscribe(cls, topic: str, handler: HandlerType) -> None:
         if topic not in cls.hooks:
             cls.hooks[topic] = []
         cls.hooks[topic].append(handler)
