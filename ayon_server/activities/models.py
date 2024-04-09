@@ -5,12 +5,12 @@ from ayon_server.utils import create_uuid
 
 EntityLinkTuple = tuple[str, str]
 ActivityType = Literal["comment"]
-ActionReferenceType = Literal["origin", "mention", "author", "relation"]
+ActivityReferenceType = Literal["origin", "mention", "author", "relation"]
 
 
 class ActivityReferenceModel(OPModel):
     id: str = Field(default_factory=create_uuid)
-    reference_type: ActionReferenceType = Field(..., example="mention")
+    reference_type: ActivityReferenceType = Field(..., example="mention")
     entity_type: str = Field(..., example="task")
     entity_id: str | None = Field(None, example="1234567890")
     entity_name: str | None = Field(None, example="admin")

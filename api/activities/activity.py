@@ -1,11 +1,11 @@
-from ayon_server.activities.create_activity import create_activity
-from ayon_server.activities.models import ActivityType
+from ayon_server.activities import ActivityType, create_activity, delete_activity
 from ayon_server.api.dependencies import (
     CurrentUser,
     PathEntityID,
     PathProjectLevelEntityType,
     ProjectName,
 )
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.types import Field, OPModel
@@ -57,3 +57,25 @@ async def post_project_activity(
     )
 
     return CreateActivityResponseModel(id=id)
+
+
+@router.delete("/activities/{activity_id}")
+async def delete_project_activity(
+    project_name: ProjectName,
+    activity_id: str,
+    user: CurrentUser,
+) -> EmptyResponse:
+    """Delete an activity.
+
+    Only the author or an administrator of the activity can delete it.
+    """
+
+    if user.is_admin:
+        # admin can delete any activity
+        user_name = None
+    else:
+        user_name = user.name
+
+    await delete_activity(project_name, activity_id, user_name=user_name)
+
+    return EmptyResponse()
