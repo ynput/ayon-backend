@@ -1,4 +1,9 @@
-from ayon_server.activities import ActivityType, create_activity, delete_activity
+from ayon_server.activities import (
+    ActivityType,
+    create_activity,
+    delete_activity,
+    update_activity,
+)
 from ayon_server.api.dependencies import (
     CurrentUser,
     PathEntityID,
@@ -77,5 +82,32 @@ async def delete_project_activity(
         user_name = user.name
 
     await delete_activity(project_name, activity_id, user_name=user_name)
+
+    return EmptyResponse()
+
+
+class ActivityPatchModel(OPModel):
+    body: str = Field(..., example="This is a comment")
+
+
+@router.patch("/activities/{activity_id}")
+async def patch_project_activity(
+    project_name: ProjectName,
+    activity_id: str,
+    user: CurrentUser,
+    activity: ActivityPatchModel,
+) -> EmptyResponse:
+    """Edit an activity.
+
+    Only the author of the activity can edit it.
+    """
+
+    if user.is_admin:
+        # admin can delete any activity
+        user_name = None
+    else:
+        user_name = user.name
+
+    await update_activity(project_name, activity_id, activity.body, user_name)
 
     return EmptyResponse()

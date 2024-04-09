@@ -30,3 +30,11 @@ class ActivityReferenceModel(OPModel):
             self.entity_name,
             self.data,
         )
+
+    def __hash__(self):
+        return (
+            self.reference_type,
+            self.entity_type,
+            self.entity_id,
+            self.entity_name,
+        )
