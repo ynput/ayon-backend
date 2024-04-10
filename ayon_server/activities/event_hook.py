@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Awaitable, Callable, ClassVar, Type
 
 from ayon_server.activities.create_activity import create_activity
 from ayon_server.helpers.get_entity_class import get_entity_class
@@ -8,8 +8,10 @@ if TYPE_CHECKING:
 
 
 class ActivityFeedEventHook:
+    topics: ClassVar[dict[str, Callable[["EventModel"], Awaitable[None]]]]
+
     @classmethod
-    def install(cls, event_stream: "EventStream"):
+    def install(cls, event_stream: Type["EventStream"]):
         cls.topics = {
             "entity.folder.status_changed": cls.handle_status_changed,
             "entity.task.status_changed": cls.handle_status_changed,

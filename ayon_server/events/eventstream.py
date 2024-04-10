@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Callable, Coroutine, Type
+from typing import Any, Awaitable, Callable, Type
 
 from ayon_server.exceptions import ConstraintViolationException
 from ayon_server.lib.postgres import Postgres
@@ -8,7 +8,7 @@ from ayon_server.utils import SQLTool, json_dumps
 
 from .base import EventModel, EventStatus, create_id
 
-HandlerType = Callable[[EventModel], Coroutine[None, None, None]]
+HandlerType = Callable[[EventModel], Awaitable[None]]
 
 
 class EventStream:
