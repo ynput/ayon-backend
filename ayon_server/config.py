@@ -23,6 +23,11 @@ class AyonConfig(BaseModel):
         description="Path to the directory containing the API modules.",
     )
 
+    avatar_dir: str = Field(
+        default="/storage/server/avatars",
+        description="Path to the directory containing the user avatars.",
+    )
+
     addons_dir: str = Field(
         default="/addons",
         description="Absolute path to the directory containing the addons.",

@@ -1,7 +1,11 @@
+import os
+
+import aiofiles
 import httpx
-from fastapi import Response
+from fastapi import Request, Response
 
 from ayon_server.api.dependencies import CurrentUser, UserName
+from ayon_server.config import ayonconfig
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.thumbnails import process_thumbnail
 from ayon_server.lib.postgres import Postgres
@@ -39,6 +43,15 @@ def create_initials_svg(
     return svg_template.strip()
 
 
+async def load_avatar_file(user_name: str) -> bytes:
+    for ext in ["jpeg", "png", "jpg", "svg"]:
+        avatar_path = os.path.join(ayonconfig.avatar_dir, f"{user_name}.{ext}")
+        if os.path.exists(avatar_path):
+            async with aiofiles.open(avatar_path, "rb") as f:
+                return await f.read()
+    raise FileNotFoundError
+
+
 async def obtain_avatar(user_name: str) -> bytes:
     # skip loading the entire user object.
     # we just need one single attribute
@@ -63,10 +76,13 @@ async def obtain_avatar(user_name: str) -> bytes:
             avatar_bytes = response.content
         avatar_bytes = await process_thumbnail(avatar_bytes)
     else:
-        name = res[0]["full_name"] or user_name
-        initials = "".join([n[0] for n in name.split()])
-        initials = initials.upper()
-        avatar_bytes = create_initials_svg(initials).encode()
+        try:
+            avatar_bytes = await load_avatar_file(user_name)
+        except FileNotFoundError:
+            name = res[0]["full_name"] or user_name
+            initials = "".join([n[0] for n in name.split()])
+            initials = initials.upper()
+            avatar_bytes = create_initials_svg(initials).encode()
 
     await Redis.set(REDIS_NS, user_name, avatar_bytes)
     return avatar_bytes
@@ -89,6 +105,29 @@ async def get_avatar(user_name: UserName, _: CurrentUser) -> Response:
     raise NotFoundException("Invalid avatar format")
 
 
-@router.put("/avatar")
-async def set_avatar(user: CurrentUser):
-    pass
+@router.put("/{user_name}/avatar")
+async def upload_avatar(user: CurrentUser, request: Request, user_name: UserName):
+    mime_to_ext = {
+        "image/png": "png",
+        "image/jpeg": "jpeg",
+        "image/svg+xml": "svg",
+    }
+
+    if user.name != user_name and not user.is_admin:
+        raise NotFoundException("Invalid avatar format")
+
+    mime = request.headers.get("Content-Type")
+    if mime not in mime_to_ext:
+        raise NotFoundException("Invalid avatar format")
+    avatar_bytes = await request.body()
+
+    if not os.path.isdir(ayonconfig.avatar_dir):
+        os.makedirs(ayonconfig.avatar_dir)
+
+    avatar_path = os.path.join(
+        ayonconfig.avatar_dir, f"{user_name}.{mime_to_ext[mime]}"
+    )
+    async with aiofiles.open(avatar_path, "wb") as f:
+        await f.write(avatar_bytes)
+
+    await Redis.delete(REDIS_NS, user_name)
