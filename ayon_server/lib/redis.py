@@ -25,7 +25,9 @@ class Redis:
         return value
 
     @classmethod
-    async def set(cls, namespace: str, key: str, value: str, ttl: int = 0) -> None:
+    async def set(
+        cls, namespace: str, key: str, value: str | bytes, ttl: int = 0
+    ) -> None:
         """Create/update a record in Redis
 
         Optional ttl argument may be provided to set expiration time.

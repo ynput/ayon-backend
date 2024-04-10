@@ -1,5 +1,3 @@
-import base64
-
 from fastapi import APIRouter, Request, Response
 from nxtools import logging
 
@@ -23,6 +21,7 @@ from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
 )
+from ayon_server.helpers.thumbnails import get_fake_thumbnail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID
@@ -48,12 +47,10 @@ async def body_from_request(request: Request) -> bytes:
     return result
 
 
-def get_fake_thumbnail():
-    base64_string = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="  # noqa
-    response = Response(status_code=203)
-    response.content = base64.b64decode(base64_string)
+def get_fake_thumbnail_response() -> Response:
+    response = Response(status_code=203, content=get_fake_thumbnail())
     response.headers["Content-Type"] = "image/png"
-    response.headers["Cache-Control"] = f"max-age={3600*24}"
+    response.headers["Cache-Control"] = f"max-age={30}"
     return response
 
 
@@ -95,10 +92,10 @@ async def retrieve_thumbnail(project_name: str, thumbnail_id: str | None) -> Res
                 headers={
                     "X-Thumbnail-Id": thumbnail_id,
                     "X-Thumbnail-Time": str(record.get("created_at", 0)),
-                    "Cache-Control": f"max-age={3600*24}",
+                    "Cache-Control": f"max-age={60}",
                 },
             )
-    return get_fake_thumbnail()
+    return get_fake_thumbnail_response()
 
 
 #
@@ -219,7 +216,7 @@ async def get_folder_thumbnail(
         folder = await FolderEntity.load(project_name, folder_id)
         await folder.ensure_read_access(user)
     except AyonException:
-        return get_fake_thumbnail()
+        return get_fake_thumbnail_response()
     return await retrieve_thumbnail(project_name, folder.thumbnail_id)
 
 
@@ -264,7 +261,7 @@ async def get_version_thumbnail(
         version = await VersionEntity.load(project_name, version_id)
         await version.ensure_read_access(user)
     except AyonException:
-        return get_fake_thumbnail()
+        return get_fake_thumbnail_response()
     return await retrieve_thumbnail(project_name, version.thumbnail_id)
 
 
@@ -309,7 +306,7 @@ async def get_workfile_thumbnail(
         workfile = await WorkfileEntity.load(project_name, workfile_id)
         await workfile.ensure_read_access(user)
     except AyonException:
-        return get_fake_thumbnail()
+        return get_fake_thumbnail_response()
     return await retrieve_thumbnail(project_name, workfile.thumbnail_id)
 
 
@@ -352,5 +349,5 @@ async def get_task_thumbnail(
         task = await TaskEntity.load(project_name, task_id)
         await task.ensure_read_access(user)
     except AyonException:
-        return get_fake_thumbnail()
+        return get_fake_thumbnail_response()
     return await retrieve_thumbnail(project_name, task.thumbnail_id)

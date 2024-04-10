@@ -22,6 +22,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.email import send_mail
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.types import AccessType
 from ayon_server.utils import SQLTool, dict_exclude
 
@@ -109,6 +110,7 @@ class UserEntity(TopLevelEntity):
                 **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
             )
         )
+        await Redis.delete("user.avatar", self.name)
         self.exists = True
         return True
 
