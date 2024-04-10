@@ -59,6 +59,11 @@ class AyonConfig(BaseModel):
         description="Redis channel name for system messages",
     )
 
+    redis_key_prefix: str | None = Field(
+        default=None,
+        description="Redis keys prefix",
+    )
+
     postgres_url: str = Field(
         default="postgres://ayon:ayon@postgres/ayon",
         description="Connection string for Postgres.",

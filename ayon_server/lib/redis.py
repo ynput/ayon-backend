@@ -15,13 +15,16 @@ class Redis:
         """Create a Redis connection pool"""
         cls.redis_pool = aioredis.from_url(ayonconfig.redis_url)
         cls.connected = True
+        cls.prefix = (
+            f"{ayonconfig.redis_key_prefix}-" if ayonconfig.redis_key_prefix else ""
+        )
 
     @classmethod
     async def get(cls, namespace: str, key: str) -> Any:
         """Get a value from Redis"""
         if not cls.connected:
             await cls.connect()
-        value = await cls.redis_pool.get(f"{namespace}-{key}")
+        value = await cls.redis_pool.get(f"{cls.prefix}{namespace}-{key}")
         return value
 
     @classmethod
@@ -32,7 +35,7 @@ class Redis:
         """
         if not cls.connected:
             await cls.connect()
-        command = ["set", f"{namespace}-{key}", value]
+        command = ["set", f"{cls.prefix}{namespace}-{key}", value]
         if ttl:
             command.extend(["ex", str(ttl)])
 
@@ -43,14 +46,14 @@ class Redis:
         """Delete a record from Redis"""
         if not cls.connected:
             await cls.connect()
-        await cls.redis_pool.delete(f"{namespace}-{key}")
+        await cls.redis_pool.delete(f"{cls.prefix}{namespace}-{key}")
 
     @classmethod
     async def incr(cls, namespace: str, key: str) -> int:
         """Increment a value in Redis"""
         if not cls.connected:
             await cls.connect()
-        res = await cls.redis_pool.incr(f"{namespace}-{key}")
+        res = await cls.redis_pool.incr(f"{cls.prefix}{namespace}-{key}")
         return res
 
     @classmethod
@@ -58,7 +61,7 @@ class Redis:
         """Set a TTL for a key in Redis"""
         if not cls.connected:
             await cls.connect()
-        await cls.redis_pool.expire(f"{namespace}-{key}", ttl)
+        await cls.redis_pool.expire(f"{cls.prefix}{namespace}-{key}", ttl)
 
     @classmethod
     async def pubsub(cls) -> PubSub:
@@ -80,7 +83,7 @@ class Redis:
     async def keys(cls, namespace: str) -> list[str]:
         if not cls.connected:
             await cls.connect()
-        return await cls.redis_pool.keys(f"{namespace}-*")
+        return await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
 
     @classmethod
     async def iterate(cls, namespace: str):
@@ -90,7 +93,9 @@ class Redis:
         if not cls.connected:
             await cls.connect()
 
-        async for key in cls.redis_pool.scan_iter(match=f"{namespace}-*"):
-            key_without_ns = key.decode("ascii").removeprefix(f"{namespace}-")
+        async for key in cls.redis_pool.scan_iter(match=f"{cls.prefix}{namespace}-*"):
+            key_without_ns = key.decode("ascii").removeprefix(
+                f"{cls.prefix}{namespace}-"
+            )
             payload = await cls.redis_pool.get(key)
             yield key_without_ns, payload
