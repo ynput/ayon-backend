@@ -29,10 +29,8 @@ class ActivityFeedEventHook:
         old_value = event.payload.get("oldValue")
         new_value = event.payload.get("newValue")
 
-        body = (
-            f"Status of [{entity.name}]({entity_type}{entity.id})"
-            f" changed from {old_value} to {new_value}"
-        )
+        origin_link = f"[{entity.name}]({entity_type}:{entity.id})"
+        body = f"{origin_link} status changed from {old_value} to {new_value}"
 
         await create_activity(
             entity,

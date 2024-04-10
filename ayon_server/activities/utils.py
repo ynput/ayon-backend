@@ -1,5 +1,7 @@
 import re
 
+from nxtools import logging
+
 from .models import ActivityReferenceModel, EntityLinkTuple
 
 LINK_PATTERN = re.compile(r"\[(.*?)\]\((.*?)\)")
@@ -8,8 +10,11 @@ LINK_PATTERN = re.compile(r"\[(.*?)\]\((.*?)\)")
 def extract_link_tuples(md_text: str) -> list[EntityLinkTuple]:
     links: set[EntityLinkTuple] = set()
     for link in LINK_PATTERN.findall(md_text):
-        entity_type, entity_id = link[1].split(":")
-        links.add((entity_type, entity_id))
+        try:
+            entity_type, entity_id = link[1].split(":")
+            links.add((entity_type, entity_id))
+        except ValueError:
+            logging.debug(f"Invalid link format: {link}")
     return list(links)
 
 
