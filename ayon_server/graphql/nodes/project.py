@@ -5,7 +5,8 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import ProjectEntity
-from ayon_server.graphql.nodes.common import ProductType
+from ayon_server.graphql.nodes.common import ActivitiesConnection, ProductType
+from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.folders import get_folder, get_folders
 from ayon_server.graphql.resolvers.products import get_product, get_products
 from ayon_server.graphql.resolvers.representations import (
@@ -139,6 +140,11 @@ class ProjectNode:
     workfiles: WorkfilesConnection = strawberry.field(
         resolver=get_workfiles,
         description=get_workfiles.__doc__,
+    )
+
+    activities: ActivitiesConnection = strawberry.field(
+        resolver=get_activities,
+        description=get_activities.__doc__,
     )
 
     @strawberry.field(description="List of project's task types")

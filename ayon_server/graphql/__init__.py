@@ -32,6 +32,7 @@ from ayon_server.graphql.nodes.task import task_from_record
 from ayon_server.graphql.nodes.user import UserAttribType, UserNode, user_from_record
 from ayon_server.graphql.nodes.version import version_from_record
 from ayon_server.graphql.nodes.workfile import workfile_from_record
+from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.events import get_events
 from ayon_server.graphql.resolvers.links import get_links
 from ayon_server.graphql.resolvers.projects import get_project, get_projects
@@ -62,6 +63,7 @@ async def graphql_get_context(user: CurrentUser) -> dict:
         "user_loader": DataLoader(load_fn=user_loader),
         "workfile_loader": DataLoader(load_fn=workfile_loader),
         # Other
+        "activities_resolver": get_activities,
         "links_resolver": get_links,
     }
 

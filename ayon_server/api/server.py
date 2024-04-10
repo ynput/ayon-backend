@@ -13,6 +13,7 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_to_file, log_traceback, logging, slugify
 
 from ayon_server.access.access_groups import AccessGroups
+from ayon_server.activities import ActivityFeedEventHook
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.messaging import Messaging
 from ayon_server.api.metadata import app_meta, tags_meta
@@ -26,7 +27,7 @@ from ayon_server.api.system import clear_server_restart_required
 from ayon_server.auth.session import Session
 from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
-from ayon_server.events import dispatch_event, update_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.lib.postgres import Postgres
@@ -403,13 +404,15 @@ async def startup_event() -> None:
 
     # Initialize addons
 
-    start_event = await dispatch_event("server.started", finished=False)
+    ActivityFeedEventHook.install(EventStream)
+
+    start_event = await EventStream.dispatch("server.started", finished=False)
 
     library = AddonLibrary.getinstance()
     addon_records = list(AddonLibrary.items())
     if library.restart_requested:
         logging.warning("Restart requested, skipping addon setup")
-        await dispatch_event(
+        await EventStream.dispatch(
             "server.restart_requested",
             description="Server restart requested during addon initialization",
         )
@@ -479,7 +482,7 @@ async def startup_event() -> None:
         library.unload_addon(_addon_name, _addon_version, reason=reason)
 
     if restart_requested:
-        await dispatch_event(
+        await EventStream.dispatch(
             "server.restart_requested",
             description="Server restart requested during addon setup",
         )
@@ -494,7 +497,7 @@ async def startup_event() -> None:
         init_frontend(app, ayonconfig.frontend_dir)
 
         if start_event is not None:
-            await update_event(
+            await EventStream.update(
                 start_event,
                 status="finished",
                 description="Server started",

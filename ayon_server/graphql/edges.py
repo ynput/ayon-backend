@@ -6,6 +6,7 @@ from strawberry import LazyType
 from ayon_server.graphql.types import BaseEdge
 
 if TYPE_CHECKING:
+    from ayon_server.graphql.nodes.activity import ActivityNode
     from ayon_server.graphql.nodes.event import EventNode
     from ayon_server.graphql.nodes.folder import FolderNode
     from ayon_server.graphql.nodes.product import ProductNode
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.version import VersionNode
     from ayon_server.graphql.nodes.workfile import WorkfileNode
 else:
+    ActivityNode = LazyType["ActivityNode", ".nodes.activity"]
     ProjectNode = LazyType["ProjectNode", ".nodes.project"]
     UserNode = LazyType["UserNode", ".nodes.user"]
     FolderNode = LazyType["FolderNode", ".nodes.folder"]
@@ -79,4 +81,10 @@ class WorkfileEdge(BaseEdge):
 @strawberry.type
 class EventEdge(BaseEdge):
     node: EventNode = strawberry.field(description="Event node")
+    cursor: str | None = strawberry.field(default=None)
+
+
+@strawberry.type
+class ActivityEdge(BaseEdge):
+    node: ActivityNode = strawberry.field(description="The activity node")
     cursor: str | None = strawberry.field(default=None)

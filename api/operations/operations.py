@@ -1,20 +1,12 @@
 from contextlib import suppress
-from typing import Any, Literal, Type
+from typing import Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Header
 from nxtools import log_traceback
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.config import ayonconfig
-from ayon_server.entities import (
-    FolderEntity,
-    ProductEntity,
-    RepresentationEntity,
-    TaskEntity,
-    UserEntity,
-    VersionEntity,
-    WorkfileEntity,
-)
+from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events import dispatch_event
 from ayon_server.events.patch import build_pl_entity_change_events
@@ -23,6 +15,7 @@ from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
 )
+from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
@@ -95,17 +88,6 @@ class OperationsResponseModel(OPModel):
 #
 # Processing
 #
-
-
-def get_entity_class(entity_type: ProjectLevelEntityType) -> Type[ProjectLevelEntity]:
-    return {
-        "folder": FolderEntity,
-        "task": TaskEntity,
-        "product": ProductEntity,
-        "version": VersionEntity,
-        "representation": RepresentationEntity,
-        "workfile": WorkfileEntity,
-    }[entity_type]
 
 
 async def process_operation(
