@@ -13,8 +13,8 @@ async def delete_activity(
 
     res = await Postgres.fetch(
         f"""
-        SELECT data FROM project_{project_name}_activities
-        WHERE activity_id = $1
+        SELECT data FROM project_{project_name}.activities
+        WHERE id = $1
         """,
         activity_id,
     )
@@ -29,8 +29,8 @@ async def delete_activity(
 
     await Postgres().execute(
         f"""
-        DELETE FROM project_{project_name}_activities
-        WHERE activity_id = $1
+        DELETE FROM project_{project_name}.activities
+        WHERE id = $1
         """,
         activity_id,
     )
