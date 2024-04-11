@@ -171,7 +171,7 @@ async def integrity_constraint_violation_error_handler(
         **parse_posgres_exception(exc),
     }
 
-    return fastapi.responses.JSONResponse(status_code=payload["code"], content=payload)
+    return fastapi.responses.JSONResponse(status_code=500, content=payload)
 
 
 @app.exception_handler(AssertionError)

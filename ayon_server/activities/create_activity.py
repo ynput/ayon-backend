@@ -5,8 +5,9 @@ from ayon_server.activities.models import (
     ActivityType,
 )
 from ayon_server.activities.references import get_references_from_entity
-from ayon_server.activities.utils import extract_mentions
+from ayon_server.activities.utils import MAX_BODY_LENGTH, extract_mentions
 from ayon_server.entities.core import ProjectLevelEntity
+from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
@@ -27,6 +28,9 @@ async def create_activity(
     They are autopopulated based on the activity
     body and the current user if not provided.
     """
+
+    if len(body) > MAX_BODY_LENGTH:
+        raise BadRequestException(f"{activity_type.capitalize()} body is too long")
 
     project_name: str = entity.project_name
     entity_type: str = entity.entity_type

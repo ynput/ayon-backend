@@ -5,6 +5,7 @@ from nxtools import logging
 from .models import ActivityReferenceModel, EntityLinkTuple
 
 LINK_PATTERN = re.compile(r"\[(.*?)\]\((.*?)\)")
+MAX_BODY_LENGTH = 2000
 
 
 def extract_link_tuples(md_text: str) -> list[EntityLinkTuple]:
