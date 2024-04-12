@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Request, Response
+from typing import Literal
+
+from fastapi import APIRouter, Query, Request, Response
 from nxtools import logging
 
 from ayon_server.api.dependencies import (
@@ -20,6 +22,7 @@ from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
     ForbiddenException,
+    NotFoundException,
 )
 from ayon_server.helpers.thumbnails import get_fake_thumbnail
 from ayon_server.lib.postgres import Postgres
@@ -37,6 +40,8 @@ router = APIRouter(
 #
 # Common
 #
+
+PlaceholderOption = Literal["empty", "none"]
 
 
 async def body_from_request(request: Request) -> bytes:
@@ -81,21 +86,35 @@ async def store_thumbnail(
         )
 
 
-async def retrieve_thumbnail(project_name: str, thumbnail_id: str | None) -> Response:
+async def retrieve_thumbnail(
+    project_name: str,
+    thumbnail_id: str | None,
+    placeholder: PlaceholderOption = "none",
+) -> Response:
     query = f"SELECT * FROM project_{project_name}.thumbnails WHERE id = $1"
     if thumbnail_id is not None:
-        async for record in Postgres.iterate(query, thumbnail_id):
-            return Response(
-                media_type=record["mime"],
-                status_code=200,
-                content=record["data"],
-                headers={
-                    "X-Thumbnail-Id": thumbnail_id,
-                    "X-Thumbnail-Time": str(record.get("created_at", 0)),
-                    "Cache-Control": f"max-age={60}",
-                },
-            )
-    return get_fake_thumbnail_response()
+        try:
+            res = await Postgres.fetch(query, thumbnail_id)
+        except Postgres.UndefinedTableError:
+            pass  # project does not exist
+        else:
+            if res:
+                record = res[0]
+                return Response(
+                    media_type=record["mime"],
+                    status_code=200,
+                    content=record["data"],
+                    headers={
+                        "X-Thumbnail-Id": thumbnail_id,
+                        "X-Thumbnail-Time": str(record.get("created_at", 0)),
+                        "Cache-Control": f"max-age={60}",
+                    },
+                )
+
+    if placeholder == "empty":
+        return get_fake_thumbnail_response()
+
+    raise NotFoundException("Thumbnail not found")
 
 
 #
@@ -159,6 +178,7 @@ async def get_thumbnail(
     user: CurrentUser,
     project_name: ProjectName,
     thumbnail_id: ThumbnailID,
+    placeholder: PlaceholderOption = Query("empty"),
 ) -> Response:
     """Get a thumbnail by its ID.
 
@@ -169,7 +189,7 @@ async def get_thumbnail(
     if not user.is_manager:
         raise ForbiddenException("Only managers can access arbitrary thumbnails")
 
-    return await retrieve_thumbnail(project_name, thumbnail_id)
+    return await retrieve_thumbnail(project_name, thumbnail_id, placeholder)
 
 
 #
@@ -211,13 +231,17 @@ async def get_folder_thumbnail(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
+    placeholder: PlaceholderOption = Query("empty"),
 ) -> Response:
     try:
         folder = await FolderEntity.load(project_name, folder_id)
         await folder.ensure_read_access(user)
     except AyonException:
-        return get_fake_thumbnail_response()
-    return await retrieve_thumbnail(project_name, folder.thumbnail_id)
+        if placeholder == "empty":
+            return get_fake_thumbnail_response()
+        else:
+            raise NotFoundException("Folder not found")
+    return await retrieve_thumbnail(project_name, folder.thumbnail_id, placeholder)
 
 
 #
@@ -256,13 +280,17 @@ async def get_version_thumbnail(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
+    placeholder: PlaceholderOption = Query("empty"),
 ) -> Response:
     try:
         version = await VersionEntity.load(project_name, version_id)
         await version.ensure_read_access(user)
     except AyonException:
-        return get_fake_thumbnail_response()
-    return await retrieve_thumbnail(project_name, version.thumbnail_id)
+        if placeholder == "empty":
+            return get_fake_thumbnail_response()
+        else:
+            raise NotFoundException("Version not found")
+    return await retrieve_thumbnail(project_name, version.thumbnail_id, placeholder)
 
 
 #
@@ -300,14 +328,20 @@ async def create_workfile_thumbnail(
     "/projects/{project_name}/workfiles/{workfile_id}/thumbnail",
 )
 async def get_workfile_thumbnail(
-    user: CurrentUser, project_name: ProjectName, workfile_id: WorkfileID
+    user: CurrentUser,
+    project_name: ProjectName,
+    workfile_id: WorkfileID,
+    placeholder: PlaceholderOption = Query("empty"),
 ) -> Response:
     try:
         workfile = await WorkfileEntity.load(project_name, workfile_id)
         await workfile.ensure_read_access(user)
     except AyonException:
-        return get_fake_thumbnail_response()
-    return await retrieve_thumbnail(project_name, workfile.thumbnail_id)
+        if placeholder == "empty":
+            return get_fake_thumbnail_response()
+        else:
+            raise NotFoundException("Workfile not found")
+    return await retrieve_thumbnail(project_name, workfile.thumbnail_id, placeholder)
 
 
 #
@@ -343,11 +377,17 @@ async def create_task_thumbnail(
     "/projects/{project_name}/tasks/{task_id}/thumbnail",
 )
 async def get_task_thumbnail(
-    user: CurrentUser, project_name: ProjectName, task_id: TaskID
+    user: CurrentUser,
+    project_name: ProjectName,
+    task_id: TaskID,
+    placeholder: PlaceholderOption = Query("empty"),
 ) -> Response:
     try:
         task = await TaskEntity.load(project_name, task_id)
         await task.ensure_read_access(user)
     except AyonException:
-        return get_fake_thumbnail_response()
-    return await retrieve_thumbnail(project_name, task.thumbnail_id)
+        if placeholder == "empty":
+            return get_fake_thumbnail_response()
+        else:
+            raise NotFoundException("Task not found")
+    return await retrieve_thumbnail(project_name, task.thumbnail_id, placeholder)
