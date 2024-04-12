@@ -17,6 +17,9 @@ async def process_thumbnail(
 
             img_byte_arr = io.BytesIO()
             # Note: For JPEG, consider adding `optimize=True` and `quality`
+
+            if format == "JPEG" and img.mode != "RGB":
+                img = img.convert("RGB")
             img.save(img_byte_arr, format=format)
 
             return img_byte_arr.getvalue()
