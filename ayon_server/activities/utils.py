@@ -1,11 +1,15 @@
 import re
+from typing import get_args
 
 from nxtools import logging
 
-from .models import ActivityReferenceModel, EntityLinkTuple
+from .models import ActivityReferenceModel, EntityLinkTuple, ReferencedEntityType
 
-LINK_PATTERN = re.compile(r"\[(.*?)\]\((.*?)\)")
 MAX_BODY_LENGTH = 2000
+
+# extract links, but not images
+LINK_PATTERN = re.compile(r"(?<!\!)\[(.*?)\]\((.*?)\)")
+# LINK_PATTERN = re.compile(r"\[(.*?)\]\((.*?)\)")
 
 
 def extract_link_tuples(md_text: str) -> list[EntityLinkTuple]:
@@ -14,8 +18,10 @@ def extract_link_tuples(md_text: str) -> list[EntityLinkTuple]:
         try:
             entity_type, entity_id = link[1].split(":")
             links.add((entity_type, entity_id))
+            if entity_type not in get_args(ReferencedEntityType):
+                raise ValueError(f"Invalid referenced entity type: {entity_type}")
         except ValueError:
-            logging.debug(f"Invalid link format: {link}")
+            logging.debug("Invalid reference link format")
     return list(links)
 
 
