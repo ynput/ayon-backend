@@ -1,3 +1,5 @@
+import colorsys
+import hashlib
 import os
 
 import aiofiles
@@ -16,13 +18,41 @@ from .router import router
 REDIS_NS = "user.avatar"
 
 
+def generate_color(name: str, saturation: float = 0.25, lightness: float = 0.38) -> str:
+    """
+    Generates a deterministic color based on the hue
+    derived from hashing the input string.
+    Keeps saturation and lightness constant.
+
+    Parameters:
+    - name: The input string to hash for color generation.
+    - saturation: The saturation level of the color (0 to 1).
+    - lightness: The lightness level of the color (0 to 1).
+
+    Returns:
+    - A hex color code as a string.
+    """
+
+    hash_bytes = hashlib.sha256(name.encode("utf-8")).digest()
+    hue = int(hash_bytes[0]) * 360 // 256
+    r, g, b = colorsys.hls_to_rgb(hue / 360.0, lightness, saturation)
+    color_code = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
+    return color_code
+
+
 def create_initials_svg(
-    initials: str,
+    name: str,
+    full_name: str = "",
     width: int = 100,
     height: int = 100,
-    bg_color: str = "#000000",
     text_color: str = "white",
 ) -> str:
+    _used_name = full_name or name
+    initials = "".join([n[0] for n in _used_name.split()])
+    initials = initials.upper()
+
+    bg_color = generate_color(f"{name}{full_name}")
+
     svg_template = f"""
     <svg width="{width}px" height="{height}px" xmlns="http://www.w3.org/2000/svg">
       <rect width="100%" height="100%" fill="{bg_color}"/>
@@ -79,10 +109,8 @@ async def obtain_avatar(user_name: str) -> bytes:
         try:
             avatar_bytes = await load_avatar_file(user_name)
         except FileNotFoundError:
-            name = res[0]["full_name"] or user_name
-            initials = "".join([n[0] for n in name.split()])
-            initials = initials.upper()
-            avatar_bytes = create_initials_svg(initials).encode()
+            full_name = res[0]["full_name"] or ""
+            avatar_bytes = create_initials_svg(user_name, full_name).encode()
 
     await Redis.set(REDIS_NS, user_name, avatar_bytes)
     return avatar_bytes
