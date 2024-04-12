@@ -2,7 +2,7 @@
 
 from typing import Annotated, get_args
 
-from fastapi import Depends, Header, Path, Query, Request
+from fastapi import Cookie, Depends, Header, Path, Query, Request
 
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
@@ -33,14 +33,17 @@ from ayon_server.utils import (
 
 
 async def dep_access_token(
-    authorization: str | None = Header(None),
-    token: str | None = Query(None),
+    authorization: Annotated[str | None, Header()] = None,
+    token: Annotated[str | None, Query()] = None,
+    access_token: Annotated[str | None, Cookie(alias="accessToken")] = None,
 ) -> str | None:
     """Parse and return an access token provided in the authorisation header."""
     if authorization is not None:
         return parse_access_token(authorization)
     elif token is not None:
         return token
+    elif access_token is not None:
+        return access_token
     else:
         return None
 
