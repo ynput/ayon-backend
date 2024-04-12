@@ -113,7 +113,8 @@ async def ayon_exception_handler(
     exc: AyonException,
 ) -> fastapi.responses.JSONResponse:
     if exc.status in [401, 403, 503]:
-        # do not store 401 and 403 errors in the logs
+        # unauthorized, forbidden, service unavailable
+        # we don't need any additional details for these
         return fastapi.responses.JSONResponse(
             status_code=exc.status,
             content={
@@ -126,7 +127,10 @@ async def ayon_exception_handler(
     path = f"[{request.method.upper()}]"
     path += f" {request.url.path.removeprefix('/api')}"
 
-    logging.error(f"{path}: {exc}", user=user_name)
+    if exc.status == 500:
+        logging.error(f"{path}: {exc}", user=user_name)
+    else:
+        logging.debug(f"{path}: {exc}", user=user_name)
 
     return fastapi.responses.JSONResponse(
         status_code=exc.status,
