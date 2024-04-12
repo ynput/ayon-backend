@@ -9,6 +9,7 @@ from ayon_server.config import ayonconfig
 class Redis:
     connected: bool = False
     redis_pool: aioredis.Redis
+    prefix: str = ""
 
     @classmethod
     async def connect(cls) -> None:
