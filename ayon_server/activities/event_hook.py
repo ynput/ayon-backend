@@ -54,13 +54,8 @@ class ActivityFeedEventHook:
         old_value = event.payload.get("oldValue", [])
         new_value = event.payload.get("newValue", [])
 
-        print(f"Old value: {old_value}")
-
         added = set(new_value) - set(old_value)
         removed = set(old_value) - set(new_value)
-
-        print(f"Added: {added}")
-        print(f"Removed: {removed}")
 
         for assignee in added:
             await create_activity(
