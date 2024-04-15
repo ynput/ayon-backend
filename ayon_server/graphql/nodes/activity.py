@@ -64,6 +64,15 @@ class ActivityNode:
             return info.context["user_from_record"](record, info.context)
         return None
 
+    @strawberry.field
+    async def assignee(self, info: Info) -> Optional[UserNode]:
+        data = json_loads(self.activity_data)
+        if "assignee" in data:
+            assignee = data["assignee"]
+            loader = info.context["user_loader"]
+            record = await loader.load(assignee)
+            return info.context["user_from_record"](record, info.context)
+
 
 def replace_reference_body(node: ActivityNode) -> ActivityNode:
     if not node.origin:
