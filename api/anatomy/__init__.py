@@ -4,7 +4,11 @@ from fastapi import APIRouter
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.settings.postprocess import postprocess_settings_schema
@@ -103,6 +107,11 @@ async def update_anatomy_preset(
 
     if not user.is_manager:
         raise ForbiddenException("Only managers can update anatomy presets.")
+
+    if preset_name == "__builtin__":
+        raise BadRequestException("Cannot update builtin preset.")
+    if preset_name == "__primary__":
+        raise BadRequestException("Cannot update primary preset using a reference.")
 
     await Postgres.execute(
         """
