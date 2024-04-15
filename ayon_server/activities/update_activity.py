@@ -1,10 +1,11 @@
 from typing import Any
 
+from nxtools import logging
+
 from ayon_server.activities.models import ActivityReferenceModel
 from ayon_server.activities.utils import MAX_BODY_LENGTH, extract_mentions
 from ayon_server.exceptions import (
     BadRequestException,
-    ForbiddenException,
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
@@ -40,7 +41,11 @@ async def update_activity(
     activity_data = res[0]["data"]
 
     if user_name and (user_name != activity_data["author"]):
-        raise ForbiddenException("You can only update your own activities")
+        logging.warning(
+            f"User {user_name} update activity {activity_id}"
+            f" owned by {activity_data['author']}"
+        )
+        # raise ForbiddenException("You can only update your own activities")
 
     if data:
         data.pop("author", None)
