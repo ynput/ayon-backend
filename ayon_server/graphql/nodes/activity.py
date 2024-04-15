@@ -72,6 +72,7 @@ class ActivityNode:
             loader = info.context["user_loader"]
             record = await loader.load(assignee)
             return info.context["user_from_record"](record, info.context)
+        return None
 
 
 def replace_reference_body(node: ActivityNode) -> ActivityNode:
