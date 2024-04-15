@@ -76,11 +76,15 @@ async def get_anatomy_preset(preset_name: str, user: CurrentUser) -> Anatomy:
         return tpl
 
     if preset_name == "__primary__":
-        query = "SELECT * FROM anatomy_presets WHERE is_primary = TRUE"
+        query = ("SELECT * FROM anatomy_presets WHERE is_primary = TRUE",)
     else:
-        query = "SELECT * FROM anatomy_presets WHERE name = $1 AND version = $2"
+        query = (
+            "SELECT * FROM anatomy_presets WHERE name = $1 AND version = $2",
+            preset_name,
+            VERSION,
+        )
 
-    async for row in Postgres.iterate(query, preset_name, VERSION):
+    async for row in Postgres.iterate(*query):
         tpl = Anatomy(**row["data"])
         return tpl
 
