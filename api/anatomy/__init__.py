@@ -79,6 +79,7 @@ async def get_anatomy_preset(preset_name: str, user: CurrentUser) -> Anatomy:
         tpl = Anatomy()
         return tpl
 
+    query: tuple[str, str, str] | tuple[str]
     if preset_name == "__primary__":
         query = ("SELECT * FROM anatomy_presets WHERE is_primary = TRUE",)
     else:
