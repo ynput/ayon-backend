@@ -19,7 +19,7 @@ from ayon_server.api.messaging import Messaging
 from ayon_server.api.metadata import app_meta, tags_meta
 from ayon_server.api.postgres_exceptions import (
     IntegrityConstraintViolationError,
-    parse_posgres_exception,
+    parse_postgres_exception,
 )
 from ayon_server.api.responses import ErrorResponse
 from ayon_server.api.static import addon_static_router
@@ -172,10 +172,10 @@ async def integrity_constraint_violation_error_handler(
         "file": fname,
         "function": func,
         "line": line_no,
-        **parse_posgres_exception(exc),
+        **parse_postgres_exception(exc),
     }
 
-    return fastapi.responses.JSONResponse(status_code=500, content=payload)
+    return fastapi.responses.JSONResponse(status_code=payload["code"], content=payload)
 
 
 @app.exception_handler(AssertionError)
