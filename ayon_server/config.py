@@ -23,6 +23,12 @@ class AyonConfig(BaseModel):
         description="Path to the directory containing the API modules.",
     )
 
+    upload_dir: str = Field(
+        default="/storage/server/uploads",
+        description="Path to the directory containing the uploaded files."
+        " such as comment attachments, etc.",
+    )
+
     avatar_dir: str = Field(
         default="/storage/server/avatars",
         description="Path to the directory containing the user avatars.",
