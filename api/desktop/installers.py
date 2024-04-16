@@ -7,6 +7,7 @@ from fastapi import BackgroundTasks, Query, Request
 from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.files import handle_download, handle_upload
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import (
@@ -28,8 +29,6 @@ from .common import (
     InstallResponseModel,
     get_desktop_dir,
     get_desktop_file_path,
-    handle_download,
-    handle_upload,
     iter_names,
     load_json_file,
 )
