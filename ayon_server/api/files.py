@@ -7,8 +7,11 @@ from starlette.responses import FileResponse
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 
 
-async def handle_upload(request: Request, target_path: str) -> None:
-    """Store raw body from the request to a file."""
+async def handle_upload(request: Request, target_path: str) -> int:
+    """Store raw body from the request to a file.
+
+    Returns file size in bytes.
+    """
 
     directory, _ = os.path.split(target_path)
 
@@ -27,7 +30,7 @@ async def handle_upload(request: Request, target_path: str) -> None:
     if i == 0:
         raise BadRequestException("Empty file")
 
-    return None
+    return i
 
 
 async def handle_download(
