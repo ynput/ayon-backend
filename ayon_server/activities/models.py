@@ -1,3 +1,4 @@
+import datetime
 from typing import Any, Literal
 
 from ayon_server.types import Field, OPModel
@@ -30,7 +31,13 @@ class ActivityReferenceModel(OPModel):
     # TODO: validate whether the entity_id is present when the entity_type is not user
     # TODO: validate whether the entity_name is present when the entity_type is user
 
-    def insertable_tuple(self, activity_id: str) -> tuple:
+    def insertable_tuple(
+        self,
+        activity_id: str,
+        timestamp: datetime.datetime | None = None,
+    ) -> tuple:
+        if timestamp is None:
+            timestamp = datetime.datetime.now(datetime.timezone.utc)
         return (
             self.id,
             activity_id,
@@ -39,6 +46,7 @@ class ActivityReferenceModel(OPModel):
             self.entity_id,
             self.entity_name,
             self.data,
+            timestamp,
         )
 
     def __hash__(self):

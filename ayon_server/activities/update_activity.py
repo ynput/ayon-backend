@@ -104,9 +104,19 @@ async def update_activity(
         st_ref = await conn.prepare(
             f"""
             INSERT INTO project_{project_name}.activity_references
-            (id, activity_id, reference_type, entity_type, entity_id, entity_name, data)
+            (
+                id,
+                activity_id,
+                reference_type,
+                entity_type,
+                entity_id,
+                entity_name,
+                data,
+                created_at,
+                updated_at
+            )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7)
+            ($1, $2, $3, $4, $5, $6, $7, $8, $8)
             ON CONFLICT DO NOTHING
             """
         )

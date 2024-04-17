@@ -1,3 +1,4 @@
+import datetime
 from typing import Any
 
 from ayon_server.activities.models import (
@@ -20,6 +21,7 @@ async def create_activity(
     user_name: str | None = None,
     extra_references: list[ActivityReferenceModel] | None = None,
     data: dict[str, Any] | None = None,
+    timestamp: datetime.datetime | None = None,
 ) -> str:
     """Create an activity.
 
@@ -28,6 +30,9 @@ async def create_activity(
     They are autopopulated based on the activity
     body and the current user if not provided.
     """
+
+    if timestamp is None:
+        timestamp = datetime.datetime.now(datetime.timezone.utc)
 
     if len(body) > MAX_BODY_LENGTH:
         raise BadRequestException(f"{activity_type.capitalize()} body is too long")
@@ -99,26 +104,36 @@ async def create_activity(
 
     query = f"""
         INSERT INTO project_{project_name}.activities
-        (id, activity_type, body, data)
+        (id, activity_type, body, data, created_at, updated_at)
         VALUES
-        ($1, $2, $3, $4)
+        ($1, $2, $3, $4, $5, $5)
     """
 
     async with Postgres.acquire() as conn, conn.transaction():
-        await conn.execute(query, activity_id, activity_type, body, data)
+        await conn.execute(query, activity_id, activity_type, body, data, timestamp)
         st_ref = await conn.prepare(
             f"""
             INSERT INTO project_{project_name}.activity_references
-            (id, activity_id, reference_type, entity_type, entity_id, entity_name, data)
+            (
+                id,
+                activity_id,
+                reference_type,
+                entity_type,
+                entity_id,
+                entity_name,
+                data,
+                created_at,
+                updated_at
+            )
             VALUES
-            ($1, $2, $3, $4, $5, $6, $7)
+            ($1, $2, $3, $4, $5, $6, $7, $8, $8)
             ON CONFLICT (activity_id, reference_type, entity_id, entity_name)
             DO UPDATE SET data = EXCLUDED.data
         """
         )
 
         await st_ref.executemany(
-            ref.insertable_tuple(activity_id) for ref in references
+            ref.insertable_tuple(activity_id, timestamp) for ref in references
         )
 
     return activity_id
