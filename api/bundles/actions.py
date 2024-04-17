@@ -1,4 +1,5 @@
 from ayon_server.entities.user import UserEntity
+from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 
 from .models import BundleModel
@@ -65,3 +66,14 @@ async def promote_bundle(bundle: BundleModel, user: UserEntity, conn):
         # TODO: Do we want this?
         #
         # for project_name in project_names:
+
+    await EventStream.dispatch(
+        "bundle.status_changed",
+        user=user.name,
+        description=f"Bundle {bundle.name} promoted to production",
+        summary={
+            "name": bundle.name,
+            "status": "production",
+        },
+        payload=data,
+    )
