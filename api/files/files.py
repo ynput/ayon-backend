@@ -16,7 +16,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
-from .preview import get_file_preview
+from .preview import UnsupportedPreviewException, get_file_preview, uncache_file_preview
 from .router import router
 
 VALID_MIME_TYPES = [
@@ -155,6 +155,8 @@ async def delete_project_file(
         file_id,
     )
 
+    await uncache_file_preview(project_name, file_id)
+
     return EmptyResponse()
 
 
@@ -181,6 +183,9 @@ async def download_project_file(
     path = id_to_path(project_name, file_id)
 
     if preview:
-        return await get_file_preview(project_name, file_id)
+        try:
+            return await get_file_preview(project_name, file_id)
+        except UnsupportedPreviewException:
+            return await handle_download(path)
 
     return await handle_download(path)
