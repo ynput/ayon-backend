@@ -52,7 +52,7 @@ async def get_activities(
             entity_type = "representation"
             entity_ids = [root.id]
         else:
-            reference_types = ["origin"]
+            reference_types = reference_types or ["origin"]
 
     if activity_types is not None:
         validate_name_list(activity_types)
