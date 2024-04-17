@@ -7,6 +7,7 @@ import httpx
 from fastapi import Request, Response
 
 from ayon_server.api.dependencies import CurrentUser, UserName
+from ayon_server.api.files import image_response_from_bytes
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.thumbnails import process_thumbnail
@@ -112,7 +113,6 @@ async def obtain_avatar(user_name: str) -> bytes:
             full_name = res[0]["full_name"] or ""
             avatar_bytes = create_initials_svg(user_name, full_name).encode()
 
-    await Redis.set(REDIS_NS, user_name, avatar_bytes)
     return avatar_bytes
 
 
@@ -122,15 +122,9 @@ async def get_avatar(user_name: UserName, _: CurrentUser) -> Response:
 
     if not avatar_bytes:
         avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
-    if avatar_bytes[0:4] == b"\x89PNG":
-        return Response(content=avatar_bytes, media_type="image/png")
-    elif avatar_bytes[0:2] == b"\xff\xd8":
-        return Response(content=avatar_bytes, media_type="image/jpeg")
-    elif avatar_bytes[0:4] == b"<svg":
-        return Response(content=avatar_bytes, media_type="image/svg+xml")
-
-    raise NotFoundException("Invalid avatar format")
+    return image_response_from_bytes(avatar_bytes)
 
 
 @router.put("/{user_name}/avatar")

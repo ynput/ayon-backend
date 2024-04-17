@@ -16,6 +16,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
+from .preview import get_file_preview
 from .router import router
 
 VALID_MIME_TYPES = [
@@ -180,6 +181,6 @@ async def download_project_file(
     path = id_to_path(project_name, file_id)
 
     if preview:
-        pass  # TODO: Implement preview mode
+        return await get_file_preview(project_name, file_id)
 
     return await handle_download(path)
