@@ -121,8 +121,7 @@ class ActivityFeedEventHook:
             body=f"Published [{version.name}](version:{version.id})",
             user_name=version.author or event.user,
             data={
-                "publish": {
-                    "version": version.version,
+                "context": {
                     "folderId": row["folder_id"],
                     "folderName": row["folder_name"],
                     "folderLabel": row["folder_label"],
