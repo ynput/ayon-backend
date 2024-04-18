@@ -227,7 +227,7 @@ DROP FUNCTION IF EXISTS refactor_links();
 ----------------
 
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
-ALTER EXTENSION pg_trgm SET SCHEMA pg_catalog;
+ALTER EXTENSION pg_trgm SET SCHEMA public;
 
 -- Create access_groups table in all project schemas
 CREATE OR REPLACE FUNCTION create_activity_feed_in_projects () 
@@ -274,7 +274,7 @@ CREATE OR REPLACE FUNCTION create_activity_feed_in_projects ()
                 path VARCHAR NOT NULL
             );
             CREATE INDEX IF NOT EXISTS entity_paths_path_idx 
-              ON entity_paths USING GIN (path gin_trgm_ops);
+              ON entity_paths USING GIN (path public.gin_trgm_ops);
 
             CREATE OR REPLACE VIEW activity_feed AS
               SELECT 
