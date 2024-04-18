@@ -6,7 +6,11 @@ from ayon_server.activities.models import (
     ActivityType,
 )
 from ayon_server.activities.references import get_references_from_entity
-from ayon_server.activities.utils import MAX_BODY_LENGTH, extract_mentions
+from ayon_server.activities.utils import (
+    MAX_BODY_LENGTH,
+    extract_mentions,
+    is_body_with_checklist,
+)
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
@@ -53,6 +57,9 @@ async def create_activity(
     if hasattr(entity, "label"):
         origin["label"] = entity.label
     data["origin"] = origin
+
+    if activity_type == "comment" and is_body_with_checklist(body):
+        data["hasChecklist"] = True
 
     #
     # Extract references
