@@ -4,7 +4,6 @@ from typing import Any, Literal
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
-EntityLinkTuple = tuple[str, str]
 ActivityType = Literal["comment", "status.change", "assignee.add", "assignee.remove"]
 ActivityReferenceType = Literal["origin", "mention", "author", "relation"]
 ReferencedEntityType = Literal[
@@ -17,6 +16,7 @@ ReferencedEntityType = Literal[
     "representation",
     "workfile",
 ]
+EntityLinkTuple = tuple[ReferencedEntityType, str]
 
 
 class ActivityReferenceModel(OPModel):
