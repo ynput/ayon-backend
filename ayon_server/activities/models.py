@@ -4,8 +4,21 @@ from typing import Any, Literal
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
-ActivityType = Literal["comment", "status.change", "assignee.add", "assignee.remove"]
-ActivityReferenceType = Literal["origin", "mention", "author", "relation"]
+ActivityType = Literal[
+    "comment",
+    "status.change",
+    "assignee.add",
+    "assignee.remove",
+    "version.publish",
+]
+
+ActivityReferenceType = Literal[
+    "origin",
+    "mention",
+    "author",
+    "relation",
+]
+
 ReferencedEntityType = Literal[
     "activity",
     "user",
@@ -16,6 +29,7 @@ ReferencedEntityType = Literal[
     "representation",
     "workfile",
 ]
+
 EntityLinkTuple = tuple[ReferencedEntityType, str]
 
 
