@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS entity_paths (
     entity_type VARCHAR NOT NULL,
     path VARCHAR NOT NULL
 );
-CREATE INDEX IF NOT EXISTS entity_paths_path_idx ON entity_paths USING GIN (path gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS entity_paths_path_idx ON entity_paths USING GIN (path public.gin_trgm_ops);
 
 
 CREATE OR REPLACE VIEW activity_feed AS

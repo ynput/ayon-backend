@@ -56,3 +56,11 @@ def extract_mentions(
                 )
             )
     return references
+
+
+def is_body_with_checklist(md_text: str) -> bool:
+    """Check if the markdown text is a body with a checklist."""
+
+    checkbox_pattern = re.compile(r"^\s*[\-\*]\s*\[[ xX]\]", re.MULTILINE)
+    match = checkbox_pattern.search(md_text)
+    return match is not None

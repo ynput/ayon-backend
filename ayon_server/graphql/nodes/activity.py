@@ -9,8 +9,10 @@ from ayon_server.utils import json_dumps, json_loads
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.user import UserNode
+    from ayon_server.graphql.nodes.version import VersionNode
 else:
     UserNode = LazyType["UserNode", ".user"]
+    VersionNode = LazyType["VersionNode", ".version"]
 
 
 @strawberry.type
@@ -73,6 +75,24 @@ class ActivityNode:
             record = await loader.load(assignee)
             return info.context["user_from_record"](record, info.context)
         return None
+
+    @strawberry.field
+    async def version(self, info: Info) -> Optional["VersionNode"]:
+        if self.activity_type not in ["version.publish"]:
+            return None
+
+        data = json_loads(self.activity_data)
+        version_id = data.get("origin", {}).get("id")
+        if not version_id:
+            return None
+
+        loader = info.context["version_loader"]
+        record = await loader.load((self.project_name, version_id))
+        return (
+            info.context["version_from_record"](self.project_name, record, info.context)
+            if record
+            else None
+        )
 
 
 def replace_reference_body(node: ActivityNode) -> ActivityNode:

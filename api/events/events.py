@@ -31,6 +31,12 @@ from .router import router
 
 normal_user_topic_whitelist: list[str] = []
 
+RESTARTABLE_WHITELIST = [
+    "installer.install_from_url",
+    "dependency_package.install_from_url",
+    "addon.install_from_url",
+]
+
 
 class DispatchEventRequestModel(OPModel):
     topic: str = TOPIC_FIELD
@@ -67,8 +73,8 @@ class UpdateEventRequestModel(OPModel):
     user: str | None = USER_FIELD
     status: EventStatus | None = Field(None, title="Status", example="in_progress")
     description: str | None = DESCRIPTION_FIELD
-    summary: dict[str, Any] | None = SUMMARY_FIELD
-    payload: dict[str, Any] | None = PAYLOAD_FIELD
+    summary: dict[str, Any] | None = Field(None, title="Summary", example={})
+    payload: dict[str, Any] | None = Field(None, title="Payload", example={})
     progress: float | None = PROGRESS_FIELD
     retries: int | None = RETRIES_FIELD
 
@@ -151,14 +157,17 @@ async def update_existing_event(
     """Update existing event."""
 
     res = await Postgres.fetch(
-        "SELECT user_name, status, depends_on FROM events WHERE id = $1", event_id
+        "SELECT topic, user_name, status, depends_on FROM events WHERE id = $1",
+        event_id,
     )
     if not res:
         raise NotFoundException("Event not found")
     event_user = res[0]["user_name"]
 
     if payload.status and payload.status != res[0]["status"]:
-        if res[0]["depends_on"] is None:
+        if (res[0]["depends_on"] is None) and (
+            res[0]["topic"] not in RESTARTABLE_WHITELIST
+        ):
             raise ForbiddenException("Source events are not restartable")
 
     if not user.is_manager:

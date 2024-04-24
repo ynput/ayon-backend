@@ -52,11 +52,24 @@ async def get_activities(
             entity_type = "representation"
             entity_ids = [root.id]
         else:
-            reference_types = ["origin"]
+            reference_types = reference_types or ["origin"]
 
     if activity_types is not None:
         validate_name_list(activity_types)
-        sql_conditions.append(f"activity_type IN {SQLTool.array(activity_types)}")
+
+        if "checklist" in activity_types:
+            if "comment" not in activity_types:
+                # comments include checklist items so we don't need to query both
+                sql_conditions.append(
+                    """(
+                        activity_type = 'comment'
+                        AND activity_data->>'hasChecklist' IS NOT NULL
+                    )"""
+                )
+            activity_types.remove("checklist")
+
+        if activity_types:
+            sql_conditions.append(f"activity_type IN {SQLTool.array(activity_types)}")
 
     if reference_types is not None:
         validate_name_list(reference_types)
