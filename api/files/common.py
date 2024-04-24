@@ -8,8 +8,9 @@ def id_to_path(project_name: str, file_id: str) -> str:
     assert len(file_id) == 32
     fgroup = file_id[:2]
     return os.path.join(
-        ayonconfig.upload_dir,
+        ayonconfig.project_data_dir,
         project_name,
+        "uploads",
         fgroup,
         file_id,
     )
