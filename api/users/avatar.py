@@ -5,6 +5,7 @@ import os
 import aiofiles
 import httpx
 from fastapi import Request, Response
+from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser, UserName
 from ayon_server.api.files import image_response_from_bytes
@@ -100,13 +101,23 @@ async def obtain_avatar(user_name: str) -> bytes:
     if not res:
         raise NotFoundException("User not found")
 
+    avatar_bytes: bytes | None = None
     if res[0]["url"]:
         avatar_url = res[0]["url"]
         async with httpx.AsyncClient() as client:
-            response = await client.get(avatar_url)
-            avatar_bytes = response.content
-        avatar_bytes = await process_thumbnail(avatar_bytes)
-    else:
+            try:
+                response = await client.get(avatar_url)
+                response.raise_for_status()
+                avatar_bytes = response.content
+            except httpx.HTTPStatusError:
+                logging.warning(
+                    f"Failed to fetch user {user_name} avatar from {avatar_url}. "
+                    f"Error: {response.status_code}"
+                )
+            else:
+                avatar_bytes = await process_thumbnail(avatar_bytes)
+
+    if not avatar_bytes:
         try:
             avatar_bytes = await load_avatar_file(user_name)
         except FileNotFoundError:
