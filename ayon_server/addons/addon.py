@@ -64,10 +64,10 @@ class BaseServerAddon:
         # populate metadata from package.py
 
         compatibility = AddonCompatibilityModel(
-            server_version=kwargs.pop("ayon_server_version"),
-            launcher_version=kwargs.pop("ayon_launcher_version"),
-            required_addons=kwargs.pop("ayon_required_addons"),
-            compatible_addons=kwargs.pop("ayon_compatible_addons"),
+            server_version=kwargs.pop("ayon_server_version", None),
+            launcher_version=kwargs.pop("ayon_launcher_version", None),
+            required_addons=kwargs.pop("ayon_required_addons", None),
+            compatible_addons=kwargs.pop("ayon_compatible_addons", None),
         )
 
         self.compatibility = compatibility
