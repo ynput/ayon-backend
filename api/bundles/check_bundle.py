@@ -30,7 +30,7 @@ class BundleIssueModel(OPModel):
 
 class CheckBundleResponseModel(OPModel):
     success: bool = False
-    issues: list[BundleIssueModel] | None = None
+    issues: list[BundleIssueModel] = Field(default_factory=list)
 
 
 async def check_bundle(bundle: BundleModel) -> CheckBundleResponseModel:
@@ -113,7 +113,5 @@ async def check_bundle(bundle: BundleModel) -> CheckBundleResponseModel:
                     BundleIssueModel(severity="warning", addon=addon_name, message=msg)
                 )
 
-    return CheckBundleResponseModel(
-        success=not (issue for issue in issues if issue.severity == "error"),
-        issues=issues or None,
-    )
+    has_errors = any(issue.severity == "error" for issue in issues)
+    return CheckBundleResponseModel(success=not has_errors, issues=issues)
