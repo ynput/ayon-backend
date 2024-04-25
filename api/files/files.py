@@ -16,7 +16,7 @@ from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
 from .common import id_to_path
-from .preview import UnsupportedPreviewException, get_file_preview, uncache_file_preview
+from .preview import get_file_preview, uncache_file_preview
 from .router import router
 
 VALID_MIME_TYPES = [
@@ -189,16 +189,18 @@ async def download_project_file(
     user: CurrentUser,
     preview: bool = Query(False, alias="preview", description="Preview mode"),
 ) -> FileResponse | Response:
+    """Get a project file (comment attachment etc.)
+
+    The `preview` query parameter can be used to get
+    a preview of the file (if available).
+    """
+
     check_user_access(project_name, user)
 
     path = id_to_path(project_name, file_id)
 
     if preview:
-        try:
-            return await get_file_preview(project_name, file_id)
-        except UnsupportedPreviewException:
-            print("unable to get preview. returning original file")
-            return await handle_download(path)
+        return await get_file_preview(project_name, file_id)
 
     res = await Postgres.fetch(
         f"""

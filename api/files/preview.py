@@ -5,7 +5,7 @@ from fastapi import Response
 from nxtools import logging
 
 from ayon_server.api.files import image_response_from_bytes
-from ayon_server.exceptions import NotFoundException
+from ayon_server.exceptions import NotFoundException, UnsupportedMediaException
 from ayon_server.helpers.thumbnails import process_thumbnail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
@@ -16,16 +16,13 @@ REDIS_NS = "project.file_preview"
 FILE_PREVIEW_SIZE = (600, None)
 
 
-class UnsupportedPreviewException(Exception):
-    pass
-
-
 async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
-    """
-    Raises UnsupportedPreviewType if the mimetype is not supported
-    for preview generation. That instrucs the caller to serve the
-    file directly.
-    Returns a tuple of (mime_type, preview_bytes)
+    """Return a preview image for a file as bytes.
+
+    Raises:
+        - UnsupportedMediaException if the mimetype is not supported
+        for preview generation.
+        - NotFoundException if the file or file record is not found.
     """
 
     path = id_to_path(project_name, file_id)
@@ -56,10 +53,16 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
             pvw_bytes = await process_thumbnail(image_bytes, FILE_PREVIEW_SIZE)
             return pvw_bytes
 
-    raise UnsupportedPreviewException("Unsupported preview type")
+    # TODO: return a generic preview image for other file types
+    raise UnsupportedMediaException("Preview mode is not supported for this file")
 
 
 async def get_file_preview(project_name: str, file_id: str) -> Response:
+    """Return a preview image for a file.
+
+    Uses the cache if available, otherwise generates a new preview and caches it.
+    Returns fastapi.Response object with the image data.
+    """
     file_id = file_id.replace("-", "")
     assert len(file_id) == 32
 
@@ -69,16 +72,17 @@ async def get_file_preview(project_name: str, file_id: str) -> Response:
     if pvw_bytes is None:
         pvw_bytes = await obtain_file_preview(project_name, file_id)
         await Redis.set(REDIS_NS, key, pvw_bytes)
-    #     print("Caching preview")
-    # else:
-    #     print("Using cached preview")
 
     return image_response_from_bytes(pvw_bytes)
 
 
 async def uncache_file_preview(project_name: str, file_id: str) -> None:
-    file_id = file_id.replace("-", "")
-    assert len(file_id) == 32
+    """Remove the preview image from the cache.
 
+    Silently ignore if the file is not found in the cache.
+    """
+    file_id = file_id.replace("-", "")
+    if len(file_id) != 32:
+        raise ValueError("Invalid file ID")
     key = f"{project_name}.{file_id}"
     await Redis.delete(REDIS_NS, key)
