@@ -1,7 +1,7 @@
 import os
 
 import aiofiles
-from fastapi import Request
+from fastapi import Request, Response
 from starlette.responses import FileResponse
 
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
@@ -49,3 +49,16 @@ async def handle_download(
         media_type=media_type,
         filename=filename,
     )
+
+
+def image_response_from_bytes(image_bytes: bytes) -> Response:
+    if image_bytes[0:4] == b"\x89PNG":
+        media_type = "image/png"
+    elif image_bytes[0:2] == b"\xff\xd8":
+        media_type = "image/jpeg"
+    elif image_bytes[0:4] == b"<svg":
+        media_type = "image/svg+xml"
+    else:
+        raise NotFoundException("Invalid image format")
+
+    return Response(content=image_bytes, media_type=media_type)

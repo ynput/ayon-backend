@@ -6,7 +6,6 @@ from starlette.responses import FileResponse
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.files import handle_download, handle_upload
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.config import ayonconfig
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -16,6 +15,8 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
+from .common import id_to_path
+from .preview import get_file_preview, uncache_file_preview
 from .router import router
 
 VALID_MIME_TYPES = [
@@ -27,18 +28,6 @@ VALID_MIME_TYPES = [
     "application/zip",
     "video/mp4",
 ]
-
-
-def id_to_path(project_name: ProjectName, file_id: str) -> str:
-    file_id = file_id.replace("-", "")
-    assert len(file_id) == 32
-    fgroup = file_id[:2]
-    return os.path.join(
-        ayonconfig.upload_dir,
-        project_name,
-        fgroup,
-        file_id,
-    )
 
 
 def check_user_access(project_name: ProjectName, user: CurrentUser) -> None:
@@ -154,18 +143,43 @@ async def delete_project_file(
         file_id,
     )
 
+    await uncache_file_preview(project_name, file_id)
+
     return EmptyResponse()
 
 
-# @router.head("/{file_id}")
-# async def get_project_file_head(
-#     project_name: ProjectName,
-#     file_id: str,
-#     user: CurrentUser,
-# ) -> EmptyResponse:
-#     check_user_access(project_name, user)
-#     return EmptyResponse()
-#
+@router.head("/{file_id}")
+async def get_project_file_head(
+    project_name: ProjectName,
+    file_id: str,
+    user: CurrentUser,
+) -> Response:
+    check_user_access(project_name, user)
+
+    res = await Postgres.fetch(
+        f"""
+        SELECT size, data FROM project_{project_name}.files
+        WHERE id = $1
+        """,
+        file_id,
+    )
+    if not res:
+        raise NotFoundException("File not found")
+
+    data = res[0]["data"]
+    mime = data["mime"]
+    size = res[0]["size"]
+    filename = data["filename"]
+
+    return Response(
+        None,
+        status_code=200,
+        headers={
+            "Content-Length": str(size),
+            "Content-Type": mime,
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
 
 
 @router.get("/{file_id}", response_model=None)
@@ -175,11 +189,31 @@ async def download_project_file(
     user: CurrentUser,
     preview: bool = Query(False, alias="preview", description="Preview mode"),
 ) -> FileResponse | Response:
+    """Get a project file (comment attachment etc.)
+
+    The `preview` query parameter can be used to get
+    a preview of the file (if available).
+    """
+
     check_user_access(project_name, user)
 
     path = id_to_path(project_name, file_id)
 
     if preview:
-        pass  # TODO: Implement preview mode
+        return await get_file_preview(project_name, file_id)
 
-    return await handle_download(path)
+    res = await Postgres.fetch(
+        f"""
+        SELECT data FROM project_{project_name}.files
+        WHERE id = $1
+        """,
+        file_id,
+    )
+    if not res:
+        raise NotFoundException("File not found")
+
+    data = res[0]["data"]
+    mime = data["mime"]
+    filename = data["filename"]
+
+    return await handle_download(path, media_type=mime, filename=filename)
