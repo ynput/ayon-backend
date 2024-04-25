@@ -46,7 +46,7 @@ async def check_bundle(bundle: BundleModel) -> CheckBundleResponseModel:
                 BundleIssueModel(
                     severity="error",
                     addon=addon_name,
-                    message=f"{addon_name} {addon_version} is not installed",
+                    message=f"{addon_name} {addon_version} is not active",
                 )
             )
             continue
@@ -62,6 +62,24 @@ async def check_bundle(bundle: BundleModel) -> CheckBundleResponseModel:
             # Check if the server version is compatible
             if not is_compatible(ayon_version, compat.server_version):
                 msg = f"Ayon server {addon.compatibility.server_version} is required"
+                issues.append(
+                    BundleIssueModel(severity="error", addon=addon_name, message=msg)
+                )
+
+        if compat.launcher_version is not None:
+            # Check if the launcher version is compatible
+            if bundle.installer_version is None:
+                issues.append(
+                    BundleIssueModel(
+                        severity="error",
+                        addon=addon_name,
+                        message="Launcher is required",
+                    )
+                )
+                continue
+
+            if not is_compatible(bundle.installer_version, compat.launcher_version):
+                msg = f"Launcher {compat.launcher_version} is required"
                 issues.append(
                     BundleIssueModel(severity="error", addon=addon_name, message=msg)
                 )
