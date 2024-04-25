@@ -3,6 +3,7 @@ from typing import Literal
 from fastapi import Header, Query
 from nxtools import logging
 
+from api.bundles.check_bundle import CheckBundleResponseModel
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
@@ -17,6 +18,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, Platform
 
 from .actions import promote_bundle
+from .check_bundle import check_bundle
 from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
@@ -141,6 +143,14 @@ async def _create_new_bundle(
         },
         payload=data,
     )
+
+
+@router.post("/bundles/check")
+async def check_bundle_compatibility(
+    user: CurrentUser,
+    bundle: BundleModel,
+) -> CheckBundleResponseModel:
+    return await check_bundle(bundle)
 
 
 @router.post("/bundles", status_code=201)
