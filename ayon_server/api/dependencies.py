@@ -38,12 +38,15 @@ async def dep_access_token(
     access_token: Annotated[str | None, Cookie(alias="accessToken")] = None,
 ) -> str | None:
     """Parse and return an access token provided in the authorisation header."""
-    if authorization is not None:
-        return parse_access_token(authorization)
-    elif token is not None:
+    if token is not None:
+        # try to get token from query params
         return token
     elif access_token is not None:
+        # try to get token from cookies
         return access_token
+    elif authorization is not None:
+        # try to get token from headers
+        return parse_access_token(authorization)
     else:
         return None
 
