@@ -23,6 +23,12 @@ class AyonConfig(BaseModel):
         description="Path to the directory containing the API modules.",
     )
 
+    project_data_dir: str = Field(
+        default="/storage/server/projects",
+        description="Path to the directory containing the project files."
+        " such as comment attachments, thumbnails, etc.",
+    )
+
     avatar_dir: str = Field(
         default="/storage/server/avatars",
         description="Path to the directory containing the user avatars.",
@@ -62,6 +68,11 @@ class AyonConfig(BaseModel):
     redis_channel: str = Field(
         default="pype:c",
         description="Redis channel name for system messages",
+    )
+
+    redis_key_prefix: str | None = Field(
+        default=None,
+        description="Redis keys prefix",
     )
 
     postgres_url: str = Field(

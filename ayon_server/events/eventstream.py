@@ -86,12 +86,12 @@ class EventStream:
                 await Postgres.execute(*query)
             except Postgres.ForeignKeyViolationError as e:
                 raise ConstraintViolationException(
-                    "Event depends on non-existing event"
+                    "Event depends on non-existing event",
                 ) from e
 
             except Postgres.UniqueViolationError as e:
                 raise ConstraintViolationException(
-                    "Event with same hash already exists"
+                    "Event with same hash already exists",
                 ) from e
 
         await Redis.publish(

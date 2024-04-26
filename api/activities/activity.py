@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from ayon_server.activities import (
     ActivityType,
     create_activity,
@@ -22,6 +24,7 @@ class ProjectActivityPostModel(OPModel):
     id: str | None = Field(None, description="Explicitly set the ID of the activity")
     activity_type: ActivityType = Field(..., example="comment")
     body: str = Field("", example="This is a comment")
+    timestamp: datetime | None = Field(None, example="2021-01-01T00:00:00Z")
 
 
 class CreateActivityResponseModel(OPModel):
@@ -59,6 +62,7 @@ async def post_project_activity(
         activity_type=activity.activity_type,
         body=activity.body,
         user_name=user.name,
+        timestamp=activity.timestamp,
     )
 
     return CreateActivityResponseModel(id=id)
