@@ -3,7 +3,6 @@ from typing import Literal
 from fastapi import Header, Query
 from nxtools import logging
 
-from api.bundles.check_bundle import CheckBundleResponseModel
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
@@ -18,7 +17,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, Platform
 
 from .actions import promote_bundle
-from .check_bundle import check_bundle
+from .check_bundle import CheckBundleResponseModel, check_bundle
 from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
@@ -157,19 +156,16 @@ async def check_bundle_compatibility(
 async def create_new_bundle(
     bundle: BundleModel,
     user: CurrentUser,
-    validate: bool = Query(False, description="Ensure specified addons exist"),
     x_sender: str | None = Header(default=None),
+    force: bool = Query(False, description="Force creation of bundle"),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can create bundles")
 
-    if validate:
-        for addon_name, addon_version in bundle.addons.items():
-            # Raise exception if addon if you are trying to add
-            # a bundle with an addon that does not exist
-            if not addon_version:
-                continue
-            _ = AddonLibrary.addon(addon_name, addon_version)
+    if not force:
+        res = await check_bundle(bundle)
+        if not res.success:
+            raise BadRequestException(res.message())
 
     for system_addon_name, addon_definition in AddonLibrary.items():
         if addon_definition.is_system:
@@ -201,9 +197,15 @@ async def update_bundle(
         description="Build dependency packages for selected platforms",
     ),
     x_sender: str | None = Header(default=None),
+    force: bool = Query(False, description="Force creation of bundle"),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can patch bundles")
+
+    if not force:
+        res = await check_bundle(patch)
+        if not res.success:
+            raise BadRequestException(res.message())
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():

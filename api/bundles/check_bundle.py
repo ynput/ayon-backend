@@ -7,7 +7,7 @@ from ayon_server.exceptions import NotFoundException
 from ayon_server.types import Field, OPModel
 from ayon_server.version import __version__ as ayon_version
 
-from .models import BundleModel
+from .models import BundleModel, BundlePatchModel
 
 if TYPE_CHECKING:
     pass
@@ -32,9 +32,22 @@ class CheckBundleResponseModel(OPModel):
     success: bool = False
     issues: list[BundleIssueModel] = Field(default_factory=list)
 
+    def message(self):
+        if self.success:
+            return "Bundle is valid"
+        for issue in self.issues:
+            if issue.severity == "error":
+                msg = f"{issue.addon}: {issue.message}"
+        return f"Failed to validate bundle: {msg}"
 
-async def check_bundle(bundle: BundleModel) -> CheckBundleResponseModel:
+
+async def check_bundle(
+    bundle: BundleModel | BundlePatchModel,
+) -> CheckBundleResponseModel:
     issues: list[BundleIssueModel] = []
+
+    if bundle.addons is None:
+        return CheckBundleResponseModel(success=True)
 
     for addon_name, addon_version in bundle.addons.items():
         if addon_version is None:
