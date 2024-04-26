@@ -86,11 +86,11 @@ async def rebuild_inherited_attributes(
         if not attr_type.get("inherit", True):
             del project_attrib[attr_type["name"]]
 
-    if transaction is not None:
-        await _rebuild_in_transaction(project_name, project_attrib, transaction)
-    else:
+    if (transaction is None) or transaction == Postgres:
         async with Postgres.acquire() as conn, conn.transaction():
             await _rebuild_in_transaction(project_name, project_attrib, conn)
+    else:
+        await _rebuild_in_transaction(project_name, project_attrib, transaction)
 
     elapsed = time.monotonic() - start
     logging.debug(f"Rebuilt inherited attributes for {project_name} in {elapsed:.2f}s")

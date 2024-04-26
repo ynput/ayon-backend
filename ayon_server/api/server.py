@@ -19,7 +19,7 @@ from ayon_server.api.messaging import Messaging
 from ayon_server.api.metadata import app_meta, tags_meta
 from ayon_server.api.postgres_exceptions import (
     IntegrityConstraintViolationError,
-    parse_posgres_exception,
+    parse_postgres_exception,
 )
 from ayon_server.api.responses import ErrorResponse
 from ayon_server.api.static import addon_static_router
@@ -113,7 +113,8 @@ async def ayon_exception_handler(
     exc: AyonException,
 ) -> fastapi.responses.JSONResponse:
     if exc.status in [401, 403, 503]:
-        # do not store 401 and 403 errors in the logs
+        # unauthorized, forbidden, service unavailable
+        # we don't need any additional details for these
         return fastapi.responses.JSONResponse(
             status_code=exc.status,
             content={
@@ -126,7 +127,10 @@ async def ayon_exception_handler(
     path = f"[{request.method.upper()}]"
     path += f" {request.url.path.removeprefix('/api')}"
 
-    logging.error(f"{path}: {exc}", user=user_name)
+    if exc.status == 500:
+        logging.error(f"{path}: {exc}", user=user_name)
+    else:
+        logging.debug(f"{path}: {exc}", user=user_name)
 
     return fastapi.responses.JSONResponse(
         status_code=exc.status,
@@ -168,7 +172,7 @@ async def integrity_constraint_violation_error_handler(
         "file": fname,
         "function": func,
         "line": line_no,
-        **parse_posgres_exception(exc),
+        **parse_postgres_exception(exc),
     }
 
     return fastapi.responses.JSONResponse(status_code=payload["code"], content=payload)
