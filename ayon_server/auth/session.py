@@ -9,6 +9,7 @@ from nxtools import logging
 from ayon_server.api.clientinfo import ClientInfo, get_client_info, get_real_ip
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
+from ayon_server.events import EventStream
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
 from ayon_server.utils import create_hash, json_dumps, json_loads
@@ -56,7 +57,6 @@ class Session:
         session = SessionModel(**json_loads(data))
 
         if cls.is_expired(session):
-            # TODO: some logging here?
             await Redis.delete(cls.ns, token)
             return None
 
@@ -114,6 +114,9 @@ class Session:
             client_info=get_client_info(request) if request else None,
         )
         await Redis.set(cls.ns, token, session.json())
+        await EventStream.dispatch(
+            "user.log_in", description="User logged in", user=user.name
+        )
         return session
 
     @classmethod
@@ -157,7 +160,7 @@ class Session:
                     f"Removing expired session for user"
                     f"{session.user.name} {session.token}"
                 )
-                await Redis.delete(cls.ns, session.token)
+                await cls.delete(session.token)
                 continue
 
             if user_name is None or session.user.name == user_name:
