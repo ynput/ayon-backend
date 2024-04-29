@@ -9,6 +9,7 @@ from nxtools import logging
 from ayon_server.api.clientinfo import ClientInfo, get_client_info, get_real_ip
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
+from ayon_server.events import EventStream
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
 from ayon_server.utils import create_hash, json_dumps, json_loads
@@ -56,8 +57,7 @@ class Session:
         session = SessionModel(**json_loads(data))
 
         if cls.is_expired(session):
-            # TODO: some logging here?
-            await Redis.delete(cls.ns, token)
+            await cls.delete(token, "Session expired")
             return None
 
         if request:
@@ -72,11 +72,8 @@ class Session:
                 real_ip = get_real_ip(request)
                 if not is_local_ip(real_ip):
                     if session.client_info.ip != real_ip:
-                        logging.warning(
-                            "Session IP mismatch. "
-                            f"Stored: {session.client_info.ip}, current: {real_ip}"
-                        )
-                        await Redis.delete(cls.ns, token)
+                        r = f"Stored: {session.client_info.ip}, current: {real_ip}"
+                        await cls.delete(token, f"Client IP mismatch: {r}")
                         return None
 
         # extend normal tokens validity, but not service tokens.
@@ -105,15 +102,23 @@ class Session:
         is_service = bool(token)
         if token is None:
             token = create_hash()
+        client_info = get_client_info(request) if request else None
         session = SessionModel(
             user=user.dict(),
             token=token,
             created=time.time(),
             last_used=time.time(),
             is_service=is_service,
-            client_info=get_client_info(request) if request else None,
+            client_info=client_info,
         )
         await Redis.set(cls.ns, token, session.json())
+        if not user.is_service:
+            await EventStream.dispatch(
+                "user.log_in",
+                description="User logged in",
+                user=user.name,
+                summary=client_info.dict() if client_info else None,
+            )
         return session
 
     @classmethod
@@ -137,7 +142,16 @@ class Session:
         await Redis.set(cls.ns, token, session.json())
 
     @classmethod
-    async def delete(cls, token: str) -> None:
+    async def delete(cls, token: str, message: str = "User logged out") -> None:
+        data = await Redis.get(cls.ns, token)
+        if data:
+            session = SessionModel(**json_loads(data))
+            if not session.user.data.get("isService"):
+                await EventStream.dispatch(
+                    "user.log_out",
+                    description=message,
+                    user=session.user.name,
+                )
         await Redis.delete(cls.ns, token)
 
     @classmethod
@@ -157,7 +171,7 @@ class Session:
                     f"Removing expired session for user"
                     f"{session.user.name} {session.token}"
                 )
-                await Redis.delete(cls.ns, session.token)
+                await cls.delete(session.token)
                 continue
 
             if user_name is None or session.user.name == user_name:
