@@ -111,9 +111,10 @@ class Session:
             client_info=get_client_info(request) if request else None,
         )
         await Redis.set(cls.ns, token, session.json())
-        await EventStream.dispatch(
-            "user.log_in", description="User logged in", user=user.name
-        )
+        if not user.is_service:
+            await EventStream.dispatch(
+                "user.log_in", description="User logged in", user=user.name
+            )
         return session
 
     @classmethod
@@ -141,11 +142,12 @@ class Session:
         data = await Redis.get(cls.ns, token)
         if data:
             session = SessionModel(**json_loads(data))
-            await EventStream.dispatch(
-                "user.log_out",
-                description=message,
-                user=session.user.name,
-            )
+            if not session.user.data.get("isService"):
+                await EventStream.dispatch(
+                    "user.log_out",
+                    description=message,
+                    user=session.user.name,
+                )
         await Redis.delete(cls.ns, token)
 
     @classmethod
