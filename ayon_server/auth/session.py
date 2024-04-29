@@ -57,7 +57,7 @@ class Session:
         session = SessionModel(**json_loads(data))
 
         if cls.is_expired(session):
-            await Redis.delete(cls.ns, token)
+            await cls.delete(token, "Session expired")
             return None
 
         if request:
@@ -72,11 +72,8 @@ class Session:
                 real_ip = get_real_ip(request)
                 if not is_local_ip(real_ip):
                     if session.client_info.ip != real_ip:
-                        logging.warning(
-                            "Session IP mismatch. "
-                            f"Stored: {session.client_info.ip}, current: {real_ip}"
-                        )
-                        await Redis.delete(cls.ns, token)
+                        r = f"Stored: {session.client_info.ip}, current: {real_ip}"
+                        await cls.delete(token, f"Client IP mismatch: {r}")
                         return None
 
         # extend normal tokens validity, but not service tokens.
@@ -140,7 +137,15 @@ class Session:
         await Redis.set(cls.ns, token, session.json())
 
     @classmethod
-    async def delete(cls, token: str) -> None:
+    async def delete(cls, token: str, message: str = "User logged out") -> None:
+        data = await Redis.get(cls.ns, token)
+        if data:
+            session = SessionModel(**json_loads(data))
+            await EventStream.dispatch(
+                "user.log_out",
+                description=message,
+                user=session.user.name,
+            )
         await Redis.delete(cls.ns, token)
 
     @classmethod
