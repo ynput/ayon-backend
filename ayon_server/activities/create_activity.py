@@ -116,7 +116,7 @@ async def create_activity(
     #
 
     if files is not None:
-        data["files"] = await process_activity_files(activity_id, files)
+        data["files"] = await process_activity_files(project_name, files)
 
     query = f"""
         INSERT INTO project_{project_name}.activities
