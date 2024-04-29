@@ -41,6 +41,11 @@ class CheckBundleResponseModel(OPModel):
         return f"Failed to validate bundle: {msg}"
 
 
+async def get_active_services() -> list[dict[str, str]]:
+    # TODO
+    return []
+
+
 async def check_bundle(
     bundle: BundleModel | BundlePatchModel,
 ) -> CheckBundleResponseModel:
