@@ -29,7 +29,11 @@ async def check_failed_login(ip_address: str) -> None:
             f"Attempt to login from banned IP {ip_address}. "
             f"Retry in {float(banned_until) - time.time():.2f} seconds."
         )
-        await EventStream.dispatch("user.log_fail", description=msg)
+        await EventStream.dispatch(
+            "user.log_fail",
+            description=msg,
+            summary={"ip": ip_address},
+        )
         await Redis.delete("login-failed-ip", ip_address)
         raise ForbiddenException("Too many failed login attempts")
 

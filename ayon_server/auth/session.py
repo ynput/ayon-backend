@@ -102,18 +102,22 @@ class Session:
         is_service = bool(token)
         if token is None:
             token = create_hash()
+        client_info = get_client_info(request) if request else None
         session = SessionModel(
             user=user.dict(),
             token=token,
             created=time.time(),
             last_used=time.time(),
             is_service=is_service,
-            client_info=get_client_info(request) if request else None,
+            client_info=client_info,
         )
         await Redis.set(cls.ns, token, session.json())
         if not user.is_service:
             await EventStream.dispatch(
-                "user.log_in", description="User logged in", user=user.name
+                "user.log_in",
+                description="User logged in",
+                user=user.name,
+                summary=client_info.dict() if client_info else None,
             )
         return session
 
