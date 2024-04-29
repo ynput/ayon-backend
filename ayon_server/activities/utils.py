@@ -1,5 +1,5 @@
 import re
-from typing import get_args
+from typing import Any, get_args
 
 from nxtools import logging
 
@@ -64,3 +64,7 @@ def is_body_with_checklist(md_text: str) -> bool:
     checkbox_pattern = re.compile(r"^\s*[\-\*]\s*\[[ xX]\]", re.MULTILINE)
     match = checkbox_pattern.search(md_text)
     return match is not None
+
+
+async def process_activity_files(activity_id, files: list[str]) -> list[dict[str, Any]]:
+    return []

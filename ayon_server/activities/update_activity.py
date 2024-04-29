@@ -19,6 +19,7 @@ async def update_activity(
     project_name: str,
     activity_id: str,
     body: str,
+    files: list[str] | None = None,
     user_name: str | None = None,
     extra_references: list[ActivityReferenceModel] | None = None,
     data: dict[str, Any] | None = None,
@@ -99,6 +100,27 @@ async def update_activity(
 
     async with Postgres.acquire() as conn, conn.transaction():
         await conn.execute(query, body, activity_data, activity_id)
+
+        if files is not None:
+            await conn.execute(
+                f"""
+                UPDATE project_{project_name}.files
+                SET activity_id = NULL
+                WHERE activity_id = $1 AND NOT (id = ANY($2))
+                """,
+                activity_id,
+                files,
+            )
+
+            await conn.execute(
+                f"""
+                UPDATE project_{project_name}.files
+                SET activity_id = $1
+                WHERE id = ANY($2)
+                """,
+                activity_id,
+                files,
+            )
 
         if refs_to_delete:
             await conn.execute(

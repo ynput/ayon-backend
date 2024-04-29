@@ -24,6 +24,7 @@ class ProjectActivityPostModel(OPModel):
     id: str | None = Field(None, description="Explicitly set the ID of the activity")
     activity_type: ActivityType = Field(..., example="comment")
     body: str = Field("", example="This is a comment")
+    files: list[str] | None = Field(None, example=["file1", "file2"])
     timestamp: datetime | None = Field(None, example="2021-01-01T00:00:00Z")
 
 
@@ -61,6 +62,7 @@ async def post_project_activity(
         activity_id=activity.id,
         activity_type=activity.activity_type,
         body=activity.body,
+        files=activity.files,
         user_name=user.name,
         timestamp=activity.timestamp,
     )
@@ -92,6 +94,7 @@ async def delete_project_activity(
 
 class ActivityPatchModel(OPModel):
     body: str = Field(..., example="This is a comment")
+    files: list[str] | None = Field(None, example=["file1", "file2"])
 
 
 @router.patch("/activities/{activity_id}")
@@ -112,6 +115,12 @@ async def patch_project_activity(
     else:
         user_name = user.name
 
-    await update_activity(project_name, activity_id, activity.body, user_name)
+    await update_activity(
+        project_name=project_name,
+        activity_id=activity_id,
+        body=activity.body,
+        files=activity.files,
+        user_name=user_name,
+    )
 
     return EmptyResponse()
