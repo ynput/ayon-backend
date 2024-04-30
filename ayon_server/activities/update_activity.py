@@ -14,6 +14,8 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 
+from .utils import process_activity_files
+
 
 async def update_activity(
     project_name: str,
@@ -89,6 +91,15 @@ async def update_activity(
             if ref not in mentions:
                 refs_to_delete.append(ref.id)
     references.extend(mentions)
+
+    # Update files
+
+    if files is not None:
+        files_data = await process_activity_files(project_name, files)
+        if files_data:
+            activity_data["files"] = files_data
+        else:
+            activity_data.pop("files", None)
 
     # Update the activity
 

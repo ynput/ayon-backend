@@ -36,7 +36,7 @@ class ActivityFileNode:
     id: str = strawberry.field()
     size: str = strawberry.field()  # str, because int limit is 2^31-1
     author: str | None = strawberry.field()
-    filename: str | None = strawberry.field()
+    name: str | None = strawberry.field()
     mime: str | None = strawberry.field()
     created_at: datetime = strawberry.field()
     updated_at: datetime = strawberry.field()
@@ -116,7 +116,7 @@ class ActivityNode:
             result.append(
                 ActivityFileNode(
                     id=file.get("id"),
-                    filename=file.get("filename"),
+                    name=file.get("filename"),
                     size=str(file.get("size", "0")),
                     author=file.get("author"),
                     mime=file.get("mime"),

@@ -15,6 +15,16 @@ from .common import id_to_path
 REDIS_NS = "project.file_preview"
 FILE_PREVIEW_SIZE = (600, None)
 
+IMAGE_MIME_TYPES = [
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/tiff",
+    "image/bmp",
+    "image/webp",
+    "image/ico",
+]
+
 
 async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
     """Return a preview image for a file as bytes.
@@ -47,7 +57,7 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
     if os.path.getsize(path) != expected_size:
         logging.warning(f"File size mismatch: {path}")
 
-    if mime_type.startswith("image/"):
+    if mime_type in IMAGE_MIME_TYPES:
         async with aiofiles.open(path, "rb") as f:
             image_bytes = await f.read()
             pvw_bytes = await process_thumbnail(image_bytes, FILE_PREVIEW_SIZE)
