@@ -37,6 +37,7 @@ async def handle_download(
     path: str,
     media_type: str = "application/octet-stream",
     filename: str | None = None,
+    content_disposition_type: str = "attachment",
 ) -> FileResponse:
     _, _filename = os.path.split(path)
     if filename is None:
@@ -48,6 +49,7 @@ async def handle_download(
         path,
         media_type=media_type,
         filename=filename,
+        content_disposition_type=content_disposition_type,
     )
 
 

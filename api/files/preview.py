@@ -6,14 +6,23 @@ from nxtools import logging
 
 from ayon_server.api.files import image_response_from_bytes
 from ayon_server.exceptions import NotFoundException, UnsupportedMediaException
+from ayon_server.helpers.project_files import id_to_path
 from ayon_server.helpers.thumbnails import process_thumbnail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 
-from .common import id_to_path
-
 REDIS_NS = "project.file_preview"
 FILE_PREVIEW_SIZE = (600, None)
+
+IMAGE_MIME_TYPES = [
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/tiff",
+    "image/bmp",
+    "image/webp",
+    "image/ico",
+]
 
 
 async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
@@ -47,7 +56,7 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
     if os.path.getsize(path) != expected_size:
         logging.warning(f"File size mismatch: {path}")
 
-    if mime_type.startswith("image/"):
+    if mime_type in IMAGE_MIME_TYPES:
         async with aiofiles.open(path, "rb") as f:
             image_bytes = await f.read()
             pvw_bytes = await process_thumbnail(image_bytes, FILE_PREVIEW_SIZE)
