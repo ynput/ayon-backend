@@ -6,11 +6,10 @@ from nxtools import logging
 
 from ayon_server.api.files import image_response_from_bytes
 from ayon_server.exceptions import NotFoundException, UnsupportedMediaException
+from ayon_server.helpers.project_files import id_to_path
 from ayon_server.helpers.thumbnails import process_thumbnail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-
-from .common import id_to_path
 
 REDIS_NS = "project.file_preview"
 FILE_PREVIEW_SIZE = (600, None)

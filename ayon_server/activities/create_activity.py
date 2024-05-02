@@ -132,7 +132,10 @@ async def create_activity(
             await conn.execute(
                 f"""
                 UPDATE project_{project_name}.files
-                SET activity_id = $1 WHERE id = ANY($2)
+                SET
+                    activity_id = $1,
+                    updated_at = NOW()
+                WHERE id = ANY($2)
                 """,
                 activity_id,
                 files,

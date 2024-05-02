@@ -116,8 +116,12 @@ async def update_activity(
             await conn.execute(
                 f"""
                 UPDATE project_{project_name}.files
-                SET activity_id = NULL
-                WHERE activity_id = $1 AND NOT (id = ANY($2))
+                SET
+                    activity_id = NULL,
+                    updated_at = now()
+                WHERE
+                    activity_id = $1
+                AND NOT (id = ANY($2))
                 """,
                 activity_id,
                 files,
@@ -126,8 +130,11 @@ async def update_activity(
             await conn.execute(
                 f"""
                 UPDATE project_{project_name}.files
-                SET activity_id = $1
-                WHERE id = ANY($2)
+                SET
+                    activity_id = $1,
+                    updated_at = now()
+                WHERE
+                    id = ANY($2)
                 """,
                 activity_id,
                 files,

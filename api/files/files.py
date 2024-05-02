@@ -11,11 +11,11 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.project_files import id_to_path
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
-from .common import id_to_path
 from .preview import get_file_preview, uncache_file_preview
 from .router import router
 

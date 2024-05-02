@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from fastapi import BackgroundTasks
+
 from ayon_server.activities import (
     ActivityType,
     create_activity,
@@ -15,6 +17,7 @@ from ayon_server.api.dependencies import (
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.get_entity_class import get_entity_class
+from ayon_server.helpers.project_files import delete_unused_files
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -103,6 +106,7 @@ async def patch_project_activity(
     activity_id: str,
     user: CurrentUser,
     activity: ActivityPatchModel,
+    background_tasks: BackgroundTasks,
 ) -> EmptyResponse:
     """Edit an activity.
 
@@ -122,5 +126,7 @@ async def patch_project_activity(
         files=activity.files,
         user_name=user_name,
     )
+
+    background_tasks.add_task(delete_unused_files, project_name)
 
     return EmptyResponse()
