@@ -19,9 +19,9 @@ def extract_link_tuples(md_text: str) -> list[EntityLinkTuple]:
     for link in LINK_PATTERN.findall(md_text):
         try:
             entity_type, entity_id = link[1].split(":")
-            links.add((entity_type, entity_id))
             if entity_type not in get_args(ReferencedEntityType):
-                raise ValueError(f"Invalid referenced entity type: {entity_type}")
+                continue
+            links.add((entity_type, entity_id))
         except ValueError:
             logging.debug("Invalid reference link format")
     return list(links)
