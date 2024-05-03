@@ -115,7 +115,7 @@ async def obtain_avatar(user_name: str) -> bytes:
                     f"Error: {response.status_code}"
                 )
             else:
-                avatar_bytes = await process_thumbnail(avatar_bytes)
+                avatar_bytes = await process_thumbnail(avatar_bytes, format="JPEG")
 
     if not avatar_bytes:
         try:
