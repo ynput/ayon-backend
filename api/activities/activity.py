@@ -57,8 +57,7 @@ async def post_project_activity(
     entity_class = get_entity_class(entity_type)
     entity = await entity_class.load(project_name, entity_id)
 
-    # TODO: remove before merge
-    # await entity.ensure_read_access(user)  # TODO: different acl level?
+    await entity.ensure_read_access(user)  # TODO: different acl level?
 
     id = await create_activity(
         entity=entity,
@@ -114,7 +113,7 @@ async def patch_project_activity(
     """
 
     if user.is_admin:
-        # admin can delete any activity
+        # admin can update any activity
         user_name = None
     else:
         user_name = user.name
