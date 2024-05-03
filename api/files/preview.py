@@ -22,6 +22,7 @@ IMAGE_MIME_TYPES = [
     "image/bmp",
     "image/webp",
     "image/ico",
+    "image/vnd.adobe.photoshop",
 ]
 
 
@@ -59,7 +60,11 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
     if mime_type in IMAGE_MIME_TYPES:
         async with aiofiles.open(path, "rb") as f:
             image_bytes = await f.read()
-            pvw_bytes = await process_thumbnail(image_bytes, FILE_PREVIEW_SIZE)
+            pvw_bytes = await process_thumbnail(
+                image_bytes,
+                FILE_PREVIEW_SIZE,
+                format="JPEG",
+            )
             return pvw_bytes
 
     # TODO: return a generic preview image for other file types

@@ -31,8 +31,9 @@ async def delete_activity(
         await Postgres.execute(
             f"""
             UPDATE project_{project_name}.files
-            SET activity_id = NULL
-            updated_at = NOW()
+            SET
+                activity_id = NULL,
+                updated_at = NOW()
             WHERE activity_id = $1
             """,
             activity_id,
