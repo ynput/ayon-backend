@@ -217,7 +217,7 @@ class ProjectLevelEntity(BaseEntity):
             # Update existing entity
 
             fields = dict_exclude(
-                self.dict(exclude_none=True),
+                self.dict(),
                 ["id", "created_at", "updated_at"] + self.model.dynamic_fields,
             )
             fields["attrib"] = attrib

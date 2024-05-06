@@ -27,12 +27,24 @@ async def delete_activity(
         if "author" in data and data["author"] != user_name:
             raise ForbiddenException("You are not the author of this activity")
 
-    await Postgres().execute(
-        f"""
-        DELETE FROM project_{project_name}.activities
-        WHERE id = $1
-        """,
-        activity_id,
-    )
+    async with Postgres.acquire() as conn, conn.transaction():
+        await Postgres.execute(
+            f"""
+            UPDATE project_{project_name}.files
+            SET
+                activity_id = NULL,
+                updated_at = NOW()
+            WHERE activity_id = $1
+            """,
+            activity_id,
+        )
+
+        await Postgres().execute(
+            f"""
+            DELETE FROM project_{project_name}.activities
+            WHERE id = $1
+            """,
+            activity_id,
+        )
 
     return None

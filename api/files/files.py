@@ -11,23 +11,13 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.project_files import id_to_path
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
-from .common import id_to_path
 from .preview import get_file_preview, uncache_file_preview
 from .router import router
-
-VALID_MIME_TYPES = [
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "image/svg+xml",
-    "application/pdf",
-    "application/zip",
-    "video/mp4",
-]
 
 
 def check_user_access(project_name: ProjectName, user: CurrentUser) -> None:
@@ -65,9 +55,6 @@ async def upload_project_file(
     """
 
     check_user_access(project_name, user)
-
-    if content_type not in VALID_MIME_TYPES:
-        raise BadRequestException("Invalid content type")
 
     if x_file_id:
         file_id = x_file_id.replace("-", "")
@@ -177,7 +164,7 @@ async def get_project_file_head(
         headers={
             "Content-Length": str(size),
             "Content-Type": mime,
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": f'inline; filename="{filename}"',
         },
     )
 
@@ -216,4 +203,9 @@ async def download_project_file(
     mime = data["mime"]
     filename = data["filename"]
 
-    return await handle_download(path, media_type=mime, filename=filename)
+    return await handle_download(
+        path,
+        media_type=mime,
+        filename=filename,
+        content_disposition_type="inline",
+    )

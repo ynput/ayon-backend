@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from fastapi import BackgroundTasks
+
 from ayon_server.activities import (
     ActivityType,
     create_activity,
@@ -15,6 +17,7 @@ from ayon_server.api.dependencies import (
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.get_entity_class import get_entity_class
+from ayon_server.helpers.project_files import delete_unused_files
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -24,6 +27,7 @@ class ProjectActivityPostModel(OPModel):
     id: str | None = Field(None, description="Explicitly set the ID of the activity")
     activity_type: ActivityType = Field(..., example="comment")
     body: str = Field("", example="This is a comment")
+    files: list[str] | None = Field(None, example=["file1", "file2"])
     timestamp: datetime | None = Field(None, example="2021-01-01T00:00:00Z")
 
 
@@ -53,14 +57,14 @@ async def post_project_activity(
     entity_class = get_entity_class(entity_type)
     entity = await entity_class.load(project_name, entity_id)
 
-    # TODO: remove before merge
-    # await entity.ensure_read_access(user)  # TODO: different acl level?
+    await entity.ensure_read_access(user)  # TODO: different acl level?
 
     id = await create_activity(
         entity=entity,
         activity_id=activity.id,
         activity_type=activity.activity_type,
         body=activity.body,
+        files=activity.files,
         user_name=user.name,
         timestamp=activity.timestamp,
     )
@@ -92,6 +96,7 @@ async def delete_project_activity(
 
 class ActivityPatchModel(OPModel):
     body: str = Field(..., example="This is a comment")
+    files: list[str] | None = Field(None, example=["file1", "file2"])
 
 
 @router.patch("/activities/{activity_id}")
@@ -100,6 +105,7 @@ async def patch_project_activity(
     activity_id: str,
     user: CurrentUser,
     activity: ActivityPatchModel,
+    background_tasks: BackgroundTasks,
 ) -> EmptyResponse:
     """Edit an activity.
 
@@ -107,11 +113,19 @@ async def patch_project_activity(
     """
 
     if user.is_admin:
-        # admin can delete any activity
+        # admin can update any activity
         user_name = None
     else:
         user_name = user.name
 
-    await update_activity(project_name, activity_id, activity.body, user_name)
+    await update_activity(
+        project_name=project_name,
+        activity_id=activity_id,
+        body=activity.body,
+        files=activity.files,
+        user_name=user_name,
+    )
+
+    background_tasks.add_task(delete_unused_files, project_name)
 
     return EmptyResponse()

@@ -56,8 +56,8 @@ CREATE TABLE IF NOT EXISTS public.events(
   hash VARCHAR NOT NULL,
   topic VARCHAR NOT NULL,
   sender VARCHAR,
-  project_name VARCHAR, -- REFERENCES public.projects(name) ON DELETE CASCADE ON UPDATE CASCADE,
-  user_name VARCHAR, -- REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  project_name VARCHAR,
+  user_name VARCHAR,
   depends_on UUID REFERENCES public.events(id),
   status VARCHAR NOT NULL
     DEFAULT 'finished'
@@ -79,9 +79,15 @@ CREATE TABLE IF NOT EXISTS public.events(
   creation_order SERIAL NOT NULL
 );
 
--- TODO: some indices here
 CREATE UNIQUE INDEX IF NOT EXISTS unique_event_hash ON events(hash);
 CREATE UNIQUE INDEX IF NOT EXISTS unique_creation_order ON events(creation_order);
+
+CREATE INDEX IF NOT EXISTS event_topic_idx ON events USING GIN (topic public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS event_depends_on_idx ON events(depends_on);
+CREATE INDEX IF NOT EXISTS event_project_name_idx ON events (project_name);
+CREATE INDEX IF NOT EXISTS event_user_name_idx ON events (user_name);
+CREATE INDEX IF NOT EXISTS event_created_at_idx ON events (created_at);
+CREATE INDEX IF NOT EXISTS event_updated_at_idx ON events (updated_at);
 
 --------------
 -- Settings --

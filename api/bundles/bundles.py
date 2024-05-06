@@ -7,7 +7,7 @@ from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import UserEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -129,7 +129,7 @@ async def _create_new_bundle(
                 bundle.created_at,
             )
 
-    await dispatch_event(
+    await EventStream.dispatch(
         "bundle.created",
         sender=sender,
         user=user.name if user else None,
@@ -201,6 +201,8 @@ async def update_bundle(
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can patch bundles")
+
+    status_changed_to: str | None = None
 
     async with Postgres.acquire() as conn, conn.transaction():
         res = await conn.fetch(
@@ -308,8 +310,6 @@ async def update_bundle(
                 key: value.dict() for key, value in bundle.addon_development.items()
             }
 
-        # normally patchable fields
-
         if patch.is_archived is not None:
             bundle.is_archived = patch.is_archived
 
@@ -349,7 +349,7 @@ async def update_bundle(
             bundle_name,
         )
 
-    await dispatch_event(
+    await EventStream.dispatch(
         "bundle.updated",
         sender=x_sender,
         user=user.name,
@@ -363,6 +363,19 @@ async def update_bundle(
         },
         payload=data,
     )
+
+    if status_changed_to:
+        await EventStream.dispatch(
+            "bundle.status_changed",
+            sender=x_sender,
+            user=user.name,
+            description=f"Bundle {bundle_name} changed to {status_changed_to}",
+            summary={
+                "name": bundle_name,
+                "status": status_changed_to,
+            },
+            payload=data,
+        )
 
     if build:
         # TODO

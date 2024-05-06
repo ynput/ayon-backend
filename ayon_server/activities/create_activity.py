@@ -10,6 +10,7 @@ from ayon_server.activities.utils import (
     MAX_BODY_LENGTH,
     extract_mentions,
     is_body_with_checklist,
+    process_activity_files,
 )
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import BadRequestException
@@ -21,6 +22,7 @@ async def create_activity(
     entity: ProjectLevelEntity,
     activity_type: ActivityType,
     body: str,
+    files: list[str] | None = None,
     activity_id: str | None = None,
     user_name: str | None = None,
     extra_references: list[ActivityReferenceModel] | None = None,
@@ -109,6 +111,13 @@ async def create_activity(
     if not activity_id:
         activity_id = create_uuid()
 
+    #
+    # Add files
+    #
+
+    if files is not None:
+        data["files"] = await process_activity_files(project_name, files)
+
     query = f"""
         INSERT INTO project_{project_name}.activities
         (id, activity_type, body, data, created_at, updated_at)
@@ -118,6 +127,20 @@ async def create_activity(
 
     async with Postgres.acquire() as conn, conn.transaction():
         await conn.execute(query, activity_id, activity_type, body, data, timestamp)
+
+        if files is not None:
+            await conn.execute(
+                f"""
+                UPDATE project_{project_name}.files
+                SET
+                    activity_id = $1,
+                    updated_at = NOW()
+                WHERE id = ANY($2)
+                """,
+                activity_id,
+                files,
+            )
+
         st_ref = await conn.prepare(
             f"""
             INSERT INTO project_{project_name}.activity_references

@@ -249,11 +249,27 @@ class ModelSet:
     def _generate_post_model(self) -> Type[BaseModel]:
         """Generate the post model."""
         model_name = f"{self.entity_name.capitalize()}PostModel"
-        fields = [
-            f
-            for f in (self.fields + self._project_level_fields + self._common_fields)
-            if not f.get("dynamic")
-        ]
+        # Allow setting the ID explicitly
+        fields = (
+            [
+                {
+                    "name": "id",
+                    "type": "string",
+                    "title": "Entity ID",
+                    "factory": "uuid",
+                    "description": "Explicitly set the ID of the entity",
+                    "regex": ENTITY_ID_REGEX,
+                    "example": ENTITY_ID_EXAMPLE,
+                }
+            ]
+            if self.has_id
+            else []
+        )
+        for f in self.fields + self._project_level_fields + self._common_fields:
+            if f.get("dynamic"):
+                continue
+            fields.append(f)
+
         return generate_model(model_name, fields, EntityModelConfig)
 
     def _generate_patch_model(self) -> Type[BaseModel]:
