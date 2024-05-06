@@ -7,7 +7,7 @@ from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import UserEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -128,7 +128,7 @@ async def _create_new_bundle(
                 bundle.created_at,
             )
 
-    await dispatch_event(
+    await EventStream.dispatch(
         "bundle.created",
         sender=sender,
         user=user.name if user else None,
@@ -195,6 +195,8 @@ async def update_bundle(
     if not user.is_admin:
         raise ForbiddenException("Only admins can patch bundles")
 
+    status_changed_to: str | None = None
+
     async with Postgres.acquire() as conn:
         async with conn.transaction():
             res = await conn.fetch(
@@ -232,18 +234,22 @@ async def update_bundle(
             # normally patchable fields
 
             if patch.is_archived is not None:
+                if (bundle.is_archived != patch.is_archived) and patch.is_archived:
+                    status_changed_to = "archived"
                 bundle.is_archived = patch.is_archived
 
             if patch.is_dev is not None:
                 bundle.is_dev = patch.is_dev
 
             if patch.is_production is not None:
-                if patch.is_production:
+                if patch.is_production and (not bundle.is_production):
+                    status_changed_to = "production"
                     await conn.execute("UPDATE bundles SET is_production = FALSE")
                 bundle.is_production = patch.is_production
 
             if patch.is_staging is not None:
-                if patch.is_staging:
+                if patch.is_staging and (not bundle.is_staging):
+                    status_changed_to = "staging"
                     await conn.execute("UPDATE bundles SET is_staging = FALSE")
                 bundle.is_staging = patch.is_staging
 
@@ -336,7 +342,7 @@ async def update_bundle(
                 bundle_name,
             )
 
-    await dispatch_event(
+    await EventStream.dispatch(
         "bundle.updated",
         sender=x_sender,
         user=user.name,
@@ -350,6 +356,19 @@ async def update_bundle(
         },
         payload=data,
     )
+
+    if status_changed_to:
+        await EventStream.dispatch(
+            "bundle.status_changed",
+            sender=x_sender,
+            user=user.name,
+            description=f"Bundle {bundle_name} changed to {status_changed_to}",
+            summary={
+                "name": bundle_name,
+                "status": status_changed_to,
+            },
+            payload=data,
+        )
 
     if build:
         # TODO
