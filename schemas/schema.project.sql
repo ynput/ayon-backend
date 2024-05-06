@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS activities (
     creation_order SERIAL NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_activity_type ON activities(activity_type);
+
 CREATE TABLE IF NOT EXISTS activity_references (
     id UUID PRIMARY KEY, -- generate uuid1 in python
     activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
@@ -64,6 +66,9 @@ CREATE TABLE IF NOT EXISTS activity_references (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     creation_order SERIAL NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_activity_id ON activity_references(activity_id);
+CREATE INDEX IF NOT EXISTS idx_activity_entity_id ON activity_references(entity_id);
 CREATE INDEX IF NOT EXISTS idx_activity_reference_created_at ON activity_references(created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_reference_unique ON activity_references(activity_id, entity_id, entity_name, reference_type);
 
@@ -121,6 +126,8 @@ CREATE TABLE IF NOT EXISTS files (
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_files_activity_id ON files(activity_id);
 
 -------------------
 -- BASE ENTITIES --
