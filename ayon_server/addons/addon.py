@@ -34,8 +34,8 @@ METADATA_KEYS = [
 class AddonCompatibilityModel(BaseSettingsModel):
     server_version: str | None = None
     launcher_version: str | None = None
-    required_addons: dict[str, str] | None = None
-    compatible_addons: dict[str, str] | None = None
+    required_addons: dict[str, str | None] | None = None
+    compatible_addons: dict[str, str | None] | None = None
 
 
 class BaseServerAddon:

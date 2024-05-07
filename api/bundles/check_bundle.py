@@ -26,6 +26,7 @@ class BundleIssueModel(OPModel):
     severity: Literal["error", "warning"] = Field(..., example="error")
     addon: str | None = Field(None, example="ftrack")
     message: str = Field(..., example="FTrack addon requires Core >= 1.0.0")
+    required_addon: str | None = Field(None, example="core")
 
 
 class CheckBundleResponseModel(OPModel):
@@ -65,6 +66,7 @@ async def check_bundle(
                     severity="error",
                     addon=addon_name,
                     message=f"{addon_name} {addon_version} is not active",
+                    required_addon=addon_name,
                 )
             )
             continue
@@ -81,7 +83,12 @@ async def check_bundle(
             if not is_compatible(ayon_version, compat.server_version):
                 msg = f"Ayon server {addon.compatibility.server_version} is required"
                 issues.append(
-                    BundleIssueModel(severity="error", addon=addon_name, message=msg)
+                    BundleIssueModel(
+                        severity="error",
+                        addon=addon_name,
+                        message=msg,
+                        required_addon=None,
+                    )
                 )
 
         if compat.launcher_version is not None:
@@ -92,6 +99,7 @@ async def check_bundle(
                         severity="error",
                         addon=addon_name,
                         message="Launcher is required",
+                        required_addon=None,
                     )
                 )
                 continue
@@ -99,36 +107,76 @@ async def check_bundle(
             if not is_compatible(bundle.installer_version, compat.launcher_version):
                 msg = f"Launcher {compat.launcher_version} is required"
                 issues.append(
-                    BundleIssueModel(severity="error", addon=addon_name, message=msg)
+                    BundleIssueModel(
+                        severity="error",
+                        addon=addon_name,
+                        message=msg,
+                        required_addon=None,
+                    )
                 )
 
-        for r_name, requirement in (compat.required_addons or {}).items():
-            r_version = bundle.addons.get(r_name)
-            if r_version is None:
+        # Check for required addons.
+        # If the required addon is not present, it's an error.
+        # If it is present, it must be compatible.
+        # If the requirement is set to None, it must not be present.
+
+        for r_name, r_version in (compat.required_addons or {}).items():
+            print(addon_name, r_name, r_version)
+            b_version = bundle.addons.get(r_name)
+
+            if b_version is None:
+                if r_version is not None:
+                    issues.append(
+                        BundleIssueModel(
+                            severity="error",
+                            addon=addon_name,
+                            message=f"{r_name} is required",
+                            required_addon=r_name,
+                        )
+                    )
+                else:
+                    continue
+
+            elif r_version is None:
                 issues.append(
                     BundleIssueModel(
                         severity="error",
                         addon=addon_name,
-                        message=f"{addon_name} is required",
+                        message=f"{r_name} must not be used",
+                        required_addon=r_name,
                     )
                 )
-                continue
 
-            if not is_compatible(r_version, requirement):
-                msg = f"{r_name} {requirement} is required"
+            elif not is_compatible(b_version, r_version):
+                msg = f"{r_name} {r_version} is required"
                 issues.append(
-                    BundleIssueModel(severity="error", addon=addon_name, message=msg)
+                    BundleIssueModel(
+                        severity="error",
+                        addon=addon_name,
+                        message=msg,
+                        required_addon=r_name,
+                    )
                 )
 
-        for r_name, requirement in (compat.compatible_addons or {}).items():
-            r_version = bundle.addons.get(r_name)
-            if r_version is None:
+        # Check for soft compatibility. If the required addon is not present,
+        # it's not an error. If it is present, it should be compatible,
+        # but it's not a hard requirement. We just warn the user.
+
+        for r_name, r_version in (compat.compatible_addons or {}).items():
+            b_version = bundle.addons.get(r_name)
+            if b_version is None or r_version is None:
+                # compatible addon is not required
                 continue
 
-            if not is_compatible(r_version, requirement):
-                msg = f"only compatible with {r_name} {requirement}"
+            if not is_compatible(b_version, r_version):
+                msg = f"only compatible with {r_name} {r_version}"
                 issues.append(
-                    BundleIssueModel(severity="warning", addon=addon_name, message=msg)
+                    BundleIssueModel(
+                        severity="warning",
+                        addon=addon_name,
+                        message=msg,
+                        required_addon=r_name,
+                    )
                 )
 
     has_errors = any(issue.severity == "error" for issue in issues)
