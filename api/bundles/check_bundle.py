@@ -126,7 +126,7 @@ async def check_bundle(
                 continue
 
             if not is_compatible(r_version, requirement):
-                msg = f"{r_name} {requirement} is required"
+                msg = f"only compatible with {r_name} {requirement}"
                 issues.append(
                     BundleIssueModel(severity="warning", addon=addon_name, message=msg)
                 )
