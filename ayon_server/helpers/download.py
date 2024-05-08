@@ -58,7 +58,6 @@ async def download_file(
 
     try:
         disposition = await get_download_file_disposition(url)
-        print("Download file disposition", disposition)
     except httpx.HTTPError:
         log_traceback()
         raise AyonException("Failed to get file disposition")
