@@ -99,6 +99,13 @@ class FieldInfo:
                 return True
         return False
 
+    def any_endswith(self, *fields: str) -> bool:
+        for field in fields:
+            for f in self.fields:
+                if f.split(".")[-1] == field:
+                    return True
+        return False
+
 
 async def create_folder_access_list(root, info) -> list[str] | None:
     user = info.context["user"]
