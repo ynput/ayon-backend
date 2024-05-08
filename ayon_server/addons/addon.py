@@ -23,7 +23,19 @@ METADATA_KEYS = [
     "version",
     "title",
     "services",
+    # compatibility object
+    "ayon_server_version",
+    "ayon_launcher_version",
+    "ayon_required_addons",
+    "ayon_compatible_addons",
 ]
+
+
+class AddonCompatibilityModel(BaseSettingsModel):
+    server_version: str | None = None
+    launcher_version: str | None = None
+    required_addons: dict[str, str | None] | None = None
+    compatible_addons: dict[str, str | None] | None = None
 
 
 class BaseServerAddon:
@@ -41,6 +53,8 @@ class BaseServerAddon:
     app_host_name: str | None = None
     frontend_scopes: dict[str, Any] = {}
 
+    compatibility: AddonCompatibilityModel | None = None
+
     # automatically set
     definition: "ServerAddonDefinition"
     legacy: bool = False  # auto-set to true if it is the old style addon
@@ -48,6 +62,16 @@ class BaseServerAddon:
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str, **kwargs):
         # populate metadata from package.py
+
+        compatibility = AddonCompatibilityModel(
+            server_version=kwargs.pop("ayon_server_version", None),
+            launcher_version=kwargs.pop("ayon_launcher_version", None),
+            required_addons=kwargs.pop("ayon_required_addons", None),
+            compatible_addons=kwargs.pop("ayon_compatible_addons", None),
+        )
+
+        self.compatibility = compatibility
+
         for key in METADATA_KEYS:
             if key in kwargs:
                 setattr(self, key, kwargs[key])
