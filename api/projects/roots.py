@@ -31,14 +31,16 @@ async def get_project_roots_overrides(
 
     async for row in Postgres.iterate(query, user.name):
         site_id = row["site_id"]
-        result[site_id] = row["data"]
+        data = {k: v for k, v in row["data"].items() if v}
+        if data:
+            result[site_id] = data
 
     return result
 
 
 @router.put("/projects/{project_name}/roots/{site_id}")
 async def set_project_roots_overrides(
-    payload: dict[str, str],
+    payload: dict[str, str | None],
     user: CurrentUser,
     project_name: ProjectName,
     site_id: str = Path(...),
@@ -49,14 +51,24 @@ async def set_project_roots_overrides(
     for root_name in project.config["roots"]:
         if root_name not in payload:
             payload.pop(root_name, None)
+        if not payload[root_name]:
+            payload.pop(root_name, None)
 
-    query = f"""
-        INSERT INTO project_{project_name}.custom_roots (site_id, user_name, data)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (site_id, user_name) DO UPDATE SET data = $3
-    """
+    if payload:
+        query = f"""
+            INSERT INTO project_{project_name}.custom_roots (site_id, user_name, data)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (site_id, user_name) DO UPDATE SET data = $3
+        """
 
-    await Postgres.execute(query, site_id, user.name, payload)
+        await Postgres.execute(query, site_id, user.name, payload)
+    else:
+        query = f"""
+            DELETE FROM project_{project_name}.custom_roots
+            WHERE site_id = $1 AND user_name = $2
+        """
+
+        await Postgres.execute(query, site_id, user.name)
 
     return EmptyResponse()
 
