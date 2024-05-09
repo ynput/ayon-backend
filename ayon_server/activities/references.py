@@ -15,6 +15,8 @@ Resolved references are then stored to activity_references when an activity is c
 or updated.
 """
 
+__all__ = ["get_references_from_entity"]
+
 from ayon_server.activities.models import ActivityReferenceModel
 from ayon_server.entities import TaskEntity, VersionEntity
 from ayon_server.entities.core import ProjectLevelEntity

@@ -11,7 +11,6 @@ MAX_BODY_LENGTH = 2000
 
 # extract links, but not images
 LINK_PATTERN = re.compile(r"(?<!\!)\[(.*?)\]\((.*?)\)")
-# LINK_PATTERN = re.compile(r"\[(.*?)\]\((.*?)\)")
 
 
 def extract_link_tuples(md_text: str) -> list[EntityLinkTuple]:

@@ -1,3 +1,18 @@
+"""ActivityFeedEventHook
+
+This module contains the ActivityFeedEventHook class which is responsible for
+subscribing to events and creating activities in the database based on the
+event data (such as status changes, assignee changes, etc).
+
+Basically, it translates volatile, global events into persistent, project-specific
+activities that are stored in the project schema in the database.
+
+ActivityFeedEventHook.install() is called when server is started
+(from ayon_server.api.server) and subscribes to the events that are relevant.
+"""
+
+__all__ = ["ActivityFeedEventHook"]
+
 from typing import TYPE_CHECKING, Awaitable, Callable, ClassVar, Type
 
 from ayon_server.activities.create_activity import create_activity
@@ -13,6 +28,12 @@ class ActivityFeedEventHook:
 
     @classmethod
     def install(cls, event_stream: Type["EventStream"]):
+        """Subscribe to events that are relevant for the activity feed.
+
+        This method is called once, when the server is started.
+        EventStream class then calls the appropriate handlers
+        when new events are published.
+        """
         cls.topics = {
             "entity.folder.status_changed": cls.handle_status_changed,
             "entity.task.status_changed": cls.handle_status_changed,

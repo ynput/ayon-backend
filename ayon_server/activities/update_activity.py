@@ -49,7 +49,7 @@ async def update_activity(
 
     if user_name and (user_name != activity_data["author"]):
         logging.warning(
-            f"User {user_name} update activity {activity_id}"
+            f"User {user_name} updated activity {activity_id}"
             f" owned by {activity_data['author']}"
         )
         # raise ForbiddenException("You can only update your own activities")
