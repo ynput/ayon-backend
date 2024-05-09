@@ -1,3 +1,20 @@
+"""Activity relations solvers
+
+This module contains functions that solve automatic relations for activities.
+e.g. if an activity is created for a task, it should automatically reference all
+assignees and versions that originate from that task.
+
+Each entity type has its own get_references_from_{entity_type} function that
+returns a list of ActivityReferenceModel objects.
+
+Additionally, there is a get_references_from_entity function that takes a
+ProjectLevelEntity object and calls the appropriate get_references_from_{entity_type}
+function based on the entity type.
+
+Resolved references are then stored to activity_references when an activity is created
+or updated.
+"""
+
 from ayon_server.activities.models import ActivityReferenceModel
 from ayon_server.entities import TaskEntity, VersionEntity
 from ayon_server.entities.core import ProjectLevelEntity
@@ -5,6 +22,12 @@ from ayon_server.lib.postgres import Postgres
 
 
 async def get_references_from_task(task: TaskEntity) -> list[ActivityReferenceModel]:
+    """Get references from a task entity
+
+    Supported references:
+    - assignees
+    - versions
+    """
     references = []
 
     for assignee in task.assignees:
@@ -17,6 +40,7 @@ async def get_references_from_task(task: TaskEntity) -> list[ActivityReferenceMo
             )
         )
 
+    # Load a list of versions that belong to the task.
     async for row in Postgres.iterate(
         f"""
         SELECT id FROM project_{task.project_name}.versions WHERE task_id = $1
@@ -38,6 +62,13 @@ async def get_references_from_task(task: TaskEntity) -> list[ActivityReferenceMo
 async def get_references_from_version(
     version: VersionEntity,
 ) -> list[ActivityReferenceModel]:
+    """Get references from a version
+
+    Supported references:
+    - author
+    - task
+    """
+
     references = []
 
     if version.author:
