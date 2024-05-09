@@ -1,3 +1,12 @@
+"""Create an activity.
+
+This module exports just one function: create_activity, that creates
+an activity record in the database for the given entity including
+all necessary references to other entities and users.
+"""
+
+__all__ = ["create_activity"]
+
 import datetime
 from typing import Any
 
@@ -31,10 +40,9 @@ async def create_activity(
 ) -> str:
     """Create an activity.
 
-    extra_references is an optional
-    lists of references to entities and users.
-    They are autopopulated based on the activity
-    body and the current user if not provided.
+    extra_references is an optional list of references to entities and users.
+    They are autopopulated based on the activity body and the current
+    user if not provided.
     """
 
     if timestamp is None:
