@@ -5,7 +5,7 @@ from typing import Any, Callable, Type
 from nxtools import logging
 from pydantic import BaseModel, ValidationError, parse_obj_as
 
-from ayon_server.utils import json_dumps, json_loads
+from ayon_server.utils import json_dumps, json_loads, json_print
 
 pattern = re.compile(r"(?<!^)(?=[A-Z])")
 
@@ -89,3 +89,52 @@ def migrate_settings(
                 new_instance_data[field_name] = defaults.get(field_name, None)
 
     return new_model_class.parse_obj(new_instance_data)
+
+
+def migrate_settings_overrides(
+    old_data: dict[str, Any],
+    new_model_class: Type[BaseSettingsModel],
+    defaults: dict[str, Any],
+    custom_conversions: dict[str, Callable[[Any], Any]] = {},
+    parent_key: str = "",
+) -> dict[str, Any]:
+    """Migrate settings overrides from old data to new model class."""
+
+    new_data = {}
+
+    if not parent_key:
+        json_print(old_data, "Old data")
+
+    for key, value in old_data.items():
+        if key in new_model_class.__fields__:
+            # Construct the key path for nested fields
+            key_path = f"{parent_key}.{key}" if parent_key else key
+            field_type = new_model_class.__fields__[key]
+            if inspect.isclass(field_type.type_) and issubclass(
+                field_type.type_, BaseSettingsModel
+            ):
+                if isinstance(value, dict):
+                    new_data[key] = migrate_settings_overrides(
+                        value,
+                        field_type.outer_type_,
+                        defaults.get(key, {}),
+                        custom_conversions,
+                        key_path,
+                    )
+                else:
+                    logging.warning(f"Unsupported type for {key_path} model: {value}")
+            else:
+                try:
+                    validated_value = parse_obj_as(field_type.outer_type_, value)
+                    new_data[key] = validated_value
+                except ValidationError:
+                    logging.warning(f"Failed to validate {key} with value {value}")
+                    # Skip incompatible fields
+                    continue
+        else:
+            logging.warning(f"Skipping unknown key: {key}")
+
+    if not parent_key:
+        json_print(new_data, "New data")
+
+    return new_data

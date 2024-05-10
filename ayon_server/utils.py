@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import functools
 import hashlib
+import json
 import random
 import threading
 import time
@@ -24,6 +25,16 @@ def isinstance_namedtuple(obj) -> bool:
     return (
         isinstance(obj, tuple) and hasattr(obj, "_asdict") and hasattr(obj, "_fields")
     )
+
+
+def json_print(data: Any, header: str | None = None) -> None:
+    """Print JSON data."""
+    if header:
+        print()
+        print(header, flush=True)
+    print(json.dumps(data, indent=2), flush=True)
+    if header:
+        print()
 
 
 def json_default_handler(value: Any) -> Any:
