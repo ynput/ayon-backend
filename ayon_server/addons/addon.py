@@ -27,6 +27,7 @@ METADATA_KEYS = [
     "ayon_server_version",
     "ayon_launcher_version",
     "ayon_required_addons",
+    "ayon_soft_required_addons",
     "ayon_compatible_addons",
 ]
 
@@ -35,6 +36,7 @@ class AddonCompatibilityModel(BaseSettingsModel):
     server_version: str | None = None
     launcher_version: str | None = None
     required_addons: dict[str, str | None] | None = None
+    soft_required_addons: dict[str, str | None] | None = None
     compatible_addons: dict[str, str | None] | None = None
 
 
@@ -67,6 +69,7 @@ class BaseServerAddon:
             server_version=kwargs.pop("ayon_server_version", None),
             launcher_version=kwargs.pop("ayon_launcher_version", None),
             required_addons=kwargs.pop("ayon_required_addons", None),
+            soft_required_addons=kwargs.pop("ayon_soft_required_addons", None),
             compatible_addons=kwargs.pop("ayon_compatible_addons", None),
         )
 
