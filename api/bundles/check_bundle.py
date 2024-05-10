@@ -165,16 +165,7 @@ async def check_bundle(
             if b_version is None or r_version is None:
                 # compatible addon is not required
                 continue
-            if b_version is None:
-                issues.append(
-                    BundleIssueModel(
-                        severity="error",
-                        addon=addon_name,
-                        message=f"{r_name} is required",
-                        required_addon=r_name,
-                    )
-                )
-            elif not is_compatible(b_version, r_version):
+            if not is_compatible(b_version, r_version):
                 msg = f"{r_name} {r_version} is required"
                 issues.append(
                     BundleIssueModel(
