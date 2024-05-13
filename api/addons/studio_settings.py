@@ -87,6 +87,8 @@ async def set_addon_studio_settings(
     if not user.is_manager:
         raise ForbiddenException
 
+    explicit_pins = payload.pop("__pinned_fields__", None)
+
     addon = AddonLibrary.addon(addon_name, addon_version)
     original = await addon.get_studio_settings(variant=variant)
     existing = await addon.get_studio_overrides(variant=variant)
@@ -94,7 +96,12 @@ async def set_addon_studio_settings(
     if (original is None) or (model is None):
         raise BadRequestException("This addon does not have settings")
     try:
-        data = extract_overrides(original, model(**payload), existing)
+        data = extract_overrides(
+            original,
+            model(**payload),
+            existing,
+            explicit_pins=explicit_pins,
+        )
     except ValidationError as e:
         raise BadRequestException("Invalid settings", errors=e.errors()) from e
 
