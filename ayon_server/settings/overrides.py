@@ -165,7 +165,6 @@ def paths_to_dict(paths: list[list[str]]):
 def extract_overrides(
     default: BaseSettingsModel,
     overriden: BaseSettingsModel,
-    existing: dict[str, Any] | None = None,
     explicit_pins: list[list[str]] | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {}
