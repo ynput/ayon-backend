@@ -57,7 +57,8 @@ def migrate_settings_overrides(
                         key_path,
                     )
                 else:
-                    logging.warning(f"Unsupported type for {key_path} model: {value}")
+                    sval = str(value)[:70]
+                    logging.warning(f"Unsupported type for {key_path} model: {sval}")
             else:
                 try:
                     validated_value = parse_obj_as(field_type.outer_type_, value)
