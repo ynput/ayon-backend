@@ -117,11 +117,11 @@ async def check_bundle(
 
         # Check for required addons.
         # If the required addon is not present, it's an error.
-        # If it is present, it must be compatible.
+        # If it is present, it must match soft_required.
+        # If it doesn't match compatibility, it's an warning
         # If the requirement is set to None, it must not be present.
 
         for r_name, r_version in (compat.required_addons or {}).items():
-            print(addon_name, r_name, r_version)
             b_version = bundle.addons.get(r_name)
 
             if b_version is None:
@@ -148,6 +148,24 @@ async def check_bundle(
                 )
 
             elif not is_compatible(b_version, r_version):
+                msg = f"{r_name} {r_version} is required"
+                issues.append(
+                    BundleIssueModel(
+                        severity="error",
+                        addon=addon_name,
+                        message=msg,
+                        required_addon=r_name,
+                    )
+                )
+
+        # Check for soft required addons.
+
+        for r_name, r_version in (compat.soft_required_addons or {}).items():
+            b_version = bundle.addons.get(r_name)
+            if b_version is None or r_version is None:
+                # compatible addon is not required
+                continue
+            if not is_compatible(b_version, r_version):
                 msg = f"{r_name} {r_version} is required"
                 issues.append(
                     BundleIssueModel(

@@ -44,6 +44,7 @@ class UserNode:
     is_developer: bool
     has_password: bool
     apiKeyPreview: str | None
+    deleted: bool = False
 
     @strawberry.field
     async def tasks(self, info: Info, project_name: str) -> "TasksConnection":
@@ -52,7 +53,7 @@ class UserNode:
 
 
 def user_from_record(record: dict, context: dict) -> UserNode:
-    data = record["data"]
+    data = record.get("data", {})
     access_groups = data.get("accessGroups", {})
     is_admin = data.get("isAdmin", False)
     is_service = data.get("isService", False)
@@ -91,6 +92,7 @@ def user_from_record(record: dict, context: dict) -> UserNode:
         has_password=bool(data.get("password")),
         default_access_groups=data.get("defaultAccessGroups", []),
         apiKeyPreview=data.get("apiKeyPreview"),
+        deleted=record.get("deleted", False),
     )
 
 
