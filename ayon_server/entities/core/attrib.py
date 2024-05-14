@@ -44,8 +44,9 @@ class AttributeLibrary:
     async def load(self) -> None:
         query = "SELECT * FROM public.attributes ORDER BY position"
         await Postgres.connect()
+        info_data: list[dict[str, Any]] = []
         async for row in Postgres.iterate(query):
-            self.info_data.append(row)
+            info_data.append(row)
             for scope in row["scope"]:
                 attrd = {"name": row["name"], **row["data"]}
                 # Only project attributes should have defaults.
@@ -54,6 +55,7 @@ class AttributeLibrary:
                 if (scope != "project") and ("default" in attrd):
                     del attrd["default"]
                 self.data[scope].append(attrd)
+        self.info_data = info_data
 
     def __getitem__(self, key) -> list[dict[str, Any]]:
         return self.data[key]
