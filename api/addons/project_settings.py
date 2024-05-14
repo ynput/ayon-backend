@@ -176,17 +176,24 @@ async def set_addon_project_settings(
     if model is None:
         raise BadRequestException(f"Addon {addon_name} has no settings")
 
+    explicit_pins = payload.pop("__pinned_fields__", None)
+
     if not site:
         if not user.is_manager:
             raise ForbiddenException
 
         original = await addon.get_project_settings(project_name, variant=variant)
         existing = await addon.get_project_overrides(project_name, variant=variant)
+
         if original is None:
             # This addon does not have settings
             raise BadRequestException(f"Addon {addon_name} has no settings")
         try:
-            data = extract_overrides(original, model(**payload), existing)
+            data = extract_overrides(
+                original,
+                model(**payload),
+                explicit_pins=explicit_pins,
+            )
         except ValidationError as e:
             raise BadRequestException("Invalid settings", errors=e.errors()) from e
 
@@ -246,7 +253,11 @@ async def set_addon_project_settings(
         # This addon does not have settings
         raise BadRequestException(f"Addon {addon_name} has no settings")
     try:
-        data = extract_overrides(original, model(**payload), existing)
+        data = extract_overrides(
+            original,
+            model(**payload),
+            explicit_pins=explicit_pins,
+        )
     except ValidationError:
         raise BadRequestException("Invalid settings") from None
 

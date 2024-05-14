@@ -13,7 +13,7 @@ from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, apply_overrides
-from ayon_server.settings.common import migrate_settings
+from ayon_server.settings.common import migrate_settings_overrides
 
 if TYPE_CHECKING:
     from ayon_server.addons.definition import ServerAddonDefinition
@@ -552,12 +552,11 @@ class BaseServerAddon:
         has been changed from `str` to `list[str]`, you may use:
 
         ```python
-        await def convert_str_to_list_str(value: str | list[str]) -> list[str]:
+        async def convert_str_to_list_str(value: str | list[str]) -> list[str]:
             if isinstance(value, str):
                 return [value]
             elif isinstance(value, list):
                 return value
-            return []
 
         result = migrate_settings(
             overrides,
@@ -569,11 +568,14 @@ class BaseServerAddon:
 
         ```
         """
+
         model_class = self.get_settings_model()
         if model_class is None:
             return {}
         defaults = await self.get_default_settings()
-        result = migrate_settings(
-            overrides, new_model_class=model_class, defaults=defaults.dict()
+        assert defaults is not None
+        return migrate_settings_overrides(
+            overrides,
+            new_model_class=model_class,
+            defaults=defaults.dict(),
         )
-        return result.dict(exclude_unset=True, exclude_none=True, exclude_defaults=True)
