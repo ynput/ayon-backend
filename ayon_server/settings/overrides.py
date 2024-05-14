@@ -165,11 +165,22 @@ def paths_to_dict(paths: list[list[str]]):
 def extract_overrides(
     default: BaseSettingsModel,
     overriden: BaseSettingsModel,
+    existing: dict[str, Any] | None = None,
     explicit_pins: list[list[str]] | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {}
 
-    existing = paths_to_dict(explicit_pins or [])
+    existing_overrides = {**existing} if existing else {}
+    new_overrides = paths_to_dict(explicit_pins or [])
+
+    # apply new overrides to forced ones
+    for path, value in new_overrides.items():
+        current = existing_overrides
+        for key in path:
+            if key not in current:
+                current[key] = {}
+            current = current[key]
+        current.update(value)
 
     def crawl(obj, ovr, ex, target):
         for name, _field in obj.__fields__.items():
@@ -182,6 +193,6 @@ def extract_overrides(
                 if getattr(ovr, name) != getattr(obj, name) or (name in ex):
                     target[name] = ovr.dict()[name]
 
-    crawl(default, overriden, existing or {}, result)
+    crawl(default, overriden, existing_overrides, result)
 
     return result
