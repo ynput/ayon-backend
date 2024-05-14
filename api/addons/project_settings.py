@@ -192,6 +192,7 @@ async def set_addon_project_settings(
             data = extract_overrides(
                 original,
                 model(**payload),
+                existing=existing,
                 explicit_pins=explicit_pins,
             )
         except ValidationError as e:
@@ -256,6 +257,7 @@ async def set_addon_project_settings(
         data = extract_overrides(
             original,
             model(**payload),
+            existing=existing,
             explicit_pins=explicit_pins,
         )
     except ValidationError:

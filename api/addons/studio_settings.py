@@ -99,6 +99,7 @@ async def set_addon_studio_settings(
         data = extract_overrides(
             original,
             model(**payload),
+            existing=existing,
             explicit_pins=explicit_pins,
         )
     except ValidationError as e:
