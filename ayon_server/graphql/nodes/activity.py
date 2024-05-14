@@ -74,6 +74,17 @@ class ActivityNode:
             author = data["author"]
             loader = info.context["user_loader"]
             record = await loader.load(author)
+            if not record:
+                record = {
+                    "name": author,
+                    "attrib": {
+                        "fullName": author,
+                    },
+                    "active": False,
+                    "deleted": True,
+                    "created_at": "1970-01-01T00:00:00Z",
+                    "updated_at": "1970-01-01T00:00:00Z",
+                }
             return info.context["user_from_record"](record, info.context)
         return None
 
