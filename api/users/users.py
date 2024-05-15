@@ -16,9 +16,11 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.types import USER_NAME_REGEX, Field, OPModel
 from ayon_server.utils import get_nickname, obscure
 
+from .avatar import REDIS_NS, obtain_avatar
 from .router import router
 
 #
@@ -203,6 +205,14 @@ async def patch_user(
         payload.data.pop("isManager", None)
 
     validate_user_data(payload.data)
+
+    attrib_dict = target_user.attrib.dict(exclude_unset=True)
+    if (
+        "avatarUrl" in attrib_dict
+        and attrib_dict["avatarUrl"] != target_user.attrib.avatarUrl
+    ):
+        avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
     target_user.patch(payload)
     await target_user.save()
