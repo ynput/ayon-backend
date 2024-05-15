@@ -163,4 +163,27 @@ async def upload_avatar(user: CurrentUser, request: Request, user_name: UserName
     async with aiofiles.open(avatar_path, "wb") as f:
         await f.write(avatar_bytes)
 
-    await Redis.delete(REDIS_NS, user_name)
+    avatar_bytes = await obtain_avatar(user_name)
+    await Redis.set(REDIS_NS, user_name, avatar_bytes)
+
+    await user.save()  # to bump the updated_at field
+
+
+@router.delete("/{user_name}/avatar")
+async def delete_avatar(user: CurrentUser, user_name: UserName):
+    if user.name != user_name and not user.is_admin:
+        raise NotFoundException("Invalid avatar format")
+
+    deleted = False
+    for ext in ["jpeg", "png", "jpg", "svg"]:
+        avatar_path = os.path.join(ayonconfig.avatar_dir, f"{user_name}.{ext}")
+        if os.path.exists(avatar_path):
+            os.unlink(avatar_path)
+            deleted = True
+
+    if deleted:
+        # Update fallback avatar in Redis
+        avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
+
+    await user.save()
