@@ -151,8 +151,8 @@ def list_overrides(
     return result
 
 
-def paths_to_dict(paths: list[list[str]]):
-    root = {}
+def paths_to_dict(paths: list[list[str]]) -> dict[str, Any]:
+    root: dict[str, Any] = {}
     for path in paths:
         current = root
         for key in path:
