@@ -16,9 +16,11 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.types import USER_NAME_REGEX, Field, OPModel
 from ayon_server.utils import get_nickname, obscure
 
+from .avatar import REDIS_NS, obtain_avatar
 from .router import router
 
 #
@@ -204,8 +206,24 @@ async def patch_user(
 
     validate_user_data(payload.data)
 
+    attrib_dict = payload.attrib.dict(exclude_unset=True)
+    avatar_changed = False
+    if (
+        "avatarUrl" in attrib_dict
+        and attrib_dict["avatarUrl"] != target_user.attrib.avatarUrl
+    ):
+        url = attrib_dict["avatarUrl"]
+        if (url) and not (url.startswith("http://") or url.startswith("https://")):
+            raise BadRequestException("Invalid avatar URL")
+        avatar_changed = True
+
     target_user.patch(payload)
     await target_user.save()
+
+    if avatar_changed:
+        logging.info("User avatar url changed, updating cache")
+        avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
     async for session in Session.list(user_name):
         token = session.token
