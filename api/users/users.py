@@ -206,16 +206,24 @@ async def patch_user(
 
     validate_user_data(payload.data)
 
-    attrib_dict = target_user.attrib.dict(exclude_unset=True)
+    attrib_dict = payload.attrib.dict(exclude_unset=True)
+    avatar_changed = False
     if (
         "avatarUrl" in attrib_dict
         and attrib_dict["avatarUrl"] != target_user.attrib.avatarUrl
     ):
-        avatar_bytes = await obtain_avatar(user_name)
-        await Redis.set(REDIS_NS, user_name, avatar_bytes)
+        url = attrib_dict["avatarUrl"]
+        if (url) and not (url.startswith("http://") or url.startswith("https://")):
+            raise BadRequestException("Invalid avatar URL")
+        avatar_changed = True
 
     target_user.patch(payload)
     await target_user.save()
+
+    if avatar_changed:
+        logging.info("User avatar url changed, updating cache")
+        avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
     async for session in Session.list(user_name):
         token = session.token
