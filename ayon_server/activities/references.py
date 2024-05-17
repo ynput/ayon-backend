@@ -18,27 +18,59 @@ or updated.
 __all__ = ["get_references_from_entity"]
 
 from ayon_server.activities.models import ActivityReferenceModel
-from ayon_server.entities import TaskEntity, VersionEntity
+from ayon_server.entities import FolderEntity, TaskEntity, VersionEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.lib.postgres import Postgres
 
 
-async def get_references_from_task(task: TaskEntity) -> list[ActivityReferenceModel]:
+async def get_references_from_folder(
+    folder: FolderEntity,
+) -> set[ActivityReferenceModel]:
+    """Get references from a folder entity
+
+    Supported references:
+    - assigneed on tasks
+    """
+
+    references: set[ActivityReferenceModel] = set()
+
+    async for row in Postgres.iterate(
+        f"""
+        SELECT assignees FROM project_{folder.project_name}.tasks WHERE folder_id = $1
+        """,
+        folder.id,
+    ):
+        for assignee in row["assignees"]:
+            references.add(
+                ActivityReferenceModel(
+                    entity_type="user",
+                    entity_name=assignee,
+                    entity_id=None,
+                    reference_type="relation",
+                    data={"role": "assignee"},
+                )
+            )
+
+    return references
+
+
+async def get_references_from_task(task: TaskEntity) -> set[ActivityReferenceModel]:
     """Get references from a task entity
 
     Supported references:
     - assignees
     - versions
     """
-    references = []
+    references: set[ActivityReferenceModel] = set()
 
     for assignee in task.assignees:
-        references.append(
+        references.add(
             ActivityReferenceModel(
                 entity_type="user",
                 entity_name=assignee,
                 entity_id=None,
                 reference_type="relation",
+                data={"role": "assignee"},
             )
         )
 
@@ -49,7 +81,7 @@ async def get_references_from_task(task: TaskEntity) -> list[ActivityReferenceMo
         """,
         task.id,
     ):
-        references.append(
+        references.add(
             ActivityReferenceModel(
                 entity_type="version",
                 entity_name=None,
@@ -63,7 +95,7 @@ async def get_references_from_task(task: TaskEntity) -> list[ActivityReferenceMo
 
 async def get_references_from_version(
     version: VersionEntity,
-) -> list[ActivityReferenceModel]:
+) -> set[ActivityReferenceModel]:
     """Get references from a version
 
     Supported references:
@@ -71,20 +103,21 @@ async def get_references_from_version(
     - task
     """
 
-    references = []
+    references: set[ActivityReferenceModel] = set()
 
     if version.author:
-        references.append(
+        references.add(
             ActivityReferenceModel(
                 entity_type="user",
                 entity_name=version.author,
                 entity_id=None,
                 reference_type="relation",
+                data={"role": "author"},
             )
         )
 
     if version.task_id:
-        references.append(
+        references.add(
             ActivityReferenceModel(
                 entity_type="task",
                 entity_name=None,
@@ -93,15 +126,29 @@ async def get_references_from_version(
             )
         )
 
+        task = await TaskEntity.load(version.project_name, version.task_id)
+        for assignee in task.assignees:
+            references.add(
+                ActivityReferenceModel(
+                    entity_type="user",
+                    entity_name=assignee,
+                    entity_id=None,
+                    reference_type="relation",
+                    data={"role": "assignee"},
+                )
+            )
+
     return references
 
 
 async def get_references_from_entity(
     entity: ProjectLevelEntity,
-) -> list[ActivityReferenceModel]:
+) -> set[ActivityReferenceModel]:
     if isinstance(entity, TaskEntity):
         return await get_references_from_task(entity)
+    if isinstance(entity, FolderEntity):
+        return await get_references_from_folder(entity)
     elif isinstance(entity, VersionEntity):
         return await get_references_from_version(entity)
     else:
-        return []
+        return set()
