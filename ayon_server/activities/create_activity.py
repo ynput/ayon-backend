@@ -77,17 +77,19 @@ async def create_activity(
 
     # Origin is always present. Activity is always created for a single entity.
 
-    references = [
+    references: set[ActivityReferenceModel] = set(extra_references or [])
+
+    references.add(
         ActivityReferenceModel(
             entity_id=entity_id,
             entity_type=entity_type,
             entity_name=None,
             reference_type="origin",
-        ),
-    ]
+        )
+    )
 
     if user_name:
-        references.append(
+        references.add(
             ActivityReferenceModel(
                 entity_type="user",
                 entity_name=user_name,
@@ -97,20 +99,8 @@ async def create_activity(
         )
         data["author"] = user_name
 
-    references.extend(await get_references_from_entity(entity))
-
-    for ref in extract_mentions(body) + (extra_references or []):
-        if ref.entity_id == entity_id and ref.entity_type == entity_type:
-            # do not self-reference
-            continue
-
-        if ref.reference_type == "relation" and ref.entity_id in [
-            r.entity_id for r in references
-        ]:
-            # do not create relations, if there already is a mention
-            continue
-
-        references.append(ref)
+    references.update(extract_mentions(body))
+    references.update(await get_references_from_entity(entity))
 
     #
     # Create the activity

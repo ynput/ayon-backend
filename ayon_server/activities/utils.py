@@ -28,18 +28,18 @@ def extract_link_tuples(md_text: str) -> list[EntityLinkTuple]:
 
 def extract_mentions(
     md_text: str,
-) -> list[ActivityReferenceModel]:
+) -> set[ActivityReferenceModel]:
     """Extract entity and user mentions from markdown text.
 
     Mentions are in the format (label)[entity_type:entity_id],
     label is ignored.
     """
 
-    references: list[ActivityReferenceModel] = []
+    references: set[ActivityReferenceModel] = set()
 
     for entity_type, entity_id in extract_link_tuples(md_text):
         if entity_type == "user":
-            references.append(
+            references.add(
                 ActivityReferenceModel(
                     entity_name=entity_id,
                     reference_type="mention",
@@ -48,7 +48,7 @@ def extract_mentions(
                 )
             )
         else:
-            references.append(
+            references.add(
                 ActivityReferenceModel(
                     entity_id=entity_id,
                     entity_type=entity_type,
