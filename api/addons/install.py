@@ -145,8 +145,8 @@ class AddonInstallListItemModel(OPModel):
         title="Event topic",
     )
     description: str = Field(..., title="Addon description")
-    addon_name: str = Field(..., title="Addon name")
-    addon_version: str = Field(..., title="Addon version")
+    addon_name: str | None = Field(None, title="Addon name")
+    addon_version: str | None = Field(None, title="Addon version")
     user: str | None = Field(None, title="User who installed the addon")
     status: str = Field(..., title="Event status")
     created_at: datetime = Field(..., title="Event creation time")
@@ -174,7 +174,7 @@ async def get_installed_addons_list(
     last_change: datetime | None = None
     items = []
     async for row in Postgres.iterate(query):
-        summary = row["summary"]
+        summary = row["summary"] or {}
         if last_change is None:
             last_change = row["updated_at"]
         else:
@@ -184,8 +184,8 @@ async def get_installed_addons_list(
                 id=row["id"],
                 topic=row["topic"],
                 description=row["description"],
-                addon_name=summary["addon_name"],
-                addon_version=summary["addon_version"],
+                addon_name=summary.get("name"),
+                addon_version=summary.get("version"),
                 user=row["user"],
                 status=row["status"],
                 created_at=row["created_at"],
