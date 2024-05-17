@@ -25,6 +25,7 @@ async def get_activities(
     before: ARGBefore = None,
     entity_type: str | None = None,
     entity_ids: list[str] | None = None,
+    entity_names: list[str] | None = None,
     activity_types: list[str] | None = None,
     reference_types: list[str] | None = None,
 ) -> ActivitiesConnection:
@@ -87,6 +88,9 @@ async def get_activities(
         #     )
         #     """
         # )
+    if entity_names is not None:
+        validate_name_list(entity_names)
+        sql_conditions.append(f"entity_name IN {SQLTool.array(entity_names)}")
 
     #
     # Pagination
