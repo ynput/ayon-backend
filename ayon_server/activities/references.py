@@ -39,6 +39,7 @@ async def get_references_from_task(task: TaskEntity) -> list[ActivityReferenceMo
                 entity_name=assignee,
                 entity_id=None,
                 reference_type="relation",
+                data={"role": "assignee"},
             )
         )
 
@@ -80,6 +81,7 @@ async def get_references_from_version(
                 entity_name=version.author,
                 entity_id=None,
                 reference_type="relation",
+                data={"role": "author"},
             )
         )
 
@@ -92,6 +94,18 @@ async def get_references_from_version(
                 reference_type="relation",
             )
         )
+
+        task = await TaskEntity.load(version.project_name, version.task_id)
+        for assignee in task.assignees:
+            references.append(
+                ActivityReferenceModel(
+                    entity_type="user",
+                    entity_name=assignee,
+                    entity_id=None,
+                    reference_type="relation",
+                    data={"role": "assignee"},
+                )
+            )
 
     return references
 

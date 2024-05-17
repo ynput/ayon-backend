@@ -144,7 +144,7 @@ class TaskEntity(ProjectLevelEntity):
         self._payload.task_type = value
 
     @property
-    def assignees(self) -> list:
+    def assignees(self) -> list[str]:
         return self._payload.assignees
 
     @assignees.setter
