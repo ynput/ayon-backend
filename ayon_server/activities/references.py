@@ -18,9 +18,40 @@ or updated.
 __all__ = ["get_references_from_entity"]
 
 from ayon_server.activities.models import ActivityReferenceModel
-from ayon_server.entities import TaskEntity, VersionEntity
+from ayon_server.entities import FolderEntity, TaskEntity, VersionEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.lib.postgres import Postgres
+
+
+async def get_references_from_folder(
+    folder: FolderEntity,
+) -> list[ActivityReferenceModel]:
+    """Get references from a folder entity
+
+    Supported references:
+    - assigneed on tasks
+    """
+
+    references = []
+
+    async for row in Postgres.iterate(
+        f"""
+        SELECT assignees FROM project_{folder.project_name}.tasks WHERE folder_id = $1
+        """,
+        folder.id,
+    ):
+        for assignee in row["assignees"]:
+            references.append(
+                ActivityReferenceModel(
+                    entity_type="user",
+                    entity_name=assignee,
+                    entity_id=None,
+                    reference_type="relation",
+                    data={"role": "assignee"},
+                )
+            )
+
+    return references
 
 
 async def get_references_from_task(task: TaskEntity) -> list[ActivityReferenceModel]:
@@ -115,6 +146,8 @@ async def get_references_from_entity(
 ) -> list[ActivityReferenceModel]:
     if isinstance(entity, TaskEntity):
         return await get_references_from_task(entity)
+    if isinstance(entity, FolderEntity):
+        return await get_references_from_folder(entity)
     elif isinstance(entity, VersionEntity):
         return await get_references_from_version(entity)
     else:
