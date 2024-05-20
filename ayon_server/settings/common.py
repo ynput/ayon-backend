@@ -36,7 +36,7 @@ def migrate_settings_overrides(
 ) -> dict[str, Any]:
     """Migrate settings overrides from old data to new model class."""
 
-    new_data = {}
+    new_data: dict[str, Any] = {}
 
     # if not parent_key:
     #     json_print(old_data, "Old data")
@@ -66,9 +66,12 @@ def migrate_settings_overrides(
                     ]
 
                 elif isinstance(value, dict):
+                    # TODO: ensure that the field is indeed a submodel
+                    # it should, but we should check
+
                     new_data[key] = migrate_settings_overrides(
                         value,
-                        field_type.outer_type_,
+                        field_type.outer_type_,  # type: ignore
                         defaults.get(key, {}),
                         custom_conversions,
                         key_path,
