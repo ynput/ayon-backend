@@ -1,6 +1,6 @@
 import inspect
 import re
-from typing import Any, Callable, Type
+from typing import Any, Callable, GenericAlias, Type
 
 from nxtools import logging
 from pydantic import BaseModel, ValidationError, parse_obj_as
@@ -48,7 +48,23 @@ def migrate_settings_overrides(
             if inspect.isclass(field_type.type_) and issubclass(
                 field_type.type_, BaseSettingsModel
             ):
-                if isinstance(value, dict):
+                if (
+                    isinstance(field_type.outer_type_, GenericAlias)
+                    and field_type.outer_type_.__origin__ == list
+                    and isinstance(value, list)
+                ):
+                    new_data[key] = [
+                        migrate_settings_overrides(
+                            v,
+                            field_type.outer_type_.__args__[0],
+                            {},
+                            custom_conversions,
+                            key_path,
+                        )
+                        for v in value
+                    ]
+
+                elif isinstance(value, dict):
                     new_data[key] = migrate_settings_overrides(
                         value,
                         field_type.outer_type_,
