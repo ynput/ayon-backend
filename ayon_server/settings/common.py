@@ -1,6 +1,7 @@
 import inspect
 import re
-from typing import Any, Callable, GenericAlias, Type
+from types import GenericAlias
+from typing import Any, Callable, Type
 
 from nxtools import logging
 from pydantic import BaseModel, ValidationError, parse_obj_as
