@@ -11,6 +11,9 @@ async def deploy_users(
     projects: list[str],
 ) -> None:
     """Create users in the database."""
+    if not users:
+        return
+
     for user in users:
         name = user["name"]
         attrib = {}
