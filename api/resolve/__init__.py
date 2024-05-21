@@ -380,7 +380,9 @@ async def resolve_uris(
     site_id: SiteID,
     user: CurrentUser,
     path_only: bool = Query(
-        False, alias="pathOnly", description="Return only file paths"
+        False,
+        alias="pathOnly",
+        description="Return only file paths",
     ),
 ) -> list[ResolvedURIModel]:
     """Resolve a list of ayon:// URIs to entities.

@@ -435,7 +435,10 @@ async def dep_site_id(
         ),
     ),
 ) -> str | None:
-    """Validate and return a site id specified in an endpoint header."""
+    """Validate and return a site id
+
+    SiteID may be specified in an endpoint header or query parameter.
+    """
     return param1 or param2 or x_ayon_site_id
 
 

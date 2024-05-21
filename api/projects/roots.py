@@ -77,7 +77,7 @@ async def set_project_roots_overrides(
 async def get_project_site_roots(
     project_name: ProjectName,
     user: CurrentUser,
-    site_id: SiteID | None = None,
+    site_id: SiteID,
     platform: Platform | None = None,
 ) -> dict[str, str]:
     """Return roots for a project on a specific site.
