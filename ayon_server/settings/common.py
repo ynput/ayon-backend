@@ -1,5 +1,6 @@
 import inspect
 import re
+from types import GenericAlias
 from typing import Any, Callable, Type
 
 from nxtools import logging
@@ -35,7 +36,7 @@ def migrate_settings_overrides(
 ) -> dict[str, Any]:
     """Migrate settings overrides from old data to new model class."""
 
-    new_data = {}
+    new_data: dict[str, Any] = {}
 
     # if not parent_key:
     #     json_print(old_data, "Old data")
@@ -48,10 +49,29 @@ def migrate_settings_overrides(
             if inspect.isclass(field_type.type_) and issubclass(
                 field_type.type_, BaseSettingsModel
             ):
-                if isinstance(value, dict):
+                if (
+                    isinstance(field_type.outer_type_, GenericAlias)
+                    and field_type.outer_type_.__origin__ == list
+                    and isinstance(value, list)
+                ):
+                    new_data[key] = [
+                        migrate_settings_overrides(
+                            v,
+                            field_type.outer_type_.__args__[0],
+                            {},
+                            custom_conversions,
+                            key_path,
+                        )
+                        for v in value
+                    ]
+
+                elif isinstance(value, dict):
+                    # TODO: ensure that the field is indeed a submodel
+                    # it should, but we should check
+
                     new_data[key] = migrate_settings_overrides(
                         value,
-                        field_type.outer_type_,
+                        field_type.outer_type_,  # type: ignore
                         defaults.get(key, {}),
                         custom_conversions,
                         key_path,
