@@ -4,6 +4,9 @@ from ayon_server.lib.postgres import Postgres
 
 
 async def deploy_access_groups(access_groups: list[dict[str, Any]]) -> None:
+    if not access_groups:
+        return
+
     for access_group in access_groups:
         name = access_group["name"]
         data = access_group["data"]
