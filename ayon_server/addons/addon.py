@@ -579,3 +579,18 @@ class BaseServerAddon:
             new_model_class=model_class,
             defaults=defaults.dict(),
         )
+
+    async def get_app_host_names(self) -> list[str]:
+        """Return a list of application host names that the addon uses.
+
+        Addon may reimplment this method to return a list of host names that
+        the addon uses.
+
+        By default, it returns a single host name from the
+        addon's attributes. If the addon uses multiple host names, you should
+        override this method.
+        """
+
+        if self.app_host_name is None:
+            return []
+        return [self.app_host_name]
