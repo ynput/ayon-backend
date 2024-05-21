@@ -4,15 +4,28 @@ from ayon_server.lib.postgres import Postgres
 
 
 async def deploy_access_groups(access_groups: list[dict[str, Any]]) -> None:
-    existing_access_groups = await Postgres.fetch(
-        "SELECT name FROM public.access_groups"
-    )
-    if existing_access_groups:
-        return
+    for access_group in access_groups:
+        name = access_group["name"]
+        data = access_group["data"]
+        forceUpdate = access_group.get("forceUpdate", False)
 
-    await Postgres.execute(
-        """
-        INSERT INTO access_groups (name, data)
-        VALUES ('editor', '{}'::jsonb)
-        """
-    )
+        if forceUpdate:
+            await Postgres.execute(
+                """
+                INSERT INTO access_groups (name, data)
+                VALUES ($1, $2::jsonb) ON CONFLICT (name) DO UPDATE
+                SET data = $2::jsonb
+                """,
+                name,
+                data,
+            )
+        else:
+            await Postgres.execute(
+                """
+                INSERT INTO access_groups (name, data)
+                VALUES ($1, $2::jsonb)
+                ON CONFLICT (name) DO NOTHING
+                """,
+                name,
+                data,
+            )
