@@ -420,13 +420,26 @@ LinkType = Annotated[tuple[str, str, str], Depends(dep_link_type)]
 
 
 async def dep_site_id(
-    x_ayon_site_id: str | None = Header(None, title="Site ID"),
+    param1: str | None = Query(
+        None, title="Site ID", alias="site_id", include_in_schema=False
+    ),
+    param2: str | None = Query(
+        None, title="Site ID", alias="site", include_in_schema=False
+    ),
+    x_ayon_site_id: str | None = Header(
+        None,
+        title="Site ID",
+        description=(
+            "Site ID may be specified either "
+            "as a query parameter (`site_id` or `site`) or in a header."
+        ),
+    ),
 ) -> str | None:
     """Validate and return a site id specified in an endpoint header."""
-    return x_ayon_site_id
+    return param1 or param2 or x_ayon_site_id
 
 
-SiteID = Annotated[str, Depends(dep_site_id)]
+SiteID = Annotated[str | None, Depends(dep_site_id)]
 
 
 async def dep_ynput_cloud_key() -> str:
