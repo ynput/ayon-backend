@@ -50,10 +50,11 @@ async def deploy_users(
             project_name: data["defaultAccessGroups"]
             for project_name in projects
             if data["defaultAccessGroups"]
+            and isinstance(data["defaultAccessGroups"], list)
         }
 
         for project_name, access_groups in user.get("accessGroups", {}).items():
-            if access_groups:
+            if access_groups and isinstance(access_groups, list):
                 data["accessGroups"][project_name] = access_groups
             elif data["accessGroups"].get(project_name):
                 del data["accessGroups"][project_name]
