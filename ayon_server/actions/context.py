@@ -5,7 +5,7 @@ from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 
 
-class ActionContextModel(OPModel):
+class ActionContext(OPModel):
     """
     frontend sends this to backend.
     backend asks addons for actions based on this model.

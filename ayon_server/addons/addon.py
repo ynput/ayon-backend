@@ -9,6 +9,9 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Type
 
 from nxtools import log_traceback, logging
 
+from ayon_server.actions.context import ActionContext
+from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
+from ayon_server.actions.manifest import DynamicActionManifest, SimpleActionManifest
 from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -579,3 +582,32 @@ class BaseServerAddon:
             new_model_class=model_class,
             defaults=defaults.dict(),
         )
+
+    #
+    # Actions
+    #
+
+    async def get_simple_actions(self) -> list[SimpleActionManifest]:
+        """Return a list of simple actions provided by the addon"""
+        return []
+
+    async def get_dynamic_actions(
+        self, context: ActionContext
+    ) -> list[DynamicActionManifest]:
+        """Return a list of dynamic actions provided by the addon"""
+        return []
+
+    async def get_all_actions(
+        self, context: ActionContext
+    ) -> list[SimpleActionManifest | DynamicActionManifest]:
+        """Return a list of all actions provided by the addon"""
+        return await self.get_simple_actions()
+
+    async def execute_action(
+        self,
+        executor: ActionExecutor,
+    ) -> ExecuteResponseModel:
+        """Execute an action provided by the addon"""
+
+        if executor.identifier == "moje-launcher-akce":
+            return await executor.create_launcher_action(args=["blabla"])
