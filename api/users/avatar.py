@@ -68,7 +68,7 @@ def create_initials_svg(
       <text
         x="50%"
         y="50%"
-        dominant-baseline="middle"
+        dominant-baseline="central"
         text-anchor="middle"
         fill="{text_color}"
         font-size="{height // 2}px"
