@@ -117,8 +117,6 @@ async def send_api_email(
     text: str | None = None,
     html: str | None = None,
 ) -> None:
-    global MAILING_ENABLED
-
     headers = await get_cloud_api_headers()
 
     payload = {
@@ -136,7 +134,6 @@ async def send_api_email(
         response.raise_for_status()
     except Exception as e:
         log_traceback()
-        MAILING_ENABLED = False
         raise AyonException("Error while sending email via API") from e
 
 
