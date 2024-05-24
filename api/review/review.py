@@ -2,6 +2,7 @@ from fastapi import Response
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName, VersionID
 
+from .listing import ReviewableListModel
 from .router import router
 
 
@@ -10,8 +11,8 @@ async def list_version_reviewables(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
-):
-    return {"message": "List of reviewables for a version"}
+) -> ReviewableListModel:
+    return ReviewableListModel(reviewables=[])
 
 
 @router.get("/{reviewable_id}")
