@@ -9,7 +9,6 @@ from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
-    ForbiddenException,
     NotFoundException,
     UnauthorizedException,
     UnsupportedMediaException,
@@ -427,32 +426,3 @@ async def dep_site_id(
 
 
 SiteID = Annotated[str, Depends(dep_site_id)]
-
-
-async def dep_ynput_cloud_key() -> str:
-    res = await Postgres.fetch(
-        """
-        SELECT value FROM secrets
-        WHERE name = 'ynput_cloud_key'
-        """
-    )
-    if not res:
-        raise ForbiddenException("Ynput connect key not found")
-    return res[0]["value"]
-
-
-YnputCloudKey = Annotated[str, Depends(dep_ynput_cloud_key)]
-
-INSTANCE_ID: str | None = None
-
-
-async def dep_instance_id() -> str:
-    global INSTANCE_ID
-    if INSTANCE_ID is None:
-        res = await Postgres.fetch("SELECT value FROM config WHERE key = 'instanceId'")
-        assert res, "instance id not set. This shouldn't happen."
-        INSTANCE_ID = res[0]["value"]
-    return INSTANCE_ID
-
-
-InstanceID = Annotated[str, Depends(dep_instance_id)]
