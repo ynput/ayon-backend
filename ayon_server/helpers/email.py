@@ -6,6 +6,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import TYPE_CHECKING, Literal, Union
 
+import aiocache
 import httpx
 from nxtools import log_traceback, logging
 from pydantic import BaseModel, Field
@@ -18,27 +19,20 @@ if TYPE_CHECKING:
     from ayon_server.entities import UserEntity
 
 MailingEnabled = Literal[False, "smtp", "api"]
-MAILING_ENABLED: MailingEnabled | None = None
 
 
+@aiocache.cached()
 async def is_mailing_enabled() -> MailingEnabled:
     """Check if mailing is enabled"""
 
-    global MAILING_ENABLED
-
-    if MAILING_ENABLED is not None:
-        return MAILING_ENABLED
-
     if ayonconfig.email_smtp_host:
-        MAILING_ENABLED = "smtp"
         logging.debug("Enabled SMTP email support")
-        return MAILING_ENABLED
+        return "smtp"
 
     try:
         headers = await get_cloud_api_headers()
     except AyonException:
-        MAILING_ENABLED = False
-        return MAILING_ENABLED
+        return False
 
     try:
         async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
@@ -47,23 +41,19 @@ async def is_mailing_enabled() -> MailingEnabled:
                 headers=headers,
             )
     except (httpx.ConnectError, httpx.TimeoutException):
-        MAILING_ENABLED = False
-        return MAILING_ENABLED
+        return False
 
     try:
         res.raise_for_status()
     except httpx.HTTPStatusError:
-        MAILING_ENABLED = False
-        return MAILING_ENABLED
+        return False
 
     data = res.json()
     if data.get("subscriptions"):
-        MAILING_ENABLED = "api"
         logging.debug("Enabled Ynput Cloud API email support")
-        return MAILING_ENABLED
+        return "api"
 
-    MAILING_ENABLED = False
-    return MAILING_ENABLED
+    return False
 
 
 class EmailRecipient(BaseModel):
