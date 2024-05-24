@@ -432,7 +432,7 @@ def validate_site_id(site_id: str | None) -> None:
         raise ValueError(f"Invalid site id: {site_id}")
 
 
-async def dep_site_id(
+async def dep_client_site_id(
     param1: str | None = Query(
         None, title="Site ID", alias="site_id", include_in_schema=False
     ),
@@ -458,10 +458,10 @@ async def dep_site_id(
     return site_id
 
 
-ClientSiteID = Annotated[str | None, Depends(dep_site_id)]
+ClientSiteID = Annotated[str | None, Depends(dep_client_site_id)]
 
 
-async def dep_client_site_id(
+async def dep_site_id(
     param1: str | None = Query(
         None,
         title="Site ID",
@@ -488,4 +488,4 @@ async def dep_client_site_id(
     return site_id
 
 
-SiteID = Annotated[str | None, Depends(dep_client_site_id)]
+SiteID = Annotated[str | None, Depends(dep_site_id)]
