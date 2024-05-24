@@ -10,3 +10,4 @@ test_*.py
 .vscode
 BUILD_DATE
 venv/
+.idea/

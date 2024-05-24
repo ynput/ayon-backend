@@ -1,0 +1,38 @@
+name: Deploy to AWS EC2 AYON Backend
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main  # Trigger this workflow when a pull request is merged into main
+
+jobs:
+  deploy:
+    if: github.event.pull_request.merged == true # Ensure that the merge is not just closed, but approved
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up SSH key # Get .pem key from secrets
+        run: |
+          echo "${{ secrets.PIPELINEKEY }}" > key.pem
+          chmod 400 key.pem
+
+      - name: Deploy via SSH
+        env:
+          HOST: ${{ secrets.PIPELINEHOST }} # Get Hostname from secrets
+          USER: ${{ secrets.PIPELINEUSER }} # Get User from secrets
+        run: |
+          ssh -o StrictHostKeyChecking=no -i key.pem $USER@$HOST << 'EOF'
+            cd /var/ayon/ayon-docker/backend
+            if git pull; then
+              echo "Git pull successful."
+              cd ../
+              docker-compose restart -d
+            else
+              echo "Git pull failed."
+              exit 1
+            fi
+          EOF
