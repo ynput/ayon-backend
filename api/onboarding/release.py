@@ -5,10 +5,11 @@ import httpx
 from fastapi import Request
 from pydantic import Field
 
-from ayon_server.api.dependencies import CurrentUser, InstanceID, YnputCloudKey
+from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.helpers.cloud import get_cloud_api_headers
 from ayon_server.installer.models import DependencyPackageManifest, InstallerManifest
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
@@ -105,39 +106,30 @@ async def restart_onboarding(request: Request, user: CurrentUser) -> EmptyRespon
 
 
 @router.get("/releases", response_model_exclude_none=True)
-async def get_releases(
-    ynput_connect_key: YnputCloudKey,
-    instance_id: InstanceID,
-) -> ReleaseListModel:
+async def get_releases() -> ReleaseListModel:
     """Get the releases"""
+
+    headers = await get_cloud_api_headers()
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_cloud_api_url}/api/v1/releases",
-            headers={
-                "x-ynput-cloud-instance": instance_id,
-                "x-ynput-cloud-key": ynput_connect_key,
-            },
+            headers=headers,
         )
 
     return ReleaseListModel(**res.json())
 
 
 @router.get("/releases/{release_name}", response_model_exclude_none=True)
-async def get_release_info(
-    ynput_connect_key: YnputCloudKey,
-    instance_id: InstanceID,
-    release_name: str,
-) -> ReleaseInfoModel:
+async def get_release_info(release_name: str) -> ReleaseInfoModel:
     """Get the release info"""
+
+    headers = await get_cloud_api_headers()
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_cloud_api_url}/api/v1/releases/{release_name}",
-            headers={
-                "x-ynput-cloud-instance": instance_id,
-                "x-ynput-cloud-key": ynput_connect_key,
-            },
+            headers=headers,
         )
 
     return ReleaseInfoModel(**res.json())
