@@ -2,15 +2,11 @@ import httpx
 from fastapi import APIRouter, Query
 from fastapi.responses import RedirectResponse
 
-from ayon_server.api.dependencies import (
-    CurrentUser,
-    CurrentUserOptional,
-    InstanceID,
-    YnputCloudKey,
-)
+from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.helpers.cloud import get_cloud_api_headers, get_instance_id
 from ayon_server.helpers.setup import admin_exists
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -71,11 +67,7 @@ class YnputConnectResponseModel(OPModel):
 
 
 @router.get("")
-async def get_ynput_cloud_info(
-    user: CurrentUserOptional,
-    ynput_cloud_key: YnputCloudKey,
-    instance_id: InstanceID,
-) -> YnputConnectResponseModel:
+async def get_ynput_cloud_info(user: CurrentUserOptional) -> YnputConnectResponseModel:
     """
     Check whether the Ynput Cloud key is set and return the Ynput Cloud info
     """
@@ -90,10 +82,7 @@ async def get_ynput_cloud_info(
                 "Connecting to Ynput Cloud is allowed only on first run"
             )
 
-    headers = {
-        "x-ynput-cloud-instance": instance_id,
-        "x-ynput-cloud-key": ynput_cloud_key,
-    }
+    headers = await get_cloud_api_headers()
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
@@ -118,8 +107,10 @@ async def get_ynput_cloud_info(
 
 
 @router.get("/authorize")
-async def connect_to_ynput_cloud(instance_id: InstanceID, origin_url: str = Query(...)):
+async def connect_to_ynput_cloud(origin_url: str = Query(...)):
     """Redirect to Ynput cloud authorization page"""
+
+    instance_id = await get_instance_id()
 
     base_url = f"{ayonconfig.ynput_cloud_api_url}/api/v1/connect"
     params = f"instance_redirect={origin_url}&instance_id={instance_id}"
@@ -130,7 +121,6 @@ async def connect_to_ynput_cloud(instance_id: InstanceID, origin_url: str = Quer
 async def set_ynput_cloud_key(
     request: YnputConnectRequestModel,
     user: CurrentUserOptional,
-    instance_id: InstanceID,
 ) -> YnputConnectResponseModel:
     """Store the Ynput cloud key in the database and return the user info"""
 
@@ -143,6 +133,8 @@ async def set_ynput_cloud_key(
             raise ForbiddenException(
                 "Connecting to Ynput Cloud is allowed only on first run"
             )
+
+    instance_id = await get_instance_id()
 
     headers = {
         "x-ynput-cloud-instance": instance_id,
