@@ -111,6 +111,11 @@ async def process_operation(
         if operation.entity_type == "version":
             if not payload_dict.get("author"):
                 payload_dict["author"] = user.name
+        elif operation.entity_type == "workfile":
+            if not payload_dict.get("created_by"):
+                payload_dict["created_by"] = user.name
+            if not payload_dict.get("updated_by"):
+                payload_dict["updated_by"] = payload_dict["created_by"]
         entity = entity_class(project_name, payload_dict)
         await entity.ensure_create_access(user)
         description = f"{operation.entity_type.capitalize()} {entity.name} created"
@@ -131,6 +136,11 @@ async def process_operation(
 
         payload = entity_class.model.patch_model(**operation.data)
         assert operation.entity_id is not None, "entity_id is required for update"
+
+        if operation.entity_type == "workfile":
+            if not payload.updated_by:
+                payload.updated_by = user.name
+
         entity = await entity_class.load(
             project_name,
             operation.entity_id,
