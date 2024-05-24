@@ -1,11 +1,10 @@
 import copy
 from typing import Any
 
-from fastapi import Query
 from nxtools import logging
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -51,7 +50,7 @@ async def get_addon_site_settings(
     addon_name: str,
     version: str,
     user: CurrentUser,
-    site: str = Query(...),
+    site_id: SiteID,
 ) -> dict[str, Any]:
     """Return the JSON schema of the addon site settings."""
 
@@ -70,7 +69,7 @@ async def get_addon_site_settings(
         WHERE site_id = $1 AND addon_name = $2
         AND addon_version = $3 AND user_name = $4
     """
-    async for row in Postgres.iterate(query, site, addon_name, version, user.name):
+    async for row in Postgres.iterate(query, site_id, addon_name, version, user.name):
         data = row["data"]
 
     return model(**data)
@@ -82,7 +81,7 @@ async def set_addon_site_settings(
     addon_name: str,
     version: str,
     user: CurrentUser,
-    site: str = Query(..., title="Site ID", regex="^[a-z0-9-]+$"),
+    site_id: SiteID,
 ) -> EmptyResponse:
     if (addon := AddonLibrary.addon(addon_name, version)) is None:
         raise NotFoundException(f"Addon {addon_name} {version} not found")
@@ -104,7 +103,7 @@ async def set_addon_site_settings(
         """,
         addon_name,
         version,
-        site,
+        site_id,
         user.name,
         data.dict(),
     )

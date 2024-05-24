@@ -1,5 +1,6 @@
 """Request dependencies."""
 
+import re
 from typing import Annotated, get_args
 
 from fastapi import Cookie, Depends, Header, Path, Query, Request
@@ -418,6 +419,19 @@ async def dep_link_type(
 
 LinkType = Annotated[tuple[str, str, str], Depends(dep_link_type)]
 
+#
+# Site ID
+#
+
+SITE_ID_REGEX = r"^[a-z0-9-]+$"
+
+
+def validate_site_id(site_id: str | None) -> None:
+    """Raise a ValueError if the site id is invalid."""
+
+    if site_id is not None and not re.match(SITE_ID_REGEX, site_id):
+        raise ValueError(f"Invalid site id: {site_id}")
+
 
 async def dep_site_id(
     param1: str | None = Query(
@@ -438,11 +452,48 @@ async def dep_site_id(
     """Validate and return a site id
 
     SiteID may be specified in an endpoint header or query parameter.
+    This is usually used for request from the client application.
     """
-    return param1 or param2 or x_ayon_site_id
+    site_id = param1 or param2 or x_ayon_site_id
+    validate_site_id(site_id)
+    return site_id
 
 
-SiteID = Annotated[str | None, Depends(dep_site_id)]
+ClientSiteID = Annotated[str | None, Depends(dep_site_id)]
+
+
+async def dep_client_site_id(
+    param1: str | None = Query(
+        None,
+        title="Site ID",
+        alias="site_id",
+        description=(
+            "Site ID may be specified a query parameter. "
+            "Both `site_id` and its's alias `site` are supported."
+        ),
+    ),
+    param2: str | None = Query(
+        None,
+        title="Site ID",
+        alias="site",
+        include_in_schema=False,
+    ),
+) -> str | None:
+    """Validate and return a site id specified as an query argument
+
+    either `site_id` or `site` may be used.
+    This is used for management / settings endpoints.
+    """
+    site_id = param1 or param2
+    validate_site_id(site_id)
+    return site_id
+
+
+SiteID = Annotated[str | None, Depends(dep_client_site_id)]
+
+#
+# Ynput Cloud related deps
+#
 
 
 async def dep_ynput_cloud_key() -> str:

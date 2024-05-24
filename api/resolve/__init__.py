@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, Query
 
-from ayon_server.api.dependencies import CurrentUser, SiteID
+from ayon_server.api.dependencies import ClientSiteID, CurrentUser
 from ayon_server.exceptions import BadRequestException, ServiceUnavailableException
 from ayon_server.helpers.roots import get_roots_for_projects
 from ayon_server.lib.postgres import Postgres
@@ -377,7 +377,7 @@ async def get_platform_for_site_id(site_id: str) -> str:
 @router.post("/resolve", response_model_exclude_none=True)
 async def resolve_uris(
     request: ResolveRequestModel,
-    site_id: SiteID,
+    site_id: ClientSiteID,
     user: CurrentUser,
     path_only: bool = Query(
         False,
