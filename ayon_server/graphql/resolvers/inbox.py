@@ -31,6 +31,7 @@ async def get_inbox(
     show_active_projects: bool | None = None,
     show_active_messages: bool | None = True,
     show_unread_messages: bool | None = None,
+    show_important_messages: bool | None = None,
 ) -> ActivitiesConnection:
     sql_conditions = []
 
