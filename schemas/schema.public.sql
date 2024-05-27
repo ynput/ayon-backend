@@ -203,3 +203,101 @@ CREATE TABLE IF NOT EXISTS public.services(
 -- CREATE THE SITE ID
 INSERT INTO config VALUES ('instanceId', to_jsonb(gen_random_uuid()::text)) ON CONFLICT DO NOTHING;
 
+
+-----------
+-- INBOX --
+-----------
+
+DO $$ 
+DECLARE 
+    r RECORD;
+BEGIN 
+    FOR r IN 
+        SELECT 'DROP FUNCTION ' || oid::regprocedure || ';' as drop_command
+        FROM pg_proc 
+        WHERE proname = 'get_user_inbox'
+    LOOP 
+        EXECUTE r.drop_command;
+    END LOOP;
+END $$;
+
+
+CREATE OR REPLACE FUNCTION get_user_inbox(
+  user_name TEXT, 
+  show_inactive_projects BOOLEAN DEFAULT FALSE, -- Set to TRUE to include messages from inactive projects
+  show_inactive_messages BOOLEAN DEFAULT FALSE, -- Set to TRUE to show messages marked as cleared
+  show_unread BOOLEAN DEFAULT NULL -- Set to NULL to show all, TRUE to unread only, FALSE to only read
+)
+RETURNS TABLE (
+    project_name TEXT,
+    reference_id UUID,
+    activity_id UUID,
+    reference_type VARCHAR,
+    entity_type VARCHAR,
+    entity_id UUID,
+    entity_name VARCHAR,
+    entity_path VARCHAR,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    creation_order INTEGER,
+    activity_type VARCHAR,
+    body TEXT,
+    activity_data JSONB,
+    reference_data JSONB,
+    active BOOLEAN
+
+) AS $$
+DECLARE
+    project RECORD;
+    query TEXT;
+
+BEGIN
+    FOR project IN SELECT projects.name FROM projects
+      WHERE (show_inactive_projects IS TRUE OR projects.active IS TRUE)
+    LOOP
+        query := format('
+            SELECT
+                ''%s'' AS project_name,
+                
+                t.reference_id as reference_id,
+                t.activity_id as activity_id,
+                t.reference_type as reference_type,
+                t.entity_type as entity_type,
+                t.entity_id as entity_id,
+                t.entity_name as entity_name,
+                t.entity_path as entity_path,
+
+                t.created_at as created_at,
+                t.updated_at as updated_at,
+                t.creation_order as creation_order,
+
+                t.activity_type as activity_type,
+                t.body as body,
+                t.activity_data as activity_data,
+                t.reference_data as reference_data,
+                t.active as active
+
+            FROM 
+                project_%s.activity_feed t
+            WHERE 
+                t.entity_type = ''user'' 
+            AND t.entity_name = %L
+            AND t.reference_type != ''author''
+            %s
+            %s
+        ', project.name, project.name, user_name,
+        CASE 
+            WHEN show_inactive_messages IS NULL THEN '' 
+            ELSE format('AND t.active = %L', show_inactive_messages) 
+        END,
+        CASE
+            WHEN show_unread IS TRUE THEN 'AND t.reference_data->>''read'' IS NULL'
+            WHEN show_unread IS FALSE THEN 'AND t.reference_data->>''read'' IS NOT NULL'
+            ELSE ''
+        END
+        );
+        
+        RETURN QUERY EXECUTE query;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
