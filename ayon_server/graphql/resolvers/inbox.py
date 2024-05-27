@@ -40,7 +40,8 @@ async def get_inbox(
 
     user = info.context["user"]
 
-    order_by = ["created_at", "creation_order"]
+    order_by = ["updated_at", "creation_order"]
+
     paging_fields = FieldInfo(info, ["inbox"])
     need_cursor = paging_fields.has_any(
         "inbox.pageInfo.startCursor",
