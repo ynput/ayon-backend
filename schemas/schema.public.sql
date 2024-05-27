@@ -224,9 +224,9 @@ END $$;
 
 CREATE OR REPLACE FUNCTION get_user_inbox(
   user_name TEXT, 
-  show_inactive_projects BOOLEAN DEFAULT FALSE, -- Set to TRUE to include messages from inactive projects
-  show_inactive_messages BOOLEAN DEFAULT FALSE, -- Set to TRUE to show messages marked as cleared
-  show_unread BOOLEAN DEFAULT NULL -- Set to NULL to show all, TRUE to unread only, FALSE to only read
+  show_active_projects BOOLEAN DEFAULT NULL,
+  show_active_messages BOOLEAN DEFAULT NULL,
+  show_unread_messages BOOLEAN DEFAULT NULL
 )
 RETURNS TABLE (
     project_name TEXT,
@@ -253,7 +253,7 @@ DECLARE
 
 BEGIN
     FOR project IN SELECT projects.name FROM projects
-      WHERE (show_inactive_projects IS TRUE OR projects.active IS TRUE)
+      WHERE (show_active_projects IS NULL OR projects.active = show_active_projects)
     LOOP
         query := format('
             SELECT
@@ -287,12 +287,12 @@ BEGIN
             %s
         ', project.name, project.name, user_name,
         CASE 
-            WHEN show_inactive_messages IS NULL THEN '' 
-            ELSE format('AND t.active = %L', show_inactive_messages) 
+            WHEN show_active_messages IS TRUE THEN 'AND t.active IS TRUE'
+            WHEN show_active_messages IS FALSE THEN 'AND t.active IS FALSE'
+            ELSE ''
         END,
         CASE
-            WHEN show_unread IS TRUE THEN 'AND t.reference_data->>''read'' IS NULL'
-            WHEN show_unread IS FALSE THEN 'AND t.reference_data->>''read'' IS NOT NULL'
+            WHEN show_unread_messages IS FALSE THEN 'AND t.reference_data->>''read'' = ''true'' '
             ELSE ''
         END
         );
