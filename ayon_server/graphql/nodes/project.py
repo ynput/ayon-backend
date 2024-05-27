@@ -202,7 +202,9 @@ class ProjectNode:
         ]
 
 
-def project_from_record(record: dict, context: dict) -> ProjectNode:
+def project_from_record(
+    project_name: str | None, record: dict, context: dict
+) -> ProjectNode:
     """Construct a project node from a DB row."""
     data = record.get("data", {})
     return ProjectNode(

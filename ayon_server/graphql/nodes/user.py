@@ -52,7 +52,7 @@ class UserNode:
         return await get_tasks(root, info, assignees=[self.name])
 
 
-def user_from_record(record: dict, context: dict) -> UserNode:
+def user_from_record(project_name: str | None, record: dict, context: dict) -> UserNode:
     data = record.get("data", {})
     access_groups = data.get("accessGroups", {})
     is_admin = data.get("isAdmin", False)

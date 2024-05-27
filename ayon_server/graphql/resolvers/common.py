@@ -190,13 +190,10 @@ async def resolve(
         if count and count <= len(edges):
             break
 
-        if project_name:
+        try:
             node = node_type.from_record(project_name, record, context=context)
-        else:
-            try:
-                node = node_type.from_record(record, context=context)
-            except ForbiddenException:
-                continue
+        except ForbiddenException:
+            continue
         cursor = record["cursor"]
         edges.append(edge_type(node=node, cursor=cursor))
 

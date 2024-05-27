@@ -88,3 +88,9 @@ class EventEdge(BaseEdge):
 class ActivityEdge(BaseEdge):
     node: ActivityNode = strawberry.field(description="The activity node")
     cursor: str | None = strawberry.field(default=None)
+
+
+@strawberry.type
+class InboxEdge(BaseEdge):
+    node: ActivityNode = strawberry.field(description="The inbox node")
+    cursor: str | None = strawberry.field(default=None)
