@@ -226,7 +226,10 @@ CREATE OR REPLACE FUNCTION get_user_inbox(
   user_name TEXT, 
   show_active_projects BOOLEAN DEFAULT NULL,
   show_active_messages BOOLEAN DEFAULT NULL,
-  show_unread_messages BOOLEAN DEFAULT NULL
+  show_unread_messages BOOLEAN DEFAULT NULL,
+  before TIMESTAMPTZ DEFAULT NULL,
+  last INTEGER DEFAULT 100,
+  additional_filters TEXT DEFAULT ''
 )
 RETURNS TABLE (
     project_name TEXT,
@@ -283,18 +286,35 @@ BEGIN
                 t.entity_type = ''user'' 
             AND t.entity_name = %L
             AND t.reference_type != ''author''
+            AND t.updated_at <= COALESCE(%L, NOW())
+            AND t.activity_data->>''author'' != %L
             %s
             %s
-        ', project.name, project.name, user_name,
+            %s
+            ORDER BY t.updated_at DESC
+            LIMIT %s
+        ', 
+
+          project.name, 
+          project.name, 
+          user_name, 
+          before,
+          user_name,
+
         CASE 
             WHEN show_active_messages IS TRUE THEN 'AND t.active IS TRUE'
             WHEN show_active_messages IS FALSE THEN 'AND t.active IS FALSE'
             ELSE ''
         END,
+
         CASE
             WHEN show_unread_messages IS FALSE THEN 'AND t.reference_data->>''read'' = ''true'' '
+            WHEN show_unread_messages IS TRUE THEN 'AND t.reference_data->>''read'' IS NULL '
             ELSE ''
-        END
+        END,
+
+        additional_filters,
+        last
         );
         
         RETURN QUERY EXECUTE query;
