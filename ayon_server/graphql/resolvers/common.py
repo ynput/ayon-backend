@@ -175,7 +175,6 @@ async def resolve(
     first: int | None = None,
     last: int | None = None,
     context: dict[str, Any] | None = None,
-    deduplicate_by: str | None = None,
 ) -> R:
     """Return a connection object from a query."""
 
@@ -186,23 +185,16 @@ async def resolve(
     else:
         count = first = DEFAULT_PAGE_SIZE
 
-    dups: list[str] | Any = []
     edges: list[Any] = []
     async for record in Postgres.iterate(query):
-        if count and count <= len(edges):
-            break
-
-        if deduplicate_by:
-            if record[deduplicate_by] in dups:
-                continue
-            dups.append(record[deduplicate_by])
-
         try:
             node = node_type.from_record(project_name, record, context=context)
         except ForbiddenException:
             continue
         cursor = record["cursor"]
         edges.append(edge_type(node=node, cursor=cursor))
+        if count and count == len(edges):
+            break
 
     has_next_page = False
     has_previous_page = False

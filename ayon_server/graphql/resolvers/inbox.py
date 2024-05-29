@@ -29,31 +29,17 @@ async def get_inbox(
     show_unread_messages: bool | None = None,
     show_important_messages: bool | None = None,
 ) -> ActivitiesConnection:
-    sql_conditions = []
-
-    #
-    # Pagination
-    #
-
     user = info.context["user"]
 
-    # paging_fields = FieldInfo(info, ["inbox"])
-    # need_cursor = paging_fields.has_any(
-    #     "inbox.pageInfo.startCursor",
-    #     "inbox.pageInfo.endCursor",
-    #     "inbox.edges.cursor",
-    # )
-    need_cursor = True
+    sql_conditions = []
+    subquery_conds = []
 
-    if need_cursor:
-        cursor = "updated_at::text || '|' || project_name::text || '|' || creation_order::text"  # noqa
-    else:
-        cursor = "updated_at::text"
+    cursor = (
+        "extract(epoch from updated_at) || '.' || lpad(creation_order::text, 8, '0')"  # noqa
+    )
 
     if before:
         sql_conditions.append(f"{cursor} < '{before}'")
-
-    subquery_conds = []
 
     if show_important_messages is not None:
         # double escape the quotes, because we are in a string
@@ -70,7 +56,11 @@ async def get_inbox(
     # Build the query
     #
 
-    bf = f"'{before.split('|')[0]}'" if before else "NULL"
+    if before:
+        ts = ".".join(before.split(".")[:-1])
+        bf = f"to_timestamp({ts})::timestamptz"
+    else:
+        bf = "NULL"
 
     query = f"""
         SELECT {cursor} AS cursor, *
@@ -87,6 +77,8 @@ async def get_inbox(
         ORDER BY cursor DESC
     """
 
+    print(query)
+
     #
     # Execute the query
     #
@@ -101,7 +93,6 @@ async def get_inbox(
         None,
         last,
         context=info.context,
-        deduplicate_by="reference_id",
     )
     end_time = time.monotonic()
     print(f"get_inbox: {len(res.edges)} rows in {end_time-start_time:.03f} seconds")
