@@ -61,6 +61,7 @@ async def get_inbox(
         bf = f"to_timestamp({ts})::timestamptz"
     else:
         bf = "NULL"
+    buffer_size = 1000  # last
 
     query = f"""
         SELECT {cursor} AS cursor, *
@@ -70,7 +71,7 @@ async def get_inbox(
             {bool2sql(show_active_messages)},
             {bool2sql(show_unread_messages)},
             {bf},
-            {last},
+            {buffer_size},
             '{subquery_add_arg}'
         )
         {SQLTool.conditions(sql_conditions)}
