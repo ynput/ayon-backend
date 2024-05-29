@@ -45,13 +45,14 @@ async def get_parents_from_task(task: TaskEntity) -> list[dict[str, str]]:
 
     res = await Postgres.fetch(query, task.folder_id)
     assert res, "This shouldn't happen"
+    row = res[0]
     return [
         {
             "type": "folder",
-            "subtype": res["subtype"],
-            "id": res["id"],
-            "name": res["name"],
-            "label": res["label"],
+            "subtype": row["subtype"],
+            "id": row["id"],
+            "name": row["name"],
+            "label": row["label"],
         }
     ]
 
