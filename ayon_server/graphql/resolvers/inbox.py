@@ -8,7 +8,6 @@ from ayon_server.graphql.nodes.activity import ActivityNode
 from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGLast,
-    FieldInfo,
     resolve,
 )
 from ayon_server.utils import SQLTool
@@ -38,20 +37,21 @@ async def get_inbox(
 
     user = info.context["user"]
 
-    paging_fields = FieldInfo(info, ["inbox"])
-    need_cursor = paging_fields.has_any(
-        "inbox.pageInfo.startCursor",
-        "inbox.pageInfo.endCursor",
-        "inbox.edges.cursor",
-    )
+    # paging_fields = FieldInfo(info, ["inbox"])
+    # need_cursor = paging_fields.has_any(
+    #     "inbox.pageInfo.startCursor",
+    #     "inbox.pageInfo.endCursor",
+    #     "inbox.edges.cursor",
+    # )
+    need_cursor = True
 
     if need_cursor:
-        cursor = "updated_at::text || project_name::text || creation_order::text"
+        cursor = "updated_at::text || '|' || project_name::text || '|' || creation_order::text"  # noqa
     else:
         cursor = "updated_at::text"
 
     if before:
-        sql_conditions.append(f"cursor < '{before}'")
+        sql_conditions.append(f"{cursor} < '{before}'")
 
     subquery_conds = []
 
@@ -70,7 +70,7 @@ async def get_inbox(
     # Build the query
     #
 
-    bf = f"'{before}'" if before else "NULL"
+    bf = f"'{before.split('|')[0]}'" if before else "NULL"
 
     query = f"""
         SELECT {cursor} AS cursor, *
@@ -101,6 +101,7 @@ async def get_inbox(
         None,
         last,
         context=info.context,
+        deduplicate_by="reference_id",
     )
     end_time = time.monotonic()
     print(f"get_inbox: {len(res.edges)} rows in {end_time-start_time:.03f} seconds")
