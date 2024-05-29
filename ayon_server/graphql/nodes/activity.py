@@ -17,8 +17,9 @@ else:
 
 @strawberry.type
 class ActivityOriginNode:
-    type: str = strawberry.field()
     id: str = strawberry.field()
+    type: str = strawberry.field()
+    subtype: str | None = strawberry.field(default=None)
     name: str = strawberry.field(default=None)
     label: str | None = strawberry.field(default=None)
 
@@ -67,6 +68,7 @@ class ActivityNode:
     read: bool = strawberry.field(default=False)  # for inbox
 
     origin: ActivityOriginNode | None = strawberry.field()
+    parents: list[ActivityOriginNode] = strawberry.field()
 
     @strawberry.field
     async def author(self, info: Info) -> Optional[UserNode]:
@@ -183,11 +185,17 @@ def activity_from_record(
     else:
         origin = None
 
+    if parents_data := activity_data.get("parents"):
+        parents = [ActivityOriginNode(**parent) for parent in parents_data]
+    else:
+        parents = []
+
     node = ActivityNode(
         project_name=project_name,
         activity_data=json_dumps(activity_data),
         reference_data=json_dumps(reference_data),
         origin=origin,
+        parents=parents,
         read=reference_data.pop("read", False),
         **record,
     )

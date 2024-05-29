@@ -14,6 +14,7 @@ from ayon_server.activities.models import (
     ActivityReferenceModel,
     ActivityType,
 )
+from ayon_server.activities.parents import get_parents_from_entity
 from ayon_server.activities.references import get_references_from_entity
 from ayon_server.activities.utils import (
     MAX_BODY_LENGTH,
@@ -64,9 +65,18 @@ async def create_activity(
         "id": entity_id,
         "name": entity.name,
     }
+    if entity_type == "task":
+        origin["subtype"] = entity.task_type
+    elif entity_type == "folder":
+        origin["subtype"] = entity.folder_type
+    elif entity_type == "product":
+        origin["subtype"] = entity.product_type
+
     if hasattr(entity, "label"):
         origin["label"] = entity.label
     data["origin"] = origin
+
+    data["parents"] = await get_parents_from_entity(entity)
 
     if activity_type == "comment" and is_body_with_checklist(body):
         data["hasChecklist"] = True
