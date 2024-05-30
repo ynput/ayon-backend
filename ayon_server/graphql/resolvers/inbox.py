@@ -1,5 +1,3 @@
-import time
-
 from strawberry.types import Info
 
 from ayon_server.graphql.connections import ActivitiesConnection
@@ -78,13 +76,11 @@ async def get_inbox(
         ORDER BY cursor DESC
     """
 
-    print(query)
-
     #
     # Execute the query
     #
 
-    start_time = time.monotonic()
+    # start_time = time.monotonic()
     res = await resolve(
         ActivitiesConnection,
         ActivityEdge,
@@ -95,6 +91,5 @@ async def get_inbox(
         last,
         context=info.context,
     )
-    end_time = time.monotonic()
-    print(f"get_inbox: {len(res.edges)} rows in {end_time-start_time:.03f} seconds")
+    # end_time = time.monotonic()
     return res
