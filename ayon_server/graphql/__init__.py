@@ -11,6 +11,7 @@ from strawberry.types import ExecutionContext, Info
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.graphql.connections import (
     EventsConnection,
+    InboxConnection,
     ProjectsConnection,
     UsersConnection,
 )
@@ -34,6 +35,7 @@ from ayon_server.graphql.nodes.version import version_from_record
 from ayon_server.graphql.nodes.workfile import workfile_from_record
 from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.events import get_events
+from ayon_server.graphql.resolvers.inbox import get_inbox
 from ayon_server.graphql.resolvers.links import get_links
 from ayon_server.graphql.resolvers.projects import get_project, get_projects
 from ayon_server.graphql.resolvers.users import get_user, get_users
@@ -100,6 +102,11 @@ class Query:
     events: EventsConnection = strawberry.field(
         description="Get a list of recorded events",
         resolver=get_events,
+    )
+
+    inbox: InboxConnection = strawberry.field(
+        description="Get user inbox",
+        resolver=get_inbox,
     )
 
     @strawberry.field(description="Current user")

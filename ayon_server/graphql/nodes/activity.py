@@ -17,8 +17,9 @@ else:
 
 @strawberry.type
 class ActivityOriginNode:
-    type: str = strawberry.field()
     id: str = strawberry.field()
+    type: str = strawberry.field()
+    subtype: str | None = strawberry.field(default=None)
     name: str = strawberry.field(default=None)
     label: str | None = strawberry.field(default=None)
 
@@ -64,8 +65,10 @@ class ActivityNode:
     activity_data: str = strawberry.field()
     reference_data: str = strawberry.field()
     active: bool = strawberry.field(default=True)
+    read: bool = strawberry.field(default=False)  # for inbox
 
     origin: ActivityOriginNode | None = strawberry.field()
+    parents: list[ActivityOriginNode] = strawberry.field()
 
     @strawberry.field
     async def author(self, info: Info) -> Optional[UserNode]:
@@ -85,7 +88,7 @@ class ActivityNode:
                     "created_at": "1970-01-01T00:00:00Z",
                     "updated_at": "1970-01-01T00:00:00Z",
                 }
-            return info.context["user_from_record"](record, info.context)
+            return info.context["user_from_record"](None, record, info.context)
         return None
 
     @strawberry.field
@@ -95,7 +98,7 @@ class ActivityNode:
             assignee = data["assignee"]
             loader = info.context["user_loader"]
             record = await loader.load(assignee)
-            return info.context["user_from_record"](record, info.context)
+            return info.context["user_from_record"](None, record, info.context)
         return None
 
     @strawberry.field
@@ -160,13 +163,19 @@ def replace_reference_body(node: ActivityNode) -> ActivityNode:
 
 
 def activity_from_record(
-    project_name: str, record: dict, context: dict
+    project_name: str | None, record: dict, context: dict
 ) -> ActivityNode:
-    """Construct a folder node from a DB row."""
+    """Construct a folder node from a DB row.
+
+    project name can be None for inbox. In that case,
+    project_name is populated from the record.
+    """
 
     record = dict(record)
     record.pop("cursor", None)
 
+    project_name = record.pop("project_name", project_name)
+    assert project_name, "project_name is required"
     activity_data = record.pop("activity_data", {})
     reference_data = record.pop("reference_data", {})
 
@@ -176,11 +185,18 @@ def activity_from_record(
     else:
         origin = None
 
+    if parents_data := activity_data.get("parents"):
+        parents = [ActivityOriginNode(**parent) for parent in parents_data]
+    else:
+        parents = []
+
     node = ActivityNode(
         project_name=project_name,
         activity_data=json_dumps(activity_data),
         reference_data=json_dumps(reference_data),
         origin=origin,
+        parents=parents,
+        read=reference_data.pop("read", False),
         **record,
     )
     # probably won't be used
