@@ -66,14 +66,14 @@ async def create_activity(
         "name": entity.name,
     }
     if entity_type == "task":
-        origin["subtype"] = entity.task_type
+        origin["subtype"] = entity.task_type  # type: ignore
     elif entity_type == "folder":
-        origin["subtype"] = entity.folder_type
+        origin["subtype"] = entity.folder_type  # type: ignore
     elif entity_type == "product":
-        origin["subtype"] = entity.product_type
+        origin["subtype"] = entity.product_type  # type: ignore
 
     if hasattr(entity, "label"):
-        origin["label"] = entity.label
+        origin["label"] = entity.label  # type: ignore
     data["origin"] = origin
 
     data["parents"] = await get_parents_from_entity(entity)
