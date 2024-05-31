@@ -115,8 +115,11 @@ def product_from_record(
         folder = None
 
     vlist = []
-    for id, vers in zip(record.get("version_ids", []), record.get("version_list", [])):
-        vlist.append(VersionListItem(id=id, version=vers))
+    version_ids = record.get("version_ids", [])
+    version_list = record.get("version_list", [])
+    if version_ids and version_list:
+        for id, vers in zip(version_ids, version_list):
+            vlist.append(VersionListItem(id=id, version=vers))
 
     data = record.get("data", {})
 
