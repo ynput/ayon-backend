@@ -56,11 +56,17 @@ async def get_system_metrics(user: CurrentUser) -> PlainTextResponse:
     """Get system metrics in Prometheus format"""
 
     result = ""
+
+    # Get user requests count
+
     async for record in Postgres.iterate("SELECT name FROM users"):
         name = record["name"]
         requests = await Redis.get("user-requests", name)
         num_requests = 0 if requests is None else int(requests)
-        result += f'ayon_user_requests{{name="{name}"}} {num_requests}\n'
+        if num_requests > 0:
+            result += f'ayon_user_requests{{name="{name}"}} {num_requests}\n'
+
+    # Get system metrics
 
     for k, v in system_metrics.status().items():
         result += f"ayon_{k} {v}\n"
