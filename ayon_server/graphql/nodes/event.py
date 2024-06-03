@@ -23,7 +23,9 @@ class EventNode:
     data: str | None
 
 
-def event_from_record(record: dict, context: dict) -> EventNode:
+def event_from_record(
+    project_name: str | None, record: dict, context: dict
+) -> EventNode:
     current_user = context["user"]
     record = dict(record)
 

@@ -84,11 +84,14 @@ async def get_ynput_cloud_info(user: CurrentUserOptional) -> YnputConnectRespons
 
     headers = await get_cloud_api_headers()
 
-    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
-        res = await client.get(
-            f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
-            headers=headers,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+            res = await client.get(
+                f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
+                headers=headers,
+            )
+    except Exception:
+        raise ForbiddenException("Unable to connect to Ynput Cloud")
 
     if res.status_code in [401, 403]:
         await Postgres.execute(
@@ -99,7 +102,10 @@ async def get_ynput_cloud_info(user: CurrentUserOptional) -> YnputConnectRespons
         )
         raise ForbiddenException("Invalid Ynput connect key")
 
-    res.raise_for_status()  # should not happen
+    if res.status_code >= 400:
+        raise ForbiddenException(
+            f"Unable to connect to Ynput Cloud. Server error {res.status_code}"
+        )
 
     data = res.json()
 

@@ -4,6 +4,7 @@ from ayon_server.graphql.edges import (
     ActivityEdge,
     EventEdge,
     FolderEdge,
+    InboxEdge,
     ProductEdge,
     ProjectEdge,
     RepresentationEdge,
@@ -63,3 +64,8 @@ class EventsConnection(BaseConnection):
 @strawberry.type
 class ActivitiesConnection(BaseConnection):
     edges: list[ActivityEdge] = strawberry.field(default_factory=list)
+
+
+@strawberry.type
+class InboxConnection(BaseConnection):
+    edges: list[InboxEdge] = strawberry.field(default_factory=list)
