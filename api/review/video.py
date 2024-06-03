@@ -4,7 +4,6 @@ import aiofiles
 from fastapi import Request, Response, status
 
 from ayon_server.exceptions import (
-    AyonException,
     NotFoundException,
     RangeNotSatisfiableException,
 )
@@ -47,6 +46,11 @@ async def range_requests_response(
     max_chunk_size = 1024 * 1024
     range_header = request.headers.get("range")
 
+    # screw firefox
+    if ua := request.headers.get("user-agent"):
+        if "firefox" in ua.lower():
+            max_chunk_size = file_size
+
     headers = {
         "content-type": content_type,
         "accept-ranges": "bytes",
@@ -63,7 +67,8 @@ async def range_requests_response(
 
     if range_header is not None:
         start, end = _get_range_header(range_header, file_size)
-        end = min(end, start + max_chunk_size - 1)
+        end = min(end, start + max_chunk_size - 1, file_size - 1)
+
         size = end - start + 1
         headers["content-length"] = str(size)
         headers["content-range"] = f"bytes {start}-{end}/{file_size}"
@@ -82,7 +87,4 @@ async def serve_video(request: Request, video_path: str) -> VideoResponse:
     if not os.path.exists(video_path):
         raise NotFoundException("Video not found")
 
-    try:
-        return await range_requests_response(request, video_path, "video/mp4")
-    except Exception as e:
-        raise AyonException(f"Error while serving video: {e}")
+    return await range_requests_response(request, video_path, "video/mp4")
