@@ -67,22 +67,28 @@ async def get_folder_suggestions(
     # Get tasks
 
     query = f"""
-    SELECT
-        t.id as task_id,
-        t.task_type as task_type,
-        t.name as task_name,
-        t.label as task_label,
-        t.thumbnail_id as task_thumbnail_id,
-        t.created_at as task_created_at,
-        f.id as folder_id,
-        f.name as folder_name,
-        f.label as folder_label,
-        f.folder_type as folder_type,
-        f.thumbnail_id as folder_thumbnail_id,
-        f.created_at as folder_created_at
-    FROM project_{project_name}.tasks t
-    JOIN project_{project_name}.folders f ON t.folder_id = f.id
-    ORDER BY t.name ASC;
+        SELECT
+            t.id as task_id,
+            t.task_type as task_type,
+            t.name as task_name,
+            t.label as task_label,
+            t.thumbnail_id as task_thumbnail_id,
+            t.created_at as task_created_at,
+
+            f.id as folder_id,
+            f.name as folder_name,
+            f.label as folder_label,
+            f.folder_type as folder_type,
+            f.thumbnail_id as folder_thumbnail_id,
+            f.created_at as folder_created_at,
+
+            h.path as folder_path
+
+        FROM project_{project_name}.tasks t
+        JOIN project_{project_name}.folders f ON t.folder_id = f.id
+        JOIN project_{project_name}.hierarchy h ON t.folder_id = h.id
+        WHERE h.path LIKE '{folder.path.lstrip("/")}%'
+        ORDER BY t.name ASC;
     """
 
     async for row in Postgres.iterate(query):
@@ -95,6 +101,12 @@ async def get_folder_suggestions(
             created_at=row["folder_created_at"],
             relevance=None,
         )
+
+        if row["folder_path"].strip("/") == folder.path.strip("/"):
+            relevance = 10
+        else:
+            relevance = 0
+
         result["tasks"].append(
             TaskSuggestionItem(
                 id=row["task_id"],
@@ -104,7 +116,7 @@ async def get_folder_suggestions(
                 thumbnail_id=row["task_thumbnail_id"],
                 created_at=row["task_created_at"],
                 parent=parent,
-                relevance=0,
+                relevance=relevance,
             )
         )
 
