@@ -145,25 +145,26 @@ class AddonLibrary:
             output[addon_name] = addon
         return output
 
-    async def get_production_addon(self, addon_name: str) -> BaseServerAddon | None:
-        """Return a production instance of the addon."""
+    async def get_addon_by_variant(
+        self, addon_name: str, variant: str
+    ) -> BaseServerAddon | None:
+        """Return instance of the addon by variant."""
         active_versions = await self.get_active_versions()
         if addon_name not in active_versions:
             return None
-        production_version = active_versions[addon_name]["production"]
-        if production_version is None:
+        addon_version = active_versions[addon_name].get(variant)
+        if addon_version is None:
             return None
-        return self[addon_name][production_version]
+        return self[addon_name][addon_version]
+
+
+    async def get_production_addon(self, addon_name: str) -> BaseServerAddon | None:
+        """Return a production instance of the addon."""
+        return await self.get_addon_by_variant(addon_name, "production")
 
     async def get_staging_addon(self, addon_name: str) -> BaseServerAddon | None:
         """Return a staging instance of the addon."""
-        active_versions = await self.get_active_versions()
-        if addon_name not in active_versions:
-            return None
-        staging_version = active_versions[addon_name]["staging"]
-        if staging_version is None:
-            return None
-        return self[addon_name][staging_version]
+        return await self.get_addon_by_variant(addon_name, "staging")
 
     @classmethod
     def unload_addon(
