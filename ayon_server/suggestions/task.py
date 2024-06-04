@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from ayon_server.entities import TaskEntity
 from ayon_server.lib.postgres import Postgres
 
@@ -18,11 +20,8 @@ async def get_task_suggestions(user: str, task: TaskEntity) -> dict[str, STYPE]:
     Versions: Every version linked to the task.
     Tasks: Direct sibling tasks to the task.
     """
-    result: dict[str, STYPE] = {
-        "users": [],
-        "versions": [],
-        "tasks": [],
-    }
+
+    result: defaultdict[str, STYPE] = defaultdict(list)
 
     # get users:
 

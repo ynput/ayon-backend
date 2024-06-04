@@ -9,8 +9,18 @@ SuggestionEntityType = Literal["task", "version", "user", "folder", "product"]
 
 
 class SuggestionItem(OPModel):
-    created_at: datetime | None = Field(None)
-    relevance: float | None = Field(None)
+    created_at: datetime | None = Field(
+        None,
+        title="Creation Date",
+        description="The date and time when the suggested entity was created",
+        example="2023-01-01T12:00:00Z",
+    )
+    relevance: float | None = Field(
+        None,
+        title="Relevance Score",
+        description="The relevance score of the suggestion",
+        example=0.85,
+    )
 
 
 class UserSuggestionItem(SuggestionItem):
@@ -50,8 +60,14 @@ class VersionSuggestionItem(SuggestionItem):
 
     @validator("name", pre=True, always=True)
     def set_name(cls, v, values):
+        """Auto-populate the name field
+
+        Sets the value of the 'name' field based
+        on the input version number
+        """
+
         if v:
             return v
         if values["version"] < 0:
-            return "HERO"
+            raise ValueError("Version cannot be less than 0")
         return f"v{values['version']:03d}"

@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from ayon_server.entities import FolderEntity
 from ayon_server.lib.postgres import Postgres
 
@@ -22,7 +24,7 @@ async def get_folder_suggestions(
 
     project_name = folder.project_name
 
-    result: dict[str, STYPE] = {"users": [], "tasks": []}
+    result: defaultdict[str, STYPE] = defaultdict(list)
 
     # get users:
 
@@ -81,7 +83,6 @@ async def get_folder_suggestions(
     FROM project_{project_name}.tasks t
     JOIN project_{project_name}.folders f ON t.folder_id = f.id
     ORDER BY t.name ASC;
-
     """
 
     async for row in Postgres.iterate(query):

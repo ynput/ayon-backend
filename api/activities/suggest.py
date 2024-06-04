@@ -32,6 +32,13 @@ async def suggest_entity_mention(
     project_name: ProjectName,
     request: SuggestRequest,
 ) -> SuggestResponse:
+    """Suggests entity mentions based on the given entity type.
+
+    This is triggered when the user begins commenting on a task,
+    folder, or version. It populates the suggestions dropdown
+    with relevant entities that the user can mention.
+    """
+
     entity_class = get_entity_class(request.entity_type)
     entity = await entity_class.load(project_name, request.entity_id)
     await entity.ensure_read_access(user)
@@ -43,6 +50,6 @@ async def suggest_entity_mention(
     elif request.entity_type == "version":
         res = await get_version_suggestions(user.name, entity)  # type: ignore
     else:
-        res = {}
+        raise ValueError("Unrecognized entity type")
 
-    return SuggestResponse(**res)  # type: ignore
+    return SuggestResponse(**res)
