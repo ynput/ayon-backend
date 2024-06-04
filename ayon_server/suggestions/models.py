@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Literal
 
+from pydantic import validator
+
 from ayon_server.types import Field, OPModel
 
 SuggestionEntityType = Literal["task", "version", "user", "folder", "product"]
@@ -44,3 +46,12 @@ class VersionSuggestionItem(SuggestionItem):
     id: str = Field(..., example="af3e4b3e-1b1b-4b3b-8b3b-3b3b3b3b3b3b")
     version: int = Field(..., example=1)
     parent: ProductSuggestionItem | None = Field(None)
+    name: str | None = Field(None)
+
+    @validator("name", pre=True, always=True)
+    def set_name(cls, v, values):
+        if v:
+            return v
+        if values["version"] < 0:
+            return "HERO"
+        return f"v{values['version']:03d}"
