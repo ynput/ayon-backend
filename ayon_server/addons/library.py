@@ -80,9 +80,9 @@ class AddonLibrary:
         return instance.data.items()
 
     @classmethod
-    def get(cls, key: str) -> ServerAddonDefinition | None:
+    def get(cls, key: str, default: Any = None) -> ServerAddonDefinition | None:
         instance = cls.getinstance()
-        return instance.data.get(key, None)
+        return instance.data.get(key, default)
 
     def __getitem__(self, key) -> ServerAddonDefinition:
         return self.data[key]
