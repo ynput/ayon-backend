@@ -34,7 +34,7 @@ async def get_version_suggestions(
 
         SELECT
             u.name as name,
-            u.attrib->>'fullName' as label,
+            u.attrib->>'fullName' as full_name,
 
             (COALESCE(aref.rel_count, 0) * 15)   -- active in comments
             + (COALESCE(vref.rel_count, 0) * 10) -- author of the version
@@ -95,7 +95,7 @@ async def get_version_suggestions(
     async for row in Postgres.iterate(query, version.id, version.product_id, user):
         item = UserSuggestionItem(
             name=row["name"],
-            full_name=row["label"],
+            full_name=row["full_name"],
             relevance=row["relevance"],
             created_at=None,
         )
@@ -127,7 +127,7 @@ async def get_version_suggestions(
             product_type=row["product_type"],
             created_at=row["product_created_at"],
             parent=None,
-            relevance=0,
+            relevance=None,
         )
 
         item = VersionSuggestionItem(
