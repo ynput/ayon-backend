@@ -95,11 +95,14 @@ class AddonLibrary:
 
     async def get_active_versions(self) -> dict[str, dict[str, Optional[str]]]:
         bundles = await Postgres.fetch(
-            "SELECT name, is_production, is_staging, is_dev, data->'addons' as addons FROM bundles"
+            """
+            SELECT name, is_production, is_staging, is_dev, data->'addons' as addons
+            FROM bundles
+            """
         )
         bundles_by_variant: dict[str, Optional[dict[str, Any]]] = {
             "production": None,
-            "staging": None
+            "staging": None,
         }
         for bundle in bundles:
             if bundle["is_dev"]:
@@ -156,7 +159,6 @@ class AddonLibrary:
         if addon_version is None:
             return None
         return self[addon_name][addon_version]
-
 
     async def get_production_addon(self, addon_name: str) -> BaseServerAddon | None:
         """Return a production instance of the addon."""
