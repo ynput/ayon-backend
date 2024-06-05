@@ -86,7 +86,6 @@ async def get_version_suggestions(
 
         WHERE
             u.name IN (SELECT name FROM relevant_users)
-        AND u.name != $3
 
         ORDER BY
             aref.rel_count DESC,
@@ -96,7 +95,7 @@ async def get_version_suggestions(
             u.name ASC
     """
 
-    async for row in Postgres.iterate(query, version.id, version.product_id, user):
+    async for row in Postgres.iterate(query, version.id, version.product_id):
         item = UserSuggestionItem(
             name=row["name"],
             full_name=row["full_name"],

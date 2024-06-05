@@ -50,13 +50,12 @@ async def get_folder_suggestions(
         ) r ON true
         WHERE
             u.name IN (SELECT name FROM relevant_users)
-        AND u.name != $1
         ORDER BY
             r.rel_count DESC,
             u.name;
     """
 
-    async for row in Postgres.iterate(query, user):
+    async for row in Postgres.iterate(query):
         item = UserSuggestionItem(
             name=row["name"],
             full_name=row["label"] or None,

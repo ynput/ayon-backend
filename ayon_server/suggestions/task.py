@@ -50,13 +50,12 @@ async def get_task_suggestions(user: str, task: TaskEntity) -> dict[str, STYPE]:
 
         WHERE
             u.name IN (SELECT name FROM relevant_users)
-        AND u.name != $2
         ORDER BY
             r.rel_count DESC,
             u.name;
     """
 
-    async for row in Postgres.iterate(query, task.id, user):
+    async for row in Postgres.iterate(query, task.id):
         item = UserSuggestionItem(
             name=row["name"],
             full_name=row["label"] or None,
