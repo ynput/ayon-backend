@@ -23,15 +23,16 @@ async def get_folder_suggestions(
     """
 
     project_name = folder.project_name
-
     result: defaultdict[str, STYPE] = defaultdict(list)
 
     # get users:
 
     query = f"""
         WITH relevant_users AS (
-            SELECT unnest(t.assignees) as name
-            FROM project_{project_name}.tasks t
+            SELECT name FROM users
+            WHERE data->>'isAdmin' = 'true'
+            OR data->>'isManager' = 'true'
+            OR data->'accessGroups'->'{project_name}' IS NOT NULL
         )
 
         SELECT

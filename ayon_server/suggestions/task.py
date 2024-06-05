@@ -21,14 +21,17 @@ async def get_task_suggestions(user: str, task: TaskEntity) -> dict[str, STYPE]:
     Tasks: Direct sibling tasks to the task.
     """
 
+    project_name = task.project_name
     result: defaultdict[str, STYPE] = defaultdict(list)
 
     # get users:
 
     query = f"""
         WITH relevant_users AS (
-            SELECT unnest(t.assignees) as name
-            FROM project_{task.project_name}.tasks t
+            SELECT name FROM users
+            WHERE data->>'isAdmin' = 'true'
+            OR data->>'isManager' = 'true'
+            OR data->'accessGroups'->'{project_name}' IS NOT NULL
         )
 
         SELECT
@@ -39,7 +42,7 @@ async def get_task_suggestions(user: str, task: TaskEntity) -> dict[str, STYPE]:
 
         LEFT JOIN LATERAL (
             SELECT count(*) as rel_count
-            FROM project_{task.project_name}.tasks t
+            FROM project_{project_name}.tasks t
             WHERE
                 t.assignees @> ARRAY[u.name]
                 AND t.id = $1
@@ -72,9 +75,9 @@ async def get_task_suggestions(user: str, task: TaskEntity) -> dict[str, STYPE]:
             p.name as product_name,
             p.product_type as product_type,
             p.id as product_id
-        FROM project_{task.project_name}.versions v
-        JOIN project_{task.project_name}.products p ON v.product_id = p.id
-        JOIN project_{task.project_name}.tasks t ON v.task_id = t.id
+        FROM project_{project_name}.versions v
+        JOIN project_{project_name}.products p ON v.product_id = p.id
+        JOIN project_{project_name}.tasks t ON v.task_id = t.id
         WHERE t.id = $1
         ORDER BY v.version;
     """
