@@ -80,9 +80,9 @@ class AddonLibrary:
         return instance.data.items()
 
     @classmethod
-    def get(cls, key: str) -> ServerAddonDefinition | None:
+    def get(cls, key: str, default: Any = None) -> ServerAddonDefinition | None:
         instance = cls.getinstance()
-        return instance.data.get(key, None)
+        return instance.data.get(key, default)
 
     def __getitem__(self, key) -> ServerAddonDefinition:
         return self.data[key]
@@ -94,48 +94,79 @@ class AddonLibrary:
         return iter(self.data)
 
     async def get_active_versions(self) -> dict[str, dict[str, Optional[str]]]:
-        production_bundle = await Postgres.fetch(
-            "SELECT data->'addons' as addons FROM bundles WHERE is_production is true"
+        bundles = await Postgres.fetch(
+            """
+            SELECT name, is_production, is_staging, is_dev, data->'addons' as addons
+            FROM bundles
+            """
         )
-        staging_bundle = await Postgres.fetch(
-            "SELECT data->'addons' as addons FROM bundles WHERE is_staging is true"
-        )
+        bundles_by_variant: dict[str, Optional[dict[str, Any]]] = {
+            "production": None,
+            "staging": None,
+        }
+        for bundle in bundles:
+            if bundle["is_dev"]:
+                bundles_by_variant[bundle["name"]] = bundle
+                continue
+
+            if bundle["is_production"]:
+                bundles_by_variant["production"] = bundle
+
+            if bundle["is_staging"]:
+                bundles_by_variant["staging"] = bundle
 
         res: dict[str, dict[str, Optional[str]]] = {}
         for addon_name in self.data.keys():
-            res[addon_name] = {
-                "production": None,
-                "staging": None,
-            }
-
-            if production_bundle and (addons := production_bundle[0]["addons"]):
-                if addon_name in addons:
-                    res[addon_name]["production"] = addons[addon_name]
-            if staging_bundle and (addons := staging_bundle[0]["addons"]):
-                if addon_name in addons:
-                    res[addon_name]["staging"] = addons[addon_name]
-
+            addon_info = res.setdefault(addon_name, {})
+            for variant, bundle in bundles_by_variant.items():
+                addon_version = None
+                if bundle is not None:
+                    addon_version = bundle["addons"].get(addon_name)
+                addon_info[variant] = addon_version
         return res
+
+    async def get_addon_versions_by_variant(
+        self, variant: str
+    ) -> dict[str, Optional[str]]:
+        """Return addon versions for passed variant."""
+        active_versions = await self.get_active_versions()
+        return {
+            addon_name: versions.get(variant)
+            for addon_name, versions in active_versions.items()
+        }
+
+    async def get_addons_by_variant(
+        self, variant: str
+    ) -> dict[str, Optional[BaseServerAddon]]:
+        """Return addons for passed variant."""
+        output: dict[str, Optional[BaseServerAddon]] = {}
+        active_versions = await self.get_addon_versions_by_variant(variant)
+        for addon_name, addon_version in active_versions.items():
+            addon: Optional[BaseServerAddon] = None
+            if addon_version:
+                addon = self[addon_name][addon_version]
+            output[addon_name] = addon
+        return output
+
+    async def get_addon_by_variant(
+        self, addon_name: str, variant: str
+    ) -> BaseServerAddon | None:
+        """Return instance of the addon by variant."""
+        active_versions = await self.get_active_versions()
+        if addon_name not in active_versions:
+            return None
+        addon_version = active_versions[addon_name].get(variant)
+        if addon_version is None:
+            return None
+        return self[addon_name][addon_version]
 
     async def get_production_addon(self, addon_name: str) -> BaseServerAddon | None:
         """Return a production instance of the addon."""
-        active_versions = await self.get_active_versions()
-        if addon_name not in active_versions:
-            return None
-        production_version = active_versions[addon_name]["production"]
-        if production_version is None:
-            return None
-        return self[addon_name][production_version]
+        return await self.get_addon_by_variant(addon_name, "production")
 
     async def get_staging_addon(self, addon_name: str) -> BaseServerAddon | None:
         """Return a staging instance of the addon."""
-        active_versions = await self.get_active_versions()
-        if addon_name not in active_versions:
-            return None
-        staging_version = active_versions[addon_name]["staging"]
-        if staging_version is None:
-            return None
-        return self[addon_name][staging_version]
+        return await self.get_addon_by_variant(addon_name, "staging")
 
     @classmethod
     def unload_addon(
