@@ -69,5 +69,5 @@ class VersionSuggestionItem(SuggestionItem):
         if v:
             return v
         if values["version"] < 0:
-            raise ValueError("Version cannot be less than 0")
+            return "HERO"
         return f"v{values['version']:03d}"
