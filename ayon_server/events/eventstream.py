@@ -36,7 +36,19 @@ class EventStream:
         payload: dict | None = None,
         finished: bool = True,
         store: bool = True,
+        recipients: list[str] | None = None,
     ) -> str:
+        """
+
+        finished:
+            whether the event one shot and should be marked as finished upon creation
+
+        store:
+            whether to store the event in the database
+
+        recipients:
+            list of user names to notify via websocket (None for all users)
+        """
         if summary is None:
             summary = {}
         if payload is None:
@@ -108,6 +120,7 @@ class EventStream:
                     "progress": progress,
                     "sender": sender,
                     "store": store,  # useful to allow querying details
+                    "recipients": recipients,
                     "createdAt": event.created_at,
                     "updatedAt": event.updated_at,
                 }
@@ -135,6 +148,7 @@ class EventStream:
         progress: float | None = None,
         store: bool = True,
         retries: int | None = None,
+        recipients: list[str] | None = None,
     ) -> bool:
         new_data: dict[str, Any] = {"updated_at": datetime.now()}
 
@@ -194,6 +208,7 @@ class EventStream:
                 "summary": data["summary"],
                 "status": data["status"],
                 "sender": data["sender"],
+                "recipients": recipients,
                 "createdAt": data["created_at"],
                 "updatedAt": data["updated_at"],
             }

@@ -150,6 +150,11 @@ class Messaging(BackgroundWorker):
                             if prj != client.project_name:
                                 continue
 
+                    recipients = message.get("recipients")
+                    if isinstance(recipients, list):
+                        if client.user_name not in recipients:
+                            continue
+
                     for topic in client.topics:
                         if topic == "*" or message["topic"].startswith(topic):
                             if (
