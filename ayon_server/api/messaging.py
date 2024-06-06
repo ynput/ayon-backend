@@ -145,10 +145,18 @@ class Messaging(BackgroundWorker):
 
                 # TODO: much much smarter logic here
                 for _client_id, client in self.clients.items():
-                    if client.project_name is not None:
+                    if (
+                        client.project_name is not None
+                        and message.get("topic") != "inbox.message"
+                    ):
                         if prj := message.get("project", None):
                             if prj != client.project_name:
                                 continue
+
+                    recipients = message.get("recipients", None)
+                    if isinstance(recipients, list):
+                        if client.user_name not in recipients:
+                            continue
 
                     for topic in client.topics:
                         if topic == "*" or message["topic"].startswith(topic):
@@ -163,7 +171,9 @@ class Messaging(BackgroundWorker):
                                     m["description"] = obscure(m["description"])
                                 await client.send(m)
                             else:
-                                await client.send(message)
+                                m = copy.deepcopy(message)
+                                m.pop("recipients", None)
+                                await client.send(m)
 
                 if message["topic"] == "server.restart_requested":
                     restart_server()
