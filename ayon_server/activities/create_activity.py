@@ -23,6 +23,7 @@ from ayon_server.activities.utils import (
     process_activity_files,
 )
 from ayon_server.entities.core import ProjectLevelEntity
+from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
@@ -172,6 +173,40 @@ async def create_activity(
 
         await st_ref.executemany(
             ref.insertable_tuple(activity_id, timestamp) for ref in references
+        )
+
+    # Notify users
+    notify_important: list[str] = []
+    notify_normal: list[str] = []
+    for ref in references:
+        if ref.entity_type != "user":
+            continue
+        assert ref.entity_name is not None, "This should have been checked before"
+        if ref.reference_type == "author":
+            continue
+        if ref.reference_type == "mention":
+            notify_important.append(ref.entity_name)
+        elif ref.entity_name not in notify_important:
+            notify_normal.append(ref.entity_name)
+
+    notify_description = body.split("\n")[0]
+    if notify_important:
+        await EventStream.dispatch(
+            "inbox.message",
+            project=project_name,
+            description=notify_description,
+            summary={"isImportant": True},
+            recipients=notify_important,
+            store=False,
+        )
+    if notify_normal:
+        await EventStream.dispatch(
+            "inbox.message",
+            project=project_name,
+            description=notify_description,
+            summary={"isImportant": False},
+            recipients=notify_normal,
+            store=False,
         )
 
     return activity_id

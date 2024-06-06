@@ -150,7 +150,7 @@ class Messaging(BackgroundWorker):
                             if prj != client.project_name:
                                 continue
 
-                    recipients = message.get("recipients")
+                    recipients = message.pop("recipients", None)
                     if isinstance(recipients, list):
                         if client.user_name not in recipients:
                             continue

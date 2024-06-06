@@ -106,6 +106,9 @@ class EventStream:
                     "Event with same hash already exists",
                 ) from e
 
+        depends_on = (
+            str(event.depends_on).replace("-", "") if event.depends_on else None
+        )
         await Redis.publish(
             json_dumps(
                 {
@@ -113,7 +116,7 @@ class EventStream:
                     "topic": event.topic,
                     "project": event.project,
                     "user": event.user,
-                    "dependsOn": str(event.depends_on).replace("-", ""),
+                    "dependsOn": depends_on,
                     "description": event.description,
                     "summary": event.summary,
                     "status": event.status,
