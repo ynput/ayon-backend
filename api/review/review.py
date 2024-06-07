@@ -3,7 +3,7 @@ import os
 from fastapi import Request
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName, VersionID
-from ayon_server.exceptions import NotFoundException
+from ayon_server.exceptions import ForbiddenException, NotFoundException
 
 from .listing import ReviewableListModel
 from .router import router
@@ -28,6 +28,11 @@ async def get_reviewable(
     reviewable_id: str,
 ) -> VideoResponse:
     group = version_id[:2]
+
+    if not user.is_manager:
+        accessGroups = user.data["accessGroups"]
+        if project_name not in accessGroups:
+            raise ForbiddenException(f"You don't have access to {project_name}")
 
     root = f"/storage/server/projects/{project_name}/review"
     file_path = f"{root}/{group}/{version_id}/{reviewable_id}"
