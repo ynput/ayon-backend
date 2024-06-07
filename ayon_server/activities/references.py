@@ -105,6 +105,24 @@ async def get_references_from_version(
 
     references: set[ActivityReferenceModel] = set()
 
+    res = await Postgres.fetch(
+        f"""
+        SELECT p.folder_id as folder_id
+        FROM project_{version.project_name}.products p
+        WHERE p.id = $1
+        """,
+        version.product_id,
+    )
+
+    references.add(
+        ActivityReferenceModel(
+            entity_type="folder",
+            entity_name=None,
+            entity_id=res[0]["folder_id"],
+            reference_type="relation",
+        )
+    )
+
     if version.author:
         references.add(
             ActivityReferenceModel(
