@@ -8,6 +8,9 @@ from ayon_server.exceptions import (
     RangeNotSatisfiableException,
 )
 
+MAX_UNCACHEABLE_SIZE = 1024 * 1024 * 10  # 10 MB
+MAX_CHUNK_SIZE = 1024 * 1024 * 2  # 1 MB
+
 
 class VideoResponse(Response):
     content_type = "video/mp4"
@@ -43,7 +46,7 @@ async def range_requests_response(
     """Handle range requests for video files."""
 
     file_size = os.stat(file_path).st_size
-    max_chunk_size = 1024 * 1024
+    max_chunk_size = 1024 * 1024 * 4
     range_header = request.headers.get("range")
 
     # screw firefox
@@ -51,11 +54,18 @@ async def range_requests_response(
         if "firefox" in ua.lower():
             max_chunk_size = file_size
 
+    # if the file has a sane size, we return the whole thing
+    # in one go. That allows the browser to cache the video
+    # and prevent unnecessary requests.
+    if file_size <= MAX_UNCACHEABLE_SIZE:
+        max_chunk_size = file_size
+
     headers = {
         "content-type": content_type,
         "accept-ranges": "bytes",
         "content-encoding": "identity",
         "content-length": str(file_size),
+        "cache-control": "private, max-age=600",
         "access-control-expose-headers": (
             "content-type, accept-ranges, content-length, "
             "content-range, content-encoding"
@@ -70,9 +80,11 @@ async def range_requests_response(
         end = min(end, start + max_chunk_size - 1, file_size - 1)
 
         size = end - start + 1
-        headers["content-length"] = str(size)
-        headers["content-range"] = f"bytes {start}-{end}/{file_size}"
-        status_code = status.HTTP_206_PARTIAL_CONTENT
+        if size < file_size:
+            # Partial content
+            headers["content-length"] = str(size)
+            headers["content-range"] = f"bytes {start}-{end}/{file_size}"
+            status_code = status.HTTP_206_PARTIAL_CONTENT
 
     payload = await get_bytes_range(file_path, start, end)
 
