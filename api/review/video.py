@@ -8,8 +8,8 @@ from ayon_server.exceptions import (
     RangeNotSatisfiableException,
 )
 
-MAX_UNCACHEABLE_SIZE = 1024 * 1024 * 10  # 10 MB
-MAX_CHUNK_SIZE = 1024 * 1024 * 2  # 1 MB
+MAX_200_SIZE = 1024 * 1024 * 12
+MAX_CHUNK_SIZE = 1024 * 1024 * 2
 
 
 class VideoResponse(Response):
@@ -54,18 +54,9 @@ async def range_requests_response(
         if "firefox" in ua.lower():
             max_chunk_size = file_size
 
-    # if the file has a sane size, we return the whole thing
-    # in one go. That allows the browser to cache the video
-    # and prevent unnecessary requests.
-    if file_size <= MAX_UNCACHEABLE_SIZE:
-        max_chunk_size = file_size
-
     headers = {
         "content-type": content_type,
-        "accept-ranges": "bytes",
-        "content-encoding": "identity",
         "content-length": str(file_size),
-        "cache-control": "private, max-age=600",
         "access-control-expose-headers": (
             "content-type, accept-ranges, content-length, "
             "content-range, content-encoding"
@@ -75,16 +66,22 @@ async def range_requests_response(
     end = file_size - 1
     status_code = status.HTTP_200_OK
 
-    if range_header is not None:
+    if file_size <= MAX_200_SIZE:
+        # if the file has a sane size, we return the whole thing
+        # in one go. That allows the browser to cache the video
+        # and prevent unnecessary requests.
+
+        headers["cache-control"] = "private, max-age=600"
+
+    elif range_header is not None:
         start, end = _get_range_header(range_header, file_size)
         end = min(end, start + max_chunk_size - 1, file_size - 1)
 
         size = end - start + 1
-        if size < file_size:
-            # Partial content
-            headers["content-length"] = str(size)
-            headers["content-range"] = f"bytes {start}-{end}/{file_size}"
-            status_code = status.HTTP_206_PARTIAL_CONTENT
+        headers["content-length"] = str(size)
+        headers["content-range"] = f"bytes {start}-{end}/{file_size}"
+        headers["accept-ranges"] = "bytes"
+        status_code = status.HTTP_206_PARTIAL_CONTENT
 
     payload = await get_bytes_range(file_path, start, end)
 
