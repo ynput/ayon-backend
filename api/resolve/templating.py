@@ -14,7 +14,7 @@ class TemplateMissingKey(Exception):
 
     msg = "Template key does not exist: `{}`."
 
-    def __init__(self, parents):
+    def __init__(self, parents: list[str]):
         parent_join = "".join([f'["{key}"]' for key in parents])
         super().__init__(self.msg.format(parent_join))
 
@@ -26,7 +26,12 @@ class TemplateUnsolved(Exception):
     invalid_types_msg = " Keys with invalid DataType: `{0}`."
     missing_keys_msg = ' Missing keys: "{0}".'
 
-    def __init__(self, template, missing_keys, invalid_types):
+    def __init__(
+        self,
+        template: str,
+        missing_keys: list[str],
+        invalid_types: dict[str, Any],
+    ):
         invalid_types_msg = ""
         if invalid_types:
             invalid_types_msg = self.invalid_types_msg.format(

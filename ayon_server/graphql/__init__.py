@@ -1,5 +1,6 @@
 import os
 import traceback
+from typing import Any
 
 import strawberry
 from graphql import GraphQLError
@@ -42,7 +43,7 @@ from ayon_server.graphql.resolvers.users import get_user, get_users
 from ayon_server.lib.postgres import Postgres
 
 
-async def graphql_get_context(user: CurrentUser) -> dict:
+async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
     """Get the current request context"""
     return {
         # Auth

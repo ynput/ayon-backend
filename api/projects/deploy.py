@@ -4,7 +4,8 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.deploy_project import create_project_from_anatomy
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.types import Field, OPModel
-from projects.router import router
+
+from .router import router
 
 
 class DeployProjectRequestModel(OPModel):

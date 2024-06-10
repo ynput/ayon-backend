@@ -186,14 +186,12 @@ class ProjectLevelEntity(BaseEntity):
         """Hook called before saving the entity to the database."""
         pass
 
-    async def save(self, transaction=None) -> bool:
+    async def save(self, transaction=None) -> None:
         """Save the entity to the database.
 
         Supports both creating and updating. Entity must be loaded from the
         database in order to update. If the entity is not loaded, it will be
         created.
-
-        Returns True if the folder was successfully saved.
 
         Optional `transaction` argument may be specified to pass a connection object,
         to run the query in (to run multiple transactions). When used,
@@ -234,7 +232,7 @@ class ProjectLevelEntity(BaseEntity):
 
             if commit:
                 await self.commit(transaction)
-            return True
+            return
 
         # Create a new entity
         fields = dict_exclude(
@@ -253,7 +251,6 @@ class ProjectLevelEntity(BaseEntity):
 
         if commit:
             await self.commit(transaction)
-        return True
 
     #
     # Delete

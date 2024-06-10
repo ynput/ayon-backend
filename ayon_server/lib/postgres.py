@@ -1,10 +1,11 @@
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, AsyncGenerator
 
 import asyncpg
 import asyncpg.pool
 import asyncpg.transaction
+from asyncpg.connection import Connection
 
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException, ServiceUnavailableException
@@ -24,12 +25,12 @@ class Postgres:
     ForeignKeyViolationError = asyncpg.exceptions.ForeignKeyViolationError
     UniqueViolationError = asyncpg.exceptions.UniqueViolationError
     UndefinedTableError = asyncpg.exceptions.UndefinedTableError
-    Connection = asyncpg.Connection
-    Transaction = asyncpg.transaction.Transaction
 
     @classmethod
     @asynccontextmanager
-    async def acquire(cls, timeout: int | None = None):
+    async def acquire(
+        cls, timeout: int | None = None
+    ) -> AsyncGenerator[Connection, None]:
         """Acquire a connection from the pool."""
 
         if cls.pool is None:
@@ -39,14 +40,14 @@ class Postgres:
             timeout = cls.default_acquire_timeout
 
         try:
-            conn = await cls.pool.acquire(timeout=timeout)
+            connection_proxy = await cls.pool.acquire(timeout=timeout)
         except asyncio.TimeoutError:
             raise ServiceUnavailableException("Database pool exhausted")
 
         try:
-            yield conn
+            yield connection_proxy  # type: ignore
         finally:
-            await cls.pool.release(conn)
+            await cls.pool.release(connection_proxy)
 
     @classmethod
     async def init_connection(cls, conn) -> None:
@@ -132,7 +133,7 @@ class Postgres:
     ):
         """Run a query and return a generator yielding resulting rows records."""
         if transaction and transaction != cls:  # temporary. will be fixed
-            if not transaction.is_in_transaction:
+            if not transaction.is_in_transaction():
                 raise AyonException(
                     "Iterate called with a connection which is not in transaction."
                 )

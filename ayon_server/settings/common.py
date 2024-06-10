@@ -71,7 +71,7 @@ def migrate_settings_overrides(
 
                     new_data[key] = migrate_settings_overrides(
                         value,
-                        field_type.outer_type_,  # type: ignore
+                        field_type.outer_type_,
                         defaults.get(key, {}),
                         custom_conversions,
                         key_path,

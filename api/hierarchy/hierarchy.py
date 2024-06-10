@@ -8,7 +8,8 @@ from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID, SQLTool
-from hierarchy.solver import HierarchyResolver
+
+from .solver import HierarchyResolver
 
 router = APIRouter(tags=["Folders"])
 

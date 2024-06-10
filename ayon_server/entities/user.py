@@ -3,6 +3,7 @@
 import re
 from typing import Any
 
+from asyncpg import Connection
 from nxtools import logging
 
 from ayon_server.access.access_groups import AccessGroups
@@ -54,7 +55,7 @@ class UserEntity(TopLevelEntity):
     async def load(
         cls,
         name: str,
-        transaction: Postgres.Connection | Postgres.Transaction | None = None,
+        transaction: Connection | None = None,
     ) -> "UserEntity":
         """Load a user from the database."""
 
@@ -72,7 +73,7 @@ class UserEntity(TopLevelEntity):
 
     async def save(
         self,
-        transaction: Postgres.Connection | Postgres.Transaction | None = None,
+        transaction: Connection | None = None,
     ) -> bool:
         """Save the user to the database."""
 
@@ -120,29 +121,33 @@ class UserEntity(TopLevelEntity):
 
     async def delete(
         self,
-        transaction: Postgres.Connection | Postgres.Transaction | None = None,
+        transaction: Connection | None = None,
     ) -> bool:
         """Delete existing user."""
         if not self.name:
             raise NotFoundException(f"Unable to delete user {self.name}. Not loaded.")
 
-        commit = not transaction
-        transaction = transaction or Postgres
-        res = await transaction.fetch(
-            """
-            WITH deleted AS (
-                DELETE FROM users
-                WHERE name=$1
-                RETURNING *
-            ) SELECT count(*) FROM deleted;
-            """,
-            self.name,
-        )
-        count = res[0]["count"]
+        async def post_delete(conn) -> int:
+            res = await conn.fetch(
+                """
+                WITH deleted AS (
+                    DELETE FROM users
+                    WHERE name=$1
+                    RETURNING *
+                ) SELECT count(*) FROM deleted;
+                """,
+                self.name,
+            )
+            return res[0]["count"]
 
-        if commit:
-            await self.commit(transaction)
-        return bool(count)
+        if transaction:
+            deleted = await post_delete(transaction)
+        else:
+            async with Postgres.acquire() as conn, conn.transaction():
+                deleted = await post_delete(conn)
+                await self.commit(conn)
+
+        return bool(deleted)
 
     #
     # Authorization helpers

@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 
+from asyncpg import Connection
 from nxtools import logging
 
 from ayon_server.access.utils import ensure_entity_access
@@ -27,8 +28,8 @@ class FolderEntity(ProjectLevelEntity):
         cls,
         project_name: str,
         entity_id: str,
-        transaction=None,
-        for_update=False,
+        transaction: Connection | None = None,
+        for_update: bool = False,
     ) -> "FolderEntity":
         """Load a folder from the database by its project name and IDself.
 
@@ -108,15 +109,20 @@ class FolderEntity(ProjectLevelEntity):
             raise NotFoundException(f"Project {project_name} not found")
         raise NotFoundException("Entity not found")
 
-    async def save(self, transaction=None) -> bool:
+    async def save(self, transaction: Connection | None = None) -> None:
+        if not transaction:
+            async with Postgres.acquire() as conn, conn.transaction():
+                await self._save(conn)
+                await self.commit(conn)
+        else:
+            await self._save(transaction)
+
+    async def _save(self, transaction: Connection) -> None:
         """Save the folder to the database.
 
         This overriden method also clears exported_attributes,
         which is then repopulated during commit.
         """
-
-        commit = not transaction
-        transaction = transaction or Postgres
 
         if self.status is None:
             self.status = await self.get_default_status()
@@ -169,11 +175,7 @@ class FolderEntity(ProjectLevelEntity):
                 )
             )
 
-        if commit:
-            await self.commit(transaction)
-        return True
-
-    async def commit(self, transaction=None) -> None:
+    async def commit(self, transaction: Connection | None = None) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
         async def _commit(conn):
@@ -193,11 +195,17 @@ class FolderEntity(ProjectLevelEntity):
             async with Postgres.acquire() as conn, conn.transaction():
                 await _commit(conn)
 
-    async def delete(self, transaction=None, **kwargs) -> bool:
+    async def delete(self, transaction: Connection | None = None, **kwargs) -> bool:
+        if not transaction:
+            async with Postgres.acquire() as conn, conn.transaction():
+                return await self._delete(conn, **kwargs)
+        else:
+            return await self._delete(transaction, **kwargs)
+
+    async def _delete(self, transaction: Connection, **kwargs) -> bool:
         if kwargs.get("force", False):
-            conn = transaction or Postgres
             logging.info(f"Force deleting folder and all its children. {self.path}")
-            await conn.execute(
+            await transaction.execute(
                 f"""
                 DELETE FROM project_{self.project_name}.products
                 WHERE folder_id IN (
@@ -208,12 +216,13 @@ class FolderEntity(ProjectLevelEntity):
                 """,
                 self.path.lstrip("/"),
             )
+
         res = await super().delete(transaction=transaction, **kwargs)
         if res:
             await rebuild_hierarchy_cache(self.project_name, transaction=transaction)
         return res
 
-    async def get_versions(self, transaction=None):
+    async def get_versions(self, transaction: Connection | None = None) -> list[str]:
         """Return of version ids associated with this folder."""
         query = f"""
             SELECT v.id as version_id
@@ -224,7 +233,7 @@ class FolderEntity(ProjectLevelEntity):
             """
         return [row["version_id"] async for row in Postgres.iterate(query, self.id)]
 
-    async def ensure_create_access(self, user, **kwargs):
+    async def ensure_create_access(self, user, **kwargs) -> None:
         """Check if the user has access to create a new entity.
 
         Raises FobiddenException if the user does not have access.
@@ -276,7 +285,7 @@ class FolderEntity(ProjectLevelEntity):
     @property
     def label(self) -> str | None:
         """Return the label of the folder."""
-        return self._payload.label
+        return self._payload.label  # type: ignore
 
     @label.setter
     def label(self, value):
@@ -285,7 +294,7 @@ class FolderEntity(ProjectLevelEntity):
 
     @property
     def parent_id(self) -> str | None:
-        return self._payload.parent_id
+        return self._payload.parent_id  # type: ignore
 
     @parent_id.setter
     def parent_id(self, value: str) -> None:
@@ -293,7 +302,7 @@ class FolderEntity(ProjectLevelEntity):
 
     @property
     def folder_type(self) -> str | None:
-        return self._payload.folder_type
+        return self._payload.folder_type  # type: ignore
 
     @folder_type.setter
     def folder_type(self, value: str) -> None:
@@ -301,7 +310,7 @@ class FolderEntity(ProjectLevelEntity):
 
     @property
     def thumbnail_id(self) -> str | None:
-        return self._payload.thumbnail_id
+        return self._payload.thumbnail_id  # type: ignore
 
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
@@ -313,7 +322,7 @@ class FolderEntity(ProjectLevelEntity):
 
     @property
     def path(self) -> str:
-        return self._payload.path
+        return self._payload.path  # type: ignore
 
     @property
     def entity_subtype(self) -> str | None:

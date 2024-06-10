@@ -7,9 +7,9 @@ from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
-from services.services import ServiceModel, list_services
 
 from .router import router
+from .services import ServiceModel, list_services
 
 
 class HostHealthModel(OPModel):
@@ -23,7 +23,7 @@ class HostModel(OPModel):
         ..., title="Last seen time", example=datetime.now().isoformat()
     )
     health: HostHealthModel = Field(
-        default_factory=HostHealthModel,
+        default_factory=lambda: HostHealthModel(cpu=0, mem=0),
         title="Host health",
         example={"cpu": 0.5, "mem": 42},
     )

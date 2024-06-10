@@ -48,7 +48,7 @@ class ActivityFeedEventHook:
     @classmethod
     async def handle_status_changed(cls, event: "EventModel"):
         entity_type = event.topic.split(".")[1]
-        entity_class = get_entity_class(entity_type)  # type: ignore
+        entity_class = get_entity_class(entity_type)
         entity = await entity_class.load(event.project, event.summary["entityId"])
 
         old_value = event.payload.get("oldValue")

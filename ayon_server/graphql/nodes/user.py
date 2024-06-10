@@ -1,12 +1,12 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import strawberry
 from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import UserEntity
 from ayon_server.graphql.resolvers.tasks import get_tasks
+from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import get_nickname, json_dumps, obscure
 
@@ -52,7 +52,9 @@ class UserNode:
         return await get_tasks(root, info, assignees=[self.name])
 
 
-def user_from_record(project_name: str | None, record: dict, context: dict) -> UserNode:
+def user_from_record(
+    project_name: str | None, record: dict[str, Any], context: dict[str, Any]
+) -> UserNode:
     data = record.get("data", {})
     access_groups = data.get("accessGroups", {})
     is_admin = data.get("isAdmin", False)

@@ -2,12 +2,12 @@ from typing import TYPE_CHECKING, Optional
 
 import strawberry
 from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import FolderEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.products import get_products
 from ayon_server.graphql.resolvers.tasks import get_tasks
+from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import json_dumps
 

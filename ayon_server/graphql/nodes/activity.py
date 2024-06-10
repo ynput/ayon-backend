@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import strawberry
 from strawberry import LazyType
-from strawberry.types import Info
 
+from ayon_server.graphql.types import Info
 from ayon_server.utils import json_dumps, json_loads
 
 if TYPE_CHECKING:
@@ -163,7 +163,9 @@ def replace_reference_body(node: ActivityNode) -> ActivityNode:
 
 
 def activity_from_record(
-    project_name: str | None, record: dict, context: dict
+    project_name: str | None,
+    record: dict[str, Any],
+    context: dict[str, Any],
 ) -> ActivityNode:
     """Construct a folder node from a DB row.
 

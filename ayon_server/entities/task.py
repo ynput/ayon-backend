@@ -1,5 +1,6 @@
 from typing import Any
 
+from asyncpg import Connection
 from nxtools import logging
 
 from ayon_server.access.utils import ensure_entity_access
@@ -83,9 +84,9 @@ class TaskEntity(ProjectLevelEntity):
             raise NotFoundException(f"Project {project_name} not found")
         raise NotFoundException("Entity not found")
 
-    async def save(self, transaction=False) -> bool:
+    async def save(self, transaction: Connection | None = None) -> None:
         if self.task_type is None:
-            res = await transaction.fetch(
+            res = await Postgres.fetch(
                 f"""
                 SELECT name from project_{self.project_name}.task_types
                 ORDER BY position ASC LIMIT 1
@@ -95,7 +96,7 @@ class TaskEntity(ProjectLevelEntity):
                 raise AyonException("No task types defined")
             self.folder_type = res[0]["name"]
 
-        return await super().save(transaction=transaction)
+        await super().save(transaction=transaction)
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:

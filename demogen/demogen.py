@@ -5,6 +5,7 @@ import random
 import time
 from typing import Any
 
+from asyncpg.connection import Connection
 from nxtools import logging
 
 from ayon_server.entities import (
@@ -117,7 +118,7 @@ class DemoGen:
 
     async def create_folder(
         self,
-        conn: Postgres.Transaction,
+        conn: Connection,
         parent_id: str | None = None,
         parents: list[str] = [],
         **kwargs: Any,
@@ -198,7 +199,7 @@ class DemoGen:
 
     async def create_product(
         self,
-        conn: Postgres.Transaction,
+        conn: Connection,
         folder: FolderEntity,
         tasks,
         **kwargs,
@@ -255,7 +256,7 @@ class DemoGen:
 
     async def create_task(
         self,
-        conn: Postgres.Transaction,
+        conn: Connection,
         folder: FolderEntity,
         parents: list[str],
         **kwargs: Any,
@@ -311,7 +312,7 @@ class DemoGen:
 
     async def create_representation(
         self,
-        conn: Postgres.Transaction,
+        conn: Connection,
         folder: FolderEntity,
         product: ProductEntity,
         version: VersionEntity,

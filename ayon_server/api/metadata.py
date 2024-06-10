@@ -1,3 +1,5 @@
+__all__ = ["app_meta", "tags_meta", "__version__"]
+
 from ayon_server import __version__
 
 app_meta = {

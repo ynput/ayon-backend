@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING, Any
 import strawberry
 from nxtools import get_base_name
 from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import RepresentationEntity
 from ayon_server.graphql.nodes.common import BaseNode
+from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import json_dumps
 
@@ -81,7 +81,7 @@ def parse_files(
 
 
 def representation_from_record(
-    project_name: str, record: dict, context: dict
+    project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> RepresentationNode:  # noqa # no. this line won't be shorter
     """Construct a representation node from a DB row."""
 

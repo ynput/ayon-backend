@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import strawberry
 from strawberry import LazyType
@@ -203,7 +203,7 @@ class ProjectNode:
 
 
 def project_from_record(
-    project_name: str | None, record: dict, context: dict
+    project_name: str | None, record: dict[str, Any], context: dict[str, Any]
 ) -> ProjectNode:
     """Construct a project node from a DB row."""
     data = record.get("data", {})
