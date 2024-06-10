@@ -168,7 +168,7 @@ class Session:
             session = SessionModel(**json_loads(data))
             if cls.is_expired(session):
                 logging.info(
-                    f"Removing expired session for user"
+                    f"Removing expired session for user "
                     f"{session.user.name} {session.token}"
                 )
                 await cls.delete(session.token)
