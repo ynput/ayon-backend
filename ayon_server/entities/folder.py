@@ -190,8 +190,8 @@ class FolderEntity(ProjectLevelEntity):
             await _commit(transaction)
             return
         else:
-            async with Postgres.acquire() as transaction:
-                await _commit(transaction)
+            async with Postgres.acquire() as conn, conn.transaction():
+                await _commit(conn)
 
     async def delete(self, transaction=None, **kwargs) -> bool:
         if kwargs.get("force", False):
