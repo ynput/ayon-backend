@@ -86,9 +86,7 @@ class BundlePatchModel(BaseBundleModel):
     is_archived: bool | None = Field(None, example=False)
     is_dev: bool | None = Field(None, example=False)
     active_user: str | None = Field(None, example="admin")
-    addon_development: dict[str, AddonDevelopmentItem] | None = Field(
-        default_factory=None
-    )
+    addon_development: dict[str, AddonDevelopmentItem] | None = Field(None)
 
 
 class ListBundleModel(OPModel):

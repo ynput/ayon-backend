@@ -48,12 +48,11 @@ def geo_lookup(ip: str):
         except geoip2.errors.AddressNotFoundError:
             return None
 
-        return LocationInfo(
-            country=response.country.name,
-            subdivision=response.subdivisions.most_specific.name,
-            city=response.city.name,
-        )
-    return None
+    return LocationInfo(
+        country=response.country.name,
+        subdivision=response.subdivisions.most_specific.name,
+        city=response.city.name,
+    )
 
 
 def is_internal_ip(ip: str) -> bool:
@@ -71,7 +70,9 @@ def parse_ayon_headers(request: Request) -> dict[str, str]:
     headers: dict[str, str] = {}
     result: dict[str, str] = {}
     for header in ["x-ayon-platform", "x-ayon-version", "x-ayon-hostname"]:
-        headers[header] = request.headers.get(header)
+        value = request.headers.get(header)
+        if value:
+            headers[header] = value
 
     if headers.get("x-ayon-platform"):
         result["platform"] = headers["x-ayon-platform"]

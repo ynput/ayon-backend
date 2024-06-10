@@ -294,9 +294,9 @@ async def update_bundle(
         # Validate the bundle
 
         if not force:
-            res = await check_bundle(bundle)
-            if not res.success:
-                raise BadRequestException(res.message())
+            bstat = await check_bundle(bundle)
+            if not bstat.success:
+                raise BadRequestException(bstat.message())
 
         # Construct the new data
 

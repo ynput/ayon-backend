@@ -29,7 +29,7 @@ class BaseEntity:
         exclude_defaults: bool = False,
         exclude_unset: bool = False,
         exclude_none: bool = False,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Return the entity data as a dict."""
         return self._payload.dict(
             exclude_defaults=exclude_defaults,
@@ -64,7 +64,7 @@ class BaseEntity:
                 # we need to check what attributes are being modified.
                 # and if the user is allowed to do so.
                 patch_data = patch_data.copy(deep=True)
-                user.permissions(self.project_name)
+                user.permissions(self.project_name)  # type: ignore
 
                 # TODO: check for attribute whitelist
                 # and drop any attributes that are not allowed
@@ -72,8 +72,9 @@ class BaseEntity:
 
                 # TODO: don't forget to use user.is_developer
                 # to include developerMode attribute
-                if not user.is_developer and "developerMode" in patch_data:
-                    patch_data.pop("developerMode")
+                pattr = patch_data.dict().get("attrib", {})
+                if not user.is_developer and "developerMode" in pattr:
+                    patch_data.attrib.developerMode = None  # type: ignore
 
         if (attrib := patch_data.dict().get("attrib")) is not None:
             for key in attrib:

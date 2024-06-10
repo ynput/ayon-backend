@@ -10,7 +10,7 @@ except ModuleNotFoundError:
 
 class BackgroundWorker:
     def __init__(self):
-        self.task: asyncio.Task | None = None
+        self.task: asyncio.Task[None] | None = None
         self.shutting_down = False
         self.initialize()
 
@@ -36,7 +36,7 @@ class BackgroundWorker:
     def is_running(self):
         return self.task and not self.task.done()
 
-    async def _run(self):
+    async def _run(self) -> None:
         try:
             await self.run()
         except asyncio.CancelledError:
