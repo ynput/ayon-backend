@@ -38,7 +38,7 @@ aiocache = "^0.12.2"
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"
 pytest-order = "^1.0.1"
-mypy = "^1.8"
+mypy = "^1.10"
 pre-commit = "^2.20.0"
 ruff = "^0.3.1"
 
@@ -47,6 +47,7 @@ types-aiofiles = "^23.2.0.20240403"
 asyncpg-stubs = "^0.29.1"
 types-pyyaml = "^6.0.12.20240311"
 types-psutil = "^5.9.5.20240516"
+mypy = "^1.10.0"
 
 [tool.ruff]
 fix = true

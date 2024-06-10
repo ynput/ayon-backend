@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, TypeVar
+from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 import asyncpg
 import asyncpg.pool
@@ -11,7 +11,10 @@ from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException, ServiceUnavailableException
 from ayon_server.utils import EntityID, json_dumps, json_loads
 
-Connection = TypeVar("Connection", bound=PoolConnectionProxy)
+if TYPE_CHECKING:
+    Connection = PoolConnectionProxy[Any]
+else:
+    Connection = PoolConnectionProxy
 
 
 class Postgres:
@@ -32,7 +35,7 @@ class Postgres:
     @asynccontextmanager
     async def acquire(
         cls, timeout: int | None = None
-    ) -> AsyncGenerator[PoolConnectionProxy, None]:
+    ) -> AsyncGenerator[Connection, None]:
         """Acquire a connection from the pool."""
 
         if cls.pool is None:
