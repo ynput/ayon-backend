@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import strawberry
 from strawberry import LazyType
@@ -96,7 +96,9 @@ class FolderNode(BaseNode):
 #
 
 
-def folder_from_record(project_name: str, record: dict, context: dict) -> FolderNode:
+def folder_from_record(
+    project_name: str, record: dict[str, Any], context: dict[str, Any]
+) -> FolderNode:
     """Construct a folder node from a DB row."""
 
     own_attrib = list(record["attrib"].keys())

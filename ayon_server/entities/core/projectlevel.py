@@ -305,7 +305,7 @@ class ProjectLevelEntity(BaseEntity):
     @id.setter
     def id(self, value: str):
         """Set the entity id."""
-        self._payload.id = value
+        self._payload.id = value  # type: ignore
 
     @property
     def parent_id(self) -> str | None:
@@ -326,7 +326,7 @@ class ProjectLevelEntity(BaseEntity):
     @status.setter
     def status(self, value: str):
         """Set the entity status."""
-        self._payload.status = value
+        self._payload.status = value  # type: ignore
 
     @property
     def tags(self) -> list[str]:
@@ -334,7 +334,7 @@ class ProjectLevelEntity(BaseEntity):
 
     @tags.setter
     def tags(self, value: list[str]):
-        self._payload.tags = value
+        self._payload.tags = value  # type: ignore
 
     @property
     def entity_subtype(self) -> str | None:

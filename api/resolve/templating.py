@@ -1,7 +1,7 @@
 import numbers
 import os
 import re
-from typing import Any
+from typing import Any, Union
 
 KEY_PATTERN = re.compile(r"(\{.*?[^{0]*\})")
 KEY_PADDING_PATTERN = re.compile(r"([^:]+)\S+[><]\S+")
@@ -29,8 +29,8 @@ class TemplateUnsolved(Exception):
     def __init__(
         self,
         template: str,
-        missing_keys: list[str],
-        invalid_types: dict[str, Any],
+        missing_keys: list[str] | None = None,
+        invalid_types: dict[str, Any] | None = None,
     ):
         invalid_types_msg = ""
         if invalid_types:
@@ -63,15 +63,34 @@ class TemplateResult(str):
             of number.
     """
 
-    used_values = None
-    solved = None
-    template = None
-    missing_keys = None
-    invalid_types = None
+    used_values: dict[str, Any]
+    solved: bool
+    template: str
+    missing_keys: list[str]
+    invalid_types: dict[str, Any]
 
     def __new__(
-        cls, filled_template, template, solved, used_values, missing_keys, invalid_types
-    ):
+        cls,
+        filled_template: str,
+        template: str,
+        solved: bool,
+        used_values: dict[str, Any],
+        missing_keys: list[str],
+        invalid_types: dict[str, Any],
+    ) -> "TemplateResult":
+        """Create a new TemplateResult instance.
+
+        Args:
+            filled_template (str): The filled template string.
+            template (str): The original template string.
+            solved (bool): Whether all required keys were filled.
+            used_values (dict): Dictionary of template filling data with only used keys.
+            missing_keys (list): List of missing keys that were not in the data.
+            invalid_types (dict): Dictionary of keys with invalid data types.
+
+        Returns:
+            TemplateResult: A new instance of TemplateResult.
+        """
         new_obj = super().__new__(cls, filled_template)
         new_obj.used_values = used_values
         new_obj.solved = solved
@@ -80,17 +99,37 @@ class TemplateResult(str):
         new_obj.invalid_types = invalid_types
         return new_obj
 
-    def __copy__(self, *args, **kwargs):
+    def __copy__(self, *args, **kwargs) -> "TemplateResult":
+        """Create a shallow copy of the TemplateResult instance.
+
+        Returns:
+            TemplateResult: A shallow copy of the instance.
+        """
         return self.copy()
 
-    def __deepcopy__(self, *args, **kwargs):
+    def __deepcopy__(self, *args, **kwargs) -> "TemplateResult":
+        """Create a deep copy of the TemplateResult instance.
+
+        Returns:
+            TemplateResult: A deep copy of the instance.
+        """
         return self.copy()
 
-    def validate(self):
+    def validate(self) -> None:
+        """Validate the TemplateResult instance.
+
+        Raises:
+            TemplateUnsolved: If the template is not fully solved.
+        """
         if not self.solved:
             raise TemplateUnsolved(self.template, self.missing_keys, self.invalid_types)
 
-    def copy(self):
+    def copy(self) -> "TemplateResult":
+        """Create a copy of the TemplateResult instance.
+
+        Returns:
+            TemplateResult: A copy of the instance.
+        """
         cls = self.__class__
         return cls(
             str(self),
@@ -101,9 +140,12 @@ class TemplateResult(str):
             self.invalid_types,
         )
 
-    def normalized(self):
-        """Convert to normalized path."""
+    def normalized(self) -> "TemplateResult":
+        """Convert the template result to a normalized path.
 
+        Returns:
+            TemplateResult: A new instance with a normalized path.
+        """
         cls = self.__class__
         return cls(
             os.path.normpath(self.replace("\\", "/")),
@@ -118,29 +160,29 @@ class TemplateResult(str):
 class TemplatePartResult:
     """Result to store result of template parts."""
 
-    def __init__(self, optional=False):
+    def __init__(self, optional: bool = False):
         # Missing keys or invalid value types of required keys
-        self._missing_keys = set()
-        self._invalid_types = {}
+        self._missing_keys: set[str] = set()
+        self._invalid_types: dict[str, type] = {}
         # Missing keys or invalid value types of optional keys
-        self._missing_optional_keys = set()
-        self._invalid_optional_types = {}
+        self._missing_optional_keys: set[str] = set()
+        self._invalid_optional_types: dict[str, type] = {}
 
         # Used values stored by key with origin type
         #   - key without any padding or key modifiers
         #   - value from filling data
         #   Example: {"version": 1}
-        self._used_values = {}
-        # Used values stored by key with all modifirs
+        self._used_values: dict[str, Any] = {}
+        # Used values stored by key with all modifiers
         #   - value is already formatted string
         #   Example: {"version:0>3": "001"}
-        self._realy_used_values = {}
+        self._realy_used_values: dict[str, str] = {}
         # Concatenated string output after formatting
-        self._output = ""
+        self._output: str = ""
         # Is this result from optional part
-        self._optional = True
+        self._optional: bool = True
 
-    def add_output(self, other):
+    def add_output(self, other: Union[str, "TemplatePartResult"]):
         if isinstance(other, str):
             self._output += other
 
@@ -165,7 +207,7 @@ class TemplatePartResult:
             )
 
     @property
-    def solved(self):
+    def solved(self) -> bool:
         if self.optional:
             if (
                 len(self.missing_optional_keys) > 0
@@ -175,39 +217,39 @@ class TemplatePartResult:
         return len(self.missing_keys) == 0 and len(self.invalid_types) == 0
 
     @property
-    def optional(self):
+    def optional(self) -> bool:
         return self._optional
 
     @property
-    def output(self):
+    def output(self) -> str:
         return self._output
 
     @property
-    def missing_keys(self):
+    def missing_keys(self) -> set[str]:
         return self._missing_keys
 
     @property
-    def missing_optional_keys(self):
+    def missing_optional_keys(self) -> set[str]:
         return self._missing_optional_keys
 
     @property
-    def invalid_types(self):
+    def invalid_types(self) -> dict[str, type]:
         return self._invalid_types
 
     @property
-    def invalid_optional_types(self):
+    def invalid_optional_types(self) -> dict[str, type]:
         return self._invalid_optional_types
 
     @property
-    def realy_used_values(self):
+    def realy_used_values(self) -> dict[str, str]:
         return self._realy_used_values
 
     @property
-    def used_values(self):
+    def used_values(self) -> dict[str, Any]:
         return self._used_values
 
     @staticmethod
-    def split_keys_to_subdicts(values):
+    def split_keys_to_subdicts(values: dict[str, Any]) -> dict[str, Any]:
         output: dict[str, Any] = {}
         for key, value in values.items():
             if key_padding := list(KEY_PADDING_PATTERN.findall(key)):
@@ -222,8 +264,8 @@ class TemplatePartResult:
             data[last_key] = value
         return output
 
-    def get_clean_used_values(self):
-        new_used_values = {}
+    def get_clean_used_values(self) -> dict[str, Any]:
+        new_used_values: dict[str, Any] = {}
         for key, value in self.used_values.items():
             if isinstance(value, FormatObject):
                 value = str(value)
@@ -231,19 +273,19 @@ class TemplatePartResult:
 
         return self.split_keys_to_subdicts(new_used_values)
 
-    def add_realy_used_value(self, key, value):
+    def add_realy_used_value(self, key: str, value: str):
         self._realy_used_values[key] = value
 
-    def add_used_value(self, key, value):
+    def add_used_value(self, key: str, value: Any):
         self._used_values[key] = value
 
-    def add_missing_key(self, key):
+    def add_missing_key(self, key: str):
         if self._optional:
             self._missing_optional_keys.add(key)
         else:
             self._missing_keys.add(key)
 
-    def add_invalid_type(self, key, value):
+    def add_invalid_type(self, key: str, value: Any):
         if self._optional:
             self._invalid_optional_types[key] = type(value)
         else:
@@ -259,13 +301,13 @@ class FormatObject:
     def __init__(self):
         self.value = ""
 
-    def __format__(self, *args, **kwargs):
+    def __format__(self, *args, **kwargs) -> str:
         return self.value.__format__(*args, **kwargs)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.value)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
 
@@ -278,21 +320,21 @@ class FormattingPart:
         template(str): String containing the formatting key.
     """
 
-    def __init__(self, template):
+    def __init__(self, template: str):
         self._template = template
 
     @property
-    def template(self):
+    def template(self) -> str:
         return self._template
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Format:{self._template}>"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self._template
 
     @staticmethod
-    def validate_value_type(value):
+    def validate_value_type(value: Any) -> bool:
         """Check if value can be used for formatting of single key."""
         if isinstance(value, (numbers.Number, FormatObject)):
             return True
@@ -510,7 +552,7 @@ class StringTemplate:
             self.template,
             solved,
             used_values,
-            missing_keys,
+            list(missing_keys),
             invalid_types,
         )
 

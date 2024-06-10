@@ -116,20 +116,20 @@ class TaskEntity(ProjectLevelEntity):
     @property
     def label(self) -> str | None:
         """Return the label of the task."""
-        return self._payload.label
+        return self._payload.label  # type: ignore
 
     @label.setter
     def label(self, value) -> None:
         """Set the label of the task."""
-        self._payload.label = value
+        self._payload.label = value  # type: ignore
 
     @property
     def folder_id(self) -> str:
-        return self._payload.folder_id
+        return self._payload.folder_id  # type: ignore
 
     @folder_id.setter
     def folder_id(self, value: str) -> None:
-        self._payload.folder_id = value
+        self._payload.folder_id = value  # type: ignore
 
     @property
     def parent_id(self) -> str:
@@ -137,19 +137,19 @@ class TaskEntity(ProjectLevelEntity):
 
     @property
     def task_type(self) -> str:
-        return self._payload.task_type
+        return self._payload.task_type  # type: ignore
 
     @task_type.setter
     def task_type(self, value: str) -> None:
-        self._payload.task_type = value
+        self._payload.task_type = value  # type: ignore
 
     @property
     def assignees(self) -> list[str]:
-        return self._payload.assignees
+        return self._payload.assignees  # type: ignore
 
     @assignees.setter
-    def assignees(self, value: list) -> None:
-        self._payload.assignees = value
+    def assignees(self, value: list[str]) -> None:
+        self._payload.assignees = value  # type: ignore
 
     @property
     def entity_subtype(self) -> str:
@@ -157,8 +157,8 @@ class TaskEntity(ProjectLevelEntity):
 
     @property
     def thumbnail_id(self) -> str | None:
-        return self._payload.thumbnail_id
+        return self._payload.thumbnail_id  # type: ignore
 
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
-        self._payload.thumbnail_id = value
+        self._payload.thumbnail_id = value  # type: ignore

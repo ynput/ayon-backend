@@ -1,8 +1,9 @@
 from datetime import datetime
+from typing import Any
 
 from ayon_server.types import NAME_REGEX, Field, OPModel, Platform
 
-dependency_packages_meta = {
+dependency_packages_meta: dict[str, Any] = {
     "title": "Dependency packages",
     "description": "mapping of platform:dependency_package_filename",
     "example": {

@@ -104,6 +104,7 @@ async def process_operation(
     events: list[dict[str, Any]] | None = None
 
     if operation.type == "create":
+        assert operation.data is not None, "data is required for create"
         payload = entity_class.model.post_model(**operation.data)
         payload_dict = payload.dict()
         if operation.entity_id is not None:
@@ -138,7 +139,7 @@ async def process_operation(
         assert operation.entity_id is not None, "entity_id is required for update"
 
         if operation.entity_type == "workfile":
-            if not payload.updated_by:
+            if not payload.updated_by:  # type: ignore
                 payload.updated_by = user.name
 
         entity = await entity_class.load(
@@ -358,7 +359,7 @@ async def operations(
             dispatch_event,
             sender=x_sender,
             user=user.name,
-            **event,  # type: ignore
+            **event,
         )
 
     return response

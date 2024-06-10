@@ -44,11 +44,11 @@ async def suggest_entity_mention(
     await entity.ensure_read_access(user)
 
     if request.entity_type == "folder":
-        res = await get_folder_suggestions(user.name, entity)  # type: ignore
+        res = await get_folder_suggestions(user.name, entity)
     elif request.entity_type == "task":
-        res = await get_task_suggestions(user.name, entity)  # type: ignore
+        res = await get_task_suggestions(user.name, entity)
     elif request.entity_type == "version":
-        res = await get_version_suggestions(user.name, entity)  # type: ignore
+        res = await get_version_suggestions(user.name, entity)
     else:
         raise ValueError("Unrecognized entity type")
 

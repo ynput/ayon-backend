@@ -26,6 +26,7 @@ async def get_version_suggestions(
     project_name = version.project_name
     result: defaultdict[str, list[STYPE]] = defaultdict(list)
     item: STYPE
+    parent: ProductSuggestionItem | FolderSuggestionItem
 
     # get users:
 

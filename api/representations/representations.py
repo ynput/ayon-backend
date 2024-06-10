@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import BackgroundTasks, Header
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName, RepresentationID
@@ -99,7 +101,7 @@ async def update_representation(
             dispatch_event,
             sender=x_sender,
             user=user.name,
-            **event,  # type: ignore
+            **event,
         )
     return EmptyResponse()
 
@@ -123,7 +125,7 @@ async def delete_representation(
 
     representation = await RepresentationEntity.load(project_name, representation_id)
     await representation.ensure_delete_access(user)
-    event = {
+    event: dict[str, Any] = {
         "topic": "entity.representation.deleted",
         "description": f"Representation {representation.name} deleted",
         "summary": {
@@ -137,6 +139,6 @@ async def delete_representation(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,  # type: ignore
+        **event,
     )
     return EmptyResponse()

@@ -49,7 +49,16 @@ class ActivityReferenceModel(OPModel):
         self,
         activity_id: str,
         timestamp: datetime.datetime | None = None,
-    ) -> tuple:
+    ) -> tuple[
+        str,
+        str,
+        ActivityReferenceType,
+        ReferencedEntityType,
+        str | None,
+        str | None,
+        dict[str, Any],
+        datetime.datetime,
+    ]:
         if timestamp is None:
             timestamp = datetime.datetime.now(datetime.timezone.utc)
         return (

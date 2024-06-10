@@ -298,7 +298,7 @@ PathProjectLevelEntityType = Annotated[
 
 
 async def dep_path_entity_id(
-    entity_id: str = Path(..., title="Entity ID", **EntityID.META),  # type: ignore
+    entity_id: str = Path(..., title="Entity ID", **EntityID.META),
 ) -> str:
     """Validate and return an entity id specified in an endpoint path."""
     return entity_id
@@ -308,7 +308,7 @@ PathEntityID = Annotated[str, Depends(dep_path_entity_id)]
 
 
 async def dep_folder_id(
-    folder_id: str = Path(..., title="Folder ID", **EntityID.META),  # type: ignore
+    folder_id: str = Path(..., title="Folder ID", **EntityID.META),
 ) -> str:
     """Validate and return a folder id specified in an endpoint path."""
     return folder_id
@@ -318,7 +318,7 @@ FolderID = Annotated[str, Depends(dep_folder_id)]
 
 
 async def dep_product_id(
-    product_id: str = Path(..., title="Product ID", **EntityID.META),  # type: ignore
+    product_id: str = Path(..., title="Product ID", **EntityID.META),
 ) -> str:
     """Validate and return a product id specified in an endpoint path."""
     return product_id
@@ -328,7 +328,7 @@ ProductID = Annotated[str, Depends(dep_product_id)]
 
 
 async def dep_version_id(
-    version_id: str = Path(..., title="Version ID", **EntityID.META),  # type: ignore
+    version_id: str = Path(..., title="Version ID", **EntityID.META),
 ) -> str:
     """Validate and return  a version id specified in an endpoint path."""
     return version_id
@@ -338,7 +338,7 @@ VersionID = Annotated[str, Depends(dep_version_id)]
 
 
 async def dep_representation_id(
-    representation_id: str = Path(..., title="Version ID", **EntityID.META),  # type: ignore
+    representation_id: str = Path(..., title="Version ID", **EntityID.META),
 ) -> str:
     """Validate and return a representation id specified in an endpoint path."""
     return representation_id
@@ -348,7 +348,7 @@ RepresentationID = Annotated[str, Depends(dep_representation_id)]
 
 
 async def dep_task_id(
-    task_id: str = Path(..., title="Task ID", **EntityID.META),  # type: ignore
+    task_id: str = Path(..., title="Task ID", **EntityID.META),
 ) -> str:
     """Validate and return a task id specified in an endpoint path."""
     return task_id
@@ -358,7 +358,7 @@ TaskID = Annotated[str, Depends(dep_task_id)]
 
 
 async def dep_workfile_id(
-    workfile_id: str = Path(..., title="Workfile ID", **EntityID.META),  # type: ignore
+    workfile_id: str = Path(..., title="Workfile ID", **EntityID.META),
 ) -> str:
     """Validate and return a workfile id specified in an endpoint path."""
     return workfile_id
@@ -368,7 +368,7 @@ WorkfileID = Annotated[str, Depends(dep_workfile_id)]
 
 
 async def dep_thumbnail_id(
-    thumbnail_id: str = Path(..., title="Thumbnail ID", **EntityID.META),  # type: ignore
+    thumbnail_id: str = Path(..., title="Thumbnail ID", **EntityID.META),
 ) -> str:
     """Validate and return a thumbnail id specified in an endpoint path."""
     return thumbnail_id
@@ -378,7 +378,7 @@ ThumbnailID = Annotated[str, Depends(dep_thumbnail_id)]
 
 
 async def dep_event_id(
-    event_id: str = Path(..., title="Event ID", **EntityID.META),  # type: ignore
+    event_id: str = Path(..., title="Event ID", **EntityID.META),
 ) -> str:
     """Validate and return a event id specified in an endpoint path."""
     return event_id
@@ -388,7 +388,7 @@ EventID = Annotated[str, Depends(dep_event_id)]
 
 
 async def dep_link_id(
-    link_id: str = Path(..., title="Link ID", **EntityID.META),  # type: ignore
+    link_id: str = Path(..., title="Link ID", **EntityID.META),
 ) -> str:
     """Validate and return a link id specified in an endpoint path."""
     return link_id

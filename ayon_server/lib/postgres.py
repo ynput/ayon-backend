@@ -24,9 +24,9 @@ class Postgres:
     """
 
     default_acquire_timeout: int = 10
-
     shutting_down: bool = False
-    pool: asyncpg.pool.Pool | None = None
+    pool: asyncpg.pool.Pool | None = None  # type: ignore
+
     ForeignKeyViolationError = asyncpg.exceptions.ForeignKeyViolationError
     UniqueViolationError = asyncpg.exceptions.UniqueViolationError
     UndefinedTableError = asyncpg.exceptions.UndefinedTableError
@@ -137,7 +137,7 @@ class Postgres:
         transaction: Connection | None = None,
     ):
         """Run a query and return a generator yielding resulting rows records."""
-        if transaction and transaction != cls:  # temporary. will be fixed
+        if transaction:  # temporary. will be fixed
             if not transaction.is_in_transaction():
                 raise AyonException(
                     "Iterate called with a connection which is not in transaction."

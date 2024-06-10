@@ -86,49 +86,49 @@ class Permissions(BaseSettingsModel):
     _layout: str = "root"
 
     create: FolderAccessList = SettingsField(
-        default_factory=FolderAccessList,  # type: ignore
+        default_factory=FolderAccessList,
         title="Restrict folder creation",
         description="Whitelist folders a user can create",
     )
 
     read: FolderAccessList = SettingsField(
-        default_factory=FolderAccessList,  # type: ignore
+        default_factory=FolderAccessList,
         title="Restrict folder read",
         description="Whitelist folders a user can read",
     )
 
     update: FolderAccessList = SettingsField(
-        default_factory=FolderAccessList,  # type: ignore
+        default_factory=FolderAccessList,
         title="Restrict folder update",
         description="Whitelist folders a user can update",
     )
 
     publish: FolderAccessList = SettingsField(
-        default_factory=FolderAccessList,  # type: ignore
+        default_factory=FolderAccessList,
         title="Restrict publishing",
         description="Whitelist folders a user can publish to",
     )
 
     delete: FolderAccessList = SettingsField(
-        default_factory=FolderAccessList,  # type: ignore
+        default_factory=FolderAccessList,
         title="Restrict folder delete",
         description="Whitelist folders a user can delete",
     )
 
     attrib_read: AttributeAccessList = SettingsField(
-        default_factory=AttributeAccessList,  # type: ignore
+        default_factory=AttributeAccessList,
         title="Restrict attribute read",
         description="Whitelist attributes a user can read",
     )
 
     attrib_write: AttributeAccessList = SettingsField(
-        default_factory=AttributeAccessList,  # type: ignore
+        default_factory=AttributeAccessList,
         title="Restrict attribute update",
         description="Whitelist attributes a user can write",
     )
 
     endpoints: EndpointsAccessList = SettingsField(
-        default_factory=EndpointsAccessList,  # type: ignore
+        default_factory=EndpointsAccessList,
         title="Restrict REST endpoints",
         description="Whitelist REST endpoints a user can access",
     )

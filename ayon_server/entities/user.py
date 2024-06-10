@@ -158,25 +158,25 @@ class UserEntity(TopLevelEntity):
         Service accounts have similar rights as administrators,
         but they also can act as a different user (sudo-style)
         """
-        return self._payload.data.get("isService", False)
+        return self.data.get("isService", False)
 
     @property
     def is_admin(self) -> bool:
         if self.is_guest:
             return False
-        return self._payload.data.get("isAdmin", False) or self.is_service
+        return self.data.get("isAdmin", False) or self.is_service
 
     @property
     def is_guest(self) -> bool:
-        return self._payload.data.get("isGuest", False)
+        return self.data.get("isGuest", False)
 
     @property
     def is_developer(self) -> bool:
-        return self._payload.data.get("isDeveloper", False)
+        return self.data.get("isDeveloper", False)
 
     @property
     def is_manager(self) -> bool:
-        data = self._payload.data
+        data = self.data
         return (
             data.get("isManager", False)
             or data.get("isAdmin", False)
@@ -207,27 +207,27 @@ class UserEntity(TopLevelEntity):
         """Set user password."""
 
         if password is None:
-            self._payload.data.pop("password", None)
+            self.data.pop("password", None)
             return
 
         if complexity_check and not ensure_password_complexity(password):
             raise LowPasswordComplexityException
         hashed_password = create_password(password)
-        self._payload.data["password"] = hashed_password
+        self.data["password"] = hashed_password
 
     def set_api_key(self, api_key: str | None) -> None:
         """Set user api key."""
 
         if api_key is None:
-            self._payload.data.pop("apiKey", None)
-            self._payload.data.pop("apiKeyPreview", None)
+            self.data.pop("apiKey", None)
+            self.data.pop("apiKeyPreview", None)
             return
 
         assert re.match(r"^[a-zA-Z0-9]{32}$", api_key)
         api_key_preview = api_key[:4] + "***" + api_key[-4:]
 
-        self._payload.data["apiKey"] = hash_password(api_key)
-        self._payload.data["apiKeyPreview"] = api_key_preview
+        self.data["apiKey"] = hash_password(api_key)
+        self.data["apiKeyPreview"] = api_key_preview
 
     async def send_mail(
         self,

@@ -49,6 +49,7 @@ class ActivityFeedEventHook:
     async def handle_status_changed(cls, event: "EventModel"):
         entity_type = event.topic.split(".")[1]
         entity_class = get_entity_class(entity_type)
+        assert event.project is not None, "Project is required for activities"
         entity = await entity_class.load(event.project, event.summary["entityId"])
 
         old_value = event.payload.get("oldValue")
@@ -71,7 +72,7 @@ class ActivityFeedEventHook:
     @classmethod
     async def handle_assignees_changed(cls, event: "EventModel"):
         assert event.project is not None
-        entity_class = get_entity_class("task")  # type: ignore
+        entity_class = get_entity_class("task")
         entity = await entity_class.load(event.project, event.summary["entityId"])
 
         old_value = event.payload.get("oldValue", [])

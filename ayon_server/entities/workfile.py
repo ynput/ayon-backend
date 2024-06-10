@@ -32,24 +32,24 @@ class WorkfileEntity(ProjectLevelEntity):
         return os.path.basename(self.path)
 
     @name.setter
-    def name(self, value) -> NoReturn:
+    def name(self, value: str) -> NoReturn:
         raise AttributeError("Cannot set name of a workfile.")
 
     @property
     def path(self) -> str:
-        return self._payload.path
+        return self._payload.path  # type: ignore
 
     @path.setter
     def path(self, value) -> None:
-        self._payload.path = value
+        self._payload.path = value  # type: ignore
 
     @property
     def task_id(self) -> str:
-        return self._payload.task_id
+        return self._payload.task_id  # type: ignore
 
     @task_id.setter
     def task_id(self, value: str) -> None:
-        self._payload.task_id = value
+        self._payload.task_id = value  # type: ignore
 
     @property
     def parent_id(self) -> str:
@@ -57,8 +57,8 @@ class WorkfileEntity(ProjectLevelEntity):
 
     @property
     def thumbnail_id(self) -> str:
-        return self._payload.thumbnail_id
+        return self._payload.thumbnail_id  # type: ignore
 
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
-        self._payload.thumbnail_id = value
+        self._payload.thumbnail_id = value  # type: ignore

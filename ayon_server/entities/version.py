@@ -88,19 +88,19 @@ class VersionEntity(ProjectLevelEntity):
 
     @property
     def version(self) -> int:
-        return self._payload.version
+        return self._payload.version  # type: ignore
 
     @version.setter
     def version(self, value: int) -> None:
-        self._payload.version = value
+        self._payload.version = value  # type: ignore
 
     @property
     def product_id(self) -> str:
-        return self._payload.product_id
+        return self._payload.product_id  # type: ignore
 
     @product_id.setter
     def product_id(self, value: str) -> None:
-        self._payload.product_id = value
+        self._payload.product_id = value  # type: ignore
 
     @property
     def parent_id(self) -> str:
@@ -108,20 +108,20 @@ class VersionEntity(ProjectLevelEntity):
 
     @property
     def task_id(self) -> str:
-        return self._payload.task_id
+        return self._payload.task_id  # type: ignore
 
     @task_id.setter
     def task_id(self, value: str) -> None:
-        self._payload.task_id = value
+        self._payload.task_id = value  # type: ignore
 
     @property
     def thumbnail_id(self) -> str:
-        return self._payload.thumbnail_id
+        return self._payload.thumbnail_id  # type: ignore
 
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
-        self._payload.thumbnail_id = value
+        self._payload.thumbnail_id = value  # type: ignore
 
     @property
     def author(self) -> str:
-        return self._payload.author
+        return self._payload.author  # type: ignore

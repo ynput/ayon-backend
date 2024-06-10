@@ -37,7 +37,7 @@ app = fastapi.FastAPI(
     docs_url=None,
     redoc_url="/docs" if not ayonconfig.disable_rest_docs else None,
     openapi_tags=tags_meta,
-    **app_meta,  # type: ignore
+    **app_meta,
 )
 
 #

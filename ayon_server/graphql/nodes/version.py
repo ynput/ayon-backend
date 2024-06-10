@@ -85,7 +85,7 @@ def version_from_record(
     else:
         name = f"v{record['version']:03d}"
 
-    return VersionNode(  # type: ignore
+    return VersionNode(
         project_name=project_name,
         id=record["id"],
         name=name,

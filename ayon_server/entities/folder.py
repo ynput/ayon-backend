@@ -289,7 +289,7 @@ class FolderEntity(ProjectLevelEntity):
     @label.setter
     def label(self, value):
         """Set the label of the folder."""
-        self._payload.label = value
+        self._payload.label = value  # type: ignore
 
     @property
     def parent_id(self) -> str | None:
@@ -297,7 +297,7 @@ class FolderEntity(ProjectLevelEntity):
 
     @parent_id.setter
     def parent_id(self, value: str) -> None:
-        self._payload.parent_id = value
+        self._payload.parent_id = value  # type: ignore
 
     @property
     def folder_type(self) -> str | None:
@@ -305,7 +305,7 @@ class FolderEntity(ProjectLevelEntity):
 
     @folder_type.setter
     def folder_type(self, value: str) -> None:
-        self._payload.folder_type = value
+        self._payload.folder_type = value  # type: ignore
 
     @property
     def thumbnail_id(self) -> str | None:
@@ -313,7 +313,7 @@ class FolderEntity(ProjectLevelEntity):
 
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
-        self._payload.thumbnail_id = value
+        self._payload.thumbnail_id = value  # type: ignore
 
     #
     # Read only properties

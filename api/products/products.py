@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, BackgroundTasks, Header
 
 from ayon_server.api.dependencies import CurrentUser, ProductID, ProjectName
@@ -45,7 +47,7 @@ async def create_product(
 
     product = ProductEntity(project_name=project_name, payload=post_data.dict())
     await product.ensure_create_access(user)
-    event = {
+    event: dict[str, Any] = {
         "topic": "entity.product.created",
         "description": f"Product {product.name} created",
         "summary": {"entityId": product.id, "parentId": product.parent_id},
@@ -56,7 +58,7 @@ async def create_product(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,  # type: ignore
+        **event,
     )
     return EntityIdResponse(id=product.id)
 
@@ -87,7 +89,7 @@ async def update_product(
             dispatch_event,
             sender=x_sender,
             user=user.name,
-            **event,  # type: ignore
+            **event,
         )
     return EmptyResponse(status_code=204)
 
@@ -112,7 +114,7 @@ async def delete_product(
 
     product = await ProductEntity.load(project_name, product_id)
     await product.ensure_delete_access(user)
-    event = {
+    event: dict[str, Any] = {
         "topic": "entity.product.deleted",
         "description": f"Product {product.name} deleted",
         "summary": {"entityId": product.id, "parentId": product.parent_id},
@@ -123,6 +125,6 @@ async def delete_product(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,  # type: ignore
+        **event,
     )
     return EmptyResponse()

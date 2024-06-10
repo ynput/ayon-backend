@@ -54,7 +54,7 @@ def workfile_from_record(
     data = record.get("data", {})
     name = os.path.basename(record["path"])
 
-    return WorkfileNode(  # type: ignore
+    return WorkfileNode(
         project_name=project_name,
         id=record["id"],
         name=name,

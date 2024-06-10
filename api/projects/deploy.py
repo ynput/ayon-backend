@@ -10,7 +10,7 @@ from .router import router
 
 class DeployProjectRequestModel(OPModel):
     name: str = Field(..., description="Project name")
-    code: str = Field(None, description="Project code")
+    code: str = Field(..., description="Project code")
     anatomy: Anatomy = Field(..., description="Project anatomy")
     library: bool = Field(False, description="Library project")
 

@@ -32,7 +32,7 @@ def apply_overrides(
                 if name in override:
                     try:
                         # TODO: WTF??
-                        type(child)(override[name])  # type: ignore
+                        type(child)(override[name])
                     except ValueError:
                         logging.warning(f"Invalid value for {name}: {override[name]}")
                         continue
