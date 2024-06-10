@@ -69,7 +69,7 @@ async def create_task(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
+        **event,  # type: ignore
     )
     return EntityIdResponse(id=task.id)
 
@@ -100,7 +100,7 @@ async def update_task(
             dispatch_event,
             sender=x_sender,
             user=user.name,
-            **event,
+            **event,  # type: ignore
         )
     return EmptyResponse()
 
@@ -134,7 +134,7 @@ async def delete_task(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
+        **event,  # type: ignore
     )
     return EmptyResponse()
 

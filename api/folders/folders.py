@@ -62,7 +62,7 @@ async def create_folder(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
+        **event,  # type: ignore
     )
     return EntityIdResponse(id=folder.id)
 
@@ -124,7 +124,7 @@ async def update_folder(
             dispatch_event,
             sender=x_sender,
             user=user.name,
-            **event,
+            **event,  # type: ignore
         )
 
     return EmptyResponse()
@@ -171,6 +171,6 @@ async def delete_folder(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
+        **event,  # type: ignore
     )
     return EmptyResponse()

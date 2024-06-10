@@ -1,13 +1,12 @@
 from typing import Any
 
-from asyncpg import Connection
 from nxtools import logging
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import AyonException, NotFoundException
-from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import EntityID
 

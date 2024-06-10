@@ -5,7 +5,6 @@ import random
 import time
 from typing import Any
 
-from asyncpg.connection import Connection
 from nxtools import logging
 
 from ayon_server.entities import (
@@ -17,7 +16,7 @@ from ayon_server.entities import (
     VersionEntity,
     WorkfileEntity,
 )
-from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.utils import create_uuid, dict_exclude
 from demogen.generators import generators
 from setup.attributes import DEFAULT_ATTRIBUTES

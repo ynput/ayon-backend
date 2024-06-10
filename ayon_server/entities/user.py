@@ -3,7 +3,6 @@
 import re
 from typing import Any
 
-from asyncpg import Connection
 from nxtools import logging
 
 from ayon_server.access.access_groups import AccessGroups
@@ -22,7 +21,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.helpers.email import send_mail
-from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import AccessType
 from ayon_server.utils import SQLTool, dict_exclude

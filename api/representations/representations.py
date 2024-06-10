@@ -66,7 +66,7 @@ async def create_representation(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
+        **event,  # type: ignore
     )
     return EntityIdResponse(id=representation.id)
 
@@ -99,7 +99,7 @@ async def update_representation(
             dispatch_event,
             sender=x_sender,
             user=user.name,
-            **event,
+            **event,  # type: ignore
         )
     return EmptyResponse()
 
@@ -137,6 +137,6 @@ async def delete_representation(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
+        **event,  # type: ignore
     )
     return EmptyResponse()

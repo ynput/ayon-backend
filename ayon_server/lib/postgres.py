@@ -1,15 +1,17 @@
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, TypeVar
 
 import asyncpg
 import asyncpg.pool
 import asyncpg.transaction
-from asyncpg.connection import Connection
+from asyncpg.pool import PoolConnectionProxy
 
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException, ServiceUnavailableException
 from ayon_server.utils import EntityID, json_dumps, json_loads
+
+Connection = TypeVar("Connection", bound=PoolConnectionProxy)
 
 
 class Postgres:
@@ -30,7 +32,7 @@ class Postgres:
     @asynccontextmanager
     async def acquire(
         cls, timeout: int | None = None
-    ) -> AsyncGenerator[Connection, None]:
+    ) -> AsyncGenerator[PoolConnectionProxy, None]:
         """Acquire a connection from the pool."""
 
         if cls.pool is None:
@@ -42,10 +44,10 @@ class Postgres:
         try:
             connection_proxy = await cls.pool.acquire(timeout=timeout)
         except asyncio.TimeoutError:
-            raise ServiceUnavailableException("Database pool exhausted")
+            raise ServiceUnavailableException("Database pool timeout")
 
         try:
-            yield connection_proxy  # type: ignore
+            yield connection_proxy
         finally:
             await cls.pool.release(connection_proxy)
 
@@ -129,7 +131,7 @@ class Postgres:
         cls,
         query: str,
         *args: Any,
-        transaction: asyncpg.Connection | None = None,
+        transaction: Connection | None = None,
     ):
         """Run a query and return a generator yielding resulting rows records."""
         if transaction and transaction != cls:  # temporary. will be fixed

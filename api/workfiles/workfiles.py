@@ -47,10 +47,10 @@ async def create_workfile(
     Use a POST request to create a new workfile
     """
 
-    if not post_data.created_by:  # type: ignore
+    if not post_data.created_by:
         post_data.created_by = user.name
-    if not post_data.updated_by:  # type: ignore
-        post_data.updated_by = post_data.created_by  # type: ignore
+    if not post_data.updated_by:
+        post_data.updated_by = post_data.created_by
 
     workfile = WorkfileEntity(project_name=project_name, payload=post_data.dict())
     await workfile.ensure_create_access(user)
@@ -65,8 +65,8 @@ async def create_workfile(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
-    )  # type: ignore
+        **event,  # type: ignore
+    )
     return EntityIdResponse(id=workfile.id)
 
 
@@ -89,8 +89,8 @@ async def update_workfile(
     workfile = await WorkfileEntity.load(project_name, workfile_id)
     await workfile.ensure_update_access(user)
 
-    if not post_data.updated_by:  # type: ignore
-        post_data = user.name  # type: ignore
+    if not post_data.updated_by:
+        post_data = user.name
 
     events = build_pl_entity_change_events(workfile, post_data)
     workfile.patch(post_data)
@@ -101,7 +101,7 @@ async def update_workfile(
             sender=x_sender,
             user=user.name,
             **event,
-        )  # type: ignore
+        )
     return EmptyResponse()
 
 
@@ -133,6 +133,6 @@ async def delete_workfile(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
-    )  # type: ignore
+        **event,  # type: ignore
+    )
     return EmptyResponse()

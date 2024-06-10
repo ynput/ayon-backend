@@ -56,7 +56,7 @@ async def create_product(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
+        **event,  # type: ignore
     )
     return EntityIdResponse(id=product.id)
 
@@ -87,7 +87,7 @@ async def update_product(
             dispatch_event,
             sender=x_sender,
             user=user.name,
-            **event,
+            **event,  # type: ignore
         )
     return EmptyResponse(status_code=204)
 
@@ -123,6 +123,6 @@ async def delete_product(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
+        **event,  # type: ignore
     )
     return EmptyResponse()

@@ -1,7 +1,6 @@
 from datetime import datetime
 from typing import Any
 
-from asyncpg import Connection
 from nxtools import logging
 
 from ayon_server.access.utils import ensure_entity_access
@@ -14,7 +13,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
-from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import EntityID, SQLTool, dict_exclude
 

@@ -358,7 +358,7 @@ async def operations(
             dispatch_event,
             sender=x_sender,
             user=user.name,
-            **event,
+            **event,  # type: ignore
         )
 
     return response
