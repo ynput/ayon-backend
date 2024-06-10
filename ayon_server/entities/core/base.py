@@ -96,7 +96,7 @@ class BaseEntity:
     # DB
     #
 
-    async def commit(self, transaction=False):
+    async def commit(self, transaction=None):
         """Post-update commit."""
         pass
 

@@ -33,16 +33,22 @@ class VersionEntity(ProjectLevelEntity):
 
         return await super().save(transaction=transaction)
 
-    async def commit(self, transaction=False) -> None:
+    async def commit(self, transaction=None) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
-        transaction = transaction or Postgres
-        await transaction.execute(
-            f"""
-            REFRESH MATERIALIZED VIEW CONCURRENTLY
-            project_{self.project_name}.version_list
-            """
-        )
+        async def _commit(conn):
+            await conn.execute(
+                f"""
+                REFRESH MATERIALIZED VIEW CONCURRENTLY
+                project_{self.project_name}.version_list
+                """
+            )
+
+        if transaction:
+            await _commit(transaction)
+        else:
+            async with Postgres.acquire() as conn, conn.transaction():
+                await _commit(conn)
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
