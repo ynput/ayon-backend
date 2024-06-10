@@ -5,7 +5,9 @@ import psutil
 from fastapi import Query
 from fastapi.responses import PlainTextResponse
 
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import ApiKey, CurrentUser, CurrentUserOptional
+from ayon_server.config import ayonconfig
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.metrics import Metrics, get_metrics
@@ -102,10 +104,22 @@ async def get_production_metrics(
 
 
 @router.get("/metrics/system", tags=["System"])
-async def get_system_metrics(user: CurrentUser) -> PlainTextResponse:
+async def get_system_metrics(
+    user: CurrentUserOptional,
+    api_key: ApiKey,
+) -> PlainTextResponse:
     """Get system metrics in Prometheus format"""
 
     result = ""
+
+    if user is not None and not user.is_admin:
+        user = None
+
+    if user is None:
+        if api_key is None:
+            raise ForbiddenException("Access denied")
+        if api_key != ayonconfig.metrics_api_key:
+            raise ForbiddenException("Access denied")
 
     # Get user requests count
 

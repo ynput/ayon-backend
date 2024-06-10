@@ -54,13 +54,22 @@ async def dep_access_token(
 AccessToken = Annotated[str, Depends(dep_access_token)]
 
 
-async def dep_api_key(authorization: str = Header(None)) -> str | None:
+async def dep_api_key(
+    authorization: str = Header(None),
+    x_api_key: str = Header(None),
+) -> str | None:
     """Parse and return an api key provided in the authorisation header."""
-    api_key = parse_api_key(authorization)
+    api_key: str | None
+    if x_api_key:
+        api_key = x_api_key
+    elif authorization:
+        api_key = parse_api_key(authorization)
+    else:
+        api_key = None
     return api_key
 
 
-ApiKey = Annotated[str, Depends(dep_api_key)]
+ApiKey = Annotated[str | None, Depends(dep_api_key)]
 
 
 async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:

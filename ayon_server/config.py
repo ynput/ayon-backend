@@ -166,6 +166,11 @@ class AyonConfig(BaseModel):
         description="Path to the log file",
     )
 
+    metrics_api_key: str | None = Field(
+        default=None,
+        description="API key allowing access to the system metrics endpoint",
+    )
+
     email_from: str = Field("noreply@ynput.cloud", description="Email sender address")
     email_smtp_host: str | None = Field(None, description="SMTP server hostname")
     email_smtp_port: int | None = Field(None, description="SMTP server port")
