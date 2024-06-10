@@ -2,7 +2,17 @@
 
 import os
 
+from aiocache import caches
 from pydantic import BaseModel, Field
+
+caches.set_config(
+    {
+        "default": {
+            "cache": "aiocache.SimpleMemoryCache",
+            "serializer": {"class": "aiocache.serializers.StringSerializer"},
+        },
+    }
+)
 
 
 class AyonConfig(BaseModel):
