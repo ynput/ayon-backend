@@ -24,6 +24,7 @@ async def get_task_suggestions(user: str, task: TaskEntity) -> dict[str, list[ST
     project_name = task.project_name
     result: defaultdict[str, list[STYPE]] = defaultdict(list)
     item: STYPE
+    parent: FolderSuggestionItem | ProductSuggestionItem
 
     # get users:
 

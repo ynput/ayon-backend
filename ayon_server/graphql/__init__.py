@@ -7,7 +7,7 @@ from graphql import GraphQLError
 from nxtools import logging
 from strawberry.dataloader import DataLoader
 from strawberry.fastapi import GraphQLRouter
-from strawberry.types import ExecutionContext, Info
+from strawberry.types import ExecutionContext
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.graphql.connections import (
@@ -40,6 +40,7 @@ from ayon_server.graphql.resolvers.inbox import get_inbox
 from ayon_server.graphql.resolvers.links import get_links
 from ayon_server.graphql.resolvers.projects import get_project, get_projects
 from ayon_server.graphql.resolvers.users import get_user, get_users
+from ayon_server.graphql.types import Info
 from ayon_server.lib.postgres import Postgres
 
 
@@ -169,7 +170,7 @@ class AyonSchema(strawberry.Schema):
             logging.error(f"GraphQL: {fname}:{line_no} ({path}) {message}")
 
 
-router: GraphQLRouter = GraphQLRouter(
+router: GraphQLRouter[Any, Any] = GraphQLRouter(
     schema=AyonSchema(query=Query),
     graphiql=False,
     context_getter=graphql_get_context,

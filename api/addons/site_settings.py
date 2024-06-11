@@ -72,7 +72,8 @@ async def get_addon_site_settings(
     async for row in Postgres.iterate(query, site_id, addon_name, version, user.name):
         data = row["data"]
 
-    return model(**data)
+    # use model to include defaults
+    return model(**data)  # type: ignore
 
 
 @router.put("/{addon_name}/{version}/siteSettings", status_code=204, **route_meta)
@@ -90,7 +91,7 @@ async def set_addon_site_settings(
 
     if model is None:
         logging.error(f"No site settings schema for addon {addon_name}")
-        return {}
+        return EmptyResponse()
 
     data = model(**payload)
 

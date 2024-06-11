@@ -5,7 +5,8 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import ProjectEntity
-from ayon_server.graphql.nodes.common import ActivitiesConnection, ProductType
+from ayon_server.graphql.connections import ActivitiesConnection
+from ayon_server.graphql.nodes.common import ProductType
 from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.folders import get_folder, get_folders
 from ayon_server.graphql.resolvers.products import get_product, get_products

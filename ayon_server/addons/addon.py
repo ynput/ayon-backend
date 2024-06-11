@@ -165,7 +165,7 @@ class BaseServerAddon:
     def add_endpoint(
         self,
         path: str,
-        handler: Callable,
+        handler: Callable[..., Any],
         *,
         method: str = "GET",
         name: str | None = None,
@@ -474,7 +474,11 @@ class BaseServerAddon:
         settings._has_studio_overrides = has_studio_overrides
         return settings
 
-    async def get_site_settings(self, user_name: str, site_id: str) -> dict | None:
+    async def get_site_settings(
+        self,
+        user_name: str,
+        site_id: str,
+    ) -> dict[str, Any] | None:
         site_settings_model = self.get_site_settings_model()
         if site_settings_model is None:
             return None

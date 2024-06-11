@@ -17,7 +17,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
-from ayon_server.settings.models import BaseSettingsModel
+from ayon_server.settings import BaseSettingsModel
 from ayon_server.settings.overrides import extract_overrides, list_overrides
 from ayon_server.settings.postprocess import postprocess_settings_schema
 
@@ -128,12 +128,16 @@ async def get_addon_project_overrides(
         as_version=as_version,
     )
 
+    result: dict[str, BaseSettingsModel | None] = {}
     result = list_overrides(studio_settings, studio_overrides, level="studio")
 
-    for k, v in list_overrides(
-        project_settings, project_overrides, level="project"
-    ).items():
-        result[k] = v
+    if project_settings:
+        for k, v in list_overrides(
+            project_settings,
+            project_overrides,
+            level="project",
+        ).items():
+            result[k] = v
 
     if site_id:
         site_overrides = await addon.get_project_site_overrides(

@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import validator
 
 from ayon_server.lib.postgres import Postgres
@@ -134,6 +136,6 @@ class Permissions(BaseSettingsModel):
     )
 
     @classmethod
-    def from_record(cls, perm_dict: dict) -> "Permissions":
+    def from_record(cls, perm_dict: dict[str, Any]) -> "Permissions":
         """Recreate a permission object from a JSON object."""
         return cls(**perm_dict)

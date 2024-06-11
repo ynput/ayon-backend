@@ -186,6 +186,6 @@ def generate_model(
         else:
             ftype = Any
 
-        fields[fdef.name] = (ftype, Field(**field))
+        fields[fdef.name] = (ftype, Field(**field))  # type: ignore
 
     return create_model(model_name, __config__=config, **fields)  # type: ignore

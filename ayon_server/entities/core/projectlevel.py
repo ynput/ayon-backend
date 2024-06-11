@@ -93,7 +93,7 @@ class ProjectLevelEntity(BaseEntity):
         kw: dict[str, Any] = {"deep": True, "exclude": {}}
 
         # TODO: Clean-up. use model.attrb_model.__fields__ to create blacklist
-        attrib = self._payload.attrib.dict()
+        attrib = self._payload.attrib.dict()  # type: ignore
         if not user.is_manager:
             # kw["exclude"]["data"] = True
 

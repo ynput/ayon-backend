@@ -142,7 +142,7 @@ async def get_folder_hierarchy(
     res = HierarchyResponseModel.construct(
         detail="Working",
         projectName=project_name,
-        hierarchy=hresult,
+        hierarchy=hresult,  # type: ignore
     )
     elapsed = round(time.time() - start_time, 4)
     detail = f"Hierarchy loaded in {elapsed}s"

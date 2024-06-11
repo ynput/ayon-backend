@@ -140,7 +140,7 @@ async def process_operation(
 
         if operation.entity_type == "workfile":
             if not payload.updated_by:  # type: ignore
-                payload.updated_by = user.name
+                payload.updated_by = user.name  # type: ignore
 
         entity = await entity_class.load(
             project_name,

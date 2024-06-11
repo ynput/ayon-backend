@@ -64,7 +64,7 @@ class BaseEntity:
                 # we need to check what attributes are being modified.
                 # and if the user is allowed to do so.
                 patch_data = patch_data.copy(deep=True)
-                user.permissions(self.project_name)  # type: ignore
+                user.permissions(self.project_name)
 
                 # TODO: check for attribute whitelist
                 # and drop any attributes that are not allowed
@@ -149,7 +149,7 @@ class BaseEntity:
 
     @updated_at.setter
     def updated_at(self, value: float) -> None:
-        self._payload.updated_at = value
+        self._payload.updated_at = value  # type: ignore
 
     @property
     def created_by(self) -> str | None:
