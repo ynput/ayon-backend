@@ -6,48 +6,45 @@ authors = ["Ynput <info@ynput.io>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
+aiocache = "^0.12.2"
 aiofiles = "^23.2.1"
 aioshutil = "^1.3"
 asyncpg = "^0.29.0"
 codenamize = "^1.2.3"
+cryptography = "^42.0.5"
 email-validator = "^1.1.3"
 fastapi = "^0.110"
 geoip2 = "^4.8.0"
+granian = "^1.1.1"
 gunicorn = "^21.2"
 httpx = "^0.26"
 nxtools = "^1.6"
 orjson = "^3.8.6"
+pillow = "^10.3.0"
 psutil = "^5.9.4"
 pydantic = "1.10.12" # 1.10.12 is the last 1.x version
+pyjwt = "^2.8.0"
 pyyaml = "^6.0.1"
 redis = "^5.0.1"
 rich = "^13.4.2"
+semver = "^3.0.1"
 shortuuid = "^1.0.11"
 strawberry-graphql = {extras = ["fastapi"], version = "^0.217.0"}
 toml = "^0.10.2"
-types-toml = "^0.10.8"
 user-agents = "^2.2.0"
 uvicorn = {extras = ["standard"], version = "^0.25"}
-semver = "^3.0.1"
-pyjwt = "^2.8.0"
-cryptography = "^42.0.5"
-granian = "^1.1.1"
-pillow = "^10.3.0"
-aiocache = "^0.12.2"
-
-[tool.poetry.dev-dependencies]
-pytest = "^7.0.0"
-pytest-order = "^1.0.1"
-mypy = "^1.10"
-pre-commit = "^2.20.0"
-ruff = "^0.3.1"
 
 [tool.poetry.group.dev.dependencies]
-types-aiofiles = "^23.2.0.20240403"
 asyncpg-stubs = "^0.29.1"
-types-pyyaml = "^6.0.12.20240311"
+mypy = "^1.10"
+pre-commit = "^2.20.0"
+pytest = "^7.0.0"
+pytest-order = "^1.0.1"
+ruff = "^0.4.8"
+types-aiofiles = "^23.2.0.20240403"
 types-psutil = "^5.9.5.20240516"
-mypy = "^1.10.0"
+types-pyyaml = "^6.0.12.20240311"
+types-toml = "^0.10.8"
 
 [tool.ruff]
 fix = true
@@ -87,17 +84,17 @@ plugins = [
   "pydantic.mypy"
 ]
 
-#follow_imports = "silent"
-#strict = true
+check_untyped_defs = true
+disallow_any_generics = true
+exclude = "tests/|venv/"
+explicit_package_bases = true
+no_implicit_reexport = true
+strict_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
-disallow_any_generics = true
-check_untyped_defs = true
-disallow_untyped_defs = false
-no_implicit_reexport = true
-explicit_package_bases = true
-strict_optional = true
-exclude = "tests/|venv/"
+# follow_imports = "silent"
+# strict = true
+# disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
 module = [
@@ -107,6 +104,5 @@ module = [
   "codenamize",
   "aiocache"
 ]
-ignore_errors = true
-follow_imports = "skip"
 ignore_missing_imports = true
+
