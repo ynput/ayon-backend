@@ -64,7 +64,7 @@ class AyonConfig(BaseModel):
         description="Minimum password length.",
     )
 
-    auth_pass_complex: str = Field(
+    auth_pass_complex: bool = Field(
         default=True,
         description="Enforce using a complex password.",
     )

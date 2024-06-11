@@ -5,7 +5,7 @@ from fastapi import Query, Request, Response
 from nxtools import logging
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.addons.models import SourceInfo
+from ayon_server.addons.models import SourceInfo, SourceInfoTypes
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import (
     AyonException,
@@ -101,9 +101,11 @@ async def list_addons(
                 if source_info is None:
                     pass
 
-                elif not all(isinstance(x, SourceInfo) for x in source_info):
+                elif not all(isinstance(x, SourceInfoTypes) for x in source_info):
                     logging.error(f"Invalid source info for {addon.name} {version}")
-                    source_info = [x for x in source_info if isinstance(x, SourceInfo)]
+                    source_info = [
+                        x for x in source_info if isinstance(x, SourceInfoTypes)
+                    ]
                 vinf["client_source_info"] = source_info
 
                 vinf["services"] = addon.services or None
@@ -201,19 +203,6 @@ async def copy_addon_variant(
         target_settings,
     )
 
-    # TODO: deprecated. Remove
-    # update the active version
-    #
-    # await Postgres.execute(
-    #     f"""
-    #     UPDATE addon_versions
-    #     SET {copy_to}_version = $1
-    #     WHERE name = $2
-    #     """,
-    #     source_version,
-    #     addon_name,
-    # )
-
 
 class AddonVersionConfig(OPModel):
     production_version: str | None = Field(None)
@@ -236,7 +225,6 @@ class VariantCopyRequest(OPModel):
 
 class AddonConfigRequest(OPModel):
     copy_variant: VariantCopyRequest | None = Field(None)
-    # versions: dict[str, AddonVersionConfig] | None = Field(None)
 
 
 @router.post("", **route_meta)
@@ -254,36 +242,5 @@ async def configure_addons(
             copy_to=payload.copy_variant.copy_to,
         )
         return Response(status_code=204)
-
-    # TODO: Deprecated. Replaced with bundles
-    # if payload.versions:
-    #     for name, version_config in payload.versions.items():
-    #         new_versions = version_config.dict(exclude_none=False, exclude_unset=True)
-    #         if not new_versions:
-    #             continue
-    #
-    #         sets = []
-    #         if "production_version" in new_versions:
-    #             sets.append("production_version = $1")
-    #
-    #         if "staging_version" in new_versions:
-    #             sets.append("staging_version = $2")
-    #
-    #         if not sets:
-    #             continue
-    #
-    #         query = f"""
-    #             INSERT INTO addon_versions (name, production_version, staging_version)
-    #             VALUES ($3, $1, $2)
-    #             ON CONFLICT (name) DO UPDATE SET {", ".join(sets)}
-    #         """
-    #
-    #         await Postgres.execute(
-    #             query,
-    #             new_versions.get("production_version"),
-    #             new_versions.get("staging_version"),
-    #             name,
-    #         )
-    #     return Response(status_code=204)
 
     raise BadRequestException("Unsupported request")

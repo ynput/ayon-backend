@@ -9,13 +9,13 @@ from .models import (
     UserSuggestionItem,
 )
 
-STYPE = list[UserSuggestionItem | TaskSuggestionItem]
+STYPE = UserSuggestionItem | TaskSuggestionItem
 
 
 async def get_folder_suggestions(
     user: str,
     folder: FolderEntity,
-) -> dict[str, STYPE]:
+) -> dict[str, list[STYPE]]:
     """
     Assignees: Every assignee in the project
     Versions: Disabled - what versions would you want to see on a folder?
@@ -23,7 +23,8 @@ async def get_folder_suggestions(
     """
 
     project_name = folder.project_name
-    result: defaultdict[str, STYPE] = defaultdict(list)
+    result: defaultdict[str, list[STYPE]] = defaultdict(list)
+    item: STYPE
 
     # get users:
 

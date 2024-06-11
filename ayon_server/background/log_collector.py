@@ -14,7 +14,7 @@ try:
 
     has_nxtools = True
 except ModuleNotFoundError:
-    import logging  # type: ignore
+    import logging
 
     has_nxtools = False
 

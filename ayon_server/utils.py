@@ -158,7 +158,7 @@ def get_nickname(text: str):
 
 class EntityID:
     example: str = "af10c8f0e9b111e9b8f90242ac130003"
-    META = {
+    META: dict[str, Any] = {
         "example": "af10c8f0e9b111e9b8f90242ac130003",
         "min_length": 32,
         "max_length": 32,
@@ -185,8 +185,8 @@ class EntityID:
         raise ValueError(f"Invalid entity ID {entity_id}")
 
     @classmethod
-    def field(cls, name: str = "entity") -> Field:
-        return Field(
+    def field(cls, name: str = "entity") -> Field:  # type: ignore
+        return Field(  # type: ignore
             title=f"{name.capitalize()} ID",
             description=f"{name.capitalize()} ID",
             **cls.META,

@@ -12,15 +12,15 @@ from ayon_server.config import ayonconfig
 
 
 class LocationInfo(BaseModel):
-    country: str = Field(None, title="Country")
-    subdivision: str = Field(None, title="Subdivision")
-    city: str = Field(None, title="City")
+    country: str | None = Field(None, title="Country")
+    subdivision: str | None = Field(None, title="Subdivision")
+    city: str | None = Field(None, title="City")
 
 
 class AgentInfo(BaseModel):
-    platform: str = Field(None, title="Platform")
-    client: str = Field(None, title="Client")
-    device: str = Field(None, title="Device")
+    platform: str | None = Field(None, title="Platform")
+    client: str | None = Field(None, title="Client")
+    device: str | None = Field(None, title="Device")
 
 
 class ClientInfo(BaseModel):
@@ -48,12 +48,11 @@ def geo_lookup(ip: str):
         except geoip2.errors.AddressNotFoundError:
             return None
 
-        return LocationInfo(
-            country=response.country.name,
-            subdivision=response.subdivisions.most_specific.name,
-            city=response.city.name,
-        )
-    return None
+    return LocationInfo(
+        country=response.country.name,
+        subdivision=response.subdivisions.most_specific.name,
+        city=response.city.name,
+    )
 
 
 def is_internal_ip(ip: str) -> bool:
@@ -71,7 +70,9 @@ def parse_ayon_headers(request: Request) -> dict[str, str]:
     headers: dict[str, str] = {}
     result: dict[str, str] = {}
     for header in ["x-ayon-platform", "x-ayon-version", "x-ayon-hostname"]:
-        headers[header] = request.headers.get(header)
+        value = request.headers.get(header)
+        if value:
+            headers[header] = value
 
     if headers.get("x-ayon-platform"):
         result["platform"] = headers["x-ayon-platform"]

@@ -70,7 +70,7 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         "link_types": link_types,
         "statuses": statuses,
         "tags": tags,
-        "attrib": anatomy.attributes.dict(),  # type: ignore
+        "attrib": anatomy.attributes.dict(),
         "config": config,
     }
 

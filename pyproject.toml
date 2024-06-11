@@ -38,9 +38,16 @@ aiocache = "^0.12.2"
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.0"
 pytest-order = "^1.0.1"
-mypy = "^1.8"
+mypy = "^1.10"
 pre-commit = "^2.20.0"
 ruff = "^0.3.1"
+
+[tool.poetry.group.dev.dependencies]
+types-aiofiles = "^23.2.0.20240403"
+asyncpg-stubs = "^0.29.1"
+types-pyyaml = "^6.0.12.20240311"
+types-psutil = "^5.9.5.20240516"
+mypy = "^1.10.0"
 
 [tool.ruff]
 fix = true
@@ -74,3 +81,32 @@ ignore = [
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+
+[tool.mypy]
+plugins = [
+  "pydantic.mypy"
+]
+
+#follow_imports = "silent"
+#strict = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+disallow_untyped_defs = false
+no_implicit_reexport = true
+explicit_package_bases = true
+strict_optional = true
+exclude = "tests/|venv/"
+
+[[tool.mypy.overrides]]
+module = [
+  "nxtools",
+  "user_agents",
+  "tomllib",
+  "codenamize",
+  "aiocache"
+]
+ignore_errors = true
+follow_imports = "skip"
+ignore_missing_imports = true

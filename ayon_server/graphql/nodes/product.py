@@ -2,11 +2,11 @@ from typing import TYPE_CHECKING, Any, Optional
 
 import strawberry
 from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import ProductEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
+from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import json_dumps
 
@@ -94,7 +94,7 @@ class ProductNode(BaseNode):
 
 def product_from_record(
     project_name: str,
-    record: dict,
+    record: dict[str, Any],
     context: dict[str, Any],
 ) -> ProductNode:
     """Construct a product node from a DB row."""

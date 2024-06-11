@@ -1,11 +1,12 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import ProjectEntity
-from ayon_server.graphql.nodes.common import ActivitiesConnection, ProductType
+from ayon_server.graphql.connections import ActivitiesConnection
+from ayon_server.graphql.nodes.common import ProductType
 from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.folders import get_folder, get_folders
 from ayon_server.graphql.resolvers.products import get_product, get_products
@@ -203,7 +204,7 @@ class ProjectNode:
 
 
 def project_from_record(
-    project_name: str | None, record: dict, context: dict
+    project_name: str | None, record: dict[str, Any], context: dict[str, Any]
 ) -> ProjectNode:
     """Construct a project node from a DB row."""
     data = record.get("data", {})

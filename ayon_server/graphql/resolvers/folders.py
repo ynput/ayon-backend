@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from strawberry.types import Info
-
 from ayon_server.entities.core import attribute_library
 from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
@@ -22,7 +20,12 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
-from ayon_server.types import validate_name, validate_name_list, validate_status_list
+from ayon_server.graphql.types import Info
+from ayon_server.types import (
+    validate_name,
+    validate_name_list,
+    validate_status_list,
+)
 from ayon_server.utils import EntityID, SQLTool
 
 SORT_OPTIONS = {

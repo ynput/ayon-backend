@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from strawberry.types import Info
-
 from ayon_server.graphql.connections import RepresentationsConnection
 from ayon_server.graphql.edges import RepresentationEdge
 from ayon_server.graphql.nodes.representation import RepresentationNode
@@ -18,6 +16,7 @@ from ayon_server.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
 )
+from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 

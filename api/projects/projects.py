@@ -11,7 +11,8 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
-from projects.router import router
+
+from .router import router
 
 #
 # [GET]

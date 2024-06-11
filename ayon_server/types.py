@@ -98,23 +98,23 @@ def validate_user_name(name: str) -> str:
     return name
 
 
-def validate_name_list(names: list, regex: str = NAME_REGEX) -> list[str]:
+def validate_name_list(names: list[str], regex: str = NAME_REGEX) -> list[str]:
     """Validate list of names."""
     return [validate_name(name, regex) for name in names]
 
 
-def validate_status_list(statuses: list) -> list[str]:
+def validate_status_list(statuses: list[str]) -> list[str]:
     """Validate list of statuses."""
     regex = STATUS_REGEX
     return [validate_name(status, regex) for status in statuses]
 
 
-def validate_user_name_list(names: list) -> list[str]:
+def validate_user_name_list(names: list[str]) -> list[str]:
     """Validate list of user names."""
     return [validate_user_name(name) for name in names]
 
 
-def validate_topic_list(topics: list) -> list[str]:
+def validate_topic_list(topics: list[str]) -> list[str]:
     """Validate list of topics."""
     result = []
     for topic in topics:

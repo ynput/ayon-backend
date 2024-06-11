@@ -133,7 +133,7 @@ class ModelSet:
         return [f["name"] for f in self.fields if f.get("dynamic")] + ["own_attrib"]
 
     @property
-    def _common_fields(self) -> list:
+    def _common_fields(self) -> list[dict[str, Any]]:
         return [
             {
                 "name": "attrib",
@@ -164,7 +164,7 @@ class ModelSet:
         ]
 
     @property
-    def _project_level_fields(self) -> list:
+    def _project_level_fields(self) -> list[dict[str, Any]]:
         if self.entity_name in ["project", "user"]:
             return []
         return [

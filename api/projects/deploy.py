@@ -4,12 +4,13 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.deploy_project import create_project_from_anatomy
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.types import Field, OPModel
-from projects.router import router
+
+from .router import router
 
 
 class DeployProjectRequestModel(OPModel):
     name: str = Field(..., description="Project name")
-    code: str = Field(None, description="Project code")
+    code: str = Field(..., description="Project code")
     anatomy: Anatomy = Field(..., description="Project anatomy")
     library: bool = Field(False, description="Library project")
 

@@ -21,7 +21,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.helpers.email import send_mail
-from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import AccessType
 from ayon_server.utils import SQLTool, dict_exclude
@@ -54,7 +54,7 @@ class UserEntity(TopLevelEntity):
     async def load(
         cls,
         name: str,
-        transaction: Postgres.Connection | Postgres.Transaction | None = None,
+        transaction: Connection | None = None,
     ) -> "UserEntity":
         """Load a user from the database."""
 
@@ -72,7 +72,7 @@ class UserEntity(TopLevelEntity):
 
     async def save(
         self,
-        transaction: Postgres.Connection | Postgres.Transaction | None = None,
+        transaction: Connection | None = None,
     ) -> bool:
         """Save the user to the database."""
 
@@ -120,29 +120,33 @@ class UserEntity(TopLevelEntity):
 
     async def delete(
         self,
-        transaction: Postgres.Connection | Postgres.Transaction | None = None,
+        transaction: Connection | None = None,
     ) -> bool:
         """Delete existing user."""
         if not self.name:
             raise NotFoundException(f"Unable to delete user {self.name}. Not loaded.")
 
-        commit = not transaction
-        transaction = transaction or Postgres
-        res = await transaction.fetch(
-            """
-            WITH deleted AS (
-                DELETE FROM users
-                WHERE name=$1
-                RETURNING *
-            ) SELECT count(*) FROM deleted;
-            """,
-            self.name,
-        )
-        count = res[0]["count"]
+        async def post_delete(conn) -> int:
+            res = await conn.fetch(
+                """
+                WITH deleted AS (
+                    DELETE FROM users
+                    WHERE name=$1
+                    RETURNING *
+                ) SELECT count(*) FROM deleted;
+                """,
+                self.name,
+            )
+            return res[0]["count"]
 
-        if commit:
-            await self.commit(transaction)
-        return bool(count)
+        if transaction:
+            deleted = await post_delete(transaction)
+        else:
+            async with Postgres.acquire() as conn, conn.transaction():
+                deleted = await post_delete(conn)
+                await self.commit(conn)
+
+        return bool(deleted)
 
     #
     # Authorization helpers
@@ -154,25 +158,25 @@ class UserEntity(TopLevelEntity):
         Service accounts have similar rights as administrators,
         but they also can act as a different user (sudo-style)
         """
-        return self._payload.data.get("isService", False)
+        return self.data.get("isService", False)
 
     @property
     def is_admin(self) -> bool:
         if self.is_guest:
             return False
-        return self._payload.data.get("isAdmin", False) or self.is_service
+        return self.data.get("isAdmin", False) or self.is_service
 
     @property
     def is_guest(self) -> bool:
-        return self._payload.data.get("isGuest", False)
+        return self.data.get("isGuest", False)
 
     @property
     def is_developer(self) -> bool:
-        return self._payload.data.get("isDeveloper", False)
+        return self.data.get("isDeveloper", False)
 
     @property
     def is_manager(self) -> bool:
-        data = self._payload.data
+        data = self.data
         return (
             data.get("isManager", False)
             or data.get("isAdmin", False)
@@ -203,27 +207,27 @@ class UserEntity(TopLevelEntity):
         """Set user password."""
 
         if password is None:
-            self._payload.data.pop("password", None)
+            self.data.pop("password", None)
             return
 
         if complexity_check and not ensure_password_complexity(password):
             raise LowPasswordComplexityException
         hashed_password = create_password(password)
-        self._payload.data["password"] = hashed_password
+        self.data["password"] = hashed_password
 
     def set_api_key(self, api_key: str | None) -> None:
         """Set user api key."""
 
         if api_key is None:
-            self._payload.data.pop("apiKey", None)
-            self._payload.data.pop("apiKeyPreview", None)
+            self.data.pop("apiKey", None)
+            self.data.pop("apiKeyPreview", None)
             return
 
         assert re.match(r"^[a-zA-Z0-9]{32}$", api_key)
         api_key_preview = api_key[:4] + "***" + api_key[-4:]
 
-        self._payload.data["apiKey"] = hash_password(api_key)
-        self._payload.data["apiKeyPreview"] = api_key_preview
+        self.data["apiKey"] = hash_password(api_key)
+        self.data["apiKeyPreview"] = api_key_preview
 
     async def send_mail(
         self,

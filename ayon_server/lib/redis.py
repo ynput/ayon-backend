@@ -1,7 +1,7 @@
 from typing import Any
 
 from redis import asyncio as aioredis
-from redis.client import PubSub
+from redis.asyncio.client import PubSub
 
 from ayon_server.config import ayonconfig
 

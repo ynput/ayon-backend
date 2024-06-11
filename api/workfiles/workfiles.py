@@ -65,7 +65,7 @@ async def create_workfile(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
+        **event,  # type: ignore
     )
     return EntityIdResponse(id=workfile.id)
 
@@ -133,6 +133,6 @@ async def delete_workfile(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
+        **event,  # type: ignore
     )
     return EmptyResponse()

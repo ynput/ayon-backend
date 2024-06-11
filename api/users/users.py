@@ -83,7 +83,7 @@ class NewUserModel(UserEntity.model.post_model):  # type: ignore
     password: str | None = Field(None, description="Password for the new user")
 
 
-def validate_user_data(data: dict[str, Any]):
+def validate_user_data(data: dict[str, Any]) -> None:
     try:
         if default_access_groups := data.get("defaultAccessGroups"):
             assert isinstance(

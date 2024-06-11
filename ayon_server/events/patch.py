@@ -90,7 +90,7 @@ def build_pl_entity_change_events(
     if (new_name := patch_data.get("name")) is not None:
         if new_name != original_entity.name:
             description = (
-                f"Renamed {entity_type} {original_entity.name} to {patch.name}"
+                f"Renamed {entity_type} {original_entity.name} to {patch.name}"  # type: ignore
             )
             result.append(
                 {
@@ -109,7 +109,7 @@ def build_pl_entity_change_events(
     if (new_status := patch_data.get("status")) is not None:
         if new_status != original_entity.status:
             description = (
-                f"Changed {entity_type} {original_entity.name} status to {patch.status}"
+                f"Changed {entity_type} {original_entity.name} status to {patch.status}"  # type: ignore
             )
             result.append(
                 {
@@ -130,7 +130,7 @@ def build_pl_entity_change_events(
             description = get_tags_description(
                 f"{entity_type} {original_entity.name}",
                 original_entity.tags,
-                patch.tags,
+                patch.tags,  # type: ignore
             )
             if description:
                 result.append(

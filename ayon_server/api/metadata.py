@@ -1,6 +1,10 @@
-from ayon_server import __version__
+__all__ = ["app_meta", "tags_meta", "__version__"]
 
-app_meta = {
+from typing import Any
+
+from ayon_server.version import __version__
+
+app_meta: dict[str, Any] = {
     "title": "Ayon server",
     "description": "Open VFX and Animation pipeline server",
     "version": __version__,
@@ -17,7 +21,7 @@ app_meta = {
 }
 
 
-tags_meta = [
+tags_meta: list[dict[str, Any]] = [
     {
         "name": "Authentication",
         "description": """
