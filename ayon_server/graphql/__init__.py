@@ -10,6 +10,7 @@ from strawberry.fastapi import GraphQLRouter
 from strawberry.types import ExecutionContext
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import (
     EventsConnection,
     InboxConnection,
@@ -156,6 +157,9 @@ class AyonSchema(strawberry.Schema):
         execution_context: ExecutionContext | None = None,
     ) -> None:
         for error in errors:
+            if isinstance(error.original_error, AyonException):
+                error.extensions = {"status": error.original_error.status}
+
             tb = traceback.extract_tb(error.__traceback__)
             if not tb:
                 continue

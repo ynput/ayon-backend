@@ -75,6 +75,9 @@ async def get_users(
         cnd = f"({cnd1} OR {cnd2} OR {cnd3})"
         sql_conditions.append(cnd)
 
+    # TODO: allow listing users from all project for normal users, but only if they are
+    #       assigned to the project
+
     #
     # Pagination
     #
