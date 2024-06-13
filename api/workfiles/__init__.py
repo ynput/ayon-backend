@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from workfiles.workfiles import router
+from .workfiles import router

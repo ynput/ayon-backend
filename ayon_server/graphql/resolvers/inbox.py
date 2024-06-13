@@ -1,5 +1,3 @@
-from strawberry.types import Info
-
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.edges import ActivityEdge
 from ayon_server.graphql.nodes.activity import ActivityNode
@@ -8,6 +6,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGLast,
     resolve,
 )
+from ayon_server.graphql.types import Info
 from ayon_server.utils import SQLTool
 
 

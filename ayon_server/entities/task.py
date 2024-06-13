@@ -6,7 +6,7 @@ from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import AyonException, NotFoundException
-from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import EntityID
 
@@ -83,9 +83,9 @@ class TaskEntity(ProjectLevelEntity):
             raise NotFoundException(f"Project {project_name} not found")
         raise NotFoundException("Entity not found")
 
-    async def save(self, transaction=False) -> bool:
+    async def save(self, transaction: Connection | None = None) -> None:
         if self.task_type is None:
-            res = await transaction.fetch(
+            res = await Postgres.fetch(
                 f"""
                 SELECT name from project_{self.project_name}.task_types
                 ORDER BY position ASC LIMIT 1
@@ -95,7 +95,7 @@ class TaskEntity(ProjectLevelEntity):
                 raise AyonException("No task types defined")
             self.folder_type = res[0]["name"]
 
-        return await super().save(transaction=transaction)
+        await super().save(transaction=transaction)
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
@@ -116,20 +116,20 @@ class TaskEntity(ProjectLevelEntity):
     @property
     def label(self) -> str | None:
         """Return the label of the task."""
-        return self._payload.label
+        return self._payload.label  # type: ignore
 
     @label.setter
     def label(self, value) -> None:
         """Set the label of the task."""
-        self._payload.label = value
+        self._payload.label = value  # type: ignore
 
     @property
     def folder_id(self) -> str:
-        return self._payload.folder_id
+        return self._payload.folder_id  # type: ignore
 
     @folder_id.setter
     def folder_id(self, value: str) -> None:
-        self._payload.folder_id = value
+        self._payload.folder_id = value  # type: ignore
 
     @property
     def parent_id(self) -> str:
@@ -137,19 +137,19 @@ class TaskEntity(ProjectLevelEntity):
 
     @property
     def task_type(self) -> str:
-        return self._payload.task_type
+        return self._payload.task_type  # type: ignore
 
     @task_type.setter
     def task_type(self, value: str) -> None:
-        self._payload.task_type = value
+        self._payload.task_type = value  # type: ignore
 
     @property
     def assignees(self) -> list[str]:
-        return self._payload.assignees
+        return self._payload.assignees  # type: ignore
 
     @assignees.setter
-    def assignees(self, value: list) -> None:
-        self._payload.assignees = value
+    def assignees(self, value: list[str]) -> None:
+        self._payload.assignees = value  # type: ignore
 
     @property
     def entity_subtype(self) -> str:
@@ -157,8 +157,8 @@ class TaskEntity(ProjectLevelEntity):
 
     @property
     def thumbnail_id(self) -> str | None:
-        return self._payload.thumbnail_id
+        return self._payload.thumbnail_id  # type: ignore
 
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
-        self._payload.thumbnail_id = value
+        self._payload.thumbnail_id = value  # type: ignore

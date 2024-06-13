@@ -6,7 +6,8 @@ from ayon_server.entities import ProjectEntity
 from ayon_server.helpers.roots import get_roots_for_projects
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Platform
-from projects.router import router
+
+from .router import router
 
 
 @router.get("/projects/{project_name}/roots")

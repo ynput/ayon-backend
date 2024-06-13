@@ -1,14 +1,16 @@
 import os
 import traceback
+from typing import Any
 
 import strawberry
 from graphql import GraphQLError
 from nxtools import logging
 from strawberry.dataloader import DataLoader
 from strawberry.fastapi import GraphQLRouter
-from strawberry.types import ExecutionContext, Info
+from strawberry.types import ExecutionContext
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import (
     EventsConnection,
     InboxConnection,
@@ -39,10 +41,11 @@ from ayon_server.graphql.resolvers.inbox import get_inbox
 from ayon_server.graphql.resolvers.links import get_links
 from ayon_server.graphql.resolvers.projects import get_project, get_projects
 from ayon_server.graphql.resolvers.users import get_user, get_users
+from ayon_server.graphql.types import Info
 from ayon_server.lib.postgres import Postgres
 
 
-async def graphql_get_context(user: CurrentUser) -> dict:
+async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
     """Get the current request context"""
     return {
         # Auth
@@ -154,6 +157,9 @@ class AyonSchema(strawberry.Schema):
         execution_context: ExecutionContext | None = None,
     ) -> None:
         for error in errors:
+            if isinstance(error.original_error, AyonException):
+                error.extensions = {"status": error.original_error.status}
+
             tb = traceback.extract_tb(error.__traceback__)
             if not tb:
                 continue
@@ -168,7 +174,7 @@ class AyonSchema(strawberry.Schema):
             logging.error(f"GraphQL: {fname}:{line_no} ({path}) {message}")
 
 
-router: GraphQLRouter = GraphQLRouter(
+router: GraphQLRouter[Any, Any] = GraphQLRouter(
     schema=AyonSchema(query=Query),
     graphiql=False,
     context_getter=graphql_get_context,

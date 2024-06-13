@@ -6,7 +6,11 @@ from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
-from ayon_server.helpers.cloud import get_cloud_api_headers, get_instance_id
+from ayon_server.helpers.cloud import (
+    get_cloud_api_headers,
+    get_instance_id,
+    remove_ynput_cloud_key,
+)
 from ayon_server.helpers.setup import admin_exists
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -173,6 +177,6 @@ async def delete_ynput_cloud_key(user: CurrentUser) -> EmptyResponse:
     """Remove the Ynput cloud key from the database"""
     if not user.is_admin:
         raise ForbiddenException("Only admins can remove the Ynput cloud key")
+    await remove_ynput_cloud_key()
 
-    await Postgres.execute("DELETE FROM secrets WHERE name = 'ynput_cloud_key'")
     return EmptyResponse()

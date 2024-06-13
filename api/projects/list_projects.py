@@ -9,7 +9,8 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 from ayon_server.utils import SQLTool
-from projects.router import router
+
+from .router import router
 
 
 class ListProjectsItemModel(OPModel):

@@ -8,14 +8,14 @@ class ClientSourceInfo(OPModel):
 
 
 class PathDefinition(OPModel):
-    windows: str
-    linux: str
-    darwin: str
+    windows: str = ""
+    linux: str = ""
+    darwin: str = ""
 
 
 class FilesystemSourceInfo(ClientSourceInfo):
     type: Literal["filesystem"] = Field("filesystem")
-    path: PathDefinition = Field(default_factory=PathDefinition)
+    path: PathDefinition = Field(default_factory=lambda: PathDefinition())
 
 
 class ServerSourceInfo(ClientSourceInfo):
@@ -44,3 +44,4 @@ class SSOOption(OPModel):
 
 
 SourceInfo = FilesystemSourceInfo | ServerSourceInfo | HttpSourceInfo
+SourceInfoTypes = (FilesystemSourceInfo, ServerSourceInfo, HttpSourceInfo)

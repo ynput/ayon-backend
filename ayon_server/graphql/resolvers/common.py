@@ -3,11 +3,10 @@ from typing import Annotated, Any, Callable, Generator, TypeVar
 
 import strawberry
 from strawberry.arguments import StrawberryArgumentAnnotation
-from strawberry.types import Info
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.exceptions import ForbiddenException
-from ayon_server.graphql.types import PageInfo
+from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 
 DEFAULT_PAGE_SIZE = 100

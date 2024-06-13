@@ -79,14 +79,14 @@ async def get_all_addons_settings(
                     variant=variant,
                 )
             if settings:
-                result[addon_name] = settings
+                result[addon_name] = settings.dict()
                 versions[addon_name] = addon_version
                 continue
 
         settings = await active_addon.get_studio_settings(variant=variant)
         if settings is None:
             continue
-        result[addon_name] = settings
+        result[addon_name] = settings.dict()
         versions[addon_name] = addon_version
 
     return AddonSettingsResponse(settings=result, versions=versions)
@@ -147,7 +147,7 @@ async def get_all_site_settings(
             data = row["data"]
             break
 
-        result[addon_name] = site_settings_model(**data)
+        result[addon_name] = site_settings_model(**data).dict()
         versions[addon_name] = addon_version
 
     return AddonSettingsResponse(settings=result, versions=versions)

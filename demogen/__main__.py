@@ -73,7 +73,7 @@ async def main() -> None:
 
     anatomy = Anatomy()
     anatomy.tags = generate_tags()
-    anatomy.attributes = ProjectEntity.model.attrib_model(
+    anatomy.attributes = ProjectEntity.model.attrib_model(  # type: ignore
         startDate=random_datetime(-30),
         endDate=random_datetime(90),
     )

@@ -2,7 +2,6 @@ import datetime
 from typing import Annotated
 
 from nxtools import slugify
-from strawberry.types import Info
 
 from ayon_server.constraints import Constraints
 from ayon_server.graphql.connections import EventsConnection
@@ -19,6 +18,7 @@ from ayon_server.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
+from ayon_server.graphql.types import Info
 from ayon_server.types import (
     validate_name_list,
     validate_topic_list,

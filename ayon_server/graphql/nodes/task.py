@@ -1,13 +1,13 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import strawberry
 from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import TaskEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
+from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import get_nickname, json_dumps
 
@@ -70,7 +70,9 @@ class TaskNode(BaseNode):
         )
 
 
-def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode:
+def task_from_record(
+    project_name: str, record: dict[str, Any], context: dict[str, Any]
+) -> TaskNode:
     """Construct a task node from a DB row."""
     if context:
         folder_data = {}

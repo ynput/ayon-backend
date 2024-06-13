@@ -21,7 +21,7 @@ def get_project_name(keys: list[KeyType]) -> str:
     return project_names.pop()
 
 
-async def folder_loader(keys: list[KeyType]) -> list[dict | None]:
+async def folder_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     """Load a list of folders by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, folder_id) and project_name
     values must be the same!
@@ -73,7 +73,7 @@ async def folder_loader(keys: list[KeyType]) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def product_loader(keys: list[KeyType]) -> list[dict | None]:
+async def product_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     """Load a list of products by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, product_id) and project_name
     values must be the same!
@@ -93,7 +93,7 @@ async def product_loader(keys: list[KeyType]) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def task_loader(keys: list[KeyType]) -> list[dict | None]:
+async def task_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     """Load a list of tasks by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, task_id) and project_name
     values must be the same!
@@ -133,7 +133,7 @@ async def task_loader(keys: list[KeyType]) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def workfile_loader(keys: list[KeyType]) -> list[dict | None]:
+async def workfile_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     """Load a list of workfiles by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, workfile_id) and project_name
     values must be the same!
@@ -155,7 +155,7 @@ async def workfile_loader(keys: list[KeyType]) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def version_loader(keys: list[KeyType]) -> list[dict | None]:
+async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     """Load a list of versions by their ids (used as a dataloader).
     keys must be a list of tuples (project_name, version_id) and project_name
     values must be the same!
@@ -175,7 +175,7 @@ async def version_loader(keys: list[KeyType]) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def latest_version_loader(keys: list[KeyType]) -> list[dict | None]:
+async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     """Load a list of latest versions of given products"""
 
     result_dict = {k: None for k in keys}
@@ -211,7 +211,7 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict | None]:
     return [result_dict[k] for k in keys]
 
 
-async def user_loader(keys: list[str]) -> list[dict | None]:
+async def user_loader(keys: list[str]) -> list[dict[str, Any] | None]:
     """Load a list of user records by their names."""
 
     result_dict = {k: None for k in keys}

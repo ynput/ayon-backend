@@ -5,6 +5,7 @@ from strawberry.experimental.pydantic import type as pydantic_type
 
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
+from ayon_server.lib.postgres import Connection
 
 if TYPE_CHECKING:
     from ayon_server.entities.user import UserEntity
@@ -25,10 +26,10 @@ class BaseEntity:
 
     def dict(
         self,
-        exclude_defaults=False,
-        exclude_unset=False,
-        exclude_none=False,
-    ) -> dict:
+        exclude_defaults: bool = False,
+        exclude_unset: bool = False,
+        exclude_none: bool = False,
+    ) -> dict[str, Any]:
         """Return the entity data as a dict."""
         return self._payload.dict(
             exclude_defaults=exclude_defaults,
@@ -36,7 +37,7 @@ class BaseEntity:
             exclude_none=exclude_none,
         )
 
-    def dict_simple(self):
+    def dict_simple(self) -> Dict[str, Any]:
         """Return the entity data as a dict.
         Use aliases instead of the original field names
         and drop inherited attributes.
@@ -71,8 +72,9 @@ class BaseEntity:
 
                 # TODO: don't forget to use user.is_developer
                 # to include developerMode attribute
-                if not user.is_developer and "developerMode" in patch_data:
-                    patch_data.pop("developerMode")
+                pattr = patch_data.dict().get("attrib", {})
+                if not user.is_developer and "developerMode" in pattr:
+                    patch_data.attrib.developerMode = None  # type: ignore
 
         if (attrib := patch_data.dict().get("attrib")) is not None:
             for key in attrib:
@@ -96,7 +98,7 @@ class BaseEntity:
     # DB
     #
 
-    async def commit(self, transaction=False):
+    async def commit(self, transaction: Connection | None = None):
         """Post-update commit."""
         pass
 
@@ -106,61 +108,61 @@ class BaseEntity:
 
     @property
     def name(self) -> str:
-        return self._payload.name
+        return self._payload.name  # type: ignore
 
     @name.setter
-    def name(self, value: str):
-        self._payload.name = value
+    def name(self, value: str) -> None:
+        self._payload.name = value  # type: ignore
 
     @property
     def attrib(self):
         """Return the entity attributes."""
-        return self._payload.attrib
+        return self._payload.attrib  # type: ignore
 
     @property
     def data(self) -> Dict[str, Any]:
-        return self._payload.data
+        return self._payload.data  # type: ignore
 
     @data.setter
     def data(self, value: Dict[str, Any]) -> None:
-        self._payload.data = value
+        self._payload.data = value  # type: ignore
 
     @property
     def active(self) -> bool:
-        return self._payload.active
+        return self._payload.active  # type: ignore
 
     @active.setter
     def active(self, value) -> None:
-        self._payload.active = value
+        self._payload.active = value  # type: ignore
 
     @property
     def created_at(self) -> float:
-        return self._payload.created_at
+        return self._payload.created_at  # type: ignore
 
     @created_at.setter
     def created_at(self, value: float) -> None:
-        self._payload.created_at = value
+        self._payload.created_at = value  # type: ignore
 
     @property
     def updated_at(self) -> float:
-        return self._payload.updated_at
+        return self._payload.updated_at  # type: ignore
 
     @updated_at.setter
     def updated_at(self, value: float) -> None:
-        self._payload.updated_at = value
+        self._payload.updated_at = value  # type: ignore
 
     @property
     def created_by(self) -> str | None:
-        return self._payload.data.get("createdBy")
+        return self._payload.data.get("createdBy")  # type: ignore
 
     @created_by.setter
     def created_by(self, value: str) -> None:
-        self._payload.data["createdBy"] = value
+        self._payload.data["createdBy"] = value  # type: ignore
 
     @property
     def updated_by(self) -> str | None:
-        return self._payload.data.get("updatedBy")
+        return self._payload.data.get("updatedBy")  # type: ignore
 
     @updated_by.setter
     def updated_by(self, value: str) -> None:
-        self._payload.data["updatedBy"] = value
+        self._payload.data["updatedBy"] = value  # type: ignore

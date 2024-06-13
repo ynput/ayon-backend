@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from strawberry.types import Info
-
 from ayon_server.access.utils import folder_access_list
 from ayon_server.graphql.connections import ProductsConnection
 from ayon_server.graphql.edges import ProductEdge
@@ -20,6 +18,7 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
+from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 

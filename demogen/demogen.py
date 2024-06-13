@@ -16,7 +16,7 @@ from ayon_server.entities import (
     VersionEntity,
     WorkfileEntity,
 )
-from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.utils import create_uuid, dict_exclude
 from demogen.generators import generators
 from setup.attributes import DEFAULT_ATTRIBUTES
@@ -117,7 +117,7 @@ class DemoGen:
 
     async def create_folder(
         self,
-        conn: Postgres.Transaction,
+        conn: Connection,
         parent_id: str | None = None,
         parents: list[str] = [],
         **kwargs: Any,
@@ -198,7 +198,7 @@ class DemoGen:
 
     async def create_product(
         self,
-        conn: Postgres.Transaction,
+        conn: Connection,
         folder: FolderEntity,
         tasks,
         **kwargs,
@@ -255,7 +255,7 @@ class DemoGen:
 
     async def create_task(
         self,
-        conn: Postgres.Transaction,
+        conn: Connection,
         folder: FolderEntity,
         parents: list[str],
         **kwargs: Any,
@@ -311,7 +311,7 @@ class DemoGen:
 
     async def create_representation(
         self,
-        conn: Postgres.Transaction,
+        conn: Connection,
         folder: FolderEntity,
         product: ProductEntity,
         version: VersionEntity,

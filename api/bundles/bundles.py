@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import Header, Query
 from nxtools import logging
@@ -98,7 +98,7 @@ async def _create_new_bundle(
                     bundle.active_user,
                 )
 
-            data = {
+            data: dict[str, Any] = {
                 "addons": bundle.addons,
                 "installer_version": bundle.installer_version,
                 "dependency_packages": bundle.dependency_packages,
@@ -294,9 +294,9 @@ async def update_bundle(
         # Validate the bundle
 
         if not force:
-            res = await check_bundle(bundle)
-            if not res.success:
-                raise BadRequestException(res.message())
+            bstat = await check_bundle(bundle)
+            if not bstat.success:
+                raise BadRequestException(bstat.message())
 
         # Construct the new data
 

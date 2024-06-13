@@ -1,4 +1,9 @@
+from typing import Any
+
 import strawberry
+from strawberry.types import Info as StrawberryInfo
+
+Info = StrawberryInfo[dict[str, Any], None]
 
 
 @strawberry.type

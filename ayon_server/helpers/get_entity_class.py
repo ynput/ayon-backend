@@ -9,7 +9,6 @@ from ayon_server.entities import (
     WorkfileEntity,
 )
 from ayon_server.entities.core import ProjectLevelEntity
-from ayon_server.types import ProjectLevelEntityType
 
 T = TypeVar("T", bound=ProjectLevelEntity)
 
@@ -37,12 +36,19 @@ def get_entity_class(
 def get_entity_class(entity_type: WorkfileLiteral) -> Type[WorkfileEntity]: ...
 
 
-def get_entity_class(entity_type: ProjectLevelEntityType) -> Type[ProjectLevelEntity]:
-    return {
+@overload
+def get_entity_class(entity_type: str) -> Type[ProjectLevelEntity]: ...
+
+
+def get_entity_class(entity_type: str) -> Type[ProjectLevelEntity]:
+    entity_class = {
         "folder": FolderEntity,
         "task": TaskEntity,
         "product": ProductEntity,
         "version": VersionEntity,
         "representation": RepresentationEntity,
         "workfile": WorkfileEntity,
-    }[entity_type]
+    }.get(entity_type)
+    if entity_class is None:
+        raise ValueError(f"Invalid entity type: {entity_type}")
+    return entity_class

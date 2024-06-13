@@ -53,7 +53,7 @@ class ReleaseInfoModel(OPModel):
     created_at: datetime = Field(default_factory=datetime.now)
     addons: list[ReleaseAddon] = Field(default_factory=list)
     installers: list[InstallerManifest] | None = Field(None)
-    dependency_packages: list[DependencyPackageManifest] = Field(None)
+    dependency_packages: list[DependencyPackageManifest] | None = Field(None)
 
 
 class ReleaseListItemModel(OPModel):

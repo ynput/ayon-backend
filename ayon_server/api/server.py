@@ -430,7 +430,7 @@ async def startup_event() -> None:
                 if inspect.iscoroutinefunction(version.pre_setup):
                     # Since setup may, but does not have to be async, we need to
                     # silence mypy here.
-                    await version.pre_setup()  # type: ignore
+                    await version.pre_setup()
                 else:
                     version.pre_setup()
                 if (not restart_requested) and version.restart_requested:

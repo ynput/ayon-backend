@@ -1,10 +1,9 @@
 from datetime import datetime
 
 import strawberry
-from strawberry.types import Info
 
 from ayon_server.graphql.connections import ActivitiesConnection
-from ayon_server.graphql.types import BaseConnection, BaseEdge
+from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
 
 
 @strawberry.type

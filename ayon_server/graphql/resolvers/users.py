@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from strawberry.types import Info
-
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.connections import UsersConnection
 from ayon_server.graphql.edges import UserEdge
@@ -15,6 +13,7 @@ from ayon_server.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
+from ayon_server.graphql.types import Info
 from ayon_server.types import validate_user_name
 from ayon_server.utils import SQLTool
 
@@ -65,12 +64,19 @@ async def get_users(
         sql_conditions.append(f"users.name IN {SQLTool.array(names)}")
 
     if project_name is not None:
+        if not user.is_manager:
+            if project_name not in user.data.get("accessGroups", {}):
+                raise ForbiddenException("You don't have access to this project")
+
         cnd1 = "users.data->>'isAdmin' = 'true'"
         cnd2 = "users.data->>'isManager' = 'true'"
         cnd3 = f"""(users.data->'accessGroups'->'{project_name}' IS NOT NULL
         AND users.data->'accessGroups'->>'{project_name}' != '[]')"""
         cnd = f"({cnd1} OR {cnd2} OR {cnd3})"
         sql_conditions.append(cnd)
+
+    # TODO: allow listing users from all project for normal users, but only if they are
+    #       assigned to the project
 
     #
     # Pagination

@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, BackgroundTasks, Header
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName, VersionID
@@ -70,7 +72,7 @@ async def create_version(
         dispatch_event,
         sender=x_sender,
         user=user.name,
-        **event,
+        **event,  # type: ignore
     )
     return EntityIdResponse(id=version.id)
 
@@ -126,7 +128,7 @@ async def delete_version(
 
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_delete_access(user)
-    event = {
+    event: dict[str, Any] = {
         "topic": "entity.version.deleted",
         "description": f"Version {version.name} deleted",
         "summary": {"entityId": version.id, "parentId": version.parent_id},
