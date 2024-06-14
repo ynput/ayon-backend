@@ -13,7 +13,7 @@ from ayon_server.types import NAME_REGEX, Field, OPModel, ProjectLevelEntityType
 
 from .templating import StringTemplate
 
-router = APIRouter(tags=["URI resolver"])
+router = APIRouter(tags=["URIs"])
 
 EXAMPLE_URI = "ayon+entity://myproject/assets/env/beach?product=layout&version=v004"
 
