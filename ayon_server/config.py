@@ -155,6 +155,11 @@ class AyonConfig(BaseModel):
         description="Enable audit trail",
     )
 
+    openapi_include_addon_endpoints: bool = Field(
+        default=False,
+        description="Include addon endpoints in the OpenAPI schema",
+    )
+
     log_retention_days: int = Field(
         default=7,
         description="Number of days to keep logs in the event log",

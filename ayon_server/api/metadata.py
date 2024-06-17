@@ -26,8 +26,19 @@ tags_meta: list[dict[str, Any]] = [
         "name": "Authentication",
         "description": """
 Authentication endpoints. Most of the endpoints require authentication.
-This is done by passing `Authorization` header with `Bearer <token>` value.
-        """,
+
+There are two methods of authentication:
+
+- Clients, such as the web interface or Ayon launcher use
+  `Authorization` header with `Bearer <token>` value.
+  Token is obtained by calling the `/auth/login` endpoint.
+  When not in use, the token expires after one day.
+- Services use x-api-key header with the API key value.
+  API key is generated in the user settings and can be revoked at any time.
+
+Services can additionally use `x-as-user` header to impersonate another user.
+This is useful for services that need to create data on behalf of another user.
+""",
     },
     {
         "name": "Projects",

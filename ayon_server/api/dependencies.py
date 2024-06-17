@@ -33,9 +33,11 @@ from ayon_server.utils import (
 
 
 async def dep_access_token(
-    authorization: Annotated[str | None, Header()] = None,
-    token: Annotated[str | None, Query()] = None,
-    access_token: Annotated[str | None, Cookie(alias="accessToken")] = None,
+    authorization: Annotated[str | None, Header(include_in_schema=False)] = None,
+    token: Annotated[str | None, Query(include_in_schema=False)] = None,
+    access_token: Annotated[
+        str | None, Cookie(alias="accessToken", include_in_schema=False)
+    ] = None,
 ) -> str | None:
     """Parse and return an access token provided in the authorisation header."""
     if token is not None:
@@ -55,8 +57,8 @@ AccessToken = Annotated[str, Depends(dep_access_token)]
 
 
 async def dep_api_key(
-    authorization: str = Header(None),
-    x_api_key: str = Header(None),
+    authorization: str = Header(None, include_in_schema=False),
+    x_api_key: str = Header(None, include_in_schema=False),
 ) -> str | None:
     """Parse and return an api key provided in the authorisation header."""
     api_key: str | None
@@ -88,8 +90,10 @@ ThumbnailContentType = Annotated[str, Depends(dep_thumbnail_content_type)]
 
 async def dep_current_user(
     request: Request,
-    x_as_user: str | None = Header(None, regex=USER_NAME_REGEX),
-    x_api_key: str | None = Header(None, regex=API_KEY_REGEX),
+    x_as_user: str | None = Header(
+        None, regex=USER_NAME_REGEX, include_in_schema=False
+    ),
+    x_api_key: str | None = Header(None, regex=API_KEY_REGEX, include_in_schema=False),
     access_token: str | None = Depends(dep_access_token),
     api_key: str | None = Depends(dep_api_key),
 ) -> UserEntity:
@@ -148,8 +152,10 @@ async def dep_current_user_optional(
     request: Request,
     access_token: AccessToken,
     api_key: ApiKey,
-    x_as_user: str | None = Header(None, regex=USER_NAME_REGEX),
-    x_api_key: str | None = Header(None, regex=API_KEY_REGEX),
+    x_as_user: str | None = Header(
+        None, regex=USER_NAME_REGEX, include_in_schema=False
+    ),
+    x_api_key: str | None = Header(None, regex=API_KEY_REGEX, include_in_schema=False),
 ) -> UserEntity | None:
     try:
         user = await dep_current_user(
