@@ -167,6 +167,7 @@ def extract_overrides(
     overriden: BaseSettingsModel,
     existing: dict[str, Any] | None = None,
     explicit_pins: list[list[str]] | None = None,
+    explicit_unpins: list[list[str]] | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {}
 
@@ -174,13 +175,24 @@ def extract_overrides(
     new_overrides = paths_to_dict(explicit_pins or [])
 
     # apply new overrides to forced ones
-    for path, value in new_overrides.items():
+    for key, value in new_overrides.items():
+        current = existing_overrides
+        if key not in current:
+            current[key] = {}
+        current = current[key]
+        if isinstance(current, dict):
+            current.update(value)  # wtf?
+
+    # remove explicit unpins
+    for path in explicit_unpins or []:
         current = existing_overrides
         for key in path:
             if key not in current:
-                current[key] = {}
+                break
+            if key == path[-1]:
+                del current[key]
+                break
             current = current[key]
-        current.update(value)
 
     def crawl(obj, ovr, ex, target):
         for name, _field in obj.__fields__.items():
