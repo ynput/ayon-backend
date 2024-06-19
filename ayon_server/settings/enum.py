@@ -101,7 +101,7 @@ async def addon_all_app_host_names_enum():
     return [{"label": host_name, "value": host_name} for host_name in result]
 
 
-async def application_enum(apps=None) -> list[dict]:
+async def application_enum(apps: list[str] | None = None) -> list[dict[str, str]]:
     """Return a list of all applications.
 
     If app is provided, return only applications that start with app.
@@ -138,9 +138,8 @@ async def application_enum(apps=None) -> list[dict]:
     return all_apps
 
 
-async def tools_enum() -> list[str]:
+async def tools_enum() -> list[dict[str, str]]:
     """Return a list of all tools."""
-    res = await Postgres.fetch(
-        "SELECT data FROM attributes WHERE name = 'tools'")
+    res = await Postgres.fetch("SELECT data FROM attributes WHERE name = 'tools'")
 
     return res[0]["data"].get("enum", []) if res else []
