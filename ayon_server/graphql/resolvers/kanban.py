@@ -105,10 +105,27 @@ async def get_kanban(
                 f.label as folder_label,
                 h.path as folder_path,
                 t.thumbnail_id as thumbnail_id,
-                NULL as last_version_with_thumbnail_id
+                vs.version_id as last_version_with_thumbnail_id
                 FROM {project_schema}.tasks t
                 JOIN {project_schema}.folders f ON f.id = t.folder_id
                 JOIN {project_schema}.hierarchy h ON h.id = f.id
+                LEFT JOIN LATERAL (
+                    SELECT
+                        v.id AS version_id
+                    FROM
+                         {project_schema}.versions v
+                    WHERE
+                        v.task_id = t.id
+                        AND v.thumbnail_id IS NOT NULL
+                    ORDER BY
+                        CASE
+                            WHEN v.version < 0 THEN 1
+                            ELSE 0
+                        END DESC,
+                        v.version DESC
+                    LIMIT 1
+                ) vs ON true
+
                 {SQLTool.conditions(sub_query_conds)}
         """
         union_queries.append(uq)
