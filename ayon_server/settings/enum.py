@@ -99,3 +99,47 @@ async def _get_app_host_names():
 async def addon_all_app_host_names_enum():
     result = await _get_app_host_names()
     return [{"label": host_name, "value": host_name} for host_name in result]
+
+
+async def application_enum(apps: list[str] | None = None) -> list[dict[str, str]]:
+    """Return a list of all applications.
+
+    If app is provided, return only applications that start with app.
+
+    Example:
+        nuke_variant: str = SettingsField(
+            default="",
+            title="Nuke variant",
+            description="Nuke variant to be used for transcoding.",
+            enum_resolver=functools.partial(application_enum, "nuke"),
+        )
+
+    Args:
+        app Optional[list[str]]: Application names to filter. Defaults to None.
+
+    Returns:
+        list[dict]: List of applications.
+    """
+    res = await Postgres.fetch(
+        "SELECT data FROM attributes WHERE name = 'applications'"
+    )
+    if not res:
+        return []
+    all_apps = res[0]["data"].get("enum", [])
+
+    if apps:
+        return_apps = []
+        for app in apps:
+            return_apps += [
+                a for a in all_apps if a["value"].split("/")[0] == app.lower()
+            ]
+        return return_apps
+
+    return all_apps
+
+
+async def tools_enum() -> list[dict[str, str]]:
+    """Return a list of all tools."""
+    res = await Postgres.fetch("SELECT data FROM attributes WHERE name = 'tools'")
+
+    return res[0]["data"].get("enum", []) if res else []
