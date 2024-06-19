@@ -36,6 +36,13 @@ def kanban_node_from_record(
     project_name = record.pop("project_name", project_name)
     assert project_name, "project_name is required"
 
+    due_date = record.pop("due_date", None)
+    if isinstance(due_date, datetime):
+        due_date = due_date.replace(tzinfo=None)
+    elif isinstance(due_date, str):
+        due_date = datetime.fromisoformat(due_date)
+    record["due_date"] = due_date
+
     return KanbanNode(
         project_name=project_name,
         **record,
