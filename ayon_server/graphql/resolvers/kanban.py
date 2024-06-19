@@ -34,6 +34,7 @@ async def get_kanban(
     before: ARGBefore = None,
     projects: list[str] | None = None,
     assignees: list[str] | None = None,
+    task_ids: list[str] | None = None,
 ) -> KanbanConnection:
     """
     Fetches tasks for the Kanban board.
@@ -59,6 +60,10 @@ async def get_kanban(
         If not provided, all tasks are listed regardless of assignees.
         For non-managers, this is always set to [user.name].
 
+    task_ids : list[str], optional
+        If set, return explicit tasks by their IDs.
+        This is used for fetching updates when a entity.task.* event is received.
+
     Returns
     -------
     KanbanConnection
@@ -81,7 +86,13 @@ async def get_kanban(
 
     sub_query_conds = []
     if assignees:
+        # assignees list is already sanitized at this point
         c = f"t.assignees @> {SQLTool.array(assignees, curly=True)}"
+        sub_query_conds.append(c)
+
+    if task_ids:
+        # id_array sanitizes the input
+        c = f"t.id IN {SQLTool.id_array(task_ids)}"
         sub_query_conds.append(c)
 
     union_queries = []
