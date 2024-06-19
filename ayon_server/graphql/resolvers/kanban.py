@@ -84,15 +84,18 @@ async def get_kanban(
     elif assignees:
         validate_name_list(assignees)
 
+    # Sub-query conditions
+
     sub_query_conds = []
-    if assignees:
-        # assignees list is already sanitized at this point
-        c = f"t.assignees @> {SQLTool.array(assignees, curly=True)}"
-        sub_query_conds.append(c)
 
     if task_ids:
         # id_array sanitizes the input
         c = f"t.id IN {SQLTool.id_array(task_ids)}"
+        sub_query_conds.append(c)
+
+    if assignees:
+        # assignees list is already sanitized at this point
+        c = f"t.assignees @> {SQLTool.array(assignees, curly=True)}"
         sub_query_conds.append(c)
 
     union_queries = []
