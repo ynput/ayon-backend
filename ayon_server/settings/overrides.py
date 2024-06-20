@@ -173,10 +173,6 @@ def extract_overrides(
 
     result: dict[str, Any] = {}
 
-    print()
-    print()
-    print()
-
     def crawl(
         original_object: BaseSettingsModel,
         new_object: BaseSettingsModel,
@@ -188,8 +184,6 @@ def extract_overrides(
             old_child = getattr(original_object, field_name)
             new_child = getattr(new_object, field_name)
             rpath = [*path, field_name]
-            print()
-            print("Processing", rpath)
 
             if path in (explicit_unpins or []):
                 print("Unpinning", rpath)
@@ -204,7 +198,6 @@ def extract_overrides(
                     field_name in existing_overrides
                 ):
                     target[field_name] = {}
-                    print("Crawling", rpath)
                     crawl(
                         original_object=old_child,
                         new_object=new_child,
@@ -220,14 +213,9 @@ def extract_overrides(
                 ):
                     # we need to use the original object to get the default value
                     # because of the array handling
-                    old_value = original_object.dict()[field_name]
+                    # old_value = original_object.dict()[field_name]
                     new_value = new_object.dict()[field_name]
-                    print(f"Scalar SET {rpath} {old_value} -> {new_value}")
                     target[field_name] = new_value
-
-                else:
-                    print()
-                    print(f"Scalar SKIP {rpath} {old_child} -> {new_child}")
 
     crawl(default, overriden, existing_overrides, result, [])
 
