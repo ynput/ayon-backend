@@ -186,11 +186,9 @@ def extract_overrides(
             old_child = getattr(original_object, field_name)
             new_child = getattr(new_object, field_name)
             field_path = [*path, field_name]
-            print("Crawling", field_path)
 
             if isinstance(old_child, BaseSettingsModel) and not old_child._isGroup:
                 if field_path in explicit_pins:
-                    print("Pinning", field_path)
                     target[field_name] = new_child.dict()
 
                 elif old_child.dict() != new_child.dict() or (
