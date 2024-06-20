@@ -169,42 +169,66 @@ def extract_overrides(
     explicit_pins: list[list[str]] | None = None,
     explicit_unpins: list[list[str]] | None = None,
 ) -> dict[str, Any]:
+    existing_overrides = {**existing} if existing else {}
+
     result: dict[str, Any] = {}
 
-    existing_overrides = {**existing} if existing else {}
-    new_overrides = paths_to_dict(explicit_pins or [])
+    print()
+    print()
+    print()
 
-    # apply new overrides to forced ones
-    for key, value in new_overrides.items():
-        current = existing_overrides
-        if key not in current:
-            current[key] = {}
-        current = current[key]
-        if isinstance(current, dict):
-            current.update(value)  # wtf?
+    def crawl(
+        original_object: BaseSettingsModel,
+        new_object: BaseSettingsModel,
+        existing_overrides: dict[str, Any],
+        target: dict[str, Any],
+        path: list[str],
+    ):
+        for field_name in original_object.__fields__.keys():
+            old_child = getattr(original_object, field_name)
+            new_child = getattr(new_object, field_name)
+            rpath = [*path, field_name]
+            print()
+            print("Processing", rpath)
 
-    # remove explicit unpins
-    for path in explicit_unpins or []:
-        current = existing_overrides
-        for key in path:
-            if key not in current:
-                break
-            if key == path[-1]:
-                del current[key]
-                break
-            current = current[key]
+            if path in (explicit_unpins or []):
+                print("Unpinning", rpath)
+                continue
 
-    def crawl(obj, ovr, ex, target):
-        for name, _field in obj.__fields__.items():
-            child = getattr(obj, name)
-            if isinstance(child, BaseSettingsModel) and not child._isGroup:
-                if child.dict() != ovr.dict()[name] or (name in ex):
-                    target[name] = {}
-                    crawl(child, getattr(ovr, name), ex.get(name, {}), target[name])
+            if isinstance(old_child, BaseSettingsModel) and not old_child._isGroup:
+                if rpath in (explicit_pins or []):
+                    print("Pinning", rpath)
+                    target[field_name] = new_child.dict()
+
+                elif old_child.dict() != new_child.dict() or (
+                    field_name in existing_overrides
+                ):
+                    target[field_name] = {}
+                    print("Crawling", rpath)
+                    crawl(
+                        original_object=old_child,
+                        new_object=new_child,
+                        existing_overrides=existing_overrides.get(field_name, {}),
+                        target=target[field_name],
+                        path=rpath,
+                    )
             else:
-                if getattr(ovr, name) != getattr(obj, name) or (name in ex):
-                    target[name] = ovr.dict()[name]
+                if (
+                    old_child != new_child
+                    or (field_name in existing_overrides)
+                    or (rpath in (explicit_pins or []))
+                ):
+                    # we need to use the original object to get the default value
+                    # because of the array handling
+                    old_value = original_object.dict()[field_name]
+                    new_value = new_object.dict()[field_name]
+                    print(f"Scalar SET {rpath} {old_value} -> {new_value}")
+                    target[field_name] = new_value
 
-    crawl(default, overriden, existing_overrides, result)
+                else:
+                    print()
+                    print(f"Scalar SKIP {rpath} {old_child} -> {new_child}")
+
+    crawl(default, overriden, existing_overrides, result, [])
 
     return result
