@@ -169,11 +169,11 @@ def extract_overrides(
     explicit_pins: list[list[str]] | None = None,
     explicit_unpins: list[list[str]] | None = None,
 ) -> dict[str, Any]:
-    existing_overrides = {**existing} if existing else {}
+    existing_overrides = existing or {}
+    pinned_fields = set(explicit_pins or [])
+    unpinned_fields = set(explicit_unpins or [])
 
     result: dict[str, Any] = {}
-    print("Explicit pins", explicit_pins)
-    print("Explicit unpins", explicit_unpins)
 
     def crawl(
         original_object: BaseSettingsModel,
@@ -185,12 +185,12 @@ def extract_overrides(
         for field_name in original_object.__fields__.keys():
             old_child = getattr(original_object, field_name)
             new_child = getattr(new_object, field_name)
-            rpath = [*path, field_name]
-            print("Crawling", rpath)
+            field_path = [*path, field_name]
+            print("Crawling", field_path)
 
             if isinstance(old_child, BaseSettingsModel) and not old_child._isGroup:
-                if rpath in (explicit_pins or []):
-                    print("Pinning", rpath)
+                if field_path in pinned_fields:
+                    print("Pinning", field_path)
                     target[field_name] = new_child.dict()
 
                 elif old_child.dict() != new_child.dict() or (
@@ -202,13 +202,13 @@ def extract_overrides(
                         new_object=new_child,
                         existing_overrides=existing_overrides.get(field_name, {}),
                         target=target[field_name],
-                        path=rpath,
+                        path=field_path,
                     )
             else:
                 if (
                     old_child != new_child
                     or (field_name in existing_overrides)
-                    or (rpath in (explicit_pins or []))
+                    or (field_path in pinned_fields)
                 ):
                     # we need to use the original object to get the default value
                     # because of the array handling
@@ -220,7 +220,7 @@ def extract_overrides(
 
     # remove paths that are explicitly unpinned
 
-    for path in explicit_unpins or []:
+    for path in unpinned_fields:
         current = result
         for key in path[:-1]:
             current = current[key]
