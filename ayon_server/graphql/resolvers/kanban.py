@@ -72,15 +72,23 @@ async def get_kanban(
     """
     user = info.context["user"]
 
+    project_data: list[dict[str, str]] = []
+
     if not projects:
-        projects = []
-        q = "SELECT name FROM projects WHERE active IS TRUE"
-        async for row in Postgres.iterate(q):
-            projects.append(row["name"])
+        q = "SELECT name, code FROM projects WHERE active IS TRUE"
+    else:
+        validate_name_list(projects)
+        q = f"""
+            SELECT name, code
+            FROM projects
+            WHERE name = ANY({SQLTool.array(projects, curly=True)})
+        """
+    async for row in Postgres.iterate(q):
+        project_data.append(row)
 
     if not user.is_manager:
         assignees = [user.name]
-        projects = [p for p in projects if user_has_access(user, p)]
+        project_data = [p for p in project_data if user_has_access(user, p["name"])]
     elif assignees:
         validate_name_list(assignees)
 
@@ -99,11 +107,14 @@ async def get_kanban(
         sub_query_conds.append(c)
 
     union_queries = []
-    for project_name in projects:
+    for pdata in project_data:
+        project_name = pdata["name"]
+        project_code = pdata["code"]
         project_schema = f"project_{project_name}"
         uq = f"""
             SELECT
                 '{project_name}' AS project_name,
+                '{project_code}' AS project_code,
                 t.id as id,
                 t.name as name,
                 t.label as label,

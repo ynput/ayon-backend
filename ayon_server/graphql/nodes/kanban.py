@@ -7,6 +7,7 @@ import strawberry
 @strawberry.type
 class KanbanNode:
     project_name: str = strawberry.field()
+    project_code: str = strawberry.field()
     id: str = strawberry.field()
     name: str = strawberry.field()
     label: str | None = strawberry.field()
