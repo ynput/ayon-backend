@@ -170,8 +170,8 @@ def extract_overrides(
     explicit_unpins: list[list[str]] | None = None,
 ) -> dict[str, Any]:
     existing_overrides = existing or {}
-    pinned_fields = set(explicit_pins or [])
-    unpinned_fields = set(explicit_unpins or [])
+    explicit_pins = explicit_pins or []
+    explicit_unpins = explicit_unpins or []
 
     result: dict[str, Any] = {}
 
@@ -189,7 +189,7 @@ def extract_overrides(
             print("Crawling", field_path)
 
             if isinstance(old_child, BaseSettingsModel) and not old_child._isGroup:
-                if field_path in pinned_fields:
+                if field_path in explicit_pins:
                     print("Pinning", field_path)
                     target[field_name] = new_child.dict()
 
@@ -208,7 +208,7 @@ def extract_overrides(
                 if (
                     old_child != new_child
                     or (field_name in existing_overrides)
-                    or (field_path in pinned_fields)
+                    or (field_path in explicit_pins)
                 ):
                     # we need to use the original object to get the default value
                     # because of the array handling
@@ -220,7 +220,7 @@ def extract_overrides(
 
     # remove paths that are explicitly unpinned
 
-    for path in unpinned_fields:
+    for path in explicit_unpins:
         current = result
         for key in path[:-1]:
             current = current[key]
