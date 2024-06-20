@@ -3,6 +3,7 @@ from typing import Any
 from nxtools import logging
 
 from ayon_server.settings.common import BaseSettingsModel
+from ayon_server.utils import dict_remove_path
 
 
 def apply_overrides(
@@ -59,16 +60,25 @@ def list_overrides(
 
     This is used in the settings form context.
     Return a dictionary of the form:
-        {
-            key : {            // idSchema of the field as used in rjsf
-                "path": path,  // list of parent keys and the current key
-                "type": type,  // type of the field: branch, leaf, group, array
-                "value": value, // value of the field (only present on leaves)
-                "level": level, // source of the override: studio, project or site
-                "inGroup": path // path of the group the field is in
-            }
-        }
 
+    ```
+    {
+        key : {
+            "path": path,
+            "type": type,
+            "value": value,
+            "level": level,
+            "inGroup": path
+        }
+    }
+    ```
+
+    key:     idSchema of the field as used in rjsf
+    path:    list of parent keys and the current key
+    type:    type of the field: branch, leaf, group, array
+    value:   value of the field (only present on leaves)
+    level:   source of the override: studio, project or site
+    inGroup: path of the group the field is in
     """
 
     result = {}
@@ -151,17 +161,6 @@ def list_overrides(
     return result
 
 
-def paths_to_dict(paths: list[list[str]]) -> dict[str, Any]:
-    root: dict[str, Any] = {}
-    for path in paths:
-        current = root
-        for key in path:
-            if key not in current:
-                current[key] = {}
-            current = current[key]
-    return root
-
-
 def extract_overrides(
     default: BaseSettingsModel,
     overriden: BaseSettingsModel,
@@ -169,6 +168,16 @@ def extract_overrides(
     explicit_pins: list[list[str]] | None = None,
     explicit_unpins: list[list[str]] | None = None,
 ) -> dict[str, Any]:
+    """Takes two settings objects and returns the differences between them.
+
+    This is used to store the differences in the database, so that we can
+    apply them to the default settings object later.
+
+    explicit pins and unpins are used to force the inclusion or exclusion of
+    certain fields in the result. They are lists of paths to the fields that
+    should be pinned or unpinned.
+    """
+
     existing_overrides = existing or {}
     explicit_pins = explicit_pins or []
     explicit_unpins = explicit_unpins or []
@@ -216,12 +225,7 @@ def extract_overrides(
 
     crawl(default, overriden, existing_overrides, result, [])
 
-    # remove paths that are explicitly unpinned
-
     for path in explicit_unpins:
-        current = result
-        for key in path[:-1]:
-            current = current[key]
-        current.pop(path[-1], None)
+        dict_remove_path(result, path, remove_orphans=True)
 
     return result
