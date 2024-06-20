@@ -172,6 +172,8 @@ def extract_overrides(
     existing_overrides = {**existing} if existing else {}
 
     result: dict[str, Any] = {}
+    print("Explicit pins", explicit_pins)
+    print("Explicit unpins", explicit_unpins)
 
     def crawl(
         original_object: BaseSettingsModel,
@@ -184,10 +186,7 @@ def extract_overrides(
             old_child = getattr(original_object, field_name)
             new_child = getattr(new_object, field_name)
             rpath = [*path, field_name]
-
-            if path in (explicit_unpins or []):
-                print("Unpinning", rpath)
-                continue
+            print("Crawling", rpath)
 
             if isinstance(old_child, BaseSettingsModel) and not old_child._isGroup:
                 if rpath in (explicit_pins or []):
@@ -218,5 +217,13 @@ def extract_overrides(
                     target[field_name] = new_value
 
     crawl(default, overriden, existing_overrides, result, [])
+
+    # remove paths that are explicitly unpinned
+
+    for path in explicit_unpins or []:
+        current = result
+        for key in path[:-1]:
+            current = current[key]
+        current.pop(path[-1], None)
 
     return result
