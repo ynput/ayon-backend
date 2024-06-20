@@ -33,7 +33,7 @@ async def get_kanban(
     last: ARGLast = 2000,
     before: ARGBefore = None,
     projects: list[str] | None = None,
-    assignees: list[str] | None = None,
+    assignees_any: list[str] | None = None,
     task_ids: list[str] | None = None,
 ) -> KanbanConnection:
     """
@@ -53,7 +53,7 @@ async def get_kanban(
         For non-managers, the result is limited to projects the user has access to.
         Inactive projects are never included.
 
-    assignees : list[str], optional
+    assignees_any : list[str], optional
         List of user names to filter tasks.
         If the invoking user is a manager, tasks assigned
         to the specified users are listed.
@@ -87,10 +87,10 @@ async def get_kanban(
         project_data.append(row)
 
     if not user.is_manager:
-        assignees = [user.name]
+        assignees_any = [user.name]
         project_data = [p for p in project_data if user_has_access(user, p["name"])]
-    elif assignees:
-        validate_name_list(assignees)
+    elif assignees_any:
+        validate_name_list(assignees_any)
 
     # Sub-query conditions
 
@@ -101,9 +101,9 @@ async def get_kanban(
         c = f"t.id IN {SQLTool.id_array(task_ids)}"
         sub_query_conds.append(c)
 
-    if assignees:
+    if assignees_any:
         # assignees list is already sanitized at this point
-        c = f"t.assignees @> {SQLTool.array(assignees, curly=True)}"
+        c = f"t.assignees && {SQLTool.array(assignees_any, curly=True)}"
         sub_query_conds.append(c)
 
     union_queries = []
