@@ -160,8 +160,6 @@ async def patch_user(
     user_name: UserName,
     access_token: AccessToken,
 ) -> EmptyResponse:
-    logging.info(f"[PATCH] /users/{user_name}")
-
     if user_name == user.name and (not user.is_manager):
         # Normal users can only patch their attributes
         # (such as full name and email)
@@ -221,7 +219,7 @@ async def patch_user(
     await target_user.save()
 
     if avatar_changed:
-        logging.info("User avatar url changed, updating cache")
+        logging.debug(f"User {user_name} avatar changed, updating cache")
         avatar_bytes = await obtain_avatar(user_name)
         await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
