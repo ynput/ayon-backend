@@ -15,12 +15,6 @@ from ayon_server.types import validate_name_list
 from ayon_server.utils import SQLTool
 
 
-def bool2sql(value: bool | None) -> str:
-    if value is None:
-        return "NULL"
-    return "TRUE" if value else "FALSE"
-
-
 def user_has_access(user: UserEntity, project_name: str) -> bool:
     if user.is_manager:
         return True
@@ -172,7 +166,6 @@ async def get_kanban(
     # Execute the query
     #
 
-    # start_time = time.monotonic()
     res = await resolve(
         KanbanConnection,
         KanbanEdge,
@@ -183,8 +176,4 @@ async def get_kanban(
         last,
         context=info.context,
     )
-    # end_time = time.monotonic()
-    # print("Task count", len(res.edges))
-    # print("Project count", len(projects))
-    # print(f"Kanban query resolved in {end_time-start_time:.04f}s")
     return res
