@@ -14,6 +14,7 @@ from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import (
     EventsConnection,
     InboxConnection,
+    KanbanConnection,
     ProjectsConnection,
     UsersConnection,
 )
@@ -38,6 +39,7 @@ from ayon_server.graphql.nodes.workfile import workfile_from_record
 from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.events import get_events
 from ayon_server.graphql.resolvers.inbox import get_inbox
+from ayon_server.graphql.resolvers.kanban import get_kanban
 from ayon_server.graphql.resolvers.links import get_links
 from ayon_server.graphql.resolvers.projects import get_project, get_projects
 from ayon_server.graphql.resolvers.users import get_user, get_users
@@ -110,6 +112,11 @@ class Query:
     inbox: InboxConnection = strawberry.field(
         description="Get user inbox",
         resolver=get_inbox,
+    )
+
+    kanban: KanbanConnection = strawberry.field(
+        description="Get kanban board",
+        resolver=get_kanban,
     )
 
     @strawberry.field(description="Current user")

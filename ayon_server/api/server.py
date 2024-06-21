@@ -332,6 +332,7 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
                 target_app.add_api_route(
                     path,
                     endpoint["handler"],
+                    include_in_schema=ayonconfig.openapi_include_addon_endpoints,
                     methods=[endpoint["method"]],
                     name=endpoint["name"],
                     tags=[f"{addon_definition.friendly_name} {version}"],

@@ -181,6 +181,7 @@ async def set_addon_project_settings(
         raise BadRequestException(f"Addon {addon_name} has no settings")
 
     explicit_pins = payload.pop("__pinned_fields__", None)
+    explicit_unpins = payload.pop("__unpinned_fields__", None)
 
     if not site_id:
         if not user.is_manager:
@@ -198,6 +199,7 @@ async def set_addon_project_settings(
                 model(**payload),
                 existing=existing,
                 explicit_pins=explicit_pins,
+                explicit_unpins=explicit_unpins,
             )
         except ValidationError as e:
             raise BadRequestException("Invalid settings", errors=e.errors()) from e

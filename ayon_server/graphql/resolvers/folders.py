@@ -74,6 +74,10 @@ async def get_folders(
         list[str] | None,
         argdesc("List of names to filter. Only exact matches are returned"),
     ] = None,
+    assignees: Annotated[
+        list[str] | None,
+        argdesc("List folders with tasks assigned to these users"),
+    ] = None,
     has_children: Annotated[
         bool | None, argdesc("Whether to filter by folders with children")
     ] = None,
@@ -280,6 +284,16 @@ async def get_folders(
                 ->>'{attribute_input.name}' IN {SQLTool.array(values)}
                 """
             )
+
+    if assignees is not None:
+        validate_name_list(assignees)
+        cond = f"""
+            folders.id IN (
+                SELECT folder_id FROM project_{project_name}.tasks
+                WHERE assignees @> {SQLTool.array(assignees, curly=True)}
+            )
+        """
+        sql_conditions.append(cond)
 
     #
     # Pagination
