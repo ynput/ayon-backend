@@ -34,7 +34,7 @@ async def remove_override(
         scope = "public."
         overrides = await addon.get_studio_overrides(variant=variant)
 
-    try:
+    try:  # TODO: this try/block is probably no longer needed
         dict_remove_path(overrides, path)
     except KeyError:
         log_traceback()
@@ -144,7 +144,7 @@ async def remove_site_override(
 
     overrides = await addon.get_project_site_overrides(project_name, user_name, site_id)
 
-    try:
+    try:  # TODO: this try/block is probably no longer needed
         dict_remove_path(overrides, path)
     except KeyError:
         log_traceback()
