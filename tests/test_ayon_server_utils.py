@@ -29,3 +29,8 @@ class TestDictRemovePath:
         data = {"a": {"b": "not a dict"}}
         dict_remove_path(data, ["a", "b", "c"])
         assert data == {"a": {"b": "not a dict"}}
+
+    def test_remove_all(self):
+        data = {"a": {"b": {"c": 1}}}
+        dict_remove_path(data, ["a"])
+        assert data == {}
