@@ -25,12 +25,13 @@ class ActionExecutor:
     addon_name: str
     addon_version: str
     variant: str
-    user: UserEntity
     identifier: str
     context: ActionContext
 
     async def get_launcher_action(
-        self, args: list[str], message: str | None = None
+        self,
+        args: list[str],
+        message: str | None = None,
     ) -> ExecuteResponseModel:
         payload = {
             "args": args,

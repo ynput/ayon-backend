@@ -7,7 +7,7 @@ This is all the information needed to display the action in the frontend.
 
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from ayon_server.types import Field, OPModel
 
@@ -35,7 +35,7 @@ class ActionTemplate(OPModel):
         "GET",
         description="The method of the request",
     )
-    payload: dict | None = Field(
+    payload: dict[str, Any] | None = Field(
         None,
         description="The payload of the request",
     )

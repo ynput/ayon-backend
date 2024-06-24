@@ -3,9 +3,18 @@ from ayon_server.actions.manifest import BaseActionManifest, SimpleActionManifes
 from ayon_server.addons import AddonLibrary, BaseServerAddon
 from ayon_server.entities import UserEntity
 from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
 
-# TODO: This HAS TO BE cached somehow
-# because it is executed every time the user changes the selection
+
+class AvailableActionsListModel(OPModel):
+    variant: str | None = Field(
+        None,
+        description="The variant of the bundle",
+    )
+    actions: list[BaseActionManifest] = Field(
+        default_factory=list,
+        description="The list of available actions",
+    )
 
 
 async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAddon]]:
@@ -17,6 +26,8 @@ async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAdd
 
     returns a tuple of variant and list of addons
     """
+    # TODO: This HAS TO BE cached somehow
+    # because it is executed every time the user changes the selection
 
     is_developer = user.is_developer and user.attrib.developerMode
     variant = None
@@ -25,13 +36,15 @@ async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAdd
         # get the list of addons from the development environment
         query = (
             """
-            SELECT name, data->'addons' FROM bundles
+            SELECT name, data->'addons' as addons FROM bundles
             WHERE is_dev AND active_user = $1""",
             user.name,
         )
     else:
         # get the list of addons from the production bundle
-        query = "SELECT name, data->'addons' FROM bundles WHERE is_production"
+        query = (
+            "SELECT name, data->'addons' as addons FROM bundles WHERE is_production",
+        )
         # we're in production mode
         variant = "production"
 
@@ -46,7 +59,9 @@ async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAdd
     if variant is None:
         variant = res[0]["name"]
 
-    for addon_name, addon_version in res[0]["addons"]:
+    for addon_name, addon_version in res[0]["addons"].items():
+        if not addon_version:
+            continue
         addon = AddonLibrary.addon(addon_name, addon_version)
         if addon is None:
             continue
@@ -54,7 +69,7 @@ async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAdd
     return variant, result
 
 
-async def evaluate_simple_action(
+def evaluate_simple_action(
     action: SimpleActionManifest,
     context: ActionContext,
 ) -> bool:
@@ -82,7 +97,7 @@ async def evaluate_simple_action(
 
 async def get_simple_actions(
     user: UserEntity, context: ActionContext
-) -> list[SimpleActionManifest]:
+) -> AvailableActionsListModel:
     actions = []
     variant, addons = await get_relevant_addons(user)
     for addon in addons:
@@ -90,13 +105,13 @@ async def get_simple_actions(
         for action in simple_actions:
             if evaluate_simple_action(action, context):
                 actions.append(action)
-    return actions
+    return AvailableActionsListModel(variant=variant, actions=actions)
 
 
 async def get_dynamic_actions(
     user: UserEntity,
     context: ActionContext,
-) -> tuple[str, list[BaseActionManifest]]:
+) -> AvailableActionsListModel:
     """Get a list of dynamic actions for a given context.
 
     This method is called for each addon to get a list of dynamic actions
@@ -111,4 +126,4 @@ async def get_dynamic_actions(
     variant, addons = await get_relevant_addons(user)
     for addon in addons:
         actions.extend(await addon.get_dynamic_actions(context))
-    return variant, actions
+    return AvailableActionsListModel(variant=variant, actions=actions)

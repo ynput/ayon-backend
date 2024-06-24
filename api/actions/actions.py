@@ -9,30 +9,18 @@ from ayon_server.actions.manifest import BaseActionManifest
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import ForbiddenException, NotFoundException
-from ayon_server.types import Field, OPModel
 
-from .listing import get_dynamic_actions, get_simple_actions
+from .listing import AvailableActionsListModel, get_dynamic_actions, get_simple_actions
 from .router import router
 
 ActionListMode = Literal["simple", "dynamic", "all"]
 
 
-class AvailableActionsListModel(OPModel):
-    variant: str | None = Field(
-        None,
-        description="The variant of the bundle",
-    )
-    actions: list[BaseActionManifest] = Field(
-        default_factory=list,
-        description="The list of available actions",
-    )
-
-
-@router.post("list")
+@router.post("/list")
 async def list_available_actions_for_context(
     context: ActionContext,
     user: CurrentUser,
-    mode: ActionListMode = "simple",
+    mode: ActionListMode = Query("simple", title="Action List Mode"),
 ) -> AvailableActionsListModel:
     """Get available actions for a context.
 
@@ -53,20 +41,25 @@ async def list_available_actions_for_context(
 
     actions = []
 
-    if mode in ("simple", "all"):
+    if mode == "simple":
         r = await get_simple_actions(user, context)
         actions.extend(r.actions)
         variant = r.variant
-
-    if mode in ("dynamic", "all"):
+    elif mode == "dynamic":
         r = await get_dynamic_actions(user, context)
         actions.extend(r.actions)
         variant = r.variant
+    elif mode == "all":
+        r1 = await get_simple_actions(user, context)
+        actions.extend(r1.actions)
+        r2 = await get_dynamic_actions(user, context)
+        actions.extend(r2.actions)
+        variant = r2.variant
 
     return AvailableActionsListModel(variant=variant, actions=actions)
 
 
-@router.get("manage")
+@router.get("/manage")
 async def list_all_actions(user: CurrentUser) -> list[BaseActionManifest]:
     """Get a list of all available actions.
 
@@ -87,7 +80,7 @@ async def list_all_actions(user: CurrentUser) -> list[BaseActionManifest]:
     return actions
 
 
-@router.post("execute")
+@router.post("/execute")
 async def execute_action(
     request: Request,
     user: CurrentUser,
@@ -144,7 +137,7 @@ async def execute_action(
     return await addon.execute_action(executor)
 
 
-@router.get("take/{event_id}")
+@router.get("/take/{event_id}")
 async def take_action(event_id):
     """called by launcher
 
