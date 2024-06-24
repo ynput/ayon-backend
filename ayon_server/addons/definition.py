@@ -32,14 +32,6 @@ class ServerAddonDefinition:
             if self.name is None:
                 self.name = version.name
 
-            # do we need this check?
-            if version.app_host_name != self.app_host_name:
-                raise ValueError(
-                    f"Addon {self.name} has version {version.version} with "
-                    "mismatched app host name "
-                    f"{version.app_host_name} != {self.app_host_name}"
-                )
-
             if version.name != self.name:
                 raise ValueError(
                     f"Addon {self.name} has version {version.version} with "

@@ -132,25 +132,30 @@ async def create_installer(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     payload: Installer,
-    url: str | None = Query(None, title="URL to the addon zip file"),
-    overwrite: bool = Query(False, title="Overwrite existing package"),
+    url: str | None = Query(None, description="URL to the addon zip file"),
+    overwrite: bool = Query(
+        False, description="Deprecated. Use the force", deprecated=True
+    ),
+    force: bool = Query(False, description="Overwrite existing installer"),
 ) -> InstallResponseModel:
     event_id: str | None = None
 
     if not user.is_admin:
         raise ForbiddenException("Only admins can create installers")
 
+    force = force or overwrite
+
     try:
         _ = get_manifest(payload.filename)
     except Exception:
         pass
     else:
-        if not overwrite:
+        if not force:
             raise ConflictException("Installer already exists")
 
     _ = get_desktop_dir("installers", for_writing=True)
 
-    if not overwrite:
+    if not force:
         # double-check - filename check might not be enough,
         # we must check whether there is a manifest with the same version and Platform
         existing_installers = await list_installers(

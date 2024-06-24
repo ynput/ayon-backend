@@ -203,3 +203,121 @@ CREATE TABLE IF NOT EXISTS public.services(
 -- CREATE THE SITE ID
 INSERT INTO config VALUES ('instanceId', to_jsonb(gen_random_uuid()::text)) ON CONFLICT DO NOTHING;
 
+
+-----------
+-- INBOX --
+-----------
+
+DO $$ 
+DECLARE 
+    r RECORD;
+BEGIN 
+    FOR r IN 
+        SELECT 'DROP FUNCTION ' || oid::regprocedure || ';' as drop_command
+        FROM pg_proc 
+        WHERE proname = 'get_user_inbox'
+    LOOP 
+        EXECUTE r.drop_command;
+    END LOOP;
+END $$;
+
+
+CREATE OR REPLACE FUNCTION get_user_inbox(
+  user_name TEXT, 
+  show_active_projects BOOLEAN DEFAULT NULL,
+  show_active_messages BOOLEAN DEFAULT NULL,
+  show_unread_messages BOOLEAN DEFAULT NULL,
+  before TIMESTAMPTZ DEFAULT NULL,
+  last INTEGER DEFAULT 100,
+  additional_filters TEXT DEFAULT ''
+)
+RETURNS TABLE (
+    project_name TEXT,
+    reference_id UUID,
+    activity_id UUID,
+    reference_type VARCHAR,
+    entity_type VARCHAR,
+    entity_id UUID,
+    entity_name VARCHAR,
+    entity_path VARCHAR,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    creation_order INTEGER,
+    activity_type VARCHAR,
+    body TEXT,
+    activity_data JSONB,
+    reference_data JSONB,
+    active BOOLEAN
+
+) AS $$
+DECLARE
+    project RECORD;
+    query TEXT;
+
+BEGIN
+    FOR project IN SELECT projects.name FROM projects
+      WHERE (show_active_projects IS NULL OR projects.active = show_active_projects)
+    LOOP
+        query := format('
+            SELECT
+                ''%s'' AS project_name,
+                
+                t.reference_id as reference_id,
+                t.activity_id as activity_id,
+                t.reference_type as reference_type,
+                t.entity_type as entity_type,
+                t.entity_id as entity_id,
+                t.entity_name as entity_name,
+                t.entity_path as entity_path,
+
+                t.created_at as created_at,
+                t.updated_at as updated_at,
+                t.creation_order as creation_order,
+
+                t.activity_type as activity_type,
+                t.body as body,
+                t.activity_data as activity_data,
+                t.reference_data as reference_data,
+                t.active as active
+
+            FROM 
+                project_%s.activity_feed t
+            WHERE 
+                t.entity_type = ''user'' 
+            AND t.entity_name = %L
+            AND t.reference_type != ''author''
+            AND t.updated_at <= COALESCE(%L, NOW())
+            AND t.activity_data->>''author'' != %L
+            %s
+            %s
+            %s
+            ORDER BY t.updated_at DESC
+            LIMIT %s
+        ', 
+
+          project.name, 
+          project.name, 
+          user_name, 
+          before,
+          user_name,
+
+        CASE 
+            WHEN show_active_messages IS TRUE THEN 'AND t.active IS TRUE'
+            WHEN show_active_messages IS FALSE THEN 'AND t.active IS FALSE'
+            ELSE ''
+        END,
+
+        CASE
+            WHEN show_unread_messages IS FALSE THEN 'AND t.reference_data->>''read'' = ''true'' '
+            WHEN show_unread_messages IS TRUE THEN 'AND t.reference_data->>''read'' IS NULL '
+            ELSE ''
+        END,
+
+        additional_filters,
+        last
+        );
+        
+        RETURN QUERY EXECUTE query;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;

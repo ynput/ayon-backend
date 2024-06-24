@@ -332,6 +332,7 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
                 target_app.add_api_route(
                     path,
                     endpoint["handler"],
+                    include_in_schema=ayonconfig.openapi_include_addon_endpoints,
                     methods=[endpoint["method"]],
                     name=endpoint["name"],
                     tags=[f"{addon_definition.friendly_name} {version}"],
@@ -430,7 +431,7 @@ async def startup_event() -> None:
                 if inspect.iscoroutinefunction(version.pre_setup):
                     # Since setup may, but does not have to be async, we need to
                     # silence mypy here.
-                    await version.pre_setup()  # type: ignore
+                    await version.pre_setup()
                 else:
                     version.pre_setup()
                 if (not restart_requested) and version.restart_requested:

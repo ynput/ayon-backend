@@ -8,7 +8,8 @@ from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID, SQLTool
-from hierarchy.solver import HierarchyResolver
+
+from .solver import HierarchyResolver
 
 router = APIRouter(tags=["Folders"])
 
@@ -141,7 +142,7 @@ async def get_folder_hierarchy(
     res = HierarchyResponseModel.construct(
         detail="Working",
         projectName=project_name,
-        hierarchy=hresult,
+        hierarchy=hresult,  # type: ignore
     )
     elapsed = round(time.time() - start_time, 4)
     detail = f"Hierarchy loaded in {elapsed}s"

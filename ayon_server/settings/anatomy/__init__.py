@@ -33,7 +33,7 @@ class Anatomy(BaseSettingsModel):
         description="Path templates configuration",
     )
 
-    attributes: ProjectAttribModel = Field(  # type: ignore
+    attributes: ProjectAttribModel = Field(
         default_factory=ProjectAttribModel,
         title="Attributes",
         description="Attributes configuration",

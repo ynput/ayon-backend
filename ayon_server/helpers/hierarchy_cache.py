@@ -1,17 +1,16 @@
 import time
 from typing import Any
 
-import asyncpg
 from nxtools import logging
 
-from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.utils import json_dumps
 
 
 async def rebuild_hierarchy_cache(
     project_name: str,
-    transaction: asyncpg.Connection | None = None,
+    transaction: Connection | None = None,
 ) -> list[dict[str, Any]]:
     start_time = time.monotonic()
     query = f"""

@@ -32,11 +32,23 @@ class EventStream:
         user: str | None = None,
         depends_on: str | None = None,
         description: str | None = None,
-        summary: dict | None = None,
-        payload: dict | None = None,
+        summary: dict[str, Any] | None = None,
+        payload: dict[str, Any] | None = None,
         finished: bool = True,
         store: bool = True,
+        recipients: list[str] | None = None,
     ) -> str:
+        """
+
+        finished:
+            whether the event one shot and should be marked as finished upon creation
+
+        store:
+            whether to store the event in the database
+
+        recipients:
+            list of user names to notify via websocket (None for all users)
+        """
         if summary is None:
             summary = {}
         if payload is None:
@@ -94,6 +106,9 @@ class EventStream:
                     "Event with same hash already exists",
                 ) from e
 
+        depends_on = (
+            str(event.depends_on).replace("-", "") if event.depends_on else None
+        )
         await Redis.publish(
             json_dumps(
                 {
@@ -101,13 +116,14 @@ class EventStream:
                     "topic": event.topic,
                     "project": event.project,
                     "user": event.user,
-                    "dependsOn": str(event.depends_on).replace("-", ""),
+                    "dependsOn": depends_on,
                     "description": event.description,
                     "summary": event.summary,
                     "status": event.status,
                     "progress": progress,
                     "sender": sender,
                     "store": store,  # useful to allow querying details
+                    "recipients": recipients,
                     "createdAt": event.created_at,
                     "updatedAt": event.updated_at,
                 }
@@ -135,6 +151,7 @@ class EventStream:
         progress: float | None = None,
         store: bool = True,
         retries: int | None = None,
+        recipients: list[str] | None = None,
     ) -> bool:
         new_data: dict[str, Any] = {"updated_at": datetime.now()}
 
@@ -194,6 +211,7 @@ class EventStream:
                 "summary": data["summary"],
                 "status": data["status"],
                 "sender": data["sender"],
+                "recipients": recipients,
                 "createdAt": data["created_at"],
                 "updatedAt": data["updated_at"],
             }

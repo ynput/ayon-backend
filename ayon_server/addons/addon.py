@@ -168,7 +168,7 @@ class BaseServerAddon:
     def add_endpoint(
         self,
         path: str,
-        handler: Callable,
+        handler: Callable[..., Any],
         *,
         method: str = "GET",
         name: str | None = None,
@@ -477,7 +477,11 @@ class BaseServerAddon:
         settings._has_studio_overrides = has_studio_overrides
         return settings
 
-    async def get_site_settings(self, user_name: str, site_id: str) -> dict | None:
+    async def get_site_settings(
+        self,
+        user_name: str,
+        site_id: str,
+    ) -> dict[str, Any] | None:
         site_settings_model = self.get_site_settings_model()
         if site_settings_model is None:
             return None
@@ -583,6 +587,7 @@ class BaseServerAddon:
             defaults=defaults.dict(),
         )
 
+
     #
     # Actions
     #
@@ -611,3 +616,18 @@ class BaseServerAddon:
 
         if executor.identifier == "moje-launcher-akce":
             return await executor.create_launcher_action(args=["blabla"])
+
+    async def get_app_host_names(self) -> list[str]:
+        """Return a list of application host names that the addon uses.
+
+        Addon may reimplment this method to return a list of host names that
+        the addon uses.
+
+        By default, it returns a single host name from the
+        addon's attributes. If the addon uses multiple host names, you should
+        override this method.
+        """
+
+        if self.app_host_name is None:
+            return []
+        return [self.app_host_name]

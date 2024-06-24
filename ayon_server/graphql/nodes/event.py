@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 import strawberry
 
@@ -23,7 +24,11 @@ class EventNode:
     data: str | None
 
 
-def event_from_record(record: dict, context: dict) -> EventNode:
+def event_from_record(
+    project_name: str | None,
+    record: dict[str, Any],
+    context: dict[str, Any],
+) -> EventNode:
     current_user = context["user"]
     record = dict(record)
 

@@ -14,6 +14,7 @@ from ayon_server.activities.models import (
     ActivityReferenceModel,
     ActivityType,
 )
+from ayon_server.activities.parents import get_parents_from_entity
 from ayon_server.activities.references import get_references_from_entity
 from ayon_server.activities.utils import (
     MAX_BODY_LENGTH,
@@ -22,6 +23,7 @@ from ayon_server.activities.utils import (
     process_activity_files,
 )
 from ayon_server.entities.core import ProjectLevelEntity
+from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
@@ -64,9 +66,18 @@ async def create_activity(
         "id": entity_id,
         "name": entity.name,
     }
+    if entity_type == "task":
+        origin["subtype"] = entity.task_type  # type: ignore
+    elif entity_type == "folder":
+        origin["subtype"] = entity.folder_type  # type: ignore
+    elif entity_type == "product":
+        origin["subtype"] = entity.product_type  # type: ignore
+
     if hasattr(entity, "label"):
         origin["label"] = entity.label
     data["origin"] = origin
+
+    data["parents"] = await get_parents_from_entity(entity)
 
     if activity_type == "comment" and is_body_with_checklist(body):
         data["hasChecklist"] = True
@@ -77,17 +88,19 @@ async def create_activity(
 
     # Origin is always present. Activity is always created for a single entity.
 
-    references = [
+    references: set[ActivityReferenceModel] = set(extra_references or [])
+
+    references.add(
         ActivityReferenceModel(
             entity_id=entity_id,
             entity_type=entity_type,
             entity_name=None,
             reference_type="origin",
-        ),
-    ]
+        )
+    )
 
     if user_name:
-        references.append(
+        references.add(
             ActivityReferenceModel(
                 entity_type="user",
                 entity_name=user_name,
@@ -97,20 +110,8 @@ async def create_activity(
         )
         data["author"] = user_name
 
-    references.extend(await get_references_from_entity(entity))
-
-    for ref in extract_mentions(body) + (extra_references or []):
-        if ref.entity_id == entity_id and ref.entity_type == entity_type:
-            # do not self-reference
-            continue
-
-        if ref.reference_type == "relation" and ref.entity_id in [
-            r.entity_id for r in references
-        ]:
-            # do not create relations, if there already is a mention
-            continue
-
-        references.append(ref)
+    references.update(extract_mentions(body))
+    references.update(await get_references_from_entity(entity))
 
     #
     # Create the activity
@@ -172,6 +173,40 @@ async def create_activity(
 
         await st_ref.executemany(
             ref.insertable_tuple(activity_id, timestamp) for ref in references
+        )
+
+    # Notify users
+    notify_important: list[str] = []
+    notify_normal: list[str] = []
+    for ref in references:
+        if ref.entity_type != "user":
+            continue
+        assert ref.entity_name is not None, "This should have been checked before"
+        if ref.reference_type == "author":
+            continue
+        if ref.reference_type == "mention":
+            notify_important.append(ref.entity_name)
+        elif ref.entity_name not in notify_important:
+            notify_normal.append(ref.entity_name)
+
+    notify_description = body.split("\n")[0]
+    if notify_important:
+        await EventStream.dispatch(
+            "inbox.message",
+            project=project_name,
+            description=notify_description,
+            summary={"isImportant": True},
+            recipients=notify_important,
+            store=False,
+        )
+    if notify_normal:
+        await EventStream.dispatch(
+            "inbox.message",
+            project=project_name,
+            description=notify_description,
+            summary={"isImportant": False},
+            recipients=notify_normal,
+            store=False,
         )
 
     return activity_id

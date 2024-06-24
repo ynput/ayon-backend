@@ -62,7 +62,7 @@ async def update_activity(
     if activity_type == "comment" and is_body_with_checklist(body):
         activity_data["hasChecklist"] = True
 
-    references = []
+    references: set[ActivityReferenceModel] = set(extra_references or [])
     async for row in Postgres.iterate(
         f"""
         SELECT id, entity_type, entity_id, entity_name, reference_type, data
@@ -71,7 +71,7 @@ async def update_activity(
         """,
         activity_id,
     ):
-        references.append(
+        references.add(
             ActivityReferenceModel(
                 id=row["id"],
                 reference_type=row["reference_type"],
@@ -90,7 +90,7 @@ async def update_activity(
         if ref.reference_type == "mention":
             if ref not in mentions:
                 refs_to_delete.append(ref.id)
-    references.extend(mentions)
+    references.update(mentions)
 
     # Update files
 

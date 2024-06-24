@@ -3,7 +3,7 @@ import os
 from ayon_server.exceptions import AyonException
 
 
-def get_desktop_dir(*args, for_writing: bool = True) -> str:
+def get_desktop_dir(*args: str, for_writing: bool = True) -> str:
     """Get path to desktop directory.
     If the directory does not exist, create it.
     args: path to the directory relative to the desktop directory

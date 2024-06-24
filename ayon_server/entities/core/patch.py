@@ -1,5 +1,6 @@
 import copy
 from datetime import datetime
+from typing import Any
 
 from nxtools import logging
 from pydantic import BaseModel
@@ -7,7 +8,7 @@ from pydantic import BaseModel
 
 def apply_patch(original: BaseModel, patch: BaseModel) -> BaseModel:
     """Patch (partial update) an entity using its patch model."""
-    update_data = {}
+    update_data: dict[str, Any] = {}
 
     for key, value in patch.dict(exclude_unset=True).items():
         if key not in original.__fields__:

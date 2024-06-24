@@ -49,11 +49,11 @@ class ProductEntity(ProjectLevelEntity):
 
     @property
     def folder_id(self) -> str:
-        return self._payload.folder_id
+        return self._payload.folder_id  # type: ignore
 
     @folder_id.setter
     def folder_id(self, value: str):
-        self._payload.folder_id = value
+        self._payload.folder_id = value  # type: ignore
 
     @property
     def parent_id(self) -> str:
@@ -61,8 +61,8 @@ class ProductEntity(ProjectLevelEntity):
 
     @property
     def product_type(self) -> str:
-        return self._payload.product_type
+        return self._payload.product_type  # type: ignore
 
     @product_type.setter
     def product_type(self, value: str):
-        self._payload.product_type = value
+        self._payload.product_type = value  # type: ignore

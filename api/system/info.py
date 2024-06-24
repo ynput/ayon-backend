@@ -2,7 +2,7 @@ import contextlib
 from typing import Any
 from urllib.parse import urlparse
 
-from attributes.attributes import AttributeModel
+from attributes.attributes import AttributeModel  # type: ignore
 from fastapi import Request
 from nxtools import log_traceback
 from pydantic import ValidationError

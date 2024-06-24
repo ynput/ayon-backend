@@ -49,7 +49,16 @@ class ActivityReferenceModel(OPModel):
         self,
         activity_id: str,
         timestamp: datetime.datetime | None = None,
-    ) -> tuple:
+    ) -> tuple[
+        str,
+        str,
+        ActivityReferenceType,
+        ReferencedEntityType,
+        str | None,
+        str | None,
+        dict[str, Any],
+        datetime.datetime,
+    ]:
         if timestamp is None:
             timestamp = datetime.datetime.now(datetime.timezone.utc)
         return (
@@ -64,9 +73,17 @@ class ActivityReferenceModel(OPModel):
         )
 
     def __hash__(self):
-        return (
-            self.reference_type,
-            self.entity_type,
-            self.entity_id,
-            self.entity_name,
-        )
+        return hash((self.entity_type, self.entity_id, self.entity_name))
+
+    def __str__(self):
+        main: str = ""
+        if self.entity_name:
+            main = self.entity_name
+        elif self.entity_id:
+            main = self.entity_id
+        return f"<ActivityReference {self.reference_type} {self.entity_type} {main}>"
+
+    def __eq__(self, other):
+        if isinstance(other, ActivityReferenceModel):
+            return self.__hash__() == other.__hash__()
+        return False

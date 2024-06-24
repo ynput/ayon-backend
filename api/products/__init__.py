@@ -1,3 +1,3 @@
 __all__ = ["router"]
 
-from products.products import router
+from .products import router

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.activity import ActivityNode
     from ayon_server.graphql.nodes.event import EventNode
     from ayon_server.graphql.nodes.folder import FolderNode
+    from ayon_server.graphql.nodes.kanban import KanbanNode
     from ayon_server.graphql.nodes.product import ProductNode
     from ayon_server.graphql.nodes.project import ProjectNode
     from ayon_server.graphql.nodes.representation import RepresentationNode
@@ -21,6 +22,7 @@ else:
     ProjectNode = LazyType["ProjectNode", ".nodes.project"]
     UserNode = LazyType["UserNode", ".nodes.user"]
     FolderNode = LazyType["FolderNode", ".nodes.folder"]
+    KanbanNode = LazyType["KanbanNode", ".nodes.kanban"]
     TaskNode = LazyType["TaskNode", ".nodes.task"]
     ProductNode = LazyType["ProductNode", ".nodes.product"]
     VersionNode = LazyType["VersionNode", ".nodes.version"]
@@ -87,4 +89,16 @@ class EventEdge(BaseEdge):
 @strawberry.type
 class ActivityEdge(BaseEdge):
     node: ActivityNode = strawberry.field(description="The activity node")
+    cursor: str | None = strawberry.field(default=None)
+
+
+@strawberry.type
+class InboxEdge(BaseEdge):
+    node: ActivityNode = strawberry.field(description="The inbox node")
+    cursor: str | None = strawberry.field(default=None)
+
+
+@strawberry.type
+class KanbanEdge(BaseEdge):
+    node: KanbanNode = strawberry.field(description="The kanban node")
     cursor: str | None = strawberry.field(default=None)

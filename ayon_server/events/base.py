@@ -48,7 +48,7 @@ class EventModel(OPModel):
 
     """
 
-    id: str = Field(default_factory=create_id, **EntityID.META)
+    id: str = Field(default_factory=create_id, **EntityID.META)  # type: ignore
     hash: str = Field(...)
     topic: str = Field(...)
     sender: str | None = SENDER_FIELD

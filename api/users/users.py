@@ -16,9 +16,11 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.types import USER_NAME_REGEX, Field, OPModel
 from ayon_server.utils import get_nickname, obscure
 
+from .avatar import REDIS_NS, obtain_avatar
 from .router import router
 
 #
@@ -81,7 +83,7 @@ class NewUserModel(UserEntity.model.post_model):  # type: ignore
     password: str | None = Field(None, description="Password for the new user")
 
 
-def validate_user_data(data: dict[str, Any]):
+def validate_user_data(data: dict[str, Any]) -> None:
     try:
         if default_access_groups := data.get("defaultAccessGroups"):
             assert isinstance(
@@ -158,8 +160,6 @@ async def patch_user(
     user_name: UserName,
     access_token: AccessToken,
 ) -> EmptyResponse:
-    logging.info(f"[PATCH] /users/{user_name}")
-
     if user_name == user.name and (not user.is_manager):
         # Normal users can only patch their attributes
         # (such as full name and email)
@@ -204,8 +204,24 @@ async def patch_user(
 
     validate_user_data(payload.data)
 
+    attrib_dict = payload.attrib.dict(exclude_unset=True)
+    avatar_changed = False
+    if (
+        "avatarUrl" in attrib_dict
+        and attrib_dict["avatarUrl"] != target_user.attrib.avatarUrl
+    ):
+        url = attrib_dict["avatarUrl"]
+        if (url) and not (url.startswith("http://") or url.startswith("https://")):
+            raise BadRequestException("Invalid avatar URL")
+        avatar_changed = True
+
     target_user.patch(payload)
     await target_user.save()
+
+    if avatar_changed:
+        logging.debug(f"User {user_name} avatar changed, updating cache")
+        avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
     async for session in Session.list(user_name):
         token = session.token
@@ -450,6 +466,10 @@ async def assign_access_groups(
     target_user.data["accessGroups"] = ag_set
     await target_user.save()
 
+    async for session in Session.list(user_name):
+        token = session.token
+        await Session.update(token, target_user)
+
     return EmptyResponse()
 
 
@@ -471,4 +491,9 @@ async def set_frontend_preferences(
     target_user.data["frontendPreferences"] = preferences
 
     await target_user.save()
+
+    async for session in Session.list(user_name):
+        token = session.token
+        await Session.update(token, target_user)
+
     return EmptyResponse()
