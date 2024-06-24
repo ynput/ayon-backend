@@ -1,18 +1,18 @@
-import time
+import urllib.parse
 from typing import Literal
-
-import jwt
 
 from ayon_server.actions.context import ActionContext
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
 from ayon_server.types import Field, OPModel
+from ayon_server.utils import create_hash
 
 
 class ExecuteResponseModel(OPModel):
     type: Literal["launcher", "void"] = Field(...)
+    success: bool = Field(True)
     message: str | None = Field(None, description="The message to display")
-    uri: str | None = Field(None, description="The url to open in the browser")
+    uri: str | None = Field(None, description="The uri to open in the browser")
 
     # TODO: for http/browser actions
     # payload: dict | None = Field(None, description="The payload of the request")
@@ -28,11 +28,24 @@ class ActionExecutor:
     identifier: str
     context: ActionContext
 
-    async def get_launcher_action(
+    async def get_launcher_action_response(
         self,
         args: list[str],
         message: str | None = None,
     ) -> ExecuteResponseModel:
+        """Return a response for a launcher action
+
+        Launcher actions are actions that open the Ayon Launcher
+        with the given arguments.
+
+        An event is dispatched to the EventStream to track the progress of the action.
+        The hash of the event is returned as a part of the URI.
+
+        Uri is then used by the frontend to open the launcher.
+
+        Launcher then uses the event hash to get the event details
+        and update the event status.
+        """
         payload = {
             "args": args,
             "variant": self.variant,
@@ -45,8 +58,11 @@ class ActionExecutor:
             "action_identifier": self.identifier,
         }
 
-        event_id = await EventStream.dispatch(
+        hash = create_hash()
+
+        await EventStream.dispatch(
             "action.launcher",
+            hash=hash,
             description=message or "Running action",
             summary=summary,
             payload=payload,
@@ -55,23 +71,33 @@ class ActionExecutor:
             finished=False,
         )
 
-        token = jwt.encode(
-            {
-                "jti": event_id,
-                "aud": self.server_url,
-                "iat": time.time(),
-                "exp": time.time() + 60,
-                "sub": self.access_token,
-            },
-            "secret",
-            algorithm="HS256",
-        )
+        encoded_url = urllib.parse.quote_plus(self.server_url)
 
         return ExecuteResponseModel(
+            success=True,
             type="launcher",
-            uri=f"ayon-launcher://action?token={token}",
+            uri=f"ayon-launcher://action?server_url={encoded_url}&token={hash}",
             message=message,
         )
 
-    def get_void_action(self, message: str | None = None) -> ExecuteResponseModel:
-        return ExecuteResponseModel(type="void", message=message)
+    async def get_void_action_response(
+        self,
+        success: bool = True,
+        message: str | None = None,
+    ) -> ExecuteResponseModel:
+        """Return a response for a void actions
+
+        Void actions are actions that are only executed on the server.
+        They only return a message to display in the frontend
+        after the action is executed.
+        """
+
+        if message is None:
+            message = f"Action {self.identifier} executed successfully"
+
+        return ExecuteResponseModel(
+            success=success,
+            type="void",
+            message=message,
+            uri=None,
+        )

@@ -22,6 +22,13 @@ class ActionContext(OPModel):
         ...,
         description="The type of the entity",
     )
+
+    # frontend already knows this, so it can speed up
+    # the action resolving process when it sends this.
+    entity_subtypes: list[str] | None = Field(
+        None, description="List of subtypes present in the entity list"
+    )
+
     entity_ids: list[str] | None = Field(
         ...,
         title="Entity IDs",

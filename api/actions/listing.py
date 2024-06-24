@@ -69,7 +69,7 @@ async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAdd
     return variant, result
 
 
-def evaluate_simple_action(
+async def evaluate_simple_action(
     action: SimpleActionManifest,
     context: ActionContext,
 ) -> bool:
@@ -90,7 +90,11 @@ def evaluate_simple_action(
             return False
 
         if action.entity_subtypes:
-            pass  # TODO: implement this
+            if not context.entity_subtypes:
+                return False
+
+            if not set(action.entity_subtypes) & set(context.entity_subtypes):
+                return False
 
     return True
 
@@ -103,7 +107,10 @@ async def get_simple_actions(
     for addon in addons:
         simple_actions = await addon.get_simple_actions()
         for action in simple_actions:
-            if evaluate_simple_action(action, context):
+            if await evaluate_simple_action(action, context):
+                action.addon_name = addon.name
+                action.addon_version = addon.version
+                action.variant = variant
                 actions.append(action)
     return AvailableActionsListModel(variant=variant, actions=actions)
 

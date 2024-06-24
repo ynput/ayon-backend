@@ -85,8 +85,8 @@ async def execute_action(
     request: Request,
     user: CurrentUser,
     context: ActionContext,
-    adddon_name: str = Query(..., title="Addon Name"),
-    addon_version: str = Query(..., title="Addon Version"),
+    adddon_name: str = Query(..., title="Addon Name", alias="addonName"),
+    addon_version: str = Query(..., title="Addon Version", alias="addonVersion"),
     variant: str = Query("production", title="Action Variant"),
     identifier: str = Query(..., title="Action Identifier"),
 ) -> ExecuteResponseModel:
