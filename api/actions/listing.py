@@ -98,7 +98,8 @@ async def evaluate_simple_action(
 
 
 async def get_simple_actions(
-    user: UserEntity, context: ActionContext
+    user: UserEntity,
+    context: ActionContext,
 ) -> AvailableActionsListModel:
     actions = []
     variant, addons = await get_relevant_addons(user)

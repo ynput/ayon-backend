@@ -20,11 +20,11 @@ class BaseActionManifest(OPModel):
         description="Human-friendly name of the action",
         example="Launch Maya",
     )
-    position: list[str] | None = Field(
-        None,
-        title="Position",
-        description="path to the action within tree/context menu",
-        example=["DCC", "Launch"],
+    category: str = Field(
+        "General",
+        title="Category",
+        description="Action category",
+        example="Launch",
     )
     order: int = Field(
         100,
@@ -34,7 +34,7 @@ class BaseActionManifest(OPModel):
     )
     icon: str | None = Field(
         None,
-        description="The icon of the action. TBD",
+        description="Path to the action icon",
         icon="maya",
     )
 

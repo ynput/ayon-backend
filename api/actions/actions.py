@@ -55,6 +55,12 @@ async def list_available_actions_for_context(
         r2 = await get_dynamic_actions(user, context)
         actions.extend(r2.actions)
 
+    for action in actions:
+        if action.icon:
+            action.icon = action.icon.format(
+                addon_url=f"/addons/{action.addon_name}/{action.addon_version}"
+            )
+
     return AvailableActionsListModel(actions=actions)
 
 
@@ -180,7 +186,7 @@ async def take_action(
         title="Action Token",
         pattern=r"[a-f0-9]{64}",
     ),
-):
+) -> TakeResponseModel:
     """called by launcher
 
     This is called by the launcher when it is started via

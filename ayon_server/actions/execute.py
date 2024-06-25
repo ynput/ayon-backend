@@ -9,7 +9,7 @@ from ayon_server.utils import create_hash
 
 
 class ExecuteResponseModel(OPModel):
-    type: Literal["launcher", "void"] = Field(
+    type: Literal["launcher", "server"] = Field(
         ...,
         description="The type of response",
         example="launcher",
@@ -95,14 +95,14 @@ class ActionExecutor:
             message=message,
         )
 
-    async def get_void_action_response(
+    async def get_server_action_response(
         self,
         success: bool = True,
         message: str | None = None,
     ) -> ExecuteResponseModel:
-        """Return a response for a void actions
+        """Return a response for a server actions
 
-        Void actions are actions that are only executed on the server.
+        Server actions are actions that are only executed on the server.
         They only return a message to display in the frontend
         after the action is executed.
         """
@@ -112,7 +112,7 @@ class ActionExecutor:
 
         return ExecuteResponseModel(
             success=success,
-            type="void",
+            type="server",
             message=message,
             uri=None,
         )
