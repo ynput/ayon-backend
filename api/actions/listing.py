@@ -7,10 +7,6 @@ from ayon_server.types import Field, OPModel
 
 
 class AvailableActionsListModel(OPModel):
-    variant: str | None = Field(
-        None,
-        description="The variant of the bundle",
-    )
     actions: list[BaseActionManifest] = Field(
         default_factory=list,
         description="The list of available actions",
@@ -31,6 +27,8 @@ async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAdd
 
     is_developer = user.is_developer and user.attrib.developerMode
     variant = None
+
+    query: tuple[str] | tuple[str, str]
 
     if is_developer:
         # get the list of addons from the development environment
@@ -112,7 +110,7 @@ async def get_simple_actions(
                 action.addon_version = addon.version
                 action.variant = variant
                 actions.append(action)
-    return AvailableActionsListModel(variant=variant, actions=actions)
+    return AvailableActionsListModel(actions=actions)
 
 
 async def get_dynamic_actions(

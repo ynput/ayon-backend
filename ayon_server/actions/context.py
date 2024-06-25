@@ -17,21 +17,27 @@ class ActionContext(OPModel):
     project_name: str = Field(
         ...,
         description="The name of the project",
+        example="my_project",
     )
     entity_type: ProjectLevelEntityType | None = Field(
         ...,
         description="The type of the entity",
+        example="folder",
     )
 
     # frontend already knows this, so it can speed up
     # the action resolving process when it sends this.
     entity_subtypes: list[str] | None = Field(
-        None, description="List of subtypes present in the entity list"
+        None,
+        description="List of subtypes present in the entity list",
+        example=["asset"],
     )
 
     entity_ids: list[str] | None = Field(
         ...,
         title="Entity IDs",
+        description="The IDs of the entities",
+        example=["1a3bfe33-1b1b-4b1b-8b1b-1b1b1b1b1b1b"],
     )
 
     async def get_entities(self) -> list[ProjectLevelEntity]:

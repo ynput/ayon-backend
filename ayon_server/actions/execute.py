@@ -9,10 +9,25 @@ from ayon_server.utils import create_hash
 
 
 class ExecuteResponseModel(OPModel):
-    type: Literal["launcher", "void"] = Field(...)
-    success: bool = Field(True)
-    message: str | None = Field(None, description="The message to display")
-    uri: str | None = Field(None, description="The uri to open in the browser")
+    type: Literal["launcher", "void"] = Field(
+        ...,
+        description="The type of response",
+        example="launcher",
+    )
+    success: bool = Field(
+        True,
+        description="Whether the action was successful",
+    )
+    message: str | None = Field(
+        None,
+        description="The message to display",
+        example="Action executed successfully",
+    )
+    uri: str | None = Field(
+        None,
+        description="The uri to call from the browser",
+        example="ayon-launcher://action?server_url=http%3A%2F%2Flocalhost%3A8000%2F&token=eyJaaaa",
+    )
 
     # TODO: for http/browser actions
     # payload: dict | None = Field(None, description="The payload of the request")
@@ -48,7 +63,7 @@ class ActionExecutor:
         """
         payload = {
             "args": args,
-            "variant": self.variant,
+            "context": self.context.dict(),
         }
 
         summary = {

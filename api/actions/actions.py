@@ -1,7 +1,7 @@
 from typing import Literal
 from urllib.parse import urlparse
 
-from fastapi import Query, Request
+from fastapi import Path, Query, Request
 
 from ayon_server.actions.context import ActionContext
 from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
@@ -9,6 +9,8 @@ from ayon_server.actions.manifest import BaseActionManifest
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
 
 from .listing import AvailableActionsListModel, get_dynamic_actions, get_simple_actions
 from .router import router
@@ -44,19 +46,16 @@ async def list_available_actions_for_context(
     if mode == "simple":
         r = await get_simple_actions(user, context)
         actions.extend(r.actions)
-        variant = r.variant
     elif mode == "dynamic":
         r = await get_dynamic_actions(user, context)
         actions.extend(r.actions)
-        variant = r.variant
     elif mode == "all":
         r1 = await get_simple_actions(user, context)
         actions.extend(r1.actions)
         r2 = await get_dynamic_actions(user, context)
         actions.extend(r2.actions)
-        variant = r2.variant
 
-    return AvailableActionsListModel(variant=variant, actions=actions)
+    return AvailableActionsListModel(actions=actions)
 
 
 @router.get("/manage")
@@ -73,7 +72,7 @@ async def list_all_actions(user: CurrentUser) -> list[BaseActionManifest]:
     if not user.is_admin:
         raise ForbiddenException("Only admins can manage actions")
 
-    actions = []
+    actions: list[BaseActionManifest] = []
 
     # TODO: from which bundle to get the actions?
 
@@ -137,14 +136,58 @@ async def execute_action(
     return await addon.execute_action(executor)
 
 
-@router.get("/take/{event_id}")
-async def take_action(event_id):
+class TakeResponseModel(OPModel):
+    event_id: str = Field(
+        ...,
+        title="Event ID",
+        example="aae4b3d4-7b7b-4b7b-8b7b-7b7b7b7b7b7b",
+    )
+    action_identifier: str = Field(
+        ...,
+        title="Action Identifier",
+        example="launch-maya",
+    )
+    args: list[str] = Field(
+        [],
+        title="Action Arguments",
+        example=["-file", "path/to/file.ma"],
+    )
+    context: ActionContext = Field(
+        ...,
+        title="Action Context",
+    )
+    addon_name: str = Field(
+        ...,
+        title="Addon Name",
+        example="maya",
+    )
+    addon_version: str = Field(
+        ...,
+        title="Addon Version",
+        example="1.5.6",
+    )
+    variant: str = Field(
+        ...,
+        title="Action Variant",
+        example="production",
+    )
+
+
+@router.get("/take/{token}")
+async def take_action(
+    token: str = Path(
+        ...,
+        title="Action Token",
+        pattern=r"[a-f0-9]{64}",
+    ),
+):
     """called by launcher
 
-    This is called by the launcher when it is started via ayon-launcher:// uri
+    This is called by the launcher when it is started via
+    `ayon-launcher://action?server_url=...&token=...` URI
 
-    Launcher connects to the server using the server url and access token
-    provided in the JWT token and calls this endpoint with the event id
+    Launcher connects to the server using the server url and uses the
+    token to get the action event (token is the event.hash)
 
     The server then gets the event payload and updates the event status to in_progress
     and returns the event payload to the launcher.
@@ -153,9 +196,40 @@ async def take_action(event_id):
     and updating the event status to finished or failed
     """
 
-    # query events by id
-    # ensure it is an "launcher.action"
+    res = await Postgres.fetch(
+        """
+        SELECT * FROM events
+        WHERE
+            hash = $1
+        AND topic = 'launcher.action'
+        AND status = 'pending'
+        """,
+        token,
+    )
+
+    if not res:
+        raise NotFoundException("Invalid token")
+
+    event = res[0]
 
     # update event and set status to in_progress
 
-    # return event.payload
+    result = TakeResponseModel(
+        event_id=event["id"],
+        args=event["payload"].get("args", []),
+        context=event["payload"].get("context", {}),
+        addon_name=event["summary"].get("addon_name", ""),
+        addon_version=event["summary"].get("addon_version", ""),
+        variant=event["summary"].get("variant", ""),
+        action_identifier=event["summary"].get("action_identifier", ""),
+    )
+
+    await Postgres.execute(
+        """
+        UPDATE events SET status = 'in_progress'
+        WHERE id = $1
+        """,
+        event["id"],
+    )
+
+    return result
