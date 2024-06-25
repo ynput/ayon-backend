@@ -40,7 +40,7 @@ class BaseActionManifest(OPModel):
 
     # auto-populated by endpoints based on user preferences
 
-    pinned: bool = Field(False, description="Whether the action is pinned")
+    featured: bool = Field(False)
 
     # Addon name and addon version are auto-populated by the server
 
