@@ -5,34 +5,16 @@ from nxtools import log_traceback
 
 from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.config import ayonconfig
-from ayon_server.lib.postgres import Postgres
+from ayon_server.helpers.cloud import get_cloud_api_headers
 from ayon_server.metrics import get_metrics
 
 
-async def get_instance_id() -> str:
-    res = await Postgres.fetch("SELECT value FROM config WHERE key = 'instanceId'")
-    if not res:
-        return ""
-    return res[0]["value"]
-
-
-async def get_ynput_cloud_key() -> str:
-    res = await Postgres.fetch(
-        "SELECT value FROM secrets WHERE name = 'ynput_cloud_key'"
-    )
-    if not res:
-        return ""
-    return res[0]["value"]
-
-
-async def post_metrics(instance_id: str):
-    yc_key = await get_ynput_cloud_key()
-    assert instance_id, "Instance ID is not set"
-
-    headers = {
-        "x-ynput-cloud-instance": instance_id,
-        "x-ynput-cloud-key": yc_key,
-    }
+async def post_metrics():
+    try:
+        headers = await get_cloud_api_headers()
+    except Exception:
+        # if we can't get the headers, we can't send metrics
+        return
 
     metrics = await get_metrics()
     payload = metrics.dict(exclude_none=True)
@@ -54,7 +36,6 @@ class MetricsCollector(BackgroundWorker):
 
     async def run(self):
         # this won't change during the lifetime of the server
-        instance_id = await get_instance_id()
         has_error = False
 
         while True:
@@ -62,8 +43,7 @@ class MetricsCollector(BackgroundWorker):
             await asyncio.sleep(60)
 
             try:
-                await post_metrics(instance_id)
-
+                await post_metrics()
             except AssertionError:
                 # server is not set up to send metrics, try again in an hour,
                 # but be quiet about it
