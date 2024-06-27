@@ -14,6 +14,7 @@ from ayon_server.exceptions import (
     UnauthorizedException,
     UnsupportedMediaException,
 )
+from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import (
@@ -25,8 +26,6 @@ from ayon_server.types import (
 )
 from ayon_server.utils import (
     EntityID,
-    json_dumps,
-    json_loads,
     parse_access_token,
     parse_api_key,
 )
@@ -219,20 +218,12 @@ async def dep_project_name(
     to match the database record.
     """
 
-    project_list: list[str]
-    project_list_data = await Redis.get("global", "project_list")
-    if project_list_data:
-        project_list = json_loads(project_list_data)
-        for pn in project_list:
-            if project_name.lower() == pn.lower():
-                return pn
-    project_list = [
-        row["name"] async for row in Postgres.iterate("SELECT name FROM projects")
-    ]
-    await Redis.set("global", "project_list", json_dumps(project_list))
+    project_list = await get_project_list()
+
     for pn in project_list:
-        if project_name.lower() == pn.lower():
-            return pn
+        if project_name.lower() == pn.name.lower():
+            return pn.name
+
     raise NotFoundException(f"Project {project_name} not found")
 
 

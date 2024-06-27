@@ -12,8 +12,9 @@ from ayon_server.entities.models import ModelSet
 from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
+from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
-from ayon_server.utils import SQLTool, dict_exclude
+from ayon_server.utils import SQLTool, dict_exclude, get_nickname
 
 
 async def aux_table_update(conn, table: str, update_data: list[dict[str, Any]]):
@@ -216,6 +217,7 @@ class ProjectEntity(TopLevelEntity):
             async with Postgres.acquire() as conn:
                 async with conn.transaction():
                     return await self._save(conn)
+        await build_project_list()
 
     async def _save(self, transaction) -> bool:
         assert self.folder_types, "Project must have at least one folder type"
@@ -322,6 +324,7 @@ class ProjectEntity(TopLevelEntity):
             async with Postgres.acquire() as conn:
                 async with conn.transaction():
                     return await self._delete(conn)
+        await build_project_list()
 
     async def _delete(self, transaction) -> bool:
         if not self.name:
@@ -337,6 +340,11 @@ class ProjectEntity(TopLevelEntity):
     #
     # Properties
     #
+
+    @property
+    def nickname(self) -> str:
+        """Return the project nickname."""
+        return get_nickname(str(self.created_at) + self.name, 2)
 
     @property
     def code(self) -> str:
