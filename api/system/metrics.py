@@ -29,7 +29,7 @@ async def get_production_metrics(
     if not user.is_admin:
         raise ForbiddenException("Access denied")
 
-    metrics = await get_metrics(saturated=saturated, system=system)
+    metrics = await get_metrics(saturated=saturated, system=system, force=True)
     return metrics
 
 

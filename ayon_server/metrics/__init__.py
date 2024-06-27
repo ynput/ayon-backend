@@ -171,7 +171,9 @@ METRICS_SETUP = [
 ]
 
 
-async def get_metrics(saturated: bool = False, system: bool = False) -> Metrics:
+async def get_metrics(
+    saturated: bool = False, system: bool = False, force: bool = False
+) -> Metrics:
     """Get metrics"""
 
     for metric in METRICS_SETUP:
@@ -184,8 +186,8 @@ async def get_metrics(saturated: bool = False, system: bool = False) -> Metrics:
         assert callable(getter), f"getter must be callable, got {getter}"
         ttl = ttl_h * 60 * 60
 
-        if name not in METRICS_SNAPSHOT:
-            value = await getter(saturated=saturated)
+        if name not in METRICS_SNAPSHOT or force:
+            value = await getter(saturated=saturated, system=system)
             METRICS_SNAPSHOT[name] = {
                 "value": value,
                 "timestamp": time.time(),
@@ -193,7 +195,7 @@ async def get_metrics(saturated: bool = False, system: bool = False) -> Metrics:
         else:
             snapshot = METRICS_SNAPSHOT[name]
             if time.time() - snapshot["timestamp"] > ttl:
-                value = await getter(saturated=saturated)
+                value = await getter(saturated=saturated, system=system)
                 METRICS_SNAPSHOT[name] = {
                     "value": value,
                     "timestamp": time.time(),

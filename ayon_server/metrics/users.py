@@ -9,7 +9,9 @@ class UserCounts(OPModel):
     managers: int = Field(0, title="Manager users", example=8)
 
 
-async def get_user_counts(saturated: bool) -> UserCounts | None:
+async def get_user_counts(
+    saturated: bool = False, system: bool = False
+) -> UserCounts | None:
     """Number of total and active users, admins and managers"""
 
     query = """

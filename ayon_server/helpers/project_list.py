@@ -10,18 +10,20 @@ from ayon_server.utils import get_nickname, json_dumps, json_loads
 class ProjectListItem(OPModel):
     name: str
     code: str
+    active: bool = True
     created_at: datetime
     nickname: str
 
 
 async def build_project_list() -> list[dict[str, Any]]:
-    q = """SELECT name, code, created_at FROM projects ORDER BY name ASC"""
+    q = """SELECT name, code, active, created_at FROM projects ORDER BY name ASC"""
     result: list[dict[str, Any]] = []
     async for row in Postgres.iterate(q):
         result.append(
             {
                 "name": row["name"],
                 "code": row["code"],
+                "active": row["active"],
                 "created_at": row["created_at"],
                 "nickname": get_nickname(str(row["created_at"]) + row["name"], 2),
             }
