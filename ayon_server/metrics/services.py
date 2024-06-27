@@ -8,7 +8,9 @@ class ServiceInfo(OPModel):
     service_name: str = Field(..., title="Service name", example="processor")
 
 
-async def get_active_services(saturated: bool) -> list[ServiceInfo]:
+async def get_active_services(
+    saturated: bool = False, system: bool = False
+) -> list[ServiceInfo]:
     """List of active services"""
 
     query = """

@@ -18,9 +18,11 @@ class Metric:
         self.value = value
         if tags is not None:
             self.tags = tags
+        else:
+            self.tags = {}
 
     def render_prometheus(self, prefix: str = "ayon") -> str:
-        if self.tags is None:
+        if not self.tags:
             return f"{prefix}_{self.key} {self.value}\n"
         tags = ",".join([f'{k}="{v}"' for k, v in self.tags.items()])
         return f"{prefix}_{self.key}{{{tags}}} {self.value}\n"
@@ -34,20 +36,10 @@ class SystemMetricsData(OPModel):
     runtime_seconds: float = Field(0, title="Runtime", example=123456)
     db_size_shared: int = Field(0, title="Shared database size", example=123456)
     db_size_total: int = Field(0, title="Total database size", example=123456)
-    db_size_project: dict[str, int] | None = Field(
-        None,
-        title="Database size per project",
-        example={"project1": 123456, "project2": 123456},
-    )
     storage_utilization_total: int = Field(
         0,
         title="Total storage utilization",
         example=123456,
-    )
-    storage_utilization_project: dict[str, int] | None = Field(
-        None,
-        title="Storage utilization per project",
-        example={"project1": 123456, "project2": 123456},
     )
 
 
@@ -148,29 +140,13 @@ class SystemMetrics:
         for metric in await self.status():
             result[metric.key] = metric.value
 
-        # database sizes
-
-        project_sizes = {}
         for metric in await self.get_db_sizes():
-            if metric.key == "db_size_project":
-                project_sizes[metric.tags["project"]] = metric.value
-            else:
+            if metric.key in ["db_size_total", "db_size_shared"]:
                 result[metric.key] = metric.value
 
-        if project_sizes and saturated:
-            result["db_size_project"] = project_sizes
-
-        # storage utilization
-
-        project_sizes = {}
         for metric in await self.get_upload_sizes():
-            if metric.key == "storage_utilization_project":
-                project_sizes[metric.tags["project"]] = metric.value
-            else:
+            if metric.key == "storage_utilization_total":
                 result[metric.key] = metric.value
-
-        if project_sizes and saturated:
-            result["storage_utilization_project"] = project_sizes
 
         return SystemMetricsData(**result)
 
