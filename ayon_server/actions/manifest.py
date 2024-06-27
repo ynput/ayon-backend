@@ -4,7 +4,20 @@ The metadata includes the label, position, order, icon, addon name, and addon ve
 This is all the information needed to display the action in the frontend.
 """
 
+from typing import Literal
+
 from ayon_server.types import Field, OPModel
+
+
+class IconModel(OPModel):
+    type: Literal["material-symbols", "url"] = Field("url")
+    name: str | None = Field(
+        None, description="The name of the icon (for material-symbols)"
+    )
+    color: str | None = Field(
+        None, description="The color of the icon (for material-symbols)"
+    )
+    url: str | None = Field(None, description="The URL of the icon (for url)")
 
 
 class BaseActionManifest(OPModel):
@@ -32,10 +45,10 @@ class BaseActionManifest(OPModel):
         description="The order of the action",
         example=100,
     )
-    icon: str | None = Field(
+    icon: IconModel | None = Field(
         None,
         description="Path to the action icon",
-        icon="maya",
+        example={"type": "material-symbols", "name": "launch"},
     )
 
     # auto-populated by endpoints based on user preferences

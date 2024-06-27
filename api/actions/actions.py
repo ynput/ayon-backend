@@ -18,7 +18,7 @@ from .router import router
 ActionListMode = Literal["simple", "dynamic", "all"]
 
 
-@router.post("/list")
+@router.post("/list", response_model_exclude_none=True)
 async def list_available_actions_for_context(
     context: ActionContext,
     user: CurrentUser,
@@ -56,8 +56,8 @@ async def list_available_actions_for_context(
         actions.extend(r2.actions)
 
     for action in actions:
-        if action.icon:
-            action.icon = action.icon.format(
+        if action.icon and action.icon.type == "url":
+            action.icon.url = action.icon.url.format(
                 addon_url=f"/addons/{action.addon_name}/{action.addon_version}"
             )
 
