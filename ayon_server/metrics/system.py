@@ -5,7 +5,7 @@ import aiocache
 import psutil
 
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import OPModel
+from ayon_server.types import Field, OPModel
 
 
 class Metric:
@@ -27,16 +27,28 @@ class Metric:
 
 
 class SystemMetricsData(OPModel):
-    cpu_usage: float
-    memory_usage: float
-    swap_usage: float
-    uptime_seconds: float
-    runtime_seconds: float
-    db_size_shared: int
-    db_size_total: int
-    db_size_project: dict[str, int] | None = None
-    storage_utilization_total: int
-    storage_utilization_project: dict[str, int] | None = None
+    cpu_usage: float = Field(0, title="CPU usage", example=12.3)
+    memory_usage: float = Field(0, title="Memory usage", example=12.3)
+    swap_usage: float = Field(0, title="Swap usage", example=12.3)
+    uptime_seconds: float = Field(0, title="Uptime", example=123456)
+    runtime_seconds: float = Field(0, title="Runtime", example=123456)
+    db_size_shared: int = Field(0, title="Shared database size", example=123456)
+    db_size_total: int = Field(0, title="Total database size", example=123456)
+    db_size_project: dict[str, int] | None = Field(
+        None,
+        title="Database size per project",
+        example={"project1": 123456, "project2": 123456},
+    )
+    storage_utilization_total: int = Field(
+        0,
+        title="Total storage utilization",
+        example=123456,
+    )
+    storage_utilization_project: dict[str, int] | None = Field(
+        None,
+        title="Storage utilization per project",
+        example={"project1": 123456, "project2": 123456},
+    )
 
 
 class SystemMetrics:

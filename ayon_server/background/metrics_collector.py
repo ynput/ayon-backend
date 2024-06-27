@@ -1,10 +1,11 @@
 import asyncio
 
 import httpx
-from nxtools import log_traceback
+from nxtools import logging
 
 from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.config import ayonconfig
+from ayon_server.constraints import Constraints
 from ayon_server.helpers.cloud import get_cloud_api_headers
 from ayon_server.metrics import get_metrics
 
@@ -16,7 +17,19 @@ async def post_metrics():
         # if we can't get the headers, we can't send metrics
         return
 
-    metrics = await get_metrics()
+    saturated = ayonconfig.metrics_send_saturated
+    system = ayonconfig.metrics_send_system
+
+    if not saturated:
+        r = await Constraints.check("saturatedMetrics")
+        if r:
+            saturated = True
+    if not system:
+        r = await Constraints.check("systemMetrics")
+        if r:
+            system = True
+
+    metrics = await get_metrics(saturated=saturated, system=system)
     payload = metrics.dict(exclude_none=True)
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
@@ -53,8 +66,8 @@ class MetricsCollector(BackgroundWorker):
             except Exception:
                 # if something goes wrong, try again in an hour
                 if not has_error:
-                    # log the error only once
-                    log_traceback("Failed to send metrics")
+                    # log the problem only once
+                    logging.warning("Failed to send metrics")
                     has_error = True
                 await asyncio.sleep(3600)
                 continue

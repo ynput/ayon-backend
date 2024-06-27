@@ -186,6 +186,16 @@ class AyonConfig(BaseModel):
         description="API key allowing access to the system metrics endpoint",
     )
 
+    metrics_send_system: bool = Field(
+        default=False,
+        description="Send system metrics to Ynput Cloud",
+    )
+
+    metrics_send_saturated: bool = Field(
+        default=False,
+        description="Send saturated metrics to Ynput Cloud",
+    )
+
     email_from: str = Field("noreply@ynput.cloud", description="Email sender address")
     email_smtp_host: str | None = Field(None, description="SMTP server hostname")
     email_smtp_port: int | None = Field(None, description="SMTP server port")
