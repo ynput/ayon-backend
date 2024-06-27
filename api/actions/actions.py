@@ -56,7 +56,7 @@ async def list_available_actions_for_context(
         actions.extend(r2.actions)
 
     for action in actions:
-        if action.icon and action.icon.type == "url":
+        if action.icon and action.icon.url:
             action.icon.url = action.icon.url.format(
                 addon_url=f"/addons/{action.addon_name}/{action.addon_version}"
             )
