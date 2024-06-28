@@ -60,7 +60,7 @@ class Client:
         if session_data is not None:
             self.topics = [*topics, *ALWAYS_SUBSCRIBE] if "*" not in topics else ["*"]
             self.authorized = True
-            self.user = session_data.user
+            self.user = session_data.user_entity
             self.project_name = project
             return True
         return False
@@ -145,13 +145,18 @@ class Messaging(BackgroundWorker):
 
                 # TODO: much much smarter logic here
                 for _client_id, client in self.clients.items():
+                    project_name = message.get("project", None)
                     if (
                         client.project_name is not None
                         and message.get("topic") != "inbox.message"
                     ):
-                        if prj := message.get("project", None):
-                            if prj != client.project_name:
-                                continue
+                        if project_name and project_name != client.project_name:
+                            continue
+
+                    if project_name and client.user and (not client.user.is_manager):
+                        access_groups = client.user.data.get("accessGroups", {})
+                        if project_name not in access_groups:
+                            continue
 
                     recipients = message.get("recipients", None)
                     if isinstance(recipients, list):
