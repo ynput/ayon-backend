@@ -15,6 +15,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import USER_NAME_REGEX, Field, OPModel
@@ -339,10 +340,10 @@ async def change_user_name(
             # Update tasks assignees - since assignees is an array,
             # it won't update automatically (there's no foreign key)
 
-            projects = await conn.fetch("SELECT name FROM projects")
-            project_names = [row["name"] for row in projects]
+            projects = await get_project_list()
 
-            for project_name in project_names:
+            for project in projects:
+                project_name = project.name
                 query = f"""
                     UPDATE project_{project_name}.tasks SET
                     assignees = array_replace(

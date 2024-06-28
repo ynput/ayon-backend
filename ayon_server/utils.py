@@ -165,8 +165,8 @@ def obscure(text: str):
 
 
 @functools.lru_cache(maxsize=128)
-def get_nickname(text: str):
-    return codenamize.codenamize(text, 1)
+def get_nickname(text: str, length: int = 1):
+    return codenamize.codenamize(text, length)
 
 
 class EntityID:
