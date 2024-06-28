@@ -8,6 +8,7 @@ from ayon_server.activities.utils import (
     extract_mentions,
     is_body_with_checklist,
 )
+from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     NotFoundException,
@@ -173,3 +174,31 @@ async def update_activity(
         await st_ref.executemany(
             ref.insertable_tuple(activity_id) for ref in references
         )
+
+    # Notify the front-end about the update
+
+    summary_references: list[dict[str, str]] = []
+    for ref in references:
+        if ref.entity_id:
+            summary_references.append(
+                {
+                    "entity_id": ref.entity_id,
+                    "entity_type": ref.entity_type,
+                    "reference_type": ref.reference_type,
+                }
+            )
+    summary = {
+        "activity_id": activity_id,
+        "activity_type": activity_type,
+        "references": summary_references,
+    }
+
+    await EventStream.dispatch(
+        "activity.updated",
+        project=project_name,
+        description="",
+        summary=summary,
+        store=False,
+        user=user_name,
+        sender=sender,
+    )
