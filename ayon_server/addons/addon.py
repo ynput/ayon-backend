@@ -609,13 +609,18 @@ class BaseServerAddon:
     # Actions
     #
 
-    async def get_simple_actions(self) -> list[SimpleActionManifest]:
+    async def get_simple_actions(
+        self,
+        project_name: str | None = None,
+        variant: str = "production",
+    ) -> list[SimpleActionManifest]:
         """Return a list of simple actions provided by the addon"""
         return []
 
     async def get_dynamic_actions(
         self,
         context: ActionContext,
+        variant: str = "production",
     ) -> list[DynamicActionManifest]:
         """Return a list of dynamic actions provided by the addon"""
         return []
