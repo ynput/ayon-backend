@@ -1,3 +1,5 @@
+from typing import Any
+
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import NotFoundException
@@ -65,3 +67,18 @@ class ActionContext(OPModel):
         if self._project_entity is None:
             self._project_entity = await ProjectEntity.load(self.project_name)
         return self._project_entity
+
+    def __hash__(self):
+        elength = len(self.entity_ids) > 1 if self.entity_ids else 0
+        hash_base = (
+            self.project_name,
+            self.entity_type,
+            self.entity_subtypes,
+            elength,
+        )
+        return hash(hash_base)
+
+    def __eq__(self, other: Any):
+        if isinstance(other, ActionContext):
+            return self.__hash__() == other.__hash__()
+        return False
