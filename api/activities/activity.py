@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, Header
 
 from ayon_server.activities import (
     ActivityType,
@@ -42,6 +42,7 @@ async def post_project_activity(
     entity_id: PathEntityID,
     user: CurrentUser,
     activity: ProjectActivityPostModel,
+    x_sender: str | None = Header(default=None),
 ) -> CreateActivityResponseModel:
     """Create an activity.
 
@@ -67,6 +68,7 @@ async def post_project_activity(
         files=activity.files,
         user_name=user.name,
         timestamp=activity.timestamp,
+        sender=x_sender,
     )
 
     return CreateActivityResponseModel(id=id)
