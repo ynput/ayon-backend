@@ -25,6 +25,7 @@ async def update_activity(
     user_name: str | None = None,
     extra_references: list[ActivityReferenceModel] | None = None,
     data: dict[str, Any] | None = None,
+    sender: str | None = None,
 ) -> None:
     """Update an activity."""
 

@@ -79,6 +79,7 @@ async def delete_project_activity(
     project_name: ProjectName,
     activity_id: str,
     user: CurrentUser,
+    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Delete an activity.
 
@@ -91,7 +92,12 @@ async def delete_project_activity(
     else:
         user_name = user.name
 
-    await delete_activity(project_name, activity_id, user_name=user_name)
+    await delete_activity(
+        project_name,
+        activity_id,
+        user_name=user_name,
+        sender=x_sender,
+    )
 
     return EmptyResponse()
 
@@ -108,6 +114,7 @@ async def patch_project_activity(
     user: CurrentUser,
     activity: ActivityPatchModel,
     background_tasks: BackgroundTasks,
+    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Edit an activity.
 
@@ -126,6 +133,7 @@ async def patch_project_activity(
         body=activity.body,
         files=activity.files,
         user_name=user_name,
+        sender=x_sender,
     )
 
     background_tasks.add_task(delete_unused_files, project_name)
