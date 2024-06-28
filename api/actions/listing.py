@@ -124,8 +124,7 @@ class SimpleActionCache:
         for key in keys:
             _, _, project_name, _ = key.split("|")
             if project_name == event.project:
-                print("Invalidating simple actions cache for", project_name)
-            await Redis.delete(cls.ns, key)
+                await Redis.delete(cls.ns, key)
 
     @classmethod
     async def handle_settings_changed(cls, event: EventModel):
@@ -137,7 +136,6 @@ class SimpleActionCache:
         for key in keys:
             addon, version, _, v = key.split("|")
             if addon == addon_name and version == addon_version and v == variant:
-                print("Invalidating simple actions cache for", addon_name)
                 await Redis.delete(cls.ns, key)
 
     @classmethod
