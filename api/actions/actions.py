@@ -207,7 +207,7 @@ async def take_action(
         SELECT * FROM events
         WHERE
             hash = $1
-        AND topic = 'launcher.action'
+        AND topic = 'action.launcher'
         AND status = 'pending'
         """,
         token,
