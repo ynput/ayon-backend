@@ -23,6 +23,13 @@ class SessionModel(OPModel):
     is_service: bool = False
     client_info: ClientInfo | None = None
 
+    @property
+    def user_entity(self) -> UserEntity:
+        return UserEntity(
+            payload=self.user.dict(),
+            exists=True,
+        )
+
 
 def is_local_ip(ip: str) -> bool:
     return (

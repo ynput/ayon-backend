@@ -39,6 +39,7 @@ async def create_activity(
     extra_references: list[ActivityReferenceModel] | None = None,
     data: dict[str, Any] | None = None,
     timestamp: datetime.datetime | None = None,
+    sender: str | None = None,
 ) -> str:
     """Create an activity.
 
@@ -175,7 +176,37 @@ async def create_activity(
             ref.insertable_tuple(activity_id, timestamp) for ref in references
         )
 
-    # Notify users
+    # Notify the front-end about the new activity
+
+    summary_references: list[dict[str, str]] = []
+    for ref in references:
+        if ref.entity_id:
+            summary_references.append(
+                {
+                    "entity_id": ref.entity_id,
+                    "entity_type": ref.entity_type,
+                    "reference_type": ref.reference_type,
+                }
+            )
+
+    summary = {
+        "activity_id": activity_id,
+        "activity_type": activity_type,
+        "references": summary_references,
+    }
+
+    await EventStream.dispatch(
+        "activity.created",
+        project=project_name,
+        description="",
+        summary=summary,
+        store=False,
+        user=user_name,
+        sender=sender,
+    )
+
+    # Send inbox notifications
+
     notify_important: list[str] = []
     notify_normal: list[str] = []
     for ref in references:
@@ -198,6 +229,7 @@ async def create_activity(
             summary={"isImportant": True},
             recipients=notify_important,
             store=False,
+            user=user_name,
         )
     if notify_normal:
         await EventStream.dispatch(
@@ -207,6 +239,7 @@ async def create_activity(
             summary={"isImportant": False},
             recipients=notify_normal,
             store=False,
+            user=user_name,
         )
 
     return activity_id

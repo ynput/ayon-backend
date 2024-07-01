@@ -1,6 +1,7 @@
 import asyncio
 
 from ayon_server.background.background_worker import BackgroundWorker
+from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 
 
@@ -41,13 +42,9 @@ class ThumbnailCleaner(BackgroundWorker):
         await asyncio.sleep(60)
 
         while True:
-            projects = [
-                row["name"]
-                async for row in Postgres.iterate("SELECT name FROM projects")
-            ]
-
+            projects = await get_project_list()
             for project in projects:
-                await clear_thumbnails(project)
+                await clear_thumbnails(project.name)
 
             # Repeat every hour hours
             await asyncio.sleep(3600)

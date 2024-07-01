@@ -1,8 +1,11 @@
-from datetime import datetime
 from typing import Any
 
+from ayon_server.entities import ProjectEntity
+from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
+
+from .system import system_metrics
 
 SATURATED_ONLY = "Collected only in the 'saturated' mode."
 
@@ -14,6 +17,8 @@ class ProjectCounts(OPModel):
 
 class ProjectMetrics(OPModel):
     """Project metrics model"""
+
+    nickname: str = Field(..., title="Project nickname", example="crazy-pink-cat")
 
     folder_count: int = Field(0, title="Folder count", example=52)
     product_count: int = Field(0, title="Product count", example=587)
@@ -29,6 +34,9 @@ class ProjectMetrics(OPModel):
         description="Duration in days",
         example=30,
     )
+
+    db_size: int | None = Field(None)
+    storage_utilization: int | None = Field(None)
 
     # Saturated metrics
 
@@ -52,7 +60,10 @@ class ProjectMetrics(OPModel):
     )
 
 
-async def get_project_counts(saturated: bool) -> ProjectCounts | None:
+async def get_project_counts(
+    saturated: bool = False,
+    system: bool = False,
+) -> ProjectCounts | None:
     """Number of total and active projects"""
     query = """
     SELECT
@@ -70,13 +81,14 @@ async def get_project_counts(saturated: bool) -> ProjectCounts | None:
 
 
 async def get_project_metrics(
-    project_name: str,
-    attrib: dict[str, Any],
-    config: dict[str, Any],
-    data: dict[str, Any],
-    saturated: bool,
+    project: ProjectEntity,
+    saturated: bool = False,
+    system: bool = False,
 ) -> ProjectMetrics:
-    result = {}
+    result: dict[str, Any] = {
+        "nickname": project.nickname,
+    }
+
     for entity_type in [
         "folder",
         "product",
@@ -87,7 +99,7 @@ async def get_project_metrics(
     ]:
         query = f"""
         SELECT COUNT(*) AS c
-        FROM project_{project_name}.{entity_type}s
+        FROM project_{project.name}.{entity_type}s
         """
 
         try:
@@ -96,76 +108,78 @@ async def get_project_metrics(
             continue
         result[f"{entity_type}_count"] = res[0]["c"]
 
-    if roots := config.get("roots", {}):
+    if roots := project.config.get("roots", {}):
         result["root_count"] = len(roots)
 
-    if teams := data.get("teams", []):
+    if teams := project.data.get("teams", []):
         result["team_count"] = len(teams)
 
-    start_date = attrib.get("startDate")
-    end_date = attrib.get("endDate")
+    start_date = project.attrib.startDate
+    end_date = project.attrib.endDate
     if start_date and end_date:
-        start_date_dt = datetime.fromisoformat(start_date)
-        end_date_dt = datetime.fromisoformat(end_date)
-        result["duration"] = (end_date_dt - start_date_dt).days
+        result["duration"] = (end_date - start_date).days
+
+    if system:
+        db_sizes = await system_metrics.get_db_sizes()
+        db_size = next(
+            (
+                m.value
+                for m in db_sizes
+                if m.tags.get("project", "").lower() == project.name.lower()
+            ),
+            None,
+        )
+        if db_size is None:
+            print("DB size is None for project", project.name)
+        result["db_size"] = db_size
+
+        storage_utilizations = await system_metrics.get_upload_sizes()
+        storage_utilization = next(
+            (
+                m.value
+                for m in storage_utilizations
+                if m.tags.get("project", "").lower() == project.name.lower()
+            ),
+            None,
+        )
+        if storage_utilization is None:
+            print("Storage utilization is None for project", project.name)
+        result["storage_utilization"] = storage_utilization
 
     if saturated:
-        for entity_type in ["folder", "task"]:
-            query = f"""
-            SELECT DISTINCT ({entity_type}_type) as t
-            FROM project_{project_name}.{entity_type}s
-            """
-
-            try:
-                res = await Postgres.fetch(query)
-            except Exception:
-                continue
-            else:
-                result[f"{entity_type}_types"] = [r["t"] for r in res]
-
-        query = f"SELECT name FROM project_{project_name}.statuses"
-        try:
-            res = await Postgres.fetch(query)
-        except Exception:
-            pass
-        else:
-            result["statuses"] = [r["name"] for r in res]
+        result["folder_types"] = [f["name"] for f in project.folder_types]
+        result["task_types"] = [t["name"] for t in project.task_types]
+        result["statuses"] = [s["name"] for s in project.statuses]
 
     return ProjectMetrics(**result)
 
 
-async def get_projects(saturated: bool) -> list[ProjectMetrics] | None:
+async def get_projects(
+    saturated: bool = False, system: bool = False
+) -> list[ProjectMetrics] | None:
     """Project specific metrics
 
     Contain information about size and usage of each active project.
     """
-    query = """
-    SELECT
-        name,
-        attrib,
-        config,
-        data
-    FROM projects
-    WHERE active IS TRUE;
-    """
+    projects = await get_project_list()
 
-    try:
-        res = await Postgres.fetch(query)
-    except Exception:
-        return None
-    return [
-        await get_project_metrics(
-            r["name"],
-            attrib=r["attrib"] or {},
-            config=r["config"] or {},
-            data=r["data"] or {},
+    res = []
+    for project_item in projects:
+        if not project_item.active:
+            continue
+        project = await ProjectEntity.load(project_item.name)
+        metrics = await get_project_metrics(
+            project=project,
             saturated=saturated,
+            system=system,
         )
-        for r in res
-    ]
+        res.append(metrics)
+    return res
 
 
-async def get_average_project_event_count(saturated: bool) -> int | None:
+async def get_average_project_event_count(
+    saturated: bool = False, system: bool = False
+) -> int | None:
     """Average number of events per project
 
     This disregards projects with less than 300 events

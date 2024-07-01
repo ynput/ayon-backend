@@ -25,7 +25,9 @@ class SettingsOverrides(OPModel):
     )
 
 
-async def get_studio_settings_overrides(saturated: bool) -> list[SettingsOverrides]:
+async def get_studio_settings_overrides(
+    saturated: bool = False, system: bool = False
+) -> list[SettingsOverrides]:
     """Studio settings overrides
 
     We track what settings are overridden in the studio settings.

@@ -20,7 +20,9 @@ class ProductionBundle(OPModel):
     )
 
 
-async def get_production_bundle(saturated: bool) -> ProductionBundle | None:
+async def get_production_bundle(
+    saturated: bool = False, system: bool = False
+) -> ProductionBundle | None:
     """Addons and their versions used in the production bundle
 
     We track what addons are used in the production bundle, as well as what
@@ -49,7 +51,9 @@ async def get_production_bundle(saturated: bool) -> ProductionBundle | None:
     )
 
 
-async def get_installed_addons(saturated: bool) -> list[tuple[str, str]]:
+async def get_installed_addons(
+    saturated: bool = False, system: bool = False
+) -> list[tuple[str, str]]:
     """Addons and their versions installed on the server
 
     We track what addons are installed on the server, and compare this to the
