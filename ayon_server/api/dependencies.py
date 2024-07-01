@@ -14,7 +14,7 @@ from ayon_server.exceptions import (
     UnauthorizedException,
     UnsupportedMediaException,
 )
-from ayon_server.helpers.project_list import get_project_list
+from ayon_server.helpers.project_list import build_project_list, get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import (
@@ -219,6 +219,13 @@ async def dep_project_name(
     """
 
     project_list = await get_project_list()
+
+    for pn in project_list:
+        if project_name.lower() == pn.name.lower():
+            return pn.name
+
+    # try again
+    project_list = await build_project_list()
 
     for pn in project_list:
         if project_name.lower() == pn.name.lower():

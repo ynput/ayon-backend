@@ -212,12 +212,13 @@ class ProjectEntity(TopLevelEntity):
     async def save(self, transaction=None) -> bool:
         """Save the project to the database."""
         if transaction:
-            return await self._save(transaction)
+            res = await self._save(transaction)
         else:
             async with Postgres.acquire() as conn:
                 async with conn.transaction():
-                    return await self._save(conn)
+                    res = await self._save(conn)
         await build_project_list()
+        return res
 
     async def _save(self, transaction) -> bool:
         assert self.folder_types, "Project must have at least one folder type"

@@ -15,7 +15,7 @@ class ProjectListItem(OPModel):
     nickname: str
 
 
-async def build_project_list() -> list[dict[str, Any]]:
+async def build_project_list() -> list[ProjectListItem]:
     q = """SELECT name, code, active, created_at FROM projects ORDER BY name ASC"""
     result: list[dict[str, Any]] = []
     async for row in Postgres.iterate(q):
@@ -29,13 +29,14 @@ async def build_project_list() -> list[dict[str, Any]]:
             }
         )
     await Redis.set("global", "project-list", json_dumps(result))
-    return result
+    return [ProjectListItem(**item) for item in result]
 
 
 async def get_project_list() -> list[ProjectListItem]:
     project_list = await Redis.get("global", "project-list")
     if project_list is None:
         project_list = await build_project_list()
+        return project_list
     else:
         project_list = json_loads(project_list)
-    return [ProjectListItem(**item) for item in project_list]
+        return [ProjectListItem(**item) for item in project_list]
