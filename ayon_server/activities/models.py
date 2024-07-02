@@ -6,6 +6,7 @@ from ayon_server.utils import create_uuid
 
 ActivityType = Literal[
     "comment",
+    "review.create",
     "status.change",
     "assignee.add",
     "assignee.remove",

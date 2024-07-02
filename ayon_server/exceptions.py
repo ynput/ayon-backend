@@ -90,6 +90,13 @@ class UnsupportedMediaException(AyonException):
     status: int = 415
 
 
+class RangeNotSatisfiableException(AyonException):
+    """Exception raised when a Range Request is not satisfiable."""
+
+    detail: str = "Range Not Satisfiable"
+    status: int = 416
+
+
 class LowPasswordComplexityException(AyonException):
     """Exception raised when a new password doesn't meet the required complexity."""
 
