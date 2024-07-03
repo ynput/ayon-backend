@@ -19,6 +19,7 @@ class ReviewableModel(OPModel):
     mimetype: str = Field(..., title="Reviewable Mimetype")
     version_id: str = Field(..., title="Version ID")
     version: int = Field(..., title="Version")
+    version_name: str = Field(..., title="Version Name")
     previewable: bool = Field(True, title="Is the file previewable?")
 
 
@@ -31,7 +32,7 @@ async def list_reviewables(
     # user: CurrentUser,
     project_name: ProjectName,
     product_id: str = Query(..., description="Product ID", alias="product"),
-) -> ReviewableListModel:
+) -> list[ReviewableModel]:
     """Returns a list of reviewables for a given product."""
 
     query = f"""
@@ -43,7 +44,8 @@ async def list_reviewables(
             files.data->>'label' AS label,
 
             versions.id AS version_id,
-            versions.version AS version
+            versions.version AS version,
+            versions.status AS version_status
 
         FROM
             project_{project_name}.files AS files
@@ -59,10 +61,18 @@ async def list_reviewables(
         WHERE
             versions.product_id = $1
 
+        ORDER BY
+            versions.version ASC,
+            af.created_at ASC
+
     """
 
     reviewables: list[ReviewableModel] = []
     async for row in Postgres.iterate(query, product_id):
-        reviewables.append(ReviewableModel(**row))
+        if row["version"] < 0:
+            version_name = "HERO"
+        else:
+            version_name = f"v{row['version']:03d}"
+        reviewables.append(ReviewableModel(**row, version_name=version_name))
 
-    return ReviewableListModel(reviewables=reviewables)
+    return reviewables
