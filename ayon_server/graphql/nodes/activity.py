@@ -103,7 +103,7 @@ class ActivityNode:
 
     @strawberry.field
     async def version(self, info: Info) -> Optional["VersionNode"]:
-        if self.activity_type not in ["version.publish"]:
+        if self.activity_type not in ["version.publish", "reviewable"]:
             return None
 
         data = json_loads(self.activity_data)
