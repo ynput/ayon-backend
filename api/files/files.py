@@ -1,10 +1,11 @@
 import os
 
-from fastapi import Header, Query, Request, Response
+import aiocache
+from fastapi import Header, Request, Response
 from starlette.responses import FileResponse
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName
-from ayon_server.api.files import handle_download, handle_upload
+from ayon_server.api.files import handle_upload
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import (
     BadRequestException,
@@ -18,6 +19,7 @@ from ayon_server.utils import create_uuid
 
 from .preview import get_file_preview, uncache_file_preview
 from .router import router
+from .video import serve_video
 
 
 def check_user_access(project_name: ProjectName, user: CurrentUser) -> None:
@@ -135,14 +137,8 @@ async def delete_project_file(
     return EmptyResponse()
 
 
-@router.head("/{file_id}")
-async def get_project_file_head(
-    project_name: ProjectName,
-    file_id: str,
-    user: CurrentUser,
-) -> Response:
-    check_user_access(project_name, user)
-
+@aiocache.cached(ttl=20)
+async def get_file_headers(project_name: str, file_id: str) -> dict[str, str]:
     res = await Postgres.fetch(
         f"""
         SELECT size, data FROM project_{project_name}.files
@@ -154,27 +150,35 @@ async def get_project_file_head(
         raise NotFoundException("File not found")
 
     data = res[0]["data"]
-    mime = data["mime"]
-    size = res[0]["size"]
-    filename = data["filename"]
+    headers = {
+        "Content-Length": str(res[0]["size"]),
+        "Content-Type": data["mime"],
+        "Content-Disposition": f'inline; filename="{data["filename"]}"',
+    }
+    return headers
 
+
+@router.head("/{file_id}")
+async def get_project_file_head(
+    project_name: ProjectName,
+    file_id: str,
+    user: CurrentUser,
+) -> Response:
+    check_user_access(project_name, user)
+    headers = await get_file_headers(project_name, file_id)
     return Response(
         None,
         status_code=200,
-        headers={
-            "Content-Length": str(size),
-            "Content-Type": mime,
-            "Content-Disposition": f'inline; filename="{filename}"',
-        },
+        headers=headers,
     )
 
 
 @router.get("/{file_id}", response_model=None)
-async def download_project_file(
+async def get_project_file(
+    request: Request,
     project_name: ProjectName,
     file_id: str,
     user: CurrentUser,
-    preview: bool = Query(False, alias="preview", description="Preview mode"),
 ) -> FileResponse | Response:
     """Get a project file (comment attachment etc.)
 
@@ -186,26 +190,26 @@ async def download_project_file(
 
     path = id_to_path(project_name, file_id)
 
-    if preview:
-        return await get_file_preview(project_name, file_id)
+    headers = await get_file_headers(project_name, file_id)
 
-    res = await Postgres.fetch(
-        f"""
-        SELECT data FROM project_{project_name}.files
-        WHERE id = $1
-        """,
-        file_id,
-    )
-    if not res:
-        raise NotFoundException("File not found")
+    if headers["Content-Type"].startswith("video"):
+        return await serve_video(request, path)
 
-    data = res[0]["data"]
-    mime = data["mime"]
-    filename = data["filename"]
+    return FileResponse(path, headers=headers)
 
-    return await handle_download(
-        path,
-        media_type=mime,
-        filename=filename,
-        content_disposition_type="inline",
-    )
+
+@router.get("/{file_id}/thumbnail", response_model=None)
+async def get_project_file_thumbnail(
+    project_name: ProjectName,
+    file_id: str,
+    user: CurrentUser,
+) -> FileResponse | Response:
+    """Get a project file (comment attachment etc.)
+
+    The `preview` query parameter can be used to get
+    a preview of the file (if available).
+    """
+
+    check_user_access(project_name, user)
+
+    return await get_file_preview(project_name, file_id)
