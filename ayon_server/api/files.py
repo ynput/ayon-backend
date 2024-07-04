@@ -22,12 +22,23 @@ async def handle_upload(request: Request, target_path: str) -> int:
             raise AyonException(f"Failed to create directory: {e}") from e
 
     i = 0
-    async with aiofiles.open(target_path, "wb") as f:
-        async for chunk in request.stream():
-            await f.write(chunk)
-            i += len(chunk)
+    try:
+        async with aiofiles.open(target_path, "wb") as f:
+            async for chunk in request.stream():
+                await f.write(chunk)
+                i += len(chunk)
+    except Exception as e:
+        try:
+            os.remove(target_path)
+        except Exception:
+            pass
+        raise AyonException(f"Failed to write file: {e}") from e
 
     if i == 0:
+        try:
+            os.remove(target_path)
+        except Exception:
+            pass
         raise BadRequestException("Empty file")
 
     return i
