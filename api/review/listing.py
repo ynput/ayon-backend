@@ -1,4 +1,5 @@
 from ayon_server.api.dependencies import CurrentUser, ProductID, ProjectName, VersionID
+from ayon_server.entities import ProductEntity, VersionEntity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
@@ -99,20 +100,28 @@ async def get_reviewables(
 
 
 @router.get("/products/{product_id}/reviewables")
-async def list_reviewables_for_product(
+async def get_reviewables_for_product(
     user: CurrentUser,
     project_name: ProjectName,
     product_id: ProductID,
 ) -> list[VersionReviewablesModel]:
     """Returns a list of reviewables for a given product."""
 
+    product = await ProductEntity.load(project_name, product_id)
+    await product.ensure_read_access(user)
+
     return await get_reviewables(project_name, product_id=product_id)
 
 
 @router.get("/versions/{version_id}/reviewables")
-async def list_reviewables_for_version(
+async def get_reviewables_for_version(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
 ) -> VersionReviewablesModel:
+    """Returns a list of reviewables for a given version."""
+
+    version = await VersionEntity.load(project_name, version_id)
+    await version.ensure_read_access(user)
+
     return (await get_reviewables(project_name, version_id=version_id))[0]
