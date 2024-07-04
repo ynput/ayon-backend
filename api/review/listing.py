@@ -1,14 +1,8 @@
-from typing import Literal
-
-from fastapi import Query
-
-from ayon_server.api.dependencies import ProjectName
+from ayon_server.api.dependencies import CurrentUser, ProductID, ProjectName, VersionID
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .router import router
-
-ReviewableType = Literal["image", "video"]
 
 
 class ReviewableModel(OPModel):
@@ -17,23 +11,31 @@ class ReviewableModel(OPModel):
     filename: str = Field(..., title="Reviewable Name")
     label: str | None = Field(None, title="Reviewable Label")
     mimetype: str = Field(..., title="Reviewable Mimetype")
-    version_id: str = Field(..., title="Version ID")
-    version: int = Field(..., title="Version")
-    version_name: str = Field(..., title="Version Name")
-    previewable: bool = Field(True, title="Is the file previewable?")
+    status: str = Field("ready", title="Reviewable Status")
 
 
-class ReviewableListModel(OPModel):
-    reviewables: list[ReviewableModel]
+class VersionReviewablesModel(OPModel):
+    id: str = Field(..., title="Version ID")
+    name: str = Field(..., title="Version Name")
+    version: str = Field(..., title="Version Number")
+    status: str = Field(..., title="Version Status")
+
+    reviewables: list[ReviewableModel] = Field(
+        default_factory=list, title="Reviewables"
+    )
 
 
-@router.get("")
-async def list_reviewables(
-    # user: CurrentUser,
-    project_name: ProjectName,
-    product_id: str = Query(..., description="Product ID", alias="product"),
-) -> list[ReviewableModel]:
-    """Returns a list of reviewables for a given product."""
+async def get_reviewables(
+    project_name: str,
+    version_id: str | None = None,
+    product_id: str | None = None,
+) -> list[VersionReviewablesModel]:
+    if version_id:
+        cond = "versions.id = $1"
+        cval = version_id
+    elif product_id:
+        cond = "versions.product_id = $1"
+        cval = product_id
 
     query = f"""
         SELECT
@@ -59,20 +61,58 @@ async def list_reviewables(
             ON af.entity_id = versions.id
             AND af.entity_type = 'version'
         WHERE
-            versions.product_id = $1
+            {cond}
 
         ORDER BY
             versions.version ASC,
             af.created_at ASC
-
     """
 
-    reviewables: list[ReviewableModel] = []
-    async for row in Postgres.iterate(query, product_id):
+    versions: dict[str, VersionReviewablesModel] = {}
+    async for row in Postgres.iterate(query, cval):
         if row["version"] < 0:
             version_name = "HERO"
         else:
             version_name = f"v{row['version']:03d}"
-        reviewables.append(ReviewableModel(**row, version_name=version_name))
 
-    return reviewables
+        if row["version_id"] not in versions:
+            versions[row["version_id"]] = VersionReviewablesModel(
+                id=row["version_id"],
+                name=version_name,
+                version=row["version"],
+                status=row["version_status"],
+                reviewables=[],
+            )
+
+        versions[row["version_id"]].reviewables.append(
+            ReviewableModel(
+                file_id=row["file_id"],
+                activity_id=row["activity_id"],
+                filename=row["filename"],
+                label=row["label"],
+                mimetype=row["mimetype"],
+                status="ready",
+            )
+        )
+
+    return list(versions.values())
+
+
+@router.get("/products/{product_id}/reviewables")
+async def list_reviewables_for_product(
+    user: CurrentUser,
+    project_name: ProjectName,
+    product_id: ProductID,
+) -> list[VersionReviewablesModel]:
+    """Returns a list of reviewables for a given product."""
+
+    return await get_reviewables(project_name, product_id=product_id)
+
+
+@router.get("/versions/{version_id}/reviewables")
+async def list_reviewables_for_version(
+    user: CurrentUser,
+    project_name: ProjectName,
+    version_id: VersionID,
+) -> VersionReviewablesModel:
+    return (await get_reviewables(project_name, version_id=version_id))[0]
