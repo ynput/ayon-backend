@@ -137,6 +137,7 @@ async def upload_reviewable(
         body=f"Reviewable '{label}' uploaded",
         files=[file_id],
         data={"reviewableLabel": label},
+        user_name=user.name,
     )
 
     summary = {

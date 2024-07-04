@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal
 
 from ayon_server.api.dependencies import CurrentUser, ProductID, ProjectName, VersionID
@@ -8,6 +9,11 @@ from ayon_server.types import Field, OPModel
 from .router import router
 
 ReviewableAvailability = Literal["unknown", "needs_conversion", "ready"]
+
+
+class ReviewableAuthor(OPModel):
+    name: str = Field(..., title="Author Name")
+    full_name: str | None = Field(None, title="Author Full Name")
 
 
 class ReviewableProcessingStatus(OPModel):
@@ -31,6 +37,9 @@ class ReviewableModel(OPModel):
         None,
         description="Information about the processing status",
     )
+    created_at: datetime = Field(...)
+    updated_at: datetime = Field(...)
+    author: ReviewableAuthor = Field(..., title="Author Information")
 
 
 class VersionReviewablesModel(OPModel):
@@ -85,6 +94,9 @@ async def get_reviewables(
             af.activity_id as activity_id,
             files.data as file_data,
             af.activity_data->>'reviewableLabel' AS label,
+            af.activity_data->>'author' AS author_name,
+            users.attrib->>'fullName' AS author_full_name,
+
 
             events.id AS event_id,
             events.status AS status,
@@ -92,7 +104,10 @@ async def get_reviewables(
 
             versions.id AS version_id,
             versions.version AS version,
-            versions.status AS version_status
+            versions.status AS version_status,
+
+            af.created_at,
+            af.updated_at
 
         FROM
             project_{project_name}.versions AS versions
@@ -100,6 +115,10 @@ async def get_reviewables(
             project_{project_name}.activity_feed af
             ON af.entity_id = versions.id
             AND af.entity_type = 'version'
+
+        LEFT JOIN
+            public.users AS users
+            ON users.name = af.activity_data->>'author'
 
         LEFT JOIN
             project_{project_name}.files AS files
@@ -159,6 +178,8 @@ async def get_reviewables(
             ReviewableModel(
                 activity_id=row["activity_id"],
                 availability=availability,
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
                 created_from=created_from,
                 file_id=row["file_id"],
                 filename=file_data["filename"],
@@ -166,6 +187,10 @@ async def get_reviewables(
                 media_info=media_info,
                 mimetype=file_data["mime"],
                 processing=processing,
+                author=ReviewableAuthor(
+                    name=row["author_name"],
+                    full_name=row["author_full_name"] or None,
+                ),
             )
         )
 
