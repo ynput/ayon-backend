@@ -1,9 +1,19 @@
+from typing import Any, Literal
+
 from ayon_server.api.dependencies import CurrentUser, ProductID, ProjectName, VersionID
 from ayon_server.entities import ProductEntity, VersionEntity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .router import router
+
+ReviewableAvailability = Literal["unknown", "needs_conversion", "ready"]
+
+
+class ReviewableProcessingStatus(OPModel):
+    event_id: str = Field(..., title="Event ID")
+    status: str = Field(..., title="Processing Status")
+    description: str = Field(..., title="Processing Description")
 
 
 class ReviewableModel(OPModel):
@@ -12,18 +22,48 @@ class ReviewableModel(OPModel):
     filename: str = Field(..., title="Reviewable Name")
     label: str | None = Field(None, title="Reviewable Label")
     mimetype: str = Field(..., title="Reviewable Mimetype")
-    status: str = Field("ready", title="Reviewable Status")
+    availability: ReviewableAvailability = Field(
+        "unknown", title="Reviewable availability"
+    )
+    media_info: dict[str, Any] | None = Field(None, title="Media information")
+    processing: ReviewableProcessingStatus | None = Field(
+        None,
+        description="Information about the processing status",
+    )
 
 
 class VersionReviewablesModel(OPModel):
-    id: str = Field(..., title="Version ID")
-    name: str = Field(..., title="Version Name")
-    version: str = Field(..., title="Version Number")
-    status: str = Field(..., title="Version Status")
+    id: str = Field(
+        ..., title="Version ID", example="1a3b34ce-1b2c-4d5e-6f7a-8b9c0d1e2f3a"
+    )
+    name: str = Field(..., title="Version Name", example="v001")
+    version: str = Field(..., title="Version Number", example=1)
+    status: str = Field(..., title="Version Status", example="In Review")
 
     reviewables: list[ReviewableModel] = Field(
-        default_factory=list, title="Reviewables"
+        default_factory=list,
+        title="Reviewables",
+        description="List of available reviewables",
     )
+
+
+COMPATIBILITY = {
+    "codec": ["h264"],
+    "pixelFormat": ["yuv420p"],
+}
+
+
+def availability_from_video_metadata(
+    video_metadata: dict[str, Any],
+) -> ReviewableAvailability:
+    if not video_metadata:
+        return "unknown"
+    for key, values in COMPATIBILITY.items():
+        if key not in video_metadata:
+            return "unknown"
+        if video_metadata[key] not in values:
+            return "needs_conversion"
+    return "ready"
 
 
 async def get_reviewables(
@@ -42,25 +82,37 @@ async def get_reviewables(
         SELECT
             files.id as file_id,
             af.activity_id as activity_id,
-            files.data->>'mime' AS mimetype,
-            files.data->>'filename' AS filename,
-            files.data->>'label' AS label,
+            files.data as file_data,
+            af.activity_data->>'reviewableLabel' AS label,
+
+            events.id AS event_id,
+            events.status AS status,
+            events.description AS description,
 
             versions.id AS version_id,
             versions.version AS version,
             versions.status AS version_status
 
         FROM
-            project_{project_name}.files AS files
-        JOIN
+            project_{project_name}.versions AS versions
+        LEFT JOIN
             project_{project_name}.activity_feed af
+            ON af.entity_id = versions.id
+            AND af.entity_type = 'version'
+
+        LEFT JOIN
+            project_{project_name}.files AS files
             ON files.activity_id = af.activity_id
             AND af.activity_type = 'reviewable'
             AND af.reference_type = 'origin'
-        JOIN
-            project_{project_name}.versions AS versions
-            ON af.entity_id = versions.id
-            AND af.entity_type = 'version'
+
+        LEFT JOIN
+            public.events AS events
+            ON
+                events.project_name = '{project_name}' AND
+                events.topic = 'reviewable.processing' AND
+                events.created_at >= af.created_at AND
+                (events.summary->>'fileId')::UUID = files.id
         WHERE
             {cond}
 
@@ -85,14 +137,32 @@ async def get_reviewables(
                 reviewables=[],
             )
 
+        if not row["file_id"]:
+            continue
+
+        if row["event_id"]:
+            processing = ReviewableProcessingStatus(
+                event_id=row["event_id"],
+                status=row["event_status"],
+                description=row["event_description"],
+            )
+        else:
+            processing = None
+
+        file_data = row["file_data"] or {}
+        media_info = file_data.get("mediaInfo", {})
+        availability = availability_from_video_metadata(media_info)
+
         versions[row["version_id"]].reviewables.append(
             ReviewableModel(
                 file_id=row["file_id"],
                 activity_id=row["activity_id"],
-                filename=row["filename"],
                 label=row["label"],
-                mimetype=row["mimetype"],
-                status="ready",
+                filename=file_data["filename"],
+                mimetype=file_data["mime"],
+                availability=availability,
+                processing=processing,
+                media_info=media_info,
             )
         )
 
