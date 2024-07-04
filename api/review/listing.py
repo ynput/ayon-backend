@@ -26,6 +26,7 @@ class ReviewableModel(OPModel):
         "unknown", title="Reviewable availability"
     )
     media_info: dict[str, Any] | None = Field(None, title="Media information")
+    created_from: str | None = Field(None, title="File ID of the original file")
     processing: ReviewableProcessingStatus | None = Field(
         None,
         description="Information about the processing status",
@@ -152,17 +153,19 @@ async def get_reviewables(
         file_data = row["file_data"] or {}
         media_info = file_data.get("mediaInfo", {})
         availability = availability_from_video_metadata(media_info)
+        created_from = file_data.get("createdFrom")
 
         versions[row["version_id"]].reviewables.append(
             ReviewableModel(
-                file_id=row["file_id"],
                 activity_id=row["activity_id"],
-                label=row["label"],
-                filename=file_data["filename"],
-                mimetype=file_data["mime"],
                 availability=availability,
-                processing=processing,
+                created_from=created_from,
+                file_id=row["file_id"],
+                filename=file_data["filename"],
+                label=row["label"],
                 media_info=media_info,
+                mimetype=file_data["mime"],
+                processing=processing,
             )
         )
 
