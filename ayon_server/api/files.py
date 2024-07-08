@@ -64,6 +64,12 @@ async def handle_download(
     )
 
 
+def print_escaped_bytes(byte_data: bytes):
+    decoded_str = byte_data.decode("ascii", "ignore")
+    escaped_str = decoded_str.encode("unicode_escape")
+    print(escaped_str)
+
+
 def guess_mime_type(image_bytes: bytes) -> str | None:
     """Guess the MIME type of an image from its bytes."""
     if image_bytes[0:4] == b"\x89PNG":
@@ -84,6 +90,9 @@ def guess_mime_type(image_bytes: bytes) -> str | None:
         media_type = "image/gif"
     else:
         media_type = None
+        bytes_prefix = image_bytes[:16]
+        print("Unknown image format:")
+        print_escaped_bytes(bytes_prefix)
     return media_type
 
 
