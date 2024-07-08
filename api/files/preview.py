@@ -77,8 +77,6 @@ async def create_video_thumbnail(
                 "1",
                 "-c:v",
                 "mjpeg",
-                # "-f",
-                # "image2",
                 temp_path,
             ]
             logging.debug(" ".join(cmd))
