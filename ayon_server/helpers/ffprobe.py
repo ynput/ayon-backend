@@ -1,8 +1,9 @@
 import asyncio
 import json
+from typing import Any
 
 
-async def ffprobe(file_path: str) -> dict:
+async def ffprobe(file_path: str) -> dict[str, Any]:
     """Runs ffprobe on a file and returns the metadata."""
     process = await asyncio.create_subprocess_exec(
         "ffprobe",

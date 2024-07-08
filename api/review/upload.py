@@ -15,6 +15,7 @@ from ayon_server.helpers.project_files import id_to_path
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
+from .common import ReviewableAuthor, ReviewableModel, availability_from_video_metadata
 from .router import router
 
 
@@ -73,6 +74,8 @@ def check_valid_mime(content_type: str) -> None:
         return None
     if content_type.lower() in ["application/mxf"]:
         return None
+    if content_type.lower().startswith("image/"):
+        return None
     raise BadRequestException("Only videos are supported for reviewables now")
 
 
@@ -86,7 +89,7 @@ async def upload_reviewable(
     content_type: str = Header(...),
     x_file_name: str | None = Header(None),
     x_sender: str | None = Header(None),
-) -> None:
+) -> ReviewableModel:
     """Uploads a reviewable for a given version."""
 
     check_valid_mime(content_type)
@@ -131,7 +134,7 @@ async def upload_reviewable(
 
     # Create activity
 
-    await create_activity(
+    activity_id = await create_activity(
         version,
         "reviewable",
         body=f"Reviewable '{label}' uploaded",
@@ -156,4 +159,17 @@ async def upload_reviewable(
         project=project_name,
         summary=summary,
         description=f"Reviewable '{x_file_name}' uploaded",
+    )
+
+    return ReviewableModel(
+        file_id=file_id,
+        activity_id=activity_id,
+        filename=x_file_name,
+        label=label,
+        mimetype=content_type,
+        availability=availability_from_video_metadata(media_info),
+        media_info=media_info,
+        created_from=None,
+        processing=None,
+        author=ReviewableAuthor(name=user.name, full_name=user.attrib.fullName),
     )
