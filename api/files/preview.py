@@ -18,6 +18,7 @@ from ayon_server.lib.redis import Redis
 
 REDIS_NS = "project.file_preview"
 FILE_PREVIEW_SIZE = (600, None)
+PREVIEW_CACHE_TTL = 3600 * 24
 
 
 def is_image_mime_type(mime_type: str) -> bool:
@@ -166,7 +167,7 @@ async def get_file_preview(
     if pvw_bytes is None:
         try:
             pvw_bytes = await obtain_file_preview(project_name, file_id)
-            await Redis.set(REDIS_NS, key, pvw_bytes)
+            await Redis.set(REDIS_NS, key, pvw_bytes, ttl=PREVIEW_CACHE_TTL)
         except ServiceUnavailableException:
             await asyncio.sleep(0.2)
             if retries < 5:
