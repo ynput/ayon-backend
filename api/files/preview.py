@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import aiofiles
@@ -14,16 +15,63 @@ from ayon_server.lib.redis import Redis
 REDIS_NS = "project.file_preview"
 FILE_PREVIEW_SIZE = (600, None)
 
-IMAGE_MIME_TYPES = [
-    "image/png",
-    "image/jpeg",
-    "image/gif",
-    "image/tiff",
-    "image/bmp",
-    "image/webp",
-    "image/ico",
-    "image/vnd.adobe.photoshop",
-]
+
+def is_image_mime_type(mime_type: str) -> bool:
+    mime_type = mime_type.lower()
+    return mime_type in [
+        "image/png",
+        "image/jpeg",
+        "image/gif",
+        "image/tiff",
+        "image/bmp",
+        "image/webp",
+        "image/ico",
+        "image/vnd.adobe.photoshop",
+    ]
+
+
+def is_video_mime_type(mime_type: str) -> bool:
+    mime_type = mime_type.lower()
+    if mime_type.startswith("video/"):
+        return True
+    if mime_type == "application/mxf":
+        return True
+    return False
+
+
+async def create_video_thumbnail(
+    video_path: str, size: tuple[int | None, int | None]
+) -> bytes:
+    """Create a thumbnail image for a video file.
+
+    Returns the thumbnail image as bytes.
+    """
+
+    async with aiofiles.tempfile.NamedTemporaryFile(
+        suffix=".jpg", delete=True
+    ) as temp_file:
+        temp_path = temp_file.name
+
+        cmd = [
+            "ffmpeg",
+            "-i",
+            video_path,
+            "-vf",
+            f"thumbnail,scale={size[0] or -1 }:{size[1] or -1}",
+            "-frames:v",
+            "1",
+            "-f",
+            "image2",
+            temp_path,
+        ]
+
+        proc = await asyncio.create_subprocess_exec(*cmd)
+        await proc.communicate()
+
+        async with aiofiles.open(temp_path, "rb") as f:
+            image_bytes = await f.read()
+
+    return image_bytes
 
 
 async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
@@ -57,7 +105,7 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
     if os.path.getsize(path) != expected_size:
         logging.warning(f"File size mismatch: {path}")
 
-    if mime_type in IMAGE_MIME_TYPES:
+    if is_image_mime_type(mime_type):
         async with aiofiles.open(path, "rb") as f:
             image_bytes = await f.read()
             pvw_bytes = await process_thumbnail(
@@ -66,6 +114,10 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
                 format="JPEG",
             )
             return pvw_bytes
+
+    if is_video_mime_type(mime_type):
+        pvw_bytes = await create_video_thumbnail(path, FILE_PREVIEW_SIZE)
+        return pvw_bytes
 
     # TODO: return a generic preview image for other file types
     raise UnsupportedMediaException("Preview mode is not supported for this file")
