@@ -1,12 +1,8 @@
-from pydantic import Field
-
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.events import dispatch_event, update_event
-from ayon_server.lib.postgres import Postgres
-from ayon_server.sqlfilter import Filter, build_filter
-from ayon_server.types import TOPIC_REGEX, OPModel
-from ayon_server.utils import hash_data
+from ayon_server.helpers.enroll import EnrollResponseModel, enroll_job
+from ayon_server.sqlfilter import Filter
+from ayon_server.types import TOPIC_REGEX, Field, OPModel
 
 from .router import router
 
@@ -52,13 +48,6 @@ class EnrollRequestModel(OPModel):
     debug: bool = False
 
 
-class EnrollResponseModel(OPModel):
-    id: str = Field(...)
-    depends_on: str = Field(...)
-    hash: str = Field(...)
-    status: str = Field("pending")
-
-
 # response model must be here
 @router.post("/enroll", response_model=EnrollResponseModel)
 async def enroll(
@@ -74,142 +63,24 @@ async def enroll(
     Non-error response is returned because having nothing to do is not an error
     and we don't want to spam the logs.
     """
-    sender = payload.sender
 
-    if payload.description is None:
-        description = f"Convert from {payload.source_topic} to {payload.target_topic}"
-    else:
-        description = payload.description
+    assert "*" not in payload.target_topic, "Target topic must not contain wildcards"
+    source_topic = payload.source_topic.replace("*", "%")
 
-    filter = build_filter(payload.filter, table_prefix="source_events") or "TRUE"
+    user_name = current_user.name
 
-    # Iterate thru unprocessed source events starting
-    # by the oldest one
-
-    query = f"""
-        SELECT
-            source_events.id AS source_id,
-            target_events.status AS target_status,
-            target_events.sender AS target_sender,
-            target_events.retries AS target_retries,
-            target_events.hash AS target_hash,
-            target_events.retries AS target_retries,
-            target_events.id AS target_id
-        FROM
-            events AS source_events
-        LEFT JOIN
-            events AS target_events
-        ON
-            target_events.depends_on = source_events.id
-            AND target_events.topic = $2
-
-        WHERE
-            source_events.topic ILIKE $1
-        AND
-            source_events.status = 'finished'
-        AND
-            {filter}
-        AND
-            source_events.id NOT IN (
-                SELECT depends_on
-                FROM events
-                WHERE topic = $2
-                AND (
-
-                    -- skip events that are already finished
-
-                    status = 'finished'
-
-                    -- skip events that are already failed and have
-                    -- reached max retries
-
-                    OR (status = 'failed' AND retries > $3)
-                )
-            )
-
-        ORDER BY source_events.created_at ASC
-    """
-
-    source_topic = payload.source_topic
-    target_topic = payload.target_topic
-    assert "*" not in target_topic, "Target topic must not contain wildcards"
-    source_topic = source_topic.replace("*", "%")
-
-    if payload.debug:
-        print(query)
-        print("source_topic", payload.source_topic)
-        print("target_topic", payload.target_topic)
-
-    async for row in Postgres.iterate(
-        query,
+    res = await enroll_job(
         source_topic,
-        target_topic,
-        payload.max_retries,
-    ):
-        # Check if target event already exists
-        if row["target_status"] is not None:
-            if row["target_status"] in ["failed", "restarted"]:
-                # events which have reached max retries are already
-                # filtered out by the query above,
-                # so we can just retry them - update status to pending
-                # and increase retries counter
+        payload.target_topic,
+        payload.sender,
+        user_name,
+        description=payload.description,
+        sequential=payload.sequential,
+        filter=payload.filter,
+        max_retries=payload.max_retries,
+    )
 
-                retries = row["target_retries"]
-                if row["target_status"] == "failed":
-                    retries += 1
+    if res is None:
+        return EmptyResponse()
 
-                event_id = row["target_id"]
-                await update_event(
-                    event_id,
-                    status="pending",
-                    sender=sender,
-                    user=current_user.name,
-                    retries=retries,
-                    description="Restarting failed event",
-                )
-                return EnrollResponseModel(
-                    id=event_id,
-                    hash=row["target_hash"],
-                    depends_on=row["source_id"],
-                )
-
-            if row["target_sender"] != sender:
-                # There is already a target event for this source event.
-                # Check who is the sender. If it's not us, then we can't
-                # enroll for this job (the other worker is already working on it)
-                if payload.sequential:
-                    return EmptyResponse()
-                continue
-
-            # We are the sender of the target event, so it is possible that,
-            # for some reason, we have not finished processing it yet.
-            # In this case, we can't enroll for this job again.
-
-            return EnrollResponseModel(
-                id=row["target_id"],
-                depends_on=row["source_id"],
-                status=row["target_status"],
-                hash=row["target_hash"],
-            )
-
-        # Target event does not exist yet. Create a new one
-        new_hash = hash_data((payload.target_topic, row["source_id"]))
-        new_id = await dispatch_event(
-            payload.target_topic,
-            sender=sender,
-            hash=new_hash,
-            depends_on=row["source_id"],
-            user=current_user.name,
-            description=description,
-            finished=False,
-        )
-
-        if new_id:
-            return EnrollResponseModel(
-                id=new_id, hash=new_hash, depends_on=row["source_id"]
-            )
-        elif payload.sequential:
-            return EmptyResponse()
-
-    # nothing to do. return empty response
-    return EmptyResponse()
+    return res
