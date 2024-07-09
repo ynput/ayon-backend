@@ -1,6 +1,6 @@
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.helpers.enroll import EnrollResponseModel, enroll_job
+from ayon_server.events.enroll import EnrollResponseModel, enroll_job
 from ayon_server.sqlfilter import Filter
 from ayon_server.types import TOPIC_REGEX, Field, OPModel
 

@@ -4,7 +4,7 @@ from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser, EventID
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.events import EventModel, EventStatus, dispatch_event, update_event
+from ayon_server.events import EventModel, EventStatus, EventStream
 from ayon_server.events.typing import (
     DEPENDS_ON_FIELD,
     DESCRIPTION_FIELD,
@@ -97,7 +97,7 @@ async def post_event(
         if request.topic not in normal_user_topic_whitelist:
             raise ForbiddenException("Not allowed to update this event")
 
-    event_id = await dispatch_event(
+    event_id = await EventStream.dispatch(
         request.topic,
         sender=request.sender,
         hash=request.hash,
@@ -118,34 +118,10 @@ async def get_event(user: CurrentUser, event_id: EventID) -> EventModel:
     Return event data with given ID. If event is not found, 404 is returned.
     """
 
-    query = "SELECT * FROM events WHERE id = $1", event_id
-
     if user.is_guest:
         raise ForbiddenException("Guests are not allowed to get events this way")
 
-    event: EventModel | None = None
-    async for record in Postgres.iterate(*query):
-        event = EventModel(
-            id=record["id"],
-            hash=record["hash"],
-            topic=record["topic"],
-            project=record["project_name"],
-            user=record["user_name"],
-            sender=record["sender"],
-            depends_on=record["depends_on"],
-            status=record["status"],
-            retries=record["retries"],
-            description=record["description"],
-            payload=record["payload"],
-            summary=record["summary"],
-            created_at=record["created_at"],
-            updated_at=record["updated_at"],
-        )
-        break
-
-    if event is None:
-        raise NotFoundException("Event not found")
-    return event
+    return await EventStream.get(event_id)
 
 
 @router.patch("/events/{event_id}", status_code=204)
@@ -182,7 +158,7 @@ async def update_existing_event(
         logging.warning(
             "Patching event with projectName is deprecated. Use 'project' instead."
         )
-    await update_event(
+    await EventStream.update(
         event_id,
         sender=payload.sender,
         project=payload.project_name or payload.project,

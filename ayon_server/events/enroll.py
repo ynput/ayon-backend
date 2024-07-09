@@ -1,4 +1,4 @@
-from ayon_server.events import EventStream
+from ayon_server.events.eventstream import EventStream
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import Filter, build_filter
 from ayon_server.types import Field, OPModel
@@ -17,6 +17,7 @@ class EnrollResponseModel(OPModel):
 async def enroll_job(
     source_topic: str,
     target_topic: str,
+    *,
     sender: str | None = None,
     user_name: str | None = None,
     description: str | None = None,
