@@ -21,12 +21,13 @@ from .utils import process_activity_files
 async def update_activity(
     project_name: str,
     activity_id: str,
-    body: str,
+    body: str | None = None,
     files: list[str] | None = None,
     user_name: str | None = None,
     extra_references: list[ActivityReferenceModel] | None = None,
     data: dict[str, Any] | None = None,
     sender: str | None = None,
+    append_files: bool = False,
 ) -> None:
     """Update an activity."""
 
@@ -42,6 +43,10 @@ async def update_activity(
 
     if not res:
         raise NotFoundException("Activity not found")
+
+    if body is None:
+        body = res[0]["body"]
+    assert body is not None, "Body must exist"  # mypy
 
     activity_type = res[0]["activity_type"]
     if len(body) > MAX_BODY_LENGTH:
@@ -97,6 +102,11 @@ async def update_activity(
     # Update files
 
     if files is not None:
+        if append_files:
+            for f in activity_data.get("files", []):
+                if f.get("id") not in files:
+                    files.append(f["id"])
+
         files_data = await process_activity_files(project_name, files)
         if files_data:
             activity_data["files"] = files_data

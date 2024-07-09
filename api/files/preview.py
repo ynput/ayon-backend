@@ -11,6 +11,7 @@ from ayon_server.exceptions import (
     ServiceUnavailableException,
     UnsupportedMediaException,
 )
+from ayon_server.helpers.mimetypes import is_image_mime_type, is_video_mime_type
 from ayon_server.helpers.project_files import id_to_path
 from ayon_server.helpers.thumbnails import process_thumbnail
 from ayon_server.lib.postgres import Postgres
@@ -19,29 +20,6 @@ from ayon_server.lib.redis import Redis
 REDIS_NS = "project.file_preview"
 FILE_PREVIEW_SIZE = (600, None)
 PREVIEW_CACHE_TTL = 3600 * 24
-
-
-def is_image_mime_type(mime_type: str) -> bool:
-    mime_type = mime_type.lower()
-    return mime_type in [
-        "image/png",
-        "image/jpeg",
-        "image/gif",
-        "image/tiff",
-        "image/bmp",
-        "image/webp",
-        "image/ico",
-        "image/vnd.adobe.photoshop",
-    ]
-
-
-def is_video_mime_type(mime_type: str) -> bool:
-    mime_type = mime_type.lower()
-    if mime_type.startswith("video/"):
-        return True
-    if mime_type == "application/mxf":
-        return True
-    return False
 
 
 VIDEO_THUMBNAIL_STATUS = set()
