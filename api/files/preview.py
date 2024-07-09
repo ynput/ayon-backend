@@ -87,10 +87,10 @@ async def create_video_thumbnail(
             )
 
             _, stderr = await proc.communicate()
-            stderr = stderr.decode()
 
             if proc.returncode != 0:
-                print(stderr, flush=True)
+                stderr_str = stderr.decode()
+                print(stderr_str, flush=True)
                 return b""
 
             async with aiofiles.open(temp_path, "rb") as f:
