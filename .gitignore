@@ -8,7 +8,7 @@ __pycache__
 
 /poetry.lock
 /addons/
-transcoder/
+transcoder
 
 .python-version
 BUILD_DATE
