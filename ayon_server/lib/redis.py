@@ -104,7 +104,11 @@ class Redis:
     async def keys(cls, namespace: str) -> list[str]:
         if not cls.connected:
             await cls.connect()
-        return await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
+        keys = await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
+        return [
+            key.decode("ascii").removeprefix(f"{cls.prefix}{namespace}-")
+            for key in keys
+        ]
 
     @classmethod
     async def iterate(cls, namespace: str):
