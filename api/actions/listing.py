@@ -5,6 +5,7 @@ from ayon_server.actions.manifest import BaseActionManifest, SimpleActionManifes
 from ayon_server.addons import AddonLibrary, BaseServerAddon
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventModel, EventStream
+from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
@@ -58,8 +59,9 @@ async def _load_relevant_addons(
     for addon_name, addon_version in res[0]["addons"].items():
         if not addon_version:
             continue
-        addon = AddonLibrary.addon(addon_name, addon_version)
-        if addon is None:
+        try:
+            addon = AddonLibrary.addon(addon_name, addon_version)
+        except NotFoundException:
             continue
         result.append(addon)
     return variant, result
