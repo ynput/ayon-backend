@@ -1,9 +1,8 @@
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
+from ayon_server.helpers.ffprobe import ReviewableAvailability
 from ayon_server.types import Field, OPModel
-
-ReviewableAvailability = Literal["unknown", "needs_conversion", "ready"]
 
 
 class ReviewableAuthor(OPModel):
@@ -50,22 +49,3 @@ class VersionReviewablesModel(OPModel):
         title="Reviewables",
         description="List of available reviewables",
     )
-
-
-COMPATIBILITY = {
-    "codec": ["h264"],
-    "pixelFormat": ["yuv420p"],
-}
-
-
-def availability_from_video_metadata(
-    video_metadata: dict[str, Any],
-) -> ReviewableAvailability:
-    if not video_metadata:
-        return "unknown"
-    for key, values in COMPATIBILITY.items():
-        if key not in video_metadata:
-            return "unknown"
-        if video_metadata[key] not in values:
-            return "needs_conversion"
-    return "ready"

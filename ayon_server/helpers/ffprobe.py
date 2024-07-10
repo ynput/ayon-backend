@@ -1,6 +1,10 @@
 import asyncio
 import json
-from typing import Any
+from typing import Any, Literal
+
+ReviewableAvailability = Literal[
+    "unknown", "conversionRequired", "conversionRecommended", "ready"
+]
 
 
 async def ffprobe(file_path: str) -> dict[str, Any]:
@@ -36,6 +40,7 @@ async def extract_media_info(file_path: str) -> dict[str, Any]:
 
     result: dict[str, Any] = {
         "probeVersion": 1,
+        "majorBrand": probe_data.get("format", {}).get("tags", {}).get("major_brand"),
     }
 
     for stream in probe_data.get("streams", []):
@@ -56,6 +61,7 @@ async def extract_media_info(file_path: str) -> dict[str, Any]:
                     "frameRate": fps,
                     "duration": float(stream.get("duration", 0)),
                     "codec": stream.get("codec_name"),
+                    "iframeOnly": stream.get("has_b_frames", 1) == 0,
                 }
             )
 
@@ -72,3 +78,36 @@ async def extract_media_info(file_path: str) -> dict[str, Any]:
             )
 
     return result
+
+
+def availability_from_media_info(mediainfo: dict[str, Any]) -> ReviewableAvailability:
+    duration = mediainfo.get("duration", 0)
+    codec = mediainfo.get("codec", "unknown")
+    major_brand = mediainfo.get("majorBrand", "unknown")
+
+    if mediainfo.get("videoTrackIndex") is None:
+        # no video track. weird.
+        return "unknown"
+
+    if duration == 0:
+        # images
+        if codec in ["mjpeg", "png", "webp"]:
+            return "ready"
+        else:
+            return "conversionRequired"
+
+    # video files
+
+    if major_brand not in ["mp42", "isom"]:
+        return "conversionRequired"
+
+    if codec not in ["h264", "vp9"]:
+        return "conversionRequired"
+
+    if mediainfo.get("pixelFormat") not in ["yuv420p", "yuv444p"]:
+        return "conversionRequired"
+
+    if not mediainfo.get("iframeOnly"):
+        return "conversionRecommended"
+
+    return "ready"

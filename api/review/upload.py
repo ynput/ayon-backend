@@ -9,12 +9,12 @@ from ayon_server.api.files import handle_upload
 from ayon_server.entities.version import VersionEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
-from ayon_server.helpers.ffprobe import extract_media_info
+from ayon_server.helpers.ffprobe import availability_from_media_info, extract_media_info
 from ayon_server.helpers.project_files import id_to_path
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
-from .common import ReviewableAuthor, ReviewableModel, availability_from_video_metadata
+from .common import ReviewableAuthor, ReviewableModel
 from .router import router
 
 
@@ -120,7 +120,7 @@ async def upload_reviewable(
         filename=x_file_name,
         label=label,
         mimetype=content_type,
-        availability=availability_from_video_metadata(media_info),
+        availability=availability_from_media_info(media_info),
         media_info=media_info,
         created_from=None,
         processing=None,

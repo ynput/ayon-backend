@@ -1,5 +1,6 @@
 from ayon_server.api.dependencies import CurrentUser, ProductID, ProjectName, VersionID
 from ayon_server.entities import ProductEntity, VersionEntity
+from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.lib.postgres import Postgres
 
 from .common import (
@@ -7,7 +8,6 @@ from .common import (
     ReviewableModel,
     ReviewableProcessingStatus,
     VersionReviewablesModel,
-    availability_from_video_metadata,
 )
 from .router import router
 
@@ -107,7 +107,7 @@ async def get_reviewables(
 
         file_data = row["file_data"] or {}
         media_info = file_data.get("mediaInfo", {})
-        availability = availability_from_video_metadata(media_info)
+        availability = availability_from_media_info(media_info)
         created_from = file_data.get("createdFrom")
 
         versions[row["version_id"]].reviewables.append(
