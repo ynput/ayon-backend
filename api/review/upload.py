@@ -99,6 +99,7 @@ async def upload_reviewable(
     summary = {
         "fileId": file_id,
         "versionId": version_id,
+        "productId": version.product_id,
         "activityId": activity_id,
         "size": file_size,
         "filename": x_file_name,
