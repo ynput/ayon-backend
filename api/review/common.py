@@ -11,7 +11,7 @@ class ReviewableAuthor(OPModel):
 
 
 class ReviewableProcessingStatus(OPModel):
-    event_id: str = Field(..., title="Event ID")
+    event_id: str | None = Field(None, title="Event ID")
     status: str = Field(..., title="Processing Status")
     description: str = Field(..., title="Processing Description")
 

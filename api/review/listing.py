@@ -10,6 +10,7 @@ from .common import (
     VersionReviewablesModel,
 )
 from .router import router
+from .utils import is_transcoder_available
 
 
 async def get_reviewables(
@@ -96,19 +97,28 @@ async def get_reviewables(
         if not row["file_id"]:
             continue
 
-        if row["event_id"]:
-            processing = ReviewableProcessingStatus(
-                event_id=row["event_id"],
-                status=row["event_status"],
-                description=row["event_description"],
-            )
-        else:
-            processing = None
-
         file_data = row["file_data"] or {}
         media_info = file_data.get("mediaInfo", {})
-        availability = availability_from_media_info(media_info)
         created_from = file_data.get("createdFrom")
+        availability = availability_from_media_info(media_info)
+
+        if availability in ["unknown", "ready"]:
+            processing = None
+        else:
+            if not await is_transcoder_available():
+                processing = None
+            elif row["event_id"]:
+                processing = ReviewableProcessingStatus(
+                    event_id=row["event_id"],
+                    status=row["event_status"],
+                    description=row["event_description"],
+                )
+            else:
+                processing = ReviewableProcessingStatus(
+                    event_id=None,
+                    status="enqueued",
+                    description="In a transcoder queue",
+                )
 
         versions[row["version_id"]].reviewables.append(
             ReviewableModel(
