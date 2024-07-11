@@ -14,8 +14,9 @@ from ayon_server.helpers.project_files import id_to_path
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
-from .common import ReviewableAuthor, ReviewableModel
+from .common import ReviewableAuthor, ReviewableModel, ReviewableProcessingStatus
 from .router import router
+from .utils import is_transcoder_available
 
 
 def check_valid_mime(content_type: str) -> None:
@@ -114,15 +115,29 @@ async def upload_reviewable(
         description=f"Reviewable '{x_file_name}' uploaded",
     )
 
+    availability = availability_from_media_info(media_info)
+
+    if availability in ["unknown", "ready"]:
+        processing = None
+    else:
+        if not await is_transcoder_available():
+            processing = None
+        else:
+            processing = ReviewableProcessingStatus(
+                event_id=None,
+                status="enqueued",
+                description="In a transcoder queue",
+            )
+
     return ReviewableModel(
         file_id=file_id,
         activity_id=activity_id,
         filename=x_file_name,
         label=label,
         mimetype=content_type,
-        availability=availability_from_media_info(media_info),
+        availability=availability,
         media_info=media_info,
         created_from=None,
-        processing=None,
+        processing=processing,
         author=ReviewableAuthor(name=user.name, full_name=user.attrib.fullName),
     )

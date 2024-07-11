@@ -36,8 +36,8 @@ async def get_reviewables(
 
 
             events.id AS event_id,
-            events.status AS status,
-            events.description AS description,
+            events.status AS event_status,
+            events.description AS event_description,
 
             versions.id AS version_id,
             versions.version AS version,
@@ -67,9 +67,9 @@ async def get_reviewables(
             public.events AS events
             ON
                 events.project_name = '{project_name}' AND
-                events.topic = 'reviewable.processing' AND
+                events.topic = 'reviewable.process' AND
                 events.created_at >= af.created_at AND
-                (events.summary->>'fileId')::UUID = files.id
+                (events.summary->>'sourceFileId')::UUID = files.id
         WHERE
             {cond}
 
@@ -78,6 +78,7 @@ async def get_reviewables(
             af.created_at ASC
     """
 
+    processed: set[str] = set()
     versions: dict[str, VersionReviewablesModel] = {}
     async for row in Postgres.iterate(query, cval):
         if row["version"] < 0:
@@ -101,6 +102,9 @@ async def get_reviewables(
         media_info = file_data.get("mediaInfo", {})
         created_from = file_data.get("createdFrom")
         availability = availability_from_media_info(media_info)
+
+        if created_from:
+            processed.add(created_from)
 
         if availability in ["unknown", "ready"]:
             processing = None
@@ -140,7 +144,17 @@ async def get_reviewables(
             )
         )
 
-    return list(versions.values())
+    result = list(versions.values())
+    for version in result:
+        for reviewable in version.reviewables:
+            if reviewable.file_id in processed and not reviewable.processing:
+                reviewable.processing = ReviewableProcessingStatus(
+                    event_id=None,
+                    status="finished",
+                    description="Processing finished",
+                )
+
+    return result
 
 
 @router.get("/products/{product_id}/reviewables")
