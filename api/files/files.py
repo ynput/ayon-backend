@@ -67,14 +67,7 @@ async def upload_project_file(
 
     path = id_to_path(project_name, file_id)
 
-    try:
-        file_size = await handle_upload(request, path)
-    except Exception as e:
-        try:
-            os.remove(path)
-        except Exception:
-            pass
-        raise BadRequestException(f"Failed to upload file: {e}") from e
+    file_size = await handle_upload(request, path)
 
     data = {
         "filename": x_file_name,

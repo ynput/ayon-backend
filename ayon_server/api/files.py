@@ -5,6 +5,7 @@ from fastapi import Request, Response
 from starlette.responses import FileResponse
 
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
+from ayon_server.helpers.mimetypes import guess_mime_type
 
 
 async def handle_upload(request: Request, target_path: str) -> int:
@@ -22,12 +23,23 @@ async def handle_upload(request: Request, target_path: str) -> int:
             raise AyonException(f"Failed to create directory: {e}") from e
 
     i = 0
-    async with aiofiles.open(target_path, "wb") as f:
-        async for chunk in request.stream():
-            await f.write(chunk)
-            i += len(chunk)
+    try:
+        async with aiofiles.open(target_path, "wb") as f:
+            async for chunk in request.stream():
+                await f.write(chunk)
+                i += len(chunk)
+    except Exception as e:
+        try:
+            os.remove(target_path)
+        except Exception:
+            pass
+        raise AyonException(f"Failed to write file: {e}") from e
 
     if i == 0:
+        try:
+            os.remove(target_path)
+        except Exception:
+            pass
         raise BadRequestException("Empty file")
 
     return i
@@ -51,29 +63,6 @@ async def handle_download(
         filename=filename,
         content_disposition_type=content_disposition_type,
     )
-
-
-def guess_mime_type(image_bytes: bytes) -> str | None:
-    """Guess the MIME type of an image from its bytes."""
-    if image_bytes[0:4] == b"\x89PNG":
-        media_type = "image/png"
-    elif image_bytes[0:2] == b"\xff\xd8":
-        media_type = "image/jpeg"
-    elif image_bytes[0:4] == b"<svg":
-        media_type = "image/svg+xml"
-    elif image_bytes[0:2] == b"BM":
-        media_type = "image/bmp"
-    elif image_bytes[0:2] == b"II" or image_bytes[0:2] == b"MM":
-        media_type = "image/tiff"
-    elif image_bytes[0:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
-        media_type = "image/webp"
-    elif image_bytes[0:4] == b"8BPS":
-        media_type = "image/vnd.adobe.photoshop"
-    elif image_bytes[0:4] == b"GIF8":
-        media_type = "image/gif"
-    else:
-        media_type = None
-    return media_type
 
 
 def image_response_from_bytes(image_bytes: bytes) -> Response:

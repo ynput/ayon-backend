@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import aiofiles
@@ -5,7 +6,12 @@ from fastapi import Response
 from nxtools import logging
 
 from ayon_server.api.files import image_response_from_bytes
-from ayon_server.exceptions import NotFoundException, UnsupportedMediaException
+from ayon_server.exceptions import (
+    NotFoundException,
+    ServiceUnavailableException,
+    UnsupportedMediaException,
+)
+from ayon_server.helpers.mimetypes import is_image_mime_type, is_video_mime_type
 from ayon_server.helpers.project_files import id_to_path
 from ayon_server.helpers.thumbnails import process_thumbnail
 from ayon_server.lib.postgres import Postgres
@@ -13,17 +19,64 @@ from ayon_server.lib.redis import Redis
 
 REDIS_NS = "project.file_preview"
 FILE_PREVIEW_SIZE = (600, None)
+PREVIEW_CACHE_TTL = 3600 * 24
 
-IMAGE_MIME_TYPES = [
-    "image/png",
-    "image/jpeg",
-    "image/gif",
-    "image/tiff",
-    "image/bmp",
-    "image/webp",
-    "image/ico",
-    "image/vnd.adobe.photoshop",
-]
+
+VIDEO_THUMBNAIL_STATUS = set()
+
+
+async def create_video_thumbnail(
+    video_path: str, size: tuple[int | None, int | None]
+) -> bytes:
+    """Create a thumbnail image for a video file.
+
+    Returns the thumbnail image as bytes.
+    """
+    global VIDEO_THUMBNAIL_STATUS
+
+    if video_path in VIDEO_THUMBNAIL_STATUS:
+        print("Video thumbnail generation is in progress")
+        raise ServiceUnavailableException("Video thumbnail generation is in progress")
+
+    VIDEO_THUMBNAIL_STATUS.add(video_path)
+    try:
+        async with aiofiles.tempfile.NamedTemporaryFile(
+            suffix=".jpg", delete=True
+        ) as temp_file:
+            temp_path = str(temp_file.name)
+
+            cmd: list[str] = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                video_path,
+                "-filter:v",
+                f"scale={size[0] or -1 }:{size[1] or -1}",
+                "-frames:v",
+                "1",
+                "-c:v",
+                "mjpeg",
+                temp_path,
+            ]
+            logging.debug(" ".join(cmd))
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            _, stderr = await proc.communicate()
+
+            if proc.returncode != 0:
+                stderr_str = stderr.decode()
+                print(stderr_str, flush=True)
+                return b""
+
+            async with aiofiles.open(temp_path, "rb") as f:
+                image_bytes = await f.read()
+
+        return image_bytes
+    finally:
+        VIDEO_THUMBNAIL_STATUS.remove(video_path)
 
 
 async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
@@ -57,7 +110,7 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
     if os.path.getsize(path) != expected_size:
         logging.warning(f"File size mismatch: {path}")
 
-    if mime_type in IMAGE_MIME_TYPES:
+    if is_image_mime_type(mime_type):
         async with aiofiles.open(path, "rb") as f:
             image_bytes = await f.read()
             pvw_bytes = await process_thumbnail(
@@ -67,11 +120,17 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
             )
             return pvw_bytes
 
+    if is_video_mime_type(mime_type):
+        pvw_bytes = await create_video_thumbnail(path, FILE_PREVIEW_SIZE)
+        return pvw_bytes
+
     # TODO: return a generic preview image for other file types
     raise UnsupportedMediaException("Preview mode is not supported for this file")
 
 
-async def get_file_preview(project_name: str, file_id: str) -> Response:
+async def get_file_preview(
+    project_name: str, file_id: str, retries: int = 0
+) -> Response:
     """Return a preview image for a file.
 
     Uses the cache if available, otherwise generates a new preview and caches it.
@@ -84,8 +143,16 @@ async def get_file_preview(project_name: str, file_id: str) -> Response:
     pvw_bytes = await Redis.get(REDIS_NS, key)
 
     if pvw_bytes is None:
-        pvw_bytes = await obtain_file_preview(project_name, file_id)
-        await Redis.set(REDIS_NS, key, pvw_bytes)
+        try:
+            pvw_bytes = await obtain_file_preview(project_name, file_id)
+            await Redis.set(REDIS_NS, key, pvw_bytes, ttl=PREVIEW_CACHE_TTL)
+        except ServiceUnavailableException:
+            await asyncio.sleep(0.2)
+            if retries < 5:
+                return await get_file_preview(project_name, file_id, retries + 1)
+
+    if pvw_bytes == b"":
+        raise NotFoundException("File preview not available")
 
     return image_response_from_bytes(pvw_bytes)
 

@@ -140,7 +140,7 @@ async def obtain_avatar(user_name: str) -> bytes:
 
     try:
         avatar_bytes = await load_avatar_file(user_name)
-        logging.info(f"Loaded avatar for {user_name} from file")
+        logging.debug(f"Loaded avatar for {user_name} from file")
     except FileNotFoundError:
         pass
 
@@ -158,12 +158,12 @@ async def obtain_avatar(user_name: str) -> bytes:
                 )
             else:
                 avatar_bytes = await process_thumbnail(avatar_bytes, format="JPEG")
-                logging.info(f"Successfully fetched avatar for {user_name} from url")
+                logging.debug(f"Successfully fetched avatar for {user_name} from url")
 
     if not avatar_bytes:
         full_name = res[0]["full_name"] or ""
         avatar_bytes = create_initials_svg(user_name, full_name).encode()
-        logging.info(f"Generated initials avatar for {user_name}")
+        logging.debug(f"Generated initials avatar for {user_name}")
 
     return avatar_bytes
 

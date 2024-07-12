@@ -183,6 +183,13 @@ class UserEntity(TopLevelEntity):
             or data.get("isService", False)
         )
 
+    def check_project_access(self, project_name: str) -> None:
+        if self.is_manager:
+            return
+        access_groups = [k.lower() for k in self.data.get("accessGroups", {})]
+        if project_name.lower() not in access_groups:
+            raise ForbiddenException("No access group assigned on this project")
+
     def permissions(self, project_name: str | None) -> Permissions | None:
         """Return user permissions on a given project."""
 
