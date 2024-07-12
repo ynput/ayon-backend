@@ -33,6 +33,17 @@ class VersionEntity(ProjectLevelEntity):
 
         await super().save(transaction=transaction)
 
+        if self.task_id:
+            conn = transaction or Postgres
+            await conn.execute(
+                f"""
+                UPDATE project_{self.project_name}.tasks
+                SET updated_at = NOW()
+                WHERE id = $1
+                """,
+                self.task_id,
+            )
+
     async def commit(self, transaction=None) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
