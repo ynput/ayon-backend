@@ -123,7 +123,7 @@ async def get_kanban(
                 f.name as folder_name,
                 f.label as folder_label,
                 h.path as folder_path,
-                t.thumbnail_id as thumbnail_id,
+                t.thumbnail_id as thumbnail_id
                 FROM {project_schema}.tasks t
                 JOIN {project_schema}.folders f ON f.id = t.folder_id
                 JOIN {project_schema}.hierarchy h ON h.id = f.id
