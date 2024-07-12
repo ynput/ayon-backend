@@ -23,9 +23,6 @@ class KanbanNode:
     folder_label: str | None = strawberry.field()
     folder_path: str = strawberry.field()
     thumbnail_id: str | None = strawberry.field(default=None)
-    last_version_with_thumbnail_id: str | None = strawberry.field(default=None)
-    last_version_with_reviewable_version_id: str | None = strawberry.field(default=None)
-    last_version_with_reviewable_product_id: str | None = strawberry.field(default=None)
 
 
 def kanban_node_from_record(
