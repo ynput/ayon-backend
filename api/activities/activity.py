@@ -48,6 +48,7 @@ async def post_project_activity(
     entity_id: PathEntityID,
     user: CurrentUser,
     activity: ProjectActivityPostModel,
+    background_tasks: BackgroundTasks,
     x_sender: str | None = Header(default=None),
 ) -> CreateActivityResponseModel:
     """Create an activity.
@@ -78,6 +79,8 @@ async def post_project_activity(
         data=activity.data,
     )
 
+    background_tasks.add_task(delete_unused_files, project_name)
+
     return CreateActivityResponseModel(id=id)
 
 
@@ -86,6 +89,7 @@ async def delete_project_activity(
     project_name: ProjectName,
     activity_id: str,
     user: CurrentUser,
+    background_tasks: BackgroundTasks,
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Delete an activity.
@@ -105,6 +109,8 @@ async def delete_project_activity(
         user_name=user_name,
         sender=x_sender,
     )
+
+    background_tasks.add_task(delete_unused_files, project_name)
 
     return EmptyResponse()
 
