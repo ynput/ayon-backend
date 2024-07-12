@@ -1,5 +1,12 @@
-from ayon_server.api.dependencies import CurrentUser, ProductID, ProjectName, VersionID
-from ayon_server.entities import ProductEntity, VersionEntity
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    FolderID,
+    ProductID,
+    ProjectName,
+    TaskID,
+    VersionID,
+)
+from ayon_server.entities import FolderEntity, ProductEntity, TaskEntity, VersionEntity
 from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.lib.postgres import Postgres
 
@@ -17,6 +24,8 @@ async def get_reviewables(
     project_name: str,
     version_id: str | None = None,
     product_id: str | None = None,
+    task_id: str | None = None,
+    folder_id: str | None = None,
 ) -> list[VersionReviewablesModel]:
     if version_id:
         cond = "versions.id = $1"
@@ -24,6 +33,12 @@ async def get_reviewables(
     elif product_id:
         cond = "versions.product_id = $1"
         cval = product_id
+    elif task_id:
+        cond = "versions.task_id = $1"
+        cval = task_id
+    elif folder_id:
+        cond = "products.folder_id = $1"
+        cval = folder_id
 
     query = f"""
         SELECT
@@ -42,12 +57,19 @@ async def get_reviewables(
             versions.id AS version_id,
             versions.version AS version,
             versions.status AS version_status,
+            products.name AS product_name,
+            products.id AS product_id,
+            products.product_type AS product_type,
 
             af.created_at,
             af.updated_at
 
         FROM
             project_{project_name}.versions AS versions
+        JOIN
+            project_{project_name}.products AS products
+            ON products.id = versions.product_id
+
         LEFT JOIN
             project_{project_name}.activity_feed af
             ON af.entity_id = versions.id
@@ -92,6 +114,9 @@ async def get_reviewables(
                 name=version_name,
                 version=row["version"],
                 status=row["version_status"],
+                product_id=row["product_id"],
+                product_name=row["product_name"],
+                product_type=row["product_type"],
                 reviewables=[],
             )
 
@@ -183,3 +208,27 @@ async def get_reviewables_for_version(
     await version.ensure_read_access(user)
 
     return (await get_reviewables(project_name, version_id=version_id))[0]
+
+
+@router.get("/tasks/{task_id}/reviewables")
+async def get_reviewables_for_task(
+    user: CurrentUser,
+    project_name: ProjectName,
+    task_id: TaskID,
+) -> list[VersionReviewablesModel]:
+    task = await TaskEntity.load(project_name, task_id)
+    await task.ensure_read_access(user)
+
+    return await get_reviewables(project_name, task_id=task_id)
+
+
+@router.get("/folders/{folder_id}/reviewables")
+async def get_reviewables_for_folder(
+    user: CurrentUser,
+    project_name: ProjectName,
+    folder_id: FolderID,
+) -> list[VersionReviewablesModel]:
+    folder = await FolderEntity.load(project_name, folder_id)
+    await folder.ensure_read_access(user)
+
+    return await get_reviewables(project_name, folder_id=folder_id)
