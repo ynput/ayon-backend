@@ -177,6 +177,12 @@ class TakeResponseModel(OPModel):
         title="Action Variant",
         example="production",
     )
+    user_name: str = Field(
+        ...,
+        title="User Name",
+        description="The user who initiated the action",
+        example="john.doe",
+    )
 
 
 @router.get("/take/{token}")
@@ -228,6 +234,7 @@ async def take_action(
         addon_version=event["summary"].get("addon_version", ""),
         variant=event["summary"].get("variant", ""),
         action_identifier=event["summary"].get("action_identifier", ""),
+        user_name=event["user_name"],
     )
 
     await Postgres.execute(
