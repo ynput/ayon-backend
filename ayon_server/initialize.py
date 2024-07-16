@@ -4,6 +4,7 @@ from nxtools import logging
 
 from ayon_server.activities import ActivityFeedEventHook
 from ayon_server.events import EventStream
+from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 
 
@@ -26,3 +27,4 @@ async def ayon_init():
             break
 
     ActivityFeedEventHook.install(EventStream)
+    await build_project_list()
