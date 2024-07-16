@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import inspect
+import json
 import os
 import pathlib
 import sys
@@ -153,7 +154,9 @@ async def validation_exception_handler(
     path += f" {request.url.path.removeprefix('/api')}"
 
     detail = f"{path}: Validation error"
-    logging.error(detail, user=user_name, errors=exc.errors())
+    message = f"{detail}\n\n{json.dumps(exc.errors(), indent=2)}"
+
+    logging.error(message, user=user_name)
 
     return fastapi.responses.JSONResponse(
         status_code=400,
@@ -205,7 +208,9 @@ async def assertion_exception_handler(request: fastapi.Request, exc: AssertionEr
         "line": line_no,
     }
 
-    logging.error(detail, user=user_name, **payload)
+    message = f"{detail}\n\n{json.dumps(payload, indent=2)}"
+
+    logging.error(message, user=user_name)
     return fastapi.responses.JSONResponse(status_code=500, content=payload)
 
 
