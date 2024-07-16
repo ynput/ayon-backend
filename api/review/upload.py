@@ -87,10 +87,13 @@ async def upload_reviewable(
 
     # Create activity
 
+    # user_tag = f"[@{user.attrib.fullName or user.name}](user:{user.name})"
+    body = f"""Uploaded a reviewable '{label or x_file_name}'"""
+
     activity_id = await create_activity(
         version,
         "reviewable",
-        body=f"Reviewable '{label}' uploaded",
+        body=body,
         files=[file_id],
         data={"reviewableLabel": label},
         user_name=user.name,
