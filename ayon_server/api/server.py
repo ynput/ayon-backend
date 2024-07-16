@@ -20,7 +20,6 @@ from ayon_server.api.postgres_exceptions import (
     IntegrityConstraintViolationError,
     parse_postgres_exception,
 )
-from ayon_server.api.responses import ErrorResponse
 from ayon_server.api.static import addon_static_router
 from ayon_server.api.system import clear_server_restart_required
 from ayon_server.auth.session import Session
@@ -148,11 +147,21 @@ async def validation_exception_handler(
     request: fastapi.Request,
     exc: RequestValidationError,
 ) -> fastapi.responses.JSONResponse:
-    logging.error(f"Validation error\n{exc}")
-    detail = "Validation error"  # TODO: Be descriptive, but not too much
+    user_name = await user_name_from_request(request)
+
+    path = f"[{request.method.upper()}]"
+    path += f" {request.url.path.removeprefix('/api')}"
+
+    detail = f"{path}: Validation error"
+    logging.error(detail, user=user_name, errors=exc.errors())
+
     return fastapi.responses.JSONResponse(
         status_code=400,
-        content=ErrorResponse(code=400, detail=detail).dict(),
+        content={
+            "code": 400,
+            "detail": "Validation error",
+            "errors": exc.errors(),
+        },
     )
 
 
