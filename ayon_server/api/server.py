@@ -29,7 +29,6 @@ from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql import router as graphql_router
-from ayon_server.helpers.project_list import build_project_list
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import parse_access_token
@@ -495,7 +494,6 @@ async def startup_event() -> None:
                 description="Server started",
             )
 
-        await build_project_list()
         asyncio.create_task(clear_server_restart_required())
         logging.goodnews("Server is now ready to connect")
 

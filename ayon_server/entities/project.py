@@ -211,14 +211,15 @@ class ProjectEntity(TopLevelEntity):
 
     async def save(self, transaction=None) -> bool:
         """Save the project to the database."""
-        if transaction:
-            res = await self._save(transaction)
-        else:
-            async with Postgres.acquire() as conn:
-                async with conn.transaction():
-                    res = await self._save(conn)
-        await build_project_list()
-        return res
+        try:
+            if transaction:
+                return await self._save(transaction)
+            else:
+                async with Postgres.acquire() as conn:
+                    async with conn.transaction():
+                        return await self._save(conn)
+        finally:
+            await build_project_list()
 
     async def _save(self, transaction) -> bool:
         assert self.folder_types, "Project must have at least one folder type"
@@ -319,13 +320,15 @@ class ProjectEntity(TopLevelEntity):
 
     async def delete(self, transaction=None) -> bool:
         """Delete existing project."""
-        if transaction:
-            return await self._delete(transaction)
-        else:
-            async with Postgres.acquire() as conn:
-                async with conn.transaction():
-                    return await self._delete(conn)
-        await build_project_list()
+        try:
+            if transaction:
+                return await self._delete(transaction)
+            else:
+                async with Postgres.acquire() as conn:
+                    async with conn.transaction():
+                        return await self._delete(conn)
+        finally:
+            await build_project_list()
 
     async def _delete(self, transaction) -> bool:
         if not self.name:
@@ -335,7 +338,6 @@ class ProjectEntity(TopLevelEntity):
         await transaction.execute(
             "DELETE FROM public.projects WHERE name = $1", self.name
         )
-        # TODO: Return false if project was not found
         return True
 
     #
