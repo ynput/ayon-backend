@@ -1,6 +1,7 @@
 import asyncio
 
 from ayon_server.background.background_worker import BackgroundWorker
+from ayon_server.helpers.project_files import delete_unused_files
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 
@@ -66,6 +67,7 @@ class AyonCleanUp(BackgroundWorker):
         projects = await get_project_list()
         for project in projects:
             await clear_thumbnails(project.name)
+            await delete_unused_files(project.name)
 
         await clear_actions()
 
