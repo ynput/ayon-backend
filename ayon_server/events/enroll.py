@@ -1,4 +1,5 @@
 from ayon_server.events.eventstream import EventStream
+from ayon_server.exceptions import ConstraintViolationException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import Filter, build_filter
 from ayon_server.types import Field, OPModel
@@ -133,24 +134,33 @@ async def enroll_job(
 
         # Target event does not exist yet. Create a new one
         new_hash = hash_data((target_topic, row["source_id"]))
-        new_id = await EventStream.dispatch(
-            target_topic,
-            sender=sender,
-            hash=new_hash,
-            depends_on=row["source_id"],
-            user=user_name,
-            description=description,
-            finished=False,
-        )
+        try:
+            new_id = await EventStream.dispatch(
+                target_topic,
+                sender=sender,
+                hash=new_hash,
+                depends_on=row["source_id"],
+                user=user_name,
+                description=description,
+                finished=False,
+            )
 
-        if new_id:
+        except ConstraintViolationException:
+            # for some reason, the event already exists
+            # most likely because another worker took it
+
+            # in that case, we abort (if sequential) or
+            # continue to the next event
+            if sequential:
+                return None
+            continue  # implicit. for readability
+
+        else:
             return EnrollResponseModel(
                 id=new_id,
                 hash=new_hash,
                 depends_on=row["source_id"],
                 status="pending",
             )
-        elif sequential:
-            return None
 
     return None
