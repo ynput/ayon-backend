@@ -153,14 +153,13 @@ async def enroll_job(
             # continue to the next event
             if sequential:
                 return None
-            continue  # implicit. for readability
+            continue
 
-        else:
-            return EnrollResponseModel(
-                id=new_id,
-                hash=new_hash,
-                depends_on=row["source_id"],
-                status="pending",
-            )
+        return EnrollResponseModel(
+            id=new_id,
+            hash=new_hash,
+            depends_on=row["source_id"],
+            status="pending",
+        )
 
     return None
