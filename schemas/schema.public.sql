@@ -88,6 +88,8 @@ CREATE INDEX IF NOT EXISTS event_project_name_idx ON events (project_name);
 CREATE INDEX IF NOT EXISTS event_user_name_idx ON events (user_name);
 CREATE INDEX IF NOT EXISTS event_created_at_idx ON events (created_at);
 CREATE INDEX IF NOT EXISTS event_updated_at_idx ON events (updated_at);
+CREATE INDEX IF NOT EXISTS event_status_idx ON events (status);
+CREATE INDEX IF NOT EXISTS event_retries_idx ON events (retries);
 
 --------------
 -- Settings --
