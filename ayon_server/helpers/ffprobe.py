@@ -104,8 +104,9 @@ def availability_from_media_info(mediainfo: dict[str, Any]) -> ReviewableAvailab
     if codec not in ["h264", "vp9"]:
         return "conversionRequired"
 
-    if mediainfo.get("pixelFormat") not in ["yuv420p", "yuv444p"]:
-        return "conversionRequired"
+    # apart from firefox, all browsers support almost all pixel formats
+    # if mediainfo.get("pixelFormat") not in ["yuv420p", "yuv444p"]:
+    #     return "conversionRecommended"
 
     if not mediainfo.get("iframeOnly"):
         return "conversionRecommended"
