@@ -71,11 +71,14 @@ async def range_requests_response(
     file_size = get_file_size(file_path)
     max_chunk_size = 1024 * 1024 * 4
     range_header = request.headers.get("range")
+    max_200_size = MAX_200_SIZE
 
     # screw firefox
     if ua := request.headers.get("user-agent"):
         if "firefox" in ua.lower():
             max_chunk_size = file_size
+        elif "safari" in ua.lower():
+            max_200_size = 0
 
     headers = {
         "content-type": content_type,
@@ -90,7 +93,7 @@ async def range_requests_response(
     end = file_size - 1
     status_code = status.HTTP_200_OK
 
-    if file_size <= MAX_200_SIZE:
+    if file_size <= max_200_size:
         # if the file has a sane size, we return the whole thing
         # in one go. That allows the browser to cache the video
         # and prevent unnecessary requests.
