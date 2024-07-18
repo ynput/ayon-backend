@@ -49,6 +49,7 @@ class UserEntity(TopLevelEntity):
     ) -> None:
         super().__init__(payload, exists, validate)
         self.was_active = self.active and self.exists
+        self.was_service = self.is_service and self.exists
 
     @classmethod
     async def load(
@@ -78,13 +79,35 @@ class UserEntity(TopLevelEntity):
 
         conn = transaction or Postgres
 
-        if self.active and not self.was_active:
+        if self.is_service:
+            do_con_check = False
+            self.data.pop("password", None)  # Service accounts can't have passwords
+            self.attrib.email = None  # Nor emails
+
+        elif self.active and not self.was_active:
+            # activating previously inactive user
+            do_con_check = True
+
+        elif not self.is_service and self.was_service:
+            # turning service account into regular user
+            # this is still possible via API, but not via UI
+            # so we need to check constraints
+            do_con_check = True
+
+        else:
+            do_con_check = False
+
+        if do_con_check:
             logging.info(f"Activating user {self.name}")
 
             if (max_users := await Constraints.check("maxActiveUsers")) is not None:
                 max_users = max_users or 1
                 res = await conn.fetch(
-                    "SELECT count(*) as cnt FROM users WHERE active is TRUE"
+                    """
+                    SELECT count(*) as cnt FROM users
+                    WHERE active is TRUE
+                    AND coalesce(data->>'isService', 'false') != 'true'
+                    """
                 )
                 if res and res[0]["cnt"] >= max_users:
                     raise ForbiddenException(
