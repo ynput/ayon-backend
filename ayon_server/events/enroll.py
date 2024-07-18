@@ -1,4 +1,5 @@
 from ayon_server.events.eventstream import EventStream
+from ayon_server.exceptions import ConstraintViolationException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import Filter, build_filter
 from ayon_server.types import Field, OPModel
@@ -40,6 +41,23 @@ async def enroll_job(
     # by the oldest one
 
     query = f"""
+        WITH excluded_events AS (
+            SELECT depends_on
+            FROM events
+            WHERE topic = $2
+            AND (
+                status = 'finished'
+                OR (status = 'failed' AND retries > $3)
+            )
+        ),
+        source_events AS (
+            SELECT *
+            FROM events
+            WHERE topic ILIKE $1
+            AND status = 'finished'
+            AND id NOT IN (SELECT depends_on FROM excluded_events)
+        )
+
         SELECT
             source_events.id AS source_id,
             target_events.status AS target_status,
@@ -49,39 +67,18 @@ async def enroll_job(
             target_events.retries AS target_retries,
             target_events.id AS target_id
         FROM
-            events AS source_events
-        LEFT JOIN
-            events AS target_events
+            source_events
+        LEFT JOIN events AS target_events
         ON
             target_events.depends_on = source_events.id
             AND target_events.topic = $2
-
         WHERE
-            source_events.topic ILIKE $1
-        AND
-            source_events.status = 'finished'
-        AND
             {filter_query}
-        AND
-            source_events.id NOT IN (
-                SELECT depends_on
-                FROM events
-                WHERE topic = $2
-                AND (
-
-                    -- skip events that are already finished
-
-                    status = 'finished'
-
-                    -- skip events that are already failed and have
-                    -- reached max retries
-
-                    OR (status = 'failed' AND retries > $3)
-                )
-            )
-
-        ORDER BY source_events.created_at ASC
+        ORDER BY
+            source_events.created_at ASC
+        LIMIT 1000  -- Pool of 1000 events should be enough
     """
+
     async for row in Postgres.iterate(
         query,
         source_topic,
@@ -137,24 +134,32 @@ async def enroll_job(
 
         # Target event does not exist yet. Create a new one
         new_hash = hash_data((target_topic, row["source_id"]))
-        new_id = await EventStream.dispatch(
-            target_topic,
-            sender=sender,
-            hash=new_hash,
-            depends_on=row["source_id"],
-            user=user_name,
-            description=description,
-            finished=False,
-        )
-
-        if new_id:
-            return EnrollResponseModel(
-                id=new_id,
+        try:
+            new_id = await EventStream.dispatch(
+                target_topic,
+                sender=sender,
                 hash=new_hash,
                 depends_on=row["source_id"],
-                status="pending",
+                user=user_name,
+                description=description,
+                finished=False,
             )
-        elif sequential:
-            return None
+
+        except ConstraintViolationException:
+            # for some reason, the event already exists
+            # most likely because another worker took it
+
+            # in that case, we abort (if sequential) or
+            # continue to the next event
+            if sequential:
+                return None
+            continue
+
+        return EnrollResponseModel(
+            id=new_id,
+            hash=new_hash,
+            depends_on=row["source_id"],
+            status="pending",
+        )
 
     return None
