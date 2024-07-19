@@ -25,9 +25,6 @@ def scope_enum() -> list[dict[str, str]]:
 
 class Status(BaseSettingsModel):
     _layout: str = "compact"
-    original_name: str | None = Field(
-        None, scope=[]
-    )  # Used for renaming, we don't show it in the UI
     name: str = Field(..., title="Name", min_length=1, max_length=100)
     shortName: str = Field("", title="Short name")
     state: State = Field("not_started", title="State", enum_resolver=get_state_enum)
@@ -42,6 +39,9 @@ class Status(BaseSettingsModel):
             " If empty, the status is available for all entity types."
         ),
     )
+    original_name: str | None = Field(
+        None, scope=[]
+    )  # Used for renaming, we don't show it in the UI
 
     @validator("original_name")
     def validate_original_name(cls, v, values):
