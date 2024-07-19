@@ -39,7 +39,7 @@ DEPENDS_ON_FIELD = Field(
 )
 
 DESCRIPTION_FIELD = Field(
-    "",
+    None,
     title="Description",
     description="Short, human-readable description of the event and its state",
     example="Importing file 3 of 10",
