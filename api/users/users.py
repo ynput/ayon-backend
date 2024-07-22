@@ -82,6 +82,7 @@ async def get_user(
 
 class NewUserModel(UserEntity.model.post_model):  # type: ignore
     password: str | None = Field(None, description="Password for the new user")
+    api_key: str | None = Field(None, description="API Key for the new service user")
 
 
 def validate_user_data(data: dict[str, Any]) -> None:
@@ -137,7 +138,15 @@ async def create_user(
         raise ConflictException("User already exists")
 
     if put_data.password:
+        if nuser.is_service:
+            raise BadRequestException("Service users cannot have passwords")
         nuser.set_password(put_data.password, complexity_check=not user.is_admin)
+
+    if put_data.api_key:
+        if not nuser.is_service:
+            raise BadRequestException("Only service users can have API keys")
+        nuser.set_api_key(put_data.api_key)
+
     await nuser.save()
     return EmptyResponse()
 
