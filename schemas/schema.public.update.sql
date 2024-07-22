@@ -330,4 +330,34 @@ CREATE OR REPLACE FUNCTION create_activity_feed_in_projects ()
 SELECT create_activity_feed_in_projects();
 DROP FUNCTION IF EXISTS create_activity_feed_in_projects();
 
+----------------
+-- AYON 1.3.1 --
+----------------
 
+-- Allow renaming users with developmnent bundle
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        JOIN pg_attribute a ON a.attnum = ANY (conkey) AND a.attrelid = conrelid
+        JOIN pg_attribute af ON af.attnum = ANY (confkey) AND af.attrelid = confrelid
+        WHERE confupdtype = 'c'
+          AND contype = 'f'
+          AND conrelid = 'public.bundles'::regclass
+          AND a.attname = 'active_user'
+    ) THEN
+        -- Drop the existing foreign key constraint
+        ALTER TABLE public.bundles
+        DROP CONSTRAINT IF EXISTS bundles_active_user_fkey;
+
+        -- Add a new foreign key constraint with ON UPDATE CASCADE
+        ALTER TABLE public.bundles
+        ADD CONSTRAINT bundles_active_user_fkey
+        FOREIGN KEY (active_user)
+        REFERENCES public.users(name)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE;
+    END IF;
+END $$;
