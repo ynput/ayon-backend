@@ -355,6 +355,8 @@ async def change_user_name(
                 """
                 await conn.execute(query)
 
+            # TODO: Update activity feed
+
     # Renaming user has many side effects, so we need to log out all Sessions
     # and let the user log in again
     async for session in Session.list(user_name):
