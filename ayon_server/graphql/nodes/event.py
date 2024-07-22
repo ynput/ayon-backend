@@ -3,6 +3,7 @@ from typing import Any
 
 import strawberry
 
+from ayon_server.graphql.utils import parse_data
 from ayon_server.utils import get_nickname, json_dumps, obscure
 
 
@@ -37,7 +38,6 @@ def event_from_record(
             record["user_name"] = get_nickname(record["user_name"])
         if record["topic"].startswith("log") and record["description"]:
             record["description"] = obscure(record["description"])
-    data = record.get("data", {})
 
     return EventNode(
         id=record["id"],
@@ -53,7 +53,7 @@ def event_from_record(
         summary=json_dumps(record["summary"]),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
-        data=json_dumps(data) if data else None,
+        data=parse_data(record.get("data")),
     )
 
 

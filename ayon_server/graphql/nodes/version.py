@@ -7,8 +7,8 @@ from ayon_server.entities import VersionEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.representations import get_representations
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.utils import get_nickname, json_dumps
+from ayon_server.graphql.utils import parse_attrib_data, parse_data
+from ayon_server.utils import get_nickname
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import RepresentationsConnection
@@ -103,7 +103,7 @@ def version_from_record(
             user=context["user"],
             project_name=project_name,
         ),
-        data=json_dumps(data) if data else None,
+        data=parse_data(data),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

@@ -17,9 +17,8 @@ from ayon_server.graphql.resolvers.representations import (
 from ayon_server.graphql.resolvers.tasks import get_task, get_tasks
 from ayon_server.graphql.resolvers.versions import get_version, get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfile, get_workfiles
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, parse_data
 from ayon_server.lib.postgres import Postgres
-from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import (
@@ -220,7 +219,7 @@ def project_from_record(
             user=context["user"],
             project_name=record["name"],
         ),
-        data=json_dumps(data) if data else None,
+        data=parse_data(data),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

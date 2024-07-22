@@ -7,8 +7,7 @@ from strawberry import LazyType
 from ayon_server.entities import RepresentationEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.utils import json_dumps
+from ayon_server.graphql.utils import parse_attrib_data, parse_data
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.version import VersionNode
@@ -100,11 +99,11 @@ def representation_from_record(
             user=context["user"],
             project_name=project_name,
         ),
-        data=json_dumps(data) if data else None,
+        data=parse_data(data),
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
-        context=json_dumps(data.get("context", {})),
+        context=parse_data(data.get("context", {})),
         files=parse_files(record.get("files", [])),
     )
 

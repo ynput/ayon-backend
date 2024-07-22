@@ -1,8 +1,11 @@
 from datetime import datetime
 from typing import Any, Literal
 
+from nxtools import logging
+
 from ayon_server.entities.core import attribute_library
 from ayon_server.entities.user import UserEntity
+from ayon_server.utils import json_dumps
 
 
 def parse_json_data(target_type, data):
@@ -74,3 +77,17 @@ def parse_attrib_data(
                     value = datetime.fromisoformat(value)
                 result[key] = value
     return target_type(**result)
+
+
+def parse_data(data: Any) -> str:
+    """Normalize entity.data field to a JSON string
+
+    Ensure data is a dictionary.
+    """
+    if not data:
+        return "{}"
+    if isinstance(data, dict):
+        return json_dumps(data)
+    else:
+        logging.warning(f"Invalid data type: {type(data)}")
+        return "{}"
