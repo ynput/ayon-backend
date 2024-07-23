@@ -1,3 +1,5 @@
+from nxtools import logging
+
 from ayon_server.api.dependencies import CurrentUser, ProjectName, VersionID
 from ayon_server.entities import VersionEntity
 from ayon_server.exceptions import BadRequestException, NotFoundException
@@ -50,8 +52,8 @@ async def sort_version_reviewables(
         requested_ids = set(request.sort)
 
         if requested_ids != valid_ids:
-            print("Saved:", valid_ids)
-            print("Requested:", requested_ids)
+            logging.debug("Saved:", valid_ids)
+            logging.debug("Requested:", requested_ids)
             raise BadRequestException(detail="Invalid reviewable ids")
 
         async with Postgres.acquire() as conn, conn.transaction():
