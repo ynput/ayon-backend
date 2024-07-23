@@ -1,6 +1,6 @@
 from nxtools import logging
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName, VersionID
+from ayon_server.api.dependencies import ActivityID, CurrentUser, ProjectName, VersionID
 from ayon_server.entities import VersionEntity
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -15,6 +15,10 @@ class SortReviewablesRequest(OPModel):
         description="List of reviewable (activity) ids in the order "
         "you want them to appear in the UI.",
     )
+
+
+class UpdateReviewablesRequest(OPModel):
+    label: str | None = Field(None, title="Reviewable Label")
 
 
 @router.patch("/versions/{version_id}/reviewables")
@@ -71,3 +75,37 @@ async def sort_version_reviewables(
                 )
 
     return None
+
+
+@router.patch("/versions/{version_id}/reviewables/{activity_id}")
+async def update_reviewable(
+    user: CurrentUser,
+    project_name: ProjectName,
+    version_id: VersionID,
+    reviewable_id: ActivityID,
+    request: UpdateReviewablesRequest,
+) -> None:
+    version = await VersionEntity.load(project_name, version_id)
+    await version.ensure_update_access(user)
+
+    if request.label is not None:
+        if not request.label:
+            raise BadRequestException(detail="Label cannot be empty")
+        if not isinstance(request.label, str):
+            raise BadRequestException(detail="Label must be a string")
+        if not 0 < len(request.label) <= 255:
+            raise BadRequestException(
+                detail="Label must be between 1 and 255 characters"
+            )
+
+        await Postgres.execute(
+            f"""
+            UPDATE project_{project_name}.activities
+            SET data = data || jsonb_build_object(
+                'reviewableLabel', $1::text
+            )
+            WHERE id = $2
+            """,
+            request.label,
+            reviewable_id,
+        )
