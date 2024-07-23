@@ -1,4 +1,4 @@
-__all__ = ["router", "listing", "upload"]
+__all__ = ["router", "listing", "sorting", "upload"]
 
-from . import listing, upload
+from . import listing, sorting, upload
 from .router import router
