@@ -12,13 +12,23 @@ from .router import router
 class SortReviewablesRequest(OPModel):
     sort: list[str] | None = Field(
         None,
+        title="Reviewables Order",
         description="List of reviewable (activity) ids in the order "
         "you want them to appear in the UI.",
+        example=[
+            "c197712a48ef11ef95450242ac1f0004",
+            "c519a3f448ef11ef95450242ac1f0004",
+            "c8edce0648ef11ef95450242ac1f0004",
+        ],
     )
 
 
 class UpdateReviewablesRequest(OPModel):
-    label: str | None = Field(None, title="Reviewable Label")
+    label: str | None = Field(
+        None,
+        title="Reviewable Label",
+        example="Shoulder detail",
+    )
 
 
 @router.patch("/versions/{version_id}/reviewables")
@@ -85,6 +95,11 @@ async def update_reviewable(
     reviewable_id: ActivityID,
     request: UpdateReviewablesRequest,
 ) -> None:
+    """Update an existing reviewable,
+
+    Currently it is only possible to update the label of a reviewable.
+    """
+
     version = await VersionEntity.load(project_name, version_id)
     await version.ensure_update_access(user)
 
