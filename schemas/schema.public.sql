@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS public.bundles(
   is_staging BOOLEAN NOT NULL DEFAULT FALSE,
   is_archived BOOLEAN NOT NULL DEFAULT FALSE,
   is_dev BOOLEAN NOT NULL DEFAULT FALSE,
-  active_user VARCHAR REFERENCES public.users(name) ON DELETE SET NULL,
+  active_user VARCHAR REFERENCES public.users(name) ON DELETE SET NULL ON UPDATE CASCADE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS public.site_settings(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
   site_id VARCHAR NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
-  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE,
+  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (addon_name, addon_version, site_id, user_name)
 );
