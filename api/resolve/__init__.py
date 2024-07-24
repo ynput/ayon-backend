@@ -272,11 +272,6 @@ async def resolve_entities(
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
 
-    if Postgres.get_available_connections() < 3:
-        raise ServiceUnavailableException(
-            f"Postgres remaining pool size: {Postgres.get_available_connections()}"
-        )
-
     target_entity_type: ProjectLevelEntityType | None = None
 
     platform = None
@@ -432,6 +427,12 @@ async def resolve_uris(
     the server will resolve the file path to the actual absolute path.
 
     """
+
+    if Postgres.get_available_connections() < 3:
+        raise ServiceUnavailableException(
+            f"Postgres remaining pool size: {Postgres.get_available_connections()}"
+        )
+
     roots = {}
     if request.resolve_roots and site_id:
         projects = [parse_uri(uri).project_name for uri in request.uris]
