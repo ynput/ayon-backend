@@ -10,6 +10,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 
 from .router import router
@@ -159,6 +160,30 @@ async def update_project(
 #
 
 
+async def unassign_users_from_deleted_projects() -> None:
+    """Unassign all users from non-existent projects."""
+
+    res = await Postgres.fetch(
+        """
+        SELECT DISTINCT jsonb_object_keys(data->'accessGroups')
+        AS project_name FROM users
+        """
+    )
+    assigned_projects = [row["project_name"] for row in res]
+    existing_projects = [project.name for project in await get_project_list()]
+
+    for project_name in assigned_projects:
+        if project_name not in existing_projects:
+            await Postgres.execute(
+                f"""
+                UPDATE users
+                SET data = data #- '{{accessGroups, {project_name}}}'
+                WHERE data->'accessGroups'->'{project_name}' IS NOT NULL;
+                """
+            )
+    # we don't need to update sessions, as they are updated on the next login
+
+
 @router.delete("/projects/{project_name}", status_code=204)
 async def delete_project(user: CurrentUser, project_name: ProjectName) -> EmptyResponse:
     """Delete a given project including all its entities."""
@@ -169,5 +194,7 @@ async def delete_project(user: CurrentUser, project_name: ProjectName) -> EmptyR
         raise ForbiddenException("You need to be a manager in order to delete projects")
 
     await project.delete()
+    await unassign_users_from_deleted_projects()
     logging.info(f"[DELETE] Deleted project {project.name}", user=user.name)
+
     return EmptyResponse()
