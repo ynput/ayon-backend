@@ -97,7 +97,8 @@ async def get_reviewables(
 
         ORDER BY
             versions.version ASC,
-            af.created_at ASC
+            COALESCE(af.activity_data->>'reviewableOrder', '0')::integer ASC,
+            af.creation_order ASC
     """
 
     processed: set[str] = set()

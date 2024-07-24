@@ -1,6 +1,8 @@
 import semver
+from fastapi import BackgroundTasks
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.background.metrics_collector import metrics_collector
 from ayon_server.exceptions import ForbiddenException
 
 from .common import (
@@ -17,8 +19,14 @@ from .models import (
 from .router import router
 
 
+async def post_metrics():
+    if not metrics_collector.should_collect:
+        return
+    await metrics_collector.post_metrics()
+
+
 @router.get("/addons")
-async def market_addon_list(user: CurrentUser) -> AddonList:
+async def market_addon_list(user: CurrentUser, background_tasks: BackgroundTasks):
     if not user.is_admin:
         raise ForbiddenException("Only admins can access the market")
 
@@ -39,8 +47,11 @@ async def market_addon_list(user: CurrentUser) -> AddonList:
             )
             > 0
         ):
+
             addon.is_outdated = True
+    background_tasks.add_task(post_metrics)
     return addon_list
+
 
 
 @router.get("/addons/{addon_name}")
