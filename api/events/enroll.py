@@ -1,7 +1,8 @@
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.events.enroll import EnrollResponseModel, enroll_job
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import ForbiddenException, ServiceUnavailableException
+from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import Filter
 from ayon_server.types import TOPIC_REGEX, Field, OPModel
 
@@ -64,6 +65,11 @@ async def enroll(
     Non-error response is returned because having nothing to do is not an error
     and we don't want to spam the logs.
     """
+
+    if Postgres.get_available_connections() < 3:
+        raise ServiceUnavailableException(
+            f"Postgres remaining pool size: {Postgres.get_available_connections()}"
+        )
 
     assert "*" not in payload.target_topic, "Target topic must not contain wildcards"
     source_topic = payload.source_topic.replace("*", "%")
