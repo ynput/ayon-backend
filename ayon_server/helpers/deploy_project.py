@@ -3,6 +3,7 @@ from typing import Any
 
 from nxtools import logging
 
+from ayon_server.auth.session import Session
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.events import dispatch_event
@@ -127,6 +128,10 @@ async def create_project_from_anatomy(
                 access_groups[project.name] = user.data["defaultAccessGroups"]
                 user.data["accessGroups"] = access_groups
                 await user.save(transaction=conn)
+
+                async for session in Session.list(user.name):
+                    token = session.token
+                    await Session.update(token, user)
 
     end_time = time.monotonic()
     logging.info(f"Deployed project {project.name} in {end_time - start_time:.2f}s")
