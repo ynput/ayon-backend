@@ -78,6 +78,34 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
     return result
 
 
+async def assign_default_users_to_project(project_name: str, conn) -> None:
+    """Assign a project to all users with default access groups"""
+
+    # TBD: limit to active users only?
+    # NOTE: we need to use explicit public here, because the
+    # previous statement in the transaction scopes the transaction
+    # to the project schema.
+    query = """
+        SELECT u.* FROM public.users AS u
+        WHERE jsonb_array_length(data->'defaultAccessGroups')::boolean
+        FOR UPDATE OF u
+    """
+
+    users = await conn.fetch(query)
+
+    for row in users:
+        logging.debug(f"Assigning project {project_name} to user {row['name']}")
+        user = UserEntity.from_record(row)
+        access_groups = user.data.get("accessGroups", {})
+        access_groups[project_name] = user.data["defaultAccessGroups"]
+        user.data["accessGroups"] = access_groups
+        await user.save(transaction=conn)
+
+        async for session in Session.list(user.name):
+            token = session.token
+            await Session.update(token, user)
+
+
 async def create_project_from_anatomy(
     name: str,
     code: str,
@@ -103,35 +131,9 @@ async def create_project_from_anatomy(
     )
 
     start_time = time.monotonic()
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await project.save(transaction=conn)
-
-            # Assign the new project to all users with default access groups
-
-            # TBD: limit to active users only?
-            # NOTE: we need to use explicit public here, because the
-            # previous statement in the transaction scopes the transaction
-            # to the project schema.
-            query = """
-                SELECT u.* FROM public.users AS u
-                WHERE jsonb_array_length(data->'defaultAccessGroups')::boolean
-                FOR UPDATE OF u
-            """
-
-            users = await conn.fetch(query)
-
-            for row in users:
-                logging.debug(f"Assigning project {project.name} to user {row['name']}")
-                user = UserEntity.from_record(row)
-                access_groups = user.data.get("accessGroups", {})
-                access_groups[project.name] = user.data["defaultAccessGroups"]
-                user.data["accessGroups"] = access_groups
-                await user.save(transaction=conn)
-
-                async for session in Session.list(user.name):
-                    token = session.token
-                    await Session.update(token, user)
+    async with Postgres.acquire() as conn, conn.transaction():
+        await project.save(transaction=conn)
+        await assign_default_users_to_project(project.name, conn)
 
     end_time = time.monotonic()
     logging.info(f"Deployed project {project.name} in {end_time - start_time:.2f}s")
