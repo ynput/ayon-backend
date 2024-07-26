@@ -9,7 +9,7 @@ from .watcher_list import build_watcher_list, get_watcher_list
 async def set_watchers(
     entity: ProjectLevelEntity,
     watchers: list[str],  # list of user names
-    user: UserEntity | None = None,  # who is setting the watchers
+    user: UserEntity | str | None = None,  # who is setting the watchers
     *,
     sender: str | None = None,
 ) -> None:
@@ -19,6 +19,12 @@ async def set_watchers(
     delete users that are not in the received list, and add users that are
     not in the current list.
     """
+
+    user_name = None
+    if isinstance(user, UserEntity):
+        user_name = user.name
+    elif isinstance(user, str):
+        user_name = user
 
     project_name = entity.project_name
     original_watchers = await get_watcher_list(entity)
@@ -52,7 +58,7 @@ async def set_watchers(
             entity=entity,
             activity_type="watch",
             body="",
-            user_name=user.name if user else None,
+            user_name=user_name,
             sender=sender,
             data={"watcher": watcher},
         )
@@ -60,13 +66,15 @@ async def set_watchers(
     await build_watcher_list(entity)
 
 
-async def ensure_watching(entity: ProjectLevelEntity, user: UserEntity) -> None:
+async def ensure_watching(entity: ProjectLevelEntity, user: UserEntity | str) -> None:
     """Ensure that a user is watching an entity.
 
     This should be called when a user first adds a comment or a reviewable.
     """
 
+    user_name = user.name if isinstance(user, UserEntity) else user
+
     watchers = await get_watcher_list(entity)
-    if user.name not in watchers:
-        watchers.append(user.name)
+    if user_name not in watchers:
+        watchers.append(user_name)
         await set_watchers(entity, watchers, user=user)

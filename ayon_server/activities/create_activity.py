@@ -116,8 +116,8 @@ async def create_activity(
     if activity_type not in ["watch"]:
         # We don't need to collect additional references for watch activities
         # As they only apply to the entity itself
-        references.update(await get_references_from_entity(entity))
 
+        # Add watchers first (as they are more important than mentions)
         watcher_list = await get_watcher_list(entity)
         for watcher in watcher_list:
             references.add(
@@ -128,6 +128,9 @@ async def create_activity(
                     entity_id=None,
                 )
             )
+
+        # Add related entities references
+        references.update(await get_references_from_entity(entity))
 
     #
     # Create the activity
