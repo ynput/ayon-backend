@@ -1,3 +1,5 @@
+from nxtools import logging
+
 from ayon_server.activities.create_activity import create_activity
 from ayon_server.entities.core.projectlevel import ProjectLevelEntity
 from ayon_server.entities.user import UserEntity
@@ -76,5 +78,6 @@ async def ensure_watching(entity: ProjectLevelEntity, user: UserEntity | str) ->
 
     watchers = await get_watcher_list(entity)
     if user_name not in watchers:
+        logging.debug(f"Adding {user_name} to watchers of {entity}")
         watchers.append(user_name)
         await set_watchers(entity, watchers, user=user)
