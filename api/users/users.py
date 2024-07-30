@@ -349,9 +349,18 @@ async def change_user_name(
     patch_data: ChangeUserNameRequestModel,
     user: CurrentUser,
     user_name: UserName,
+    background_tasks: BackgroundTasks,
+    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     if not user.is_manager:
         raise ForbiddenException
+
+    event: dict[str, Any] = {
+        "topic": "entity.user.renamed",
+        "description": f"Renamed user {user_name} to {patch_data.new_name}",
+        "summary": {"entityName": user_name},
+        "payload": {"oldValue": user_name, "newValue": patch_data.new_name},
+    }
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
@@ -386,6 +395,14 @@ async def change_user_name(
     async for session in Session.list(user_name):
         token = session.token
         await Session.delete(token)
+
+    background_tasks.add_task(
+        EventStream.dispatch,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
+
     return EmptyResponse()
 
 
