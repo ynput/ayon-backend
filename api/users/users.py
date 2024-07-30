@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import Path
+from fastapi import BackgroundTasks, Header, Path
 from nxtools import logging
 
 from ayon_server.api.clientinfo import ClientInfo
@@ -9,6 +9,7 @@ from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import validate_password
 from ayon_server.entities import UserEntity
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ConflictException,
@@ -118,6 +119,8 @@ async def create_user(
     put_data: NewUserModel,
     user: CurrentUser,
     user_name: UserName,
+    background_tasks: BackgroundTasks,
+    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Create a new user."""
 
@@ -147,7 +150,19 @@ async def create_user(
             raise BadRequestException("Only service users can have API keys")
         nuser.set_api_key(put_data.api_key)
 
+    event: dict[str, Any] = {
+        "topic": "entity.user.created",
+        "description": f"User {user.name} created",
+        "summary": {"entityName": user.name},
+    }
+
     await nuser.save()
+    background_tasks.add_task(
+        EventStream.dispatch,
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return EmptyResponse()
 
 
