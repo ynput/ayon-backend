@@ -42,8 +42,10 @@ async def get_inbox(
         # double escape the quotes, because we are in a string
         # that is passed as an argument to funcition, which uses
         # it to format a string... i am so sorry
-        operator = "=" if show_important_messages else "!="
-        subquery_conds.append(f"t.reference_type {operator} ''mention''")
+        operator = "IN" if show_important_messages else "NOT IN"
+        subquery_conds.append(
+            f"t.reference_type {operator} (''mention'', ''watching'')"
+        )
 
     subquery_add_arg = ""
     if subquery_conds:
