@@ -104,6 +104,7 @@ class Session:
         user: UserEntity,
         request: Request | None = None,
         token: str | None = None,
+        message: str = "User logged in",
     ) -> SessionModel:
         """Create a new session for a given user."""
         is_service = bool(token)
@@ -122,7 +123,7 @@ class Session:
         if not user.is_service:
             await EventStream.dispatch(
                 "user.log_in",
-                description="User logged in",
+                description=message,
                 user=user.name,
                 summary=client_info.dict() if client_info else None,
             )
