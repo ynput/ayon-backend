@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import BackgroundTasks, Header, Path
+from fastapi import Header, Path
 from nxtools import logging
 
 from ayon_server.api.clientinfo import ClientInfo
@@ -8,6 +8,7 @@ from ayon_server.api.dependencies import AccessToken, CurrentUser, UserName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import validate_password
+from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import (
@@ -119,7 +120,6 @@ async def create_user(
     put_data: NewUserModel,
     user: CurrentUser,
     user_name: UserName,
-    background_tasks: BackgroundTasks,
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Create a new user."""
@@ -157,8 +157,7 @@ async def create_user(
     }
 
     await nuser.save()
-    background_tasks.add_task(
-        EventStream.dispatch,
+    await EventStream.dispatch(
         sender=x_sender,
         user=user.name,
         **event,
@@ -167,14 +166,33 @@ async def create_user(
 
 
 @router.delete("/{user_name}")
-async def delete_user(user: CurrentUser, user_name: UserName) -> EmptyResponse:
+async def delete_user(
+    user: CurrentUser,
+    user_name: UserName,
+    x_sender: str | None = Header(default=None),
+) -> EmptyResponse:
     logging.info(f"[DELETE] /users/{user_name}")
     if not user.is_manager:
         raise ForbiddenException
 
     target_user = await UserEntity.load(user_name)
-    await target_user.delete()
 
+    event: dict[str, Any] = {
+        "description": f"User {user_name} deleted",
+        "summary": {"entityName": user_name},
+    }
+    if ayonconfig.audit_trail:
+        event["payload"] = {
+            "entityData": target_user.dict_simple(),
+        }
+
+    await target_user.delete()
+    await EventStream.dispatch(
+        "entity.user.deleted",
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return EmptyResponse()
 
 
@@ -349,7 +367,6 @@ async def change_user_name(
     patch_data: ChangeUserNameRequestModel,
     user: CurrentUser,
     user_name: UserName,
-    background_tasks: BackgroundTasks,
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     if not user.is_manager:
@@ -396,8 +413,7 @@ async def change_user_name(
         token = session.token
         await Session.delete(token)
 
-    background_tasks.add_task(
-        EventStream.dispatch,
+    await EventStream.dispatch(
         sender=x_sender,
         user=user.name,
         **event,
