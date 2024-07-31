@@ -171,7 +171,6 @@ async def delete_user(
     user_name: UserName,
     x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
-    logging.info(f"[DELETE] /users/{user_name}")
     if not user.is_manager:
         raise ForbiddenException
 
