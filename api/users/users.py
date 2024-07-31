@@ -152,7 +152,7 @@ async def create_user(
 
     event: dict[str, Any] = {
         "topic": "entity.user.created",
-        "description": f"User {user.name} created",
+        "description": f"User {user_name} created",
         "summary": {"entityName": user.name},
     }
 
