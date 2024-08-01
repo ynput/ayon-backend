@@ -144,7 +144,6 @@ def get_version_conditions(version_name: str | None) -> list[str]:
         version_name = version_name[1:]
 
     if version_name.isdigit():
-        # strip leading zeros
         return [f"v.version = {int(version_name)}"]
 
     if version_name == "latest":
