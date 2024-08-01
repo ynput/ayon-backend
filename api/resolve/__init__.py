@@ -139,12 +139,12 @@ def get_version_conditions(version_name: str | None) -> list[str]:
     if version_name == "*":
         return []
 
+    original_version_name = version_name
     if version_name.startswith("v"):
         version_name = version_name[1:]
 
     if version_name.isdigit():
         # strip leading zeros
-        version_name = version_name.lstrip("0")
         return [f"v.version = {int(version_name)}"]
 
     if version_name == "latest":
@@ -160,8 +160,8 @@ def get_version_conditions(version_name: str | None) -> list[str]:
     if version_name == "hero":
         return ["v.version < 0"]
 
-    logging.debug(f"Invalid version name: {version_name}")
-    return []
+    logging.debug(f"Invalid version name: {original_version_name}")
+    return ["FALSE"]
 
 
 def get_representation_conditions(representation_name: str | None) -> list[str]:
