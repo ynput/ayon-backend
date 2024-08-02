@@ -377,11 +377,11 @@ BEGIN
           AND a.attname = 'user_name'
     ) THEN
         -- Drop the existing foreign key constraint
-        ALTER TABLE public.bundles
+        ALTER TABLE public.site_settings
         DROP CONSTRAINT IF EXISTS site_settings_user_name_fkey;
 
         -- Add a new foreign key constraint with ON UPDATE CASCADE
-        ALTER TABLE public.bundles
+        ALTER TABLE public.site_settings
         ADD CONSTRAINT site_settings_user_name_fkey
         FOREIGN KEY (user_name)
         REFERENCES public.users(name)
