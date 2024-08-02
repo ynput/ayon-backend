@@ -1,11 +1,12 @@
-from pydantic import Field, validator
+from pydantic import validator
 
 from ayon_server.settings.common import BaseSettingsModel
+from ayon_server.settings.settings_field import SettingsField
 from ayon_server.settings.validators import ensure_unique_names, normalize_name
 
 
 class BaseTemplate(BaseSettingsModel):
-    name: str = Field(..., title="Name")
+    name: str = SettingsField(..., title="Name")
 
     @validator("name")
     def validate_name(cls, value):
@@ -13,33 +14,33 @@ class BaseTemplate(BaseSettingsModel):
 
 
 class WorkTemplate(BaseTemplate):
-    directory: str = Field(..., title="Directory template")
-    file: str = Field(..., title="File name template")
+    directory: str = SettingsField(..., title="Directory template")
+    file: str = SettingsField(..., title="File name template")
 
 
 class PublishTemplate(BaseTemplate):
-    directory: str = Field(..., title="Directory template")
-    file: str = Field(..., title="File name template")
+    directory: str = SettingsField(..., title="Directory template")
+    file: str = SettingsField(..., title="File name template")
 
 
 class HeroTemplate(BaseTemplate):
-    directory: str = Field(..., title="Directory template")
-    file: str = Field(..., title="File name template")
+    directory: str = SettingsField(..., title="Directory template")
+    file: str = SettingsField(..., title="File name template")
 
 
 class DeliveryTemplate(BaseTemplate):
-    directory: str = Field(..., title="Directory template")
-    file: str = Field(..., title="File name template")
+    directory: str = SettingsField(..., title="Directory template")
+    file: str = SettingsField(..., title="File name template")
 
 
 class CustomTemplate(BaseTemplate):
     _layout: str = "compact"
-    value: str = Field("", title="Template value")
+    value: str = SettingsField("", title="Template value")
 
 
 class StagingDirectory(BaseTemplate):
     _layout: str = "compact"
-    directory: str = Field("")
+    directory: str = SettingsField("")
 
 
 # TODO: Custom templates are not supported yet
@@ -47,29 +48,29 @@ class StagingDirectory(BaseTemplate):
 
 
 class Templates(BaseSettingsModel):
-    version_padding: int = Field(
+    version_padding: int = SettingsField(
         default=3,
         title="Version padding",
         gt=0,
     )
 
-    version: str = Field(
+    version: str = SettingsField(
         default="v{version:0>{@version_padding}}",
         title="Version template",
     )
 
-    frame_padding: int = Field(
+    frame_padding: int = SettingsField(
         default=4,
         title="Frame padding",
         gt=0,
     )
 
-    frame: str = Field(
+    frame: str = SettingsField(
         default="{frame:0>{@frame_padding}}",
         title="Frame template",
     )
 
-    work: list[WorkTemplate] = Field(
+    work: list[WorkTemplate] = SettingsField(
         default_factory=lambda: [
             WorkTemplate(
                 name="default",
@@ -85,7 +86,7 @@ class Templates(BaseSettingsModel):
         title="Work",
     )
 
-    publish: list[PublishTemplate] = Field(
+    publish: list[PublishTemplate] = SettingsField(
         title="Publish",
         default_factory=lambda: [
             PublishTemplate(
@@ -126,7 +127,7 @@ class Templates(BaseSettingsModel):
         ],
     )
 
-    hero: list[HeroTemplate] = Field(
+    hero: list[HeroTemplate] = SettingsField(
         title="Hero",
         default_factory=lambda: [
             HeroTemplate(
@@ -137,17 +138,17 @@ class Templates(BaseSettingsModel):
         ],
     )
 
-    delivery: list[DeliveryTemplate] = Field(
+    delivery: list[DeliveryTemplate] = SettingsField(
         default_factory=list,
         title="Delivery",
     )
 
-    staging: list[StagingDirectory] = Field(
+    staging: list[StagingDirectory] = SettingsField(
         default_factory=list,
         title="Staging directories",
     )
 
-    others: list[CustomTemplate] = Field(
+    others: list[CustomTemplate] = SettingsField(
         default_factory=list,
         title="Others",
     )
