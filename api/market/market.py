@@ -49,7 +49,6 @@ async def market_addon_list(user: CurrentUser, background_tasks: BackgroundTasks
             > 0
         ):
             addon.is_outdated = True
-
     background_tasks.add_task(post_metrics)
     return addon_list
 

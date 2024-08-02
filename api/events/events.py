@@ -44,7 +44,7 @@ class DispatchEventRequestModel(OPModel):
     hash: str | None = HASH_FIELD
     project: str | None = PROJECT_FIELD
     depends_on: str | None = DEPENDS_ON_FIELD
-    description: str = DESCRIPTION_FIELD
+    description: str | None = DESCRIPTION_FIELD
     summary: dict[str, Any] = SUMMARY_FIELD
     payload: dict[str, Any] = PAYLOAD_FIELD
     finished: bool = Field(
@@ -56,7 +56,7 @@ class DispatchEventRequestModel(OPModel):
     store: bool = Field(
         True,
         title="Store",
-        description="Set to False to not store one-shot event in database.",
+        description="Set to False for fire-and-forget events",
         example=True,
     )
 

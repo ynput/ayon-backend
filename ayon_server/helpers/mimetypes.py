@@ -49,7 +49,7 @@ def guess_mime_type(payload: bytes) -> str | None:
         media_type = "image/x-icon"
     elif payload[4:10] == b"ftypqt":
         media_type = "video/quicktime"
-    elif payload[4:12] == b"ftypeisom":
+    elif payload[4:12] == b"ftypisom":
         media_type = "video/mp4"
     else:
         media_type = None

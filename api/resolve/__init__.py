@@ -117,6 +117,15 @@ class ParsedURIModel(OPModel):
     workfile_name: str | None = Field(None, title="Workfile name")
 
 
+SDF_REGEX = re.compile(r":SDF_FORMAT_ARGS.*$")
+
+
+def sanitize_uri(uri: str) -> str:
+    # remove `:SDF_FORMAT_ARGS` suffix
+    uri = re.sub(SDF_REGEX, "", uri)
+    return uri
+
+
 def validate_name(name: str) -> None:
     if name is None:
         return
@@ -134,6 +143,8 @@ def parse_uri(uri: str) -> ParsedURIModel:
     version_name: str | None
     representation_name: str | None
     workfile_name: str | None
+
+    uri = sanitize_uri(uri)
 
     parsed_uri = urlparse(uri)
     assert parsed_uri.scheme in [
@@ -260,11 +271,6 @@ async def resolve_entities(
 
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
-
-    if Postgres.get_available_connections() < 3:
-        raise ServiceUnavailableException(
-            f"Postgres remaining pool size: {Postgres.get_available_connections()}"
-        )
 
     target_entity_type: ProjectLevelEntityType | None = None
 
@@ -421,6 +427,12 @@ async def resolve_uris(
     the server will resolve the file path to the actual absolute path.
 
     """
+
+    if Postgres.get_available_connections() < 3:
+        raise ServiceUnavailableException(
+            f"Postgres remaining pool size: {Postgres.get_available_connections()}"
+        )
+
     roots = {}
     if request.resolve_roots and site_id:
         projects = [parse_uri(uri).project_name for uri in request.uris]
