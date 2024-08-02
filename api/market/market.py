@@ -26,7 +26,10 @@ async def post_metrics():
 
 
 @router.get("/addons")
-async def market_addon_list(user: CurrentUser, background_tasks: BackgroundTasks):
+async def market_addon_list(
+    user: CurrentUser,
+    background_tasks: BackgroundTasks,
+) -> AddonList:
     if not user.is_admin:
         raise ForbiddenException("Only admins can access the market")
 
