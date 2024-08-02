@@ -1,7 +1,7 @@
 import copy
 from typing import Any
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, BackgroundTasks, Body
 from nxtools import log_traceback
 
 from ayon_server.access.access_groups import AccessGroups
@@ -21,6 +21,45 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.postprocess import postprocess_settings_schema
 
 router = APIRouter(prefix="", tags=["Access Groups"])
+
+
+async def clean_up_user_access_groups() -> None:
+    """Remove deleted access groups from user records"""
+
+    async with Postgres.acquire() as conn, conn.transaction():
+        res = await conn.fetch("SELECT name FROM access_groups")
+        if not res:
+            return
+        existing_access_groups = [row["name"] for row in res]
+
+        query = "SELECT name, data FROM users FOR UPDATE OF users"
+        user_map = await Postgres.fetch(query)
+        for row in user_map:
+            user_name = row["name"]
+            user_data = row["data"]
+            save = False
+
+            if def_access_groups := user_data.get("defaultAccessGroups", []):
+                if isinstance(def_access_groups, list):  # just in case
+                    for ag in def_access_groups:
+                        if ag not in existing_access_groups:
+                            def_access_groups.remove(ag)
+                            save = True
+
+            if isinstance(acc_groups := user_data.get("accessGroups", {}), dict):
+                for project_access_groups in acc_groups.values():
+                    if isinstance(project_access_groups, list):  # just in case
+                        for ag in project_access_groups:
+                            if ag not in existing_access_groups:
+                                project_access_groups.remove(ag)
+                                save = True
+
+            if save:
+                await Postgres.execute(
+                    "UPDATE users SET data = $2 WHERE name = $1",
+                    user_name,
+                    user_data,
+                )
 
 
 @router.get("/accessGroups/_schema")
@@ -116,6 +155,7 @@ async def delete_access_group(
     user: CurrentUser,
     access_group_name: AccessGroupName,
     project_name: ProjectNameOrUnderscore,
+    background_tasks: BackgroundTasks,
 ):
     """Delete an access group"""
 
@@ -135,10 +175,9 @@ async def delete_access_group(
     )
 
     if scope == "public":
-        # TODO: Remove access group records from users
-        # when the default access group is removed
-        pass
+        background_tasks.add_task(clean_up_user_access_groups)
 
     await AccessGroups.load()
     # TODO: messaging: notify other instances
+
     return EmptyResponse()
