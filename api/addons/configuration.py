@@ -1,3 +1,5 @@
+# DEPRECATED: Remove
+
 from typing import Literal
 
 import semver
