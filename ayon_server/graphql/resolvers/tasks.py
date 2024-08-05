@@ -100,7 +100,7 @@ async def get_tasks(
     sql_conditions = []
     sql_joins = []
 
-    if fields.has_any("hasReviewables"):
+    if fields.any_endswith("hasReviewables"):
         sql_cte.append(
             f"""
             reviewables AS (

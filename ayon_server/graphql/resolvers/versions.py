@@ -98,7 +98,7 @@ async def get_versions(
         "versions.creation_order AS creation_order",
     ]
 
-    if fields.has_any("hasReviewables"):
+    if fields.any_endswith("hasReviewables"):
         sql_cte.append(
             f"""
             reviewables AS (
