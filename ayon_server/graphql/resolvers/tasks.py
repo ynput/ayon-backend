@@ -79,6 +79,7 @@ async def get_tasks(
     # SQL
     #
 
+    sql_cte = []
     sql_columns = [
         "tasks.id AS id",
         "tasks.name AS name",
@@ -98,6 +99,27 @@ async def get_tasks(
     ]
     sql_conditions = []
     sql_joins = []
+
+    if fields.has_any("hasReviewables"):
+        sql_cte.append(
+            f"""
+            reviewables AS (
+                SELECT v.task_id AS task_id FROM project_{project_name}.activity_feed af
+                INNER JOIN project_{project_name}.versions v
+                ON af.entity_id = v.id
+                AND af.entity_type = 'version'
+                AND  af.activity_type = 'reviewable'
+            )
+            """
+        )
+
+        sql_columns.append(
+            """
+            EXISTS (
+            SELECT 1 FROM reviewables WHERE task_id = tasks.id
+            ) AS has_reviewables
+            """
+        )
 
     if ids is not None:
         if not ids:
@@ -286,7 +308,14 @@ async def get_tasks(
     # Query
     #
 
+    if sql_cte:
+        cte = ", ".join(sql_cte)
+        cte = f"WITH {cte}"
+    else:
+        cte = ""
+
     query = f"""
+        {cte}
         SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.tasks AS tasks
         {" ".join(sql_joins)}

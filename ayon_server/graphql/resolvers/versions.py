@@ -259,8 +259,6 @@ async def get_versions(
         {pagination}
     """
 
-    print(query)
-
     return await resolve(
         VersionsConnection,
         VersionEdge,
