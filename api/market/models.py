@@ -12,7 +12,8 @@ class RestModel(OPModel):
 
 
 class LinkModel(RestModel):
-    type: Literal["homepage", "github"] = Field("homepage")
+    type: Literal["homepage", "github", "documentation"] = Field("homepage")
+    label: str | None = Field(None)
     url: str = Field(...)
 
 
