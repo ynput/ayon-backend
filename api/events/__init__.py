@@ -1,7 +1,4 @@
-__all__ = ["router"]
+__all__ = ["router", "enroll", "events"]
 
 from . import enroll, events
 from .router import router
-
-assert events
-assert enroll
