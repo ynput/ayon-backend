@@ -29,13 +29,14 @@ class VersionAttribType:
 class VersionNode(BaseNode):
     version: int
     product_id: str
-    task_id: str | None
-    thumbnail_id: str | None
-    author: str | None
     status: str
     attrib: VersionAttribType
-    data: str | None
     tags: list[str]
+    task_id: str | None = None
+    thumbnail_id: str | None = None
+    has_reviewables: bool = False
+    author: str | None = None
+    data: str | None = None
 
     # GraphQL specifics
 
@@ -85,6 +86,11 @@ def version_from_record(
     else:
         name = f"v{record['version']:03d}"
 
+    if "has_reviewables" in record:
+        has_reviewables = record["has_reviewables"]
+    else:
+        has_reviewables = False
+
     return VersionNode(
         project_name=project_name,
         id=record["id"],
@@ -94,6 +100,7 @@ def version_from_record(
         product_id=record["product_id"],
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
+        has_reviewables=has_reviewables,
         author=author,
         status=record["status"],
         tags=record["tags"],

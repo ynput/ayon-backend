@@ -34,6 +34,7 @@ class TaskNode(BaseNode):
     assignees: list[str]
     folder_id: str
     status: str
+    has_reviewables: bool
     tags: list[str]
     attrib: TaskAttribType
     data: str | None
@@ -103,6 +104,11 @@ def task_from_record(
     own_attrib = list(record["attrib"].keys())
     data = record.get("data", {})
 
+    if "has_reviewables" in record:
+        has_reviewables = record["has_reviewables"]
+    else:
+        has_reviewables = False
+
     return TaskNode(
         project_name=project_name,
         id=record["id"],
@@ -113,6 +119,7 @@ def task_from_record(
         assignees=assignees,
         folder_id=record["folder_id"],
         status=record["status"],
+        has_reviewables=has_reviewables,
         tags=record["tags"],
         attrib=parse_attrib_data(
             TaskAttribType,

@@ -74,10 +74,12 @@ async def get_versions(
     """Return a list of versions."""
 
     project_name = root.project_name
+    fields = FieldInfo(info, ["versions.edges.node", "version"])
 
     #
     # SQL
     #
+    sql_cte = []
 
     sql_columns = [
         "versions.id AS id",
@@ -96,7 +98,25 @@ async def get_versions(
         "versions.creation_order AS creation_order",
     ]
 
-    # sql_joins = []
+    if fields.any_endswith("hasReviewables"):
+        sql_cte.append(
+            f"""
+            reviewables AS (
+                SELECT entity_id FROM project_{project_name}.activity_feed
+                WHERE entity_type = 'version'
+                AND   activity_type = 'reviewable'
+            )
+            """
+        )
+
+        sql_columns.append(
+            """
+            EXISTS (
+            SELECT 1 FROM reviewables WHERE entity_id = versions.id
+            ) AS has_reviewables
+            """
+        )
+
     sql_conditions = []
     sql_joins = []
 
@@ -224,7 +244,14 @@ async def get_versions(
     # Query
     #
 
+    if sql_cte:
+        cte = ", ".join(sql_cte)
+        cte = f"WITH {cte}"
+    else:
+        cte = ""
+
     query = f"""
+        {cte}
         SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.versions AS versions
         {" ".join(sql_joins)}
