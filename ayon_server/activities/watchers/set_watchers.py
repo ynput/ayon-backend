@@ -51,7 +51,14 @@ async def set_watchers(
             WHERE id IN (SELECT activity_id FROM activities_to_delete)
         """
 
-        await Postgres.execute(query, entity.entity_type, entity.id, unwatchers)
+        try:
+            await Postgres.execute(query, entity.entity_type, entity.id, unwatchers)
+        except Postgres.UndefinedTableError:
+            logging.debug(
+                "Unable to delete watchers. "
+                f"Project {entity.project_name} no longer exists"
+            )
+            return
 
     # Add new watchers
 
@@ -76,7 +83,12 @@ async def ensure_watching(entity: ProjectLevelEntity, user: UserEntity | str) ->
 
     user_name = user.name if isinstance(user, UserEntity) else user
 
-    watchers = await get_watcher_list(entity)
+    try:
+        watchers = await get_watcher_list(entity)
+    except Postgres.UndefinedTableError:
+        logging.debug(f"Unable to set watchers. Entity {entity} no longer exists")
+        return
+
     if user_name not in watchers:
         logging.debug(f"Adding {user_name} to watchers of {entity}")
         watchers.append(user_name)
