@@ -24,6 +24,7 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
     "priority": {
         "scope": "P, F, T",
         "type": "string",
+        "title": "Priority",
         "default": "normal",
         "enum": [
             {"value": "low", "label": "Low", "color": "#0000ff"},

@@ -231,7 +231,7 @@ class AttributeEnumItem(OPModel):
     color: ColorRGB_hex | None = Field(
         None,
         title="Color in RGBA hex format",
-        regex=ColorRGBA_hex.__doc__,
+        regex="^#[0-9a-fA-F]{6}$",
     )
 
 
