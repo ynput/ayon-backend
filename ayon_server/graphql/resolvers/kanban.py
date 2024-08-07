@@ -86,6 +86,9 @@ async def get_kanban(
     elif assignees_any:
         validate_name_list(assignees_any)
 
+    if not project_data:
+        return KanbanConnection(edges=[])
+
     # Sub-query conditions
 
     sub_query_conds = []
