@@ -80,14 +80,14 @@ async def get_kanban(
     async for row in Postgres.iterate(q):
         project_data.append(row)
 
-    if not project_data:
-        return KanbanConnection(edges=[])
-
     if not user.is_manager:
         assignees_any = [user.name]
         project_data = [p for p in project_data if user_has_access(user, p["name"])]
     elif assignees_any:
         validate_name_list(assignees_any)
+
+    if not project_data:
+        return KanbanConnection(edges=[])
 
     # Sub-query conditions
 
