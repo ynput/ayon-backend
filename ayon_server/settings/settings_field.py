@@ -36,7 +36,7 @@ def SettingsField(
     regex: str | None = None,
     discriminator: str | None = None,
     repr: bool = True,
-    # Ayon settings specifics
+    # AYON settings specifics
     example: Any = None,
     enum_resolver: AnyCallable | None = None,
     required_items: list[str] | None = None,
