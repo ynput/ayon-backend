@@ -91,6 +91,12 @@ class AyonConfig(BaseModel):
         example="postgres://user:password123@postgres.example.com:5432/ayon",
     )
 
+    postgres_pool_size: int = Field(
+        64,
+        description="Postgres connection pool size",
+        example=64,
+    )
+
     session_ttl: int = Field(
         default=24 * 3600,
         description="Session lifetime in seconds",
