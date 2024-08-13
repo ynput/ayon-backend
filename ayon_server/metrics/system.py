@@ -98,7 +98,6 @@ class SystemMetrics:
             Metric("uptime_seconds", time.time() - self.boot_time),
             Metric("runtime_seconds", time.time() - self.run_time),
             Metric("redis_size_total", redis_size),
-            Metric("db_available_connections", Postgres.get_available_connections()),
         ]
 
     async def render_prometheus(self) -> str:
@@ -106,11 +105,18 @@ class SystemMetrics:
         for metric in await self.status():
             result += metric.render_prometheus()
 
+        for metric in await self.get_upload_sizes():
+            result += metric.render_prometheus()
+
         for metric in await self.get_db_sizes():
             result += metric.render_prometheus()
 
-        for metric in await self.get_upload_sizes():
-            result += metric.render_prometheus()
+        # ~realtime data
+        db_avail = Metric(
+            "db_available_connections", Postgres.get_available_connections()
+        )
+        result += db_avail.render_prometheus()
+
         return result
 
     @aiocache.cached(ttl=120)
