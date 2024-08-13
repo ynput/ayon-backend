@@ -23,7 +23,6 @@ class Postgres:
     Provides an interface for interacting with a Postgres database.
     """
 
-    default_acquire_timeout: int = 10
     shutting_down: bool = False
     pool: asyncpg.pool.Pool | None = None  # type: ignore
 
@@ -42,7 +41,7 @@ class Postgres:
             raise ConnectionError("Connection pool is not initialized.")
 
         if timeout is None:
-            timeout = cls.default_acquire_timeout
+            timeout = ayonconfig.postgres_pool_timeout
 
         try:
             connection_proxy = await cls.pool.acquire(timeout=timeout)
