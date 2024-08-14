@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from ayon_server.api import ResponseFactory
+from ayon_server.api.responses import ResponseFactory
 
 router = APIRouter(
     prefix="/users",
