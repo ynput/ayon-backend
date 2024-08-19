@@ -2,10 +2,34 @@ from typing import Any
 
 from ayon_server.lib.postgres import Postgres
 
+DEFAULT_ACCESS_GROUPS = [
+    {
+        "name": "supervisor",
+        "data": {},  # no restrictions
+    },
+    {
+        "name": "artist",
+        "data": {
+            "create": {"enabled": True},  # restrict folder creation
+            "delete": {"enabled": True},  # restrict folder deletion
+        },
+    },
+    {"name": "freelancer", "data": {}},
+]
+
 
 async def deploy_access_groups(access_groups: list[dict[str, Any]]) -> None:
     if not access_groups:
-        return
+        res = await Postgres.fetch("SELECT name FROM access_groups LIMIT 1")
+        if res:
+            # there are already access groups in the database
+            # and no explicit access groups are provided,
+            # so we don't need to do anything
+            return
+
+        # there are no access groups in the database and there are no
+        # groups provided, so we need to create the default access groups
+        access_groups = DEFAULT_ACCESS_GROUPS
 
     for access_group in access_groups:
         name = access_group["name"]
