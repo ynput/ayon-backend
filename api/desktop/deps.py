@@ -68,6 +68,13 @@ def get_manifest(filename: str) -> DependencyPackage:
     if manifest.has_local_file:
         if "server" not in [s.type for s in manifest.sources]:
             manifest.sources.insert(0, SourceModel(type="server"))
+
+    manifest.sources = [
+        m
+        for m in manifest.sources
+        if not (m.url and m.url.startswith("https://download.ynput.cloud"))
+    ]
+
     return manifest
 
 
