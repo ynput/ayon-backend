@@ -14,7 +14,16 @@ DEFAULT_ACCESS_GROUPS = [
             "delete": {"enabled": True},  # restrict folder deletion
         },
     },
-    {"name": "freelancer", "data": {}},
+    {
+        "name": "freelancer",
+        "data": {
+            "create": {"enabled": True},  # restrict folder creation
+            "delete": {"enabled": True},  # restrict folder deletion
+            "update": {"enabled": True},  # restrict folder update
+            "read": {"enabled": True, "access_list": [{"access_type": "assigned"}]},
+            "publish": {"enabled": True, "access_list": [{"access_type": "assigned"}]},
+        },
+    },
 ]
 
 
