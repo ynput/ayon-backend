@@ -68,7 +68,7 @@ async def promote_bundle(bundle: BundleModel, user: UserEntity, conn):
             pres = await conn.fetch(
                 f"""
                 SELECT data FROM project_{project.name}.settings
-                WHERE addon_name = $2 AND addon_version = $3
+                WHERE addon_name = $1 AND addon_version = $2
                 AND variant = 'staging'
                 """,
                 addon_name,
