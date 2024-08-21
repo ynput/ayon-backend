@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Any, Awaitable, Callable, Type
 
+from nxtools import logging
+
 from ayon_server.exceptions import ConstraintViolationException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
@@ -132,7 +134,10 @@ class EventStream:
 
         handlers = cls.hooks.get(event.topic, [])
         for handler in handlers:
-            await handler(event)
+            try:
+                await handler(event)
+            except Exception as e:
+                logging.debug(f"Error in event handler: {e}")
 
         return event.id
 

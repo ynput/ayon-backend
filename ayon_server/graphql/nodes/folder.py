@@ -42,6 +42,7 @@ class FolderNode(BaseNode):
     child_count: int = strawberry.field(default=0)
     product_count: int = strawberry.field(default=0)
     task_count: int = strawberry.field(default=0)
+    has_reviewables: bool = strawberry.field(default=False)
 
     products: ProductsConnection = strawberry.field(
         resolver=get_products,
@@ -104,6 +105,11 @@ def folder_from_record(
     own_attrib = list(record["attrib"].keys())
     data = record.get("data")
 
+    if "has_reviewables" in record:
+        has_reviewables = record["has_reviewables"]
+    else:
+        has_reviewables = False
+
     return FolderNode(
         project_name=project_name,
         id=record["id"],
@@ -129,6 +135,7 @@ def folder_from_record(
         child_count=record.get("child_count", 0),
         product_count=record.get("product_count", 0),
         task_count=record.get("task_count", 0),
+        has_reviewables=has_reviewables,
         path="/" + record.get("path", "").strip("/"),
         own_attrib=own_attrib,
     )

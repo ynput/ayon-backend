@@ -86,6 +86,9 @@ async def get_kanban(
     elif assignees_any:
         validate_name_list(assignees_any)
 
+    if not project_data:
+        return KanbanConnection(edges=[])
+
     # Sub-query conditions
 
     sub_query_conds = []
@@ -123,7 +126,15 @@ async def get_kanban(
                 f.name as folder_name,
                 f.label as folder_label,
                 h.path as folder_path,
-                t.thumbnail_id as thumbnail_id
+                t.thumbnail_id as thumbnail_id,
+                EXISTS (
+                    SELECT 1 FROM {project_schema}.versions v
+                    INNER JOIN {project_schema}.activity_feed af
+                    ON  af.entity_id = v.id
+                    AND af.entity_type = 'version'
+                    AND af.activity_type = 'reviewable'
+                    AND v.task_id = t.id
+                ) AS has_reviewables
                 FROM {project_schema}.tasks t
                 JOIN {project_schema}.folders f ON f.id = t.folder_id
                 JOIN {project_schema}.hierarchy h ON h.id = f.id
