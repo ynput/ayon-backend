@@ -2,7 +2,7 @@ import os
 
 import aiocache
 from fastapi import Header, Request, Response
-from starlette.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.files import handle_upload
@@ -12,6 +12,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.cdn import file_cdn_enabled, get_cdn_link
 from ayon_server.helpers.project_files import id_to_path
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -181,8 +182,23 @@ async def get_project_file(
 
     check_user_access(project_name, user)
 
+    if await file_cdn_enabled():
+        return await get_cdn_link(project_name, file_id)
+
+    url = f"/api/projects/{project_name}/files/{file_id}/payload"
+    return RedirectResponse(url=url, status_code=302)
+
+
+@router.get("/{file_id}/payload", response_model=None)
+async def get_project_file_payload(
+    request: Request,
+    project_name: ProjectName,
+    file_id: str,
+    user: CurrentUser,
+) -> FileResponse | Response:
     path = id_to_path(project_name, file_id)
 
+    check_user_access(project_name, user)
     headers = await get_file_headers(project_name, file_id)
 
     if headers["Content-Type"].startswith("video"):
