@@ -18,6 +18,7 @@ from ayon_server.types import Field, OPModel, Platform
 
 from .actions import promote_bundle
 from .check_bundle import CheckBundleResponseModel, check_bundle
+from .migration import migrate_settings_by_bundle
 from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
@@ -446,3 +447,26 @@ async def bundle_actions(
                 await promote_bundle(bundle, user, conn)
 
     return EmptyResponse(status_code=204)
+
+
+class MigrateBundleSettingsRequest(OPModel):
+    source_bundle: str
+    target_bundle: str
+    source_variant: str
+    target_variant: str
+
+
+@router.post("/migrateSettingsByBundle")
+async def migrate_bundle_settings(
+    user: CurrentUser, request: MigrateBundleSettingsRequest
+) -> None:
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can migrate bundle settings")
+
+    await migrate_settings_by_bundle(
+        request.source_bundle,
+        request.target_bundle,
+        request.source_variant,
+        request.target_variant,
+        with_projects=True,
+    )
