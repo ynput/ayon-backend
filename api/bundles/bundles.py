@@ -13,7 +13,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
-from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.types import Field, OPModel, Platform
 
 from .actions import promote_bundle
@@ -82,53 +82,52 @@ async def list_bundles(
 
 
 async def _create_new_bundle(
+    conn: Connection,
     bundle: BundleModel,
     user: UserEntity | None = None,
     sender: str | None = None,
 ):
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            # Clear constrained values if they are being updated
-            if bundle.is_production:
-                await conn.execute("UPDATE bundles SET is_production = FALSE")
-            if bundle.is_staging:
-                await conn.execute("UPDATE bundles SET is_staging = FALSE")
-            if bundle.active_user:
-                await conn.execute(
-                    "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
-                    bundle.active_user,
-                )
+    # Clear constrained values if they are being updated
+    if bundle.is_production:
+        await conn.execute("UPDATE bundles SET is_production = FALSE")
+    if bundle.is_staging:
+        await conn.execute("UPDATE bundles SET is_staging = FALSE")
+    if bundle.active_user:
+        await conn.execute(
+            "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
+            bundle.active_user,
+        )
 
-            data: dict[str, Any] = {
-                "addons": bundle.addons,
-                "installer_version": bundle.installer_version,
-                "dependency_packages": bundle.dependency_packages,
-            }
-            if bundle.addon_development:
-                addon_development_dict = {}
-                for key, value in bundle.addon_development.items():
-                    addon_development_dict[key] = value.dict()
-                data["addon_development"] = addon_development_dict
+    data: dict[str, Any] = {
+        "addons": bundle.addons,
+        "installer_version": bundle.installer_version,
+        "dependency_packages": bundle.dependency_packages,
+    }
+    if bundle.addon_development:
+        addon_development_dict = {}
+        for key, value in bundle.addon_development.items():
+            addon_development_dict[key] = value.dict()
+        data["addon_development"] = addon_development_dict
 
-            query = """
-                INSERT INTO bundles
-                (name, data, is_production, is_staging, is_dev, active_user, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            """
+    query = """
+        INSERT INTO bundles
+        (name, data, is_production, is_staging, is_dev, active_user, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+    """
 
-            # we ignore is_archived. it does not make sense to create
-            # an archived bundle
+    # we ignore is_archived. it does not make sense to create
+    # an archived bundle
 
-            await conn.execute(
-                query,
-                bundle.name,
-                data,
-                bundle.is_production,
-                bundle.is_staging,
-                bundle.is_dev,
-                bundle.active_user,
-                bundle.created_at,
-            )
+    await conn.execute(
+        query,
+        bundle.name,
+        data,
+        bundle.is_production,
+        bundle.is_staging,
+        bundle.is_dev,
+        bundle.active_user,
+        bundle.created_at,
+    )
 
     await EventStream.dispatch(
         "bundle.created",
@@ -159,6 +158,16 @@ async def create_new_bundle(
     user: CurrentUser,
     x_sender: str | None = Header(default=None),
     force: bool = Query(False, description="Force creation of bundle"),
+    settings_from_bundle: str | None = Query(
+        None,
+        description="Copy settings from bundle",
+        alias="settingsFromBundle",
+    ),
+    settings_from_variant: str = Query(
+        "production",
+        description="Copy settings from variant",
+        alias="settingsFromVariant",
+    ),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can create bundles")
@@ -177,7 +186,21 @@ async def create_new_bundle(
                 if addon_definition.latest:
                     bundle.addons[system_addon_name] = addon_definition.latest.version
 
-    await _create_new_bundle(bundle, user, x_sender)
+    async with Postgres.acquire() as conn, conn.transaction():
+        await _create_new_bundle(conn, bundle, user, x_sender)
+
+        if settings_from_bundle:
+            if not (bundle.is_production or bundle.is_staging):
+                raise BadRequestException(
+                    "Cannot copy settings to non-production/staging bundle"
+                )
+            await migrate_settings_by_bundle(
+                settings_from_bundle,
+                bundle.name,
+                settings_from_variant,
+                "production" if bundle.is_production else "staging",
+                conn=conn,
+            )
 
     return EmptyResponse(status_code=201)
 
