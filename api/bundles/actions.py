@@ -1,6 +1,7 @@
 from ayon_server.entities.user import UserEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.helpers.project_list import get_project_list
 
 from .models import BundleModel
 
@@ -30,19 +31,17 @@ async def promote_bundle(bundle: BundleModel, user: UserEntity, conn):
         bundle.name,
     )
 
-    # Get project list
-    # statement = await conn.prepare("SELECT name FROM projects")
-    # project_names = [row["name"] async for row in statement.cursor()]
+    project_list = await get_project_list()
 
     # Copy staging settings to production
 
     for addon_name, addon_version in bundle.addons.items():
         sres = await conn.fetch(
             """
-                SELECT data FROM settings
-                WHERE addon_name = $1 AND addon_version = $2
-                AND variant = 'staging'
-                """,
+            SELECT data FROM settings
+            WHERE addon_name = $1 AND addon_version = $2
+            AND variant = 'staging'
+            """,
             addon_name,
             addon_version,
         )
@@ -62,10 +61,36 @@ async def promote_bundle(bundle: BundleModel, user: UserEntity, conn):
             data,
         )
 
-        # Do the same for every active project settings
-        # TODO: Do we want this?
-        #
-        # for project_name in project_names:
+        for project in project_list:
+            if not project.active:
+                continue
+
+            pres = await conn.fetch(
+                f"""
+                SELECT data FROM project_{project.name}.settings
+                WHERE addon_name = $1 AND addon_version = $2
+                AND variant = 'staging'
+                """,
+                addon_name,
+                addon_version,
+            )
+            if not pres:
+                data = {}
+            else:
+                data = pres[0]["data"]
+
+            await conn.execute(
+                f"""
+                INSERT INTO project_{project.name}.settings
+                (addon_name, addon_version, variant, data)
+                VALUES ($1, $2, 'production', $3)
+                ON CONFLICT (addon_name, addon_version, variant)
+                DO UPDATE SET data = $3
+                """,
+                addon_name,
+                addon_version,
+                data,
+            )
 
     await EventStream.dispatch(
         "bundle.status_changed",
