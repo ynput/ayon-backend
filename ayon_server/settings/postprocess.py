@@ -164,7 +164,6 @@ async def postprocess_settings_schema(  # noqa
                 "placeholder",
                 "required_items",
                 "conditional_enum",
-                "conditionalEnum",
             ):
                 if extra_field := field.field_info.extra.get(extra_field_name):
                     if camelize(extra_field_name) not in prop:
