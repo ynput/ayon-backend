@@ -36,6 +36,9 @@ async def promote_bundle(bundle: BundleModel, user: UserEntity, conn):
     # Copy staging settings to production
 
     for addon_name, addon_version in bundle.addons.items():
+        if not addon_version:
+            continue
+
         sres = await conn.fetch(
             """
             SELECT data FROM settings
@@ -45,26 +48,30 @@ async def promote_bundle(bundle: BundleModel, user: UserEntity, conn):
             addon_name,
             addon_version,
         )
-        if not sres:
-            data = {}
-        else:
+        if sres:
             data = sres[0]["data"]
-        await conn.execute(
-            """
-            INSERT INTO settings (addon_name, addon_version, variant, data)
-            VALUES ($1, $2, 'production', $3)
-            ON CONFLICT (addon_name, addon_version, variant)
-            DO UPDATE SET data = $3
-            """,
-            addon_name,
-            addon_version,
-            data,
-        )
+            await conn.execute(
+                """
+                INSERT INTO settings (addon_name, addon_version, variant, data)
+                VALUES ($1, $2, 'production', $3)
+                ON CONFLICT (addon_name, addon_version, variant)
+                DO UPDATE SET data = $3
+                """,
+                addon_name,
+                addon_version,
+                data,
+            )
+        else:
+            await conn.execute(
+                """
+                DELETE FROM settings WHERE addon_name = $1 AND addon_version = $2
+                AND variant = 'production'
+                """,
+                addon_name,
+                addon_version,
+            )
 
         for project in project_list:
-            if not project.active:
-                continue
-
             pres = await conn.fetch(
                 f"""
                 SELECT data FROM project_{project.name}.settings
@@ -74,23 +81,30 @@ async def promote_bundle(bundle: BundleModel, user: UserEntity, conn):
                 addon_name,
                 addon_version,
             )
-            if not pres:
-                data = {}
-            else:
+            if pres:
                 data = pres[0]["data"]
-
-            await conn.execute(
-                f"""
-                INSERT INTO project_{project.name}.settings
-                (addon_name, addon_version, variant, data)
-                VALUES ($1, $2, 'production', $3)
-                ON CONFLICT (addon_name, addon_version, variant)
-                DO UPDATE SET data = $3
-                """,
-                addon_name,
-                addon_version,
-                data,
-            )
+                await conn.execute(
+                    f"""
+                    INSERT INTO project_{project.name}.settings
+                    (addon_name, addon_version, variant, data)
+                    VALUES ($1, $2, 'production', $3)
+                    ON CONFLICT (addon_name, addon_version, variant)
+                    DO UPDATE SET data = $3
+                    """,
+                    addon_name,
+                    addon_version,
+                    data,
+                )
+            else:
+                await conn.execute(
+                    f"""
+                    DELETE FROM project_{project.name}.settings
+                    WHERE addon_name = $1 AND addon_version = $2
+                    AND variant = 'production'
+                    """,
+                    addon_name,
+                    addon_version,
+                )
 
     await EventStream.dispatch(
         "bundle.status_changed",
