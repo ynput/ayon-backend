@@ -1,7 +1,9 @@
 from ayon_server.lib.postgres import Postgres
 
 
-async def get_event_count_per_topic(saturated: bool = False) -> dict[str, int]:
+async def get_event_count_per_topic(
+    saturated: bool = False, system: bool = False
+) -> dict[str, int]:
     """Return the count of events per topic.
 
     This helps us with optimization of event clean-up,

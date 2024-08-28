@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from strawberry.types import Info
-
 from ayon_server.entities.core import attribute_library
 from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
@@ -22,7 +20,12 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
-from ayon_server.types import validate_name, validate_name_list, validate_status_list
+from ayon_server.graphql.types import Info
+from ayon_server.types import (
+    validate_name,
+    validate_name_list,
+    validate_status_list,
+)
 from ayon_server.utils import EntityID, SQLTool
 
 SORT_OPTIONS = {
@@ -71,6 +74,10 @@ async def get_folders(
         list[str] | None,
         argdesc("List of names to filter. Only exact matches are returned"),
     ] = None,
+    assignees: Annotated[
+        list[str] | None,
+        argdesc("List folders with tasks assigned to these users"),
+    ] = None,
     has_children: Annotated[
         bool | None, argdesc("Whether to filter by folders with children")
     ] = None,
@@ -92,6 +99,7 @@ async def get_folders(
     # SQL
     #
 
+    sql_cte = []
     sql_columns = [
         "folders.id AS id",
         "folders.name AS name",
@@ -175,6 +183,30 @@ async def get_folders(
             f"""
             INNER JOIN project_{project_name}.hierarchy AS hierarchy
             ON folders.id = hierarchy.id
+            """
+        )
+
+    if fields.any_endswith("hasReviewables"):
+        sql_cte.append(
+            f"""
+            reviewables AS (
+                SELECT p.folder_id AS folder_id
+                FROM project_{project_name}.activity_feed af
+                INNER JOIN project_{project_name}.versions v
+                ON af.entity_id = v.id
+                AND af.entity_type = 'version'
+                AND  af.activity_type = 'reviewable'
+                INNER JOIN project_{project_name}.products p
+                ON p.id = v.product_id
+            )
+            """
+        )
+
+        sql_columns.append(
+            """
+            EXISTS (
+            SELECT 1 FROM reviewables WHERE folder_id = folders.id
+            ) AS has_reviewables
             """
         )
 
@@ -278,6 +310,16 @@ async def get_folders(
                 """
             )
 
+    if assignees is not None:
+        validate_name_list(assignees)
+        cond = f"""
+            folders.id IN (
+                SELECT folder_id FROM project_{project_name}.tasks
+                WHERE assignees @> {SQLTool.array(assignees, curly=True)}
+            )
+        """
+        sql_conditions.append(cond)
+
     #
     # Pagination
     #
@@ -313,7 +355,14 @@ async def get_folders(
     # Query
     #
 
+    if sql_cte:
+        cte = ", ".join(sql_cte)
+        cte = f"WITH {cte}"
+    else:
+        cte = ""
+
     query = f"""
+        {cte}
         SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.folders AS folders
         {" ".join(sql_joins)}

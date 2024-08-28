@@ -233,8 +233,14 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
     i = 0
     with tempfile.NamedTemporaryFile(dir=ayonconfig.addons_dir) as temporary_file:
         zip_path = temporary_file.name
-        async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+        async with httpx.AsyncClient(
+            timeout=ayonconfig.http_timeout, follow_redirects=True
+        ) as client:
             async with client.stream("GET", url) as response:
+                if response.status_code != 200:
+                    raise Exception(
+                        f"Failed to download file: Error {response.status_code}"
+                    )
                 file_size = int(response.headers.get("content-length", 0))
                 async with aiofiles.open(zip_path, "wb") as f:
                     async for chunk in response.aiter_bytes():

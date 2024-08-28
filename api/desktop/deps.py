@@ -6,6 +6,7 @@ from fastapi import BackgroundTasks, Path, Query, Request, Response
 from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.files import handle_download, handle_upload
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import (
@@ -27,8 +28,6 @@ from .common import (
     InstallResponseModel,
     get_desktop_dir,
     get_desktop_file_path,
-    handle_download,
-    handle_upload,
     iter_names,
     load_json_file,
 )
@@ -69,11 +68,17 @@ def get_manifest(filename: str) -> DependencyPackage:
     if manifest.has_local_file:
         if "server" not in [s.type for s in manifest.sources]:
             manifest.sources.insert(0, SourceModel(type="server"))
+
+    manifest.sources = [
+        m
+        for m in manifest.sources
+        if not (m.url and m.url.startswith("https://download.ynput.cloud"))
+    ]
+
     return manifest
 
 
 # TODO: add filtering
-@router.get("/dependency_packages", response_model_exclude_none=True, deprecated=True)
 @router.get("/dependencyPackages", response_model_exclude_none=True)
 async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
     """Return a list of dependency packages"""
@@ -96,26 +101,32 @@ async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
     return DependencyPackageList(packages=result)
 
 
-@router.post("/dependency_packages", status_code=201, deprecated=True)
 @router.post("/dependencyPackages", status_code=201)
 async def create_dependency_package(
     background_tasks: BackgroundTasks,
     payload: DependencyPackage,
     user: CurrentUser,
-    url: str | None = Query(None, title="URL to the addon zip file"),
-    overwrite: bool = Query(False, title="Overwrite existing package"),
+    url: str | None = Query(None, description="URL to the addon zip file"),
+    overwrite: bool = Query(
+        False, description="Deprecated. Use the force.", deprecated=True
+    ),
+    force: bool = Query(
+        False, description="Force install the package if it already exists"
+    ),
 ) -> InstallResponseModel:
     event_id: str | None = None
 
     if not user.is_admin:
         raise ForbiddenException("Only admins can save dependency packages.")
 
+    force = force or overwrite  # for backward compatibility, remove in 1.2
+
     try:
         _ = get_manifest(payload.filename)
     except Exception:
         pass
     else:
-        if not overwrite:
+        if not force:
             raise ConflictException(
                 f"Dependency package {payload.filename} already exists"
             )
@@ -168,7 +179,6 @@ async def create_dependency_package(
     return InstallResponseModel(event_id=event_id)
 
 
-@router.get("/dependency_packages/{filename}", deprecated=True)
 @router.get("/dependencyPackages/{filename}")
 async def download_dependency_package(
     user: CurrentUser,
@@ -184,7 +194,6 @@ async def download_dependency_package(
     return await handle_download(file_path)
 
 
-@router.put("/dependency_packages/{filename}", status_code=204, deprecated=True)
 @router.put("/dependencyPackages/{filename}", status_code=204)
 async def upload_dependency_package(
     request: Request,
@@ -205,7 +214,6 @@ async def upload_dependency_package(
     return EmptyResponse(status_code=204)
 
 
-@router.delete("/dependency_packages/{filename}", status_code=204, deprecated=True)
 @router.delete("/dependencyPackages/{filename}", status_code=204)
 async def delete_dependency_package(
     user: CurrentUser,
@@ -226,7 +234,6 @@ async def delete_dependency_package(
     return EmptyResponse()
 
 
-@router.patch("/dependency_packages/{filename}", status_code=204, deprecated=True)
 @router.patch("/dependencyPackages/{filename}", status_code=204)
 async def update_dependency_package(
     payload: SourcesPatchModel,

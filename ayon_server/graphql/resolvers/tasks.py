@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from strawberry.types import Info
-
 from ayon_server.entities.core import attribute_library
 from ayon_server.graphql.connections import TasksConnection
 from ayon_server.graphql.edges import TaskEdge
@@ -22,6 +20,7 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
+from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
 
@@ -64,6 +63,9 @@ async def get_tasks(
     assignees_any: Annotated[
         list[str] | None, argdesc("List tasks with any of the selected assignees")
     ] = None,
+    includeFolderChildren: Annotated[
+        bool, argdesc("Include tasks in child folders when folderIds is used")
+    ] = False,
 ) -> TasksConnection:
     """Return a list of tasks."""
 
@@ -76,10 +78,13 @@ async def get_tasks(
     project_name = root.project_name
     fields = FieldInfo(info, ["tasks.edges.node", "task"])
 
+    use_folder_query = False
+
     #
     # SQL
     #
 
+    sql_cte = []
     sql_columns = [
         "tasks.id AS id",
         "tasks.name AS name",
@@ -100,6 +105,27 @@ async def get_tasks(
     sql_conditions = []
     sql_joins = []
 
+    if fields.any_endswith("hasReviewables"):
+        sql_cte.append(
+            f"""
+            reviewables AS (
+                SELECT v.task_id AS task_id FROM project_{project_name}.activity_feed af
+                INNER JOIN project_{project_name}.versions v
+                ON af.entity_id = v.id
+                AND af.entity_type = 'version'
+                AND  af.activity_type = 'reviewable'
+            )
+            """
+        )
+
+        sql_columns.append(
+            """
+            EXISTS (
+            SELECT 1 FROM reviewables WHERE task_id = tasks.id
+            ) AS has_reviewables
+            """
+        )
+
     if ids is not None:
         if not ids:
             return TasksConnection()
@@ -108,7 +134,41 @@ async def get_tasks(
     if folder_ids is not None:
         if not folder_ids:
             return TasksConnection()
-        sql_conditions.append(f"tasks.folder_id IN {SQLTool.id_array(folder_ids)}")
+
+        if includeFolderChildren:
+            use_folder_query = True
+            sql_cte.append(
+                f"""
+                top_folder_paths AS (
+                    SELECT path FROM project_{project_name}.hierarchy
+                    WHERE id IN {SQLTool.id_array(folder_ids)}
+                )
+                """
+            )
+
+            sql_cte.append(
+                f"""
+                child_folder_ids AS (
+                    SELECT id FROM project_{project_name}.hierarchy
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM top_folder_paths
+                        WHERE project_{project_name}.hierarchy.path
+                        LIKE top_folder_paths.path || '/%'
+                    )
+                    OR project_{project_name}.hierarchy.path = ANY (
+                        SELECT path FROM top_folder_paths
+                    )
+                )
+                """
+            )
+            sql_conditions.append(
+                "tasks.folder_id IN (SELECT id FROM child_folder_ids)"
+            )
+
+        else:
+            sql_conditions.append(f"tasks.folder_id IN {SQLTool.id_array(folder_ids)}")
+
     elif root.__class__.__name__ == "FolderNode":
         # cannot use isinstance here because of circular imports
         sql_conditions.append(f"tasks.folder_id = '{root.id}'")
@@ -178,7 +238,7 @@ async def get_tasks(
     # Joins
     #
 
-    if ("attrib" in fields) or attributes:
+    if attributes or fields.any_endswith("attrib"):
         sql_columns.append("pf.attrib as parent_folder_attrib")
         sql_joins.append(
             f"""
@@ -189,7 +249,7 @@ async def get_tasks(
     else:
         sql_columns.append("'{}'::JSONB as parent_folder_attrib")
 
-    if "folder" in fields or (access_list is not None):
+    if "folder" in fields or (access_list is not None) or use_folder_query:
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
@@ -214,10 +274,14 @@ async def get_tasks(
             """
         )
 
-        if any(
-            field.endswith("folder.path") or field.endswith("folder.parents")
-            for field in fields
-        ) or (access_list is not None):
+        if (
+            any(
+                field.endswith("folder.path") or field.endswith("folder.parents")
+                for field in fields
+            )
+            or (access_list is not None)
+            or use_folder_query
+        ):
             sql_columns.append("hierarchy.path AS _folder_path")
             sql_joins.append(
                 f"""
@@ -287,7 +351,14 @@ async def get_tasks(
     # Query
     #
 
+    if sql_cte:
+        cte = ", ".join(sql_cte)
+        cte = f"WITH {cte}"
+    else:
+        cte = ""
+
     query = f"""
+        {cte}
         SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.tasks AS tasks
         {" ".join(sql_joins)}

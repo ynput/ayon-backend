@@ -12,6 +12,7 @@ from ayon_server.auth.utils import (
 )
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
+from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
@@ -24,9 +25,14 @@ async def check_failed_login(ip_address: str) -> None:
         return
 
     if float(banned_until) > time.time():
-        logging.warning(
+        msg = (
             f"Attempt to login from banned IP {ip_address}. "
             f"Retry in {float(banned_until) - time.time():.2f} seconds."
+        )
+        await EventStream.dispatch(
+            "user.log_fail",
+            description=msg,
+            summary={"ip": ip_address},
         )
         await Redis.delete("login-failed-ip", ip_address)
         raise ForbiddenException("Too many failed login attempts")

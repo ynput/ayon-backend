@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import functools
 import hashlib
+import json
 import random
 import threading
 import time
@@ -24,6 +25,16 @@ def isinstance_namedtuple(obj) -> bool:
     return (
         isinstance(obj, tuple) and hasattr(obj, "_asdict") and hasattr(obj, "_fields")
     )
+
+
+def json_print(data: Any, header: str | None = None) -> None:
+    """Print JSON data."""
+    if header:
+        print()
+        print(header, flush=True)
+    print(json.dumps(data, indent=2), flush=True)
+    if header:
+        print()
 
 
 def json_default_handler(value: Any) -> Any:
@@ -83,17 +94,30 @@ def dict_remove_path(
     path: list[str],
     remove_orphans: bool = True,
 ):
-    """Delete a key in a nested dictionary specified by its path"""
+    """Delete a key in a nested dictionary specified by its path."""
     parents = [data]
     for key in path[:-1]:
-        n = parents[-1][key]
-        parents.append(n)
-    del parents[-1][path[-1]]
+        if key in parents[-1]:
+            n = parents[-1][key]
+            if isinstance(n, dict):
+                parents.append(n)
+            else:
+                return  # Early exit if the path is invalid
+        else:
+            return  # Early exit if the key does not exist in the path
+    if path[-1] in parents[-1]:
+        del parents[-1][path[-1]]
+    else:
+        return  # Early exit if the final key does not exist
+
     if not remove_orphans:
         return
-    for i, key in enumerate(reversed(path)):
-        if not parents[-i] and key in parents[-i - 1]:
+
+    for i, key in enumerate(reversed(path[:-1]), 1):
+        if not parents[-i]:
             del parents[-i - 1][key]
+        else:
+            break
 
 
 def parse_access_token(authorization: str) -> str | None:
@@ -141,13 +165,13 @@ def obscure(text: str):
 
 
 @functools.lru_cache(maxsize=128)
-def get_nickname(text: str):
-    return codenamize.codenamize(text, 1)
+def get_nickname(text: str, length: int = 1):
+    return codenamize.codenamize(text, length)
 
 
 class EntityID:
     example: str = "af10c8f0e9b111e9b8f90242ac130003"
-    META = {
+    META: dict[str, Any] = {
         "example": "af10c8f0e9b111e9b8f90242ac130003",
         "min_length": 32,
         "max_length": 32,
@@ -174,8 +198,8 @@ class EntityID:
         raise ValueError(f"Invalid entity ID {entity_id}")
 
     @classmethod
-    def field(cls, name: str = "entity") -> Field:
-        return Field(
+    def field(cls, name: str = "entity") -> Field:  # type: ignore
+        return Field(  # type: ignore
             title=f"{name.capitalize()} ID",
             description=f"{name.capitalize()} ID",
             **cls.META,

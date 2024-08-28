@@ -48,7 +48,7 @@ class EventModel(OPModel):
 
     """
 
-    id: str = Field(default_factory=create_id, **EntityID.META)
+    id: str = Field(default_factory=create_id, **EntityID.META)  # type: ignore
     hash: str = Field(...)
     topic: str = Field(...)
     sender: str | None = SENDER_FIELD
@@ -57,7 +57,7 @@ class EventModel(OPModel):
     depends_on: str | None = DEPENDS_ON_FIELD
     status: EventStatus = Field("pending")
     retries: int = Field(0)
-    description: str = DESCRIPTION_FIELD
+    description: str | None = DESCRIPTION_FIELD
     summary: dict[str, Any] = SUMMARY_FIELD
     payload: dict[str, Any] = PAYLOAD_FIELD
     created_at: datetime = Field(default_factory=datetime.now)

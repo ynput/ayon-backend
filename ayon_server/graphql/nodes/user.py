@@ -1,12 +1,12 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import strawberry
 from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import UserEntity
 from ayon_server.graphql.resolvers.tasks import get_tasks
+from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import get_nickname, json_dumps, obscure
 
@@ -44,6 +44,7 @@ class UserNode:
     is_developer: bool
     has_password: bool
     apiKeyPreview: str | None
+    deleted: bool = False
 
     @strawberry.field
     async def tasks(self, info: Info, project_name: str) -> "TasksConnection":
@@ -51,8 +52,10 @@ class UserNode:
         return await get_tasks(root, info, assignees=[self.name])
 
 
-def user_from_record(record: dict, context: dict) -> UserNode:
-    data = record["data"]
+def user_from_record(
+    project_name: str | None, record: dict[str, Any], context: dict[str, Any]
+) -> UserNode:
+    data = record.get("data", {})
     access_groups = data.get("accessGroups", {})
     is_admin = data.get("isAdmin", False)
     is_service = data.get("isService", False)
@@ -91,6 +94,7 @@ def user_from_record(record: dict, context: dict) -> UserNode:
         has_password=bool(data.get("password")),
         default_access_groups=data.get("defaultAccessGroups", []),
         apiKeyPreview=data.get("apiKeyPreview"),
+        deleted=record.get("deleted", False),
     )
 
 

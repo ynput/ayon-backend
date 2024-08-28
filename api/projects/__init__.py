@@ -1,11 +1,4 @@
-__all__ = ["router"]
+__all__ = ["router", "anatomy", "deploy", "list_projects", "projects", "roots"]
 
-from projects import anatomy, deploy, list_projects, projects, roots
-from projects.router import router
-
-# To keep the linter happy
-assert list_projects
-assert projects
-assert deploy
-assert anatomy
-assert roots
+from . import anatomy, deploy, list_projects, projects, roots
+from .router import router

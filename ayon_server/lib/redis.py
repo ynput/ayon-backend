@@ -1,9 +1,27 @@
-from typing import Any
+from typing import Any, Awaitable, Union
 
 from redis import asyncio as aioredis
-from redis.client import PubSub
+from redis.asyncio.client import PubSub
 
 from ayon_server.config import ayonconfig
+
+GET_SIZE_SCRIPT = """
+local cursor = "0"
+local total_size = 0
+local key_pattern = ARGV[1]
+
+repeat
+    local result = redis.call("SCAN", cursor, "MATCH", key_pattern, "COUNT", 1000)
+    cursor = result[1]
+    local keys = result[2]
+
+    for i, key in ipairs(keys) do
+        total_size = total_size + redis.call("MEMORY", "USAGE", key)
+    end
+until cursor == "0"
+
+return total_size
+"""
 
 
 class Redis:
@@ -86,7 +104,11 @@ class Redis:
     async def keys(cls, namespace: str) -> list[str]:
         if not cls.connected:
             await cls.connect()
-        return await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
+        keys = await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
+        return [
+            key.decode("ascii").removeprefix(f"{cls.prefix}{namespace}-")
+            for key in keys
+        ]
 
     @classmethod
     async def iterate(cls, namespace: str):
@@ -102,3 +124,26 @@ class Redis:
             )
             payload = await cls.redis_pool.get(key)
             yield key_without_ns, payload
+
+    @classmethod
+    async def get_total_size(cls) -> int:
+        """Get total memory usage of all keys in with the current prefix"""
+
+        if not cls.connected:
+            await cls.connect()
+
+        try:
+            result: Union[Awaitable[str], str] = cls.redis_pool.eval(
+                GET_SIZE_SCRIPT, 0, f"{cls.prefix}*"
+            )
+
+            if isinstance(result, Awaitable):
+                value = await result
+            else:
+                value = result
+        except Exception:
+            return 0
+
+        if value is None:
+            return 0
+        return int(value)

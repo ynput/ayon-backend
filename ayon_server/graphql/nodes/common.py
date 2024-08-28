@@ -1,10 +1,9 @@
 from datetime import datetime
 
 import strawberry
-from strawberry.types import Info
 
 from ayon_server.graphql.connections import ActivitiesConnection
-from ayon_server.graphql.types import BaseConnection, BaseEdge
+from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
 
 
 @strawberry.type
@@ -41,6 +40,9 @@ class LinkEdge(BaseEdge):
         elif self.entity_type == "task":
             loader = info.context["task_loader"]
             parser = info.context["task_from_record"]
+        elif self.entity_type == "representation":
+            loader = info.context["representation_loader"]
+            parser = info.context["representation_from_record"]
         else:
             raise ValueError
         record = await loader.load((self.project_name, self.entity_id))

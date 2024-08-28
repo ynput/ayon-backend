@@ -33,16 +33,24 @@ async def _rebuild_in_transaction(
          """
     )
 
+    # path: attrib_set cache to use when returning from child to parent
+    caching: dict[tuple[str, ...], dict[str, Any]] = {}
+
     current_attrib_set: dict[str, Any] = {}
     buff: list[tuple[str, str, dict[str, Any]]] = []
 
     async for record in st_crawl.cursor():
-        path_elements = record["path"].split("/")
+        path_elements = tuple(record["path"].split("/"))
         if len(path_elements) == 1:
             current_attrib_set = project_attrib.copy()
 
+        elif path_elements[:-1] in caching:
+            current_attrib_set = caching[path_elements[:-1]]
+
         new_attrib_set = current_attrib_set.copy()
         new_attrib_set.update(record["own"])
+
+        caching[path_elements] = new_attrib_set
 
         if record["exported"] != new_attrib_set:
             buff.append(
@@ -86,11 +94,11 @@ async def rebuild_inherited_attributes(
         if not attr_type.get("inherit", True):
             del project_attrib[attr_type["name"]]
 
-    if transaction is not None:
-        await _rebuild_in_transaction(project_name, project_attrib, transaction)
-    else:
+    if (transaction is None) or transaction == Postgres:
         async with Postgres.acquire() as conn, conn.transaction():
             await _rebuild_in_transaction(project_name, project_attrib, conn)
+    else:
+        await _rebuild_in_transaction(project_name, project_attrib, transaction)
 
     elapsed = time.monotonic() - start
     logging.debug(f"Rebuilt inherited attributes for {project_name} in {elapsed:.2f}s")

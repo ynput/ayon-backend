@@ -1,9 +1,7 @@
 from typing import Literal
 
-from strawberry.types import Info
-
 from ayon_server.graphql.nodes.common import LinkEdge, LinksConnection
-from ayon_server.graphql.types import PageInfo
+from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import SQLTool
 

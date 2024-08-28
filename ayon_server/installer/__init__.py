@@ -24,7 +24,7 @@ class TooManyRetries(Exception):
     pass
 
 
-async def handle_need_restart(installer: "BackgroundInstaller"):
+async def handle_need_restart(installer: "BackgroundInstaller") -> None:
     await asyncio.sleep(1)
     if installer.event_queue.empty() and installer.restart_needed:
         await require_server_restart(
@@ -33,15 +33,15 @@ async def handle_need_restart(installer: "BackgroundInstaller"):
 
 
 class BackgroundInstaller(BackgroundWorker):
-    def initialize(self):
+    def initialize(self) -> None:
         self.event_queue: asyncio.Queue[str] = asyncio.Queue()
         self.restart_needed: bool = False
 
-    async def enqueue(self, event_id: str):
+    async def enqueue(self, event_id: str) -> None:
         logging.debug(f"Background installer: enquing event {event_id}")
         await self.event_queue.put(event_id)
 
-    async def process_event(self, event_id: str):
+    async def process_event(self, event_id: str) -> None:
         res = await Postgres().fetch(
             " SELECT topic, status, summary, retries FROM events WHERE id = $1 ",
             event_id,
@@ -82,7 +82,7 @@ class BackgroundInstaller(BackgroundWorker):
 
         asyncio.create_task(handle_need_restart(self))
 
-    async def run(self):
+    async def run(self) -> None:
         # load past unprocessed events
         res = await Postgres().fetch(
             """

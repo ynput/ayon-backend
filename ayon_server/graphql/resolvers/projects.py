@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from strawberry.types import Info
-
 from ayon_server.exceptions import BadRequestException
 from ayon_server.graphql.connections import ProjectsConnection
 from ayon_server.graphql.edges import ProjectEdge
@@ -16,6 +14,7 @@ from ayon_server.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
+from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name
 from ayon_server.utils import SQLTool
 

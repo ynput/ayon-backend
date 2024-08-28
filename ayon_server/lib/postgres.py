@@ -1,14 +1,20 @@
 import asyncio
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 import asyncpg
 import asyncpg.pool
 import asyncpg.transaction
+from asyncpg.pool import PoolConnectionProxy
 
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException, ServiceUnavailableException
 from ayon_server.utils import EntityID, json_dumps, json_loads
+
+if TYPE_CHECKING:
+    Connection = PoolConnectionProxy[Any]
+else:
+    Connection = PoolConnectionProxy
 
 
 class Postgres:
@@ -17,36 +23,35 @@ class Postgres:
     Provides an interface for interacting with a Postgres database.
     """
 
-    default_acquire_timeout: int = 10
-
     shutting_down: bool = False
-    pool: asyncpg.pool.Pool | None = None
+    pool: asyncpg.pool.Pool | None = None  # type: ignore
+
     ForeignKeyViolationError = asyncpg.exceptions.ForeignKeyViolationError
     UniqueViolationError = asyncpg.exceptions.UniqueViolationError
     UndefinedTableError = asyncpg.exceptions.UndefinedTableError
-    Connection = asyncpg.Connection
-    Transaction = asyncpg.transaction.Transaction
 
     @classmethod
     @asynccontextmanager
-    async def acquire(cls, timeout: int | None = None):
+    async def acquire(
+        cls, timeout: int | None = None
+    ) -> AsyncGenerator[Connection, None]:
         """Acquire a connection from the pool."""
 
         if cls.pool is None:
             raise ConnectionError("Connection pool is not initialized.")
 
         if timeout is None:
-            timeout = cls.default_acquire_timeout
+            timeout = ayonconfig.postgres_pool_timeout
 
         try:
-            conn = await cls.pool.acquire(timeout=timeout)
+            connection_proxy = await cls.pool.acquire(timeout=timeout)
         except asyncio.TimeoutError:
-            raise ServiceUnavailableException("Database pool exhausted")
+            raise ServiceUnavailableException("Database pool timeout")
 
         try:
-            yield conn
+            yield connection_proxy
         finally:
-            await cls.pool.release(conn)
+            await cls.pool.release(connection_proxy)
 
     @classmethod
     async def init_connection(cls, conn) -> None:
@@ -76,12 +81,7 @@ class Postgres:
 
     @classmethod
     async def connect(cls) -> None:
-        """Create a PostgreSQL connection pool.
-
-        By default, we use 24 as max_size, since default maximum
-        connection value of postgres is 100 so, 25 is perfect for
-        4 workers and a small reserve.
-        """
+        """Create a PostgreSQL connection pool."""
 
         if cls.shutting_down:
             print("Unable to connect to Postgres while shutting down.")
@@ -89,7 +89,7 @@ class Postgres:
         cls.pool = await asyncpg.create_pool(
             ayonconfig.postgres_url,
             min_size=10,
-            max_size=24,
+            max_size=ayonconfig.postgres_pool_size,
             max_inactive_connection_lifetime=20,
             init=cls.init_connection,
         )
@@ -128,11 +128,11 @@ class Postgres:
         cls,
         query: str,
         *args: Any,
-        transaction: asyncpg.Connection | None = None,
+        transaction: Connection | None = None,
     ):
         """Run a query and return a generator yielding resulting rows records."""
-        if transaction and transaction != cls:  # temporary. will be fixed
-            if not transaction.is_in_transaction:
+        if transaction:  # temporary. will be fixed
+            if not transaction.is_in_transaction():
                 raise AyonException(
                     "Iterate called with a connection which is not in transaction."
                 )

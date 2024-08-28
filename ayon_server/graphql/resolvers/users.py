@@ -1,7 +1,5 @@
 from typing import Annotated
 
-from strawberry.types import Info
-
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.connections import UsersConnection
 from ayon_server.graphql.edges import UserEdge
@@ -15,7 +13,8 @@ from ayon_server.graphql.resolvers.common import (
     create_pagination,
     resolve,
 )
-from ayon_server.types import validate_user_name
+from ayon_server.graphql.types import Info
+from ayon_server.types import validate_name_list, validate_user_name
 from ayon_server.utils import SQLTool
 
 
@@ -41,6 +40,9 @@ async def get_users(
     project_name: Annotated[
         str | None, argdesc("List only users assigned to a given project")
     ] = None,
+    projects: Annotated[
+        list[str] | None, argdesc("List only users assigned to projects")
+    ] = None,
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
@@ -49,8 +51,10 @@ async def get_users(
     """Return a list of users."""
 
     user = info.context["user"]
-    if (not user.is_manager) and (project_name is None):
+    if (not user.is_manager) and (project_name is None and projects is None):
         raise ForbiddenException("Only managers and administrators can view all users")
+
+    # Filter by name
 
     sql_conditions = []
     if name is not None:
@@ -64,13 +68,28 @@ async def get_users(
             validate_user_name(name)
         sql_conditions.append(f"users.name IN {SQLTool.array(names)}")
 
-    if project_name is not None:
+    # Filter by project
+
+    if projects is None:
+        projects = []
+    if project_name and project_name not in projects:
+        projects.append(project_name)
+    if not projects:
+        validate_name_list(projects)
+
+    if projects:
         cnd1 = "users.data->>'isAdmin' = 'true'"
         cnd2 = "users.data->>'isManager' = 'true'"
-        cnd3 = f"""(users.data->'accessGroups'->'{project_name}' IS NOT NULL
-        AND users.data->'accessGroups'->>'{project_name}' != '[]')"""
+        cnd3 = f"""(
+            SELECT COUNT(*)
+            FROM jsonb_object_keys(users.data->'accessGroups') keys
+            WHERE keys IN ({', '.join([f"'{project}'" for project in projects])})
+        ) > 0"""
         cnd = f"({cnd1} OR {cnd2} OR {cnd3})"
         sql_conditions.append(cnd)
+
+    # TODO: allow listing users from all project for normal users, but only if they are
+    #       assigned to the project
 
     #
     # Pagination

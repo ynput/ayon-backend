@@ -1,6 +1,10 @@
-from ayon_server import __version__
+__all__ = ["app_meta", "tags_meta", "__version__"]
 
-app_meta = {
+from typing import Any
+
+from ayon_server.version import __version__
+
+app_meta: dict[str, Any] = {
     "title": "Ayon server",
     "description": "Open VFX and Animation pipeline server",
     "version": __version__,
@@ -17,13 +21,24 @@ app_meta = {
 }
 
 
-tags_meta = [
+tags_meta: list[dict[str, Any]] = [
     {
         "name": "Authentication",
         "description": """
 Authentication endpoints. Most of the endpoints require authentication.
-This is done by passing `Authorization` header with `Bearer <token>` value.
-        """,
+
+There are two methods of authentication:
+
+- Clients, such as the web interface or Ayon launcher use
+  `Authorization` header with `Bearer <token>` value.
+  Token is obtained by calling the `/auth/login` endpoint.
+  When not in use, the token expires after one day.
+- Services use x-api-key header with the API key value.
+  API key is generated in the user settings and can be revoked at any time.
+
+Services can additionally use `x-as-user` header to impersonate another user.
+This is useful for services that need to create data on behalf of another user.
+""",
     },
     {
         "name": "Projects",

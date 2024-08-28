@@ -1,16 +1,17 @@
-from pydantic import Field, validator
+from pydantic import validator
 
 from ayon_server.settings.common import BaseSettingsModel
+from ayon_server.settings.settings_field import SettingsField
 
 
 class TaskType(BaseSettingsModel):
     _layout: str = "compact"
-    name: str = Field(..., title="Name", min_length=1, max_length=100)
-    shortName: str = Field("", title="Short name")
-    icon: str = Field("task_alt", title="Icon", widget="icon")
+    name: str = SettingsField(..., title="Name", min_length=1, max_length=100)
+    shortName: str = SettingsField("", title="Short name")
+    icon: str = SettingsField("task_alt", title="Icon", widget="icon")
 
     # Set to old name when renaming
-    original_name: str | None = Field(None, title="Original name", scope=[])
+    original_name: str | None = SettingsField(None, title="Original name", scope=[])
 
     def __hash__(self):
         return hash(self.name)

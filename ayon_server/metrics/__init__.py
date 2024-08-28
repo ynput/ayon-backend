@@ -1,3 +1,5 @@
+__all__ = ["Metrics", "get_metrics"]
+
 import time
 
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
@@ -18,6 +20,7 @@ from .projects import (
 )
 from .services import ServiceInfo, get_active_services
 from .settings import SettingsOverrides, get_studio_settings_overrides
+from .system import SystemMetricsData, system_metrics
 from .users import UserCounts, get_user_counts
 
 
@@ -52,6 +55,12 @@ class Metrics(OPModel):
         title="Uptime",
         description="Time (seconds) since the server was (re)started",
         example=518163,
+    )
+
+    system: SystemMetricsData | None = Field(
+        None,
+        title="System metrics",
+        description=docfm(system_metrics.get_system_metrics_data),
     )
 
     user_counts: UserCounts | None = Field(
@@ -162,7 +171,9 @@ METRICS_SETUP = [
 ]
 
 
-async def get_metrics(saturated: bool = False) -> Metrics:
+async def get_metrics(
+    saturated: bool = False, system: bool = False, force: bool = False
+) -> Metrics:
     """Get metrics"""
 
     for metric in METRICS_SETUP:
@@ -175,8 +186,8 @@ async def get_metrics(saturated: bool = False) -> Metrics:
         assert callable(getter), f"getter must be callable, got {getter}"
         ttl = ttl_h * 60 * 60
 
-        if name not in METRICS_SNAPSHOT:
-            value = await getter(saturated=saturated)
+        if name not in METRICS_SNAPSHOT or force:
+            value = await getter(saturated=saturated, system=system)
             METRICS_SNAPSHOT[name] = {
                 "value": value,
                 "timestamp": time.time(),
@@ -184,10 +195,19 @@ async def get_metrics(saturated: bool = False) -> Metrics:
         else:
             snapshot = METRICS_SNAPSHOT[name]
             if time.time() - snapshot["timestamp"] > ttl:
-                value = await getter(saturated=saturated)
+                value = await getter(saturated=saturated, system=system)
                 METRICS_SNAPSHOT[name] = {
                     "value": value,
                     "timestamp": time.time(),
                 }
+    if system:
+        system_metrics_data = await system_metrics.get_system_metrics_data(
+            saturated=saturated
+        )
+    else:
+        system_metrics_data = None
 
-    return Metrics(**{key: value["value"] for key, value in METRICS_SNAPSHOT.items()})
+    return Metrics(
+        system=system_metrics_data,
+        **{key: value["value"] for key, value in METRICS_SNAPSHOT.items()},
+    )

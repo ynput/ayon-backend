@@ -5,7 +5,7 @@ from fastapi import Query
 from nxtools import log_traceback, logging
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel
@@ -52,6 +52,7 @@ class AllSettingsResponseModel(OPModel):
 @router.get("/settings", response_model_exclude_none=True)
 async def get_all_settings(
     user: CurrentUser,
+    site_id: SiteID,
     bundle_name: str | None = Query(
         None,
         title="Bundle name",
@@ -63,10 +64,6 @@ async def get_all_settings(
         title="Project name",
         description="Studio settings if not set",
         regex=NAME_REGEX,
-    ),
-    site_id: str | None = Query(
-        None,
-        title="Site ID",
     ),
     variant: str = Query("production"),
     summary: bool = Query(False, title="Summary", description="Summary mode"),

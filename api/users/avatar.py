@@ -5,8 +5,10 @@ import os
 import aiofiles
 import httpx
 from fastapi import Request, Response
+from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser, UserName
+from ayon_server.api.files import image_response_from_bytes
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.thumbnails import process_thumbnail
@@ -16,6 +18,13 @@ from ayon_server.lib.redis import Redis
 from .router import router
 
 REDIS_NS = "user.avatar"
+
+mime_to_ext = {
+    "image/png": "png",
+    "image/jpeg": "jpeg",
+    "image/svg+xml": "svg",
+    "image/webp": "webp",
+}
 
 
 def generate_color(name: str, saturation: float = 0.25, lightness: float = 0.38) -> str:
@@ -59,7 +68,7 @@ def create_initials_svg(
       <text
         x="50%"
         y="50%"
-        dominant-baseline="middle"
+        dominant-baseline="central"
         text-anchor="middle"
         fill="{text_color}"
         font-size="{height // 2}px"
@@ -74,12 +83,40 @@ def create_initials_svg(
 
 
 async def load_avatar_file(user_name: str) -> bytes:
-    for ext in ["jpeg", "png", "jpg", "svg"]:
+    """
+    Load the avatar file for a given user.
+
+    Returns:
+    bytes: The contents of the avatar file as bytes.
+
+    Raises:
+    FileNotFoundError: If the avatar file for the user does not exist.
+    """
+
+    for ext in mime_to_ext.values():
         avatar_path = os.path.join(ayonconfig.avatar_dir, f"{user_name}.{ext}")
         if os.path.exists(avatar_path):
             async with aiofiles.open(avatar_path, "rb") as f:
                 return await f.read()
     raise FileNotFoundError
+
+
+async def delete_avatar_file(user_name: str) -> bool:
+    """Delete the avatar file for the given user.
+
+    Returns true if the file was deleted, false otherwise.
+    """
+    deleted = False
+    for ext in mime_to_ext.values():
+        avatar_path = os.path.join(ayonconfig.avatar_dir, f"{user_name}.{ext}")
+        if os.path.exists(avatar_path):
+            try:
+                os.remove(avatar_path)
+            except Exception as e:
+                logging.error(f"Failed to delete avatar file {avatar_path}: {e}")
+            else:
+                deleted = True
+    return deleted
 
 
 async def obtain_avatar(user_name: str) -> bytes:
@@ -99,47 +136,54 @@ async def obtain_avatar(user_name: str) -> bytes:
     if not res:
         raise NotFoundException("User not found")
 
-    if res[0]["url"]:
+    avatar_bytes: bytes | None = None
+
+    try:
+        avatar_bytes = await load_avatar_file(user_name)
+        logging.debug(f"Loaded avatar for {user_name} from file")
+    except FileNotFoundError:
+        pass
+
+    if not avatar_bytes and res[0]["url"]:
         avatar_url = res[0]["url"]
         async with httpx.AsyncClient() as client:
-            response = await client.get(avatar_url)
-            avatar_bytes = response.content
-        avatar_bytes = await process_thumbnail(avatar_bytes)
-    else:
-        try:
-            avatar_bytes = await load_avatar_file(user_name)
-        except FileNotFoundError:
-            full_name = res[0]["full_name"] or ""
-            avatar_bytes = create_initials_svg(user_name, full_name).encode()
+            try:
+                response = await client.get(avatar_url)
+                response.raise_for_status()
+                avatar_bytes = response.content
+            except httpx.HTTPStatusError:
+                logging.warning(
+                    f"Failed to fetch user {user_name} avatar from {avatar_url}. "
+                    f"Error: {response.status_code}"
+                )
+            else:
+                avatar_bytes = await process_thumbnail(avatar_bytes, format="JPEG")
+                logging.debug(f"Successfully fetched avatar for {user_name} from url")
 
-    await Redis.set(REDIS_NS, user_name, avatar_bytes)
+    if not avatar_bytes:
+        full_name = res[0]["full_name"] or ""
+        avatar_bytes = create_initials_svg(user_name, full_name).encode()
+        logging.debug(f"Generated initials avatar for {user_name}")
+
     return avatar_bytes
 
 
 @router.get("/{user_name}/avatar")
 async def get_avatar(user_name: UserName, _: CurrentUser) -> Response:
+    """Retrieve the avatar for a given user."""
+
     avatar_bytes = await Redis.get(REDIS_NS, user_name)
 
     if not avatar_bytes:
         avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
-    if avatar_bytes[0:4] == b"\x89PNG":
-        return Response(content=avatar_bytes, media_type="image/png")
-    elif avatar_bytes[0:2] == b"\xff\xd8":
-        return Response(content=avatar_bytes, media_type="image/jpeg")
-    elif avatar_bytes[0:4] == b"<svg":
-        return Response(content=avatar_bytes, media_type="image/svg+xml")
-
-    raise NotFoundException("Invalid avatar format")
+    return image_response_from_bytes(avatar_bytes)
 
 
 @router.put("/{user_name}/avatar")
 async def upload_avatar(user: CurrentUser, request: Request, user_name: UserName):
-    mime_to_ext = {
-        "image/png": "png",
-        "image/jpeg": "jpeg",
-        "image/svg+xml": "svg",
-    }
+    """Uploads a new avatar for the specified user."""
 
     if user.name != user_name and not user.is_admin:
         raise NotFoundException("Invalid avatar format")
@@ -151,6 +195,10 @@ async def upload_avatar(user: CurrentUser, request: Request, user_name: UserName
 
     if not os.path.isdir(ayonconfig.avatar_dir):
         os.makedirs(ayonconfig.avatar_dir)
+    else:
+        # Clear original avatar files for the given user
+        # in order to avoid multiple extensions for the same user
+        await delete_avatar_file(user_name)
 
     avatar_path = os.path.join(
         ayonconfig.avatar_dir, f"{user_name}.{mime_to_ext[mime]}"
@@ -158,4 +206,20 @@ async def upload_avatar(user: CurrentUser, request: Request, user_name: UserName
     async with aiofiles.open(avatar_path, "wb") as f:
         await f.write(avatar_bytes)
 
-    await Redis.delete(REDIS_NS, user_name)
+    avatar_bytes = await obtain_avatar(user_name)
+    await Redis.set(REDIS_NS, user_name, avatar_bytes)
+
+    await user.save()  # to bump the updated_at field
+
+
+@router.delete("/{user_name}/avatar")
+async def delete_avatar(user: CurrentUser, user_name: UserName):
+    if user.name != user_name and not user.is_admin:
+        raise NotFoundException("Invalid avatar format")
+
+    if await delete_avatar_file(user_name):
+        # Update fallback avatar in Redis
+        avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
+
+    await user.save()

@@ -1,12 +1,12 @@
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import strawberry
 from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import WorkfileEntity
 from ayon_server.graphql.nodes.common import BaseNode
+from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import json_dumps
 
@@ -47,14 +47,14 @@ class WorkfileNode(BaseNode):
 
 
 def workfile_from_record(
-    project_name: str, record: dict, context: dict
+    project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> WorkfileNode:
     """Construct a version node from a DB row."""
 
     data = record.get("data", {})
     name = os.path.basename(record["path"])
 
-    return WorkfileNode(  # type: ignore
+    return WorkfileNode(
         project_name=project_name,
         id=record["id"],
         name=name,

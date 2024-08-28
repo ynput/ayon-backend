@@ -1,8 +1,9 @@
 from datetime import datetime
+from typing import Any
 
 from ayon_server.types import NAME_REGEX, Field, OPModel, Platform
 
-dependency_packages_meta = {
+dependency_packages_meta: dict[str, Any] = {
     "title": "Dependency packages",
     "description": "mapping of platform:dependency_package_filename",
     "example": {
@@ -53,8 +54,9 @@ class BundleModel(BaseBundleModel):
         example={"ftrack": "1.2.3"},
     )
     installer_version: str | None = Field(None, example="1.2.3")
-    dependency_packages: dict[Platform, str | None] = Field(
-        default_factory=dict, **dependency_packages_meta
+    dependency_packages: dict[Platform, str | None] = Field(  # type: ignore
+        default_factory=dict,
+        **dependency_packages_meta,
     )
     addon_development: dict[str, AddonDevelopmentItem] = Field(
         default_factory=dict,
@@ -76,7 +78,7 @@ class BundlePatchModel(BaseBundleModel):
         example={"ftrack": None, "kitsu": "1.2.3"},
     )
     installer_version: str | None = Field(None, example="1.2.3")
-    dependency_packages: dict[Platform, str | None] | None = Field(
+    dependency_packages: dict[Platform, str | None] | None = Field(  # type: ignore
         None,
         **dependency_packages_meta,
     )
@@ -85,9 +87,7 @@ class BundlePatchModel(BaseBundleModel):
     is_archived: bool | None = Field(None, example=False)
     is_dev: bool | None = Field(None, example=False)
     active_user: str | None = Field(None, example="admin")
-    addon_development: dict[str, AddonDevelopmentItem] | None = Field(
-        default_factory=None
-    )
+    addon_development: dict[str, AddonDevelopmentItem] | None = Field(None)
 
 
 class ListBundleModel(OPModel):

@@ -7,6 +7,7 @@ from fastapi import BackgroundTasks, Query, Request
 from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.files import handle_download, handle_upload
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import (
@@ -28,8 +29,6 @@ from .common import (
     InstallResponseModel,
     get_desktop_dir,
     get_desktop_file_path,
-    handle_download,
-    handle_upload,
     iter_names,
     load_json_file,
 )
@@ -74,6 +73,13 @@ def get_manifest(filename: str) -> Installer:
     if manifest.has_local_file:
         if "server" not in [s.type for s in manifest.sources]:
             manifest.sources.insert(0, SourceModel(type="server"))
+
+    manifest.sources = [
+        m
+        for m in manifest.sources
+        if not (m.url and m.url.startswith("https://download.ynput.cloud"))
+    ]
+
     return manifest
 
 
@@ -133,25 +139,30 @@ async def create_installer(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     payload: Installer,
-    url: str | None = Query(None, title="URL to the addon zip file"),
-    overwrite: bool = Query(False, title="Overwrite existing package"),
+    url: str | None = Query(None, description="URL to the addon zip file"),
+    overwrite: bool = Query(
+        False, description="Deprecated. Use the force", deprecated=True
+    ),
+    force: bool = Query(False, description="Overwrite existing installer"),
 ) -> InstallResponseModel:
     event_id: str | None = None
 
     if not user.is_admin:
         raise ForbiddenException("Only admins can create installers")
 
+    force = force or overwrite
+
     try:
         _ = get_manifest(payload.filename)
     except Exception:
         pass
     else:
-        if not overwrite:
+        if not force:
             raise ConflictException("Installer already exists")
 
     _ = get_desktop_dir("installers", for_writing=True)
 
-    if not overwrite:
+    if not force:
         # double-check - filename check might not be enough,
         # we must check whether there is a manifest with the same version and Platform
         existing_installers = await list_installers(

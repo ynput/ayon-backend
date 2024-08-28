@@ -9,6 +9,7 @@ from ayon_server.access.permissions import (
     FolderAccessList,
     Permissions,
 )
+from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import normalize_to_dict
 
@@ -27,11 +28,10 @@ class AccessGroups:
                 "_",
                 Permissions.from_record(row["data"]),
             )
-        project_list: list[str] = [
-            row["name"] async for row in Postgres.iterate("SELECT name FROM projects")
-        ]
 
-        for project_name in project_list:
+        project_list = await get_project_list()
+        for project in project_list:
+            project_name = project.name
             async for row in Postgres.iterate(
                 f"SELECT name, data FROM project_{project_name}.access_groups"
             ):

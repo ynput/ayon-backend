@@ -1,5 +1,6 @@
 """Request dependencies."""
 
+import re
 from typing import Annotated, get_args
 
 from fastapi import Cookie, Depends, Header, Path, Query, Request
@@ -9,11 +10,11 @@ from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
-    ForbiddenException,
     NotFoundException,
     UnauthorizedException,
     UnsupportedMediaException,
 )
+from ayon_server.helpers.project_list import build_project_list, get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import (
@@ -25,25 +26,28 @@ from ayon_server.types import (
 )
 from ayon_server.utils import (
     EntityID,
-    json_dumps,
-    json_loads,
     parse_access_token,
     parse_api_key,
 )
 
 
 async def dep_access_token(
-    authorization: Annotated[str | None, Header()] = None,
-    token: Annotated[str | None, Query()] = None,
-    access_token: Annotated[str | None, Cookie(alias="accessToken")] = None,
+    authorization: Annotated[str | None, Header(include_in_schema=False)] = None,
+    token: Annotated[str | None, Query(include_in_schema=False)] = None,
+    access_token: Annotated[
+        str | None, Cookie(alias="accessToken", include_in_schema=False)
+    ] = None,
 ) -> str | None:
     """Parse and return an access token provided in the authorisation header."""
-    if authorization is not None:
-        return parse_access_token(authorization)
-    elif token is not None:
+    if token is not None:
+        # try to get token from query params
         return token
     elif access_token is not None:
+        # try to get token from cookies
         return access_token
+    elif authorization is not None:
+        # try to get token from headers
+        return parse_access_token(authorization)
     else:
         return None
 
@@ -51,13 +55,22 @@ async def dep_access_token(
 AccessToken = Annotated[str, Depends(dep_access_token)]
 
 
-async def dep_api_key(authorization: str = Header(None)) -> str | None:
+async def dep_api_key(
+    authorization: str = Header(None, include_in_schema=False),
+    x_api_key: str = Header(None, include_in_schema=False),
+) -> str | None:
     """Parse and return an api key provided in the authorisation header."""
-    api_key = parse_api_key(authorization)
+    api_key: str | None
+    if x_api_key:
+        api_key = x_api_key
+    elif authorization:
+        api_key = parse_api_key(authorization)
+    else:
+        api_key = None
     return api_key
 
 
-ApiKey = Annotated[str, Depends(dep_api_key)]
+ApiKey = Annotated[str | None, Depends(dep_api_key)]
 
 
 async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
@@ -76,8 +89,10 @@ ThumbnailContentType = Annotated[str, Depends(dep_thumbnail_content_type)]
 
 async def dep_current_user(
     request: Request,
-    x_as_user: str | None = Header(None, regex=USER_NAME_REGEX),
-    x_api_key: str | None = Header(None, regex=API_KEY_REGEX),
+    x_as_user: str | None = Header(
+        None, regex=USER_NAME_REGEX, include_in_schema=False
+    ),
+    x_api_key: str | None = Header(None, regex=API_KEY_REGEX, include_in_schema=False),
     access_token: str | None = Depends(dep_access_token),
     api_key: str | None = Depends(dep_api_key),
 ) -> UserEntity:
@@ -136,8 +151,10 @@ async def dep_current_user_optional(
     request: Request,
     access_token: AccessToken,
     api_key: ApiKey,
-    x_as_user: str | None = Header(None, regex=USER_NAME_REGEX),
-    x_api_key: str | None = Header(None, regex=API_KEY_REGEX),
+    x_as_user: str | None = Header(
+        None, regex=USER_NAME_REGEX, include_in_schema=False
+    ),
+    x_api_key: str | None = Header(None, regex=API_KEY_REGEX, include_in_schema=False),
 ) -> UserEntity | None:
     try:
         user = await dep_current_user(
@@ -201,20 +218,19 @@ async def dep_project_name(
     to match the database record.
     """
 
-    project_list: list[str]
-    project_list_data = await Redis.get("global", "project_list")
-    if project_list_data:
-        project_list = json_loads(project_list_data)
-        for pn in project_list:
-            if project_name.lower() == pn.lower():
-                return pn
-    project_list = [
-        row["name"] async for row in Postgres.iterate("SELECT name FROM projects")
-    ]
-    await Redis.set("global", "project_list", json_dumps(project_list))
+    project_list = await get_project_list()
+
     for pn in project_list:
-        if project_name.lower() == pn.lower():
-            return pn
+        if project_name.lower() == pn.name.lower():
+            return pn.name
+
+    # try again
+    project_list = await build_project_list()
+
+    for pn in project_list:
+        if project_name.lower() == pn.name.lower():
+            return pn.name
+
     raise NotFoundException(f"Project {project_name} not found")
 
 
@@ -385,6 +401,16 @@ async def dep_link_id(
 LinkID = Annotated[str, Depends(dep_link_id)]
 
 
+async def dep_activity_id(
+    activity_id: str = Path(..., title="Activity ID", **EntityID.META),
+) -> str:
+    """Validate and return an activity id specified in an endpoint path."""
+    return activity_id
+
+
+ActivityID = Annotated[str, Depends(dep_activity_id)]
+
+
 async def dep_link_type(
     link_type: str = Path(..., title="Link Type"),
 ) -> tuple[str, str, str]:
@@ -415,41 +441,74 @@ async def dep_link_type(
 
 LinkType = Annotated[tuple[str, str, str], Depends(dep_link_type)]
 
+#
+# Site ID
+#
+
+SITE_ID_REGEX = r"^[a-z0-9-]+$"
+
+
+def validate_site_id(site_id: str | None) -> None:
+    """Raise a ValueError if the site id is invalid."""
+
+    if site_id is not None and not re.match(SITE_ID_REGEX, site_id):
+        raise ValueError(f"Invalid site id: {site_id}")
+
+
+async def dep_client_site_id(
+    param1: str | None = Query(
+        None, title="Site ID", alias="site_id", include_in_schema=False
+    ),
+    param2: str | None = Query(
+        None, title="Site ID", alias="site", include_in_schema=False
+    ),
+    x_ayon_site_id: str | None = Header(
+        None,
+        title="Site ID",
+        description=(
+            "Site ID may be specified either "
+            "as a query parameter (`site_id` or `site`) or in a header."
+        ),
+    ),
+) -> str | None:
+    """Validate and return a site id
+
+    SiteID may be specified in an endpoint header or query parameter.
+    This is usually used for request from the client application.
+    """
+    site_id = param1 or param2 or x_ayon_site_id
+    validate_site_id(site_id)
+    return site_id
+
+
+ClientSiteID = Annotated[str | None, Depends(dep_client_site_id)]
+
 
 async def dep_site_id(
-    x_ayon_site_id: str | None = Header(None, title="Site ID"),
+    param1: str | None = Query(
+        None,
+        title="Site ID",
+        alias="site_id",
+        description=(
+            "Site ID may be specified a query parameter. "
+            "Both `site_id` and its's alias `site` are supported."
+        ),
+    ),
+    param2: str | None = Query(
+        None,
+        title="Site ID",
+        alias="site",
+        include_in_schema=False,
+    ),
 ) -> str | None:
-    """Validate and return a site id specified in an endpoint header."""
-    return x_ayon_site_id
+    """Validate and return a site id specified as an query argument
+
+    either `site_id` or `site` may be used.
+    This is used for management / settings endpoints.
+    """
+    site_id = param1 or param2
+    validate_site_id(site_id)
+    return site_id
 
 
-SiteID = Annotated[str, Depends(dep_site_id)]
-
-
-async def dep_ynput_cloud_key() -> str:
-    res = await Postgres.fetch(
-        """
-        SELECT value FROM secrets
-        WHERE name = 'ynput_cloud_key'
-        """
-    )
-    if not res:
-        raise ForbiddenException("Ynput connect key not found")
-    return res[0]["value"]
-
-
-YnputCloudKey = Annotated[str, Depends(dep_ynput_cloud_key)]
-
-INSTANCE_ID: str | None = None
-
-
-async def dep_instance_id() -> str:
-    global INSTANCE_ID
-    if INSTANCE_ID is None:
-        res = await Postgres.fetch("SELECT value FROM config WHERE key = 'instanceId'")
-        assert res, "instance id not set. This shouldn't happen."
-        INSTANCE_ID = res[0]["value"]
-    return INSTANCE_ID
-
-
-InstanceID = Annotated[str, Depends(dep_instance_id)]
+SiteID = Annotated[str | None, Depends(dep_site_id)]

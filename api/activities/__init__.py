@@ -1,5 +1,4 @@
-from . import activity
-from .router import router
+__all__ = ["activity", "suggest", "router", "watchers"]
 
-assert activity
-assert router
+from . import activity, suggest, watchers
+from .router import router

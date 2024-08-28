@@ -1,12 +1,12 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import strawberry
 from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import VersionEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.representations import get_representations
+from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import get_nickname, json_dumps
 
@@ -29,13 +29,14 @@ class VersionAttribType:
 class VersionNode(BaseNode):
     version: int
     product_id: str
-    task_id: str | None
-    thumbnail_id: str | None
-    author: str | None
     status: str
     attrib: VersionAttribType
-    data: str | None
     tags: list[str]
+    task_id: str | None = None
+    thumbnail_id: str | None = None
+    has_reviewables: bool = False
+    author: str | None = None
+    data: str | None = None
 
     # GraphQL specifics
 
@@ -68,7 +69,9 @@ class VersionNode(BaseNode):
 #
 
 
-def version_from_record(project_name: str, record: dict, context: dict) -> VersionNode:
+def version_from_record(
+    project_name: str, record: dict[str, Any], context: dict[str, Any]
+) -> VersionNode:
     """Construct a version node from a DB row."""
 
     current_user = context["user"]
@@ -83,7 +86,12 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
     else:
         name = f"v{record['version']:03d}"
 
-    return VersionNode(  # type: ignore
+    if "has_reviewables" in record:
+        has_reviewables = record["has_reviewables"]
+    else:
+        has_reviewables = False
+
+    return VersionNode(
         project_name=project_name,
         id=record["id"],
         name=name,
@@ -92,6 +100,7 @@ def version_from_record(project_name: str, record: dict, context: dict) -> Versi
         product_id=record["product_id"],
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
+        has_reviewables=has_reviewables,
         author=author,
         status=record["status"],
         tags=record["tags"],

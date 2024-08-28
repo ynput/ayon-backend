@@ -50,6 +50,6 @@ async def get_roots_for_projects(
             """
             result = await Postgres.fetch(query, user_name, site_id, timeout=5)
             for row in result:
-                roots[project_name].update(row["data"])
+                roots[project_name].update({k: v for k, v in row["data"].items() if v})
 
     return roots

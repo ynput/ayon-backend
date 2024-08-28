@@ -1,13 +1,13 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import strawberry
 from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import TaskEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
+from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import get_nickname, json_dumps
 
@@ -34,6 +34,7 @@ class TaskNode(BaseNode):
     assignees: list[str]
     folder_id: str
     status: str
+    has_reviewables: bool
     tags: list[str]
     attrib: TaskAttribType
     data: str | None
@@ -70,7 +71,9 @@ class TaskNode(BaseNode):
         )
 
 
-def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode:
+def task_from_record(
+    project_name: str, record: dict[str, Any], context: dict[str, Any]
+) -> TaskNode:
     """Construct a task node from a DB row."""
     if context:
         folder_data = {}
@@ -101,6 +104,11 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
     own_attrib = list(record["attrib"].keys())
     data = record.get("data", {})
 
+    if "has_reviewables" in record:
+        has_reviewables = record["has_reviewables"]
+    else:
+        has_reviewables = False
+
     return TaskNode(
         project_name=project_name,
         id=record["id"],
@@ -111,6 +119,7 @@ def task_from_record(project_name: str, record: dict, context: dict) -> TaskNode
         assignees=assignees,
         folder_id=record["folder_id"],
         status=record["status"],
+        has_reviewables=has_reviewables,
         tags=record["tags"],
         attrib=parse_attrib_data(
             TaskAttribType,

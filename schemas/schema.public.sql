@@ -1,5 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
-ALTER EXTENSION pg_trgm SET SCHEMA pg_catalog;
+ALTER EXTENSION pg_trgm SET SCHEMA public;
 
 CREATE TABLE IF NOT EXISTS public.config(
   key VARCHAR NOT NULL PRIMARY KEY,
@@ -56,8 +56,8 @@ CREATE TABLE IF NOT EXISTS public.events(
   hash VARCHAR NOT NULL,
   topic VARCHAR NOT NULL,
   sender VARCHAR,
-  project_name VARCHAR, -- REFERENCES public.projects(name) ON DELETE CASCADE ON UPDATE CASCADE,
-  user_name VARCHAR, -- REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  project_name VARCHAR,
+  user_name VARCHAR,
   depends_on UUID REFERENCES public.events(id),
   status VARCHAR NOT NULL
     DEFAULT 'finished'
@@ -79,9 +79,17 @@ CREATE TABLE IF NOT EXISTS public.events(
   creation_order SERIAL NOT NULL
 );
 
--- TODO: some indices here
 CREATE UNIQUE INDEX IF NOT EXISTS unique_event_hash ON events(hash);
 CREATE UNIQUE INDEX IF NOT EXISTS unique_creation_order ON events(creation_order);
+
+CREATE INDEX IF NOT EXISTS event_topic_idx ON events USING GIN (topic public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS event_depends_on_idx ON events(depends_on);
+CREATE INDEX IF NOT EXISTS event_project_name_idx ON events (project_name);
+CREATE INDEX IF NOT EXISTS event_user_name_idx ON events (user_name);
+CREATE INDEX IF NOT EXISTS event_created_at_idx ON events (created_at);
+CREATE INDEX IF NOT EXISTS event_updated_at_idx ON events (updated_at);
+CREATE INDEX IF NOT EXISTS event_status_idx ON events (status);
+CREATE INDEX IF NOT EXISTS event_retries_idx ON events (retries);
 
 --------------
 -- Settings --
@@ -93,7 +101,7 @@ CREATE TABLE IF NOT EXISTS public.bundles(
   is_staging BOOLEAN NOT NULL DEFAULT FALSE,
   is_archived BOOLEAN NOT NULL DEFAULT FALSE,
   is_dev BOOLEAN NOT NULL DEFAULT FALSE,
-  active_user VARCHAR REFERENCES public.users(name) ON DELETE SET NULL,
+  active_user VARCHAR REFERENCES public.users(name) ON DELETE SET NULL ON UPDATE CASCADE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -150,7 +158,7 @@ CREATE TABLE IF NOT EXISTS public.site_settings(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
   site_id VARCHAR NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
-  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE,
+  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (addon_name, addon_version, site_id, user_name)
 );
@@ -197,3 +205,121 @@ CREATE TABLE IF NOT EXISTS public.services(
 -- CREATE THE SITE ID
 INSERT INTO config VALUES ('instanceId', to_jsonb(gen_random_uuid()::text)) ON CONFLICT DO NOTHING;
 
+
+-----------
+-- INBOX --
+-----------
+
+DO $$ 
+DECLARE 
+    r RECORD;
+BEGIN 
+    FOR r IN 
+        SELECT 'DROP FUNCTION ' || oid::regprocedure || ';' as drop_command
+        FROM pg_proc 
+        WHERE proname = 'get_user_inbox'
+    LOOP 
+        EXECUTE r.drop_command;
+    END LOOP;
+END $$;
+
+
+CREATE OR REPLACE FUNCTION get_user_inbox(
+  user_name TEXT, 
+  show_active_projects BOOLEAN DEFAULT NULL,
+  show_active_messages BOOLEAN DEFAULT NULL,
+  show_unread_messages BOOLEAN DEFAULT NULL,
+  before TIMESTAMPTZ DEFAULT NULL,
+  last INTEGER DEFAULT 100,
+  additional_filters TEXT DEFAULT ''
+)
+RETURNS TABLE (
+    project_name TEXT,
+    reference_id UUID,
+    activity_id UUID,
+    reference_type VARCHAR,
+    entity_type VARCHAR,
+    entity_id UUID,
+    entity_name VARCHAR,
+    entity_path VARCHAR,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    creation_order INTEGER,
+    activity_type VARCHAR,
+    body TEXT,
+    activity_data JSONB,
+    reference_data JSONB,
+    active BOOLEAN
+
+) AS $$
+DECLARE
+    project RECORD;
+    query TEXT;
+
+BEGIN
+    FOR project IN SELECT projects.name FROM projects
+      WHERE (show_active_projects IS NULL OR projects.active = show_active_projects)
+    LOOP
+        query := format('
+            SELECT
+                ''%s'' AS project_name,
+                
+                t.reference_id as reference_id,
+                t.activity_id as activity_id,
+                t.reference_type as reference_type,
+                t.entity_type as entity_type,
+                t.entity_id as entity_id,
+                t.entity_name as entity_name,
+                t.entity_path as entity_path,
+
+                t.created_at as created_at,
+                t.updated_at as updated_at,
+                t.creation_order as creation_order,
+
+                t.activity_type as activity_type,
+                t.body as body,
+                t.activity_data as activity_data,
+                t.reference_data as reference_data,
+                t.active as active
+
+            FROM 
+                project_%s.activity_feed t
+            WHERE 
+                t.entity_type = ''user'' 
+            AND t.entity_name = %L
+            AND t.reference_type != ''author''
+            AND t.updated_at <= COALESCE(%L, NOW())
+            AND t.activity_data->>''author'' != %L
+            %s
+            %s
+            %s
+            ORDER BY t.updated_at DESC
+            LIMIT %s
+        ', 
+
+          project.name, 
+          project.name, 
+          user_name, 
+          before,
+          user_name,
+
+        CASE 
+            WHEN show_active_messages IS TRUE THEN 'AND t.active IS TRUE'
+            WHEN show_active_messages IS FALSE THEN 'AND t.active IS FALSE'
+            ELSE ''
+        END,
+
+        CASE
+            WHEN show_unread_messages IS FALSE THEN 'AND t.reference_data->>''read'' = ''true'' '
+            WHEN show_unread_messages IS TRUE THEN 'AND t.reference_data->>''read'' IS NULL '
+            ELSE ''
+        END,
+
+        additional_filters,
+        last
+        );
+        
+        RETURN QUERY EXECUTE query;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;

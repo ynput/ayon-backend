@@ -1,12 +1,16 @@
-from pydantic import Field
+import re
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.events import dispatch_event, update_event
+from ayon_server.events.enroll import EnrollResponseModel, enroll_job
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    ServiceUnavailableException,
+)
 from ayon_server.lib.postgres import Postgres
-from ayon_server.sqlfilter import Filter, build_filter
-from ayon_server.types import TOPIC_REGEX, OPModel
-from ayon_server.utils import hash_data
+from ayon_server.sqlfilter import Filter
+from ayon_server.types import TOPIC_REGEX, Field, OPModel
 
 from .router import router
 
@@ -16,11 +20,10 @@ from .router import router
 
 
 class EnrollRequestModel(OPModel):
-    source_topic: str = Field(
+    source_topic: str | list[str] = Field(
         ...,
-        title="Source topic",
+        title="Source topic(s)",
         example="ftrack.update",
-        regex=TOPIC_REGEX,
     )
     target_topic: str = Field(
         ...,
@@ -52,11 +55,10 @@ class EnrollRequestModel(OPModel):
     debug: bool = False
 
 
-class EnrollResponseModel(OPModel):
-    id: str = Field(...)
-    depends_on: str = Field(...)
-    hash: str = Field(...)
-    status: str = Field("pending")
+def validate_source_topic(value: str) -> str:
+    if not re.match(TOPIC_REGEX, value):
+        raise BadRequestException(f"Invalid topic: {value}")
+    return value.replace("*", "%")
 
 
 # response model must be here
@@ -71,145 +73,49 @@ async def enroll(
     Used by workers to get a new job to process. If there is no job
     available, request returns 204 (no content).
 
+    Returns 503 (service unavailable) if the database pool is almost full.
+    Processing jobs should never block user requests.
+
     Non-error response is returned because having nothing to do is not an error
     and we don't want to spam the logs.
     """
-    sender = payload.sender
 
-    if payload.description is None:
-        description = f"Convert from {payload.source_topic} to {payload.target_topic}"
+    if not current_user.is_service:
+        raise ForbiddenException("Only services can enroll for jobs")
+
+    # source_topic
+    source_topic: str | list[str]
+
+    if isinstance(payload.source_topic, str):
+        source_topic = validate_source_topic(payload.source_topic)
     else:
-        description = payload.description
+        source_topic = [validate_source_topic(t) for t in payload.source_topic]
 
-    filter = build_filter(payload.filter, table_prefix="source_events") or "TRUE"
+    # target_topic
+    if "*" in payload.target_topic:
+        raise BadRequestException("Target topic must not contain wildcards")
 
-    # Iterate thru unprocessed source events starting
-    # by the oldest one
+    # Keep DB pool size above 3
 
-    query = f"""
-        SELECT
-            source_events.id AS source_id,
-            target_events.status AS target_status,
-            target_events.sender AS target_sender,
-            target_events.retries AS target_retries,
-            target_events.hash AS target_hash,
-            target_events.retries AS target_retries,
-            target_events.id AS target_id
-        FROM
-            events AS source_events
-        LEFT JOIN
-            events AS target_events
-        ON
-            target_events.depends_on = source_events.id
-            AND target_events.topic = $2
-
-        WHERE
-            source_events.topic ILIKE $1
-        AND
-            source_events.status = 'finished'
-        AND
-            {filter}
-        AND
-            source_events.id NOT IN (
-                SELECT depends_on
-                FROM events
-                WHERE topic = $2
-                AND (
-
-                    -- skip events that are already finished
-
-                    status = 'finished'
-
-                    -- skip events that are already failed and have
-                    -- reached max retries
-
-                    OR (status = 'failed' AND retries > $3)
-                )
-            )
-
-        ORDER BY source_events.created_at ASC
-    """
-
-    source_topic = payload.source_topic
-    target_topic = payload.target_topic
-    assert "*" not in target_topic, "Target topic must not contain wildcards"
-    source_topic = source_topic.replace("*", "%")
-
-    if payload.debug:
-        print(query)
-        print("source_topic", payload.source_topic)
-        print("target_topic", payload.target_topic)
-
-    async for row in Postgres.iterate(
-        query,
-        source_topic,
-        target_topic,
-        payload.max_retries,
-    ):
-        # Check if target event already exists
-        if row["target_status"] is not None:
-            if row["target_status"] in ["failed", "restarted"]:
-                # events which have reached max retries are already
-                # filtered out by the query above,
-                # so we can just retry them - update status to pending
-                # and increase retries counter
-
-                retries = row["target_retries"]
-                if row["target_status"] == "failed":
-                    retries += 1
-
-                event_id = row["target_id"]
-                await update_event(
-                    event_id,
-                    status="pending",
-                    sender=sender,
-                    user=current_user.name,
-                    retries=retries,
-                    description="Restarting failed event",
-                )
-                return EnrollResponseModel(
-                    id=event_id,
-                    hash=row["target_hash"],
-                    depends_on=row["source_id"],
-                )
-
-            if row["target_sender"] != sender:
-                # There is already a target event for this source event.
-                # Check who is the sender. If it's not us, then we can't
-                # enroll for this job (the other worker is already working on it)
-                if payload.sequential:
-                    return EmptyResponse()
-                continue
-
-            # We are the sender of the target event, so it is possible that,
-            # for some reason, we have not finished processing it yet.
-            # In this case, we can't enroll for this job again.
-
-            return EnrollResponseModel(
-                id=row["target_id"],
-                depends_on=row["source_id"],
-                status=row["target_status"],
-                hash=row["target_hash"],
-            )
-
-        # Target event does not exist yet. Create a new one
-        new_hash = hash_data((payload.target_topic, row["source_id"]))
-        new_id = await dispatch_event(
-            payload.target_topic,
-            sender=sender,
-            hash=new_hash,
-            depends_on=row["source_id"],
-            user=current_user.name,
-            description=description,
-            finished=False,
+    if Postgres.get_available_connections() < 3:
+        raise ServiceUnavailableException(
+            f"Postgres remaining pool size: {Postgres.get_available_connections()}"
         )
 
-        if new_id:
-            return EnrollResponseModel(
-                id=new_id, hash=new_hash, depends_on=row["source_id"]
-            )
-        elif payload.sequential:
-            return EmptyResponse()
+    user_name = current_user.name
 
-    # nothing to do. return empty response
-    return EmptyResponse()
+    res = await enroll_job(
+        source_topic,
+        payload.target_topic,
+        sender=payload.sender,
+        user_name=user_name,
+        description=payload.description,
+        sequential=payload.sequential,
+        filter=payload.filter,
+        max_retries=payload.max_retries,
+    )
+
+    if res is None:
+        return EmptyResponse()
+
+    return res

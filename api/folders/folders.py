@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import BackgroundTasks, Header, Query
 
 from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
@@ -46,7 +48,7 @@ async def create_folder(
 
     folder = FolderEntity(project_name=project_name, payload=post_data.dict())
     await folder.ensure_create_access(user)
-    event = {
+    event: dict[str, Any] = {
         "topic": "entity.folder.created",
         "description": f"Folder {folder.name} created",
         "summary": {"entityId": folder.id, "parentId": folder.parent_id},
@@ -152,7 +154,7 @@ async def delete_folder(
 
     folder = await FolderEntity.load(project_name, folder_id)
     await folder.ensure_delete_access(user)
-    event = {
+    event: dict[str, Any] = {
         "topic": "entity.folder.deleted",
         "description": f"Folder {folder.name} deleted",
         "summary": {"entityId": folder.id, "parentId": folder.parent_id},

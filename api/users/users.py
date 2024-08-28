@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import Path
+from fastapi import Header, Path
 from nxtools import logging
 
 from ayon_server.api.clientinfo import ClientInfo
@@ -8,17 +8,22 @@ from ayon_server.api.dependencies import AccessToken, CurrentUser, UserName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import validate_password
+from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ConflictException,
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.types import USER_NAME_REGEX, Field, OPModel
 from ayon_server.utils import get_nickname, obscure
 
+from .avatar import REDIS_NS, obtain_avatar
 from .router import router
 
 #
@@ -79,9 +84,10 @@ async def get_user(
 
 class NewUserModel(UserEntity.model.post_model):  # type: ignore
     password: str | None = Field(None, description="Password for the new user")
+    api_key: str | None = Field(None, description="API Key for the new service user")
 
 
-def validate_user_data(data: dict[str, Any]):
+def validate_user_data(data: dict[str, Any]) -> None:
     try:
         if default_access_groups := data.get("defaultAccessGroups"):
             assert isinstance(
@@ -114,6 +120,7 @@ async def create_user(
     put_data: NewUserModel,
     user: CurrentUser,
     user_name: UserName,
+    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Create a new user."""
 
@@ -134,20 +141,57 @@ async def create_user(
         raise ConflictException("User already exists")
 
     if put_data.password:
+        if nuser.is_service:
+            raise BadRequestException("Service users cannot have passwords")
         nuser.set_password(put_data.password, complexity_check=not user.is_admin)
+
+    if put_data.api_key:
+        if not nuser.is_service:
+            raise BadRequestException("Only service users can have API keys")
+        nuser.set_api_key(put_data.api_key)
+
+    event: dict[str, Any] = {
+        "topic": "entity.user.created",
+        "description": f"User {user_name} created",
+        "summary": {"entityName": user.name},
+    }
+
     await nuser.save()
+    await EventStream.dispatch(
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return EmptyResponse()
 
 
 @router.delete("/{user_name}")
-async def delete_user(user: CurrentUser, user_name: UserName) -> EmptyResponse:
-    logging.info(f"[DELETE] /users/{user_name}")
+async def delete_user(
+    user: CurrentUser,
+    user_name: UserName,
+    x_sender: str | None = Header(default=None),
+) -> EmptyResponse:
     if not user.is_manager:
         raise ForbiddenException
 
     target_user = await UserEntity.load(user_name)
-    await target_user.delete()
 
+    event: dict[str, Any] = {
+        "description": f"User {user_name} deleted",
+        "summary": {"entityName": user_name},
+    }
+    if ayonconfig.audit_trail:
+        event["payload"] = {
+            "entityData": target_user.dict_simple(),
+        }
+
+    await target_user.delete()
+    await EventStream.dispatch(
+        "entity.user.deleted",
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
     return EmptyResponse()
 
 
@@ -158,8 +202,6 @@ async def patch_user(
     user_name: UserName,
     access_token: AccessToken,
 ) -> EmptyResponse:
-    logging.info(f"[PATCH] /users/{user_name}")
-
     if user_name == user.name and (not user.is_manager):
         # Normal users can only patch their attributes
         # (such as full name and email)
@@ -204,8 +246,24 @@ async def patch_user(
 
     validate_user_data(payload.data)
 
+    attrib_dict = payload.attrib.dict(exclude_unset=True)
+    avatar_changed = False
+    if (
+        "avatarUrl" in attrib_dict
+        and attrib_dict["avatarUrl"] != target_user.attrib.avatarUrl
+    ):
+        url = attrib_dict["avatarUrl"]
+        if (url) and not (url.startswith("http://") or url.startswith("https://")):
+            raise BadRequestException("Invalid avatar URL")
+        avatar_changed = True
+
     target_user.patch(payload)
     await target_user.save()
+
+    if avatar_changed:
+        logging.debug(f"User {user_name} avatar changed, updating cache")
+        avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
     async for session in Session.list(user_name):
         token = session.token
@@ -308,9 +366,17 @@ async def change_user_name(
     patch_data: ChangeUserNameRequestModel,
     user: CurrentUser,
     user_name: UserName,
+    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     if not user.is_manager:
         raise ForbiddenException
+
+    event: dict[str, Any] = {
+        "topic": "entity.user.renamed",
+        "description": f"Renamed user {user_name} to {patch_data.new_name}",
+        "summary": {"entityName": user_name},
+        "payload": {"oldValue": user_name, "newValue": patch_data.new_name},
+    }
 
     async with Postgres.acquire() as conn:
         async with conn.transaction():
@@ -323,10 +389,10 @@ async def change_user_name(
             # Update tasks assignees - since assignees is an array,
             # it won't update automatically (there's no foreign key)
 
-            projects = await conn.fetch("SELECT name FROM projects")
-            project_names = [row["name"] for row in projects]
+            projects = await get_project_list()
 
-            for project_name in project_names:
+            for project in projects:
+                project_name = project.name
                 query = f"""
                     UPDATE project_{project_name}.tasks SET
                     assignees = array_replace(
@@ -338,11 +404,20 @@ async def change_user_name(
                 """
                 await conn.execute(query)
 
+            # TODO: Update activity feed
+
     # Renaming user has many side effects, so we need to log out all Sessions
     # and let the user log in again
     async for session in Session.list(user_name):
         token = session.token
         await Session.delete(token)
+
+    await EventStream.dispatch(
+        sender=x_sender,
+        user=user.name,
+        **event,
+    )
+
     return EmptyResponse()
 
 
@@ -450,6 +525,10 @@ async def assign_access_groups(
     target_user.data["accessGroups"] = ag_set
     await target_user.save()
 
+    async for session in Session.list(user_name):
+        token = session.token
+        await Session.update(token, target_user)
+
     return EmptyResponse()
 
 
@@ -471,4 +550,9 @@ async def set_frontend_preferences(
     target_user.data["frontendPreferences"] = preferences
 
     await target_user.save()
+
+    async for session in Session.list(user_name):
+        token = session.token
+        await Session.update(token, target_user)
+
     return EmptyResponse()

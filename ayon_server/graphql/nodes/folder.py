@@ -1,13 +1,13 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import strawberry
 from strawberry import LazyType
-from strawberry.types import Info
 
 from ayon_server.entities import FolderEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.products import get_products
 from ayon_server.graphql.resolvers.tasks import get_tasks
+from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import json_dumps
 
@@ -42,6 +42,7 @@ class FolderNode(BaseNode):
     child_count: int = strawberry.field(default=0)
     product_count: int = strawberry.field(default=0)
     task_count: int = strawberry.field(default=0)
+    has_reviewables: bool = strawberry.field(default=False)
 
     products: ProductsConnection = strawberry.field(
         resolver=get_products,
@@ -96,11 +97,18 @@ class FolderNode(BaseNode):
 #
 
 
-def folder_from_record(project_name: str, record: dict, context: dict) -> FolderNode:
+def folder_from_record(
+    project_name: str, record: dict[str, Any], context: dict[str, Any]
+) -> FolderNode:
     """Construct a folder node from a DB row."""
 
     own_attrib = list(record["attrib"].keys())
     data = record.get("data")
+
+    if "has_reviewables" in record:
+        has_reviewables = record["has_reviewables"]
+    else:
+        has_reviewables = False
 
     return FolderNode(
         project_name=project_name,
@@ -127,6 +135,7 @@ def folder_from_record(project_name: str, record: dict, context: dict) -> Folder
         child_count=record.get("child_count", 0),
         product_count=record.get("product_count", 0),
         task_count=record.get("task_count", 0),
+        has_reviewables=has_reviewables,
         path="/" + record.get("path", "").strip("/"),
         own_attrib=own_attrib,
     )

@@ -1,5 +1,4 @@
+__all__ = ["teams", "router"]
+
 from . import teams
 from .router import router
-
-assert teams
-assert router

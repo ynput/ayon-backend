@@ -1,12 +1,15 @@
 __pycache__
+
 .pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+.vscode
+
 /poetry.lock
 /addons/
-/openpype/trigger.py
-
-test_*.py
+transcoder
 
 .python-version
-.vscode
 BUILD_DATE
 venv/

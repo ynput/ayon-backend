@@ -60,7 +60,7 @@ class Client:
         if session_data is not None:
             self.topics = [*topics, *ALWAYS_SUBSCRIBE] if "*" not in topics else ["*"]
             self.authorized = True
-            self.user = session_data.user
+            self.user = session_data.user_entity
             self.project_name = project
             return True
         return False
@@ -145,10 +145,23 @@ class Messaging(BackgroundWorker):
 
                 # TODO: much much smarter logic here
                 for _client_id, client in self.clients.items():
-                    if client.project_name is not None:
-                        if prj := message.get("project", None):
-                            if prj != client.project_name:
-                                continue
+                    project_name = message.get("project", None)
+                    if (
+                        client.project_name is not None
+                        and message.get("topic") != "inbox.message"
+                    ):
+                        if project_name and project_name != client.project_name:
+                            continue
+
+                    if project_name and client.user and (not client.user.is_manager):
+                        access_groups = client.user.data.get("accessGroups", {})
+                        if project_name not in access_groups:
+                            continue
+
+                    recipients = message.get("recipients", None)
+                    if isinstance(recipients, list):
+                        if client.user_name not in recipients:
+                            continue
 
                     for topic in client.topics:
                         if topic == "*" or message["topic"].startswith(topic):
@@ -163,7 +176,9 @@ class Messaging(BackgroundWorker):
                                     m["description"] = obscure(m["description"])
                                 await client.send(m)
                             else:
-                                await client.send(message)
+                                m = copy.deepcopy(message)
+                                m.pop("recipients", None)
+                                await client.send(m)
 
                 if message["topic"] == "server.restart_requested":
                     restart_server()

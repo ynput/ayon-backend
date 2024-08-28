@@ -14,7 +14,7 @@ try:
 
     has_nxtools = True
 except ModuleNotFoundError:
-    import logging  # type: ignore
+    import logging
 
     has_nxtools = False
 
@@ -24,6 +24,9 @@ else:
 
 def parse_log_message(message):
     """Convert nxtools log message to event system message."""
+    message_type = message.get("message_type")
+    if message_type is None or not isinstance(message_type, int):
+        raise ValueError("Invalid log message type")
     topic = {
         0: "log.debug",
         1: "log.info",
@@ -32,7 +35,11 @@ def parse_log_message(message):
         4: "log.success",
     }[message["message_type"]]
 
-    description = message["message"].splitlines()[0]
+    try:
+        description = message["message"].splitlines()[0]
+    except (IndexError, AttributeError):
+        raise ValueError("Invalid log message")
+
     if len(description) > 100:
         description = description[:100] + "..."
 
@@ -68,6 +75,10 @@ class LogCollector(BackgroundWorker):
         self.msg_id += 1
         try:
             message = parse_log_message(record)
+        except ValueError:
+            return
+
+        try:
             await dispatch_event(
                 message["topic"],
                 # user=None, (TODO: implement this?)
@@ -75,15 +86,9 @@ class LogCollector(BackgroundWorker):
                 payload=message["payload"],
             )
         except Exception:
-            # This actually should not happen, but if it does,
-            # we don't want to crash the whole application and
-            # we don't want to log the exception using the logger,
-            # since it failed in the first place.
-            logging.error(
-                "Unable to dispatch log message",
-                message["description"],
-                handlers=None,
-            )
+            m = f"Unable to dispatch log message: {message['description']}"
+            # do not use the logger, if you don't like recursion
+            print(m, flush=True)
 
     async def run(self):
         # During the startup, we cannot write to the database

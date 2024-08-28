@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS activities (
     creation_order SERIAL NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_activity_type ON activities(activity_type);
+
 CREATE TABLE IF NOT EXISTS activity_references (
     id UUID PRIMARY KEY, -- generate uuid1 in python
     activity_id UUID NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
@@ -64,6 +66,9 @@ CREATE TABLE IF NOT EXISTS activity_references (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     creation_order SERIAL NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_activity_id ON activity_references(activity_id);
+CREATE INDEX IF NOT EXISTS idx_activity_entity_id ON activity_references(entity_id);
 CREATE INDEX IF NOT EXISTS idx_activity_reference_created_at ON activity_references(created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_reference_unique ON activity_references(activity_id, entity_id, entity_name, reference_type);
 
@@ -77,7 +82,7 @@ CREATE TABLE IF NOT EXISTS entity_paths (
     entity_type VARCHAR NOT NULL,
     path VARCHAR NOT NULL
 );
-CREATE INDEX IF NOT EXISTS entity_paths_path_idx ON entity_paths USING GIN (path gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS entity_paths_path_idx ON entity_paths USING GIN (path public.gin_trgm_ops);
 
 
 CREATE OR REPLACE VIEW activity_feed AS
@@ -112,6 +117,17 @@ CREATE OR REPLACE VIEW activity_feed AS
     entity_paths as ref_paths ON ref.entity_id = ref_paths.entity_id; 
 
 
+CREATE TABLE IF NOT EXISTS files (
+  id UUID PRIMARY KEY,
+  size BIGINT NOT NULL,
+  author VARCHAR REFERENCES public.users(name) ON DELETE SET NULL ON UPDATE CASCADE,
+  activity_id UUID REFERENCES activities(id) ON DELETE SET NULL,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB, -- contains mime, original file name etc
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_files_activity_id ON files(activity_id);
 
 -------------------
 -- BASE ENTITIES --
@@ -384,7 +400,7 @@ CREATE TABLE project_site_settings(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
   site_id VARCHAR REFERENCES public.sites(id) ON DELETE CASCADE,
-  user_name VARCHAR REFERENCES public.users(name) ON DELETE CASCADE,
+  user_name VARCHAR REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (addon_name, addon_version, site_id, user_name)
 );
@@ -399,7 +415,7 @@ CREATE TABLE IF NOT EXISTS addon_data(
 
 CREATE TABLE IF NOT EXISTS custom_roots(
   site_id VARCHAR NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
-  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE,
+  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (site_id, user_name)
 );

@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Header
 
@@ -58,7 +58,7 @@ async def create_task(
 
     task = TaskEntity(project_name=project_name, payload=post_data.dict())
     await task.ensure_create_access(user)
-    event = {
+    event: dict[str, Any] = {
         "topic": "entity.task.created",
         "description": f"Task {task.name} created",
         "summary": {"entityId": task.id, "parentId": task.parent_id},
@@ -121,7 +121,7 @@ async def delete_task(
     """Delete a task."""
 
     task = await TaskEntity.load(project_name, task_id)
-    event = {
+    event: dict[str, Any] = {
         "topic": "entity.task.deleted",
         "description": f"Task {task.name} deleted",
         "summary": {"entityId": task.id, "parentId": task.parent_id},
@@ -161,7 +161,7 @@ class AssignUsersRequestModel(OPModel):
 
 @router.post("/projects/{project_name}/tasks/{task_id}/assign", status_code=204)
 async def assign_users_to_task(
-    post_data: AssignUsersRequestModel,  # type: ignore
+    post_data: AssignUsersRequestModel,
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,

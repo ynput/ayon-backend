@@ -90,7 +90,7 @@ def build_pl_entity_change_events(
     if (new_name := patch_data.get("name")) is not None:
         if new_name != original_entity.name:
             description = (
-                f"Renamed {entity_type} {original_entity.name} to {patch.name}"
+                f"Renamed {entity_type} {original_entity.name} to {patch.name}"  # type: ignore
             )
             result.append(
                 {
@@ -109,7 +109,7 @@ def build_pl_entity_change_events(
     if (new_status := patch_data.get("status")) is not None:
         if new_status != original_entity.status:
             description = (
-                f"Changed {entity_type} {original_entity.name} status to {patch.status}"
+                f"Changed {entity_type} {original_entity.name} status to {patch.status}"  # type: ignore
             )
             result.append(
                 {
@@ -130,7 +130,7 @@ def build_pl_entity_change_events(
             description = get_tags_description(
                 f"{entity_type} {original_entity.name}",
                 original_entity.tags,
-                patch.tags,
+                patch.tags,  # type: ignore
             )
             if description:
                 result.append(
@@ -172,20 +172,26 @@ def build_pl_entity_change_events(
     for column_name, topic_name in ADDITIONAL_COLUMNS.items():
         if not hasattr(original_entity, column_name):
             continue
-        if column_name in patch_data:
-            description = f"Changed {entity_type} {original_entity.name} {column_name}"
-            result.append(
-                {
-                    "topic": f"entity.{entity_type}.{topic_name}",
-                    "description": description,
-                    **common_data,
-                }
-            )
-            if ayonconfig.audit_trail:
-                payload = {
-                    "oldValue": getattr(original_entity, column_name),
-                    "newValue": patch_data[column_name],
-                }
-                result[-1]["payload"] = payload
+
+        if column_name not in patch_data:
+            continue
+
+        if getattr(original_entity, column_name) == patch_data.get(column_name):
+            continue
+
+        description = f"Changed {entity_type} {original_entity.name} {column_name}"
+        result.append(
+            {
+                "topic": f"entity.{entity_type}.{topic_name}",
+                "description": description,
+                **common_data,
+            }
+        )
+        if ayonconfig.audit_trail:
+            payload = {
+                "oldValue": getattr(original_entity, column_name),
+                "newValue": patch_data[column_name],
+            }
+            result[-1]["payload"] = payload
 
     return result

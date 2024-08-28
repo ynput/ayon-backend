@@ -12,8 +12,9 @@ from ayon_server.entities.models import ModelSet
 from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
+from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
-from ayon_server.utils import SQLTool, dict_exclude
+from ayon_server.utils import SQLTool, dict_exclude, get_nickname
 
 
 async def aux_table_update(conn, table: str, update_data: list[dict[str, Any]]):
@@ -210,12 +211,15 @@ class ProjectEntity(TopLevelEntity):
 
     async def save(self, transaction=None) -> bool:
         """Save the project to the database."""
-        if transaction:
-            return await self._save(transaction)
-        else:
-            async with Postgres.acquire() as conn:
-                async with conn.transaction():
-                    return await self._save(conn)
+        try:
+            if transaction:
+                return await self._save(transaction)
+            else:
+                async with Postgres.acquire() as conn:
+                    async with conn.transaction():
+                        return await self._save(conn)
+        finally:
+            await build_project_list()
 
     async def _save(self, transaction) -> bool:
         assert self.folder_types, "Project must have at least one folder type"
@@ -316,12 +320,15 @@ class ProjectEntity(TopLevelEntity):
 
     async def delete(self, transaction=None) -> bool:
         """Delete existing project."""
-        if transaction:
-            return await self._delete(transaction)
-        else:
-            async with Postgres.acquire() as conn:
-                async with conn.transaction():
-                    return await self._delete(conn)
+        try:
+            if transaction:
+                return await self._delete(transaction)
+            else:
+                async with Postgres.acquire() as conn:
+                    async with conn.transaction():
+                        return await self._delete(conn)
+        finally:
+            await build_project_list()
 
     async def _delete(self, transaction) -> bool:
         if not self.name:
@@ -331,7 +338,6 @@ class ProjectEntity(TopLevelEntity):
         await transaction.execute(
             "DELETE FROM public.projects WHERE name = $1", self.name
         )
-        # TODO: Return false if project was not found
         return True
 
     #
@@ -339,81 +345,86 @@ class ProjectEntity(TopLevelEntity):
     #
 
     @property
+    def nickname(self) -> str:
+        """Return the project nickname."""
+        return get_nickname(str(self.created_at) + self.name, 2)
+
+    @property
     def code(self) -> str:
         """Get the project code."""
-        return self._payload.code
+        return self._payload.code  # type: ignore
 
     @code.setter
     def code(self, value: str) -> None:
         """Set the project code."""
-        self._payload.code = value
+        self._payload.code = value  # type: ignore
 
     @property
     def library(self) -> bool:
         """Return True if the entity is a library."""
-        return self._payload.library
+        return self._payload.library  # type: ignore
 
     @library.setter
-    def library(self, value: bool):
+    def library(self, value: bool) -> None:
         """Set the entity type to library."""
-        self._payload.library = value
+        self._payload.library = value  # type: ignore
 
     @property
     def config(self) -> Dict[str, Any]:
         """Return the entity configuration."""
-        return self._payload.config
+        return self._payload.config  # type: ignore
 
     @config.setter
-    def config(self, value: Dict[str, Any]):
+    def config(self, value: Dict[str, Any]) -> None:
         """Set the entity configuration."""
-        self._payload.config = value
+        self._payload.config = value  # type: ignore
 
     @property
     def folder_types(self) -> list[dict[str, Any]]:
         """Return the folder types."""
-        return self._payload.folder_types
+        return self._payload.folder_types  # type: ignore
 
     @folder_types.setter
-    def folder_types(self, value: list[dict[str, Any]]):
+    def folder_types(self, value: list[dict[str, Any]]) -> None:
         """Set the folder types."""
-        self._payload.folder_types = value
+        self._payload.folder_types = value  # type: ignore
 
     @property
     def task_types(self) -> list[dict[str, Any]]:
         """Return the task types."""
-        return self._payload.task_types
+        return self._payload.task_types  # type: ignore
 
     @task_types.setter
-    def task_types(self, value: list[dict[str, Any]]):
+    def task_types(self, value: list[dict[str, Any]]) -> None:
         """Set the task types."""
-        self._payload.task_types = value
+        self._payload.task_types = value  # type: ignore
 
     @property
     def link_types(self) -> list[LinkTypeModel]:
         """Return the link types."""
-        return self._payload.link_types
+        return self._payload.link_types  # type: ignore
 
     @link_types.setter
-    def link_types(self, value: list[dict[str, Any]]):
+    def link_types(self, value: list[dict[str, Any]]) -> None:
         """Set the link types."""
-        self._payload.link_types = value
+        self._payload.link_types = value  # type: ignore
 
     @property
     def statuses(self) -> list[dict[str, Any]]:
         """Return the statuses."""
-        return self._payload.statuses
+        return self._payload.statuses  # type: ignore
 
     @statuses.setter
-    def statuses(self, value: list[dict[str, Any]]):
+    def statuses(self, value: list[dict[str, Any]]) -> None:
         """Set the statuses."""
-        self._payload.statuses = value
+        self._payload.statuses = value  # type: ignore
 
     @property
     def tags(self) -> list[dict[str, Any]]:
         """Return the tags."""
-        return self._payload.tags
+        return self._payload.tags  # type: ignore
 
     @tags.setter
-    def tags(self, value: list[dict[str, Any]]):
+    def tags(self, value: list[dict[str, Any]]) -> None:
         """Set the tags."""
-        self._payload.tags = value
+        self._payload.tags = value  # type: ignore

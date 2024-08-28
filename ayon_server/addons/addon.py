@@ -9,11 +9,17 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Type
 
 from nxtools import log_traceback, logging
 
+from ayon_server.actions.context import ActionContext
+from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
+from ayon_server.actions.manifest import (
+    DynamicActionManifest,
+    SimpleActionManifest,
+)
 from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, apply_overrides
-from ayon_server.settings.common import migrate_settings
+from ayon_server.settings.common import migrate_settings_overrides
 
 if TYPE_CHECKING:
     from ayon_server.addons.definition import ServerAddonDefinition
@@ -23,7 +29,21 @@ METADATA_KEYS = [
     "version",
     "title",
     "services",
+    # compatibility object
+    "ayon_server_version",
+    "ayon_launcher_version",
+    "ayon_required_addons",
+    "ayon_soft_required_addons",
+    "ayon_compatible_addons",
 ]
+
+
+class AddonCompatibilityModel(BaseSettingsModel):
+    server_version: str | None = None
+    launcher_version: str | None = None
+    required_addons: dict[str, str | None] | None = None
+    soft_required_addons: dict[str, str | None] | None = None
+    compatible_addons: dict[str, str | None] | None = None
 
 
 class BaseServerAddon:
@@ -41,6 +61,8 @@ class BaseServerAddon:
     app_host_name: str | None = None
     frontend_scopes: dict[str, Any] = {}
 
+    compatibility: AddonCompatibilityModel | None = None
+
     # automatically set
     definition: "ServerAddonDefinition"
     legacy: bool = False  # auto-set to true if it is the old style addon
@@ -48,6 +70,17 @@ class BaseServerAddon:
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str, **kwargs):
         # populate metadata from package.py
+
+        compatibility = AddonCompatibilityModel(
+            server_version=kwargs.pop("ayon_server_version", None),
+            launcher_version=kwargs.pop("ayon_launcher_version", None),
+            required_addons=kwargs.pop("ayon_required_addons", None),
+            soft_required_addons=kwargs.pop("ayon_soft_required_addons", None),
+            compatible_addons=kwargs.pop("ayon_compatible_addons", None),
+        )
+
+        self.compatibility = compatibility
+
         for key in METADATA_KEYS:
             if key in kwargs:
                 setattr(self, key, kwargs[key])
@@ -138,7 +171,7 @@ class BaseServerAddon:
     def add_endpoint(
         self,
         path: str,
-        handler: Callable,
+        handler: Callable[..., Any],
         *,
         method: str = "GET",
         name: str | None = None,
@@ -447,7 +480,11 @@ class BaseServerAddon:
         settings._has_studio_overrides = has_studio_overrides
         return settings
 
-    async def get_site_settings(self, user_name: str, site_id: str) -> dict | None:
+    async def get_site_settings(
+        self,
+        user_name: str,
+        site_id: str,
+    ) -> dict[str, Any] | None:
         site_settings_model = self.get_site_settings_model()
         if site_settings_model is None:
             return None
@@ -525,12 +562,11 @@ class BaseServerAddon:
         has been changed from `str` to `list[str]`, you may use:
 
         ```python
-        await def convert_str_to_list_str(value: str | list[str]) -> list[str]:
+        async def convert_str_to_list_str(value: str | list[str]) -> list[str]:
             if isinstance(value, str):
                 return [value]
             elif isinstance(value, list):
                 return value
-            return []
 
         result = migrate_settings(
             overrides,
@@ -542,11 +578,64 @@ class BaseServerAddon:
 
         ```
         """
+
         model_class = self.get_settings_model()
         if model_class is None:
             return {}
         defaults = await self.get_default_settings()
-        result = migrate_settings(
-            overrides, new_model_class=model_class, defaults=defaults.dict()
+        assert defaults is not None
+        return migrate_settings_overrides(
+            overrides,
+            new_model_class=model_class,
+            defaults=defaults.dict(),
         )
-        return result.dict(exclude_unset=True, exclude_none=True, exclude_defaults=True)
+
+    async def get_app_host_names(self) -> list[str]:
+        """Return a list of application host names that the addon uses.
+
+        Addon may reimplment this method to return a list of host names that
+        the addon uses.
+
+        By default, it returns a single host name from the
+        addon's attributes. If the addon uses multiple host names, you should
+        override this method.
+        """
+
+        if self.app_host_name is None:
+            return []
+        return [self.app_host_name]
+
+    #
+    # Actions
+    #
+
+    async def get_simple_actions(
+        self,
+        project_name: str | None = None,
+        variant: str = "production",
+    ) -> list[SimpleActionManifest]:
+        """Return a list of simple actions provided by the addon"""
+        return []
+
+    async def get_dynamic_actions(
+        self,
+        context: ActionContext,
+        variant: str = "production",
+    ) -> list[DynamicActionManifest]:
+        """Return a list of dynamic actions provided by the addon"""
+        return []
+
+    # TODO: do we need this?
+    # async def get_all_actions(
+    #     self,
+    #     context: ActionContext,
+    # ) -> list[BaseActionManifest]:
+    #     """Return a list of all actions provided by the addon"""
+    #     return await self.get_simple_actions()
+
+    async def execute_action(
+        self,
+        executor: ActionExecutor,
+    ) -> ExecuteResponseModel:
+        """Execute an action provided by the addon"""
+        raise ValueError(f"Unknown action: {executor.identifier}")

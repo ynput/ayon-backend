@@ -2,7 +2,17 @@
 
 import os
 
+from aiocache import caches
 from pydantic import BaseModel, Field
+
+caches.set_config(
+    {
+        "default": {
+            "cache": "aiocache.SimpleMemoryCache",
+            "serializer": {"class": "aiocache.serializers.StringSerializer"},
+        },
+    }
+)
 
 
 class AyonConfig(BaseModel):
@@ -21,6 +31,12 @@ class AyonConfig(BaseModel):
     api_modules_dir: str = Field(
         default="api",
         description="Path to the directory containing the API modules.",
+    )
+
+    project_data_dir: str = Field(
+        default="/storage/server/projects",
+        description="Path to the directory containing the project files."
+        " such as comment attachments, thumbnails, etc.",
     )
 
     avatar_dir: str = Field(
@@ -48,7 +64,7 @@ class AyonConfig(BaseModel):
         description="Minimum password length.",
     )
 
-    auth_pass_complex: str = Field(
+    auth_pass_complex: bool = Field(
         default=True,
         description="Enforce using a complex password.",
     )
@@ -73,6 +89,18 @@ class AyonConfig(BaseModel):
         default="postgres://ayon:ayon@postgres/ayon",
         description="Connection string for Postgres.",
         example="postgres://user:password123@postgres.example.com:5432/ayon",
+    )
+
+    postgres_pool_size: int = Field(
+        64,
+        description="Postgres connection pool size",
+        example=64,
+    )
+
+    postgres_pool_timeout: int = Field(
+        20,
+        description="Postgres connection pool timeout",
+        example=20,
     )
 
     session_ttl: int = Field(
@@ -139,6 +167,11 @@ class AyonConfig(BaseModel):
         description="Enable audit trail",
     )
 
+    openapi_include_addon_endpoints: bool = Field(
+        default=False,
+        description="Include addon endpoints in the OpenAPI schema",
+    )
+
     log_retention_days: int = Field(
         default=7,
         description="Number of days to keep logs in the event log",
@@ -157,13 +190,28 @@ class AyonConfig(BaseModel):
 
     http_timeout: int = Field(
         default=120,
-        description="Timeout for HTTP requests the server uses "
+        description="The default timeout for HTTP requests the server uses "
         "to connect to external services",
     )
 
     log_file: str | None = Field(
         default=None,
         description="Path to the log file",
+    )
+
+    metrics_api_key: str | None = Field(
+        default=None,
+        description="API key allowing access to the system metrics endpoint",
+    )
+
+    metrics_send_system: bool = Field(
+        default=False,
+        description="Send system metrics to Ynput Cloud",
+    )
+
+    metrics_send_saturated: bool = Field(
+        default=False,
+        description="Send saturated metrics to Ynput Cloud",
     )
 
     email_from: str = Field("noreply@ynput.cloud", description="Email sender address")
