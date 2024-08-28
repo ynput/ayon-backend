@@ -1,6 +1,10 @@
 import asyncio
+import time
+
+from nxtools import logging
 
 from ayon_server.background.background_worker import BackgroundWorker
+from ayon_server.config import ayonconfig
 from ayon_server.helpers.project_files import delete_unused_files
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
@@ -47,6 +51,45 @@ async def clear_actions() -> None:
     await Postgres.execute(query)
 
 
+async def clear_events() -> None:
+    """Purge old events.
+
+    Delete events older than the value specified in ayon-config.
+    This is opt-in and by default, old events are not deleted.
+    """
+
+    if ayonconfig.event_retention_days is None:
+        return
+
+    num_days = ayonconfig.event_retention_days
+
+    query = f"""
+        WITH dependent_events AS (
+            SELECT DISTINCT event_id FROM events
+            WHERE updated_at >= now() - interval '{num_days} days'
+            AND depends_on IS NOT NULL
+        )
+
+        WITH deleted AS (
+            DELETE FROM events WHERE
+            updated_at < now() - interval '{num_days} days'
+            AND id NOT IN (SELECT event_id FROM dependent_events)
+        )
+
+        SELECT count(*) as del FROM deleted;
+    """
+
+    start_time = time.monotonic()
+    res = await Postgres.fetch(query)
+    elapsed = time.monotonic() - start_time
+    if res:
+        deleted = res[0]["del"]
+        if deleted:
+            logging.debug(f"Deleted {deleted} old events")
+        if elapsed > 1:
+            logging.debug(f"Event clean-up took {elapsed:.2f} seconds")
+
+
 class AyonCleanUp(BackgroundWorker):
     """Background task for periodic clean-up of stuff."""
 
@@ -54,7 +97,7 @@ class AyonCleanUp(BackgroundWorker):
         # Execute the first clean-up after a minute, when
         # everything is settled down.
 
-        await asyncio.sleep(60)
+        await asyncio.sleep(120)
 
         while True:
             try:
@@ -70,6 +113,7 @@ class AyonCleanUp(BackgroundWorker):
             await delete_unused_files(project.name)
 
         await clear_actions()
+        await clear_events()
 
 
 clean_up = AyonCleanUp()

@@ -53,44 +53,5 @@ class LogCleaner(BackgroundWorker):
                 # Repeat every hour hours
                 await asyncio.sleep(3600)
 
-        # TODO
-        if ayonconfig.event_retention_days is not None:
-            num_days = ayonconfig.event_retention_days
-            await self.clear_events(num_days=num_days)
-
-    async def clear_events(
-        self, condition: str | None = None, num_days: int = 90
-    ) -> None:
-        # Delete events in batches of 1000
-        # to avoid locking the table for too long and potentially
-        # causing timeouts in the application
-
-        conditions = [f"updated_at < NOW() - INTERVAL '{num_days} days'"]
-        if condition:
-            conditions.append(condition)
-
-        while True:
-            query = f"""
-                WITH deleted AS (
-                    DELETE FROM events WHERE id IN (
-                        SELECT id FROM events
-                        WHERE {' AND '.join(conditions)}
-                        ORDER BY updated_at ASC
-                        LIMIT 1000
-                    )
-                SELECT count(*) as del FROM deleted;
-            """
-
-            res = await Postgres.fetch(query)
-
-            if res:
-                deleted = res[0]["del"]
-                if deleted:
-                    logging.info(f"Deleted {deleted} old event entries")
-                    continue
-
-            await asyncio.sleep(1)
-            break
-
 
 log_cleaner = LogCleaner()
