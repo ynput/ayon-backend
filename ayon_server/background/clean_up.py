@@ -76,7 +76,7 @@ async def clear_logs() -> None:
             """,
             delete_from,
             last_log_to_keep,
-            timeout=60,
+            timeout=500,
         )
 
         if res:
@@ -101,22 +101,23 @@ async def clear_events() -> None:
 
     query = f"""
         WITH dependent_events AS (
-            SELECT DISTINCT event_id FROM events
-            WHERE updated_at >= now() - interval '{num_days} days'
+            SELECT DISTINCT id FROM events
+            WHERE updated_at >= now() - interval '{num_days + 1} days'
             AND depends_on IS NOT NULL
-        )
+        ),
 
-        WITH deleted AS (
+        deleted AS (
             DELETE FROM events WHERE
             updated_at < now() - interval '{num_days} days'
-            AND id NOT IN (SELECT event_id FROM dependent_events)
+            AND id NOT IN (SELECT id FROM dependent_events)
+            RETURNING id
         )
 
         SELECT count(*) as del FROM deleted;
     """
 
     start_time = time.monotonic()
-    res = await Postgres.fetch(query)
+    res = await Postgres.fetch(query, timeout=500)
     elapsed = time.monotonic() - start_time
     if res:
         deleted = res[0]["del"]
@@ -149,19 +150,21 @@ class AyonCleanUp(BackgroundWorker):
         else:
             # For each project, clean up thumbnails and unused files
             for project in projects:
-                for func in (clear_thumbnails, delete_unused_files):
+                for prj_func in (clear_thumbnails, delete_unused_files):
                     try:
-                        await func(project.name)
-                    except Exception as e:
-                        logging.error(f"Error in clean-up: {e}")
+                        await prj_func(project.name)
+                    except Exception:
+                        log_traceback(
+                            f"Error in {prj_func.__name__} for {project.name}"
+                        )
 
         # This clears not project-specific items (events)
 
         for func in (clear_actions, clear_logs, clear_events):
             try:
                 await func()
-            except Exception as e:
-                logging.error(f"Error in clean-up: {e}")
+            except Exception:
+                log_traceback(f"Error in {func.__name__}")
 
 
 clean_up = AyonCleanUp()
