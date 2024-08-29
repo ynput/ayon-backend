@@ -162,11 +162,13 @@ async def create_new_bundle(
         None,
         description="Copy settings from bundle",
         alias="settingsFromBundle",
+        deprecated=True,
     ),
     settings_from_variant: str = Query(
         "production",
         description="Copy settings from variant",
         alias="settingsFromVariant",
+        deprecated=True,
     ),
 ) -> EmptyResponse:
     if not user.is_admin:
@@ -190,6 +192,8 @@ async def create_new_bundle(
         await _create_new_bundle(conn, bundle, user, x_sender)
 
         if settings_from_bundle:
+            # This is for a testing purposes and will be removed in the future
+            # Query parameters handling this feature are marked as deprecated
             if not (bundle.is_production or bundle.is_staging):
                 raise BadRequestException(
                     "Cannot copy settings to non-production/staging bundle"
