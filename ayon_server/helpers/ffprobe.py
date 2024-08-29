@@ -40,7 +40,10 @@ async def extract_media_info(file_path: str) -> dict[str, Any]:
 
     result: dict[str, Any] = {
         "probeVersion": 1,
-        "majorBrand": probe_data.get("format", {}).get("tags", {}).get("major_brand"),
+        "majorBrand": probe_data.get("format", {})
+        .get("tags", {})
+        .get("major_brand", "")
+        .strip(),
     }
 
     for stream in probe_data.get("streams", []):
@@ -83,7 +86,7 @@ async def extract_media_info(file_path: str) -> dict[str, Any]:
 def availability_from_media_info(mediainfo: dict[str, Any]) -> ReviewableAvailability:
     duration = mediainfo.get("duration", 0)
     codec = mediainfo.get("codec", "unknown")
-    major_brand = mediainfo.get("majorBrand", "unknown")
+    major_brand = mediainfo.get("majorBrand", "unknown").strip()
 
     if mediainfo.get("videoTrackIndex") is None:
         # no video track. weird.
@@ -98,10 +101,12 @@ def availability_from_media_info(mediainfo: dict[str, Any]) -> ReviewableAvailab
 
     # video files
 
-    if major_brand not in ["mp42", "isom"]:
+    if codec not in ["h264", "vp9"]:
         return "conversionRequired"
 
-    if codec not in ["h264", "vp9"]:
+    if major_brand not in ["mp42", "isom"]:
+        if major_brand == "qt":
+            return "conversionRecommended"
         return "conversionRequired"
 
     # apart from firefox, all browsers support almost all pixel formats
