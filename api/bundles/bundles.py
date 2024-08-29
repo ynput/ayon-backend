@@ -477,16 +477,31 @@ async def bundle_actions(
 
 
 class MigrateBundleSettingsRequest(OPModel):
-    source_bundle: str
-    target_bundle: str
-    source_variant: str
-    target_variant: str
+    source_bundle: str = Field(..., example="old-bundle", description="Source bundle")
+    target_bundle: str = Field(..., example="new-bundle", description="Target bundle")
+    source_variant: str = Field(..., example="production", description="Source variant")
+    target_variant: str = Field(..., example="staging", description="Target variant")
+    with_projects: bool = Field(
+        True,
+        example=True,
+        description="Migrate project settings",
+    )
 
 
 @router.post("/migrateSettingsByBundle")
 async def migrate_bundle_settings(
-    user: CurrentUser, request: MigrateBundleSettingsRequest
+    user: CurrentUser,
+    request: MigrateBundleSettingsRequest,
 ) -> None:
+    """Migrate settings of the addons based on the bundles.
+
+    When called, it collects a list of addons that are present in
+    both source and target bundles and migrates the settings of the
+    addons from the source to the target bundle.
+
+    Target bundle should be a production or staging bundle (or a dev bundle),
+    but source bundle can be any bundle.
+    """
     if not user.is_admin:
         raise ForbiddenException("Only admins can migrate bundle settings")
 
@@ -495,5 +510,5 @@ async def migrate_bundle_settings(
         request.target_bundle,
         request.source_variant,
         request.target_variant,
-        with_projects=True,
+        request.with_projects,
     )
