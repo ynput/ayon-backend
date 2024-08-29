@@ -237,7 +237,7 @@ async def set_addon_project_settings(
 
         await dispatch_event(
             topic="settings.changed",
-            description=f"{addon_name} {version} project overrides changed",
+            description=f"{addon_name} {version} {variant} project overrides changed",
             summary={
                 "addon_name": addon_name,
                 "addon_version": version,
@@ -359,7 +359,7 @@ async def delete_addon_project_overrides(
 
         await dispatch_event(
             topic="settings.changed",
-            description=f"{addon_name} {version} project overrides removed",
+            description=f"{addon_name} {version} {variant} project overrides removed",
             summary={
                 "addon_name": addon_name,
                 "addon_version": version,
@@ -517,7 +517,7 @@ async def modify_project_overrides(
 
     await dispatch_event(
         topic="settings.changed",
-        description=f"{addon_name} {version} project overrides changed",
+        description=f"{addon_name} {version} {variant} project overrides changed",
         summary={
             "addon_name": addon_name,
             "addon_version": version,

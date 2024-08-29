@@ -136,7 +136,7 @@ async def set_addon_studio_settings(
 
     await dispatch_event(
         topic="settings.changed",
-        description=f"{addon_name} {addon_version} studio overrides changed",
+        description=f"{addon_name} {addon_version} {variant} studio overrides changed",
         summary={
             "addon_name": addon_name,
             "addon_version": addon_version,
@@ -219,7 +219,7 @@ async def delete_addon_studio_overrides(
 
     await dispatch_event(
         topic="settings.changed",
-        description=f"{addon_name} {addon_version} studio overrides removed",
+        description=f"{addon_name} {addon_version} {variant} studio overrides removed",
         summary={
             "addon_name": addon_name,
             "addon_version": addon_version,
@@ -274,7 +274,7 @@ async def modify_studio_overrides(
 
     await dispatch_event(
         topic="settings.changed",
-        description=f"{addon_name} {addon_version} studio overrides changed",
+        description=f"{addon_name} {addon_version} {variant} studio overrides changed",
         summary={
             "addon_name": addon_name,
             "addon_version": addon_version,

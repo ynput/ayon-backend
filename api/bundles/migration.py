@@ -74,7 +74,7 @@ async def _migrate_addon_settings(
     )
 
     events: list[dict[str, Any]] = []
-    event_head = f"{target_addon.name} {target_addon.version}"
+    event_head = f"{target_addon.name} {target_addon.version} {target_variant}"
 
     event_created = False
     event_payload = {}
@@ -142,7 +142,7 @@ async def _migrate_addon_settings(
     if event_created:
         events.append(
             {
-                "description": f"{event_head}: {event_description}",
+                "description": f"{event_head} {event_description}",
                 "summary": {
                     "addon_name": target_addon.name,
                     "addon_version": target_addon.version,
