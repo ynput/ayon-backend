@@ -6,6 +6,8 @@ from nxtools import logging
 
 from ayon_server.addons.addon import BaseServerAddon
 from ayon_server.addons.library import AddonLibrary
+from ayon_server.config import ayonconfig
+from ayon_server.events import EventStream
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Connection, Postgres
@@ -56,8 +58,11 @@ async def _migrate_addon_settings(
     target_variant: str,
     with_projects: bool,
     conn: Connection,
-) -> None:
-    """Migrate settings from source to target addon."""
+) -> list[dict[str, Any]]:
+    """Migrate settings from source to target addon.
+
+    Returns a list of events that were created during migration.
+    """
 
     # Studio settings
 
@@ -68,23 +73,17 @@ async def _migrate_addon_settings(
         as_version=target_addon.version,
     )
 
+    events: list[dict[str, Any]] = []
+    event_head = f"{target_addon.name} {target_addon.version}"
+
+    event_created = False
+    event_payload = {}
+
     if new_studio_overrides:
-        await conn.execute(
+        # fetch the original studio settings
+        res = await conn.fetch(
             """
-            INSERT INTO settings (addon_name, addon_version, variant, data)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (addon_name, addon_version, variant)
-            DO UPDATE SET data = $4
-            """,
-            target_addon.name,
-            target_addon.version,
-            target_variant,
-            new_studio_overrides,
-        )
-    else:
-        await conn.execute(
-            """
-            DELETE FROM settings
+            SELECT data FROM settings
             WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
             """,
             target_addon.name,
@@ -92,14 +91,78 @@ async def _migrate_addon_settings(
             target_variant,
         )
 
+        do_copy = False
+
+        if res:
+            original_data = res[0]["data"]
+            if original_data != new_studio_overrides:
+                do_copy = True
+                if ayonconfig.audit_trail:
+                    event_payload["originalValue"] = original_data
+                    event_payload["newValue"] = new_studio_overrides
+        else:
+            do_copy = True
+            if ayonconfig.audit_trail:
+                event_payload["originalValue"] = {}
+                event_payload["newValue"] = new_studio_overrides
+
+        if do_copy:
+            event_created = True
+            event_description = "studio overrides changed during migration"
+
+            await conn.execute(
+                """
+                INSERT INTO settings (addon_name, addon_version, variant, data)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (addon_name, addon_version, variant)
+                DO UPDATE SET data = $4
+                """,
+                target_addon.name,
+                target_addon.version,
+                target_variant,
+                new_studio_overrides,
+            )
+    else:
+        res = await conn.fetch(
+            """
+            DELETE FROM settings
+            WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
+            RETURNING data
+            """,
+            target_addon.name,
+            target_addon.version,
+            target_variant,
+        )
+        if res:
+            event_created = True
+            event_description = "studio overrides removed during migration"
+            if ayonconfig.audit_trail:
+                event_payload = {"originalValue": res[0]["data"], "newValue": {}}
+
+    if event_created:
+        events.append(
+            {
+                "description": f"{event_head}: {event_description}",
+                "summary": {
+                    "addon_name": target_addon.name,
+                    "addon_version": target_addon.version,
+                    "variant": target_variant,
+                },
+                "payload": event_payload,
+            }
+        )
+
     if not with_projects:
-        return
+        return events
 
     # Project settings
 
     project_names = [project.name for project in await get_project_list()]
 
     for project_name in project_names:
+        event_created = False
+        event_payload = {}
+
         # Load project settings from source addon converted to the target version model
         new_project_overrides: dict[str, Any]
         new_project_overrides = await source_addon.get_project_overrides(
@@ -109,28 +172,80 @@ async def _migrate_addon_settings(
         )
 
         if new_project_overrides:
-            await conn.execute(
+            # fetch the original project settings
+            res = await conn.fetch(
                 f"""
-                INSERT INTO project_{project_name}.settings
-                (addon_name, addon_version, variant, data)
-                VALUES ($1, $2, $3, $4)
-                ON CONFLICT (addon_name, addon_version, variant)
-                DO UPDATE SET data = $4
-                """,
-                target_addon.name,
-                target_addon.version,
-                target_variant,
-                new_project_overrides,
-            )
-        else:
-            await conn.execute(
-                f"""
-                DELETE FROM project_{project_name}.settings
+                SELECT data
+                FROM project_{project_name}.settings
                 WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
                 """,
                 target_addon.name,
                 target_addon.version,
                 target_variant,
+            )
+
+            do_copy = False
+
+            if res:
+                original_data = res[0]["data"]
+                if original_data != new_project_overrides:
+                    do_copy = True
+                    if ayonconfig.audit_trail:
+                        event_payload["originalValue"] = original_data
+                        event_payload["newValue"] = new_project_overrides
+            else:
+                do_copy = True
+                if ayonconfig.audit_trail:
+                    event_payload["originalValue"] = {}
+                    event_payload["newValue"] = new_project_overrides
+
+            if do_copy:
+                event_created = True
+                event_description = "project overrides changed during migration"
+
+                await conn.execute(
+                    f"""
+                    INSERT INTO project_{project_name}.settings
+                    (addon_name, addon_version, variant, data)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (addon_name, addon_version, variant)
+                    DO UPDATE SET data = $4
+                    """,
+                    target_addon.name,
+                    target_addon.version,
+                    target_variant,
+                    new_project_overrides,
+                )
+        else:
+            res = await conn.fetch(
+                f"""
+                DELETE FROM project_{project_name}.settings
+                WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
+                RETURNING data
+                """,
+                target_addon.name,
+                target_addon.version,
+                target_variant,
+            )
+
+            if res:
+                event_created = True
+                event_description = "project overrides removed during migration"
+                if ayonconfig.audit_trail:
+                    event_payload = {"originalValue": res[0]["data"], "newValue": {}}
+
+        if event_created:
+            events.append(
+                {
+                    "description": f"{event_head}: {event_description}",
+                    "summary": {
+                        "addon_name": target_addon.name,
+                        "addon_version": target_addon.version,
+                        "variant": target_variant,
+                    },
+                    "project": project_name,
+                    "payload": event_payload,
+                }
             )
 
         # Project site settings
@@ -190,6 +305,8 @@ async def _migrate_addon_settings(
                     user_name,
                 )
 
+    return events
+
 
 async def _migrate_settings_by_bundle(
     source_bundle: str,
@@ -197,6 +314,7 @@ async def _migrate_settings_by_bundle(
     source_variant: str,
     target_variant: str,
     with_projects: bool,
+    user_name: str | None,
     conn: Connection,
 ) -> None:
     """
@@ -235,7 +353,7 @@ async def _migrate_settings_by_bundle(
 
         # perform migration of addon settings
 
-        await _migrate_addon_settings(
+        events = await _migrate_addon_settings(
             source_addon,
             target_addon,
             source_variant,
@@ -243,6 +361,10 @@ async def _migrate_settings_by_bundle(
             with_projects,
             conn,
         )
+
+        for event in events:
+            event["user"] = user_name
+            await EventStream.dispatch("settings.changed", **event)
 
 
 #
@@ -256,6 +378,7 @@ async def migrate_settings_by_bundle(
     source_variant: str,
     target_variant: str,
     with_projects: bool = True,
+    user_name: str | None = None,
     conn: Connection | None = None,
 ) -> None:
     if conn:
@@ -265,6 +388,7 @@ async def migrate_settings_by_bundle(
             source_variant,
             target_variant,
             with_projects,
+            user_name,
             conn,
         )
 
@@ -276,5 +400,6 @@ async def migrate_settings_by_bundle(
                 source_variant,
                 target_variant,
                 with_projects,
+                user_name,
                 _conn,
             )

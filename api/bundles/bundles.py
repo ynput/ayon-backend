@@ -511,4 +511,5 @@ async def migrate_bundle_settings(
         request.source_variant,
         request.target_variant,
         request.with_projects,
+        user_name=user.name,
     )

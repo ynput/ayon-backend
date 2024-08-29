@@ -237,7 +237,7 @@ async def set_addon_project_settings(
 
         await dispatch_event(
             topic="settings.changed",
-            description=f"{addon_name}:{version} project overrides changed",
+            description=f"{addon_name} {version} project overrides changed",
             summary={
                 "addon_name": addon_name,
                 "addon_version": version,
@@ -296,6 +296,9 @@ async def set_addon_project_settings(
             site_id=site_id,
             user_name=user.name,
         )
+
+    # TODO: Audit trail / events
+
     return EmptyResponse()
 
 
@@ -321,17 +324,23 @@ async def delete_addon_project_overrides(
         old_settings = await addon.get_project_settings(project_name, variant=variant)
         new_settings = await addon.get_studio_settings(variant=variant)
 
-        await Postgres.execute(
+        res = await Postgres.fetch(
             f"""
             DELETE FROM project_{project_name}.settings
             WHERE addon_name = $1
             AND addon_version = $2
             AND variant = $3
+            RETURNING data
             """,
             addon_name,
             version,
             variant,
         )
+
+        if res:
+            old_overrides = res[0]["data"]
+        else:
+            old_overrides = {}
 
         if new_settings and old_settings:
             await addon.on_settings_changed(
@@ -341,14 +350,22 @@ async def delete_addon_project_overrides(
                 variant=variant,
             )
 
+        payload = {}
+        if ayonconfig.audit_trail:
+            payload = {
+                "originalValue": old_overrides,
+                "newValue": {},
+            }
+
         await dispatch_event(
-            topic="settings.deleted",
-            description=f"{addon_name}:{version} project overrides deleted",
+            topic="settings.changed",
+            description=f"{addon_name} {version} project overrides removed",
             summary={
                 "addon_name": addon_name,
                 "addon_version": version,
                 "variant": variant,
             },
+            payload=payload,
             user=user.name,
             project=project_name,
         )
@@ -386,6 +403,8 @@ async def delete_addon_project_overrides(
             user_name=user.name,
         )
 
+    # TODO: Audit trail / events
+
     return EmptyResponse()
 
 
@@ -403,7 +422,7 @@ async def modify_project_overrides(
 ):
     addon = AddonLibrary.addon(addon_name, version)
     if not addon:
-        raise NotFoundException(f"Addon {addon_name}:{version} not found")
+        raise NotFoundException(f"Addon {addon_name} {version} not found")
 
     if site_id:
         old_settings = await addon.get_project_site_settings(
@@ -450,6 +469,13 @@ async def modify_project_overrides(
         raise ForbiddenException
 
     old_settings = await addon.get_project_settings(project_name, variant=variant)
+    if ayonconfig.audit_trail:
+        old_overrides = await addon.get_project_overrides(
+            project_name,
+            variant=variant,
+        )
+    else:
+        old_overrides = {}
 
     if payload.action == "delete":
         await remove_override(
@@ -477,6 +503,30 @@ async def modify_project_overrides(
             project_name=project_name,
             variant=variant,
         )
+
+    event_payload = {}
+    if ayonconfig.audit_trail:
+        new_overrides = await addon.get_project_overrides(
+            project_name,
+            variant=variant,
+        )
+        event_payload = {
+            "originalValue": old_overrides,
+            "newValue": new_overrides,
+        }
+
+    await dispatch_event(
+        topic="settings.changed",
+        description=f"{addon_name} {version} project overrides changed",
+        summary={
+            "addon_name": addon_name,
+            "addon_version": version,
+            "variant": variant,
+        },
+        user=user.name,
+        project=project_name,
+        payload=event_payload,
+    )
 
     return EmptyResponse()
 
