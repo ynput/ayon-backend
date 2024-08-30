@@ -1,4 +1,4 @@
-__all__ = ["migrate_settings_by_bundle"]
+__all__ = ["migrate_settings"]
 
 from typing import Any
 
@@ -372,7 +372,7 @@ async def _migrate_settings_by_bundle(
 #
 
 
-async def migrate_settings_by_bundle(
+async def migrate_settings(
     source_bundle: str,
     target_bundle: str,
     source_variant: str,

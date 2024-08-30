@@ -18,7 +18,7 @@ from ayon_server.types import Field, OPModel, Platform
 
 from .actions import promote_bundle
 from .check_bundle import CheckBundleResponseModel, check_bundle
-from .migration import migrate_settings_by_bundle
+from .migration import migrate_settings
 from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
@@ -198,7 +198,7 @@ async def create_new_bundle(
                 raise BadRequestException(
                     "Cannot copy settings to non-production/staging bundle"
                 )
-            await migrate_settings_by_bundle(
+            await migrate_settings(
                 settings_from_bundle,
                 bundle.name,
                 settings_from_variant,
@@ -489,7 +489,7 @@ class MigrateBundleSettingsRequest(OPModel):
 
 
 @router.post("/migrateSettingsByBundle")
-async def migrate_bundle_settings(
+async def migrate_settings_by_bundle(
     user: CurrentUser,
     request: MigrateBundleSettingsRequest,
 ) -> None:
@@ -505,7 +505,7 @@ async def migrate_bundle_settings(
     if not user.is_admin:
         raise ForbiddenException("Only admins can migrate bundle settings")
 
-    await migrate_settings_by_bundle(
+    await migrate_settings(
         request.source_bundle,
         request.target_bundle,
         request.source_variant,
