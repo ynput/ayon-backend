@@ -158,18 +158,6 @@ async def create_new_bundle(
     user: CurrentUser,
     x_sender: str | None = Header(default=None),
     force: bool = Query(False, description="Force creation of bundle"),
-    settings_from_bundle: str | None = Query(
-        None,
-        description="Copy settings from bundle",
-        alias="settingsFromBundle",
-        deprecated=True,
-    ),
-    settings_from_variant: str = Query(
-        "production",
-        description="Copy settings from variant",
-        alias="settingsFromVariant",
-        deprecated=True,
-    ),
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can create bundles")
@@ -190,21 +178,6 @@ async def create_new_bundle(
 
     async with Postgres.acquire() as conn, conn.transaction():
         await _create_new_bundle(conn, bundle, user, x_sender)
-
-        if settings_from_bundle:
-            # This is for a testing purposes and will be removed in the future
-            # Query parameters handling this feature are marked as deprecated
-            if not (bundle.is_production or bundle.is_staging):
-                raise BadRequestException(
-                    "Cannot copy settings to non-production/staging bundle"
-                )
-            await migrate_settings(
-                settings_from_bundle,
-                bundle.name,
-                settings_from_variant,
-                "production" if bundle.is_production else "staging",
-                conn=conn,
-            )
 
     return EmptyResponse(status_code=201)
 
