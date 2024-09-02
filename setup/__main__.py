@@ -13,6 +13,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_loads
 from setup.access_groups import deploy_access_groups
 from setup.attributes import deploy_attributes
+from setup.initial_bundle import create_initial_bundle
 from setup.users import deploy_users
 
 # Defaults which should allow Ayon server to run out of the box
@@ -23,6 +24,7 @@ DATA: dict[str, Any] = {
     "users": [],
     "roles": [],
     "config": {},
+    "initialBundle": None,
 }
 
 if ayonconfig.force_create_admin:
@@ -157,6 +159,12 @@ async def main(force: bool | None = None) -> None:
                 key,
                 value,
             )
+
+    if bundle_data := DATA.get("initialBundle"):
+        if not isinstance(bundle_data, dict):
+            logging.warning("Invalid initial bundle data")
+        else:
+            await create_initial_bundle(bundle_data)
 
     logging.goodnews("Setup is finished")
 

@@ -214,7 +214,7 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
     )
 
 
-async def install_addon_from_url(event_id: str, url: str) -> None:
+async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
     """Download the addon zip file from the URL and install it"""
 
     await update_event(
@@ -285,3 +285,5 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
         description=f"Addon {zip_info.name} {zip_info.version} installed",
         status="finished",
     )
+
+    return zip_info
