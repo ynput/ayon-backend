@@ -224,7 +224,7 @@ async def update_bundle(
             created_at=row["created_at"],
             addons=data["addons"],
             installer_version=data.get("installer_version", None),
-            dependency_packages=data["dependency_packages"],
+            dependency_packages=data.get("dependency_packages", {}),
             addon_development=addon_development_dict,
             is_production=row["is_production"],
             is_staging=row["is_staging"],
