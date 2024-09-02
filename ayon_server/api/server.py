@@ -7,6 +7,7 @@ import sys
 import traceback
 
 import fastapi
+import semver
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
@@ -441,6 +442,14 @@ async def startup_event() -> None:
 
     for addon_name, addon in addon_records:
         for version in addon.versions.values():
+            # This is a fix of a bug in the 1.0.4 and earlier versions of the addon
+            # where automatic addon update triggers an error
+            if addon_name == "ynputcloud" and semver.VersionInfo.parse(
+                version.version
+            ) < semver.VersionInfo.parse("1.0.5"):
+                logging.debug(f"Skipping {addon_name} {version.version} setup.")
+                continue
+
             try:
                 if inspect.iscoroutinefunction(version.setup):
                     await version.setup()
