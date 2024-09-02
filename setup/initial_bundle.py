@@ -86,7 +86,7 @@ async def create_initial_bundle(bundle_data: dict[str, Any]):
         query = """
             INSERT INTO bundles (name, data, is_production)
             VALUES ($1, $2, TRUE)
-            ON CONFLICT (name) DO UPDATE SET data = $2
+            ON CONFLICT (name) DO UPDATE SET data = $2, is_production = TRUE
         """
 
         await Postgres.execute(query, bundle_name, bundle_data)
