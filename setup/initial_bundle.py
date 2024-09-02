@@ -77,7 +77,11 @@ async def create_initial_bundle(bundle_data: dict[str, Any]):
         return
 
     bundle_name = bundle_data.get("name", "InitialBundle")
-    bundle_data = {"addons": bundle_addons}
+    bundle_data = {
+        "addons": bundle_addons,
+        "dependency_packages": {},
+        "installer_version": None,
+    }
 
     async with Postgres.acquire() as conn, conn.transaction():
         logging.info(f"Creating initial bundle '{bundle_name}'")
