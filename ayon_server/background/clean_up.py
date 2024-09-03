@@ -99,32 +99,42 @@ async def clear_events() -> None:
 
     num_days = ayonconfig.event_retention_days
 
-    query = f"""
-        WITH dependent_events AS (
-            SELECT DISTINCT id FROM events
-            WHERE updated_at >= now() - interval '{num_days + 1} days'
-            AND depends_on IS NOT NULL
-        ),
+    while True:
+        start_time = time.monotonic()
+        res = await Postgres.fetch(
+            f"""
+            WITH blocked_events AS (
+                SELECT DISTINCT(depends_on) as id FROM events
+                WHERE depends_on IS NOT NULL
+            ),
 
-        deleted AS (
-            DELETE FROM events WHERE
-            updated_at < now() - interval '{num_days} days'
-            AND id NOT IN (SELECT id FROM dependent_events)
-            RETURNING id
+            deletable_events AS (
+                SELECT id
+                FROM events
+                WHERE updated_at < now() - interval '{num_days} days'
+                AND id NOT IN (SELECT id FROM blocked_events)
+                ORDER BY updated_at ASC
+                LIMIT 5000
+            ),
+
+            deleted_events AS(
+                DELETE FROM events
+                WHERE id IN (SELECT id FROM deletable_events)
+                RETURNING id as deleted
+            )
+
+            SELECT count(*) as deleted FROM deleted_events;
+
+            """
         )
-
-        SELECT count(*) as del FROM deleted;
-    """
-
-    start_time = time.monotonic()
-    res = await Postgres.fetch(query, timeout=500)
-    elapsed = time.monotonic() - start_time
-    if res:
-        deleted = res[0]["del"]
+        deleted = res[0]["deleted"]
         if deleted:
-            logging.debug(f"Deleted {deleted} old events")
-        if elapsed > 1:
-            logging.debug(f"Event clean-up took {elapsed:.2f} seconds")
+            logging.debug(
+                f"Deleted {deleted} old events"
+                f" in {time.monotonic() - start_time:.2f} seconds"
+            )
+        else:
+            break
 
 
 class AyonCleanUp(BackgroundWorker):
