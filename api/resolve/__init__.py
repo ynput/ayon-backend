@@ -188,6 +188,16 @@ async def resolve_entities(
 
     target_entity_type: ProjectLevelEntityType | None = None
 
+    if not (
+        req.product_name
+        or req.version_name
+        or req.representation_name
+        or req.task_name
+        or req.workfile_name
+        or req.path
+    ):
+        return []
+
     platform = None
     if site_id:
         platform = await get_platform_for_site_id(site_id)
