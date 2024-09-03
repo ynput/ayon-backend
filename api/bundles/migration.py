@@ -31,7 +31,7 @@ async def _get_bundles_addons(
     for row in res:
         if row["name"] == source_bundle:
             source_addons = row["data"].get("addons", {})
-        elif row["name"] == target_bundle:
+        if row["name"] == target_bundle:
             target_addons = row["data"].get("addons", {})
 
     if not source_addons:
