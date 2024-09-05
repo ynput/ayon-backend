@@ -106,9 +106,16 @@ def availability_from_media_info(mediainfo: dict[str, Any]) -> ReviewableAvailab
         return "conversionRequired"
 
     if major_brand not in ["mp42", "isom"]:
-        if major_brand in ["qt", "unknown"]:
+        if major_brand in ["qt"]:
             return "conversionRecommended"
-        return "conversionRequired"
+        if major_brand == "unknown":
+            # hack for earlier versions of ayon
+            # we will assume that the file is an mp4
+            # because we don't have the major brand info
+            # (but we already know it's a compatible codec)
+            pass
+        else:
+            return "conversionRequired"
 
     # apart from firefox, all browsers support almost all pixel formats
     # if mediainfo.get("pixelFormat") not in ["yuv420p", "yuv444p"]:
