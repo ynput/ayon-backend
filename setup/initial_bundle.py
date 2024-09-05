@@ -2,6 +2,10 @@ from typing import Any
 
 from nxtools import logging
 
+from ayon_server.events import EventStream
+from ayon_server.installer.addons import install_addon_from_url
+from ayon_server.lib.postgres import Postgres
+
 
 async def create_initial_bundle(bundle_data: dict[str, Any]):
     """Download initial addons and create the first production bundle
@@ -37,18 +41,12 @@ async def create_initial_bundle(bundle_data: dict[str, Any]):
     TODO: Allow installing Launchers and dependency packages as well.
     """
 
-    # We ned to import these here. Otherwise they might be imported before
-    # the database is initialized and schema is created (importing causes
-    # attribute library load)
-
-    from ayon_server.events import EventStream
-    from ayon_server.installer.addons import install_addon_from_url
-    from ayon_server.lib.postgres import Postgres
-
+    logging.debug("Checking for bundles")
     res = await Postgres.fetch("SELECT name FROM bundles LIMIT 1")
     if res:
         return
 
+    logging.info("Creating initial bundle")
     addons = bundle_data.get("addons", [])
     bundle_addons = {}
 
