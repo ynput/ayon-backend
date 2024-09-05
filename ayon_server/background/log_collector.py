@@ -67,7 +67,7 @@ class LogCollector(BackgroundWorker):
         if kwargs["message_type"] == 0:
             return
         if len(self.queue.queue) > 1000:
-            logging.warning("Log collector queue is full", handlers=None)
+            logging.warning("Log collector queue is full", handlers=None, user="server")
             return
         self.queue.put(kwargs)
 
@@ -117,6 +117,7 @@ class LogCollector(BackgroundWorker):
             logging.debug(
                 f"Processing {len(self.queue.queue)} remaining log messages",
                 handlers=None,
+                user="server",
             )
             record = self.queue.get()
             await self.process_message(record)
@@ -126,4 +127,3 @@ log_collector = LogCollector()
 
 if has_nxtools:
     logging.add_handler(log_collector)
-    logging.info("Log collector initialized", handlers=None)

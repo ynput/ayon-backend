@@ -33,6 +33,14 @@ class Redis:
     async def connect(cls) -> None:
         """Create a Redis connection pool"""
         cls.redis_pool = aioredis.from_url(ayonconfig.redis_url)
+
+        try:
+            res = await cls.redis_pool.ping()
+            if not res:
+                raise ConnectionError("Failed to connect to Redis")
+        except Exception as e:
+            raise ConnectionError("Failed to connect to Redis") from e
+
         cls.connected = True
         cls.prefix = (
             f"{ayonconfig.redis_key_prefix}-" if ayonconfig.redis_key_prefix else ""
