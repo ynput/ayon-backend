@@ -64,7 +64,36 @@ class AttributeLibrary:
             await Postgres.connect()
 
         info_data: list[dict[str, Any]] = []
-        async for row in Postgres.iterate(query):
+        try:
+            result = await Postgres.fetch(query)
+        except Postgres.UndefinedTableError:
+            # A default list of fake attributes is used when the
+            # attributes table does not exist. This is used when the
+            # database is not initialized yet.
+            result = [
+                {
+                    "name": "default",
+                    "scope": [
+                        "project",
+                        "folder",
+                        "task",
+                        "product",
+                        "version",
+                        "representation",
+                        "workfile",
+                        "user",
+                    ],
+                    "position": 1,
+                    "builtin": True,
+                    "data": {
+                        "type": "string",
+                        "title": "DEFAULT",
+                        "inherit": False,
+                    },
+                }
+            ]
+
+        for row in result:
             info_data.append(row)
             for scope in row["scope"]:
                 attrd = {"name": row["name"], **row["data"]}
