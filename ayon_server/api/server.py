@@ -13,7 +13,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_to_file, log_traceback, logging, slugify
 
-from ayon_server.access.access_groups import AccessGroups
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import Messaging
@@ -358,6 +357,13 @@ init_api(app, ayonconfig.api_modules_dir)
 #
 
 
+async def load_access_groups() -> None:
+    """Load access groups from the database."""
+    from ayon_server.access.access_groups import AccessGroups
+
+    await AccessGroups.load()
+
+
 @app.on_event("startup")
 async def startup_event() -> None:
     """Startup event.
@@ -376,8 +382,7 @@ async def startup_event() -> None:
     # Connect to the database and load stuff
 
     await ayon_init()
-
-    await AccessGroups.load()
+    await load_access_groups()
 
     # Start background tasks
 
