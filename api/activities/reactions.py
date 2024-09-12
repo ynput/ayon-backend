@@ -10,7 +10,7 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.entities import UserEntity
 from ayon_server.events.eventstream import EventStream
-from ayon_server.exceptions import NotFoundException
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 
@@ -62,13 +62,13 @@ async def modify_reactions(
             # check if the user has already reacted
             for r in reactions:
                 if r["reaction"] == reaction and r["userName"] == user.name:
-                    return
+                    raise BadRequestException("Already reacted")
 
             reactions.append(
                 {
                     "reaction": reaction,
                     "userName": user.name,
-                    "fullName": user.attrib.fullName,
+                    "fullName": user.attrib.fullName or None,
                     "timestamp": datetime.now().isoformat(),
                 }
             )
@@ -78,6 +78,18 @@ async def modify_reactions(
                 for r in reactions
                 if r["reaction"] != reaction or r["userName"] != user.name
             ]
+
+        activity_data["reactions"] = reactions
+
+        await conn.execute(
+            f"""
+            UPDATE project_{project_name}.activities
+            SET data = $1
+            WHERE id = $2
+            """,
+            activity_data,
+            activity_id,
+        )
 
         # load activity references (used to generate the event summary)
 
@@ -93,7 +105,7 @@ async def modify_reactions(
         summary = {
             "activity_id": activity_id,
             "activity_type": activity_type,
-            "references": references,
+            "references": [dict(r) for r in references],
         }
 
     await EventStream.dispatch(
@@ -142,4 +154,6 @@ async def delete_reaction_to_activity(
     ),
     x_sender: str | None = Header(None, description="The sender of the request"),
 ):
-    await modify_reactions(project_name, activity_id, user, reaction, "add", x_sender)
+    await modify_reactions(
+        project_name, activity_id, user, reaction, "remove", x_sender
+    )
