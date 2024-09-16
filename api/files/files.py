@@ -202,7 +202,7 @@ async def get_project_file_payload(
     headers = await get_file_headers(project_name, file_id)
 
     if headers["Content-Type"].startswith("video"):
-        return await serve_video(request, path)
+        return await serve_video(request, path, content_type=headers["Content-Type"])
 
     return FileResponse(path, headers=headers)
 

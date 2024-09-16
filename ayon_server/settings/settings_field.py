@@ -46,19 +46,26 @@ def SettingsField(
     tags: list[str] | None = None,
     scope: list[str] | None = None,
     placeholder: str | None = None,
-    conditional_enum: dict[str, list[str]] | None = None,
+    conditional_enum: bool = False,
     disabled: bool = False,
     # compatibility
-    conditionalEnum: dict[str, list[str]] | None = None,  # backward compatibility
+    conditionalEnum: bool = False,  # backward compatibility
     examples: list[Any] | None = None,
     # everything else
     **kwargs: Any,
 ) -> Any:
     # sanity checks
 
+    # conditionalEnum (camelCase) is deprecated, but used heavily.
+    # We will need to support it for a long time, but it won't hurt.
     conditional_enum = conditional_enum or conditionalEnum
+
     if kwargs:
         logging.debug(f"SettingsField: unsupported argument: {kwargs}")
+
+    # Pydantic 1 uses `example` while Pydantic 2 uses `examples`
+    # We will support both, but before Pydantic 2 is used, `examples` will
+    # just use the first example. No one provides multiple examples anyway.
 
     examples = examples or []
     if example is not None:
@@ -70,8 +77,10 @@ def SettingsField(
 
     extra: dict[str, Any] = {}
 
-    if example is not None:
-        extra["example"] = example
+    if examples and isinstance(examples, list):
+        extra["example"] = example[0]
+        # in pydantic 2, use:
+        # extra["examples"] = examples
     if enum_resolver is not None:
         extra["enum_resolver"] = enum_resolver
     if required_items is not None:
@@ -86,7 +95,7 @@ def SettingsField(
         extra["tags"] = tags
     if placeholder is not None:
         extra["placeholder"] = placeholder
-    if conditional_enum is not None:
+    if conditional_enum:
         extra["conditional_enum"] = conditional_enum
     if scope is not None:
         extra["scope"] = scope

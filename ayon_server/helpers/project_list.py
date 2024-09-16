@@ -18,16 +18,20 @@ class ProjectListItem(OPModel):
 async def build_project_list() -> list[ProjectListItem]:
     q = """SELECT name, code, active, created_at FROM projects ORDER BY name ASC"""
     result: list[dict[str, Any]] = []
-    async for row in Postgres.iterate(q):
-        result.append(
-            {
-                "name": row["name"],
-                "code": row["code"],
-                "active": row["active"],
-                "created_at": row["created_at"],
-                "nickname": get_nickname(str(row["created_at"]) + row["name"], 2),
-            }
-        )
+    try:
+        async for row in Postgres.iterate(q):
+            result.append(
+                {
+                    "name": row["name"],
+                    "code": row["code"],
+                    "active": row["active"],
+                    "created_at": row["created_at"],
+                    "nickname": get_nickname(str(row["created_at"]) + row["name"], 2),
+                }
+            )
+    except Postgres.UndefinedTableError:
+        # No projects table, return an empty list
+        pass
     await Redis.set("global", "project-list", json_dumps(result))
     return [ProjectListItem(**item) for item in result]
 

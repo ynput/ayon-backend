@@ -102,6 +102,7 @@ async def post_event(
         sender=request.sender,
         hash=request.hash,
         user=user.name,
+        project=request.project,
         description=request.description,
         summary=request.summary,
         payload=request.payload,
@@ -138,13 +139,15 @@ async def update_existing_event(
     )
     if not res:
         raise NotFoundException("Event not found")
-    event_user = res[0]["user_name"]
+    ex_event = res[0]
+    event_user = ex_event["user_name"]
 
-    if payload.status and payload.status != res[0]["status"]:
-        if (res[0]["depends_on"] is None) and (
-            res[0]["topic"] not in RESTARTABLE_WHITELIST
-        ):
-            raise ForbiddenException("Source events are not restartable")
+    if payload.status and payload.status != ex_event["status"]:
+        if not user.is_service:
+            if (ex_event["depends_on"] is None) and (
+                ex_event["topic"] not in RESTARTABLE_WHITELIST
+            ):
+                raise ForbiddenException("Source events are not restartable")
 
     if not user.is_manager:
         if event_user == user.name:
