@@ -3,6 +3,7 @@
 # SiteSync in Ayon 1.4.0
 #
 # They have been added in 1.4.1 and should be removed in 1.5.0
+# e.g.: empty this file completely in 1.5.0
 
 from typing import Annotated, Any
 
@@ -52,7 +53,9 @@ async def dep_api_key(
 async def dep_current_user(
     request: Request,
     x_as_user: str | None = Header(
-        None, regex=USER_NAME_REGEX, include_in_schema=False
+        None,
+        regex=USER_NAME_REGEX,
+        include_in_schema=False,
     ),
     x_api_key: str | None = Header(None, regex=API_KEY_REGEX, include_in_schema=False),
     access_token: str | None = Depends(dep_access_token),
@@ -65,11 +68,7 @@ async def dep_current_user(
 
 
 async def dep_project_name(
-    project_name: str = Path(
-        ...,
-        title="Project name",
-        regex=PROJECT_NAME_REGEX,
-    ),
+    project_name: str = Path(..., title="Project name", regex=PROJECT_NAME_REGEX),
 ):
     from .dependencies import dep_project_name
 
