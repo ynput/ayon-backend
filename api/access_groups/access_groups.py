@@ -1,5 +1,4 @@
 import copy
-from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Body
 from nxtools import log_traceback
@@ -19,6 +18,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.postprocess import postprocess_settings_schema
+from ayon_server.types import Field, OPModel
 
 router = APIRouter(prefix="", tags=["Access Groups"])
 
@@ -69,10 +69,17 @@ async def get_access_group_schema():
     return schema
 
 
+class AccessGroupObject(OPModel):
+    name: str = Field(..., description="Name of the access group", example="artist")
+    is_project_level: bool = Field(
+        ..., description="Whether the access group is project level", example=False
+    )
+
+
 @router.get("/accessGroups/{project_name}")
 async def get_access_groups(
     user: CurrentUser, project_name: ProjectNameOrUnderscore
-) -> list[dict[str, Any]]:
+) -> list[AccessGroupObject]:
     """Get a list of access group for a given project"""
 
     rdict = {}
@@ -87,10 +94,10 @@ async def get_access_groups(
         elif pname == project_name:
             rdict[access_group_name] = {"isProjectLevel": pname != "_"}
 
-    result: list[dict[str, Any]] = []
+    result: list[AccessGroupObject] = []
     for access_group_name, data in rdict.items():
-        result.append({"name": access_group_name, **data})
-    result.sort(key=lambda x: x["name"])
+        result.append(AccessGroupObject(name=access_group_name, **data))
+    result.sort(key=lambda x: x.name)
     return result
 
 
