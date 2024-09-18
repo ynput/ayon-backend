@@ -30,6 +30,7 @@ class YnputConnectRequestModel(OPModel):
 class YnputConnectSubscriptionModel(OPModel):
     name: str = Field(..., description="Name of the subscription")
     product_type: str = Field(..., description="Type of the subscription")
+    trial_end: str | None = Field(None, description="End date of the trial")
 
 
 class YnputConnectResponseModel(OPModel):

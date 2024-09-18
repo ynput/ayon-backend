@@ -2,8 +2,8 @@
 
 __all__ = [
     "BaseSettingsModel",
-    "Field",
     "SettingsField",
+    "Field",
     "MultiplatformPathModel",
     "MultiplatformPathListModel",
     "TemplateWorkfileBaseOptions",
@@ -19,7 +19,7 @@ __all__ = [
     "normalize_name",
 ]
 
-from pydantic import Field
+from pydantic import Field  # This is deprecated and will be removed in the future
 
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.enum import folder_types_enum, task_types_enum
@@ -36,6 +36,5 @@ from ayon_server.settings.overrides import (
     extract_overrides,
     list_overrides,
 )
+from ayon_server.settings.settings_field import SettingsField
 from ayon_server.settings.validators import ensure_unique_names, normalize_name
-
-SettingsField = Field

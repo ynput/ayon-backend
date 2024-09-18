@@ -44,6 +44,14 @@ class ActivityFileNode:
 
 
 @strawberry.type
+class ActivityReactionNode:
+    user_name: str = strawberry.field()
+    full_name: str | None = strawberry.field()
+    reaction: str = strawberry.field()
+    timestamp: datetime = strawberry.field()
+
+
+@strawberry.type
 class ActivityNode:
     project_name: str = strawberry.field()
 
@@ -69,6 +77,7 @@ class ActivityNode:
 
     origin: ActivityOriginNode | None = strawberry.field()
     parents: list[ActivityOriginNode] = strawberry.field()
+    reactions: list[ActivityReactionNode] = strawberry.field()
 
     @strawberry.field
     async def author(self, info: Info) -> Optional[UserNode]:
@@ -192,6 +201,18 @@ def activity_from_record(
     else:
         parents = []
 
+    reactions: list[ActivityReactionNode] = []
+    if reactions_data := activity_data.get("reactions"):
+        for reaction in reactions_data:
+            reactions.append(
+                ActivityReactionNode(
+                    user_name=reaction["userName"],
+                    full_name=reaction["fullName"],
+                    reaction=reaction["reaction"],
+                    timestamp=datetime.fromisoformat(reaction["timestamp"]),
+                )
+            )
+
     node = ActivityNode(
         project_name=project_name,
         activity_data=json_dumps(activity_data),
@@ -199,6 +220,7 @@ def activity_from_record(
         origin=origin,
         parents=parents,
         read=reference_data.pop("read", False),
+        reactions=reactions,
         **record,
     )
     # probably won't be used

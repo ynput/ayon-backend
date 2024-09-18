@@ -9,7 +9,9 @@ from ayon_server.activities import (
     delete_activity,
     update_activity,
 )
+from ayon_server.activities.watchers.set_watchers import ensure_watching
 from ayon_server.api.dependencies import (
+    ActivityID,
     CurrentUser,
     PathEntityID,
     PathProjectLevelEntityType,
@@ -59,7 +61,7 @@ async def post_project_activity(
     """
 
     if not user.is_service:
-        if activity.activity_type not in ["comment", "reviewable"]:
+        if activity.activity_type not in ["comment"]:
             raise BadRequestException("Humans can only create comments")
 
     entity_class = get_entity_class(entity_type)
@@ -79,6 +81,9 @@ async def post_project_activity(
         data=activity.data,
     )
 
+    if not user.is_service:
+        await ensure_watching(entity, user)
+
     background_tasks.add_task(delete_unused_files, project_name)
 
     return CreateActivityResponseModel(id=id)
@@ -87,7 +92,7 @@ async def post_project_activity(
 @router.delete("/activities/{activity_id}")
 async def delete_project_activity(
     project_name: ProjectName,
-    activity_id: str,
+    activity_id: ActivityID,
     user: CurrentUser,
     background_tasks: BackgroundTasks,
     x_sender: str | None = Header(default=None),
@@ -123,7 +128,7 @@ class ActivityPatchModel(OPModel):
 @router.patch("/activities/{activity_id}")
 async def patch_project_activity(
     project_name: ProjectName,
-    activity_id: str,
+    activity_id: ActivityID,
     user: CurrentUser,
     activity: ActivityPatchModel,
     background_tasks: BackgroundTasks,

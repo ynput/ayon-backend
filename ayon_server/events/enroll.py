@@ -16,7 +16,7 @@ class EnrollResponseModel(OPModel):
 
 
 async def enroll_job(
-    source_topic: str,
+    source_topic: str | list[str],
     target_topic: str,
     *,
     sender: str | None = None,
@@ -40,6 +40,11 @@ async def enroll_job(
     # Iterate thru unprocessed source events starting
     # by the oldest one
 
+    if isinstance(source_topic, str):
+        topic_cond = "topic LIKE $1"
+    else:
+        topic_cond = "topic = ANY($1)"
+
     query = f"""
         WITH excluded_events AS (
             SELECT depends_on
@@ -53,7 +58,7 @@ async def enroll_job(
         source_events AS (
             SELECT *
             FROM events
-            WHERE topic ILIKE $1
+            WHERE {topic_cond}
             AND status = 'finished'
             AND id NOT IN (SELECT depends_on FROM excluded_events)
         )

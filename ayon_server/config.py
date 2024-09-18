@@ -91,6 +91,18 @@ class AyonConfig(BaseModel):
         example="postgres://user:password123@postgres.example.com:5432/ayon",
     )
 
+    postgres_pool_size: int = Field(
+        64,
+        description="Postgres connection pool size",
+        example=64,
+    )
+
+    postgres_pool_timeout: int = Field(
+        20,
+        description="Postgres connection pool timeout",
+        example=20,
+    )
+
     session_ttl: int = Field(
         default=24 * 3600,
         description="Session lifetime in seconds",
@@ -165,6 +177,12 @@ class AyonConfig(BaseModel):
         description="Number of days to keep logs in the event log",
     )
 
+    event_retention_days: int | None = Field(
+        default=None,
+        description="Number of days to keep events in the event log",
+        example=90,
+    )
+
     ynput_cloud_api_url: str | None = Field(
         "https://im.ynput.cloud",
         description="YnputConnect URL",
@@ -172,7 +190,7 @@ class AyonConfig(BaseModel):
 
     http_timeout: int = Field(
         default=120,
-        description="Timeout for HTTP requests the server uses "
+        description="The default timeout for HTTP requests the server uses "
         "to connect to external services",
     )
 

@@ -4,117 +4,23 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, Query
+from nxtools import logging
 
 from ayon_server.api.dependencies import ClientSiteID, CurrentUser
 from ayon_server.exceptions import BadRequestException, ServiceUnavailableException
 from ayon_server.helpers.roots import get_roots_for_projects
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import NAME_REGEX, Field, OPModel, ProjectLevelEntityType
+from ayon_server.types import NAME_REGEX, ProjectLevelEntityType
 
+from .models import (
+    ParsedURIModel,
+    ResolvedEntityModel,
+    ResolvedURIModel,
+    ResolveRequestModel,
+)
 from .templating import StringTemplate
 
 router = APIRouter(tags=["URIs"])
-
-EXAMPLE_URI = "ayon+entity://myproject/assets/env/beach?product=layout&version=v004"
-
-
-class ResolveRequestModel(OPModel):
-    resolve_roots: bool = Field(
-        False,
-        title="Resolve roots",
-        description="If x-ayon-site-id header is provided, "
-        "resolve representation path roots",
-    )
-    uris: list[str] = Field(
-        ...,
-        title="URIs",
-        description="List of uris to resolve",
-        example=[EXAMPLE_URI],
-    )
-
-
-class ResolvedEntityModel(OPModel):
-    project_name: str | None = Field(
-        None,
-        title="Project name",
-        example="demo_Big_Feature",
-    )
-    folder_id: str | None = Field(
-        None,
-        title="Folder id",
-        example="0254c370005811ee9a740242ac130004",
-    )
-    product_id: str | None = Field(
-        None,
-        title="Product id",
-        example="0255ce50005811ee9a740242ac130004",
-    )
-    task_id: str | None = Field(
-        None,
-        title="Task id",
-        example=None,
-    )
-    version_id: str | None = Field(
-        None,
-        title="Version id",
-        example="0256ba2c005811ee9a740242ac130004",
-    )
-    representation_id: str | None = Field(
-        None,
-        title="Representation id",
-        example=None,
-    )
-    workfile_id: str | None = Field(
-        None,
-        title="Workfile id",
-        example=None,
-    )
-    file_path: str | None = Field(
-        None,
-        title="File path",
-        description="Path to the file if a representation is specified",
-        example="/path/to/file.ma",
-    )
-    target: ProjectLevelEntityType | None = Field(
-        None,
-        title="Target entity type",
-        description="The deepest entity type queried",
-    )
-
-
-class ResolvedURIModel(OPModel):
-    uri: str = Field(
-        ...,
-        title="Resolved URI",
-        example="ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004&representation=ma",
-    )
-    entities: list[ResolvedEntityModel] = Field(
-        ...,
-        title="Resolved entities",
-        example=[
-            {
-                "projectName": "demo_Big_Feature",
-                "folderId": "0254c370005811ee9a740242ac130004",
-                "productId": "0255ce50005811ee9a740242ac130004",
-                "taskId": None,
-                "versionId": "0256ba2c005811ee9a740242ac130004",
-                "representationId": None,
-                "workfileId": None,
-                "filePath": "/path/to/file.ma",
-            }
-        ],
-    )
-
-
-class ParsedURIModel(OPModel):
-    uri: str = Field(..., title="Resolved URI")
-    project_name: str = Field(..., title="Project name")
-    path: str | None = Field(None, title="Path")
-    product_name: str | None = Field(None, title="Product name")
-    task_name: str | None = Field(None, title="Task name")
-    version_name: str | None = Field(None, title="Version name")
-    representation_name: str | None = Field(None, title="Representation name")
-    workfile_name: str | None = Field(None, title="Workfile name")
 
 
 SDF_REGEX = re.compile(r":SDF_FORMAT_ARGS.*$")
@@ -126,7 +32,7 @@ def sanitize_uri(uri: str) -> str:
     return uri
 
 
-def validate_name(name: str) -> None:
+def validate_name(name: str | None) -> None:
     if name is None:
         return
     if name == "*":
@@ -229,11 +135,17 @@ def get_product_conditions(product_name: str | None) -> list[str]:
 def get_version_conditions(version_name: str | None) -> list[str]:
     if version_name is None:
         return []
+
     if version_name == "*":
         return []
+
+    original_version_name = version_name
     if version_name.startswith("v"):
         version_name = version_name[1:]
+
+    if version_name.isdigit():
         return [f"v.version = {int(version_name)}"]
+
     if version_name == "latest":
         return [
             """
@@ -243,10 +155,12 @@ def get_version_conditions(version_name: str | None) -> list[str]:
             )
         """
         ]
+
     if version_name == "hero":
         return ["v.version < 0"]
 
-    return []
+    logging.debug(f"Invalid version name: {original_version_name}")
+    return ["FALSE"]
 
 
 def get_representation_conditions(representation_name: str | None) -> list[str]:
@@ -272,12 +186,17 @@ async def resolve_entities(
     # if not req.path:
     #     return [ResolvedEntityModel(project_name=req.project_name)]
 
-    if Postgres.get_available_connections() < 3:
-        raise ServiceUnavailableException(
-            f"Postgres remaining pool size: {Postgres.get_available_connections()}"
-        )
-
     target_entity_type: ProjectLevelEntityType | None = None
+
+    if not (
+        req.product_name
+        or req.version_name
+        or req.representation_name
+        or req.task_name
+        or req.workfile_name
+        or req.path
+    ):
+        return []
 
     platform = None
     if site_id:
@@ -432,6 +351,12 @@ async def resolve_uris(
     the server will resolve the file path to the actual absolute path.
 
     """
+
+    if Postgres.get_available_connections() < 3:
+        raise ServiceUnavailableException(
+            f"Postgres remaining pool size: {Postgres.get_available_connections()}"
+        )
+
     roots = {}
     if request.resolve_roots and site_id:
         projects = [parse_uri(uri).project_name for uri in request.uris]

@@ -4,6 +4,7 @@ from fastapi import Header, Query, Request
 from nxtools import logging
 
 from ayon_server.activities.create_activity import create_activity
+from ayon_server.activities.watchers.set_watchers import ensure_watching
 from ayon_server.api.dependencies import CurrentUser, ProjectName, VersionID
 from ayon_server.api.files import handle_upload
 from ayon_server.entities.version import VersionEntity
@@ -89,6 +90,8 @@ async def upload_reviewable(
 
     # user_tag = f"[@{user.attrib.fullName or user.name}](user:{user.name})"
     body = f"""Uploaded a reviewable '{label or x_file_name}'"""
+
+    await ensure_watching(version, user)
 
     activity_id = await create_activity(
         version,

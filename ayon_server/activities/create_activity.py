@@ -22,9 +22,10 @@ from ayon_server.activities.utils import (
     is_body_with_checklist,
     process_activity_files,
 )
+from ayon_server.activities.watchers.watcher_list import get_watcher_list
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.eventstream import EventStream
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
@@ -78,7 +79,12 @@ async def create_activity(
         origin["label"] = entity.label
     data["origin"] = origin
 
-    data["parents"] = await get_parents_from_entity(entity)
+    try:
+        data["parents"] = await get_parents_from_entity(entity)
+    except Postgres.UndefinedTableError as e:
+        raise NotFoundException(
+            "Unable to get references. " f"Project {project_name} no longer exists"
+        ) from e
 
     if activity_type == "comment" and is_body_with_checklist(body):
         data["hasChecklist"] = True
@@ -112,7 +118,29 @@ async def create_activity(
         data["author"] = user_name
 
     references.update(extract_mentions(body))
-    references.update(await get_references_from_entity(entity))
+    if activity_type not in ["watch"]:
+        # We don't need to collect additional references for watch activities
+        # As they only apply to the entity itself
+
+        # Add watchers first (as they are more important than mentions)
+        watcher_list = await get_watcher_list(entity)
+        for watcher in watcher_list:
+            references.add(
+                ActivityReferenceModel(
+                    entity_type="user",
+                    entity_name=watcher,
+                    reference_type="watching",
+                    entity_id=None,
+                )
+            )
+
+        # Add related entities references
+        try:
+            references.update(await get_references_from_entity(entity))
+        except Postgres.UndefinedTableError as e:
+            raise NotFoundException(
+                "Unable to get references. " f"Project {project_name} no longer exists"
+            ) from e
 
     #
     # Create the activity
@@ -136,20 +164,31 @@ async def create_activity(
     """
 
     async with Postgres.acquire() as conn, conn.transaction():
-        await conn.execute(query, activity_id, activity_type, body, data, timestamp)
+        try:
+            await conn.execute(query, activity_id, activity_type, body, data, timestamp)
+        except Postgres.UndefinedTableError as e:
+            raise NotFoundException(
+                "Unable to create activity. " f"Project {project_name} no longer exists"
+            ) from e
 
         if files is not None:
-            await conn.execute(
-                f"""
-                UPDATE project_{project_name}.files
-                SET
-                    activity_id = $1,
-                    updated_at = NOW()
-                WHERE id = ANY($2)
-                """,
-                activity_id,
-                files,
-            )
+            try:
+                await conn.execute(
+                    f"""
+                    UPDATE project_{project_name}.files
+                    SET
+                        activity_id = $1,
+                        updated_at = NOW()
+                    WHERE id = ANY($2)
+                    """,
+                    activity_id,
+                    files,
+                )
+            except Postgres.UndefinedTableError as e:
+                raise NotFoundException(
+                    "Unable to update files. "
+                    f"Project {project_name} no longer exists"
+                ) from e
 
         st_ref = await conn.prepare(
             f"""
@@ -172,9 +211,15 @@ async def create_activity(
         """
         )
 
-        await st_ref.executemany(
-            ref.insertable_tuple(activity_id, timestamp) for ref in references
-        )
+        try:
+            await st_ref.executemany(
+                ref.insertable_tuple(activity_id, timestamp) for ref in references
+            )
+        except Postgres.UndefinedTableError as e:
+            raise NotFoundException(
+                "Unable to create references. "
+                f"Project {project_name} no longer exists"
+            ) from e
 
     # Notify the front-end about the new activity
 
@@ -215,7 +260,7 @@ async def create_activity(
         assert ref.entity_name is not None, "This should have been checked before"
         if ref.reference_type == "author":
             continue
-        if ref.reference_type == "mention":
+        if ref.reference_type in ["mention", "watching"]:
             notify_important.append(ref.entity_name)
         elif ref.entity_name not in notify_important:
             notify_normal.append(ref.entity_name)

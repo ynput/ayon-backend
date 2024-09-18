@@ -1,10 +1,9 @@
 __all__ = ["Session"]
 
 import time
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 from fastapi import Request
-from nxtools import logging
 
 from ayon_server.api.clientinfo import ClientInfo, get_client_info, get_real_ip
 from ayon_server.config import ayonconfig
@@ -104,6 +103,8 @@ class Session:
         user: UserEntity,
         request: Request | None = None,
         token: str | None = None,
+        message: str = "User logged in",
+        event_payload: dict[str, Any] | None = None,
     ) -> SessionModel:
         """Create a new session for a given user."""
         is_service = bool(token)
@@ -118,13 +119,15 @@ class Session:
             is_service=is_service,
             client_info=client_info,
         )
+        event_summary = client_info.dict() if client_info else {}
         await Redis.set(cls.ns, token, session.json())
         if not user.is_service:
             await EventStream.dispatch(
-                "user.log_in",
-                description="User logged in",
+                "auth.login",
+                description=message,
                 user=user.name,
-                summary=client_info.dict() if client_info else None,
+                summary=event_summary,
+                payload=event_payload,
             )
         return session
 
@@ -155,7 +158,7 @@ class Session:
             session = SessionModel(**json_loads(data))
             if not session.user.data.get("isService"):
                 await EventStream.dispatch(
-                    "user.log_out",
+                    "auth.logout",
                     description=message,
                     user=session.user.name,
                 )
@@ -171,14 +174,13 @@ class Session:
         from the database.
         """
 
-        async for _session_id, data in Redis.iterate("session"):
+        async for _, data in Redis.iterate("session"):
+            if data is None:
+                continue  # this should never happen, but keeps mypy happy
+
             session = SessionModel(**json_loads(data))
             if cls.is_expired(session):
-                logging.info(
-                    f"Removing expired session for user "
-                    f"{session.user.name} {session.token}"
-                )
-                await cls.delete(session.token)
+                await cls.delete(session.token, message="Session expired")
                 continue
 
             if user_name is None or session.user.name == user_name:

@@ -68,7 +68,8 @@ def list_overrides(
             "type": type,
             "value": value,
             "level": level,
-            "inGroup": path
+            "inGroup": path,
+            "scope": ["studio", "project", "site"]
         }
     }
     ```
@@ -79,6 +80,7 @@ def list_overrides(
     value:   value of the field (only present on leaves)
     level:   source of the override: studio, project or site
     inGroup: path of the group the field is in
+    scope:   list of the scopes the field is in ["studio", "project", "site"]
     """
 
     result = {}
@@ -89,10 +91,16 @@ def list_overrides(
     else:
         root = "root_" + "_".join(crumbs)
 
-    for name, _field in obj.__fields__.items():
+    for name, field in obj.__fields__.items():
         child = getattr(obj, name)
         path = f"{root}_{name}"
         chcrumbs = [*crumbs, name]
+
+        try:
+            field_extra = field.field_info.extra
+        except AttributeError:
+            field_extra = {}
+        scope = field_extra.get("scope", ["studio", "project"])
 
         if isinstance(child, BaseSettingsModel):
             if name in override:
@@ -101,6 +109,7 @@ def list_overrides(
                     "type": "group" if child._isGroup else "branch",
                     "level": level,
                     "inGroup": in_group,
+                    "scope": scope,
                 }
             result.update(
                 list_overrides(
@@ -119,6 +128,7 @@ def list_overrides(
                     "type": "list",
                     "level": level,
                     "inGroup": in_group,
+                    "scope": scope,
                 }
 
                 for i, item in enumerate(child):
@@ -139,6 +149,7 @@ def list_overrides(
                             "level": "default",
                             "value": item,
                             "inGroup": in_group or chcrumbs,
+                            "scope": scope,
                         }
 
         elif isinstance(child, tuple):
@@ -148,6 +159,7 @@ def list_overrides(
                     "value": override[name] if name in override else list(child),
                     "level": level if name in override else "default",
                     "inGroup": in_group,
+                    "scope": scope,
                 }
 
         elif name in override:
@@ -156,6 +168,7 @@ def list_overrides(
                 "value": override[name],
                 "level": level,
                 "inGroup": in_group,
+                "scope": scope,
             }
 
     return result
