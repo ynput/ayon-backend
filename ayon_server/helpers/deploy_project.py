@@ -136,7 +136,7 @@ async def create_project_from_anatomy(
         await assign_default_users_to_project(project.name, conn)
 
     end_time = time.monotonic()
-    logging.info(f"Deployed project {project.name} in {end_time - start_time:.2f}s")
+    logging.debug(f"Deployed project {project.name} in {end_time - start_time:.2f}s")
 
     await dispatch_event(
         "entity.project.created",

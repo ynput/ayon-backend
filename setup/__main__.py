@@ -5,14 +5,15 @@ from base64 import b64decode
 from pathlib import Path
 from typing import Any
 
-import asyncpg
 from nxtools import critical_error, log_to_file, log_traceback, logging
 
 from ayon_server.config import ayonconfig
+from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_loads
 from setup.access_groups import deploy_access_groups
 from setup.attributes import deploy_attributes
+from setup.initial_bundle import create_initial_bundle
 from setup.users import deploy_users
 
 # Defaults which should allow Ayon server to run out of the box
@@ -23,6 +24,7 @@ DATA: dict[str, Any] = {
     "users": [],
     "roles": [],
     "config": {},
+    "initialBundle": None,
 }
 
 if ayonconfig.force_create_admin:
@@ -36,27 +38,12 @@ if ayonconfig.force_create_admin:
     ]
 
 
-async def wait_for_postgres() -> None:
-    while 1:
-        try:
-            await Postgres.connect()
-        except ConnectionRefusedError:
-            logging.info("Waiting for PostgreSQL")
-        except asyncpg.exceptions.CannotConnectNowError:
-            logging.info("PostgreSQL is starting")
-        except Exception:
-            log_traceback()
-        else:
-            break
-        await asyncio.sleep(1)
-
-
 async def main(force: bool | None = None) -> None:
     """Main entry point for setup."""
 
     logging.info("Starting setup")
 
-    await wait_for_postgres()
+    await ayon_init()
 
     try:
         await Postgres.fetch("SELECT * FROM projects")
@@ -157,6 +144,12 @@ async def main(force: bool | None = None) -> None:
                 key,
                 value,
             )
+
+    if bundle_data := DATA.get("initialBundle"):
+        if not isinstance(bundle_data, dict):
+            logging.warning("Invalid initial bundle data")
+        else:
+            await create_initial_bundle(bundle_data)
 
     logging.goodnews("Setup is finished")
 

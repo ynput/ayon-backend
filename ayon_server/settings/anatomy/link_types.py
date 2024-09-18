@@ -1,18 +1,17 @@
 from typing import Literal
 
-from pydantic import Field
-
 from ayon_server.settings.common import BaseSettingsModel
+from ayon_server.settings.settings_field import SettingsField
 from ayon_server.types import ProjectLevelEntityType
 
 
 class LinkType(BaseSettingsModel):
     _layout: str = "compact"
-    link_type: str = Field(..., title="Link type", min_length=1, max_length=100)
-    input_type: ProjectLevelEntityType = Field(..., title="Input type")
-    output_type: ProjectLevelEntityType = Field(..., title="Output type")
-    color: str | None = Field(None, title="Color", widget="color")
-    style: Literal["solid", "dashed"] = Field("solid", title="Style")
+    link_type: str = SettingsField(..., title="Link type", min_length=1, max_length=100)
+    input_type: ProjectLevelEntityType = SettingsField(..., title="Input type")
+    output_type: ProjectLevelEntityType = SettingsField(..., title="Output type")
+    color: str | None = SettingsField(None, title="Color", widget="color")
+    style: Literal["solid", "dashed"] = SettingsField("solid", title="Style")
 
     def __hash__(self):
         return hash((self.link_type, self.input_type, self.output_type))

@@ -1,8 +1,9 @@
 from typing import Literal
 
-from pydantic import Field, validator
+from pydantic import validator
 
 from ayon_server.settings.common import BaseSettingsModel
+from ayon_server.settings.settings_field import SettingsField
 
 State = Literal["not_started", "in_progress", "done", "blocked"]
 
@@ -18,12 +19,21 @@ def get_state_enum():
 
 class Status(BaseSettingsModel):
     _layout: str = "compact"
-    name: str = Field(..., title="Name", min_length=1, max_length=100)
-    shortName: str = Field("", title="Short name")
-    state: State = Field("not_started", title="State", enum_resolver=get_state_enum)
-    icon: str = Field("", title="Icon", widget="icon")
-    color: str = Field("#cacaca", title="Color", widget="color")
-    original_name: str | None = Field(None, scope=[])  # Used for renaming
+    name: str = SettingsField(
+        ..., title="Name", min_length=1, max_length=100, example="In progress"
+    )
+    shortName: str = SettingsField("", title="Short name", example="PRG")
+    state: State = SettingsField(
+        "not_started",
+        title="State",
+        enum_resolver=get_state_enum,
+        example="in_progress",
+    )
+    icon: str = SettingsField("", title="Icon", widget="icon", example="play_arrow")
+    color: str = SettingsField(
+        "#cacaca", title="Color", widget="color", example="#3498db"
+    )
+    original_name: str | None = SettingsField(None, scope=[])  # Used for renaming
 
     @validator("original_name")
     def validate_original_name(cls, v, values):

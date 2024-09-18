@@ -1,4 +1,4 @@
-__all__ = ["activity", "suggest", "router", "watchers"]
+__all__ = ["activity", "suggest", "reactions", "router", "watchers"]
 
-from . import activity, suggest, watchers
+from . import activity, reactions, suggest, watchers
 from .router import router

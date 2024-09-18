@@ -1,6 +1,5 @@
-from pydantic import Field
-
 from ayon_server.settings.common import BaseSettingsModel
+from ayon_server.settings.settings_field import SettingsField
 
 
 class Root(BaseSettingsModel):
@@ -8,25 +7,29 @@ class Root(BaseSettingsModel):
 
     _layout: str = "expanded"
 
-    name: str = Field(
+    name: str = SettingsField(
         ...,
         title="Root name",
         regex="^[a-zA-Z0-9_]{1,}$",
+        example="work",
     )
 
-    windows: str = Field(
+    windows: str = SettingsField(
         "",
         title="Windows",
+        example="C:/projects",
     )
 
-    linux: str = Field(
+    linux: str = SettingsField(
         "",
         title="Linux",
+        example="/mnt/share/projects",
     )
 
-    darwin: str = Field(
+    darwin: str = SettingsField(
         "",
         title="Darwin",
+        example="/Volumes/projects",
     )
 
 
