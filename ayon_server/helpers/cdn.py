@@ -1,7 +1,10 @@
 import aiocache
 import httpx
 from fastapi.responses import RedirectResponse
+from nxtools import logging
 
+from ayon_server.config import ayonconfig
+from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.helpers.cloud import get_cloud_api_headers
 
 
@@ -20,20 +23,24 @@ async def get_cdn_link(project_name: str, file_id: str) -> RedirectResponse:
 
     headers = await get_cloud_api_headers()
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://192.168.5.141:8500/sign",
+    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+        res = await client.get(
+            f"{ayonconfig.ynput_cloud_api_url}/api/v1/cdn",
             json=payload,
             headers=headers,
         )
-        if response.status_code > 400:
-            print("Error", response.status_code)
-            print("Error", response.text)
-            return ""
 
-        data = response.json()
-        url = data["url"]
-        cookies = data.get("cookies", {})
+    if res.status_code == 401:
+        raise ForbiddenException("Unauthorized instance")
+
+    if res.status_code >= 400:
+        logging.error("CDN Error", res.status_code)
+        logging.error("CDN Error", res.text)
+        return NotFoundException("Error", res.status_code)
+
+    data = res.json()
+    url = data["url"]
+    cookies = data.get("cookies", {})
 
     response = RedirectResponse(url=url, status_code=302)
     for key, value in cookies.items():
