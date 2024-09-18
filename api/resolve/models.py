@@ -73,8 +73,8 @@ class ResolvedURIModel(OPModel):
         title="Resolved URI",
         example="ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004&representation=ma",
     )
-    entities: list[ResolvedEntityModel] | None = Field(
-        None,
+    entities: list[ResolvedEntityModel] = Field(
+        default_factory=list,
         title="Resolved entities",
         example=[
             {

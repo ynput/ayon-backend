@@ -383,7 +383,7 @@ async def resolve_uris(
                         path_only=path_only,
                     )
                 except ValueError as e:
-                    result.append(ResolvedURIModel(uri=uri, error=str(e)))
+                    result.append(ResolvedURIModel(uri=uri, entities=[], error=str(e)))
                     continue
                 result.append(ResolvedURIModel(uri=uri, entities=entities))
     return result
