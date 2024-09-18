@@ -6,7 +6,6 @@ from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.settings_field import SettingsField
 from ayon_server.types import ProjectLevelEntityType
 
-
 State = Literal["not_started", "in_progress", "done", "blocked"]
 
 
@@ -27,12 +26,37 @@ def scope_enum() -> list[dict[str, str]]:
 
 class Status(BaseSettingsModel):
     _layout: str = "compact"
-      
-    name: str = SettingsField(..., title="Name", min_length=1, max_length=100, example="In progress")
-    shortName: str = SettingsField("", title="Short name", example="PRG")
-    state: State = SettingsField("not_started", title="State", enum_resolver=get_state_enum, example="in_progress")
-    icon: str = SettingsField("", title="Icon", widget="icon", example="play_arrow")
-    color: str = SettingsField("#cacaca", title="Color", widget="color", example="#3498db")
+
+    name: str = SettingsField(
+        ...,
+        title="Name",
+        min_length=1,
+        max_length=100,
+        example="In progress",
+    )
+    shortName: str = SettingsField(
+        "",
+        title="Short name",
+        example="PRG",
+    )
+    state: State = SettingsField(
+        "not_started",
+        title="State",
+        enum_resolver=get_state_enum,
+        example="in_progress",
+    )
+    icon: str = SettingsField(
+        "",
+        title="Icon",
+        widget="icon",
+        example="play_arrow",
+    )
+    color: str = SettingsField(
+        "#cacaca",
+        title="Color",
+        widget="color",
+        example="#3498db",
+    )
     scope: list[str] | None = SettingsField(
         None,
         example=["task"],
@@ -40,12 +64,11 @@ class Status(BaseSettingsModel):
         description=(
             "Limit the status to specific entity types. "
             " If empty, the status is available for all entity types."
-        ),      
+        ),
     )
     original_name: str | None = SettingsField(
         None, scope=[]
     )  # Used for renaming, we don't show it in the UI
-
 
     @validator("original_name")
     def validate_original_name(cls, v, values):
