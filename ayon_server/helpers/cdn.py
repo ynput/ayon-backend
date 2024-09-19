@@ -24,7 +24,7 @@ async def get_cdn_link(project_name: str, file_id: str) -> RedirectResponse:
     headers = await get_cloud_api_headers()
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
-        res = await client.get(
+        res = await client.post(
             f"{ayonconfig.ynput_cloud_api_url}/api/v1/cdn",
             json=payload,
             headers=headers,
