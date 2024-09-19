@@ -6,12 +6,13 @@ from ayon_server.config import ayonconfig
 from ayon_server.lib.postgres import Postgres
 
 
-def id_to_path(project_name: str, file_id: str) -> str:
+def id_to_path(project_name: str, file_id: str, relative: bool = False) -> str:
     file_id = file_id.replace("-", "")
     assert len(file_id) == 32
     fgroup = file_id[:2]
+    root = ayonconfig.project_data_dir if not relative else ""
     return os.path.join(
-        ayonconfig.project_data_dir,
+        root,
         project_name,
         "uploads",
         fgroup,
