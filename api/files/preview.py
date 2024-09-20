@@ -11,9 +11,8 @@ from ayon_server.exceptions import (
     ServiceUnavailableException,
     UnsupportedMediaException,
 )
+from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import is_image_mime_type, is_video_mime_type
-from ayon_server.helpers.project_files import id_to_path
-from ayon_server.helpers.thumbnails import process_thumbnail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 
@@ -88,10 +87,6 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
         - NotFoundException if the file or file record is not found.
     """
 
-    path = id_to_path(project_name, file_id)
-    if not os.path.isfile(path):
-        raise NotFoundException("File not found")
-
     res = await Postgres.fetch(
         f"""
         SELECT size, data FROM project_{project_name}.files
@@ -102,25 +97,42 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
 
     if not res:
         raise NotFoundException("File record not found")
-
-    file_data = res[0]["data"] or {}
+    file_record = res[0]
+    file_data = file_record["data"] or {}
     expected_size = res[0]["size"]
     mime_type = file_data.get("mime", "application/octet-stream")
 
-    if os.path.getsize(path) != expected_size:
-        logging.warning(f"File size mismatch: {path}")
+    # Get the file location
 
-    if is_image_mime_type(mime_type):
-        async with aiofiles.open(path, "rb") as f:
-            image_bytes = await f.read()
-            pvw_bytes = await process_thumbnail(
-                image_bytes,
-                FILE_PREVIEW_SIZE,
-                format="JPEG",
-            )
-            return pvw_bytes
+    storage = await Storages.project(project_name)
+
+    if storage.storage_type == "local":
+        path = storage.get_path(file_id)
+
+        if not os.path.isfile(path):
+            raise NotFoundException("File not found")
+
+        if os.path.getsize(path) != expected_size:
+            logging.warning(f"File size mismatch: {path}")
+
+    elif storage.storage_type == "s3":
+        path = await storage.get_signed_url(file_id)
 
     if is_video_mime_type(mime_type):
+        pvw_bytes = await create_video_thumbnail(path, FILE_PREVIEW_SIZE)
+        return pvw_bytes
+
+    if is_image_mime_type(mime_type):
+        # async with aiofiles.open(path, "rb") as f:
+        #     image_bytes = await f.read()
+        #     pvw_bytes = await process_thumbnail(
+        #         image_bytes,
+        #         FILE_PREVIEW_SIZE,
+        #         format="JPEG",
+        #     )
+        #     return pvw_bytes
+
+        # TODO: unify. for now use ffmpeg for images as well (since it handles s3
         pvw_bytes = await create_video_thumbnail(path, FILE_PREVIEW_SIZE)
         return pvw_bytes
 
