@@ -69,33 +69,37 @@ async def get_representations(
     if ids is not None:
         if not ids:
             return RepresentationsConnection()
-        sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
+        sql_conditions.append(f"representations.id IN {SQLTool.id_array(ids)}")
 
     if version_ids is not None:
         if not version_ids:
             return RepresentationsConnection()
-        sql_conditions.append(f"version_id IN {SQLTool.id_array(version_ids)}")
+        sql_conditions.append(
+            f"representations.version_id IN {SQLTool.id_array(version_ids)}"
+        )
     elif root.__class__.__name__ == "VersionNode":
         # cannot use isinstance here because of circular imports
-        sql_conditions.append(f"version_id = '{root.id}'")
+        sql_conditions.append(f"representations.version_id = '{root.id}'")
 
     if names is not None:
         if not names:
             return RepresentationsConnection()
         validate_name_list(names)
-        sql_conditions.append(f"name IN {SQLTool.array(names)}")
+        sql_conditions.append(f"representations.name IN {SQLTool.array(names)}")
 
     if statuses is not None:
         if not statuses:
             return RepresentationsConnection()
         validate_status_list(statuses)
-        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
+        sql_conditions.append(f"representations.status IN {SQLTool.array(statuses)}")
 
     if tags is not None:
         if not tags:
             return RepresentationsConnection()
         validate_name_list(tags)
-        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
+        sql_conditions.append(
+            f"representations.tags @> {SQLTool.array(tags, curly=True)}"
+        )
 
     if has_links is not None:
         sql_conditions.extend(
