@@ -1,5 +1,5 @@
 import os
-from typing import Literal
+from typing import Any, Literal
 
 import aiocache
 from fastapi import Request
@@ -14,6 +14,8 @@ from ayon_server.files.s3 import (
     handle_s3_upload,
 )
 from ayon_server.helpers.cloud import get_instance_id
+from ayon_server.helpers.ffprobe import extract_media_info
+from ayon_server.lib.postgres import Postgres
 
 StorageType = Literal["local", "s3"]
 
@@ -73,6 +75,7 @@ class ProjectStorage:
         """
         if self.storage_type == "s3":
             path = await self.get_path(file_id)
+            assert self.bucket_name  # mypy
             return await get_signed_url(self.s3_config, self.bucket_name, path, ttl)
         raise Exception("Signed URLs are only supported for S3 storage")
 
@@ -86,18 +89,20 @@ class ProjectStorage:
         if self.storage_type == "local":
             return await handle_upload(request, path)
         elif self.storage_type == "s3":
+            assert self.bucket_name  # mypy
             return await handle_s3_upload(
                 request, self.s3_config, self.bucket_name, path
             )
         raise Exception("Unknown storage type")
 
-    async def unlink(self, file_id: str) -> None:
+    async def unlink(self, file_id: str) -> bool:
         """Delete file from the storage if exists
 
         Database is not affected. Should be used for temporary files,
         (files that weren't stored to the DB yet), or for cleaning up
         files with missing DB records.
         """
+        logging.debug("Unlinking file", file_id)
 
         path = await self.get_path(file_id)
         if self.storage_type == "local":
@@ -107,14 +112,91 @@ class ProjectStorage:
                 pass
             except Exception as e:
                 logging.error(f"Failed to delete file: {e}")
-            return
+                return False
+            else:
+                directory = os.path.dirname(path)
+                if os.path.exists(directory):
+                    try:
+                        os.rmdir(directory)
+                    except Exception as e:
+                        logging.error(f"Failed to delete directory: {e}")
+            return True
 
         if self.storage_type == "s3":
-            return await delete_s3_file(self.s3_config, self.bucket_name, path)
+            assert self.bucket_name  # mypy
+            try:
+                await delete_s3_file(self.s3_config, self.bucket_name, path)
+            except Exception as e:
+                logging.error(f"Failed to delete file: {e}")
+                return False
 
         raise Exception("Unknown storage type")
 
-    async def delete(self, file_id: str) -> None:
+    async def delete_file(self, file_id: str) -> None:
         """Delete file from the storage and database"""
 
-        pass
+        if not await self.unlink(file_id):
+            raise Exception("Failed to delete file")
+
+        query = f"""
+            DELETE FROM project_{self.project_name}.files
+            WHERE id = $1
+        """
+        await Postgres.execute(query, file_id)
+        query = f"""
+            WITH updated_activities AS (
+                SELECT
+                    id,
+                    jsonb_set(
+                        data,
+                        '{{files}}',
+                        (SELECT jsonb_agg(elem)
+                             FROM jsonb_array_elements(data->'files') elem
+                             WHERE elem->>'id' != '{file_id}')
+                    ) AS new_data
+                FROM
+                    project_{self.project_name}.activities
+                WHERE
+                    data->'files' @> jsonb_build_array(
+                        jsonb_build_object('id', '{file_id}')
+                    )
+            )
+            UPDATE project_{self.project_name}.activities
+            SET data = updated_activities.new_data
+            FROM updated_activities
+            WHERE activities.id = updated_activities.id;
+        """
+
+        await Postgres.execute(query)
+
+        # prevent circular import
+        from ayon_server.helpers.preview import uncache_file_preview
+
+        await uncache_file_preview(self.project_name, file_id)
+
+    async def delete_unused_files(self) -> None:
+        """Delete files that are not referenced in any activity."""
+
+        query = f"""
+            SELECT id FROM project_{self.project_name}.files
+            WHERE activity_id IS NULL
+            AND updated_at < NOW() - INTERVAL '5 minutes'
+        """
+
+        async for row in Postgres.iterate(query):
+            logging.debug(f"Deleting unused file {row['id']}")
+            try:
+                await self.delete_file(row["id"])
+            except Exception:
+                pass
+
+    async def extract_media_info(self, file_id: str) -> dict[str, Any]:
+        """Extract media info from the file
+
+        Returns a dictionary with media information.
+        """
+        if self.storage_type == "local":
+            path = await self.get_path(file_id)
+        elif self.storage_type == "s3":
+            path = await self.get_signed_url(file_id)
+        return await extract_media_info(path)

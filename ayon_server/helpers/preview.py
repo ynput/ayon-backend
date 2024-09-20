@@ -107,7 +107,7 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
     storage = await Storages.project(project_name)
 
     if storage.storage_type == "local":
-        path = storage.get_path(file_id)
+        path = await storage.get_path(file_id)
 
         if not os.path.isfile(path):
             raise NotFoundException("File not found")

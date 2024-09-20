@@ -15,9 +15,6 @@ class S3Config(BaseModel):
 
 def _get_s3_client(s3_config: S3Config):
     cfg = s3_config.dict(exclude_none=True)
-    print("Loading S3 client:")
-    for k, v in cfg.items():
-        print(f"  {k}: {v}")
     return boto3.client("s3", **cfg)
 
 
@@ -157,5 +154,6 @@ async def handle_s3_upload(
 
 
 async def delete_s3_file(s3_config: S3Config, bucket_name: str, key: str):
+    logging.debug(f"Deleting {key} from {bucket_name}", user="s3")
     client = await get_s3_client(s3_config)
     client.delete_object(Bucket=bucket_name, Key=key)

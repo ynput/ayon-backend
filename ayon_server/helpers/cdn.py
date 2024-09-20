@@ -36,7 +36,7 @@ async def get_cdn_link(project_name: str, file_id: str) -> RedirectResponse:
     if res.status_code >= 400:
         logging.error("CDN Error", res.status_code)
         logging.error("CDN Error", res.text)
-        return NotFoundException("Error", res.status_code)
+        raise NotFoundException(f"Error {res.status_code} from CDN")
 
     data = res.json()
     url = data["url"]
