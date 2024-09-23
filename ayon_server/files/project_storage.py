@@ -24,6 +24,7 @@ class ProjectStorage:
     storage_type: StorageType = "local"
     root: str
     bucket_name: str | None = None
+    cdn_resolver: str | None = None
     _s3_client: Any = None
 
     def __init__(
@@ -32,6 +33,7 @@ class ProjectStorage:
         storage_type: StorageType,
         root: str,
         bucket_name: str | None = None,
+        cdn_resolver: str | None = None,
         s3_config: S3Config | None = None,
     ):
         self.project_name = project_name
@@ -43,6 +45,7 @@ class ProjectStorage:
 
             self.bucket_name = bucket_name
             self.s3_config = s3_config or S3Config()
+        self.cdn_resolver_url = cdn_resolver
 
     @classmethod
     def default(cls, project_name: str) -> "ProjectStorage":
@@ -51,6 +54,7 @@ class ProjectStorage:
                 project_name,
                 "local",
                 ayonconfig.default_project_storage_root,
+                cdn_resolver=ayonconfig.default_project_storage_cdn_resolver,
             )
         elif ayonconfig.default_project_storage_type == "s3":
             return cls(
@@ -58,6 +62,7 @@ class ProjectStorage:
                 "s3",
                 ayonconfig.default_project_storage_root,
                 bucket_name=ayonconfig.default_project_storage_bucket_name,
+                cdn_resolver=ayonconfig.default_project_storage_cdn_resolver,
             )
 
         raise Exception("Unknown storage type. This should not happen.")
