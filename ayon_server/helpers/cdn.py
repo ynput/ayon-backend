@@ -13,8 +13,11 @@ async def file_cdn_enabled() -> bool:
     return True
 
 
-async def get_cdn_link(project_name: str, file_id: str) -> RedirectResponse:
-    print("get_cdn_link")
+async def get_cdn_link(
+    cdn_resolver: str,
+    project_name: str,
+    file_id: str,
+) -> RedirectResponse:
     # Create the payload with project_name, file_id, and an expiration time
     payload = {
         "projectName": project_name,
@@ -25,7 +28,7 @@ async def get_cdn_link(project_name: str, file_id: str) -> RedirectResponse:
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.post(
-            f"{ayonconfig.ynput_cloud_api_url}/api/v1/cdn",
+            cdn_resolver,
             json=payload,
             headers=headers,
         )

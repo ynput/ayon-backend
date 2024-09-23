@@ -10,7 +10,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages
-from ayon_server.helpers.cdn import file_cdn_enabled, get_cdn_link
+from ayon_server.helpers.cdn import get_cdn_link
 from ayon_server.helpers.preview import get_file_preview
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -152,7 +152,6 @@ async def get_project_file_head(
 
 @router.get("/{file_id}", response_model=None)
 async def get_project_file(
-    request: Request,
     project_name: ProjectName,
     file_id: str,
     user: CurrentUser,
@@ -166,12 +165,13 @@ async def get_project_file(
     check_user_access(project_name, user)
 
     storage = await Storages.project(project_name)
+
+    if storage.cdn_resolver is not None:
+        return await get_cdn_link(storage.cdn_resolver, project_name, file_id)
+
     if storage.storage_type == "s3":
         url = await storage.get_signed_url(file_id, ttl=3600)
         return RedirectResponse(url=url, status_code=302)
-
-    if await file_cdn_enabled():
-        return await get_cdn_link(project_name, file_id)
 
     url = f"/api/projects/{project_name}/files/{file_id}/payload"
     return RedirectResponse(url=url, status_code=302)
