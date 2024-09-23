@@ -24,30 +24,43 @@ class ProjectStorage:
     storage_type: StorageType = "local"
     root: str
     bucket_name: str | None = None
+    _s3_client: Any = None
 
     def __init__(
         self,
         project_name: str,
         storage_type: StorageType,
         root: str,
-        s3_config: S3Config | None = None,
         bucket_name: str | None = None,
+        s3_config: S3Config | None = None,
     ):
         self.project_name = project_name
         self.storage_type = storage_type
         self.root = root
         if storage_type == "s3":
-            if not s3_config:
-                raise Exception("S3 configuration is required")
             if not bucket_name:
                 raise Exception("Bucket name is required")
 
             self.bucket_name = bucket_name
-            self.s3_config = s3_config
+            self.s3_config = s3_config or S3Config()
 
     @classmethod
     def default(cls, project_name: str) -> "ProjectStorage":
-        return cls(project_name, "local", ayonconfig.project_data_dir)
+        if ayonconfig.default_project_storage_type == "local":
+            return cls(
+                project_name,
+                "local",
+                ayonconfig.default_project_storage_root,
+            )
+        elif ayonconfig.default_project_storage_type == "s3":
+            return cls(
+                project_name,
+                "s3",
+                ayonconfig.default_project_storage_root,
+                bucket_name=ayonconfig.default_project_storage_bucket_name,
+            )
+
+        raise Exception("Unknown storage type. This should not happen.")
 
     @aiocache.cached()
     async def get_root(self) -> str:
@@ -76,7 +89,7 @@ class ProjectStorage:
         if self.storage_type == "s3":
             path = await self.get_path(file_id)
             assert self.bucket_name  # mypy
-            return await get_signed_url(self.s3_config, self.bucket_name, path, ttl)
+            return await get_signed_url(self, path, ttl)
         raise Exception("Signed URLs are only supported for S3 storage")
 
     async def handle_upload(self, request: Request, file_id: str) -> int:
@@ -89,10 +102,7 @@ class ProjectStorage:
         if self.storage_type == "local":
             return await handle_upload(request, path)
         elif self.storage_type == "s3":
-            assert self.bucket_name  # mypy
-            return await handle_s3_upload(
-                request, self.s3_config, self.bucket_name, path
-            )
+            return await handle_s3_upload(self, request, path)
         raise Exception("Unknown storage type")
 
     async def unlink(self, file_id: str) -> bool:
@@ -125,7 +135,7 @@ class ProjectStorage:
         if self.storage_type == "s3":
             assert self.bucket_name  # mypy
             try:
-                await delete_s3_file(self.s3_config, self.bucket_name, path)
+                await delete_s3_file(self, path)
             except Exception as e:
                 logging.error(f"Failed to delete file: {e}")
                 return False

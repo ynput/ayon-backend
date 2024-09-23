@@ -1,42 +1,74 @@
-import boto3
+import os
+from typing import TYPE_CHECKING
+
+try:
+    import boto3
+
+    has_boto3 = True
+except ModuleNotFoundError:
+    has_boto3 = False
+
 from fastapi import Request
 from nxtools import logging
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
+
+if TYPE_CHECKING:
+    from ayon_server.files.project_storage import ProjectStorage
 
 
 class S3Config(BaseModel):
-    aws_access_key_id: str | None = None
-    aws_secret_access_key: str | None = None
-    session_token: str | None = None
-    endpoint_url: str | None = None
-    region_name: str | None = None
+    aws_access_key_id: str | None = Field(
+        default_factory=lambda: os.getenv("AWS_ACCESS_KEY_ID")
+    )
+    aws_secret_access_key: str | None = Field(
+        default_factory=lambda: os.getenv("AWS_SECRET_ACCESS_KEY")
+    )
+    session_token: str | None = Field(
+        default_factory=lambda: os.getenv("AWS_SESSION_TOKEN")
+    )
+    endpoint_url: str | None = Field(
+        default_factory=lambda: os.getenv("S3_ENDPOINT_URL")
+    )
+    region_name: str | None = Field(default_factory=lambda: os.getenv("S3_REGION_NAME"))
 
 
-def _get_s3_client(s3_config: S3Config):
-    cfg = s3_config.dict(exclude_none=True)
-    return boto3.client("s3", **cfg)
+# Get client
 
 
-async def get_s3_client(s3_config: S3Config):
-    return await run_in_threadpool(_get_s3_client, s3_config)
+def _get_s3_client(storage: "ProjectStorage"):
+    if storage._s3_client is None:
+        if storage.s3_config is None:
+            cfg = {}
+        else:
+            cfg = storage.s3_config.dict(exclude_none=True)
+        if not has_boto3:
+            raise Exception("boto3 is not installed")
+        storage._s3_client = boto3.client("s3", **cfg)
+    return storage._s3_client
 
 
-def _get_signed_url(
-    s3_config: S3Config, bucket_name: str, key: str, ttl: int = 3600
-) -> str:
-    client = _get_s3_client(s3_config)
+async def get_s3_client(storage: "ProjectStorage"):
+    return await run_in_threadpool(_get_s3_client, storage)
+
+
+# Presigned URLs
+
+
+def _get_signed_url(storage: "ProjectStorage", key: str, ttl: int = 3600) -> str:
+    client = _get_s3_client(storage)
     return client.generate_presigned_url(
         "get_object",
-        Params={"Bucket": bucket_name, "Key": key},
+        Params={"Bucket": storage.bucket_name, "Key": key},
         ExpiresIn=ttl,
     )
 
 
-async def get_signed_url(
-    s3_config: S3Config, bucket_name: str, key: str, ttl: int = 3600
-) -> str:
-    return await run_in_threadpool(_get_signed_url, s3_config, bucket_name, key, ttl)
+async def get_signed_url(storage: "ProjectStorage", key: str, ttl: int = 3600) -> str:
+    return await run_in_threadpool(_get_signed_url, storage, key, ttl)
+
+
+# Upload to s3
 
 
 class S3Uploader:
@@ -124,14 +156,13 @@ class S3Uploader:
 
 
 async def handle_s3_upload(
+    storage: "ProjectStorage",
     request: Request,
-    s3_config: S3Config,
-    bucket_name: str,
     path: str,
 ) -> int:
-    client = await get_s3_client(s3_config)
-
-    uploader = S3Uploader(client, bucket_name)
+    client = await get_s3_client(storage)
+    assert storage.bucket_name
+    uploader = S3Uploader(client, storage.bucket_name)
 
     await uploader.init_file_upload(path)
     i = 0
@@ -153,7 +184,12 @@ async def handle_s3_upload(
     return i
 
 
-async def delete_s3_file(s3_config: S3Config, bucket_name: str, key: str):
+# S3 file management
+
+
+async def delete_s3_file(storage: "ProjectStorage", key: str):
+    bucket_name = storage.bucket_name
+    assert bucket_name
     logging.debug(f"Deleting {key} from {bucket_name}", user="s3")
-    client = await get_s3_client(s3_config)
+    client = await get_s3_client(storage)
     client.delete_object(Bucket=bucket_name, Key=key)
