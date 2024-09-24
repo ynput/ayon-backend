@@ -45,7 +45,7 @@ class ProjectStorage:
 
             self.bucket_name = bucket_name
             self.s3_config = s3_config or S3Config()
-        self.cdn_resolver_url = cdn_resolver
+        self.cdn_resolver = cdn_resolver
 
     @classmethod
     def default(cls, project_name: str) -> "ProjectStorage":
