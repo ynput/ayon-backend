@@ -74,7 +74,7 @@ class ResolvedURIModel(OPModel):
         example="ayon+entity://demo_Big_Feature/assets/environments/01_pfueghtiaoft?product=layoutMain&version=v004&representation=ma",
     )
     entities: list[ResolvedEntityModel] = Field(
-        ...,
+        default_factory=list,
         title="Resolved entities",
         example=[
             {
@@ -88,6 +88,11 @@ class ResolvedURIModel(OPModel):
                 "filePath": "/path/to/file.ma",
             }
         ],
+    )
+    error: str | None = Field(
+        None,
+        title="Error",
+        description="Error message if the URI could not be resolved",
     )
 
 
