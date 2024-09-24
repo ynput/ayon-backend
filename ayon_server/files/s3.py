@@ -1,4 +1,7 @@
+import asyncio
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 try:
@@ -72,18 +75,17 @@ async def get_signed_url(storage: "ProjectStorage", key: str, ttl: int = 3600) -
 
 
 class S3Uploader:
-    """
-    This is a proof of concept. Ideally the logic should be rewritten:
-    We should spawn one thread and then use a queue to push chunks to the thread,
-    instead of creating a new thread for each chunk.
-    """
-
-    def __init__(self, client, bucket_name: str):
+    def __init__(self, client, bucket_name: str, max_queue_size=5, max_workers=4):
         self._client = client
         self._multipart = None
         self._parts: list[tuple[int, str]] = []
         self._key: str | None = None
         self.bucket_name = bucket_name
+
+        # Limited-size async queue for chunk uploads to prevent over-filling
+        self._queue = asyncio.Queue(maxsize=max_queue_size)
+        self._worker_task = None
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
 
     def _init_file_upload(self, key: str):
         logging.debug(f"Initiating upload for {key}", user="s3")
@@ -98,11 +100,11 @@ class S3Uploader:
         self._parts = []
         self._key = key
 
-    def _push_chunk(self, chunk: bytes):
-        if not self._multipart:
-            raise Exception("Multipart upload not started")
-
-        part_number = len(self._parts) + 1
+    def _upload_chunk(self, chunk: bytes, part_number: int):
+        """
+        Sync method for uploading a single chunk to S3.
+        This will be offloaded to a thread by the background worker.
+        """
         res = self._client.upload_part(
             Body=chunk,
             Bucket=self.bucket_name,
@@ -110,24 +112,49 @@ class S3Uploader:
             PartNumber=part_number,
             UploadId=self._multipart["UploadId"],
         )
+        logging.debug(f"Uploaded part {part_number} for {self._key}", user="s3")
         etag = res["ResponseMetadata"]["HTTPHeaders"]["etag"]
-        self._parts.append((part_number, etag))
+        return part_number, etag
 
-    def _abort(self):
-        if not self._multipart:
-            return
-        logging.warning(f"Aborting upload for {self._key}", user="s3")
-        self._client.abort_multipart_upload(
-            Bucket=self.bucket_name,
-            Key=self._key,
-            UploadId=self._multipart["UploadId"],
+    async def _worker(self):
+        """
+        Async worker that continuously processes chunks in the queue.
+        Uploads to S3 and maintains part order.
+        """
+        part_number = 1
+
+        while True:
+            chunk = await self._queue.get()
+            if chunk is None:
+                break  # Exit signal received
+
+            # Upload the chunk in a thread pool, and block asyncio minimally
+            part_number, etag = await asyncio.get_running_loop().run_in_executor(
+                self._executor, self._upload_chunk, chunk, part_number
+            )
+            self._parts.append((part_number, etag))
+            part_number += 1
+            self._queue.task_done()  # Mark chunk as processed
+
+    async def init_file_upload(self, file_path: str):
+        # Offloading the upload initiation step to a thread.
+        await asyncio.get_running_loop().run_in_executor(
+            None, self._init_file_upload, file_path
         )
+        logging.debug("Starting background worker for chunk uploads.")
+        self._worker_task = asyncio.create_task(self._worker())
+
+    async def push_chunk(self, chunk: bytes):
+        """
+        Push chunk to the queue for background processing by the worker.
+        If the queue is full, wait until there's space.
+        """
+        await self._queue.put(chunk)
 
     def _complete(self):
         if not self._multipart:
-            raise Exception("Multipart upload not started")
+            return
 
-        logging.debug(f"Completing upload for {self._key}", user="s3")
         parts = [{"ETag": etag, "PartNumber": i} for i, etag in self._parts]
         self._client.complete_multipart_upload(
             Bucket=self.bucket_name,
@@ -139,19 +166,38 @@ class S3Uploader:
         self._parts = []
         self._key = None
 
-    async def init_file_upload(self, file_path: str):
-        await run_in_threadpool(self._init_file_upload, file_path)
-
-    async def push_chunk(self, chunk: bytes):
-        await run_in_threadpool(self._push_chunk, chunk)
-
-    async def abort(self):
-        await run_in_threadpool(self._abort)
-
     async def complete(self):
+        """
+        Signal the worker to complete and wait for uploads to finish.
+        Finalize the multipart upload.
+        """
+        await self._queue.put(None)  # Shutdown signal for the worker
+        if self._worker_task:
+            await self._worker_task  # Wait for the worker to finish.
+
+        logging.debug(f"Completing upload for {self._key}", user="s3")
         await run_in_threadpool(self._complete)
 
+    def _abort(self) -> None:
+        if not self._multipart:
+            return
+
+        logging.warning(f"Aborting upload for {self._key}", user="s3")
+        self._client.abort_multipart_upload(
+            Bucket=self.bucket_name,
+            Key=self._key,
+            UploadId=self._multipart["UploadId"],
+        )
+        self._multipart = None
+        self._parts = []
+        self._key = None
+
+    async def abort(self) -> None:
+        """Abort the multipart upload if there's an exception."""
+        await run_in_threadpool(self._abort)
+
     def __del__(self):
+        """Ensure clean-up if the object is destroyed prematurely."""
         self._abort()
 
 
@@ -160,6 +206,7 @@ async def handle_s3_upload(
     request: Request,
     path: str,
 ) -> int:
+    start_time = time.monotonic()
     client = await get_s3_client(storage)
     assert storage.bucket_name
     uploader = S3Uploader(client, storage.bucket_name)
@@ -181,6 +228,9 @@ async def handle_s3_upload(
         i += len(buff)
 
     await uploader.complete()
+    upload_time = time.monotonic() - start_time
+
+    logging.info(f"Uploaded {i} bytes to {path} in {upload_time:.2f} seconds")
     return i
 
 
