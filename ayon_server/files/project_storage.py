@@ -60,7 +60,7 @@ class ProjectStorage:
             return cls(
                 project_name,
                 "s3",
-                ayonconfig.default_project_storage_root,
+                ayonconfig.default_project_storage_root.lstrip("/"),
                 bucket_name=ayonconfig.default_project_storage_bucket_name,
                 cdn_resolver=ayonconfig.default_project_storage_cdn_resolver,
             )
