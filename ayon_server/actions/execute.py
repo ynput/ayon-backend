@@ -78,7 +78,7 @@ class ActionExecutor:
         await EventStream.dispatch(
             "action.launcher",
             hash=hash,
-            description=message or "Running action",
+            description=message or f"Running action {self.identifier}",
             summary=summary,
             payload=payload,
             user=self.user.name,
