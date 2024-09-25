@@ -1,6 +1,7 @@
 """Server configuration object"""
 
 import os
+from typing import Literal
 
 from aiocache import caches
 from pydantic import BaseModel, Field
@@ -31,12 +32,6 @@ class AyonConfig(BaseModel):
     api_modules_dir: str = Field(
         default="api",
         description="Path to the directory containing the API modules.",
-    )
-
-    project_data_dir: str = Field(
-        default="/storage/server/projects",
-        description="Path to the directory containing the project files."
-        " such as comment attachments, thumbnails, etc.",
     )
 
     avatar_dir: str = Field(
@@ -199,6 +194,8 @@ class AyonConfig(BaseModel):
         description="Path to the log file",
     )
 
+    # Metrics settings
+
     metrics_api_key: str | None = Field(
         default=None,
         description="API key allowing access to the system metrics endpoint",
@@ -214,12 +211,37 @@ class AyonConfig(BaseModel):
         description="Send saturated metrics to Ynput Cloud",
     )
 
+    # Email settings
+
     email_from: str = Field("noreply@ynput.cloud", description="Email sender address")
     email_smtp_host: str | None = Field(None, description="SMTP server hostname")
     email_smtp_port: int | None = Field(None, description="SMTP server port")
     email_smtp_tls: bool = Field(False, description="Use SSL for SMTP connection")
     email_smtp_user: str | None = Field(None, description="SMTP server username")
     email_smtp_pass: str | None = Field(None, description="SMTP server password")
+
+    # Project storage
+
+    default_project_storage_type: Literal["local", "s3"] = Field(
+        "local",
+        description="Default project storage type",
+    )
+
+    default_project_storage_root: str = Field(
+        default="/storage/server/projects",
+        description="Path to the directory containing the project files."
+        " such as comment attachments, thumbnails, etc.",
+    )
+
+    default_project_storage_bucket_name: str | None = Field(
+        default=None,
+        description="Default project storage bucket name (S3)",
+    )
+
+    default_project_storage_cdn_resolver: str | None = Field(
+        default=None,
+        description="Project files CDN resolver URL",
+    )
 
 
 #

@@ -19,11 +19,16 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException
+from ayon_server.files import Storages
 from ayon_server.helpers.get_entity_class import get_entity_class
-from ayon_server.helpers.project_files import delete_unused_files
 from ayon_server.types import Field, OPModel
 
 from .router import router
+
+
+async def delete_unused_files(project_name: str) -> None:
+    storage = await Storages.project(project_name)
+    await storage.delete_unused_files()
 
 
 class ProjectActivityPostModel(OPModel):
