@@ -105,6 +105,9 @@ class S3Uploader:
         Sync method for uploading a single chunk to S3.
         This will be offloaded to a thread by the background worker.
         """
+
+        assert self._multipart  # this shouldn't happen
+
         res = self._client.upload_part(
             Body=chunk,
             Bucket=self.bucket_name,
@@ -112,7 +115,6 @@ class S3Uploader:
             PartNumber=part_number,
             UploadId=self._multipart["UploadId"],
         )
-        logging.debug(f"Uploaded part {part_number} for {self._key}", user="s3")
         etag = res["ResponseMetadata"]["HTTPHeaders"]["etag"]
         return part_number, etag
 
@@ -130,18 +132,19 @@ class S3Uploader:
 
             # Upload the chunk in a thread pool, and block asyncio minimally
             part_number, etag = await asyncio.get_running_loop().run_in_executor(
-                self._executor, self._upload_chunk, chunk, part_number
+                self._executor,
+                self._upload_chunk,
+                chunk,
+                part_number,
             )
             self._parts.append((part_number, etag))
             part_number += 1
             self._queue.task_done()  # Mark chunk as processed
 
     async def init_file_upload(self, file_path: str):
-        # Offloading the upload initiation step to a thread.
         await asyncio.get_running_loop().run_in_executor(
-            None, self._init_file_upload, file_path
+            self._executor, self._init_file_upload, file_path
         )
-        logging.debug("Starting background worker for chunk uploads.")
         self._worker_task = asyncio.create_task(self._worker())
 
     async def push_chunk(self, chunk: bytes):
@@ -176,7 +179,7 @@ class S3Uploader:
             await self._worker_task  # Wait for the worker to finish.
 
         logging.debug(f"Completing upload for {self._key}", user="s3")
-        await run_in_threadpool(self._complete)
+        await asyncio.get_running_loop().run_in_executor(self._executor, self._complete)
 
     def _abort(self) -> None:
         if not self._multipart:
@@ -194,7 +197,7 @@ class S3Uploader:
 
     async def abort(self) -> None:
         """Abort the multipart upload if there's an exception."""
-        await run_in_threadpool(self._abort)
+        await asyncio.get_running_loop().run_in_executor(self._executor, self._abort)
 
     def __del__(self):
         """Ensure clean-up if the object is destroyed prematurely."""
