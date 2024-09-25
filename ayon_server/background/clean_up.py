@@ -6,7 +6,7 @@ from nxtools import log_traceback, logging
 
 from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.config import ayonconfig
-from ayon_server.helpers.project_files import delete_unused_files
+from ayon_server.files import Storages
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 
@@ -135,6 +135,11 @@ async def clear_events() -> None:
             )
         else:
             break
+
+
+async def delete_unused_files(project_name: str) -> None:
+    storage = await Storages.project(project_name)
+    await storage.delete_unused_files()
 
 
 class AyonCleanUp(BackgroundWorker):

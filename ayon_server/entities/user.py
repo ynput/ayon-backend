@@ -21,6 +21,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.helpers.email import send_mail
+from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import AccessType
@@ -160,6 +161,17 @@ class UserEntity(TopLevelEntity):
                 """,
                 self.name,
             )
+
+            # Unassign user from all tasks
+            projects = await get_project_list()
+            for project in projects:
+                query = f"""
+                    UPDATE project_{project.name}.tasks Set
+                    assignees = array_remove(assignees, '{self.name}')
+                    WHERE '{self.name}' = any(assignees)
+                """
+                await conn.execute(query)
+
             return res[0]["count"]
 
         if transaction:

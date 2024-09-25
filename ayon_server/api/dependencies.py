@@ -10,6 +10,7 @@ from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
+    ForbiddenException,
     NotFoundException,
     UnauthorizedException,
     UnsupportedMediaException,
@@ -140,7 +141,7 @@ async def dep_current_user(
         perms = user.permissions(project_name)
         if (perms is not None) and perms.endpoints.enabled:
             if endpoint not in perms.endpoints.endpoints:
-                raise UnauthorizedException(f"{endpoint} is not accessible")
+                raise ForbiddenException(f"{endpoint} is not accessible")
     return user
 
 
