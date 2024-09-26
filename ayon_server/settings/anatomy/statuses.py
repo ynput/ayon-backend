@@ -63,12 +63,14 @@ class Status(BaseSettingsModel):
     )
     scope: list[str] = SettingsField(
         default_factory=get_default_scopes,
-        example=["task"],
+        example=get_default_scopes(),
         enum_resolver=scope_enum,
         description="Limit the status to specific entity types.",
     )
     original_name: str | None = SettingsField(
-        None, scope=[]
+        None,
+        scope=[],
+        example=None,
     )  # Used for renaming, we don't show it in the UI
 
     @validator("original_name")
