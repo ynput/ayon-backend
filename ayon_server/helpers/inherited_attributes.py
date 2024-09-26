@@ -76,7 +76,6 @@ async def rebuild_inherited_attributes(
 ):
     """Rebuild inherited attributes for all objects in the project."""
     start = time.monotonic()
-    logging.debug("Rebuilding inherited attributes for", project_name)
 
     if pattr is None:
         project_attrib = {}
