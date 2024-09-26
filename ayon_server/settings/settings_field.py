@@ -78,7 +78,7 @@ def SettingsField(
     extra: dict[str, Any] = {}
 
     if examples and isinstance(examples, list):
-        extra["example"] = example[0]
+        extra["example"] = examples[0]
         # in pydantic 2, use:
         # extra["examples"] = examples
     if enum_resolver is not None:
