@@ -24,6 +24,10 @@ def scope_enum() -> list[dict[str, str]]:
     ]
 
 
+def get_default_scopes():
+    return get_args(ProjectLevelEntityType)
+
+
 class Status(BaseSettingsModel):
     _layout: str = "compact"
 
@@ -57,14 +61,11 @@ class Status(BaseSettingsModel):
         widget="color",
         example="#3498db",
     )
-    scope: list[str] | None = SettingsField(
-        None,
+    scope: list[str] = SettingsField(
+        default_factory=get_default_scopes,
         example=["task"],
         enum_resolver=scope_enum,
-        description=(
-            "Limit the status to specific entity types. "
-            " If empty, the status is available for all entity types."
-        ),
+        description="Limit the status to specific entity types.",
     )
     original_name: str | None = SettingsField(
         None, scope=[]
@@ -93,7 +94,6 @@ default_statuses = [
         icon="fiber_new",
         color="#434a56",
         state="not_started",
-        scope=None,
     ),
     Status(
         name="Ready to start",
@@ -101,7 +101,6 @@ default_statuses = [
         icon="timer",
         color="#bababa",
         state="not_started",
-        scope=None,
     ),
     Status(
         name="In progress",
@@ -109,7 +108,6 @@ default_statuses = [
         icon="play_arrow",
         color="#3498db",
         state="in_progress",
-        scope=None,
     ),
     Status(
         name="Pending review",
@@ -117,7 +115,6 @@ default_statuses = [
         icon="visibility",
         color="#ff9b0a",
         state="in_progress",
-        scope=None,
     ),
     Status(
         name="Approved",
@@ -125,7 +122,6 @@ default_statuses = [
         icon="task_alt",
         color="#00f0b4",
         state="done",
-        scope=None,
     ),
     Status(
         name="On hold",
@@ -133,7 +129,6 @@ default_statuses = [
         icon="back_hand",
         color="#fa6e46",
         state="blocked",
-        scope=None,
     ),
     Status(
         name="Omitted",
@@ -141,6 +136,5 @@ default_statuses = [
         icon="block",
         color="#cb1a1a",
         state="blocked",
-        scope=None,
     ),
 ]
