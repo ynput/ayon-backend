@@ -79,12 +79,6 @@ class Status(BaseSettingsModel):
             return values["name"]
         return v
 
-    @validator("scope")
-    def validate_scope(cls, v, values):
-        if v == []:
-            return None
-        return v
-
     def __hash__(self):
         return hash(self.name)
 
