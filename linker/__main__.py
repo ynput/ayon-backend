@@ -31,6 +31,7 @@ async def main() -> None:
     if not data:
         critical_error("No data provided")
 
+    gen_config: dict[str, str] = {}
     try:
         gen_config = json.loads(data)
     except Exception:

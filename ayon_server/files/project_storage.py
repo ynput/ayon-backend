@@ -214,4 +214,6 @@ class ProjectStorage:
             path = await self.get_path(file_id)
         elif self.storage_type == "s3":
             path = await self.get_signed_url(file_id)
+        else:
+            raise ValueError("Unknown storage type")
         return await extract_media_info(path)

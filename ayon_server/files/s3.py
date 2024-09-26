@@ -4,13 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
-try:
-    import boto3
-
-    has_boto3 = True
-except ModuleNotFoundError:
-    has_boto3 = False
-
+import boto3
 from fastapi import Request
 from nxtools import logging
 from pydantic import BaseModel, Field
@@ -45,8 +39,6 @@ def _get_s3_client(storage: "ProjectStorage"):
             cfg = {}
         else:
             cfg = storage.s3_config.dict(exclude_none=True)
-        if not has_boto3:
-            raise Exception("boto3 is not installed")
         storage._s3_client = boto3.client("s3", **cfg)
     return storage._s3_client
 

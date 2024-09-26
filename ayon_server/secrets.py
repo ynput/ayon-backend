@@ -3,7 +3,7 @@ from ayon_server.lib.postgres import Postgres
 
 class Secrets:
     @classmethod
-    async def get(self, key: str) -> str | None:
+    async def get(cls, key: str) -> str | None:
         """
         Get a secret. Return None if it doesn't exist.
         """
@@ -14,7 +14,7 @@ class Secrets:
         return res[0]["value"]
 
     @classmethod
-    async def set(self, key: str, value: str):
+    async def set(cls, key: str, value: str):
         """
         Set a secret. Create it if it doesn't exist.
         """
@@ -25,7 +25,7 @@ class Secrets:
         await Postgres.execute(query, key, value)
 
     @classmethod
-    async def delete(self, key: str):
+    async def delete(cls, key: str):
         """
         Delete a secret.
         """
@@ -33,7 +33,7 @@ class Secrets:
         await Postgres.execute(query, key)
 
     @classmethod
-    async def all(self) -> dict[str, str]:
+    async def all(cls) -> dict[str, str]:
         """
         Return a dictionary of all secrets.
         """
