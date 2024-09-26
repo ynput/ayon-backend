@@ -61,7 +61,7 @@ class Status(BaseSettingsModel):
         widget="color",
         example="#3498db",
     )
-    scope: list[str] = SettingsField(
+    scope: list[str] | None = SettingsField(
         default_factory=get_default_scopes,
         example=get_default_scopes(),
         enum_resolver=scope_enum,
@@ -77,6 +77,12 @@ class Status(BaseSettingsModel):
     def validate_original_name(cls, v, values):
         if v is None:
             return values["name"]
+        return v
+
+    @validator("scope")
+    def validate_scope(cls, v, values):
+        if v is None:
+            return get_default_scopes()
         return v
 
     def __hash__(self):
