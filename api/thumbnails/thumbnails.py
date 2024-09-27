@@ -54,6 +54,11 @@ async def body_from_request(request: Request) -> bytes:
 
 
 def get_fake_thumbnail_response() -> Response:
+    """Generate a "fake thumbnail" response.
+
+    This function creates a FastAPI Response object containing an
+    1x1 transparent png and appropriate headers.
+    """
     response = Response(status_code=203, content=get_fake_thumbnail())
     response.headers["Content-Type"] = "image/png"
     response.headers["Cache-Control"] = f"max-age={30}"
@@ -180,6 +185,7 @@ async def get_thumbnail(
     project_name: ProjectName,
     thumbnail_id: ThumbnailID,
     placeholder: PlaceholderOption = Query("empty"),
+    original: bool = Query(False),
 ) -> Response:
     """Get a thumbnail by its ID.
 

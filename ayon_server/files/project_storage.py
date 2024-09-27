@@ -82,6 +82,12 @@ class ProjectStorage:
         file_id: str,
         file_group: FileGroup = "uploads",
     ) -> str:
+        """Return the full path to the file on the storage
+
+        In the case of S3, the resulting path is used as the key (relative
+        path from the bucket), while in the case of local storage, it's
+        the full path to the file on the disk.
+        """
         root = await self.get_root()
         assert file_group in ["uploads", "thumbnails"], "Invalid file group"
         _file_id = file_id.replace("-", "")
@@ -104,9 +110,9 @@ class ProjectStorage:
         file_group: FileGroup = "uploads",
         ttl: int = 3600,
     ) -> str:
-        """Return a signed URL for the file
+        """Return a signed URL to access the file on the storage over HTTP
 
-        This is only supported for S3 storages
+        This method is only supported for S3 storages.
         """
         if self.storage_type == "s3":
             path = await self.get_path(file_id, file_group=file_group)
