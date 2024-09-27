@@ -77,7 +77,10 @@ async def store_s3_file(storage: "ProjectStorage", key: str, data: bytes) -> Non
 
 def _retrieve_s3_file(storage: "ProjectStorage", key: str) -> bytes:
     client = _get_s3_client(storage)
-    response = client.get_object(Bucket=storage.bucket_name, Key=key)
+    try:
+        response = client.get_object(Bucket=storage.bucket_name, Key=key)
+    except client.exceptions.NoSuchKey as e:
+        raise FileNotFoundError() from e
     return response["Body"].read()
 
 
@@ -87,7 +90,10 @@ async def retrieve_s3_file(storage: "ProjectStorage", key: str) -> bytes:
 
 def _delete_s3_file(storage: "ProjectStorage", key: str):
     client = _get_s3_client(storage)
-    client.delete_object(Bucket=storage.bucket_name, Key=key)
+    try:
+        client.delete_object(Bucket=storage.bucket_name, Key=key)
+    except client.exceptions.NoSuchKey:
+        pass  # fail silently
 
 
 async def delete_s3_file(storage: "ProjectStorage", key: str):
