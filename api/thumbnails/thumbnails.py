@@ -116,6 +116,7 @@ async def retrieve_thumbnail(
     project_name: str,
     thumbnail_id: str | None,
     placeholder: PlaceholderOption = "none",
+    original: bool = False,
 ) -> Response:
     query = f"SELECT * FROM project_{project_name}.thumbnails WHERE id = $1"
     if thumbnail_id is not None:
@@ -216,7 +217,9 @@ async def get_thumbnail(
     if not user.is_manager:
         raise ForbiddenException("Only managers can access arbitrary thumbnails")
 
-    return await retrieve_thumbnail(project_name, thumbnail_id, placeholder)
+    return await retrieve_thumbnail(
+        project_name, thumbnail_id, placeholder=placeholder, original=original
+    )
 
 
 #
@@ -259,6 +262,7 @@ async def get_folder_thumbnail(
     project_name: ProjectName,
     folder_id: FolderID,
     placeholder: PlaceholderOption = Query("empty"),
+    original: bool = Query(False),
 ) -> Response:
     try:
         folder = await FolderEntity.load(project_name, folder_id)
@@ -268,7 +272,9 @@ async def get_folder_thumbnail(
             return get_fake_thumbnail_response()
         raise e
 
-    return await retrieve_thumbnail(project_name, folder.thumbnail_id, placeholder)
+    return await retrieve_thumbnail(
+        project_name, folder.thumbnail_id, placeholder=placeholder, original=original
+    )
 
 
 #
@@ -308,6 +314,7 @@ async def get_version_thumbnail(
     project_name: ProjectName,
     version_id: VersionID,
     placeholder: PlaceholderOption = Query("empty"),
+    original: bool = Query(False),
 ) -> Response:
     try:
         version = await VersionEntity.load(project_name, version_id)
@@ -316,7 +323,9 @@ async def get_version_thumbnail(
         if placeholder == "empty":
             return get_fake_thumbnail_response()
         raise e
-    return await retrieve_thumbnail(project_name, version.thumbnail_id, placeholder)
+    return await retrieve_thumbnail(
+        project_name, version.thumbnail_id, placeholder=placeholder, original=original
+    )
 
 
 #
@@ -358,6 +367,7 @@ async def get_workfile_thumbnail(
     project_name: ProjectName,
     workfile_id: WorkfileID,
     placeholder: PlaceholderOption = Query("empty"),
+    original: bool = Query(False),
 ) -> Response:
     try:
         workfile = await WorkfileEntity.load(project_name, workfile_id)
@@ -367,7 +377,9 @@ async def get_workfile_thumbnail(
             return get_fake_thumbnail_response()
         else:
             raise NotFoundException("Workfile not found")
-    return await retrieve_thumbnail(project_name, workfile.thumbnail_id, placeholder)
+    return await retrieve_thumbnail(
+        project_name, workfile.thumbnail_id, placeholder=placeholder, original=original
+    )
 
 
 #
@@ -427,6 +439,7 @@ async def get_task_thumbnail(
     project_name: ProjectName,
     task_id: TaskID,
     placeholder: PlaceholderOption = Query("empty"),
+    original: bool = Query(False),
 ) -> Response:
     try:
         task = await TaskEntity.load(project_name, task_id)
@@ -446,4 +459,6 @@ async def get_task_thumbnail(
     else:
         thumbnail_id = task.thumbnail_id
 
-    return await retrieve_thumbnail(project_name, thumbnail_id, placeholder)
+    return await retrieve_thumbnail(
+        project_name, thumbnail_id, placeholder=placeholder, original=original
+    )
