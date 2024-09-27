@@ -19,10 +19,14 @@ async def clear_thumbnails(project_name: str) -> None:
 
     Delete only thumbnails older than 24 hours.
     """
+
+    # keep this outside the query - it's easier to debug this way
+    older_cond = "created_at < 'yesterday'::timestamp AND"
+    # older_cond = ""
+
     query = f"""
         DELETE FROM project_{project_name}.thumbnails
-        WHERE created_at < 'yesterday'::timestamp
-        AND id NOT IN (
+        WHERE {older_cond} id NOT IN (
             SELECT thumbnail_id id FROM project_{project_name}.folders
             WHERE thumbnail_id IS NOT NULL
             UNION

@@ -92,7 +92,7 @@ async def store_thumbnail(
         thumbnail = payload
     else:
         storage = await Storages.project(project_name)
-        await storage.store_thumbnail(thumbnail_id, thumbnail)
+        await storage.store_thumbnail(thumbnail_id, payload)
 
     query = f"""
         INSERT INTO project_{project_name}.thumbnails (id, mime, data)
@@ -128,7 +128,6 @@ async def retrieve_thumbnail(
             if res:
                 payload = None
                 if original:
-                    logging.debug("fetching original thumbnail")
                     storage = await Storages.project(project_name)
                     payload = await storage.get_thumbnail(thumbnail_id)
 
