@@ -6,9 +6,10 @@ CREATE TABLE thumbnails(
     id UUID NOT NULL PRIMARY KEY,
     mime VARCHAR NOT NULL,
     data BYTEA NOT NULL,
+    meta JSONB NOT NULL DEFAULT '{}'::JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
- 
+
 ALTER TABLE thumbnails ALTER COLUMN data SET STORAGE EXTERNAL;
 
 
@@ -73,7 +74,7 @@ CREATE INDEX IF NOT EXISTS idx_activity_reference_created_at ON activity_referen
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_reference_unique ON activity_references(activity_id, entity_id, entity_name, reference_type);
 
 
--- This will be implemented later. 
+-- This will be implemented later.
 -- Now we can create the table, but until we start populating it
 -- and invalidating it, hierarchy crawling won't work (but won't break)
 
@@ -86,7 +87,7 @@ CREATE INDEX IF NOT EXISTS entity_paths_path_idx ON entity_paths USING GIN (path
 
 
 CREATE OR REPLACE VIEW activity_feed AS
-  SELECT 
+  SELECT
     ref.id as reference_id,
     ref.activity_id as activity_id,
     ref.reference_type as reference_type,
@@ -94,12 +95,12 @@ CREATE OR REPLACE VIEW activity_feed AS
     -- what entity we're referencing
     ref.entity_type as entity_type,
     ref.entity_id as entity_id, -- for project level entities and other activities
-    ref.entity_name as entity_name, -- for users   
+    ref.entity_name as entity_name, -- for users
     ref_paths.path as entity_path, -- entity hierarchy position
 
     -- sorting stuff
-    ref.created_at, 
-    ref.updated_at, 
+    ref.created_at,
+    ref.updated_at,
     ref.creation_order,
 
     -- actual activity
@@ -114,7 +115,7 @@ CREATE OR REPLACE VIEW activity_feed AS
   INNER JOIN
     activities as act ON ref.activity_id = act.id
   LEFT JOIN
-    entity_paths as ref_paths ON ref.entity_id = ref_paths.entity_id; 
+    entity_paths as ref_paths ON ref.entity_id = ref_paths.entity_id;
 
 
 CREATE TABLE IF NOT EXISTS files (
@@ -162,18 +163,18 @@ CREATE UNIQUE INDEX folder_creation_order_idx ON folders(creation_order);
 
 -- Two partial indices are used as a workaround for root folders (which have parent_id NULL)
 
-CREATE UNIQUE INDEX folder_unique_name_parent ON folders (parent_id, name) 
+CREATE UNIQUE INDEX folder_unique_name_parent ON folders (parent_id, name)
     WHERE (active IS TRUE AND parent_id IS NOT NULL);
 
-CREATE UNIQUE INDEX folder_root_unique_name ON folders (name) 
+CREATE UNIQUE INDEX folder_root_unique_name ON folders (name)
     WHERE (active IS TRUE AND parent_id IS NULL);
 
 
 -- Hierarchy view
 -- Materialized view used as a shorthand to get folder parents/full path
 
-CREATE MATERIALIZED VIEW hierarchy 
-AS 
+CREATE MATERIALIZED VIEW hierarchy
+AS
     WITH htable AS (
         WITH RECURSIVE hierarchy AS (
             SELECT id, name, parent_id, 1 as pos, id as base_id
@@ -289,7 +290,7 @@ CREATE MATERIALIZED VIEW version_list
 AS
     SELECT
         v.product_id AS product_id,
-        array_agg(v.id ORDER BY v.version ) AS ids, 
+        array_agg(v.id ORDER BY v.version ) AS ids,
         array_agg(v.version ORDER BY v.version ) AS versions
     FROM
         versions AS v

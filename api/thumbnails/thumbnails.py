@@ -75,6 +75,7 @@ async def store_thumbnail(
     thumbnail_id: str,
     mime: str,
     payload: bytes,
+    user_name: str | None = None,
 ):
     if len(payload) < 10:
         raise BadRequestException("Thumbnail cannot be empty")
@@ -94,14 +95,22 @@ async def store_thumbnail(
         storage = await Storages.project(project_name)
         await storage.store_thumbnail(thumbnail_id, payload)
 
+    meta = {
+        "originalSize": len(payload),
+        "thumbnailSize": len(thumbnail),
+        "mime": mime,  # eventually, we'll drop the column
+    }
+    if user_name:
+        meta["author"] = user_name
+
     query = f"""
-        INSERT INTO project_{project_name}.thumbnails (id, mime, data)
-        VALUES ($1, $2, $3)
+        INSERT INTO project_{project_name}.thumbnails (id, mime, data, meta)
+        VALUES ($1, $2, $3, $4)
         ON CONFLICT (id)
-        DO UPDATE SET data = EXCLUDED.data
+        DO UPDATE SET data = EXCLUDED.data, meta = EXCLUDED.meta
         RETURNING id
     """
-    await Postgres.execute(query, thumbnail_id, mime, thumbnail)
+    await Postgres.execute(query, thumbnail_id, mime, thumbnail, meta)
     for entity_type in ["workfiles", "versions", "folders", "tasks"]:
         await Postgres.execute(
             f"""
@@ -177,7 +186,9 @@ async def create_thumbnail(
     """
     thumbnail_id = EntityID.create()
     payload = await body_from_request(request)
-    await store_thumbnail(project_name, thumbnail_id, content_type, payload)
+    await store_thumbnail(
+        project_name, thumbnail_id, content_type, payload, user_name=user.name
+    )
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
@@ -202,7 +213,9 @@ async def update_thumbnail(
     if not user.is_manager:
         raise ForbiddenException("Only managers can update arbitrary thumbnails")
     payload = await body_from_request(request)
-    await store_thumbnail(project_name, thumbnail_id, content_type, payload)
+    await store_thumbnail(
+        project_name, thumbnail_id, content_type, payload, user_name=user.name
+    )
     return EmptyResponse()
 
 
@@ -259,6 +272,7 @@ async def create_folder_thumbnail(
         thumbnail_id=thumbnail_id,
         mime=content_type,
         payload=payload,
+        user_name=user.name,
     )
     folder.thumbnail_id = thumbnail_id
     await folder.save()
@@ -311,6 +325,7 @@ async def create_version_thumbnail(
         thumbnail_id=thumbnail_id,
         mime=content_type,
         payload=payload,
+        user_name=user.name,
     )
     version.thumbnail_id = thumbnail_id
     await version.save()
@@ -362,6 +377,7 @@ async def create_workfile_thumbnail(
         thumbnail_id=thumbnail_id,
         mime=content_type,
         payload=payload,
+        user_name=user.name,
     )
     workfile.thumbnail_id = thumbnail_id
     await workfile.save()
