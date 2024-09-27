@@ -126,11 +126,18 @@ async def retrieve_thumbnail(
             pass  # project does not exist
         else:
             if res:
+                payload = None
+                if original:
+                    logging.debug("fetching original thumbnail")
+                    storage = await Storages.project(project_name)
+                    payload = await storage.get_thumbnail(thumbnail_id)
+
                 record = res[0]
+                payload = payload or record["data"]
                 return Response(
                     media_type=record["mime"],
                     status_code=200,
-                    content=record["data"],
+                    content=payload,
                     headers={
                         "X-Thumbnail-Id": thumbnail_id,
                         "X-Thumbnail-Time": str(record.get("created_at", 0)),

@@ -14,6 +14,7 @@ from ayon_server.files.s3 import (
     delete_s3_file,
     get_signed_url,
     handle_s3_upload,
+    retrieve_s3_file,
     store_s3_file,
 )
 from ayon_server.helpers.cloud import get_instance_id
@@ -294,7 +295,8 @@ class ProjectStorage:
 
         Raises `FileNotFoundError` if the thumbnail is not found.
         """
-        return b""
+        path = await self.get_path(thumbnail_id, file_group="thumbnails")
+        return await retrieve_s3_file(self, path)
 
     async def delete_thumbnail(self, thumbnail_id: str) -> None:
         """Delete the thumbnail image from the storage.
