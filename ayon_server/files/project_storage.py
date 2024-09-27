@@ -296,6 +296,16 @@ class ProjectStorage:
         Raises `FileNotFoundError` if the thumbnail is not found.
         """
         path = await self.get_path(thumbnail_id, file_group="thumbnails")
+        if self.storage_type == "local":
+            try:
+                async with aiofiles.open(path, "rb") as f:
+                    return await f.read()
+            except FileNotFoundError as e:
+                raise FileNotFoundError(
+                    f"Thumbnail {thumbnail_id} not found on {self}"
+                ) from e
+            except Exception as e:
+                raise AyonException(f"Failed to read file: {e}") from e
         return await retrieve_s3_file(self, path)
 
     async def delete_thumbnail(self, thumbnail_id: str) -> None:

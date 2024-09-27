@@ -129,7 +129,10 @@ async def retrieve_thumbnail(
                 payload = None
                 if original:
                     storage = await Storages.project(project_name)
-                    payload = await storage.get_thumbnail(thumbnail_id)
+                    try:
+                        payload = await storage.get_thumbnail(thumbnail_id)
+                    except FileNotFoundError:
+                        pass
 
                 record = res[0]
                 payload = payload or record["data"]
