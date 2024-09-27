@@ -161,7 +161,6 @@ class ProjectStorage:
         """
 
         path = await self.get_path(file_id, file_group=file_group)
-        logging.debug(f"Unlinking file {file_id} from {self} ({file_group})")
         if self.storage_type == "local":
             try:
                 os.remove(path)
@@ -179,15 +178,16 @@ class ProjectStorage:
                     logging.error(f"Failed to delete directory on {self}: {e}")
             return True
 
-        if self.storage_type == "s3":
+        elif self.storage_type == "s3":
             assert self.bucket_name  # mypy
             try:
                 await delete_s3_file(self, path)
             except Exception as e:
                 logging.error(f"Failed to delete file: {e}")
                 return False
-
-        raise Exception("Unknown storage type")
+            return True
+        else:
+            raise Exception("Unknown storage type")
 
     # Project files (uploads) methods
     # for comment attachment and reviewables
@@ -301,4 +301,5 @@ class ProjectStorage:
 
         Fail silently if the thumbnail is not found.
         """
-        return None
+        logging.debug(f"Deleting thumbnail {thumbnail_id} from {self}")
+        await self.unlink(thumbnail_id, file_group="thumbnails")
