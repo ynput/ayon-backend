@@ -2,16 +2,19 @@ import os
 from typing import Any, Literal
 
 import aiocache
+import aiofiles
 from fastapi import Request
 from nxtools import logging
 
 from ayon_server.api.files import handle_upload
 from ayon_server.config import ayonconfig
+from ayon_server.exceptions import AyonException
 from ayon_server.files.s3 import (
     S3Config,
     delete_s3_file,
     get_signed_url,
     handle_s3_upload,
+    store_s3_file,
 )
 from ayon_server.helpers.cloud import get_instance_id
 from ayon_server.helpers.ffprobe import extract_media_info
@@ -47,6 +50,12 @@ class ProjectStorage:
             self.bucket_name = bucket_name
             self.s3_config = s3_config or S3Config()
         self.cdn_resolver = cdn_resolver
+
+    def __repr__(self) -> str:
+        return f"<ProjectStorage {self.project_name} {self.storage_type}>"
+
+    def __str__(self) -> str:
+        return f"{self.project_name} {self.storage_type} storage"
 
     # Base storage methods
 
@@ -131,6 +140,7 @@ class ProjectStorage:
         Takes an incoming FastAPI request and saves the file to the
         project storage. Returns the number of bytes written.
         """
+        logging.debug(f"Uploading file {file_id} to {self} ({file_group})")
         path = await self.get_path(file_id, file_group=file_group)
         if self.storage_type == "local":
             return await handle_upload(request, path)
@@ -151,7 +161,7 @@ class ProjectStorage:
         """
 
         path = await self.get_path(file_id, file_group=file_group)
-        logging.debug(f"Unlinking file {file_id} from {file_group}")
+        logging.debug(f"Unlinking file {file_id} from {self} ({file_group})")
         if self.storage_type == "local":
             try:
                 os.remove(path)
@@ -160,13 +170,13 @@ class ProjectStorage:
             except Exception as e:
                 logging.error(f"Failed to delete file: {e}")
                 return False
-            else:
-                directory = os.path.dirname(path)
-                if os.path.exists(directory):
-                    try:
-                        os.rmdir(directory)
-                    except Exception as e:
-                        logging.error(f"Failed to delete directory: {e}")
+
+            directory = os.path.dirname(path)
+            if os.path.isdir(directory) and (not os.listdir(directory)):
+                try:
+                    os.rmdir(directory)
+                except Exception as e:
+                    logging.error(f"Failed to delete directory on {self}: {e}")
             return True
 
         if self.storage_type == "s3":
@@ -236,7 +246,7 @@ class ProjectStorage:
         """
 
         async for row in Postgres.iterate(query):
-            logging.debug(f"Deleting unused file {row['id']}")
+            logging.debug(f"Deleting unused file {row['id']} from {self}")
             try:
                 await self.delete_file(row["id"])
             except Exception:
@@ -252,7 +262,7 @@ class ProjectStorage:
         elif self.storage_type == "s3":
             path = await self.get_signed_url(file_id)
         else:
-            raise ValueError("Unknown storage type")
+            raise AyonException("Unknown storage type")
         return await extract_media_info(path)
 
     # Thumbnail methods
@@ -261,7 +271,23 @@ class ProjectStorage:
 
     async def store_thumbnail(self, thumbnail_id: str, payload: bytes) -> None:
         """Store the thumbnail image in the storage."""
-        return None
+        logging.debug(f"Storing thumbnail {thumbnail_id} to {self}")
+        path = await self.get_path(thumbnail_id, file_group="thumbnails")
+        if self.storage_type == "local":
+            directory, _ = os.path.split(path)
+            if not os.path.isdir(directory):
+                try:
+                    os.makedirs(directory)
+                except Exception as e:
+                    raise AyonException(f"Failed to create directory: {e}") from e
+
+            try:
+                async with aiofiles.open(path, "wb") as f:
+                    await f.write(payload)
+            except Exception as e:
+                raise AyonException(f"Failed to write file: {e}") from e
+        elif self.storage_type == "s3":
+            return await store_s3_file(self, path, payload)
 
     async def get_thumbnail(self, thumbnail_id: str) -> bytes:
         """Retrieve the thumbnail image from the storage.
