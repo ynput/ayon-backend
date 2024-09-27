@@ -110,8 +110,8 @@ class S3Uploader:
         self.bucket_name = bucket_name
 
         # Limited-size async queue for chunk uploads to prevent over-filling
-        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=max_queue_size)
-        self._worker_task: asyncio.Task[Any] | None = None
+        self._queue = asyncio.Queue(maxsize=max_queue_size)
+        self._worker_task = None
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
 
     def _init_file_upload(self, key: str):
