@@ -2,7 +2,7 @@ import asyncio
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import boto3
 from fastapi import Request
@@ -67,6 +67,9 @@ async def get_signed_url(storage: "ProjectStorage", key: str, ttl: int = 3600) -
 
 
 class S3Uploader:
+    _worker_task: asyncio.Task[Any] | None
+    _queue: asyncio.Queue[bytes | None]
+
     def __init__(self, client, bucket_name: str, max_queue_size=5, max_workers=4):
         self._client = client
         self._multipart = None
