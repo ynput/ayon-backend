@@ -99,6 +99,9 @@ async def delete_s3_file(storage: "ProjectStorage", key: str):
 
 
 class S3Uploader:
+    _worker_task: asyncio.Task[Any] | None
+    _queue: asyncio.Queue[bytes | None]
+
     def __init__(self, client, bucket_name: str, max_queue_size=5, max_workers=4):
         self._client = client
         self._multipart = None
