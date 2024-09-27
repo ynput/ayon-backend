@@ -25,7 +25,12 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
-from ayon_server.helpers.thumbnails import get_fake_thumbnail
+from ayon_server.files import Storages
+from ayon_server.helpers.thumbnails import (
+    ThumbnailProcessNoop,
+    get_fake_thumbnail,
+    process_thumbnail,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID
@@ -74,6 +79,21 @@ async def store_thumbnail(
     if len(payload) < 10:
         raise BadRequestException("Thumbnail cannot be empty")
 
+    MAX_THUMBNAIL_WIDTH = 600
+    MAX_THUMBNAIL_HEIGHT = 600
+
+    try:
+        thumbnail = await process_thumbnail(
+            payload,
+            (MAX_THUMBNAIL_WIDTH, MAX_THUMBNAIL_HEIGHT),
+            raise_on_noop=True,
+        )
+    except ThumbnailProcessNoop:
+        thumbnail = payload
+    else:
+        storage = await Storages.project(project_name)
+        await storage.store_thumbnail(thumbnail_id, thumbnail)
+
     query = f"""
         INSERT INTO project_{project_name}.thumbnails (id, mime, data)
         VALUES ($1, $2, $3)
@@ -81,7 +101,7 @@ async def store_thumbnail(
         DO UPDATE SET data = EXCLUDED.data
         RETURNING id
     """
-    await Postgres.execute(query, thumbnail_id, mime, payload)
+    await Postgres.execute(query, thumbnail_id, mime, thumbnail)
     for entity_type in ["workfiles", "versions", "folders", "tasks"]:
         await Postgres.execute(
             f"""
