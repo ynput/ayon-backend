@@ -27,6 +27,8 @@ from ayon_server.exceptions import (
 )
 from ayon_server.files import Storages
 from ayon_server.helpers.thumbnails import (
+    MAX_THUMBNAIL_HEIGHT,
+    MAX_THUMBNAIL_WIDTH,
     ThumbnailProcessNoop,
     get_fake_thumbnail,
     process_thumbnail,
@@ -79,9 +81,6 @@ async def store_thumbnail(
 ):
     if len(payload) < 10:
         raise BadRequestException("Thumbnail cannot be empty")
-
-    MAX_THUMBNAIL_WIDTH = 600
-    MAX_THUMBNAIL_HEIGHT = 600
 
     try:
         thumbnail = await process_thumbnail(

@@ -6,6 +6,9 @@ from nxtools import logging
 from PIL import Image
 from starlette.concurrency import run_in_threadpool
 
+MAX_THUMBNAIL_WIDTH = 600
+MAX_THUMBNAIL_HEIGHT = 600
+
 
 class ThumbnailProcessNoop(Exception):
     pass
