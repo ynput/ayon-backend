@@ -1,12 +1,14 @@
+from typing import Annotated
+
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 
 class UserCounts(OPModel):
-    total: int = Field(0, title="Total users", example=69)
-    active: int = Field(0, title="Active users", example=42)
-    admins: int = Field(0, title="Admin users", example=1)
-    managers: int = Field(0, title="Manager users", example=8)
+    total: Annotated[int, Field(title="Total users", example=69)] = 0
+    active: Annotated[int, Field(title="Active users", example=42)] = 0
+    admins: Annotated[int, Field(title="Admin users", example=1)] = 0
+    managers: Annotated[int, Field(title="Manager users", example=8)] = 0
 
 
 async def get_user_counts(

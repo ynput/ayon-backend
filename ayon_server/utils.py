@@ -21,7 +21,8 @@ def json_loads(data: str) -> Any:
     return orjson.loads(data)
 
 
-def isinstance_namedtuple(obj) -> bool:
+def isinstance_namedtuple(obj: Any) -> bool:
+    """Check if an object is an instance of a named tuple."""
     return (
         isinstance(obj, tuple) and hasattr(obj, "_asdict") and hasattr(obj, "_fields")
     )
@@ -52,8 +53,6 @@ def json_default_handler(value: Any) -> Any:
 
 def json_dumps(data: Any, *, default: Callable[[Any], Any] | None = None) -> str:
     """Dump JSON data."""
-    # return json.dumps(data)
-    # TODO: orjson does not support namedtuples correclty. we need to support is as list
     return orjson.dumps(data, default=json_default_handler).decode()
 
 
