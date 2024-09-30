@@ -29,6 +29,8 @@ async def process_project_thumbnails(project_name: str) -> None:
 
 
 class ThumbnailsProcessing(BackgroundWorker):
+    oneshot = True
+
     async def run(self):
         # await asyncio.sleep(120)
         try:
@@ -40,7 +42,8 @@ class ThumbnailsProcessing(BackgroundWorker):
             await process_project_thumbnails(project.name)
             await asyncio.sleep(0.1)
 
-        await self.shutdown()
+        logging.debug("thumb process end")
+        # await self.shutdown()
 
 
 thumbnails_processing = ThumbnailsProcessing()
