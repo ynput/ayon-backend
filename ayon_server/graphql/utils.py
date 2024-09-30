@@ -55,7 +55,8 @@ def parse_attrib_data(
             if key in inherited_attrib:
                 data[key] = inherited_attrib[key]
 
-    if project_attrib is not None:
+    project_attrib = {**attribute_library.project_defaults, **(project_attrib or {})}
+    if project_attrib:
         for key in attribute_library.inheritable_attributes():
             if data.get(key) is not None:
                 continue

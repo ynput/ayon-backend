@@ -21,6 +21,38 @@ from ayon_server.lib.postgres import Postgres
 
 
 DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
+    "priority": {
+        "scope": "P, F, T",
+        "type": "string",
+        "title": "Priority",
+        "default": "normal",
+        "enum": [
+            {
+                "value": "low",
+                "label": "Low",
+                "color": "#9FA7B1",
+                "icon": "keyboard_arrow_down",
+            },
+            {
+                "value": "normal",
+                "label": "Normal",
+                "color": "#9AC0E7",
+                "icon": "check_indeterminate_small",
+            },
+            {
+                "value": "high",
+                "label": "High",
+                "color": "#FFAD66",
+                "icon": "keyboard_arrow_up",
+            },
+            {
+                "value": "urgent",
+                "label": "Urgent",
+                "color": "#FF8585",
+                "icon": "keyboard_double_arrow_up",
+            },
+        ],
+    },
     "fps": {
         "scope": "P, F, V, R, T",
         "type": "float",

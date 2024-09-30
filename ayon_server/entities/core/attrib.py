@@ -113,6 +113,15 @@ class AttributeLibrary:
     def __getitem__(self, key) -> list[dict[str, Any]]:
         return self.data[key]
 
+    @property
+    def project_defaults(self) -> dict[str, Any]:
+        project_attribs = self.data.get("project", [])
+        defaults = {}
+        for attr in project_attribs:
+            if "default" in attr:
+                defaults[attr["name"]] = attr["default"]
+        return defaults
+
     @functools.cache
     def inheritable_attributes(self) -> list[str]:
         result = set()

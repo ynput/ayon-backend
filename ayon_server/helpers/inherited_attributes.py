@@ -76,10 +76,9 @@ async def rebuild_inherited_attributes(
 ):
     """Rebuild inherited attributes for all objects in the project."""
     start = time.monotonic()
-    logging.debug("Rebuilding inherited attributes for", project_name)
 
     if pattr is None:
-        project_attrib = {}
+        project_attrib = attribute_library.project_defaults
         res = await Postgres.fetch(
             "SELECT attrib FROM projects WHERE name = $1", project_name
         )

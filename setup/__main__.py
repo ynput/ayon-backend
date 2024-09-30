@@ -8,6 +8,7 @@ from typing import Any
 from nxtools import critical_error, log_to_file, log_traceback, logging
 
 from ayon_server.config import ayonconfig
+from ayon_server.helpers.project_list import get_project_list
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_loads
@@ -150,6 +151,12 @@ async def main(force: bool | None = None) -> None:
             logging.warning("Invalid initial bundle data")
         else:
             await create_initial_bundle(bundle_data)
+
+    from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
+
+    project_list = await get_project_list()
+    for project in project_list:
+        await rebuild_inherited_attributes(project.name)
 
     logging.goodnews("Setup is finished")
 
