@@ -20,19 +20,31 @@ async def clear_thumbnails(project_name: str) -> None:
     Delete only thumbnails older than 24 hours.
     """
 
+    # keep this outside the query - it's easier to debug this way
+    older_cond = "created_at < 'yesterday'::timestamp AND"
+    # older_cond = ""
+
     query = f"""
-    DELETE FROM project_{project_name}.thumbnails
-        WHERE created_at < 'yesterday'::timestamp
-        AND id NOT IN (
-            SELECT thumbnail_id FROM project_{project_name}.folders
+        DELETE FROM project_{project_name}.thumbnails
+        WHERE {older_cond} id NOT IN (
+            SELECT thumbnail_id id FROM project_{project_name}.folders
+            WHERE thumbnail_id IS NOT NULL
             UNION
-            SELECT thumbnail_id FROM project_{project_name}.versions
+            SELECT thumbnail_id id FROM project_{project_name}.tasks
+            WHERE thumbnail_id IS NOT NULL
             UNION
-            SELECT thumbnail_id FROM project_{project_name}.workfiles
+            SELECT thumbnail_id id FROM project_{project_name}.versions
+            WHERE thumbnail_id IS NOT NULL
+            UNION
+            SELECT thumbnail_id id FROM project_{project_name}.workfiles
+            WHERE thumbnail_id IS NOT NULL
         )
+        RETURNING id
     """
 
-    await Postgres.execute(query)
+    storage = await Storages.project(project_name)
+    async for row in Postgres.iterate(query):
+        await storage.delete_thumbnail(row["id"])
 
 
 async def clear_actions() -> None:

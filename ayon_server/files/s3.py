@@ -63,7 +63,45 @@ async def get_signed_url(storage: "ProjectStorage", key: str, ttl: int = 3600) -
     return await run_in_threadpool(_get_signed_url, storage, key, ttl)
 
 
-# Upload to s3
+# Simple file store / retrieve
+
+
+def _store_s3_file(storage: "ProjectStorage", key: str, data: bytes) -> None:
+    client = _get_s3_client(storage)
+    client.put_object(Bucket=storage.bucket_name, Key=key, Body=data)
+
+
+async def store_s3_file(storage: "ProjectStorage", key: str, data: bytes) -> None:
+    await run_in_threadpool(_store_s3_file, storage, key, data)
+
+
+def _retrieve_s3_file(storage: "ProjectStorage", key: str) -> bytes:
+    client = _get_s3_client(storage)
+    try:
+        response = client.get_object(Bucket=storage.bucket_name, Key=key)
+    except client.exceptions.NoSuchKey as e:
+        raise FileNotFoundError() from e
+    return response["Body"].read()
+
+
+async def retrieve_s3_file(storage: "ProjectStorage", key: str) -> bytes:
+    return await run_in_threadpool(_retrieve_s3_file, storage, key)
+
+
+def _delete_s3_file(storage: "ProjectStorage", key: str):
+    client = _get_s3_client(storage)
+    try:
+        client.delete_object(Bucket=storage.bucket_name, Key=key)
+    except client.exceptions.NoSuchKey:
+        pass  # fail silently
+
+
+async def delete_s3_file(storage: "ProjectStorage", key: str):
+    await run_in_threadpool(_delete_s3_file, storage, key)
+
+
+# Multipart upload to S3 with async queue
+# Used for larger files
 
 
 class S3Uploader:
@@ -138,7 +176,9 @@ class S3Uploader:
 
     async def init_file_upload(self, file_path: str):
         await asyncio.get_running_loop().run_in_executor(
-            self._executor, self._init_file_upload, file_path
+            self._executor,
+            self._init_file_upload,
+            file_path,
         )
         self._worker_task = asyncio.create_task(self._worker())
 
@@ -230,14 +270,3 @@ async def handle_s3_upload(
 
     logging.info(f"Uploaded {i} bytes to {path} in {upload_time:.2f} seconds")
     return i
-
-
-# S3 file management
-
-
-async def delete_s3_file(storage: "ProjectStorage", key: str):
-    bucket_name = storage.bucket_name
-    assert bucket_name
-    logging.debug(f"Deleting {key} from {bucket_name}", user="s3")
-    client = await get_s3_client(storage)
-    client.delete_object(Bucket=bucket_name, Key=key)
