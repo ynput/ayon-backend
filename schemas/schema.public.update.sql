@@ -229,7 +229,7 @@ DROP FUNCTION IF EXISTS refactor_links();
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 ALTER EXTENSION pg_trgm SET SCHEMA public;
 
--- Create access_groups table in all project schemas
+-- Create activities tables in all project schemas
 CREATE OR REPLACE FUNCTION create_activity_feed_in_projects ()
    RETURNS VOID  AS
    $$
@@ -305,7 +305,7 @@ CREATE OR REPLACE FUNCTION create_activity_feed_in_projects ()
                 ref.active as active
 
               FROM
-                activity_references as ref -- corrected typo here
+                activity_references as ref
               INNER JOIN
                 activities as act ON ref.activity_id = act.id
               LEFT JOIN
