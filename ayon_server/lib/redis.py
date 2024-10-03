@@ -126,7 +126,9 @@ class Redis:
         if not cls.connected:
             await cls.connect()
 
-        async for key in cls.redis_pool.scan_iter(match=f"{cls.prefix}{namespace}-*"):
+        async for key in cls.redis_pool.scan_iter(
+            match=f"{cls.prefix}{namespace}-*", count=1000
+        ):
             key_without_ns = key.decode("ascii").removeprefix(
                 f"{cls.prefix}{namespace}-"
             )

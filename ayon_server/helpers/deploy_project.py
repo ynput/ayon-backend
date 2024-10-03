@@ -96,6 +96,12 @@ async def assign_default_users_to_project(project_name: str, conn) -> None:
     for row in users:
         logging.debug(f"Assigning project {project_name} to user {row['name']}")
         user = UserEntity.from_record(row)
+
+        if user.is_manager:
+            # we don't need to assign projects to managers and above
+            # as they have access to all projects
+            continue
+
         access_groups = user.data.get("accessGroups", {})
         access_groups[project_name] = user.data["defaultAccessGroups"]
         user.data["accessGroups"] = access_groups
