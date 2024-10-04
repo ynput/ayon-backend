@@ -17,6 +17,7 @@ class KanbanNode:
     assignees: list[str] = strawberry.field()
     updated_at: datetime = strawberry.field()
     created_at: datetime = strawberry.field()
+    priority: str | None = strawberry.field(default=None)
     due_date: datetime | None = strawberry.field(default=None)
     folder_id: str = strawberry.field()
     folder_name: str = strawberry.field()
@@ -48,8 +49,15 @@ def kanban_node_from_record(
         due_date = datetime.fromisoformat(due_date)
     record["due_date"] = due_date
 
+    # priorities
+
+    task_priority = record.pop("priority", None)
+    project_priority = record.pop("project_priority", None)
+    folder_priority = record.pop("folder_priority", None)
+
     return KanbanNode(
         project_name=project_name,
+        priority=task_priority or folder_priority or project_priority,
         **record,
     )
 

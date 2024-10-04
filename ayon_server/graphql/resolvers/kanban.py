@@ -1,6 +1,7 @@
 # import time
 
 from ayon_server.entities import UserEntity
+from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.graphql.connections import KanbanConnection
 from ayon_server.graphql.edges import KanbanEdge
 from ayon_server.graphql.nodes.kanban import KanbanNode
@@ -68,12 +69,18 @@ async def get_kanban(
 
     project_data: list[dict[str, str]] = []
 
+    project_defaults = attribute_library.project_defaults
+    DEFAULT_PRIORITY = project_defaults.get("priority", "normal")
+
     if not projects:
         q = "SELECT name, code FROM projects WHERE active IS TRUE"
     else:
         validate_name_list(projects)
         q = f"""
-            SELECT name, code
+            SELECT
+                name,
+                code,
+                attrib->>'priority' as priority
             FROM projects
             WHERE name = ANY({SQLTool.array(projects, curly=True)})
         """
@@ -108,10 +115,12 @@ async def get_kanban(
         project_name = pdata["name"]
         project_code = pdata["code"]
         project_schema = f"project_{project_name}"
+        project_priority = pdata.get("priority") or DEFAULT_PRIORITY
         uq = f"""
             SELECT
                 '{project_name}' AS project_name,
                 '{project_code}' AS project_code,
+                '{project_priority}' AS project_priority,
                 t.id as id,
                 t.name as name,
                 t.label as label,
@@ -122,10 +131,12 @@ async def get_kanban(
                 t.updated_at as updated_at,
                 t.created_at as created_at,
                 t.attrib->>'endDate' as due_date,
+                t.attrib->>'priority' as priority,
                 f.id as folder_id,
                 f.name as folder_name,
                 f.label as folder_label,
                 h.path as folder_path,
+                h.attrib->>'priority' as folder_priority,
                 t.thumbnail_id as thumbnail_id,
                 EXISTS (
                     SELECT 1 FROM {project_schema}.versions v
@@ -137,7 +148,7 @@ async def get_kanban(
                 ) AS has_reviewables
                 FROM {project_schema}.tasks t
                 JOIN {project_schema}.folders f ON f.id = t.folder_id
-                JOIN {project_schema}.hierarchy h ON h.id = f.id
+                JOIN {project_schema}.exported_attributes h ON h.folder_id = f.id
 
                 {SQLTool.conditions(sub_query_conds)}
         """
