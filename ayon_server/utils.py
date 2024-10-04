@@ -4,12 +4,13 @@ import asyncio
 import datetime
 import functools
 import hashlib
+import itertools
 import json
 import random
 import threading
 import time
 import uuid
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 import codenamize
 import orjson
@@ -117,6 +118,19 @@ def dict_remove_path(
             del parents[-i - 1][key]
         else:
             break
+
+
+def batched(iterable: Iterable, n: int):
+    """Implement batched function to split an iterable into batches of size n
+
+    We need this instead of itertools.batched as we need to run on Python 3.11
+    """
+    it = iter(iterable)
+    while True:
+        batch = list(itertools.islice(it, n))
+        if not batch:
+            break
+        yield batch
 
 
 def parse_access_token(authorization: str) -> str | None:
