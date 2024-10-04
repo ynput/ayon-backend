@@ -28,6 +28,16 @@ def timestamptz_endocder(v):
     raise ValueError
 
 
+def timestamptz_decoder(v):
+    if isinstance(v, (int, float)):
+        return datetime.fromtimestamp(v)
+    if isinstance(v, datetime):
+        return v
+    if isinstance(v, str):
+        return datetime.fromisoformat(v)
+    raise ValueError
+
+
 class Postgres:
     """Postgres database connection.
 
@@ -83,7 +93,7 @@ class Postgres:
         await conn.set_type_codec(
             "timestamptz",
             encoder=timestamptz_endocder,
-            decoder=lambda x: x,
+            decoder=timestamptz_decoder,
             schema="pg_catalog",
         )
 
