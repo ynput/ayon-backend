@@ -1,16 +1,15 @@
 import asyncio
-import itertools
 import os
 import tempfile
 import zipfile
 from collections import deque
-from typing import Any, Iterable
+from typing import Any
 
 import aiofiles
 import aioshutil
 
 from ayon_server.lib.postgres import Postgres
-from ayon_server.utils import json_dumps
+from ayon_server.utils import batched, json_dumps
 from ayon_server.version import __version__
 
 
@@ -28,19 +27,6 @@ def _make_zip(source: str, destination: str) -> None:
 async def make_zip(source: str, destination: str) -> None:
     """Create a zip file from a directory using a threadpool"""
     await asyncio.to_thread(_make_zip, source, destination)
-
-
-def batched(iterable: Iterable, n: int):
-    """Implement batched function to split an iterable into batches of size n
-
-    We need this instead of itertools.batched as we need to run on Python 3.11
-    """
-    it = iter(iterable)
-    while True:
-        batch = list(itertools.islice(it, n))
-        if not batch:
-            break
-        yield batch
 
 
 async def get_subfolders_of(project_name: str, root: str | None = None):
@@ -117,7 +103,7 @@ async def dump_hierarchy_to_dir(
     if not os.path.exists(thumb_dir):
         os.makedirs(thumb_dir)
 
-    for batch in itertools.batched(required_thumbnails, 100):
+    for batch in batched(required_thumbnails, 100):
         q = f"""
             SELECT id, mime, data
             FROM project_{project_name}.thumbnails
@@ -161,7 +147,7 @@ async def dump_hierarchy_to_dir(
         await f.write(json_dumps(manifest))
 
 
-async def dump_hierarchy(
+async def hierarchy_dump(
     target_zip_path: str,
     project_name: str,
     *,
