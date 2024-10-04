@@ -1,21 +1,46 @@
+import asyncio
 import itertools
 import os
 import tempfile
+import zipfile
 from collections import deque
+from typing import Any, Iterable
 
 import aiofiles
 import aioshutil
 
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_dumps
+from ayon_server.version import __version__
+
+
+def _make_zip(source: str, destination: str) -> None:
+    """Create a zip file from a directory"""
+
+    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, files in os.walk(source):
+            for file in files:
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, start=source)
+                zipf.write(file_path, arcname)
 
 
 async def make_zip(source: str, destination: str) -> None:
-    base_name = ".".join(destination.split(".")[:-1])
-    format = destination.split(".")[-1]
-    root_dir = os.path.dirname(source)
-    base_dir = os.path.basename(source.strip(os.sep))
-    await aioshutil.make_archive(base_name, format, root_dir, base_dir)
+    """Create a zip file from a directory using a threadpool"""
+    await asyncio.to_thread(_make_zip, source, destination)
+
+
+def batched(iterable: Iterable, n: int):
+    """Implement batched function to split an iterable into batches of size n
+
+    We need this instead of itertools.batched as we need to run on Python 3.11
+    """
+    it = iter(iterable)
+    while True:
+        batch = list(itertools.islice(it, n))
+        if not batch:
+            break
+        yield batch
 
 
 async def get_subfolders_of(project_name: str, root: str | None = None):
@@ -39,10 +64,10 @@ async def get_subfolders_of(project_name: str, root: str | None = None):
 async def dump_hierarchy_to_dir(
     temp_dir: str,
     project_name: str,
+    *,
     root: str | None = None,
+    with_activities: bool = False,
 ):
-    temp_dir = "/storage/hdump"
-
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
     else:
@@ -53,6 +78,11 @@ async def dump_hierarchy_to_dir(
                 await aioshutil.rmtree(path)
             else:
                 os.remove(path)
+
+    manifest: dict[str, Any] = {
+        "ayonVersion": __version__,
+        "rootFolder": root,
+    }
 
     # Dump folders
 
@@ -95,43 +125,57 @@ async def dump_hierarchy_to_dir(
         """
         async for row in Postgres.iterate(q, batch):
             mime = row["mime"]
+            ext = mime.split("/")[1]
+            async with aiofiles.open(f"{thumb_dir}/{row['id']}.{ext}", "wb") as f:
+                await f.write(row["data"])
 
-        ext = mime.split("/")[1]
-        async with aiofiles.open(f"{thumb_dir}/{row['id']}.{ext}", "wb") as f:
-            await f.write(row["data"])
+    # Do not include thumbnails directory if it is empty
+    if not os.listdir(thumb_dir):
+        os.rmdir(thumb_dir)
 
-    copied_activities = set()
+    if with_activities:
+        copied_activities = set()
 
-    async with aiofiles.open(f"{temp_dir}/activities.json", "w") as f:
-        q = f"""
-            SELECT * FROM project_{project_name}.activities
-            WHERE data->'origin'->>'type' IN ('folder', 'task')
-        """
-        async for row in Postgres.iterate(q):
-            if row["data"]["origin"]["id"] not in copied_entities:
-                continue
-            copied_activities.add(row["id"])
-            json = json_dumps(dict(row))
-            await f.write(json + "\n")
+        async with aiofiles.open(f"{temp_dir}/activities.json", "w") as f:
+            q = f"""
+                SELECT * FROM project_{project_name}.activities
+                WHERE data->'origin'->>'type' IN ('folder', 'task')
+            """
+            async for row in Postgres.iterate(q):
+                if row["data"]["origin"]["id"] not in copied_entities:
+                    continue
+                copied_activities.add(row["id"])
+                json = json_dumps(dict(row))
+                await f.write(json + "\n")
 
-    async with aiofiles.open(f"{temp_dir}/activity_references.json", "w") as f:
-        q = f"SELECT * FROM project_{project_name}.activity_references"
-        async for row in Postgres.iterate(q):
-            if row["activity_id"] not in copied_activities:
-                continue
-            copied_entities.add(row["id"])
-            json = json_dumps(dict(row))
-            await f.write(json + "\n")
+        async with aiofiles.open(f"{temp_dir}/activity_references.json", "w") as f:
+            q = f"SELECT * FROM project_{project_name}.activity_references"
+            async for row in Postgres.iterate(q):
+                if row["activity_id"] not in copied_activities:
+                    continue
+                copied_entities.add(row["id"])
+                json = json_dumps(dict(row))
+                await f.write(json + "\n")
+
+    async with aiofiles.open(f"{temp_dir}/manifest.json", "w") as f:
+        await f.write(json_dumps(manifest))
 
 
 async def dump_hierarchy(
     target_zip_path: str,
     project_name: str,
+    *,
     root: str | None = None,
+    with_activities: bool = False,
 ):
     temp_dir = tempfile.mkdtemp()
     try:
-        await dump_hierarchy_to_dir(temp_dir, project_name, root)
+        await dump_hierarchy_to_dir(
+            temp_dir,
+            project_name,
+            root=root,
+            with_activities=with_activities,
+        )
         await make_zip(temp_dir, target_zip_path)
     finally:
         await aioshutil.rmtree(temp_dir)
