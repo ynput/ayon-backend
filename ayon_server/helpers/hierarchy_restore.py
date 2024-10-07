@@ -2,6 +2,7 @@ import asyncio
 import os
 import tempfile
 import zipfile
+from typing import Any
 
 import aiofiles
 from nxtools import logging
@@ -37,7 +38,7 @@ class Reindexer:
 class DBPusher:
     buff_size = 1000
     statement = None
-    buff = []
+    buff: list[tuple[Any]] = []
     total: int = 0
     table_name: str | None = None
 
@@ -264,7 +265,7 @@ async def hierarchy_restore(
         The folder MUST exist in the project. Use none to import to root
     """
 
-    with tempfile.TemporaryDirectory() as temp_dir:
+    with tempfile.TemporaryDirectory(dir="/storage/") as temp_dir:
         await unzip_to_dir(dump_file, temp_dir)
         await restore_from_dump_directory(
             project_name,

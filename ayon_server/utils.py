@@ -120,7 +120,7 @@ def dict_remove_path(
             break
 
 
-def batched(iterable: Iterable, n: int):
+def batched(iterable: Iterable[Any], n: int):
     """Implement batched function to split an iterable into batches of size n
 
     We need this instead of itertools.batched as we need to run on Python 3.11

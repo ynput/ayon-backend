@@ -78,7 +78,7 @@ async def dump_hierarchy_to_dir(
         for file in os.listdir(temp_dir):
             path = os.path.join(temp_dir, file)
             if os.path.isdir(path):
-                await aioshutil.rmtree(path)
+                await aioshutil.rmtree(path)  # type: ignore
             else:
                 os.remove(path)
 
@@ -181,7 +181,7 @@ async def hierarchy_dump(
     root: str | None = None,
     with_activities: bool = False,
 ):
-    temp_dir = tempfile.mkdtemp()
+    temp_dir = tempfile.mkdtemp(dir="/storage/")
     try:
         await dump_hierarchy_to_dir(
             temp_dir,
@@ -191,4 +191,4 @@ async def hierarchy_dump(
         )
         await make_zip(temp_dir, target_zip_path)
     finally:
-        await aioshutil.rmtree(temp_dir)
+        await aioshutil.rmtree(temp_dir)  # type: ignore
