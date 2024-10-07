@@ -32,6 +32,7 @@ semver = "^3.0.1"
 shortuuid = "^1.0.11"
 strawberry-graphql = {extras = ["fastapi"], version = "^0.217.0"}
 toml = "^0.10.2"
+typer = "^0.12.5"
 user-agents = "^2.2.0"
 uvicorn = {extras = ["standard"], version = "^0.25"}
 
