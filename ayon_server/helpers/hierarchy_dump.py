@@ -8,6 +8,8 @@ from typing import Any
 import aiofiles
 import aioshutil
 
+from ayon_server.files import Storages
+from ayon_server.helpers.download import download_file
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import batched, json_dumps
 from ayon_server.version import __version__
@@ -45,6 +47,21 @@ async def get_subfolders_of(project_name: str, root: str | None = None):
 
     async for row in Postgres.iterate(query):
         yield dict(row)
+
+
+async def copy_project_file(project_name: str, file_id: str, target_dir: str) -> None:
+    storage = await Storages.project(project_name)
+    os.makedirs(target_dir, exist_ok=True)
+    if storage.storage_type == "local":
+        path = await storage.get_path(file_id)
+        target_path = os.path.join(target_dir, file_id)
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        await aioshutil.copyfile(path, target_path)
+    elif storage.storage_type == "s3":
+        url = await storage.get_signed_url(file_id)
+        target_path = os.path.join(target_dir, file_id)
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        await download_file(url, target_path)
 
 
 async def dump_hierarchy_to_dir(
@@ -142,6 +159,16 @@ async def dump_hierarchy_to_dir(
                 copied_entities.add(row["id"])
                 json = json_dumps(dict(row))
                 await f.write(json + "\n")
+
+        files_dir = os.path.join(temp_dir, "files")
+        async with aiofiles.open(f"{temp_dir}/files.json", "w") as f:
+            q = f"SELECT * FROM project_{project_name}.files"
+            async for row in Postgres.iterate(q):
+                if row["activity_id"] not in copied_activities:
+                    continue
+                json = json_dumps(dict(row))
+                await f.write(json + "\n")
+                await copy_project_file(project_name, row["id"], files_dir)
 
     async with aiofiles.open(f"{temp_dir}/manifest.json", "w") as f:
         await f.write(json_dumps(manifest))
