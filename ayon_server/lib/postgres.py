@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 import asyncpg
@@ -15,6 +16,26 @@ if TYPE_CHECKING:
     Connection = PoolConnectionProxy[Any]
 else:
     Connection = PoolConnectionProxy
+
+
+def timestamptz_endocder(v):
+    if isinstance(v, (int, float)):
+        return datetime.fromtimestamp(v).isoformat()
+    if isinstance(v, datetime):
+        return v.isoformat()
+    if isinstance(v, str):
+        return datetime.fromisoformat(v).isoformat()
+    raise ValueError
+
+
+def timestamptz_decoder(v):
+    if isinstance(v, (int, float)):
+        return datetime.fromtimestamp(v)
+    if isinstance(v, datetime):
+        return v
+    if isinstance(v, str):
+        return datetime.fromisoformat(v)
+    raise ValueError
 
 
 class Postgres:
@@ -66,6 +87,13 @@ class Postgres:
             "uuid",
             encoder=lambda x: EntityID.parse(x, True),
             decoder=lambda x: EntityID.parse(x, True),
+            schema="pg_catalog",
+        )
+
+        await conn.set_type_codec(
+            "timestamptz",
+            encoder=timestamptz_endocder,
+            decoder=timestamptz_decoder,
             schema="pg_catalog",
         )
 
