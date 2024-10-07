@@ -3,6 +3,7 @@ from typing import Any, Literal
 
 import aiocache
 import aiofiles
+import aioshutil
 from fastapi import Request
 from nxtools import logging
 
@@ -16,6 +17,7 @@ from ayon_server.files.s3 import (
     handle_s3_upload,
     retrieve_s3_file,
     store_s3_file,
+    upload_s3_file,
 )
 from ayon_server.helpers.cloud import get_instance_id
 from ayon_server.helpers.ffprobe import extract_media_info
@@ -113,6 +115,17 @@ class ProjectStorage:
             sub_dir,
             _file_id,
         )
+
+    async def upload_file(self, file_id: str, file_path: str) -> None:
+        """Store the locally accessible project file on the storage"""
+
+        target_path = await self.get_path(file_id)
+        if self.storage_type == "local":
+            target_dir = os.path.dirname(target_path)
+            os.makedirs(target_dir, exist_ok=True)
+            await aioshutil.copyfile(file_path, target_path)
+        elif self.storage_type == "s3":
+            await upload_s3_file(self, target_path, file_path)
 
     async def get_signed_url(
         self,
