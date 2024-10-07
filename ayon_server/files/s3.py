@@ -75,6 +75,15 @@ async def store_s3_file(storage: "ProjectStorage", key: str, data: bytes) -> Non
     await run_in_threadpool(_store_s3_file, storage, key, data)
 
 
+def _upload_s3_file(storage: "ProjectStorage", key: str, file_path: str) -> None:
+    client = _get_s3_client(storage)
+    client.upload_file(file_path, storage.bucket_name, key)
+
+
+async def upload_s3_file(storage: "ProjectStorage", key: str, file_path: str) -> None:
+    await run_in_threadpool(_upload_s3_file, storage, key, file_path)
+
+
 def _retrieve_s3_file(storage: "ProjectStorage", key: str) -> bytes:
     client = _get_s3_client(storage)
     try:

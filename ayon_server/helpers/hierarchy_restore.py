@@ -6,6 +6,7 @@ import zipfile
 import aiofiles
 from nxtools import logging
 
+from ayon_server.files import Storages
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.lib.postgres import Connection, Postgres
@@ -136,7 +137,7 @@ async def import_entities(
 
     reindex = Reindexer()
 
-    for table in ["folders", "tasks", "activities", "activity_references"]:
+    for table in ["folders", "tasks", "activities", "activity_references", "files"]:
         dump_file = f"{dump_dir}/{table}.json"
         if not os.path.exists(dump_file):
             continue
@@ -157,7 +158,7 @@ async def import_entities(
                 if reindex_entities:
                     # We do not reindex thumbnails! we can reuse them
                     # even within the same project
-                    rkeys = ["id", "folder_id", "entity_id"]
+                    rkeys = ["id", "folder_id", "entity_id", "activity_id", "file_id"]
                     if not top_level:
                         rkeys.append("parent_id")
                     for k in rkeys:
@@ -165,6 +166,19 @@ async def import_entities(
                             old_id = data[k]
                             new_id = reindex(old_id)
                             data[k] = new_id
+
+                    if table == "activities":
+                        adata = data["data"]
+                        if "origin" in adata:
+                            adata["origin"]["id"] = reindex(adata["origin"]["id"])
+                        files = adata.get("files", [])
+                        if files:
+                            nfiles = []
+                            for file in files:
+                                file["id"] = reindex(file["id"])
+                                nfiles.append(file)
+                            adata["files"] = nfiles
+                        data["data"] = adata
 
                 if not pusher.table_name:
                     keys = list(data.keys())
@@ -180,6 +194,16 @@ async def import_entities(
     await conn.execute(f"REFRESH MATERIALIZED VIEW project_{project_name}.hierarchy")
     await rebuild_inherited_attributes(project_name, transaction=conn)
     await rebuild_hierarchy_cache(project_name, transaction=conn)
+
+    if os.path.isdir(f"{dump_dir}/files"):
+        storage = await Storages.project(project_name)
+        for file_id in os.listdir(f"{dump_dir}/files"):
+            file_path = f"{dump_dir}/files/{file_id}"
+            if reindex_entities:
+                new_id = reindex(file_id)
+            else:
+                new_id = file_id
+            await storage.upload_file(new_id, file_path)
 
 
 #
