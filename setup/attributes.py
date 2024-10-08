@@ -28,16 +28,10 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "default": "normal",
         "enum": [
             {
-                "value": "low",
-                "label": "Low",
-                "color": "#9FA7B1",
-                "icon": "keyboard_arrow_down",
-            },
-            {
-                "value": "normal",
-                "label": "Normal",
-                "color": "#9AC0E7",
-                "icon": "check_indeterminate_small",
+                "value": "urgent",
+                "label": "Urgent",
+                "color": "#FF8585",
+                "icon": "keyboard_double_arrow_up",
             },
             {
                 "value": "high",
@@ -46,10 +40,16 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
                 "icon": "keyboard_arrow_up",
             },
             {
-                "value": "urgent",
-                "label": "Urgent",
-                "color": "#FF8585",
-                "icon": "keyboard_double_arrow_up",
+                "value": "normal",
+                "label": "Normal",
+                "color": "#9AC0E7",
+                "icon": "check_indeterminate_small",
+            },
+            {
+                "value": "low",
+                "label": "Low",
+                "color": "#9FA7B1",
+                "icon": "keyboard_arrow_down",
             },
         ],
     },
