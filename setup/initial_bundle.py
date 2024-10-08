@@ -60,6 +60,12 @@ async def create_initial_bundle(bundle_data: dict[str, Any]):
             log_name = f"{i+1} of {len(addons)}"
 
         if addon_url := addon.get("url"):
+            # Do not use helpers.download_addon here, as we need
+            # the underlying function and await the download, while
+            # helpers.download_addon just enqueues the download task
+            # and finishes immediately. BackgroundInstaller doesn't
+            # run at this point.
+
             logging.info(f"Installing addon {log_name}")
             event_id = await EventStream.dispatch(
                 "addon.install_from_url",
