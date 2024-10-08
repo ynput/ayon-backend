@@ -17,10 +17,14 @@ from ayon_server.version import __version__ as ayon_version
 
 
 async def get_required_addons() -> list[dict[str, str]]:
+    url = f"{ayonconfig.ynput_cloud_api_url}/api/v1/me"
+    headers = await get_cloud_api_headers()
+    headers["X-Ayon-Version"] = ayon_version
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://localhost:5000/static/req.json")
-            return response.json()
+            response = await client.get(url, headers=headers)
+            data = response.json()
+            return data.get("requiredAddons", [])
     except Exception:
         logging.debug("Failed to fetch required addons list")
         return []
@@ -42,18 +46,19 @@ async def get_download_url(addon_name: str, addon_version: str) -> str:
 
 async def run_auto_update() -> None:
     required_addons = await get_required_addons()
+
+    if not required_addons:
+        return
+
     addon_library = AddonLibrary.getinstance()
 
     bundle_addons_patch = {}
 
     downloaded_addons = get_downloaded_addons()
-    for required_addon in required_addons:
+    for addon_name, addon_version in required_addons:
         # Do we have the required addon downloaded?
-        addon_name = required_addon["name"]
-        addon_version = required_addon["version"]
 
-        atuple = addon_name, addon_version
-        if atuple not in downloaded_addons:
+        if (addon_name, addon_version) not in downloaded_addons:
             try:
                 url = await get_download_url(addon_name, addon_version)
             except Exception:
@@ -76,7 +81,6 @@ async def run_auto_update() -> None:
             addon = addon_library.addon(addon_name, addon_version)
         except NotFoundException:
             # Addon is downloaded, but not active. Server restart is needed
-            logging.debug(f"Addon {addon_name} {addon_version} is not active")
             continue
 
         # Addon is active. Check if it's in the production bundle
@@ -147,8 +151,19 @@ class AutoUpdate(BackgroundWorker):
         await asyncio.sleep(20)
 
         while True:
-            await run_auto_update()
-            await asyncio.sleep(40)
+            try:
+                _ = get_cloud_api_headers()
+            except Exception:
+                # Not connected to Ynput cloud
+                # Do nothing
+                await asyncio.sleep(3600)
+                continue
+
+            try:
+                await run_auto_update()
+            except Exception:
+                pass
+            await asyncio.sleep(3600)
 
 
 auto_update = AutoUpdate()
