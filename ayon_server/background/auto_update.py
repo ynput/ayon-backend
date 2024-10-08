@@ -152,7 +152,7 @@ class AutoUpdate(BackgroundWorker):
 
         while True:
             try:
-                _ = get_cloud_api_headers()
+                _ = await get_cloud_api_headers()
             except Exception:
                 # Not connected to Ynput cloud
                 # Do nothing
