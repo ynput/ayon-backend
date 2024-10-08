@@ -1,5 +1,7 @@
 import hashlib
 
+from nxtools import logging
+
 from ayon_server.constraints import Constraints
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
@@ -51,5 +53,9 @@ async def download_addon(
             finished=False,
         )
 
+    url_label = url[:50]
+    if url_label != url:
+        url_label += "..."
+    logging.debug(f"Downloading addon from {url_label}")
     await background_installer.enqueue(event_id)
     return event_id
