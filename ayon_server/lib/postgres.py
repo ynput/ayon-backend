@@ -152,6 +152,14 @@ class Postgres:
             return await connection.fetch(query, *args, timeout=timeout)
 
     @classmethod
+    async def fetchrow(cls, query: str, *args: Any, timeout: float = 60):
+        """Run a query and return the first row as a Record."""
+        if cls.pool is None:
+            raise ConnectionError
+        async with cls.acquire() as connection:
+            return await connection.fetchrow(query, *args, timeout=timeout)
+
+    @classmethod
     async def iterate(
         cls,
         query: str,
