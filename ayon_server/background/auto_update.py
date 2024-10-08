@@ -3,13 +3,10 @@ import asyncio
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.exceptions import NotFoundException
+from ayon_server.helpers.download_addon import download_addon
 from ayon_server.helpers.get_downloaded_addons import get_downloaded_addons
 
 FAKE_LIST = [{"name": "ynputcloud", "version": "1.0.9", "url": "myfakeurl"}]
-
-
-async def install_addon(addon_name: str, addon_version: str, url: str) -> None:
-    pass
 
 
 async def run_auto_update() -> None:
@@ -21,7 +18,7 @@ async def run_auto_update() -> None:
 
         atuple = (required_addon["name"], required_addon["version"])
         if atuple not in downloaded_addons:
-            await install_addon(
+            await download_addon(
                 addon_name=required_addon["name"],
                 addon_version=required_addon["version"],
                 url=required_addon["url"],
