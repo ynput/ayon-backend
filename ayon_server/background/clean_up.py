@@ -48,9 +48,58 @@ async def clear_thumbnails(project_name: str) -> None:
 
 
 async def clear_activities(project_name: str) -> None:
-    """Remove activities that no longer have a corresponding origin"""
+    """Remove activities that no longer have a corresponding origin
 
-    pass
+    This can happen when an entity is deleted and there's no activity
+    on that entity for a grace period (10 days).
+
+    This does not remove files as their activity_id will be set to NULL
+    and they will be deleted by the file clean-up.
+    """
+    GRACE_PERIOD = 10  # days
+
+    if project_name != "killme":
+        return
+
+    start_time = time.monotonic()
+    query = f"""
+        WITH existing_entities AS (
+            SELECT id FROM project_{project_name}.folders
+            UNION
+            SELECT id FROM project_{project_name}.tasks
+            UNION
+            SELECT id FROM project_{project_name}.versions
+            UNION
+            SELECT id FROM project_{project_name}.workfiles
+            UNION
+            SELECT id FROM project_{project_name}.products
+            -- ??? do we need representations ???
+        ),
+
+        grace_period_entity_ids AS (
+            SELECT entity_id FROM project_{project_name}.activity_references
+            WHERE entity_id IS NOT NULL
+            AND updated_at < now() - interval '{GRACE_PERIOD} days'
+        ),
+
+        deletable_activities AS (
+            SELECT DISTINCT(activity_id) as activity_id
+            FROM project_{project_name}.activity_references
+            WHERE entity_id IS NOT NULL
+            AND reference_type = 'origin'
+            AND entity_id NOT IN (SELECT id FROM existing_entities)
+            AND entity_id NOT IN (SELECT entity_id FROM grace_period_entity_ids)
+        )
+
+        SELECT activity_type, body, data->'origin' as a
+        FROM project_{project_name}.activities
+        WHERE id IN (SELECT activity_id FROM deletable_activities)
+    """
+
+    async for row in Postgres.iterate(query):
+        print(project_name, row)
+
+    print(f"Clear activities took {time.monotonic() - start_time:.2f} seconds")
 
 
 async def clear_actions() -> None:
