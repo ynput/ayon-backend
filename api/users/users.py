@@ -404,7 +404,14 @@ async def change_user_name(
                 """
                 await conn.execute(query)
 
-            # TODO: Update activity feed
+                query = f"""
+                    UPDATE project_{project_name}.files SET
+                    author = $1 WHERE author = $2
+                """
+
+                await conn.execute(query, patch_data.new_name, user_name)
+
+                # TODO: Update activity feed
 
     # Renaming user has many side effects, so we need to log out all Sessions
     # and let the user log in again
