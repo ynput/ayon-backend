@@ -404,7 +404,39 @@ async def change_user_name(
                 """
                 await conn.execute(query)
 
-            # TODO: Update activity feed
+                query = f"""
+                    UPDATE project_{project_name}.files SET
+                    author = $1 WHERE author = $2
+                """
+
+                await conn.execute(query, patch_data.new_name, user_name)
+
+                # activities.data->>'author'
+
+                query = f"""
+                    UPDATE project_{project_name}.activities SET
+                    data = jsonb_set(
+                        data,
+                        '{{author}}',
+                        $1::jsonb
+                    )
+                    WHERE data->>'author' = $2
+                """
+
+                # TODO: there is also an author record in:
+                # activities->data->files[]->author
+                # but it is probably not important to update it
+
+                await conn.execute(query, patch_data.new_name, user_name)
+
+                # references
+
+                query = f"""
+                    UPDATE project_{project_name}.activity_references SET
+                    entity_name = $1 WHERE entity_name = $2 AND entity_type = 'user'
+                """
+
+                await conn.execute(query, patch_data.new_name, user_name)
 
     # Renaming user has many side effects, so we need to log out all Sessions
     # and let the user log in again
