@@ -58,10 +58,6 @@ async def clear_activities(project_name: str) -> None:
     """
     GRACE_PERIOD = 10  # days
 
-    if project_name != "killme":
-        return
-
-    start_time = time.monotonic()
     query = f"""
         WITH existing_entities AS (
             SELECT id FROM project_{project_name}.folders
@@ -76,11 +72,26 @@ async def clear_activities(project_name: str) -> None:
             -- ??? do we need representations ???
         ),
 
+        -- Skip entities that were deleted in the last GRACE_PERIOD days
+
+        recently_deleted_entities AS (
+            SELECT (summary->>'entityId')::UUID as entity_id
+            FROM events
+            WHERE topic LIKE 'entity.%.deleted'
+            AND updated_at > now() - interval '{GRACE_PERIOD} days'
+            AND project_name = '{project_name}'
+            AND summary->>'entityId' IS NOT NULL
+        ),
+
+        -- Skip the activities that were updated in the last GRACE_PERIOD days
+
         grace_period_entity_ids AS (
             SELECT entity_id FROM project_{project_name}.activity_references
             WHERE entity_id IS NOT NULL
-            AND updated_at < now() - interval '{GRACE_PERIOD} days'
+            AND updated_at > now() - interval '{GRACE_PERIOD} days'
         ),
+
+        -- Find activities that reference entities that no longer exist
 
         deletable_activities AS (
             SELECT DISTINCT(activity_id) as activity_id
@@ -89,6 +100,7 @@ async def clear_activities(project_name: str) -> None:
             AND reference_type = 'origin'
             AND entity_id NOT IN (SELECT id FROM existing_entities)
             AND entity_id NOT IN (SELECT entity_id FROM grace_period_entity_ids)
+            AND entity_id NOT IN (SELECT entity_id FROM recently_deleted_entities)
         )
 
         SELECT activity_type, body, data->'origin' as a
@@ -98,8 +110,6 @@ async def clear_activities(project_name: str) -> None:
 
     async for row in Postgres.iterate(query):
         print(project_name, row)
-
-    print(f"Clear activities took {time.monotonic() - start_time:.2f} seconds")
 
 
 async def clear_actions() -> None:
