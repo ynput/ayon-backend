@@ -47,10 +47,16 @@ async def clear_thumbnails(project_name: str) -> None:
         await storage.delete_thumbnail(row["id"])
 
 
+async def clear_activities(project_name: str) -> None:
+    """Remove activities that no longer have a corresponding origin"""
+
+    pass
+
+
 async def clear_actions() -> None:
     """Purge unprocessed launcher actions.
 
-    If an actionr remains in pending state for more than 30 minutes,
+    If an actionr remains in pending state for more than 10 minutes,
     it is considered stale and is deleted. Normally, launcher should
     take action on the event within a few seconds or minutes.
     """
@@ -59,7 +65,7 @@ async def clear_actions() -> None:
         WHERE
         topic = 'action.launcher'
         AND status = 'pending'
-        AND created_at < now() - interval '30 minutes'
+        AND created_at < now() - interval '10 minutes'
     """
     await Postgres.execute(query)
 
@@ -177,7 +183,11 @@ class AyonCleanUp(BackgroundWorker):
         else:
             # For each project, clean up thumbnails and unused files
             for project in projects:
-                for prj_func in (clear_thumbnails, delete_unused_files):
+                for prj_func in (
+                    clear_thumbnails,
+                    clear_activities,
+                    delete_unused_files,
+                ):
                     try:
                         await prj_func(project.name)
                     except Exception:
