@@ -439,8 +439,11 @@ END $$;
 
 
 ----------------
--- AYON 1.4.3 --
+-- AYON 1.5 --
 ----------------
+
+-- Add meta column to thumbnails
+-- Remove files.author foreign key
 
 CREATE OR REPLACE FUNCTION add_meta_column_to_thumbnails()
    RETURNS VOID  AS
@@ -452,6 +455,10 @@ CREATE OR REPLACE FUNCTION add_meta_column_to_thumbnails()
              EXECUTE
               'ALTER TABLE IF EXISTS ' || rec.nspname || '.thumbnails ' ||
               'ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT ''{}''::JSONB ';
+
+             EXECUTE
+              'ALTER TABLE IF EXISTS ' || rec.nspname || '.files ' ||
+              'DROP CONSTRAINT IF EXISTS files_author_fkey';
         END LOOP;
         RETURN;
    END;
@@ -459,3 +466,4 @@ CREATE OR REPLACE FUNCTION add_meta_column_to_thumbnails()
 
 SELECT add_meta_column_to_thumbnails();
 DROP FUNCTION IF EXISTS add_meta_column_to_thumbnails();
+
