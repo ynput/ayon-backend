@@ -47,10 +47,84 @@ async def clear_thumbnails(project_name: str) -> None:
         await storage.delete_thumbnail(row["id"])
 
 
+async def clear_activities(project_name: str) -> None:
+    """Remove activities that no longer have a corresponding origin
+
+    This can happen when an entity is deleted and there's no activity
+    on that entity for a grace period (10 days).
+
+    This does not remove files as their activity_id will be set to NULL
+    and they will be deleted by the file clean-up.
+    """
+    GRACE_PERIOD = 10  # days
+
+    query = f"""
+        WITH existing_entities AS (
+            SELECT id FROM project_{project_name}.folders
+            UNION
+            SELECT id FROM project_{project_name}.tasks
+            UNION
+            SELECT id FROM project_{project_name}.versions
+            UNION
+            SELECT id FROM project_{project_name}.workfiles
+            UNION
+            SELECT id FROM project_{project_name}.products
+            -- ??? do we need representations ???
+        ),
+
+        -- Skip entities that were deleted in the last GRACE_PERIOD days
+
+        recently_deleted_entities AS (
+            SELECT (summary->>'entityId')::UUID as entity_id
+            FROM events
+            WHERE topic LIKE 'entity.%.deleted'
+            AND updated_at > now() - interval '{GRACE_PERIOD} days'
+            AND project_name = '{project_name}'
+            AND summary->>'entityId' IS NOT NULL
+        ),
+
+        -- Skip the activities that were updated in the last GRACE_PERIOD days
+
+        grace_period_entity_ids AS (
+            SELECT entity_id FROM project_{project_name}.activity_references
+            WHERE entity_id IS NOT NULL
+            AND updated_at > now() - interval '{GRACE_PERIOD} days'
+        ),
+
+        -- Find activities that reference entities that no longer exist
+
+        deletable_activities AS (
+            SELECT DISTINCT(activity_id) as activity_id
+            FROM project_{project_name}.activity_references
+            WHERE entity_id IS NOT NULL
+            AND reference_type = 'origin'
+            AND entity_id NOT IN (SELECT id FROM existing_entities)
+            AND entity_id NOT IN (SELECT entity_id FROM grace_period_entity_ids)
+            AND entity_id NOT IN (SELECT entity_id FROM recently_deleted_entities)
+        ),
+
+        -- Delete the activities and return the count
+
+        deleted_activities AS (
+            DELETE FROM project_{project_name}.activities
+            WHERE id IN (SELECT id FROM deletable_activities)
+            RETURNING id
+        )
+
+        SELECT count(*) as deleted FROM deleted_activities
+    """
+
+    res = await Postgres.fetch(query)
+    count = res[0]["deleted"]
+
+    if count:
+        logging.debug(f"Deleted {count} orphaned activities from {project_name}")
+
+
 async def clear_actions() -> None:
     """Purge unprocessed launcher actions.
 
-    If an actionr remains in pending state for more than 30 minutes,
+    If an actionr remains in pending state for more than 10 minutes,
     it is considered stale and is deleted. Normally, launcher should
     take action on the event within a few seconds or minutes.
     """
@@ -59,7 +133,7 @@ async def clear_actions() -> None:
         WHERE
         topic = 'action.launcher'
         AND status = 'pending'
-        AND created_at < now() - interval '30 minutes'
+        AND created_at < now() - interval '10 minutes'
     """
     await Postgres.execute(query)
 
@@ -177,7 +251,11 @@ class AyonCleanUp(BackgroundWorker):
         else:
             # For each project, clean up thumbnails and unused files
             for project in projects:
-                for prj_func in (clear_thumbnails, delete_unused_files):
+                for prj_func in (
+                    clear_thumbnails,
+                    clear_activities,
+                    delete_unused_files,
+                ):
                     try:
                         await prj_func(project.name)
                     except Exception:
