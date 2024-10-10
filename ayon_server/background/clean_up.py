@@ -58,67 +58,82 @@ async def clear_activities(project_name: str) -> None:
     """
     GRACE_PERIOD = 10  # days
 
-    query = f"""
-        WITH existing_entities AS (
-            SELECT id FROM project_{project_name}.folders
-            UNION
-            SELECT id FROM project_{project_name}.tasks
-            UNION
-            SELECT id FROM project_{project_name}.versions
-            UNION
-            SELECT id FROM project_{project_name}.workfiles
-            UNION
-            SELECT id FROM project_{project_name}.products
-            -- ??? do we need representations ???
-        ),
+    for entity_type in ("folder", "task", "version", "workfile"):
+        query = f"""
+            -- Skip entities that were deleted in the last GRACE_PERIOD days
 
-        -- Skip entities that were deleted in the last GRACE_PERIOD days
+            WITH recently_deleted_entities AS (
+                SELECT (summary->>'entityId')::UUID as entity_id
+                FROM events
+                WHERE topic = 'entity.{entity_type}.deleted'
+                AND project_name = '{project_name}'
+                AND updated_at > now() - interval '{GRACE_PERIOD} days'
+                AND summary->>'entityId' IS NOT NULL
 
-        recently_deleted_entities AS (
-            SELECT (summary->>'entityId')::UUID as entity_id
-            FROM events
-            WHERE topic LIKE 'entity.%.deleted'
-            AND updated_at > now() - interval '{GRACE_PERIOD} days'
-            AND project_name = '{project_name}'
-            AND summary->>'entityId' IS NOT NULL
-        ),
+            ),
 
-        -- Skip the activities that were updated in the last GRACE_PERIOD days
+            -- Skip the activities that were updated in the last GRACE_PERIOD days
 
-        grace_period_entity_ids AS (
-            SELECT entity_id FROM project_{project_name}.activity_references
-            WHERE entity_id IS NOT NULL
-            AND updated_at > now() - interval '{GRACE_PERIOD} days'
-        ),
+            grace_period_entity_ids AS (
+                SELECT entity_id FROM project_{project_name}.activity_references
+                WHERE entity_id IS NOT NULL
+                AND entity_type = '{entity_type}'
+                AND updated_at > now()  - interval '{GRACE_PERIOD} days'
+            ),
 
-        -- Find activities that reference entities that no longer exist
+            -- Find activities that reference entities that no longer exist
 
-        deletable_activities AS (
-            SELECT DISTINCT(activity_id) as activity_id
-            FROM project_{project_name}.activity_references
-            WHERE entity_id IS NOT NULL
-            AND reference_type = 'origin'
-            AND entity_id NOT IN (SELECT id FROM existing_entities)
-            AND entity_id NOT IN (SELECT entity_id FROM grace_period_entity_ids)
-            AND entity_id NOT IN (SELECT entity_id FROM recently_deleted_entities)
-        ),
+            deletable_activities AS (
+                SELECT DISTINCT(activity_id) as activity_id
+                FROM project_{project_name}.activity_references
+                WHERE entity_id IS NOT NULL
+                AND reference_type = 'origin'
+                AND entity_type = '{entity_type}'
+                AND entity_id NOT IN (
+                    SELECT entity_id FROM grace_period_entity_ids
+                )
+                AND entity_id NOT IN (
+                   SELECT entity_id FROM recently_deleted_entities
+                )
+                AND entity_id NOT IN (
+                    SELECT id FROM project_{project_name}.{entity_type}s
+                )
+            ),
 
-        -- Delete the activities and return the count
+            -- Delete the activities and return the count
 
-        deleted_activities AS (
-            DELETE FROM project_{project_name}.activities
-            WHERE id IN (SELECT id FROM deletable_activities)
-            RETURNING id
-        )
+            deleted_activities AS (
+                DELETE FROM project_{project_name}.activities
+                WHERE id IN (
+                    SELECT activity_id FROM deletable_activities WHERE id IS NOT NULL
+                )
+                RETURNING id
+            )
+            SELECT count(*) as deleted FROM deleted_activities
 
-        SELECT count(*) as deleted FROM deleted_activities
-    """
+            -- SELECT activity_type, data FROM project_{project_name}.activities
+            -- WHERE id IN (SELECT activity_id FROM deletable_activities)
 
-    res = await Postgres.fetch(query)
-    count = res[0]["deleted"]
+        """
 
-    if count:
-        logging.debug(f"Deleted {count} orphaned activities from {project_name}")
+        # Debugging
+        # async for row in Postgres.iterate(query):
+        #     print("***************")
+        #     print("Project Name: ", project_name)
+        #     print("Entity Type: ", entity_type)
+        #     print("Activity Type: ", row["activity_type"])
+        #     print("origin: ", row["data"]["origin"])
+        #     print("parents: ", row["data"]["parents"])
+        #     print("***************")
+
+        res = await Postgres.fetch(query)
+        count = res[0]["deleted"]
+
+        if count:
+            logging.debug(
+                f"Deleted {count} orphaned "
+                f"{entity_type} activities from {project_name}"
+            )
 
 
 async def clear_actions() -> None:
