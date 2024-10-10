@@ -47,6 +47,7 @@ async def download_file(
     target_path: str,
     filename: str | None = None,
     progress_handler: Callable[[int], Awaitable[None]] | None = None,
+    timeout: int | None = None,
 ) -> None:
     """Downloads a file from a url to a target path"""
 
@@ -100,7 +101,7 @@ async def download_file(
     temp_file_path = target_path + f".{uuid.uuid1().hex}.part"
     i = 0
     async with httpx.AsyncClient(
-        timeout=ayonconfig.http_timeout, follow_redirects=True
+        timeout=timeout or ayonconfig.http_timeout, follow_redirects=True
     ) as client:
         async with client.stream("GET", url) as response:
             if response.status_code != 200:
