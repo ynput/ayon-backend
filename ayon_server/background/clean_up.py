@@ -101,15 +101,24 @@ async def clear_activities(project_name: str) -> None:
             AND entity_id NOT IN (SELECT id FROM existing_entities)
             AND entity_id NOT IN (SELECT entity_id FROM grace_period_entity_ids)
             AND entity_id NOT IN (SELECT entity_id FROM recently_deleted_entities)
+        ),
+
+        -- Delete the activities and return the count
+
+        deleted_activities AS (
+            DELETE FROM project_{project_name}.activities
+            WHERE id IN (SELECT id FROM deletable_activities)
+            RETURNING id
         )
 
-        SELECT activity_type, body, data->'origin' as a
-        FROM project_{project_name}.activities
-        WHERE id IN (SELECT activity_id FROM deletable_activities)
+        SELECT count(*) as deleted FROM deleted_activities
     """
 
-    async for row in Postgres.iterate(query):
-        print(project_name, row)
+    res = await Postgres.fetch(query)
+    count = res[0]["deleted"]
+
+    if count:
+        logging.debug(f"Deleted {count} orphaned activities from {project_name}")
 
 
 async def clear_actions() -> None:
