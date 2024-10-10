@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Any, Literal
 
 import aiocache
@@ -21,6 +22,7 @@ from ayon_server.files.s3 import (
 )
 from ayon_server.helpers.cloud import get_instance_id
 from ayon_server.helpers.ffprobe import extract_media_info
+from ayon_server.helpers.project_list import ProjectListItem, get_project_info
 from ayon_server.lib.postgres import Postgres
 
 StorageType = Literal["local", "s3"]
@@ -33,6 +35,7 @@ class ProjectStorage:
     bucket_name: str | None = None
     cdn_resolver: str | None = None
     _s3_client: Any = None
+    project_info: ProjectListItem | None
 
     def __init__(
         self,
@@ -45,6 +48,7 @@ class ProjectStorage:
     ):
         self.project_name = project_name
         self.storage_type = storage_type
+        self.project_info = None
         self.root = root
         if storage_type == "s3":
             if not bucket_name:
@@ -105,12 +109,22 @@ class ProjectStorage:
         _file_id = file_id.replace("-", "")
         if len(_file_id) != 32:
             raise ValueError(f"Invalid file ID: {file_id}")
+
+        project_dirname = self.project_name
+        if self.storage_type == "s3":
+            if self.project_info is None:
+                self.project_info = await get_project_info(self.project_name)
+            assert self.project_info  # mypy
+
+            project_timestamp = int(self.project_info.created_at.timestamp())
+            project_dirname = f"{project_dirname}.{project_timestamp}"
+
         # Take first two characters of the file ID as a subdirectory
         # to avoid having too many files in a single directory
         sub_dir = _file_id[:2]
         return os.path.join(
             root,
-            self.project_name,
+            project_dirname,
             file_group,
             sub_dir,
             _file_id,
@@ -328,3 +342,26 @@ class ProjectStorage:
         """
         logging.debug(f"Deleting thumbnail {thumbnail_id} from {self}")
         await self.unlink(thumbnail_id, file_group="thumbnails")
+
+    async def trash(self) -> None:
+        """Mark the project storage for deletion"""
+
+        if self.storage_type == "local":
+            logging.debug(f"Trashing project {self.project_name} storage")
+            project_dir = await self.get_root()
+            if not os.path.isdir(project_dir):
+                return
+            timestamp = int(time.time())
+            new_dir_name = f"{self.project_name}.{timestamp}.trash"
+            parent_dir = os.path.dirname(project_dir)
+            new_dir = os.path.join(parent_dir, new_dir_name)
+            try:
+                os.rename(project_dir, new_dir)
+            except Exception as e:
+                logging.error(
+                    f"Failed to trash project {self.project_name} storage: {e}"
+                )
+        if self.storage_type == "s3":
+            # we cannot move the bucket, we'll create a new one with different timestamp
+            # when we re-create the project
+            pass
