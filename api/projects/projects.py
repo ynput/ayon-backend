@@ -10,6 +10,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.files import Storages
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 
@@ -194,6 +195,10 @@ async def delete_project(user: CurrentUser, project_name: ProjectName) -> EmptyR
         raise ForbiddenException("You need to be a manager in order to delete projects")
 
     await project.delete()
+
+    storage = await Storages.project(project_name)
+    await storage.trash()
+
     await unassign_users_from_deleted_projects()
     logging.info(f"[DELETE] Deleted project {project.name}", user=user.name)
 
