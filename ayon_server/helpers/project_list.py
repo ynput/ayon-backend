@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 
+from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
@@ -44,3 +45,12 @@ async def get_project_list() -> list[ProjectListItem]:
     else:
         project_list = json_loads(project_list)
         return [ProjectListItem(**item) for item in project_list]
+
+
+async def get_project_info(project_name: str) -> ProjectListItem:
+    """Return a single project info"""
+    project_list = await get_project_list()
+    for project in project_list:
+        if project.name == project_name:
+            return project
+    raise NotFoundException(f"Project {project_name} not found")
