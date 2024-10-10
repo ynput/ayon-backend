@@ -9,6 +9,8 @@ except ModuleNotFoundError:
 
 
 class BackgroundWorker:
+    oneshot: bool = False
+
     def __init__(self):
         self.task: asyncio.Task[None] | None = None
         self.shutting_down = False
@@ -50,7 +52,7 @@ class BackgroundWorker:
             await self.finalize()
             self.task = None
 
-        if not self.shutting_down:
+        if not (self.shutting_down or self.oneshot):
             print("Restarting", self.__class__.__name__)
             self.start()
 

@@ -5,6 +5,7 @@ from .background_worker import BackgroundWorker
 from .clean_up import clean_up
 from .log_collector import log_collector
 from .metrics_collector import metrics_collector
+from .thumbnails import thumbnails_processing
 
 
 class BackgroundWorkers:
@@ -15,6 +16,7 @@ class BackgroundWorkers:
             log_collector,
             metrics_collector,
             clean_up,
+            thumbnails_processing,
         ]
 
     def start(self):
