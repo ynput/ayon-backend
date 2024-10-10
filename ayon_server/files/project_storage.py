@@ -348,7 +348,8 @@ class ProjectStorage:
 
         if self.storage_type == "local":
             logging.debug(f"Trashing project {self.project_name} storage")
-            project_dir = await self.get_root()
+            projects_root = await self.get_root()
+            project_dir = os.path.join(projects_root, self.project_name)
             if not os.path.isdir(project_dir):
                 return
             timestamp = int(time.time())
