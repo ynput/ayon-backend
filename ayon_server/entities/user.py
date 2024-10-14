@@ -218,6 +218,21 @@ class UserEntity(TopLevelEntity):
             or data.get("isService", False)
         )
 
+    def can(
+        self,
+        key: str,
+        project_name: str | None = None,
+    ) -> None:
+        """
+        Check if user has a specific permission.
+
+        Raise forbidden exception if user does not have the permission.
+        """
+        if self.is_manager:
+            return
+
+        raise ForbiddenException(f"User {self.name} does not have permission {key}")
+
     def check_project_access(self, project_name: str) -> None:
         if self.is_manager:
             return

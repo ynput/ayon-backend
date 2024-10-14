@@ -4,6 +4,7 @@ from pydantic import validator
 
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, SettingsField
+from ayon_server.settings.enum import addons_enum
 from ayon_server.utils import json_dumps
 
 
@@ -79,6 +80,17 @@ class EndpointsAccessList(BasePermissionsModel):
     endpoints: list[str] = SettingsField(default_factory=list)
 
 
+class SettingsAccessModel(BaseSettingsModel):
+    _isGroup = True
+    enabled: bool = SettingsField(True, title="Restrict access to settings")
+    addons: list[str] = SettingsField(
+        default_factory=list,
+        title="Addons",
+        description="List of addons a user can access",
+        enum_resolver=addons_enum,
+    )
+
+
 class Permissions(BaseSettingsModel):
     """
     The Permissions model defines the permissions for an access group.
@@ -87,10 +99,39 @@ class Permissions(BaseSettingsModel):
 
     _layout: str = "root"
 
+    studio_settings_read: SettingsAccessModel = SettingsField(
+        default_factory=SettingsAccessModel,
+        title="Studio settings (read)",
+        description="Restrict access to studio settings",
+        scope=["studio"],
+    )
+
+    studio_settings_write: SettingsAccessModel = SettingsField(
+        default_factory=SettingsAccessModel,
+        title="Studio settings (write)",
+        description="Restrict access to studio settings",
+        scope=["studio"],
+    )
+
+    project_settings_read: SettingsAccessModel = SettingsField(
+        default_factory=SettingsAccessModel,
+        title="Project settings (read)",
+        description="Restrict read access to project settings",
+        scope=["studio", "project"],
+    )
+
+    project_settings_write: SettingsAccessModel = SettingsField(
+        default_factory=SettingsAccessModel,
+        title="Project settings (write)",
+        description="Restrict write access to project settings",
+        scope=["studio", "project"],
+    )
+
     create: FolderAccessList = SettingsField(
         default_factory=FolderAccessList,
         title="Restrict folder creation",
         description="Whitelist folders a user can create",
+        section="Folder Access",
     )
 
     read: FolderAccessList = SettingsField(
