@@ -25,6 +25,7 @@ async def enroll_job(
     sequential: bool = False,
     filter: Filter | None = None,
     max_retries: int = 3,
+    ignore_older_than: int | None = None,
 ) -> EnrollResponseModel | None:
     if description is None:
         description = f"Convert from {source_topic} to {target_topic}"
@@ -45,11 +46,16 @@ async def enroll_job(
     else:
         topic_cond = "topic = ANY($1)"
 
+    ignore_cond = ""
+    if ignore_older_than is not None:
+        ignore_cond = f"AND updated_at > NOW() - INTERVAL '{ignore_older_than} days'"
+
     query = f"""
         WITH excluded_events AS (
             SELECT depends_on
             FROM events
             WHERE topic = $2
+            {ignore_cond}
             AND (
                 status = 'finished'
                 OR (status = 'failed' AND retries > $3)
@@ -60,6 +66,7 @@ async def enroll_job(
             FROM events
             WHERE {topic_cond}
             AND status = 'finished'
+            {ignore_cond}
             AND id NOT IN (SELECT depends_on FROM excluded_events)
         )
 

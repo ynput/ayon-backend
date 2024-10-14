@@ -52,6 +52,12 @@ class EnrollRequestModel(OPModel):
         None, title="Filter", description="Filter source events"
     )
     max_retries: int = Field(3, title="Max retries", example=3)
+    ignore_older_than: int = Field(
+        3,
+        title="Ignore older than",
+        example=3,
+        description="Ignore events older than this many days. Use 0 for no limit",
+    )
     debug: bool = False
 
 
@@ -104,6 +110,10 @@ async def enroll(
 
     user_name = current_user.name
 
+    ignore_older = payload.ignore_older_than
+    if payload.ignore_older_than == "0":
+        ignore_older = None
+
     res = await enroll_job(
         source_topic,
         payload.target_topic,
@@ -113,6 +123,7 @@ async def enroll(
         sequential=payload.sequential,
         filter=payload.filter,
         max_retries=payload.max_retries,
+        ignore_older_than=ignore_older,
     )
 
     if res is None:
