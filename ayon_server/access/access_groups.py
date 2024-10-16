@@ -71,33 +71,21 @@ class AccessGroups:
 
             if result is None:
                 result = access_group.dict()
-                if project_name != "_":
-                    result.pop("studio_settings", None)
                 continue
 
             for perm_name, value in access_group:
-                if perm_name in ("studio_settings") and project_name != "_":
-                    # ignore project overrides for studio settings
-                    # as they don't make sense and they are just noise
-                    # from the model.
-                    continue
-
                 if not value.enabled:
                     result[perm_name] = {"enabled": False}
                     continue
                 elif not result[perm_name]["enabled"]:
                     continue
 
-                if perm_name in ["project_settings", "studio_settings"]:
-                    result[perm_name]["addons"] = list(
-                        set(result[perm_name].get("addons", [])) | set(value.addons)
-                    )
-
-                    if perm_name == "project_settings":
-                        result[perm_name]["anatomy_update"] = (
-                            result[perm_name].get("anatomy_update", False)
-                            or value.anatomy_update
-                        )
+                if perm_name == "project_settings":
+                    for k, v in result.get(perm_name, {}).items():
+                        if isinstance(v, bool):
+                            result[perm_name][k] = result[perm_name].get(
+                                k, False
+                            ) or value.__getattribute__(k)
 
                 elif perm_name in ("create", "read", "update", "delete"):
                     # TODO: deduplicate

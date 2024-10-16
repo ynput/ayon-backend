@@ -4,7 +4,6 @@ from pydantic import validator
 
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, SettingsField
-from ayon_server.settings.enum import addons_enum
 from ayon_server.utils import json_dumps
 
 
@@ -80,22 +79,33 @@ class EndpointsAccessList(BasePermissionsModel):
     endpoints: list[str] = SettingsField(default_factory=list)
 
 
-class StudioSettingsAccessModel(BaseSettingsModel):
+class ProjectSettingsAccessModel(BaseSettingsModel):
     _isGroup = True
-    enabled: bool = SettingsField(True, title="Restrict access to settings")
-    addons: list[str] = SettingsField(
-        default_factory=list,
-        title="Addons",
-        description="List of addons a user can access",
-        enum_resolver=addons_enum,
+    enabled: bool = SettingsField(
+        True,
+        title="Restrict access to project management",
     )
-
-
-class ProjectSettingsAccessModel(StudioSettingsAccessModel):
+    create_project: bool = SettingsField(
+        False,
+        title="Allow project creation",
+        description="Allow users to create new projects. "
+        "User must have the role set in the list of default roles.",
+        scope=["studio"],
+    )
+    assign_users: bool = SettingsField(
+        False,
+        title="Allow user assignment",
+        description="Allow users to assign other users to projects",
+    )
     anatomy_update: bool = SettingsField(
         False,
-        title="Allow project anatomy update",
+        title="Allow anatomy update",
         description="Allow users to update the project anatomy",
+    )
+    addon_settings_update: bool = SettingsField(
+        False,
+        title="Allow addon settings update",
+        description="Allow users to modify project overrides of addon settings",
     )
 
 
@@ -107,17 +117,10 @@ class Permissions(BaseSettingsModel):
 
     _layout: str = "root"
 
-    studio_settings: StudioSettingsAccessModel = SettingsField(
-        default_factory=StudioSettingsAccessModel,
-        title="Studio settings",
-        description="Restrict access to studio settings",
-        scope=["studio"],
-    )
-
     project_settings: ProjectSettingsAccessModel = SettingsField(
         default_factory=ProjectSettingsAccessModel,
-        title="Project settings",
-        description="Restrict write access to project settings",
+        title="Restrict project management",
+        description="Selectively allow access to project settings",
         scope=["studio", "project"],
     )
 
