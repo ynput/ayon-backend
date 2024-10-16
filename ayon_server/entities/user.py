@@ -218,15 +218,15 @@ class UserEntity(TopLevelEntity):
             or data.get("isService", False)
         )
 
-    def can(
-        self,
-        key: str,
-        project_name: str | None = None,
-    ) -> None:
+    def can(self, key: str, project_name: str | None = None, **kwargs: Any) -> None:
         """
         Check if user has a specific permission.
 
         Raise forbidden exception if user does not have the permission.
+
+        common kwargs:
+        - addon: str
+
         """
         if self.is_manager:
             return
@@ -240,21 +240,22 @@ class UserEntity(TopLevelEntity):
         if project_name.lower() not in access_groups:
             raise ForbiddenException("No access group assigned on this project")
 
-    def permissions(self, project_name: str | None) -> Permissions | None:
+    def permissions(self, project_name: str | None = None) -> Permissions | None:
         """Return user permissions on a given project."""
 
         if project_name is None:
-            return None
+            active_access_groups = self.data.get("defaultAccessGroups", [])
 
-        try:
-            access_groups = {
-                k.lower(): v for k, v in self.data.get("accessGroups", {}).items()
-            }
-            active_access_groups = access_groups[project_name.lower()]
-        except KeyError:
-            raise ForbiddenException("No access group assigned on this project")
+        else:
+            try:
+                access_groups = {
+                    k.lower(): v for k, v in self.data.get("accessGroups", {}).items()
+                }
+                active_access_groups = access_groups[project_name.lower()]
+            except KeyError:
+                raise ForbiddenException("No access group assigned on this project")
 
-        return AccessGroups.combine(active_access_groups, project_name)
+        return AccessGroups.combine(active_access_groups, project_name or "_")
 
     def set_password(
         self,

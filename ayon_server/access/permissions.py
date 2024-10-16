@@ -80,7 +80,7 @@ class EndpointsAccessList(BasePermissionsModel):
     endpoints: list[str] = SettingsField(default_factory=list)
 
 
-class SettingsAccessModel(BaseSettingsModel):
+class StudioSettingsAccessModel(BaseSettingsModel):
     _isGroup = True
     enabled: bool = SettingsField(True, title="Restrict access to settings")
     addons: list[str] = SettingsField(
@@ -88,6 +88,14 @@ class SettingsAccessModel(BaseSettingsModel):
         title="Addons",
         description="List of addons a user can access",
         enum_resolver=addons_enum,
+    )
+
+
+class ProjectSettingsAccessModel(StudioSettingsAccessModel):
+    anatomy_update: bool = SettingsField(
+        False,
+        title="Allow project anatomy update",
+        description="Allow users to update the project anatomy",
     )
 
 
@@ -99,30 +107,16 @@ class Permissions(BaseSettingsModel):
 
     _layout: str = "root"
 
-    studio_settings_read: SettingsAccessModel = SettingsField(
-        default_factory=SettingsAccessModel,
-        title="Studio settings (read)",
+    studio_settings: StudioSettingsAccessModel = SettingsField(
+        default_factory=StudioSettingsAccessModel,
+        title="Studio settings",
         description="Restrict access to studio settings",
         scope=["studio"],
     )
 
-    studio_settings_write: SettingsAccessModel = SettingsField(
-        default_factory=SettingsAccessModel,
-        title="Studio settings (write)",
-        description="Restrict access to studio settings",
-        scope=["studio"],
-    )
-
-    project_settings_read: SettingsAccessModel = SettingsField(
-        default_factory=SettingsAccessModel,
-        title="Project settings (read)",
-        description="Restrict read access to project settings",
-        scope=["studio", "project"],
-    )
-
-    project_settings_write: SettingsAccessModel = SettingsField(
-        default_factory=SettingsAccessModel,
-        title="Project settings (write)",
+    project_settings: ProjectSettingsAccessModel = SettingsField(
+        default_factory=ProjectSettingsAccessModel,
+        title="Project settings",
         description="Restrict write access to project settings",
         scope=["studio", "project"],
     )
