@@ -15,7 +15,7 @@ async def get_current_user_permissions(user: CurrentUser):
 
 
 @router.get("/me/permissions/{project_name}")
-async def get_current_user_permissions_for_project(
+async def get_current_user_project_permissions(
     project_name: ProjectName,
     user: CurrentUser,
 ) -> Permissions:
@@ -41,7 +41,7 @@ async def get_user_permissions(user: CurrentUser, user_name: UserName):
 
 
 @router.get("/{user_name}/permissions/{project_name}")
-async def get_user_permissions_for_project(
+async def get_user_project_permissions(
     project_name: ProjectName,
     user_name: UserName,
     user: CurrentUser,
