@@ -5,7 +5,7 @@ from ayon_server.exceptions import ForbiddenException
 
 from .router import router
 
-manager_permissions = Permissions(project_settings={"enabled": False})
+manager_permissions = Permissions(project={"enabled": False})
 
 
 @router.get("/me/perimissions")

@@ -218,7 +218,9 @@ class UserEntity(TopLevelEntity):
             or data.get("isService", False)
         )
 
-    def can(self, key: str, project_name: str | None = None, **kwargs: Any) -> None:
+    def ensure_permissions(
+        self, key: str, project_name: str | None = None, **kwargs: Any
+    ) -> None:
         """
         Check if user has a specific permission.
 
@@ -231,7 +233,26 @@ class UserEntity(TopLevelEntity):
         if self.is_manager:
             return
 
-        raise ForbiddenException(f"User {self.name} does not have permission {key}")
+        permissions = self.permissions(project_name)
+
+        try:
+            group, perm_name = key.split(".")
+        except ValueError:
+            raise ValueError(f"Invalid permission key {key}")
+
+        perm_group = getattr(permissions, group)
+        if not perm_group.enabled:
+            # no restrictions on group
+            return
+
+        perm = getattr(perm_group, perm_name)
+        if not perm:
+            pdef = f" {project_name}" if project_name else ""
+            raise ForbiddenException(f"You are not allowed to access{pdef} {perm_name}")
+
+        if kwargs.get("write") and int(perm) < 2:
+            pdef = f" {project_name}" if project_name else ""
+            raise ForbiddenException(f"You are not allowed to modify{pdef} {perm_name}")
 
     def check_project_access(self, project_name: str) -> None:
         if self.is_manager:

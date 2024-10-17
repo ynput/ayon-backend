@@ -87,7 +87,10 @@ class ProjectManagementAccessModel(BaseSettingsModel):
         title="Restrict access to project management",
     )
     create: bool = SettingsField(
-        False, title="Project creation", scope=["studio"], widget="permission"
+        False,
+        title="Project creation",
+        scope=["studio"],
+        widget="permission",
     )
     users: int = SettingsField(0, title="Users", widget="permission")
     anatomy: int = SettingsField(0, title="Project anatomy", widget="permission")
@@ -102,7 +105,7 @@ class Permissions(BaseSettingsModel):
 
     _layout: str = "root"
 
-    projects: ProjectManagementAccessModel = SettingsField(
+    project: ProjectManagementAccessModel = SettingsField(
         default_factory=ProjectManagementAccessModel,
         title="Restrict project management",
         scope=["studio", "project"],
