@@ -11,6 +11,18 @@ async def get_primary_anatomy_preset():
     return Anatomy()
 
 
+async def addons_enum():
+    """Return a list of all installed addons"""
+    from ayon_server.addons.library import AddonLibrary
+
+    instance = AddonLibrary.getinstance()
+    result = []
+    for addon_name, definition in instance.items():
+        result.append({"label": addon_name, "value": addon_name})
+    result.sort(key=lambda x: x["label"])
+    return result
+
+
 async def folder_types_enum(project_name: str | None = None):
     if project_name is None:
         anatomy = await get_primary_anatomy_preset()
