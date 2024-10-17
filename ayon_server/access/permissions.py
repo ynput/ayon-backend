@@ -79,34 +79,19 @@ class EndpointsAccessList(BasePermissionsModel):
     endpoints: list[str] = SettingsField(default_factory=list)
 
 
-class ProjectSettingsAccessModel(BaseSettingsModel):
+class ProjectManagementAccessModel(BaseSettingsModel):
     _isGroup = True
+
     enabled: bool = SettingsField(
         True,
         title="Restrict access to project management",
     )
-    create_project: bool = SettingsField(
-        False,
-        title="Allow project creation",
-        description="Allow users to create new projects. "
-        "User must have the role set in the list of default roles.",
-        scope=["studio"],
+    create: bool = SettingsField(
+        False, title="Project creation", scope=["studio"], widget="permission"
     )
-    assign_users: bool = SettingsField(
-        False,
-        title="Allow user assignment",
-        description="Allow users to assign other users to projects",
-    )
-    anatomy_update: bool = SettingsField(
-        False,
-        title="Allow anatomy update",
-        description="Allow users to update the project anatomy",
-    )
-    addon_settings_update: bool = SettingsField(
-        False,
-        title="Allow addon settings update",
-        description="Allow users to modify project overrides of addon settings",
-    )
+    users: int = SettingsField(0, title="Users", widget="permission")
+    anatomy: int = SettingsField(0, title="Project anatomy", widget="permission")
+    settings: int = SettingsField(0, title="Addon settings", widget="permission")
 
 
 class Permissions(BaseSettingsModel):
@@ -117,10 +102,9 @@ class Permissions(BaseSettingsModel):
 
     _layout: str = "root"
 
-    project_settings: ProjectSettingsAccessModel = SettingsField(
-        default_factory=ProjectSettingsAccessModel,
+    projects: ProjectManagementAccessModel = SettingsField(
+        default_factory=ProjectManagementAccessModel,
         title="Restrict project management",
-        description="Selectively allow access to project settings",
         scope=["studio", "project"],
     )
 
