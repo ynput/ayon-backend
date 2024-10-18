@@ -4,6 +4,7 @@ from redis import asyncio as aioredis
 from redis.asyncio.client import PubSub
 
 from ayon_server.config import ayonconfig
+from ayon_server.utils import json_dumps, json_loads
 
 GET_SIZE_SCRIPT = """
 local cursor = "0"
@@ -55,6 +56,19 @@ class Redis:
         return value
 
     @classmethod
+    async def get_json(cls, namespace: str, key: str) -> Any:
+        """Get a JSON-serialized value from Redis"""
+        if not cls.connected:
+            await cls.connect()
+        value = await cls.get(namespace, key)
+        if value is None:
+            return None
+        try:
+            return json_loads(value)
+        except Exception as e:
+            raise ValueError(f"Invalid JSON in {namespace}-{key}") from e
+
+    @classmethod
     async def set(
         cls, namespace: str, key: str, value: str | bytes, ttl: int = 0
     ) -> None:
@@ -69,6 +83,12 @@ class Redis:
             command.extend(["ex", str(ttl)])
 
         await cls.redis_pool.execute_command(*command)
+
+    @classmethod
+    async def set_json(cls, namespace: str, key: str, value: Any, ttl: int = 0) -> None:
+        """Create/update a record in Redis with JSON-serialized value"""
+        payload = json_dumps(value)
+        await cls.set(namespace, key, payload, ttl)
 
     @classmethod
     async def delete(cls, namespace: str, key: str) -> None:
