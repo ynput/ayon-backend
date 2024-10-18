@@ -1,6 +1,5 @@
 from typing import Annotated
 
-from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.connections import UsersConnection
 from ayon_server.graphql.edges import UserEdge
 from ayon_server.graphql.nodes.user import UserNode
@@ -51,8 +50,8 @@ async def get_users(
     """Return a list of users."""
 
     user = info.context["user"]
-    if (not user.is_manager) and (project_name is None and projects is None):
-        raise ForbiddenException("Only managers and administrators can view all users")
+    if project_name is None and projects is None:
+        user.ensure_permissions("project.users")
 
     # Filter by name
 
