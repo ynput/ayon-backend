@@ -1,5 +1,8 @@
 import re
 
+from fastapi import Request
+from nxtools import logging
+
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.events.enroll import EnrollResponseModel, enroll_job
@@ -9,8 +12,10 @@ from ayon_server.exceptions import (
     ServiceUnavailableException,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.sqlfilter import Filter
 from ayon_server.types import TOPIC_REGEX, Field, OPModel
+from ayon_server.utils import hash_data
 
 from .router import router
 
@@ -79,6 +84,7 @@ def validate_source_topic(value: str) -> str:
 # response model must be here
 @router.post("/enroll", response_model=EnrollResponseModel)
 async def enroll(
+    request: Request,
     payload: EnrollRequestModel,
     current_user: CurrentUser,
 ) -> EnrollResponseModel | EmptyResponse:
@@ -94,6 +100,13 @@ async def enroll(
     Non-error response is returned because having nothing to do is not an error
     and we don't want to spam the logs.
     """
+
+    def sloth(*args):
+        if payload.sloth_mode:
+            if not args:
+                print()
+            else:
+                logging.debug("🦥", *args)
 
     if not current_user.is_service:
         raise ForbiddenException("Only services can enroll for jobs")
@@ -123,20 +136,78 @@ async def enroll(
     if payload.ignore_older_than == "0":
         ignore_older = None
 
-    res = await enroll_job(
-        source_topic,
-        payload.target_topic,
-        sender=payload.sender,
-        user_name=user_name,
-        description=payload.description,
-        sequential=payload.sequential,
-        filter=payload.filter,
-        max_retries=payload.max_retries,
-        ignore_older_than=ignore_older,
-        sloth_mode=payload.sloth_mode,
-    )
+    request_hash = hash_data(payload.dict())
+    sloth()
+    sloth(f"A friendly sloth received a new enroll request from {payload.sender}!")
+    sloth(f"That request's hash is {request_hash}")
 
-    if res is None:
-        return EmptyResponse()
+    cached_result = await Redis.get_json("enroll", request_hash)
+    if cached_result:
+        if cached_result["status"] == "processing":
+            sloth("Checked the cache. It's processing, but not done yet. 🛠️")
+            sloth("Returning 503 and let them try again later. 🤷")
+            raise ServiceUnavailableException("Enroll request is already pending")
 
-    return res
+        sloth("Checked the cache. It's there and done. 🎉")
+        sloth("It looks like this: ", cached_result)
+        sloth(f"Returning it to {payload.sender}. and removing it from the cache.")
+        await Redis.delete("enroll", request_hash)
+        return cached_result.get("result")
+
+    else:
+        sloth("No cache found. Let's do the job.")
+        await Redis.set_json(
+            "enroll",
+            request_hash,
+            {"status": "processing"},
+            ttl=3600,
+        )
+
+    try:
+        res = await enroll_job(
+            source_topic,
+            payload.target_topic,
+            sender=payload.sender,
+            user_name=user_name,
+            description=payload.description,
+            sequential=payload.sequential,
+            filter=payload.filter,
+            max_retries=payload.max_retries,
+            ignore_older_than=ignore_older,
+            sloth_mode=payload.sloth_mode,
+        )
+    except Exception:
+        # something went wrong, remove the cache
+
+        await Redis.delete("enroll", request_hash)
+        raise  # re-raise the exception
+
+    finally:
+        if await request.is_disconnected():
+            sloth()
+            sloth(f"Enroll request completed: {request_hash}")
+            sloth(f"But the client ({payload.sender}) already gave up. Shame! 😢")
+            sloth("Nevermind, we'll just store the result in the cache.")
+            if res is None:
+                r = None
+            else:
+                r = res.dict()
+
+            await Redis.set_json(
+                "enroll", request_hash, {"status": "done", "result": r}
+            )
+
+            # no point of returning the result to the client
+            # as nobody is waiting for it
+            return EmptyResponse()
+
+        else:
+            sloth()
+            sloth("Client is still here and waiting.")
+            sloth("We don't need to store the result in the cache.")
+            sloth("We'll just delete the cache and return what we have!")
+            await Redis.delete("enroll", request_hash)
+
+            if res is None:
+                return EmptyResponse()
+            return res
