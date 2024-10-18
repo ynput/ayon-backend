@@ -54,7 +54,11 @@ def json_default_handler(value: Any) -> Any:
 
 def json_dumps(data: Any, *, default: Callable[[Any], Any] | None = None) -> str:
     """Dump JSON data."""
-    return orjson.dumps(data, default=json_default_handler).decode()
+    return orjson.dumps(
+        data,
+        default=json_default_handler,
+        option=orjson.OPT_SORT_KEYS,
+    ).decode()
 
 
 def hash_data(data: Any) -> str:
