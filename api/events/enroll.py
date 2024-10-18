@@ -58,7 +58,16 @@ class EnrollRequestModel(OPModel):
         example=3,
         description="Ignore events older than this many days. Use 0 for no limit",
     )
-    debug: bool = False
+    sloth_mode: bool = Field(
+        False,
+        title="Sloth mode",
+        description=(
+            "Causes enroll endpoint to be really really slow. "
+            "This is just for debugging. "
+            "You really don't want to use this in production."
+        ),
+        example=False,
+    )
 
 
 def validate_source_topic(value: str) -> str:
@@ -124,6 +133,7 @@ async def enroll(
         filter=payload.filter,
         max_retries=payload.max_retries,
         ignore_older_than=ignore_older,
+        sloth_mode=payload.sloth_mode,
     )
 
     if res is None:

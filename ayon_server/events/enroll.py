@@ -26,6 +26,7 @@ async def enroll_job(
     filter: Filter | None = None,
     max_retries: int = 3,
     ignore_older_than: int | None = None,
+    sloth_mode: bool = False,
 ) -> EnrollResponseModel | None:
     if description is None:
         description = f"Convert from {source_topic} to {target_topic}"
@@ -50,6 +51,11 @@ async def enroll_job(
     if ignore_older_than is not None:
         ignore_cond = f"AND updated_at > NOW() - INTERVAL '{ignore_older_than} days'"
 
+    if sloth_mode:
+        sloth_query = ", pg_sleep(0.2)"
+    else:
+        sloth_query = ""
+
     query = f"""
         WITH excluded_events AS (
             SELECT depends_on
@@ -61,8 +67,9 @@ async def enroll_job(
                 OR (status = 'failed' AND retries > $3)
             )
         ),
+
         source_events AS (
-            SELECT *
+            SELECT * {sloth_query}
             FROM events
             WHERE {topic_cond}
             AND status = 'finished'
@@ -91,87 +98,84 @@ async def enroll_job(
         LIMIT 1000  -- Pool of 1000 events should be enough
     """
 
-    async for row in Postgres.iterate(
-        query,
-        source_topic,
-        target_topic,
-        max_retries,
-    ):
-        # Check if target event already exists
-        if row["target_status"] is not None:
-            if row["target_status"] in ["failed", "restarted"]:
-                # events which have reached max retries are already
-                # filtered out by the query above,
-                # so we can just retry them - update status to pending
-                # and increase retries counter
+    async with Postgres.acquire() as con, con.transaction():
+        statement = await con.prepare(query)
+        async for row in statement.cursor(source_topic, target_topic, max_retries):
+            # Check if target event already exists
+            if row["target_status"] is not None:
+                if row["target_status"] in ["failed", "restarted"]:
+                    # events which have reached max retries are already
+                    # filtered out by the query above,
+                    # so we can just retry them - update status to pending
+                    # and increase retries counter
 
-                retries = row["target_retries"]
-                if row["target_status"] == "failed":
-                    retries += 1
+                    retries = row["target_retries"]
+                    if row["target_status"] == "failed":
+                        retries += 1
 
-                event_id = row["target_id"]
-                await EventStream.update(
-                    event_id,
-                    status="pending",
-                    sender=sender,
-                    user=user_name,
-                    retries=retries,
-                    description="Restarting failed event",
-                )
+                    event_id = row["target_id"]
+                    await EventStream.update(
+                        event_id,
+                        status="pending",
+                        sender=sender,
+                        user=user_name,
+                        retries=retries,
+                        description="Restarting failed event",
+                    )
+                    return EnrollResponseModel(
+                        id=event_id,
+                        hash=row["target_hash"],
+                        depends_on=row["source_id"],
+                        status="pending",
+                    )
+
+                if row["target_sender"] != sender:
+                    # There is already a target event for this source event.
+                    # Check who is the sender. If it's not us, then we can't
+                    # enroll for this job (the other worker is already working on it)
+                    if sequential:
+                        return None
+                    continue
+
+                # We are the sender of the target event, so it is possible that,
+                # for some reason, we have not finished processing it yet.
+                # In this case, we can't enroll for this job again.
+
                 return EnrollResponseModel(
-                    id=event_id,
-                    hash=row["target_hash"],
+                    id=row["target_id"],
                     depends_on=row["source_id"],
-                    status="pending",
+                    status=row["target_status"],
+                    hash=row["target_hash"],
                 )
 
-            if row["target_sender"] != sender:
-                # There is already a target event for this source event.
-                # Check who is the sender. If it's not us, then we can't
-                # enroll for this job (the other worker is already working on it)
+            # Target event does not exist yet. Create a new one
+            new_hash = hash_data((target_topic, row["source_id"]))
+            try:
+                new_id = await EventStream.dispatch(
+                    target_topic,
+                    sender=sender,
+                    hash=new_hash,
+                    depends_on=row["source_id"],
+                    user=user_name,
+                    description=description,
+                    finished=False,
+                )
+
+            except ConstraintViolationException:
+                # for some reason, the event already exists
+                # most likely because another worker took it
+
+                # in that case, we abort (if sequential) or
+                # continue to the next event
                 if sequential:
                     return None
                 continue
 
-            # We are the sender of the target event, so it is possible that,
-            # for some reason, we have not finished processing it yet.
-            # In this case, we can't enroll for this job again.
-
             return EnrollResponseModel(
-                id=row["target_id"],
-                depends_on=row["source_id"],
-                status=row["target_status"],
-                hash=row["target_hash"],
-            )
-
-        # Target event does not exist yet. Create a new one
-        new_hash = hash_data((target_topic, row["source_id"]))
-        try:
-            new_id = await EventStream.dispatch(
-                target_topic,
-                sender=sender,
+                id=new_id,
                 hash=new_hash,
                 depends_on=row["source_id"],
-                user=user_name,
-                description=description,
-                finished=False,
+                status="pending",
             )
-
-        except ConstraintViolationException:
-            # for some reason, the event already exists
-            # most likely because another worker took it
-
-            # in that case, we abort (if sequential) or
-            # continue to the next event
-            if sequential:
-                return None
-            continue
-
-        return EnrollResponseModel(
-            id=new_id,
-            hash=new_hash,
-            depends_on=row["source_id"],
-            status="pending",
-        )
 
     return None
