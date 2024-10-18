@@ -266,6 +266,9 @@ class AyonCleanUp(BackgroundWorker):
         else:
             # For each project, clean up thumbnails and unused files
             for project in projects:
+                if not project.active:
+                    continue
+
                 for prj_func in (
                     clear_thumbnails,
                     clear_activities,
