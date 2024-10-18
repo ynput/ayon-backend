@@ -1,4 +1,5 @@
 import time
+from collections import defaultdict
 from typing import Any
 
 from nxtools import logging
@@ -96,13 +97,11 @@ async def assign_default_users_to_project(project_name: str, conn) -> None:
     if not users:
         return
 
-    sessions = {}
+    sessions = defaultdict(list)
     async for session in Session.list():
         # querying sessions for all users is not efficient
         # so we will just load all active sessions and work with them
         user_name = session.user.name
-        if user_name not in sessions:
-            sessions[user_name] = []
         sessions[user_name].append(session.token)
 
     for row in users:
@@ -112,16 +111,18 @@ async def assign_default_users_to_project(project_name: str, conn) -> None:
             # we don't need to assign projects to managers and above
             # as they have access to all projects
             continue
-        logging.debug(f"Assigning project {project_name} to user {row['name']}")
 
         access_groups = user.data.get("accessGroups", {})
         access_groups[project_name] = user.data["defaultAccessGroups"]
         user.data["accessGroups"] = access_groups
         await user.save(transaction=conn)
 
-        if user.name in sessions:
-            for token in sessions[user.name]:
-                await Session.update(token, user)
+        for token in sessions[user.name]:
+            await Session.update(token, user)
+
+        # TODO: consider dispatching an event with this information as
+        # it could be used to notify the user.
+        logging.debug(f"Added user {row['name']} to project {project_name}")
 
 
 async def create_project_from_anatomy(
