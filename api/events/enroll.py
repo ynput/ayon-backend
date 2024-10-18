@@ -138,24 +138,20 @@ async def enroll(
 
     request_hash = hash_data(payload.dict())
     sloth()
-    sloth(f"A friendly sloth received a new enroll request from {payload.sender}!")
-    sloth(f"That request's hash is {request_hash}")
+    sloth(f"Received enroll request from {payload.sender}! Hash {request_hash}")
 
     cached_result = await Redis.get_json("enroll", request_hash)
     if cached_result:
         if cached_result["status"] == "processing":
-            sloth("Checked the cache. It's processing, but not done yet. 🛠️")
-            sloth("Returning 503 and let them try again later. 🤷")
-            raise ServiceUnavailableException("Enroll request is already pending")
+            sloth("Request is already running. Returning 503.")
+            raise ServiceUnavailableException("Enroll request is already running")
 
-        sloth("Checked the cache. It's there and done. 🎉")
-        sloth("It looks like this: ", cached_result)
-        sloth(f"Returning it to {payload.sender}. and removing it from the cache.")
+        sloth("Request is already completed. Returning the cached result.")
         await Redis.delete("enroll", request_hash)
         return cached_result.get("result")
 
     else:
-        sloth("No cache found. Let's do the job.")
+        sloth("This is a new request. Caching.")
         await Redis.set_json(
             "enroll",
             request_hash,
@@ -178,23 +174,24 @@ async def enroll(
         )
     except Exception:
         # something went wrong, remove the cache
-
         await Redis.delete("enroll", request_hash)
         raise  # re-raise the exception
 
     finally:
+        sloth()
+        sloth(f"Enroll request {request_hash} completed")
         if await request.is_disconnected():
-            sloth()
-            sloth(f"Enroll request completed: {request_hash}")
-            sloth(f"But the client ({payload.sender}) already gave up. Shame! 😢")
-            sloth("Nevermind, we'll just store the result in the cache.")
+            sloth(f"({payload.sender}) is disconnected. Caching the result.")
             if res is None:
                 r = None
             else:
                 r = res.dict()
 
             await Redis.set_json(
-                "enroll", request_hash, {"status": "done", "result": r}
+                "enroll",
+                request_hash,
+                {"status": "done", "result": r},
+                ttl=60,
             )
 
             # no point of returning the result to the client
@@ -202,10 +199,7 @@ async def enroll(
             return EmptyResponse()
 
         else:
-            sloth()
-            sloth("Client is still here and waiting.")
-            sloth("We don't need to store the result in the cache.")
-            sloth("We'll just delete the cache and return what we have!")
+            sloth("Client is still connected. Returning the result and purging cache.")
             await Redis.delete("enroll", request_hash)
 
             if res is None:
