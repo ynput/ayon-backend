@@ -1,10 +1,9 @@
 from fastapi import Header
-from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser, NewProjectName, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     ConflictException,
     ForbiddenException,
@@ -98,22 +97,23 @@ async def create_project(
     if not user.is_manager:
         raise ForbiddenException("You need to be a manager in order to create projects")
 
-    action = ""
-
     try:
         project = await ProjectEntity.load(project_name)
-        # NOTE: Replacing projects is not (and shoud not be) supported
-        # project.replace(put_data)
-        # action = "Replaced"
     except NotFoundException:
         project = ProjectEntity(payload=put_data.dict() | {"name": project_name})
-        action = "Created"
     else:
         raise ConflictException(f"Project {project_name} already exists")
 
     await project.save()
 
-    logging.info(f"[PUT] {action} project {project.name}", user=user.name)
+    await EventStream.dispatch(
+        "entity.project.created",
+        sender="ayon",
+        project=project.name,
+        user=user.name,
+        description=f"Created project {project.name}",
+    )
+
     return EmptyResponse(status_code=201)
 
 
@@ -145,14 +145,13 @@ async def update_project(
     project.patch(patch_data)
     await project.save()
 
-    await dispatch_event(
+    await EventStream.dispatch(
         "entity.project.changed",
         sender=x_sender,
         project=project_name,
         user=user.name,
         description=f"Updated project {project_name}",
     )
-    logging.info(f"[PATCH] Updated project {project.name}", user=user.name)
     return EmptyResponse()
 
 
@@ -196,10 +195,18 @@ async def delete_project(user: CurrentUser, project_name: ProjectName) -> EmptyR
 
     await project.delete()
 
+    # clean-up (TODO: consider running as a background task)
+
     storage = await Storages.project(project_name)
     await storage.trash()
-
     await unassign_users_from_deleted_projects()
-    logging.info(f"[DELETE] Deleted project {project.name}", user=user.name)
+
+    await EventStream.dispatch(
+        "entity.project.deleted",
+        sender="ayon",
+        project=project.name,
+        user=user.name,
+        description=f"Deleted project {project.name}",
+    )
 
     return EmptyResponse()
