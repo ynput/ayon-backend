@@ -81,35 +81,47 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
 async def assign_default_users_to_project(project_name: str, conn) -> None:
     """Assign a project to all users with default access groups"""
 
-    # TBD: limit to active users only?
     # NOTE: we need to use explicit public here, because the
     # previous statement in the transaction scopes the transaction
     # to the project schema.
+
     query = """
         SELECT u.* FROM public.users AS u
         WHERE jsonb_array_length(data->'defaultAccessGroups')::boolean
+        AND active
         FOR UPDATE OF u
     """
 
     users = await conn.fetch(query)
+    if not users:
+        return
+
+    sessions = {}
+    async for session in Session.list():
+        # querying sessions for all users is not efficient
+        # so we will just load all active sessions and work with them
+        user_name = session.user.name
+        if user_name not in sessions:
+            sessions[user_name] = []
+        sessions[user_name].append(session.token)
 
     for row in users:
-        logging.debug(f"Assigning project {project_name} to user {row['name']}")
         user = UserEntity.from_record(row)
 
         if user.is_manager:
             # we don't need to assign projects to managers and above
             # as they have access to all projects
             continue
+        logging.debug(f"Assigning project {project_name} to user {row['name']}")
 
         access_groups = user.data.get("accessGroups", {})
         access_groups[project_name] = user.data["defaultAccessGroups"]
         user.data["accessGroups"] = access_groups
         await user.save(transaction=conn)
 
-        async for session in Session.list(user.name):
-            token = session.token
-            await Session.update(token, user)
+        if user.name in sessions:
+            for token in sessions[user.name]:
+                await Session.update(token, user)
 
 
 async def create_project_from_anatomy(
