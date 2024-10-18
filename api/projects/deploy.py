@@ -33,6 +33,7 @@ async def deploy_project(
         code=payload.code,
         anatomy=payload.anatomy,
         library=payload.library,
+        user_name=user.name,
     )
 
     return EmptyResponse(status_code=201)

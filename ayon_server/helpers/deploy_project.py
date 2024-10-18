@@ -129,7 +129,9 @@ async def create_project_from_anatomy(
     name: str,
     code: str,
     anatomy: Anatomy,
+    *,
     library: bool = False,
+    user_name: str | None = None,
 ) -> None:
     """Deploy a project.
 
@@ -161,6 +163,6 @@ async def create_project_from_anatomy(
         "entity.project.created",
         sender="ayon",
         project=project.name,
-        user="",
+        user=user_name,
         description=f"Created project {project.name}",
     )
