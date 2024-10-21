@@ -43,8 +43,12 @@ async def get_inbox(
         # that is passed as an argument to funcition, which uses
         # it to format a string... i am so sorry
         operator = "IN" if show_important_messages else "NOT IN"
+        if show_important_messages:
+            not_important = "AND t.activity_type != ''status.change''"
+        else:
+            not_important = "OR t.activity_type = ''status.change''"
         subquery_conds.append(
-            f"t.reference_type {operator} (''mention'', ''watching'')"
+            f"(t.reference_type {operator} (''mention'', ''watching'') {not_important})"
         )
 
     subquery_add_arg = ""
