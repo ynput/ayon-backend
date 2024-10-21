@@ -1,4 +1,5 @@
 import re
+import time
 
 from fastapi import Request
 from nxtools import logging
@@ -68,8 +69,8 @@ class EnrollRequestModel(OPModel):
         title="Sloth mode",
         description=(
             "Causes enroll endpoint to be really really slow. "
-            "This is just for debugging. "
-            "You really don't want to use this in production."
+            "This flag is for development and testing purposes only. "
+            "Never use it in production."
         ),
         example=False,
     )
@@ -141,7 +142,7 @@ async def enroll(
     sloth(f"Received enroll request from {payload.sender}! Hash {request_hash}")
 
     cached_result = await Redis.get_json("enroll", request_hash)
-    if cached_result:
+    if cached_result and time.time() - cached_result["timestamp"] < 600:
         if cached_result["status"] == "processing":
             sloth("Request is already running. Returning 503.")
             raise ServiceUnavailableException("Enroll request is already running")
@@ -151,12 +152,15 @@ async def enroll(
         return cached_result.get("result")
 
     else:
-        sloth("This is a new request. Caching.")
+        if cached_result:
+            sloth("Request is already completed but cache is expired. Re-processing")
+        else:
+            sloth("This is a new request. Caching.")
         await Redis.set_json(
             "enroll",
             request_hash,
-            {"status": "processing"},
-            ttl=3600,
+            {"status": "processing", "timestamp": time.time()},
+            ttl=600,
         )
 
     try:
@@ -190,7 +194,7 @@ async def enroll(
             await Redis.set_json(
                 "enroll",
                 request_hash,
-                {"status": "done", "result": r},
+                {"status": "done", "result": r, "timestamp": time.time()},
                 ttl=60,
             )
 
