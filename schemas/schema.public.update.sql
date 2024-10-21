@@ -467,3 +467,10 @@ CREATE OR REPLACE FUNCTION add_meta_column_to_thumbnails()
 SELECT add_meta_column_to_thumbnails();
 DROP FUNCTION IF EXISTS add_meta_column_to_thumbnails();
 
+
+----------------
+-- AYON 1.5.3 --
+----------------
+
+ALTER TABLE IF EXISTS events ADD COLUMN sender_type VARCHAR;
+

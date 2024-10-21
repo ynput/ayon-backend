@@ -52,6 +52,7 @@ class EventModel(OPModel):
     hash: str = Field(...)
     topic: str = Field(...)
     sender: str | None = SENDER_FIELD
+    sender_type: str | None = Field(None)
     project: str | None = PROJECT_FIELD
     user: str | None = USER_FIELD
     depends_on: str | None = DEPENDS_ON_FIELD
@@ -72,6 +73,7 @@ class EventModel(OPModel):
             project=row["project_name"],
             user=row["user_name"],
             sender=row["sender"],
+            sender_type=row["sender_type"],
             depends_on=row["depends_on"],
             status=row["status"],
             retries=row["retries"],

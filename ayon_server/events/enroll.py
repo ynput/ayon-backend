@@ -20,6 +20,7 @@ async def enroll_job(
     target_topic: str,
     *,
     sender: str | None = None,
+    sender_type: str | None = None,
     user_name: str | None = None,
     description: str | None = None,
     sequential: bool = False,
@@ -118,6 +119,7 @@ async def enroll_job(
                         event_id,
                         status="pending",
                         sender=sender,
+                        sender_type=sender_type,
                         user=user_name,
                         retries=retries,
                         description="Restarting failed event",
@@ -154,6 +156,7 @@ async def enroll_job(
                 new_id = await EventStream.dispatch(
                     target_topic,
                     sender=sender,
+                    sender_type=sender_type,
                     hash=new_hash,
                     depends_on=row["source_id"],
                     user=user_name,
