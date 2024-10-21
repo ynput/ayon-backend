@@ -134,7 +134,7 @@ async def enroll(
     user_name = current_user.name
 
     ignore_older = payload.ignore_older_than
-    if payload.ignore_older_than == "0":
+    if payload.ignore_older_than == 0:
         ignore_older = None
 
     request_hash = hash_data(payload.dict())
