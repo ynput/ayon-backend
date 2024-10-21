@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS public.events(
   hash VARCHAR NOT NULL,
   topic VARCHAR NOT NULL,
   sender VARCHAR,
+  sender_type VARCHAR,
   project_name VARCHAR,
   user_name VARCHAR,
   depends_on UUID REFERENCES public.events(id),
@@ -90,6 +91,7 @@ CREATE INDEX IF NOT EXISTS event_created_at_idx ON events (created_at);
 CREATE INDEX IF NOT EXISTS event_updated_at_idx ON events (updated_at);
 CREATE INDEX IF NOT EXISTS event_status_idx ON events (status);
 CREATE INDEX IF NOT EXISTS event_retries_idx ON events (retries);
+CREATE INDEX IF NOT EXISTS idx_events_sender_type ON events(sender_type);
 
 --------------
 -- Settings --
