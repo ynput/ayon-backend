@@ -257,8 +257,16 @@ DECLARE
     query TEXT;
 
 BEGIN
-    FOR project IN SELECT projects.name FROM projects
-      WHERE (show_active_projects IS NULL OR projects.active = show_active_projects)
+    FOR project IN 
+      SELECT p.name FROM projects AS p JOIN users AS u ON u.name = user_name
+      WHERE (show_active_projects IS NULL OR p.active = show_active_projects)
+      AND (
+        (
+          (u.data->'isManager')::boolean 
+          OR (u.data->'isAdmin')::boolean
+        ) 
+        OR (u.data->'accessGroups'->p.name IS NOT NULL)
+      )
     LOOP
         query := format('
             SELECT
@@ -310,8 +318,8 @@ BEGIN
         END,
 
         CASE
-            WHEN show_unread_messages IS FALSE THEN 'AND t.reference_data->>''read'' = ''true'' '
-            WHEN show_unread_messages IS TRUE THEN 'AND t.reference_data->>''read'' IS NULL '
+            WHEN show_unread_messages IS FALSE THEN 'AND (t.reference_data->>''read'')::boolean'
+            WHEN show_unread_messages IS TRUE THEN 'AND not coalesce((t.reference_data->>''read'')::boolean, false)' 
             ELSE ''
         END,
 
