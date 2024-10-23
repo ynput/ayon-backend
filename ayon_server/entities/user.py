@@ -218,7 +218,7 @@ class UserEntity(TopLevelEntity):
             or data.get("isService", False)
         )
 
-    def ensure_permissions(
+    def check_permissions(
         self, key: str, project_name: str | None = None, **kwargs: Any
     ) -> None:
         """

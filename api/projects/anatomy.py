@@ -78,7 +78,7 @@ async def set_project_anatomy(
 ) -> EmptyResponse:
     """Set a project anatomy."""
 
-    user.ensure_permissions("project.anatomy", project_name, write=True)
+    user.check_permissions("project.anatomy", project_name, write=True)
 
     project = await ProjectEntity.load(project_name)
 

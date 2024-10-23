@@ -22,7 +22,7 @@ async def get_project_users(
     permission for the project.
     """
 
-    user.ensure_permissions("project.users", project_name)
+    user.check_permissions("project.users", project_name)
 
     query = f"""
         SELECT name, data->'accessGroups'->'{project_name}' as access_groups
@@ -57,7 +57,7 @@ async def update_project_user(
     and the value is a list of access groups the user has for the project.
     """
 
-    user.ensure_permissions("project.users", project_name, write=True)
+    user.check_permissions("project.users", project_name, write=True)
 
     query = """
         UPDATE users

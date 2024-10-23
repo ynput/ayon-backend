@@ -165,7 +165,7 @@ async def delete_folder(
             "entityData": folder.dict_simple(),
         }
 
-    if force and not user.is_manager:
+    if force and not user.is_manager:  # TBD
         raise ForbiddenException("Only managers can force delete folders")
 
     await folder.delete(force=force)

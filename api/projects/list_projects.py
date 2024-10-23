@@ -119,7 +119,7 @@ async def list_projects(
         # TODO: skipping projects based on permissions
         # breaks the pagination. Remove pagination completely?
         # Or rather use graphql-like approach with cursor?
-        if not user.is_manager:
+        if not user.is_manager:  # TBD
             access_groups = user.data.get("accessGroups", {})
             if not isinstance(access_groups, dict):
                 continue
