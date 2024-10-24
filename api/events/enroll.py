@@ -149,7 +149,9 @@ async def enroll(
 
         sloth("Request is already completed. Returning the cached result.")
         await Redis.delete("enroll", request_hash)
-        return cached_result.get("result") or EmptyResponse()
+        if result := cached_result.get("result"):
+            return EnrollResponseModel(**result)
+        return EmptyResponse()  # return empty response if there is no result
 
     else:
         if cached_result:
