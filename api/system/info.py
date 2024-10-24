@@ -162,7 +162,7 @@ async def get_user_sites(
             # record matches the current site
             current_site_exists = True
             if user_name not in site.users:
-                current_site.users.extend(site.users)
+                current_site.users.update(site.users)
                 current_needs_update = True
             # we can use elif here, because we only need to check one condition
             elif site.platform != current_site.platform:
