@@ -153,6 +153,8 @@ def generate_model(
 
         if field.get("enum"):
             field["_attrib_enum"] = True
+            if isinstance(field["enum"][0], AttributeEnumItem):
+                field["enum"] = [e.value for e in field["enum"]]
         #
         # Default value
         #
