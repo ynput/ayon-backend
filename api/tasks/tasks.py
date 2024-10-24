@@ -168,7 +168,7 @@ async def assign_users_to_task(
 ) -> EmptyResponse:
     """Change the list of users assigned to a task."""
 
-    if not user.is_manager and post_data.users != [user.name]:
+    if not user.is_manager and post_data.users != [user.name]:  # TBD
         raise ForbiddenException("Normal users can only assign themselves")
 
     task = await TaskEntity.load(project_name, task_id)

@@ -184,8 +184,11 @@ async def set_addon_project_settings(
     explicit_unpins = payload.pop("__unpinned_fields__", None)
 
     if not site_id:
-        if not user.is_manager:
-            raise ForbiddenException
+        user.check_permissions(
+            "project.settings",
+            project_name=project_name,
+            write=True,
+        )
 
         original = await addon.get_project_settings(project_name, variant=variant)
         existing = await addon.get_project_overrides(project_name, variant=variant)
@@ -318,8 +321,11 @@ async def delete_addon_project_overrides(
     _ = await ProjectEntity.load(project_name)
 
     if not site_id:
-        if not user.is_manager:
-            raise ForbiddenException
+        user.check_permissions(
+            "project.settings",
+            project_name=project_name,
+            write=True,
+        )
 
         old_settings = await addon.get_project_settings(project_name, variant=variant)
         new_settings = await addon.get_studio_settings(variant=variant)
@@ -465,8 +471,11 @@ async def modify_project_overrides(
 
         return EmptyResponse()
 
-    if not user.is_manager:
-        raise ForbiddenException
+    user.check_permissions(
+        "project.settings",
+        project_name=project_name,
+        write=True,
+    )
 
     old_settings = await addon.get_project_settings(project_name, variant=variant)
     if ayonconfig.audit_trail:

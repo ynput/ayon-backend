@@ -27,13 +27,7 @@ async def get_project(
 ) -> ProjectEntity.model.main_model:  # type: ignore
     """Retrieve a project by its name."""
 
-    if not user.is_manager:
-        access_groups = user.data.get("accessGroups", {})
-        if project_name not in access_groups:
-            raise ForbiddenException(
-                f"You are not allowed to access {project_name} project"
-            )
-
+    user.check_project_access(project_name)
     project = await ProjectEntity.load(project_name)
     return project.as_user(user)
 
@@ -47,13 +41,7 @@ async def get_project(
 async def get_project_stats(user: CurrentUser, project_name: ProjectName):
     """Retrieve a project statistics by its name."""
 
-    if not user.is_manager:
-        access_groups = user.data.get("accessGroups", {})
-        if project_name not in access_groups:
-            raise ForbiddenException(
-                f"You are not allowed to access {project_name} project statistics"
-            )
-
+    user.check_project_access(project_name)
     counts = {}
     for entity in ["folders", "products", "versions", "representations", "tasks"]:
         res = await Postgres.fetch(
@@ -94,8 +82,7 @@ async def create_project(
     ([POST] /api/projects) for general usage.
     """
 
-    if not user.is_manager:
-        raise ForbiddenException("You need to be a manager in order to create projects")
+    user.check_permissions("project.create")
 
     try:
         project = await ProjectEntity.load(project_name)

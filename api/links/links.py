@@ -66,14 +66,13 @@ async def list_link_types(
 @router.put("/projects/{project_name}/links/types/{link_type}", status_code=204)
 async def save_link_type(
     project_name: ProjectName,
-    current_user: CurrentUser,
+    user: CurrentUser,
     link_type: LinkType,
     request_model: CreateLinkTypeRequestModel,
 ) -> EmptyResponse:
     """Save a link type"""
 
-    if not current_user.is_manager:
-        raise ForbiddenException
+    user.check_permissions("project.anatomy", project_name, write=True)
 
     query = f"""
         INSERT INTO project_{project_name}.link_types
@@ -100,13 +99,12 @@ async def save_link_type(
 )
 async def delete_link_type(
     project_name: ProjectName,
-    current_user: CurrentUser,
+    user: CurrentUser,
     link_type: LinkType,
 ) -> EmptyResponse:
     """Delete link type"""
 
-    if not current_user.is_manager:
-        raise ForbiddenException
+    user.check_permissions("project.anatomy", project_name, write=True)
 
     query = f"""
         DELETE FROM project_{project_name}.link_types
@@ -238,7 +236,7 @@ async def delete_entity_link(
         WHERE id = $1
     """
     for row in await Postgres.fetch(query, link_id):
-        if (row["author"] != user.name) and (not user.is_manager):
+        if (row["author"] != user.name) and (not user.is_manager):  # TBD
             raise ForbiddenException
         break
     else:

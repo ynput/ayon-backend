@@ -1,5 +1,5 @@
 from ayon_server.api.dependencies import CurrentUser, ProjectName
-from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.exceptions import BadRequestException
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 
 from .queries import (
@@ -41,9 +41,7 @@ async def get_project_entity_uris(
 ) -> GetUrisResponse:
     """Return a list of Ayon URIs for the given entity IDs."""
 
-    if not user.is_manager:
-        if project_name not in user.data.get("accessGroups", {}):
-            raise ForbiddenException("You do not have access to this project.")
+    user.check_project_access(project_name)
 
     if request.entity_type == "folder":
         uris = await folder_uris(project_name, request.ids)

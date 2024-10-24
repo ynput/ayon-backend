@@ -1,6 +1,5 @@
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.deploy_project import create_project_from_anatomy
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.types import Field, OPModel
@@ -25,8 +24,7 @@ async def deploy_project(
     to the project entity (along with additional data such as the project name).
     """
 
-    if not user.is_manager:
-        raise ForbiddenException("Only managers can create projects")
+    user.check_permissions("project.create")
 
     await create_project_from_anatomy(
         name=payload.name,

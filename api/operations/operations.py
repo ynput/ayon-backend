@@ -159,7 +159,7 @@ async def process_operation(
         await entity.ensure_delete_access(user)
         description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
 
-        if operation.force and not user.is_manager:
+        if operation.force and not user.is_manager:  # TBD
             raise ForbiddenException("Only managers can force delete")
 
         events = [

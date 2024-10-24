@@ -18,7 +18,11 @@ class Secret(OPModel):
 
 @router.get("/secrets", response_model_exclude_none=True, tags=["Secrets"])
 async def get_list_of_secrets(user: CurrentUser) -> list[Secret]:
-    """Return a list of stored secrets"""
+    """Return a list of stored secrets
+
+    List all available secret names for managers,
+    but only the values for the admin.
+    """
     if not user.is_manager:
         raise ForbiddenException()
 
