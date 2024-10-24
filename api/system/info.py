@@ -2,6 +2,7 @@ import contextlib
 from typing import Any
 from urllib.parse import urlparse
 
+import aiocache
 from attributes.attributes import AttributeModel  # type: ignore
 from fastapi import Request
 from nxtools import log_traceback
@@ -71,14 +72,32 @@ class InfoResponseModel(OPModel):
     sso_options: list[SSOOption] = Field(default_factory=list, title="SSO options")
 
 
+# Ensure that an admin user exists
+# This is used to determine if the 'Create admin user' form should be displayed
+# We raise an exception in ensure_admin_user_exists, so the False value is not cached
+# and when the admin user is created, we use the cache to avoid unnecessary queries
+
+
+@aiocache.cached()
+async def ensure_admin_user_exists() -> None:
+    res = await Postgres.fetch("SELECT name FROM users WHERE data->'isAdmin'")
+    if not res:
+        raise ValueError("No admin user exists")
+    return None
+
+
 async def admin_exists() -> bool:
-    async for row in Postgres.iterate(
-        "SELECT name FROM users WHERE data->>'isAdmin' = 'true'"
-    ):
+    try:
+        await ensure_admin_user_exists()
         return True
-    return False
+    except ValueError:
+        return False
 
 
+# Get all SSO options from the active addons
+
+
+@aiocache.cached(ttl=30)
 async def get_sso_options(request: Request) -> list[SSOOption]:
     referer = request.headers.get("referer")
     if referer:
@@ -175,6 +194,11 @@ async def get_additional_info(user: UserEntity, request: Request):
         "attributes": attr_list,
         "sites": sites,
     }
+
+
+#
+# The actual endpoint
+#
 
 
 @router.get("/info", response_model_exclude_none=True, tags=["System"])
