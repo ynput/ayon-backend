@@ -12,6 +12,7 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.cloud import get_cloud_api_headers
 from ayon_server.installer.models import DependencyPackageManifest, InstallerManifest
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
 
 from .router import router
@@ -86,6 +87,7 @@ async def abort_onboarding(request: Request, user: CurrentUser) -> EmptyResponse
         """
     )
 
+    await Redis.set("global", "onboardingFinished", "1")
     return EmptyResponse()
 
 
@@ -96,12 +98,9 @@ async def restart_onboarding(request: Request, user: CurrentUser) -> EmptyRespon
     if not user.is_admin:
         raise ForbiddenException()
 
-    await Postgres().execute(
-        """
-        DELETE FROM config WHERE key = 'onboardingFinished'
-        """
-    )
-
+    q = "DELETE FROM config WHERE key = 'onboardingFinished'"
+    await Postgres().execute(q)
+    await Redis.delete("global", "onboardingFinished")
     return EmptyResponse()
 
 

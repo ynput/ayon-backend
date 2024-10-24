@@ -16,6 +16,7 @@ from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.helpers.email import is_mailing_enabled
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -196,6 +197,33 @@ async def get_user_sites(
     return sites
 
 
+@aiocache.cached(ttl=5)
+async def get_attributes() -> list[AttributeModel]:
+    """Return a list of available attributes
+
+    populate enum fields with values from the database
+    in the case dynamic enums are used.
+    """
+
+    enums: dict[str, Any] = {}
+    async for row in Postgres.iterate(
+        "SELECT name, data FROM attributes WHERE data->'enum' is not null"
+    ):
+        enums[row["name"]] = row["data"]["enum"]
+
+    attr_list: list[AttributeModel] = []
+    for row in attribute_library.info_data:
+        row = {**row}
+        if row["name"] in enums:
+            row["data"]["enum"] = enums[row["name"]]
+        try:
+            attr_list.append(AttributeModel(**row))
+        except ValidationError:
+            log_traceback(f"Invalid attribute data: {row}")
+            continue
+    return attr_list
+
+
 async def get_additional_info(user: UserEntity, request: Request):
     """Return additional information for the user
 
@@ -216,28 +244,25 @@ async def get_additional_info(user: UserEntity, request: Request):
 
     sites = await get_user_sites(user.name, current_site)
 
-    # load dynamic_enums
+    attr_list = await get_attributes()
 
-    enums: dict[str, Any] = {}
-    async for row in Postgres.iterate(
-        "SELECT name, data FROM attributes WHERE data->'enum' is not null"
-    ):
-        enums[row["name"]] = row["data"]["enum"]
-
-    attr_list: list[AttributeModel] = []
-    for row in attribute_library.info_data:
-        row = {**row}
-        if row["name"] in enums:
-            row["data"]["enum"] = enums[row["name"]]
-        try:
-            attr_list.append(AttributeModel(**row))
-        except ValidationError:
-            log_traceback(f"Invalid attribute data: {row}")
-            continue
     return {
         "attributes": attr_list,
         "sites": sites,
     }
+
+
+async def is_onboarding_finished() -> bool:
+    r = await Redis.get("global", "onboardingFinished")
+    if r is None:
+        query = "SELECT * FROM config where key = 'onboardingFinished'"
+        rdb = await Postgres.fetch(query)
+        if rdb:
+            await Redis.set("global", "onboardingFinished", "1")
+            return True
+    elif r:
+        return True
+    return False
 
 
 #
@@ -263,12 +288,8 @@ async def get_site_info(
         additional_info = await get_additional_info(current_user, request)
 
         if current_user.is_admin and not current_user.is_service:
-            res = await Postgres.fetch(
-                """SELECT * FROM config where key = 'onboardingFinished'"""
-            )
-            if not res:
+            if not await is_onboarding_finished():
                 additional_info["onboarding"] = True
-
     else:
         sso_options = await get_sso_options(request)
         has_admin_user = await admin_exists()
