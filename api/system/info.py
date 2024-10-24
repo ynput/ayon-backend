@@ -100,7 +100,7 @@ async def admin_exists() -> bool:
 # Get all SSO options from the active addons
 
 
-@aiocache.cached(ttl=30)
+@aiocache.cached(ttl=10)
 async def get_sso_options(request: Request) -> list[SSOOption]:
     referer = request.headers.get("referer")
     if referer:
@@ -164,11 +164,12 @@ async def get_user_sites(
             if user_name not in site.users:
                 current_site.users.extend(site.users)
                 current_needs_update = True
-            if site.platform != current_site.platform:
+            # we can use elif here, because we only need to check one condition
+            elif site.platform != current_site.platform:
                 current_needs_update = True
-            if site.hostname != current_site.hostname:
+            elif site.hostname != current_site.hostname:
                 current_needs_update = True
-            if site.version != current_site.version:
+            elif site.version != current_site.version:
                 current_needs_update = True
             # do not add the current site to the list,
             # we'll insert it at the beginning at the end of the loop
