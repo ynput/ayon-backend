@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 import aiocache
 from attributes.attributes import AttributeModel  # type: ignore
 from fastapi import Request
-from nxtools import log_traceback
+from nxtools import log_traceback, logging
 from pydantic import ValidationError
 
 from ayon_server.addons import AddonLibrary, SSOOption
@@ -80,7 +80,9 @@ class InfoResponseModel(OPModel):
 
 @aiocache.cached()
 async def ensure_admin_user_exists() -> None:
-    res = await Postgres.fetch("SELECT name FROM users WHERE data->'isAdmin'")
+    res = await Postgres.fetch(
+        "SELECT name FROM users WHERE (data->'isAdmin')::boolean"
+    )
     if not res:
         raise ValueError("No admin user exists")
     return None
@@ -133,9 +135,76 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
     return result
 
 
-async def get_additional_info(user: UserEntity, request: Request):
-    current_site: SiteInfo | None = None
+async def get_user_sites(
+    user_name: str, current_site: SiteInfo | None
+) -> list[SiteInfo]:
+    """Return a list of sites the user is registered to
 
+    If site information in the request headers, it will be added to the
+    top of the listand updated in the database if necessary.
+    """
+    sites: list[SiteInfo] = []
+    current_needs_update = False
+    current_site_exists = False
+
+    query_id = current_site.id if current_site else ""
+
+    # Get all sites the user is registered to or the current site
+    query = """
+        SELECT id, data FROM sites
+        WHERE id = $1 OR data->'users' ? $2
+    """
+
+    async for row in Postgres.iterate(query, query_id, user_name):
+        site = SiteInfo(id=row["id"], **row["data"])
+        if current_site and site.id == current_site.id:
+            # record matches the current site
+            current_site_exists = True
+            if user_name not in site.users:
+                current_site.users.extend(site.users)
+                current_needs_update = True
+            if site.platform != current_site.platform:
+                current_needs_update = True
+            if site.hostname != current_site.hostname:
+                current_needs_update = True
+            if site.version != current_site.version:
+                current_needs_update = True
+            # do not add the current site to the list,
+            # we'll insert it at the beginning at the end of the loop
+            continue
+        sites.append(site)
+
+    if current_site:
+        # if the current site is not in the database
+        # or has been changed, upsert it
+        if current_needs_update or not current_site_exists:
+            logging.debug(f"Registering to site {current_site.id}", user=user_name)
+            mdata = current_site.dict()
+            mid = mdata.pop("id")
+            await Postgres.execute(
+                """
+                INSERT INTO sites (id, data)
+                VALUES ($1, $2) ON CONFLICT (id)
+                DO UPDATE SET data = EXCLUDED.data
+                """,
+                mid,
+                mdata,
+            )
+
+        # insert the current site at the beginning of the list
+        sites.insert(0, current_site)
+    return sites
+
+
+async def get_additional_info(user: UserEntity, request: Request):
+    """Return additional information for the user
+
+    This is returned only if the user is logged in.
+    """
+
+    # Handle site information
+
+    current_site: SiteInfo | None = None
     with contextlib.suppress(ValidationError):
         current_site = SiteInfo(
             id=request.headers.get("x-ayon-site-id"),
@@ -145,35 +214,10 @@ async def get_additional_info(user: UserEntity, request: Request):
             users=[user.name],
         )
 
-    sites = []
-    async for row in Postgres.iterate("SELECT id, data FROM sites"):
-        site = SiteInfo(id=row["id"], **row["data"])
-
-        if current_site and site.id == current_site.id:
-            current_site.users = list(set(current_site.users + site.users))
-            continue
-
-        if user.name not in site.users:
-            continue
-
-        sites.append(site)
-
-    if current_site:
-        mdata = current_site.dict()
-        mid = mdata.pop("id")
-        await Postgres.execute(
-            """
-            INSERT INTO sites (id, data)
-            VALUES ($1, $2) ON CONFLICT (id)
-            DO UPDATE SET data = EXCLUDED.data
-            """,
-            mid,
-            mdata,
-        )
-
-        sites.insert(0, current_site)
+    sites = await get_user_sites(user.name, current_site)
 
     # load dynamic_enums
+
     enums: dict[str, Any] = {}
     async for row in Postgres.iterate(
         "SELECT name, data FROM attributes WHERE data->'enum' is not null"
@@ -218,7 +262,7 @@ async def get_site_info(
     if current_user:
         additional_info = await get_additional_info(current_user, request)
 
-        if current_user.is_admin:
+        if current_user.is_admin and not current_user.is_service:
             res = await Postgres.fetch(
                 """SELECT * FROM config where key = 'onboardingFinished'"""
             )
