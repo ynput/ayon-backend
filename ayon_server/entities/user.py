@@ -261,7 +261,7 @@ class UserEntity(TopLevelEntity):
         if project_name.lower() not in access_groups:
             raise ForbiddenException("No access group assigned on this project")
 
-    def permissions(self, project_name: str | None = None) -> Permissions | None:
+    def permissions(self, project_name: str | None = None) -> Permissions:
         """Return user permissions on a given project."""
 
         if project_name is None:
