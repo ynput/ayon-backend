@@ -78,7 +78,8 @@ class AccessGroupObject(OPModel):
 
 @router.get("/accessGroups/{project_name}")
 async def get_access_groups(
-    user: CurrentUser, project_name: ProjectNameOrUnderscore
+    user: CurrentUser,
+    project_name: ProjectNameOrUnderscore,
 ) -> list[AccessGroupObject]:
     """Get a list of access group for a given project"""
 
@@ -130,7 +131,11 @@ async def save_access_group(
     """
 
     if not user.is_manager:
-        raise ForbiddenException("Only managers can create or update access groups")
+        if project_name == "_":
+            raise ForbiddenException(
+                "Only managers can create or update global access groups"
+            )
+        user.check_permissions("project.users", project_name=project_name, write=True)
 
     scope = "public" if project_name == "_" else f"project_{project_name}"
 
@@ -167,7 +172,9 @@ async def delete_access_group(
     """Delete an access group"""
 
     if not user.is_manager:
-        raise ForbiddenException("Only managers can delete access groups")
+        if project_name == "_":
+            raise ForbiddenException("Only managers can modify global access groups")
+        user.check_permissions("project.users", project_name=project_name, write=True)
 
     if (access_group_name, project_name) not in AccessGroups.access_groups:
         raise NotFoundException(
