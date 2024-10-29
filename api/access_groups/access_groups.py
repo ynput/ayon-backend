@@ -82,7 +82,6 @@ async def get_access_groups(
     project_name: ProjectNameOrUnderscore,
 ) -> list[AccessGroupObject]:
     """Get a list of access group for a given project"""
-
     rdict = {}
 
     for ag_key, _perms in AccessGroups.access_groups.items():
