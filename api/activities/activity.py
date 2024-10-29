@@ -11,6 +11,7 @@ from ayon_server.activities import (
 )
 from ayon_server.activities.watchers.set_watchers import ensure_watching
 from ayon_server.api.dependencies import (
+    ActivityID,
     CurrentUser,
     PathEntityID,
     PathProjectLevelEntityType,
@@ -18,11 +19,16 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException
+from ayon_server.files import Storages
 from ayon_server.helpers.get_entity_class import get_entity_class
-from ayon_server.helpers.project_files import delete_unused_files
 from ayon_server.types import Field, OPModel
 
 from .router import router
+
+
+async def delete_unused_files(project_name: str) -> None:
+    storage = await Storages.project(project_name)
+    await storage.delete_unused_files()
 
 
 class ProjectActivityPostModel(OPModel):
@@ -91,7 +97,7 @@ async def post_project_activity(
 @router.delete("/activities/{activity_id}")
 async def delete_project_activity(
     project_name: ProjectName,
-    activity_id: str,
+    activity_id: ActivityID,
     user: CurrentUser,
     background_tasks: BackgroundTasks,
     x_sender: str | None = Header(default=None),
@@ -127,7 +133,7 @@ class ActivityPatchModel(OPModel):
 @router.patch("/activities/{activity_id}")
 async def patch_project_activity(
     project_name: ProjectName,
-    activity_id: str,
+    activity_id: ActivityID,
     user: CurrentUser,
     activity: ActivityPatchModel,
     background_tasks: BackgroundTasks,

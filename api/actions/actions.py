@@ -246,3 +246,40 @@ async def take_action(
     )
 
     return result
+
+
+class AbortRequestModel(OPModel):
+    message: str = Field("Action aborted", title="Message")
+
+
+@router.post("/abort/{token}")
+async def abort_action(
+    request: AbortRequestModel,
+    token: str = Path(
+        ...,
+        title="Action Token",
+        pattern=r"[a-f0-9]{64}",
+    ),
+) -> None:
+    """called by launcher
+
+    This is called by the launcher to abort an action.
+    """
+
+    res = await Postgres.fetch(
+        """
+        UPDATE events SET status = 'aborted', description = $2
+        WHERE
+            hash = $1
+        AND topic = 'action.launcher'
+        AND status IN ('pending', 'in_progress')
+        RETURNING *
+        """,
+        token,
+        request.message,
+    )
+
+    if not res:
+        raise NotFoundException("Invalid token")
+
+    return None

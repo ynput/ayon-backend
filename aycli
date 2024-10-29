@@ -1,0 +1,4 @@
+#!/bin/bash
+
+cd /ayon-server-cli
+PYTHONPATH=/backend python -m $@

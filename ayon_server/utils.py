@@ -4,12 +4,13 @@ import asyncio
 import datetime
 import functools
 import hashlib
+import itertools
 import json
 import random
 import threading
 import time
 import uuid
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 import codenamize
 import orjson
@@ -21,7 +22,8 @@ def json_loads(data: str) -> Any:
     return orjson.loads(data)
 
 
-def isinstance_namedtuple(obj) -> bool:
+def isinstance_namedtuple(obj: Any) -> bool:
+    """Check if an object is an instance of a named tuple."""
     return (
         isinstance(obj, tuple) and hasattr(obj, "_asdict") and hasattr(obj, "_fields")
     )
@@ -47,14 +49,19 @@ def json_default_handler(value: Any) -> Any:
     if isinstance(value, datetime.datetime):
         return value.isoformat()
 
+    if isinstance(value, set):
+        return list(value)
+
     raise TypeError(f"Type {type(value)} is not JSON serializable")
 
 
 def json_dumps(data: Any, *, default: Callable[[Any], Any] | None = None) -> str:
     """Dump JSON data."""
-    # return json.dumps(data)
-    # TODO: orjson does not support namedtuples correclty. we need to support is as list
-    return orjson.dumps(data, default=json_default_handler).decode()
+    return orjson.dumps(
+        data,
+        default=json_default_handler,
+        option=orjson.OPT_SORT_KEYS,
+    ).decode()
 
 
 def hash_data(data: Any) -> str:
@@ -118,6 +125,19 @@ def dict_remove_path(
             del parents[-i - 1][key]
         else:
             break
+
+
+def batched(iterable: Iterable[Any], n: int):
+    """Implement batched function to split an iterable into batches of size n
+
+    We need this instead of itertools.batched as we need to run on Python 3.11
+    """
+    it = iter(iterable)
+    while True:
+        batch = list(itertools.islice(it, n))
+        if not batch:
+            break
+        yield batch
 
 
 def parse_access_token(authorization: str) -> str | None:

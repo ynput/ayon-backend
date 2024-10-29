@@ -4,6 +4,8 @@ import functools
 import threading
 from typing import Any, DefaultDict
 
+from nxtools import logging
+
 from ayon_server.lib.postgres import Postgres
 
 
@@ -27,25 +29,71 @@ class AttributeLibrary:
         # Used in info endpoint to get the active list of attributes
         # in the same format as the attributes endpoint
         self.info_data: list[Any] = []
-        _thread = threading.Thread(target=self.execute)
+
+        # We need to load attribute data in a separate thread
+        # with a separate event loop, because the main event loop
+        # is already running and we cannot run another one
+        # that brings some caveats, but it works
+        _thread = threading.Thread(target=self.initial_load_thread)
         _thread.start()
         _thread.join()
 
-    def execute(self) -> None:
+    def initial_load_thread(self) -> None:
+        if Postgres.pool is not None:
+            logging.warning(
+                "Postgres pool exist durint attribute load. " "This should not happen.",
+                user="server",
+                handlers=None,
+            )
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(self.load())
+        loop.run_until_complete(self.load(True))
         loop.close()
 
     def is_valid(self, entity_type: str, attribute: str) -> bool:
         """Check if attribute is valid for entity type."""
         return attribute in [k["name"] for k in self.data[entity_type]]
 
-    async def load(self) -> None:
+    async def load(self, initial: bool = False) -> None:
         query = "SELECT * FROM public.attributes ORDER BY position"
-        await Postgres.connect()
+
+        # Initial load is executed in a separate thread, so we need to
+        # connect to the database manually and close the connection
+        # after the data is loaded
+        if initial:
+            await Postgres.connect()
+
         info_data: list[dict[str, Any]] = []
-        async for row in Postgres.iterate(query):
+        try:
+            result = await Postgres.fetch(query)
+        except Postgres.UndefinedTableError:
+            # A default list of fake attributes is used when the
+            # attributes table does not exist. This is used when the
+            # database is not initialized yet.
+            result = [
+                {
+                    "name": "default",
+                    "scope": [
+                        "project",
+                        "folder",
+                        "task",
+                        "product",
+                        "version",
+                        "representation",
+                        "workfile",
+                        "user",
+                    ],
+                    "position": 1,
+                    "builtin": True,
+                    "data": {
+                        "type": "string",
+                        "title": "DEFAULT",
+                        "inherit": False,
+                    },
+                }
+            ]
+
+        for row in result:
             info_data.append(row)
             for scope in row["scope"]:
                 attrd = {"name": row["name"], **row["data"]}
@@ -57,8 +105,22 @@ class AttributeLibrary:
                 self.data[scope].append(attrd)
         self.info_data = info_data
 
+        if initial:
+            await Postgres.shutdown()
+            Postgres.pool = None
+            Postgres.shutting_down = False
+
     def __getitem__(self, key) -> list[dict[str, Any]]:
         return self.data[key]
+
+    @property
+    def project_defaults(self) -> dict[str, Any]:
+        project_attribs = self.data.get("project", [])
+        defaults = {}
+        for attr in project_attribs:
+            if "default" in attr:
+                defaults[attr["name"]] = attr["default"]
+        return defaults
 
     @functools.cache
     def inheritable_attributes(self) -> list[str]:

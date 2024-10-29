@@ -13,8 +13,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_to_file, log_traceback, logging, slugify
 
-from ayon_server.access.access_groups import AccessGroups
 from ayon_server.addons import AddonLibrary
+from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import Messaging
 from ayon_server.api.metadata import app_meta, tags_meta
 from ayon_server.api.postgres_exceptions import (
@@ -90,12 +90,6 @@ async def custom_404_handler(request: fastapi.Request, _):
                 "detail": f"Addon endpoint {request.url.path} not found",
                 "path": request.url.path,
             },
-        )
-
-    index_path = os.path.join(ayonconfig.frontend_dir, "index.html")
-    if os.path.exists(index_path):
-        return fastapi.responses.FileResponse(
-            index_path, status_code=200, media_type="text/html"
         )
 
     return fastapi.responses.JSONResponse(
@@ -350,13 +344,6 @@ def init_addon_static(target_app: fastapi.FastAPI) -> None:
     target_app.include_router(addon_static_router)
 
 
-def init_frontend(target_app: fastapi.FastAPI, frontend_dir: str) -> None:
-    """Initialize frontend endpoints."""
-    if not os.path.isdir(frontend_dir):
-        return
-    target_app.mount("/", StaticFiles(directory=frontend_dir, html=True))
-
-
 if os.path.isdir("/storage/static"):  # TODO: Make this configurable
     app.mount("/static", StaticFiles(directory="/storage/static"), name="static")
 
@@ -368,6 +355,13 @@ init_api(app, ayonconfig.api_modules_dir)
 #
 # Start up
 #
+
+
+async def load_access_groups() -> None:
+    """Load access groups from the database."""
+    from ayon_server.access.access_groups import AccessGroups
+
+    await AccessGroups.load()
 
 
 @app.on_event("startup")
@@ -388,8 +382,7 @@ async def startup_event() -> None:
     # Connect to the database and load stuff
 
     await ayon_init()
-
-    await AccessGroups.load()
+    await load_access_groups()
 
     # Start background tasks
 
@@ -494,7 +487,7 @@ async def startup_event() -> None:
         init_addon_static(app)
 
         # Frontend must be initialized last (since it is mounted to /)
-        init_frontend(app, ayonconfig.frontend_dir)
+        init_frontend(app)
 
         if start_event is not None:
             await EventStream.update(

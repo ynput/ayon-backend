@@ -37,6 +37,10 @@ RESTARTABLE_WHITELIST = [
     "addon.install_from_url",
 ]
 
+USER_EVENTS = [
+    "action.launcher",
+]
+
 
 class DispatchEventRequestModel(OPModel):
     topic: str = TOPIC_FIELD
@@ -143,11 +147,17 @@ async def update_existing_event(
     event_user = ex_event["user_name"]
 
     if payload.status and payload.status != ex_event["status"]:
-        if not user.is_service:
+        if ex_event["topic"] in USER_EVENTS:
+            # User events are events that the same user who created them
+            # can update the status (or admins)
+            if (user.name != event_user) and not user.is_admin:
+                raise ForbiddenException("Not allowed to update status of this event")
+
+        elif not user.is_service:
             if (ex_event["depends_on"] is None) and (
                 ex_event["topic"] not in RESTARTABLE_WHITELIST
             ):
-                raise ForbiddenException("Source events are not restartable")
+                raise ForbiddenException("Not allowed to update status of this event")
 
     if not user.is_manager:
         if event_user == user.name:

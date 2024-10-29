@@ -5,10 +5,11 @@ from base64 import b64decode
 from pathlib import Path
 from typing import Any
 
-import asyncpg
 from nxtools import critical_error, log_to_file, log_traceback, logging
 
 from ayon_server.config import ayonconfig
+from ayon_server.helpers.project_list import get_project_list
+from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_loads
 from setup.access_groups import deploy_access_groups
@@ -38,27 +39,12 @@ if ayonconfig.force_create_admin:
     ]
 
 
-async def wait_for_postgres() -> None:
-    while 1:
-        try:
-            await Postgres.connect()
-        except ConnectionRefusedError:
-            logging.info("Waiting for PostgreSQL")
-        except asyncpg.exceptions.CannotConnectNowError:
-            logging.info("PostgreSQL is starting")
-        except Exception:
-            log_traceback()
-        else:
-            break
-        await asyncio.sleep(1)
-
-
 async def main(force: bool | None = None) -> None:
     """Main entry point for setup."""
 
     logging.info("Starting setup")
 
-    await wait_for_postgres()
+    await ayon_init()
 
     try:
         await Postgres.fetch("SELECT * FROM projects")
@@ -165,6 +151,12 @@ async def main(force: bool | None = None) -> None:
             logging.warning("Invalid initial bundle data")
         else:
             await create_initial_bundle(bundle_data)
+
+    from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
+
+    project_list = await get_project_list()
+    for project in project_list:
+        await rebuild_inherited_attributes(project.name)
 
     logging.goodnews("Setup is finished")
 

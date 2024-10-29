@@ -1,6 +1,7 @@
 import asyncio
 import json
 import sys
+from typing import Any
 
 from nxtools import critical_error, log_traceback
 
@@ -31,14 +32,15 @@ async def main() -> None:
     if not data:
         critical_error("No data provided")
 
+    gen_config: dict[str, Any] = {}
     try:
         gen_config = json.loads(data)
     except Exception:
         log_traceback()
         critical_error("Invalid project data provided")
 
-    project_name = gen_config["name"]
-    links_config = gen_config.get("links", [])
+    project_name: str = gen_config["name"]
+    links_config: list[Any] = gen_config.get("links", [])
 
     if not links_config:
         return

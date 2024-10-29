@@ -12,7 +12,7 @@ class SiteInfo(OPModel):
     platform: Platform = Field(...)
     hostname: str = Field(..., title="Machine hostname")
     version: str = Field(..., title="Ayon version")
-    users: list[str] = Field(..., title="List of users")
+    users: set[str] = Field(..., title="List of users")
 
 
 @router.get("/system/sites", tags=["System"])

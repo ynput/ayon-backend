@@ -23,12 +23,16 @@ release_info: dict[str, Any] = {}
 
 def get_release_info() -> ReleaseInfo | None:
     """
-    Get the release info from RELEASE file.
-    This file is created when building the docker image.
-    and contains key=value pairs.
+    Retrieve the release information from the RELEASE file.
 
-    If file is not found, return None - server is probably running from
-    a mounted local directory.
+    This file is generated during the Docker image build process and contains
+    key=value pairs representing various release details.
+
+    Returns:
+        ReleaseInfo | None: An instance of ReleaseInfo containing the release
+        details if the file is found and successfully parsed. Returns None if
+        the file is not found, indicating the server is likely running from a
+        mounted local directory.
     """
 
     try:

@@ -30,6 +30,7 @@ class YnputConnectRequestModel(OPModel):
 class YnputConnectSubscriptionModel(OPModel):
     name: str = Field(..., description="Name of the subscription")
     product_type: str = Field(..., description="Type of the subscription")
+    trial_end: str | None = Field(None, description="End date of the trial")
 
 
 class YnputConnectResponseModel(OPModel):
@@ -76,14 +77,15 @@ async def get_ynput_cloud_info(user: CurrentUserOptional) -> YnputConnectRespons
     Check whether the Ynput Cloud key is set and return the Ynput Cloud info
     """
 
-    if user and not user.is_admin:
-        raise ForbiddenException("Only admins can get the Ynput Cloud info")
+    if user and user.is_guest:
+        raise ForbiddenException("Guests cannot load Ynput Cloud information")
 
     if user is None:
         has_admin = await admin_exists()
         if has_admin:
             raise ForbiddenException(
-                "Connecting to Ynput Cloud is allowed only on first run"
+                "Connecting to Ynput Cloud without login "
+                "is allowed only on the first run"
             )
 
     headers = await get_cloud_api_headers()

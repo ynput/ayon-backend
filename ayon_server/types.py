@@ -227,6 +227,12 @@ class AttributeEnumItem(OPModel):
 
     value: SimpleValue = Field(..., title="Enum value")
     label: str = Field(..., title="Enum label")
+    icon: str | None = Field(None, title="Icon name")
+    color: ColorRGB_hex | None = Field(
+        None,
+        title="Color in RGBA hex format",
+        regex="^#[0-9a-fA-F]{6}$",
+    )
 
 
 def normalize_to_dict(s: dict[Any, Any] | BaseModel) -> dict[Any, Any]:

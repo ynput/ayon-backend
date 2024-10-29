@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Awaitable, Callable, ClassVar, Type
 
 from ayon_server.activities.create_activity import create_activity
 from ayon_server.activities.watchers.set_watchers import ensure_watching
+from ayon_server.activities.watchers.watcher_list import build_watcher_list
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
 
@@ -193,3 +194,25 @@ class ActivityFeedEventHook:
                 }
             },
         )
+
+        # add watchers from tasks
+
+        query = f"""
+            SELECT activity_data->>'watcher' FROM project_{event.project}.activity_feed
+            WHERE activity_type = 'watch'
+            AND reference_type = 'origin'
+            AND entity_type = 'task'
+            AND entity_id = $1
+        """
+
+        res = await Postgres.fetch(query, row["task_id"])
+        task_watchers = [row["watcher"] for row in res]
+        for watcher in task_watchers:
+            await create_activity(
+                entity=version,
+                activity_type="watch",
+                body="",
+                user_name=watcher,
+                data={"watcher": watcher},
+            )
+        await build_watcher_list(version)

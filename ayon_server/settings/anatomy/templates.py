@@ -124,6 +124,11 @@ class Templates(BaseSettingsModel):
                 directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{@version}",
                 file="{originalBasename}_{@version}.{ext}",
             ),
+            PublishTemplate(
+                name="unrealuasset",
+                directory="{root[work]}/{project[name]}/{hierarchy}/{folder[name]}/publish/{product[type]}/{product[name]}/{@version}",
+                file="{originalBasename}.{ext}",
+            ),
         ],
     )
 
