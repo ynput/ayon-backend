@@ -54,6 +54,12 @@ class LinksConnection(BaseConnection):
     edges: list[LinkEdge] = strawberry.field(default_factory=list)
 
 
+@strawberry.type
+class ThumbnailInfo:
+    source_entity_type: str = strawberry.field()
+    source_entity_id: str = strawberry.field()
+
+
 @strawberry.interface
 class BaseNode:
     project_name: str = strawberry.field()
