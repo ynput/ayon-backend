@@ -5,12 +5,14 @@ from typing import Any, Literal
 import aiocache
 import aiofiles
 import aioshutil
+import httpx
 from fastapi import Request
-from nxtools import logging
+from fastapi.responses import RedirectResponse
+from nxtools import log_traceback, logging
 
 from ayon_server.api.files import handle_upload
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import AyonException
+from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundException
 from ayon_server.files.s3 import (
     S3Config,
     delete_s3_file,
@@ -20,7 +22,7 @@ from ayon_server.files.s3 import (
     store_s3_file,
     upload_s3_file,
 )
-from ayon_server.helpers.cloud import get_instance_id
+from ayon_server.helpers.cloud import get_cloud_api_headers, get_instance_id
 from ayon_server.helpers.ffprobe import extract_media_info
 from ayon_server.helpers.project_list import ProjectListItem, get_project_info
 from ayon_server.lib.postgres import Postgres
@@ -117,7 +119,7 @@ class ProjectStorage:
             assert self.project_info  # mypy
 
             project_timestamp = int(self.project_info.created_at.timestamp())
-            project_dirname = f"{project_dirname}.{project_timestamp}"
+            project_dirname = f"{self.project_name}.{project_timestamp}"
 
         # Take first two characters of the file ID as a subdirectory
         # to avoid having too many files in a single directory
@@ -129,6 +131,60 @@ class ProjectStorage:
             sub_dir,
             _file_id,
         )
+
+    async def get_cdn_link(self, file_id: str) -> RedirectResponse:
+        """Return a signed URL to access the file on the CDN over HTTP
+
+        This method is only supported for CDN-enabled storages.
+        """
+        try:
+            if self.cdn_resolver is None:
+                raise AyonException("CDN is not enabled for this project")
+            if self.project_info is None:
+                self.project_info = await get_project_info(self.project_name)
+            assert self.project_info  # mypy
+            project_timestamp = int(self.project_info.created_at.timestamp())
+            payload = {
+                "projectName": self.project_name,
+                "projectTimestamp": project_timestamp,
+                "fileId": file_id,
+            }
+
+            headers = await get_cloud_api_headers()
+
+            async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+                res = await client.post(
+                    self.cdn_resolver,
+                    json=payload,
+                    headers=headers,
+                )
+
+            if res.status_code == 401:
+                raise ForbiddenException("Unauthorized instance")
+
+            if res.status_code >= 400:
+                logging.error("CDN Error", res.status_code)
+                logging.error("CDN Error", res.text)
+                raise NotFoundException(f"Error {res.status_code} from CDN")
+
+            data = res.json()
+            url = data["url"]
+            cookies = data.get("cookies", {})
+
+            response = RedirectResponse(url=url, status_code=302)
+            for key, value in cookies.items():
+                response.set_cookie(
+                    key,
+                    value,
+                    httponly=True,
+                    secure=True,
+                    samesite="none",
+                )
+
+            return response
+        except Exception:
+            log_traceback("Error getting CDN link")
+            raise AyonException("Failed to get CDN link")
 
     async def upload_file(self, file_id: str, file_path: str) -> None:
         """Store the locally accessible project file on the storage"""

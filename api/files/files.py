@@ -10,7 +10,6 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages
-from ayon_server.helpers.cdn import get_cdn_link
 from ayon_server.helpers.preview import get_file_preview
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -167,7 +166,7 @@ async def get_project_file(
     storage = await Storages.project(project_name)
 
     if storage.cdn_resolver is not None:
-        return await get_cdn_link(storage.cdn_resolver, project_name, file_id)
+        return await storage.get_cdn_link(file_id)
 
     if storage.storage_type == "s3":
         url = await storage.get_signed_url(file_id, ttl=3600)
