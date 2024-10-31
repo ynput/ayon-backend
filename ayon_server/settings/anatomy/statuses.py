@@ -135,7 +135,7 @@ default_statuses = [
         shortName="HLD",
         icon="back_hand",
         color="#fa6e46",
-        state="block",
+        state="blocked",
         scope=["folder", "task"],
     ),
     Status(
