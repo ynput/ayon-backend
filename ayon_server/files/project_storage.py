@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any, Literal
+from typing import Any
 
 import aiocache
 import aiofiles
@@ -9,6 +9,7 @@ import httpx
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from nxtools import log_traceback, logging
+from typing_extensions import AsyncGenerator
 
 from ayon_server.api.files import handle_upload
 from ayon_server.config import ayonconfig
@@ -18,6 +19,7 @@ from ayon_server.files.s3 import (
     delete_s3_file,
     get_signed_url,
     handle_s3_upload,
+    list_s3_files,
     retrieve_s3_file,
     store_s3_file,
     upload_s3_file,
@@ -27,8 +29,8 @@ from ayon_server.helpers.ffprobe import extract_media_info
 from ayon_server.helpers.project_list import ProjectListItem, get_project_info
 from ayon_server.lib.postgres import Postgres
 
-StorageType = Literal["local", "s3"]
-FileGroup = Literal["uploads", "thumbnails"]
+from .common import FileGroup, StorageType
+from .utils import list_local_files
 
 
 class ProjectStorage:
@@ -95,6 +97,19 @@ class ProjectStorage:
 
     # Common file management methods
 
+    async def get_filegroup_dir(self, file_group: FileGroup) -> str:
+        assert file_group in ["uploads", "thumbnails"], "Invalid file group"
+        root = await self.get_root()
+        project_dirname = self.project_name
+        if self.storage_type == "s3":
+            if self.project_info is None:
+                self.project_info = await get_project_info(self.project_name)
+            assert self.project_info  # mypy
+
+            project_timestamp = int(self.project_info.created_at.timestamp())
+            project_dirname = f"{self.project_name}.{project_timestamp}"
+        return os.path.join(root, project_dirname, file_group)
+
     async def get_path(
         self,
         file_id: str,
@@ -106,28 +121,17 @@ class ProjectStorage:
         path from the bucket), while in the case of local storage, it's
         the full path to the file on the disk.
         """
-        root = await self.get_root()
-        assert file_group in ["uploads", "thumbnails"], "Invalid file group"
         _file_id = file_id.replace("-", "")
         if len(_file_id) != 32:
             raise ValueError(f"Invalid file ID: {file_id}")
 
-        project_dirname = self.project_name
-        if self.storage_type == "s3":
-            if self.project_info is None:
-                self.project_info = await get_project_info(self.project_name)
-            assert self.project_info  # mypy
-
-            project_timestamp = int(self.project_info.created_at.timestamp())
-            project_dirname = f"{self.project_name}.{project_timestamp}"
+        file_group_dir = await self.get_filegroup_dir(file_group)
 
         # Take first two characters of the file ID as a subdirectory
         # to avoid having too many files in a single directory
         sub_dir = _file_id[:2]
         return os.path.join(
-            root,
-            project_dirname,
-            file_group,
+            file_group_dir,
             sub_dir,
             _file_id,
         )
@@ -424,19 +428,23 @@ class ProjectStorage:
             pass
 
     # Listing stored files
-
-    async def list_files(self, file_group: FileGroup = "uploads") -> list[str]:
+    #
+    async def list_files(
+        self, file_group: FileGroup = "uploads"
+    ) -> AsyncGenerator[str, None]:
         """List all files in the storage for the project"""
-        files = []
         if self.storage_type == "local":
             projects_root = await self.get_root()
             project_dir = os.path.join(projects_root, self.project_name)
             group_dir = os.path.join(project_dir, file_group)
+
             if not os.path.isdir(group_dir):
-                return []
+                return
 
-            for root, _, filenames in os.walk(os.path.join(project_dir, file_group)):
-                for filename in filenames:
-                    files.append(filename)
+            async for f in list_local_files(group_dir):
+                yield f
+        elif self.storage_type == "s3":
+            async for f in list_s3_files(self, file_group):
+                yield f
 
-        return files
+        return
