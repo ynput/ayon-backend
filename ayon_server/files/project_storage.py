@@ -422,3 +422,21 @@ class ProjectStorage:
             # we cannot move the bucket, we'll create a new one with different timestamp
             # when we re-create the project
             pass
+
+    # Listing stored files
+
+    async def list_files(self, file_group: FileGroup = "uploads") -> list[str]:
+        """List all files in the storage for the project"""
+        files = []
+        if self.storage_type == "local":
+            projects_root = await self.get_root()
+            project_dir = os.path.join(projects_root, self.project_name)
+            group_dir = os.path.join(project_dir, file_group)
+            if not os.path.isdir(group_dir):
+                return []
+
+            for root, _, filenames in os.walk(os.path.join(project_dir, file_group)):
+                for filename in filenames:
+                    files.append(filename)
+
+        return files
