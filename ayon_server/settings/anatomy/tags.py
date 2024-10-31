@@ -22,3 +22,9 @@ class Tag(BaseSettingsModel):
 
     def __hash__(self):
         return hash(self.name)
+
+
+default_tags = [
+    Tag(name="important", color="#ff2450"),
+    Tag(name="for reel", color="#5be1c6"),
+]

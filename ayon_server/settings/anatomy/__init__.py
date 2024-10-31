@@ -5,7 +5,7 @@ from ayon_server.settings.anatomy.folder_types import FolderType, default_folder
 from ayon_server.settings.anatomy.link_types import LinkType, default_link_types
 from ayon_server.settings.anatomy.roots import Root, default_roots
 from ayon_server.settings.anatomy.statuses import Status, default_statuses
-from ayon_server.settings.anatomy.tags import Tag
+from ayon_server.settings.anatomy.tags import Tag, default_tags
 from ayon_server.settings.anatomy.task_types import TaskType, default_task_types
 from ayon_server.settings.anatomy.templates import Templates
 from ayon_server.settings.common import BaseSettingsModel
@@ -65,7 +65,7 @@ class Anatomy(BaseSettingsModel):
     )
 
     tags: list[Tag] = SettingsField(
-        default_factory=list,
+        default_factory=lambda: default_tags,
         title="Tags",
         description="Tags configuration",
     )
