@@ -60,7 +60,9 @@ async def clear_activities(project_name: str) -> None:
 
     for entity_type in ("folder", "task", "version", "workfile"):
         query = f"""
-            -- Skip entities that were deleted in the last GRACE_PERIOD days
+
+            -- Get the list of entities that were deleted
+            -- in the last GRACE_PERIOD days
 
             WITH recently_deleted_entities AS (
                 SELECT (summary->>'entityId')::UUID as entity_id
@@ -69,10 +71,10 @@ async def clear_activities(project_name: str) -> None:
                 AND project_name = '{project_name}'
                 AND updated_at > now() - interval '{GRACE_PERIOD} days'
                 AND summary->>'entityId' IS NOT NULL
-
             ),
 
-            -- Skip the activities that were updated in the last GRACE_PERIOD days
+            -- Get the list of activities that were updated
+            -- in the last GRACE_PERIOD days
 
             grace_period_entity_ids AS (
                 SELECT entity_id FROM project_{project_name}.activity_references
@@ -82,51 +84,37 @@ async def clear_activities(project_name: str) -> None:
             ),
 
             -- Find activities that reference entities that no longer exist
+            -- and were not updated during the grace period
+            -- and the entity were not deleted during the grace period
 
             deletable_activities AS (
-                SELECT DISTINCT(activity_id) as activity_id
-                FROM project_{project_name}.activity_references
-                WHERE entity_id IS NOT NULL
-                AND reference_type = 'origin'
-                AND entity_type = '{entity_type}'
-                AND entity_id NOT IN (
-                    SELECT entity_id FROM grace_period_entity_ids
-                )
-                AND entity_id NOT IN (
-                   SELECT entity_id FROM recently_deleted_entities
-                )
-                AND entity_id NOT IN (
-                    SELECT id FROM project_{project_name}.{entity_type}s
-                )
+                SELECT DISTINCT ar.activity_id
+                FROM project_{project_name}.activity_references ar
+                LEFT JOIN grace_period_entity_ids gp ON ar.entity_id = gp.entity_id
+                LEFT JOIN recently_deleted_entities rd ON ar.entity_id = rd.entity_id
+                LEFT JOIN project_{project_name}.{entity_type}s e ON ar.entity_id = e.id
+                WHERE ar.entity_id IS NOT NULL
+                  AND ar.reference_type = 'origin'
+                  AND ar.entity_type = '{entity_type}'
+                  AND gp.entity_id IS NULL
+                  AND rd.entity_id IS NULL
+                  AND e.id IS NULL
             ),
 
-            -- Delete the activities and return the count
+            -- Delete the activities and return the ids
 
             deleted_activities AS (
                 DELETE FROM project_{project_name}.activities
-                WHERE id IN (
-                    SELECT activity_id FROM deletable_activities WHERE id IS NOT NULL
-                )
+                WHERE id IN (SELECT activity_id FROM deletable_activities)
                 RETURNING id
             )
+
+            -- Return the count of deleted activities
+
             SELECT count(*) as deleted FROM deleted_activities
-
-            -- SELECT activity_type, data FROM project_{project_name}.activities
-            -- WHERE id IN (SELECT activity_id FROM deletable_activities)
-
         """
 
-        # Debugging
-        # async for row in Postgres.iterate(query):
-        #     print("***************")
-        #     print("Project Name: ", project_name)
-        #     print("Entity Type: ", entity_type)
-        #     print("Activity Type: ", row["activity_type"])
-        #     print("origin: ", row["data"]["origin"])
-        #     print("parents: ", row["data"]["parents"])
-        #     print("***************")
-
-        res = await Postgres.fetch(query)
+        res = await Postgres.fetch(query, timeout=10)
         count = res[0]["deleted"]
 
         if count:
@@ -144,9 +132,7 @@ async def clear_actions() -> None:
     take action on the event within a few seconds or minutes.
     """
     query = """
-        DELETE FROM events
-        WHERE
-        topic = 'action.launcher'
+        DELETE FROM events WHERE topic = 'action.launcher'
         AND status = 'pending'
         AND created_at < now() - interval '10 minutes'
     """
