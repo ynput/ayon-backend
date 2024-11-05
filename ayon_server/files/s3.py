@@ -9,6 +9,9 @@ from fastapi import Request
 from nxtools import logging
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
+from typing_extensions import AsyncGenerator
+
+from .common import FileGroup
 
 if TYPE_CHECKING:
     from ayon_server.files.project_storage import ProjectStorage
@@ -107,6 +110,58 @@ def _delete_s3_file(storage: "ProjectStorage", key: str):
 
 async def delete_s3_file(storage: "ProjectStorage", key: str):
     await run_in_threadpool(_delete_s3_file, storage, key)
+
+
+class FileIterator:
+    def __init__(self, storage: "ProjectStorage", file_group: FileGroup):
+        self.storage = storage
+        self.file_group: FileGroup = file_group
+
+    def _init_iterator(self, prefix: str) -> None:
+        paginator = self.client.get_paginator("list_objects_v2")
+        page_iterator = paginator.paginate(
+            Bucket=self.storage.bucket_name,
+            Prefix=prefix,
+            PaginationConfig={"PageSize": 1000},
+        )
+        self.iterator = page_iterator.__iter__()
+
+    async def init_iterator(self):
+        self.client = await get_s3_client(self.storage)
+        prefix = await self.storage.get_filegroup_dir(self.file_group)
+        await run_in_threadpool(self._init_iterator, prefix)
+
+    def _next(self):
+        try:
+            page = next(self.iterator)
+        except StopIteration:
+            return None
+        return [obj["Key"] for obj in page.get("Contents", [])]
+
+    async def next(self):
+        return await run_in_threadpool(self._next)
+
+    async def __aiter__(self):
+        while True:
+            try:
+                contents = await self.next()
+                if not contents:
+                    break
+                for obj in contents:
+                    yield obj
+            except StopIteration:
+                break
+
+
+async def list_s3_files(
+    storage: "ProjectStorage", file_group: FileGroup
+) -> AsyncGenerator[str, None]:
+    assert file_group in ["uploads", "thumbnails"], "Invalid file group"
+    file_iterator = FileIterator(storage, file_group)
+    await file_iterator.init_iterator()
+    async for key in file_iterator:
+        fname = key.split("/")[-1]
+        yield fname
 
 
 # Multipart upload to S3 with async queue
