@@ -13,6 +13,7 @@ from ayon_server.settings.anatomy import Anatomy
 
 
 def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
+    """Convert anatomy to project data."""
     task_types = [t.dict() for t in anatomy.task_types]
     folder_types = [t.dict() for t in anatomy.folder_types]
     statuses = [t.dict() for t in anatomy.statuses]
@@ -35,15 +36,17 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
             "frame": anatomy.templates.frame,
         }
     }
+
+    templates = anatomy.templates.dict()
     for template_type in (
         "work",
         "publish",
         "hero",
         "delivery",
         "others",
-        "staging_directories",
+        "staging",
     ):
-        template_group = anatomy.templates.dict().get(template_type, [])
+        template_group = templates.get(template_type, [])
         if not template_group:
             continue
         config["templates"][template_type] = {}
