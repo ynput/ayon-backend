@@ -1,4 +1,6 @@
 from ayon_server.api.dependencies import CurrentUser, ProjectName, UserName
+from ayon_server.auth.session import Session
+from ayon_server.entities import UserEntity
 from ayon_server.lib.postgres import Postgres
 
 from .router import router
@@ -59,16 +61,14 @@ async def update_project_user(
 
     user.check_permissions("project.users", project_name, write=True)
 
-    query = """
-        UPDATE users
-        SET data = jsonb_set(
-            data,
-            ARRAY['accessGroups', $1, $2],
-            $3::jsonb
-        )
-        WHERE name = $1
-    """
+    target_user = await UserEntity.load(user_name)
+    target_user_ag = target_user.data.get("accessGroups", {})
+    target_user_ag[project_name] = access_groups
+    target_user.data["accessGroups"] = target_user_ag
+    await target_user.save()
 
-    await Postgres.execute(query, user_name, project_name, access_groups)
+    async for session in Session.list(user_name):
+        token = session.token
+        await Session.update(token, target_user)
 
     return await get_project_users(user, project_name)
