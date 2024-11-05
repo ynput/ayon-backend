@@ -13,6 +13,7 @@ from ayon_server.settings.anatomy import Anatomy
 
 
 def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
+    """Convert anatomy to project data."""
     task_types = [t.dict() for t in anatomy.task_types]
     folder_types = [t.dict() for t in anatomy.folder_types]
     statuses = [t.dict() for t in anatomy.statuses]
