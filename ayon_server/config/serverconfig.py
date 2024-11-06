@@ -16,10 +16,12 @@ class ServerConfigModel(BaseSettingsModel):
 
     motd: str = SettingsField(
         "",
+        title="Message of the Day",
         description="The message of the day that "
         "is displayed to users on the login page"
         "Markdown syntax is supported.",
         example="Welcome to Ayon!",
+        widget="textarea",
     )
 
 
