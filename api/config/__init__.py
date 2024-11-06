@@ -1,4 +1,4 @@
-__all__ = ["config", "router"]
+__all__ = ["config", "router", "files"]
 
-from . import config
+from . import config, files
 from .router import router
