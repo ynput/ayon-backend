@@ -18,8 +18,7 @@ from .router import router
 @router.get("/config/schema")
 async def get_server_config_schema(_: CurrentUserOptional) -> dict[str, Any]:
     schema = ServerConfigModel.schema()
-    context: dict[str, Any] = {}
-    await postprocess_settings_schema(schema, ServerConfigModel, context=context)
+    await postprocess_settings_schema(schema, ServerConfigModel)
     schema["title"] = "Server Configuration"
     return schema
 
@@ -27,60 +26,42 @@ async def get_server_config_schema(_: CurrentUserOptional) -> dict[str, Any]:
 @router.get("/config")
 async def get_server_config(user: CurrentUser) -> ServerConfigModel:
     """Get the server configuration."""
-
     if not user.is_admin:
-        raise ForbiddenException(
-            "Only administrators can view the server configuration"
-        )
-
+        msg = "Only administrators can view the server configuration"
+        raise ForbiddenException(msg)
     return await _get_server_config()
 
 
 @router.get("/config/overrides")
 async def get_server_config_overrides(user: CurrentUser) -> dict[str, Any]:
     if not user.is_admin:
-        raise ForbiddenException(
-            "Only administrators can view the server configuration"
-        )
-    server_config = await _get_server_config()
+        msg = "Only administrators can view the server configuration"
+        raise ForbiddenException(msg)
     server_overrides = await _get_server_config_overrides()
+    server_config = ServerConfigModel(**server_overrides)
     return list_overrides(server_config, server_overrides)
 
 
 @router.post("/config")
 async def set_server_config(
     user: CurrentUser,
-    payload: dict[str, Any],
+    payload: ServerConfigModel,
 ) -> EmptyResponse:
     """Set the server configuration"""
 
     if not user.is_admin:
-        raise ForbiddenException(
-            "Only administrators can change the server configuration"
-        )
+        msg = "Only administrators can change the server configuration"
+        raise ForbiddenException(msg)
 
-    explicit_pins = payload.pop("__pinned_fields__", None)
-    explicit_unpins = payload.pop("__unpinned_fields__", None)
-    payload_obj = ServerConfigModel(**payload)
+    original = ServerConfigModel()
+    data = extract_overrides(original, payload)
 
-    original = await _get_server_config()
-    existing = await _get_server_config_overrides()
-    data = extract_overrides(
-        original,
-        payload_obj,
-        existing=existing,
-        explicit_pins=explicit_pins,
-        explicit_unpins=explicit_unpins,
-    )
-
-    await Postgres.execute(
-        """
+    query = """
         INSERT INTO config (key, value)
         VALUES ('serverConfig', $1)
         ON CONFLICT (key) DO UPDATE SET value = $1
-        """,
-        data,
-    )
+    """
 
+    await Postgres.execute(query, data)
     await build_server_config_cache()
     return EmptyResponse()

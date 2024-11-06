@@ -1,6 +1,5 @@
 from typing import Any
 
-from ayon_server.config.ayonconfig import ayonconfig
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.settings import BaseSettingsModel, SettingsField
@@ -8,13 +7,15 @@ from ayon_server.settings import BaseSettingsModel, SettingsField
 
 class ServerConfigModel(BaseSettingsModel):
     _layout: str = "root"
+
     studio_name: str = SettingsField(
         "",
         description="The name of the studio",
         example="Ynput",
     )
+
     motd: str = SettingsField(
-        ayonconfig.motd or "",
+        "",
         description="The message of the day that "
         "is displayed to users on the login page"
         "Markdown syntax is supported.",
