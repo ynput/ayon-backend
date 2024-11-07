@@ -91,7 +91,7 @@ CREATE INDEX IF NOT EXISTS event_created_at_idx ON events (created_at);
 CREATE INDEX IF NOT EXISTS event_updated_at_idx ON events (updated_at);
 CREATE INDEX IF NOT EXISTS event_status_idx ON events (status);
 CREATE INDEX IF NOT EXISTS event_retries_idx ON events (retries);
-CREATE INDEX IF NOT EXISTS idx_events_sender_type ON events(sender_type);
+CREATE INDEX IF NOT EXISTS events_sender_type_idx ON events(sender_type);
 
 --------------
 -- Settings --
