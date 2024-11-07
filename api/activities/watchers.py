@@ -1,5 +1,3 @@
-from fastapi import Header
-
 from ayon_server.activities.watchers.set_watchers import set_watchers
 from ayon_server.activities.watchers.watcher_list import get_watcher_list
 from ayon_server.api.dependencies import (
@@ -7,6 +5,8 @@ from ayon_server.api.dependencies import (
     PathEntityID,
     PathProjectLevelEntityType,
     ProjectName,
+    Sender,
+    SenderType,
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.helpers.get_entity_class import get_entity_class
@@ -44,12 +44,19 @@ async def set_entity_watchers(
     entity_id: PathEntityID,
     user: CurrentUser,
     watchers: WatchersModel,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     entity_class = get_entity_class(entity_type)
     entity = await entity_class.load(project_name, entity_id)
     await entity.ensure_update_access(user)
 
-    await set_watchers(entity, watchers.watchers, user, sender=x_sender)
+    await set_watchers(
+        entity,
+        watchers.watchers,
+        user,
+        sender=sender,
+        sender_type=sender_type,
+    )
 
     return EmptyResponse()

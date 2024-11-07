@@ -1,10 +1,10 @@
 from contextlib import suppress
 from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Header
+from fastapi import APIRouter, BackgroundTasks
 from nxtools import log_traceback
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.api.dependencies import CurrentUser, ProjectName, Sender, SenderType
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
@@ -288,7 +288,8 @@ async def operations(
     background_tasks: BackgroundTasks,
     project_name: ProjectName,
     user: CurrentUser,
-    x_sender: str | None = Header(None),
+    sender: Sender,
+    sender_type: SenderType,
 ):
     """
     Process multiple operations (create / update / delete) in a single request.
@@ -357,7 +358,8 @@ async def operations(
     for event in events:
         background_tasks.add_task(
             EventStream.dispatch,
-            sender=x_sender,
+            sender=sender,
+            sender_type=sender_type,
             user=user.name,
             **event,
         )

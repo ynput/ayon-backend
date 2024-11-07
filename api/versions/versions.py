@@ -1,8 +1,14 @@
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Header
+from fastapi import APIRouter, BackgroundTasks
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName, VersionID
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    ProjectName,
+    Sender,
+    SenderType,
+    VersionID,
+)
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import VersionEntity
 from ayon_server.events import EventStream
@@ -42,7 +48,8 @@ async def create_version(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new version.
 
@@ -70,7 +77,8 @@ async def create_version(
     await version.save()
     background_tasks.add_task(
         EventStream.dispatch,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,  # type: ignore
     )
@@ -89,7 +97,8 @@ async def update_version(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Patch (partially update) a version."""
 
@@ -101,7 +110,8 @@ async def update_version(
     for event in events:
         background_tasks.add_task(
             EventStream.dispatch,
-            sender=x_sender,
+            sender=sender,
+            sender_type=sender_type,
             user=user.name,
             **event,
         )
@@ -119,7 +129,8 @@ async def delete_version(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete a version.
 
@@ -137,7 +148,8 @@ async def delete_version(
     await version.delete()
     background_tasks.add_task(
         EventStream.dispatch,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )

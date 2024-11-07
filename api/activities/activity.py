@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import BackgroundTasks, Header
+from fastapi import BackgroundTasks
 
 from ayon_server.activities import (
     ActivityType,
@@ -16,6 +16,8 @@ from ayon_server.api.dependencies import (
     PathEntityID,
     PathProjectLevelEntityType,
     ProjectName,
+    Sender,
+    SenderType,
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException
@@ -56,7 +58,8 @@ async def post_project_activity(
     user: CurrentUser,
     activity: ProjectActivityPostModel,
     background_tasks: BackgroundTasks,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> CreateActivityResponseModel:
     """Create an activity.
 
@@ -82,7 +85,8 @@ async def post_project_activity(
         files=activity.files,
         user_name=user.name,
         timestamp=activity.timestamp,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         data=activity.data,
     )
 
@@ -100,7 +104,8 @@ async def delete_project_activity(
     activity_id: ActivityID,
     user: CurrentUser,
     background_tasks: BackgroundTasks,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete an activity.
 
@@ -117,7 +122,8 @@ async def delete_project_activity(
         project_name,
         activity_id,
         user_name=user_name,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
     )
 
     background_tasks.add_task(delete_unused_files, project_name)
@@ -137,7 +143,8 @@ async def patch_project_activity(
     user: CurrentUser,
     activity: ActivityPatchModel,
     background_tasks: BackgroundTasks,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Edit an activity.
 
@@ -156,7 +163,8 @@ async def patch_project_activity(
         body=activity.body,
         files=activity.files,
         user_name=user_name,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
     )
 
     background_tasks.add_task(delete_unused_files, project_name)

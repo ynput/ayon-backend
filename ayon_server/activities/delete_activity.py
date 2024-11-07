@@ -10,8 +10,10 @@ __all__ = ["delete_activity"]
 async def delete_activity(
     project_name: str,
     activity_id: str,
+    *,
     user_name: str | None = None,
     sender: str | None = None,
+    sender_type: str | None = None,
 ) -> None:
     """Delete an activity.
 
