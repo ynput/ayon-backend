@@ -133,7 +133,7 @@ async def enroll(
 
     user_name = current_user.name
 
-    ignore_older = payload.ignore_older_than
+    ignore_older: int | None = payload.ignore_older_than
     if payload.ignore_older_than == 0:
         ignore_older = None
 
@@ -149,7 +149,9 @@ async def enroll(
 
         sloth("Request is already completed. Returning the cached result.")
         await Redis.delete("enroll", request_hash)
-        return cached_result.get("result")
+        if result := cached_result.get("result"):
+            return EnrollResponseModel(**result)
+        return EmptyResponse()  # return empty response if there is no result
 
     else:
         if cached_result:

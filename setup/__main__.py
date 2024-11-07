@@ -5,6 +5,7 @@ from base64 import b64decode
 from pathlib import Path
 from typing import Any
 
+import httpx
 from nxtools import critical_error, log_to_file, log_traceback, logging
 
 from ayon_server.config import ayonconfig
@@ -113,6 +114,20 @@ async def main(force: bool | None = None) -> None:
         else:
             logging.warning("No setup file provided. Using defaults")
         DATA.update(template_data)
+
+        if DATA.get("provisioningUrl"):
+            logging.info(f"Provisioning from {DATA['provisioningUrl']}")
+            headers = DATA.get("provisioningHeaders", {})
+            async with httpx.AsyncClient() as client:
+                try:
+                    response = await client.get(
+                        DATA["provisioningUrl"], headers=headers
+                    )
+                    response.raise_for_status()
+                except Exception:
+                    log_traceback()
+                else:
+                    DATA.update(response.json())
 
         projects: list[str] = []
         async for row in Postgres.iterate("SELECT name FROM projects"):

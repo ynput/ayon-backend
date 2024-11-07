@@ -90,6 +90,15 @@ async def get_references_from_task(task: TaskEntity) -> set[ActivityReferenceMod
             )
         )
 
+    references.add(
+        ActivityReferenceModel(
+            entity_type="folder",
+            entity_name=None,
+            entity_id=task.folder_id,
+            reference_type="relation",
+        )
+    )
+
     return references
 
 

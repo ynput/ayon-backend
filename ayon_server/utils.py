@@ -49,6 +49,9 @@ def json_default_handler(value: Any) -> Any:
     if isinstance(value, datetime.datetime):
         return value.isoformat()
 
+    if isinstance(value, set):
+        return list(value)
+
     raise TypeError(f"Type {type(value)} is not JSON serializable")
 
 
