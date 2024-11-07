@@ -1,8 +1,14 @@
 from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Header
+from fastapi import APIRouter, BackgroundTasks
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName, TaskID
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    ProjectName,
+    Sender,
+    SenderType,
+    TaskID,
+)
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.config import ayonconfig
 from ayon_server.entities import TaskEntity
@@ -49,7 +55,8 @@ async def create_task(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new task.
 
@@ -67,7 +74,8 @@ async def create_task(
     await task.save()
     background_tasks.add_task(
         EventStream.dispatch,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )
@@ -86,7 +94,8 @@ async def update_task(
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Patch (partially update) a task."""
 
@@ -98,7 +107,8 @@ async def update_task(
     for event in events:
         background_tasks.add_task(
             EventStream.dispatch,
-            sender=x_sender,
+            sender=sender,
+            sender_type=sender_type,
             user=user.name,
             **event,
         )
@@ -116,7 +126,8 @@ async def delete_task(
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete a task."""
 
@@ -132,7 +143,8 @@ async def delete_task(
     await task.delete()
     background_tasks.add_task(
         EventStream.dispatch,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )

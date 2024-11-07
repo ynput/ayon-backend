@@ -525,17 +525,17 @@ async def dep_sender(
     return x_sender
 
 
-SenderHeader = Annotated[str | None, Depends(dep_sender)]
+Sender = Annotated[str | None, Depends(dep_sender)]
 
 
 async def dep_sender_type(
-    x_sender_type: str | None = Header(
+    x_sender_type: str = Header(
         "api",
         title="Sender type",
         regex=NAME_REGEX,
     ),
-) -> str | None:
+) -> str:
     return x_sender_type
 
 
-SenderTypeHeader = Annotated[str | None, Depends(dep_sender_type)]
+SenderType = Annotated[str | None, Depends(dep_sender_type)]

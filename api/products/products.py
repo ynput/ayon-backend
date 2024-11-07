@@ -1,8 +1,14 @@
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Header
+from fastapi import APIRouter, BackgroundTasks
 
-from ayon_server.api.dependencies import CurrentUser, ProductID, ProjectName
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    ProductID,
+    ProjectName,
+    Sender,
+    SenderType,
+)
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import ProductEntity
 from ayon_server.events import EventStream
@@ -41,7 +47,8 @@ async def create_product(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new product."""
 
@@ -56,7 +63,8 @@ async def create_product(
     await product.save()
     background_tasks.add_task(
         EventStream.dispatch,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )
@@ -75,7 +83,8 @@ async def update_product(
     user: CurrentUser,
     project_name: ProjectName,
     product_id: ProductID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Patch (partially update) a product."""
 
@@ -87,7 +96,8 @@ async def update_product(
     for event in events:
         background_tasks.add_task(
             EventStream.dispatch,
-            sender=x_sender,
+            sender=sender,
+            sender_type=sender_type,
             user=user.name,
             **event,
         )
@@ -105,7 +115,8 @@ async def delete_product(
     user: CurrentUser,
     project_name: ProjectName,
     product_id: ProductID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete a product.
 
@@ -123,7 +134,8 @@ async def delete_product(
     await product.delete()
     background_tasks.add_task(
         EventStream.dispatch,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )

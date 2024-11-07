@@ -1,6 +1,12 @@
-from fastapi import APIRouter, BackgroundTasks, Header
+from fastapi import APIRouter, BackgroundTasks
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName, WorkfileID
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    ProjectName,
+    Sender,
+    SenderType,
+    WorkfileID,
+)
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import WorkfileEntity
 from ayon_server.events import EventStream
@@ -40,7 +46,8 @@ async def create_workfile(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new workfile.
 
@@ -63,7 +70,8 @@ async def create_workfile(
     await workfile.save()
     background_tasks.add_task(
         EventStream.dispatch,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,  # type: ignore
     )
@@ -82,7 +90,8 @@ async def update_workfile(
     user: CurrentUser,
     project_name: ProjectName,
     workfile_id: WorkfileID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Patch (partially update) a workfile."""
 
@@ -98,7 +107,8 @@ async def update_workfile(
     for event in events:
         background_tasks.add_task(
             EventStream.dispatch,
-            sender=x_sender,
+            sender=sender,
+            sender_type=sender_type,
             user=user.name,
             **event,
         )
@@ -116,7 +126,8 @@ async def delete_workfile(
     user: CurrentUser,
     project_name: ProjectName,
     workfile_id: WorkfileID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete a workfile."""
 
@@ -131,7 +142,8 @@ async def delete_workfile(
     await workfile.delete()
     background_tasks.add_task(
         EventStream.dispatch,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,  # type: ignore
     )
