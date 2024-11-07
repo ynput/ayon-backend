@@ -5,7 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Header
 from ayon_server.api.dependencies import CurrentUser, ProductID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import ProductEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.events.patch import build_pl_entity_change_events
 
 router = APIRouter(tags=["Products"])
@@ -55,7 +55,7 @@ async def create_product(
     }
     await product.save()
     background_tasks.add_task(
-        dispatch_event,
+        EventStream.dispatch,
         sender=x_sender,
         user=user.name,
         **event,
@@ -86,7 +86,7 @@ async def update_product(
     await product.save()
     for event in events:
         background_tasks.add_task(
-            dispatch_event,
+            EventStream.dispatch,
             sender=x_sender,
             user=user.name,
             **event,
@@ -122,7 +122,7 @@ async def delete_product(
     }
     await product.delete()
     background_tasks.add_task(
-        dispatch_event,
+        EventStream.dispatch,
         sender=x_sender,
         user=user.name,
         **event,

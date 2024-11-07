@@ -3,7 +3,7 @@ from fastapi import APIRouter, BackgroundTasks, Header
 from ayon_server.api.dependencies import CurrentUser, ProjectName, WorkfileID
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import WorkfileEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.events.patch import build_pl_entity_change_events
 
 router = APIRouter(tags=["Workfiles"])
@@ -62,7 +62,7 @@ async def create_workfile(
     }
     await workfile.save()
     background_tasks.add_task(
-        dispatch_event,
+        EventStream.dispatch,
         sender=x_sender,
         user=user.name,
         **event,  # type: ignore
@@ -97,7 +97,7 @@ async def update_workfile(
     await workfile.save()
     for event in events:
         background_tasks.add_task(
-            dispatch_event,
+            EventStream.dispatch,
             sender=x_sender,
             user=user.name,
             **event,
@@ -130,7 +130,7 @@ async def delete_workfile(
     }
     await workfile.delete()
     background_tasks.add_task(
-        dispatch_event,
+        EventStream.dispatch,
         sender=x_sender,
         user=user.name,
         **event,  # type: ignore

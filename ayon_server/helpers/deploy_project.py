@@ -7,7 +7,7 @@ from nxtools import logging
 from ayon_server.auth.session import Session
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 
@@ -162,7 +162,7 @@ async def create_project_from_anatomy(
     end_time = time.monotonic()
     logging.debug(f"Deployed project {project.name} in {end_time - start_time:.2f}s")
 
-    await dispatch_event(
+    await EventStream.dispatch(
         "entity.project.created",
         sender="ayon",
         project=project.name,

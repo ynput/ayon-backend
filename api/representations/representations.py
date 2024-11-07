@@ -5,7 +5,7 @@ from fastapi import BackgroundTasks, Header
 from ayon_server.api.dependencies import CurrentUser, ProjectName, RepresentationID
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import RepresentationEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.events.patch import build_pl_entity_change_events
 
 from .router import router
@@ -65,7 +65,7 @@ async def create_representation(
     }
     await representation.save()
     background_tasks.add_task(
-        dispatch_event,
+        EventStream.dispatch,
         sender=x_sender,
         user=user.name,
         **event,  # type: ignore
@@ -98,7 +98,7 @@ async def update_representation(
     await representation.save()
     for event in events:
         background_tasks.add_task(
-            dispatch_event,
+            EventStream.dispatch,
             sender=x_sender,
             user=user.name,
             **event,
@@ -136,7 +136,7 @@ async def delete_representation(
     }
     await representation.delete()
     background_tasks.add_task(
-        dispatch_event,
+        EventStream.dispatch,
         sender=x_sender,
         user=user.name,
         **event,

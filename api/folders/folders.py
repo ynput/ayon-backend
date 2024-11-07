@@ -6,7 +6,7 @@ from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.config import ayonconfig
 from ayon_server.entities import FolderEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
@@ -61,7 +61,7 @@ async def create_folder(
 
     await folder.save()
     background_tasks.add_task(
-        dispatch_event,
+        EventStream.dispatch,
         sender=x_sender,
         user=user.name,
         **event,
@@ -123,7 +123,7 @@ async def update_folder(
 
     for event in events:
         background_tasks.add_task(
-            dispatch_event,
+            EventStream.dispatch,
             sender=x_sender,
             user=user.name,
             **event,
@@ -170,7 +170,7 @@ async def delete_folder(
 
     await folder.delete(force=force)
     background_tasks.add_task(
-        dispatch_event,
+        EventStream.dispatch,
         sender=x_sender,
         user=user.name,
         **event,

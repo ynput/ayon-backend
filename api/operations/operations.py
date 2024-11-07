@@ -8,7 +8,7 @@ from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import (
     AyonException,
@@ -356,7 +356,7 @@ async def operations(
 
     for event in events:
         background_tasks.add_task(
-            dispatch_event,
+            EventStream.dispatch,
             sender=x_sender,
             user=user.name,
             **event,

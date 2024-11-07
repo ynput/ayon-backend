@@ -6,7 +6,7 @@ from ayon_server.api.dependencies import CurrentUser, ProjectName, TaskID
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.config import ayonconfig
 from ayon_server.entities import TaskEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.types import Field, OPModel
@@ -66,7 +66,7 @@ async def create_task(
     }
     await task.save()
     background_tasks.add_task(
-        dispatch_event,
+        EventStream.dispatch,
         sender=x_sender,
         user=user.name,
         **event,
@@ -97,7 +97,7 @@ async def update_task(
     await task.save()
     for event in events:
         background_tasks.add_task(
-            dispatch_event,
+            EventStream.dispatch,
             sender=x_sender,
             user=user.name,
             **event,
@@ -131,7 +131,7 @@ async def delete_task(
         event["payload"] = {"entityData": task.dict_simple()}
     await task.delete()
     background_tasks.add_task(
-        dispatch_event,
+        EventStream.dispatch,
         sender=x_sender,
         user=user.name,
         **event,

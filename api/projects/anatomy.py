@@ -3,7 +3,7 @@ from fastapi import Header
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.deploy_project import anatomy_to_project_data
 from ayon_server.helpers.extract_anatomy import extract_project_anatomy
@@ -41,7 +41,7 @@ async def set_project_anatomy(
 
     await project.save()
 
-    await dispatch_event(
+    await EventStream.dispatch(
         "entity.project.changed",
         sender=x_sender,
         project=project_name,
