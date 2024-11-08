@@ -3,7 +3,7 @@ from ayon_server.exceptions import ConstraintViolationException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import Filter, build_filter
 from ayon_server.types import Field, OPModel
-from ayon_server.utils import hash_data
+from ayon_server.utils import SQLTool, hash_data
 
 SERVER_SENDER = "ayon_server"
 
@@ -26,6 +26,7 @@ async def enroll_job(
     sequential: bool = False,
     filter: Filter | None = None,
     max_retries: int = 3,
+    ignore_sender_types: list[str] | None = None,
     ignore_older_than: int | None = None,
     sloth_mode: bool = False,
 ) -> EnrollResponseModel | None:
@@ -52,6 +53,11 @@ async def enroll_job(
     if ignore_older_than is not None:
         ignore_cond = f"AND updated_at > NOW() - INTERVAL '{ignore_older_than} days'"
 
+    sender_type_cond = ""
+    if ignore_sender_types is not None:
+        arr = SQLTool.array(ignore_sender_types)
+        sender_type_cond = f"AND sender_type NOT IN {arr}"
+
     if sloth_mode:
         sloth_query = ", pg_sleep(0.2)"
     else:
@@ -61,7 +67,8 @@ async def enroll_job(
         WITH excluded_events AS (
             SELECT depends_on
             FROM events
-            WHERE topic = $2
+            WHERE depends_on IS NOT NULL
+            AND topic = $2
             {ignore_cond}
             AND (
                 status = 'finished'
@@ -70,12 +77,15 @@ async def enroll_job(
         ),
 
         source_events AS (
-            SELECT * {sloth_query}
-            FROM events
+            SELECT se.* {sloth_query}
+            FROM events se
+            LEFT JOIN excluded_events ee
+                ON se.id = ee.depends_on
             WHERE {topic_cond}
             AND status = 'finished'
             {ignore_cond}
-            AND id NOT IN (SELECT depends_on FROM excluded_events)
+            {sender_type_cond}
+            AND ee.depends_on IS NULL
         )
 
         SELECT

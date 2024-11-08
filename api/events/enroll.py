@@ -184,6 +184,15 @@ async def enroll(
         raise  # re-raise the exception
 
     finally:
+        try:
+            # Don't cache the result if an exception occurred
+            # during the processing. EmptyResponse is here just
+            # to make mypy happy. Actual response (triggered by
+            # the exception) has already been sent to the client.
+            _ = res
+        except UnboundLocalError:
+            return EmptyResponse()
+
         sloth()
         sloth(f"Enroll request {request_hash} completed")
         if await request.is_disconnected():
