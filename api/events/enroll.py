@@ -58,6 +58,12 @@ class EnrollRequestModel(OPModel):
         None, title="Filter", description="Filter source events"
     )
     max_retries: int = Field(3, title="Max retries", example=3)
+    ignore_sender_types: list[str] | None = Field(
+        None,
+        title="Ignore sender types",
+        example=["worker"],
+        description="Ignore source events created by specified sender types",
+    )
     ignore_older_than: int = Field(
         3,
         title="Ignore older than",
@@ -137,6 +143,9 @@ async def enroll(
     if payload.ignore_older_than == 0:
         ignore_older = None
 
+    if payload.ignore_sender_types is not None and not payload.ignore_sender_types:
+        payload.ignore_sender_types = None
+
     request_hash = hash_data(payload.dict())
     sloth()
     sloth(f"Received enroll request from {payload.sender}! Hash {request_hash}")
@@ -176,6 +185,7 @@ async def enroll(
             filter=payload.filter,
             max_retries=payload.max_retries,
             ignore_older_than=ignore_older,
+            ignore_sender_types=payload.ignore_sender_types,
             sloth_mode=payload.sloth_mode,
         )
     except Exception:
