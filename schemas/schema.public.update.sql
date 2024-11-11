@@ -467,3 +467,23 @@ CREATE OR REPLACE FUNCTION add_meta_column_to_thumbnails()
 SELECT add_meta_column_to_thumbnails();
 DROP FUNCTION IF EXISTS add_meta_column_to_thumbnails();
 
+
+
+
+CREATE OR REPLACE FUNCTION add_traits_column_to_representations()
+   RETURNS VOID  AS
+   $$
+   DECLARE rec RECORD;
+   BEGIN
+        FOR rec IN select distinct nspname from pg_namespace where nspname like 'project_%'
+        LOOP
+             EXECUTE
+              'ALTER TABLE IF EXISTS ' || rec.nspname || '.representations ' ||
+              'ADD COLUMN IF NOT EXISTS traits JSONB';
+        END LOOP;
+        RETURN;
+   END;
+   $$ LANGUAGE plpgsql;
+
+SELECT add_traits_column_to_representations();
+DROP FUNCTION IF EXISTS add_traits_column_to_representations();
