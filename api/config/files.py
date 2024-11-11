@@ -2,6 +2,7 @@ import os
 from typing import Any, Literal
 
 from fastapi import Header, Path, Request
+from fastapi.responses import FileResponse
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.files import handle_upload
@@ -33,7 +34,7 @@ server_files: dict[ServerFileType, dict[str, Any]] = {
 }
 
 
-@router.put("/config/files/{file_id}")
+@router.put("/config/files/{file_type}")
 async def upload_server_config_file(
     request: Request,
     user: CurrentUser,
@@ -68,6 +69,7 @@ async def upload_server_config_file(
         raise BadRequestException("Invalid content type.")
 
     target_path = os.path.join(server_files[file_type]["directory"], x_file_name)
+    await handle_upload(request, target_path)
 
     config = await get_server_config()
     config_data = config.dict()
@@ -77,15 +79,9 @@ async def upload_server_config_file(
 
     await save_server_config_data(config_data)
 
-    await handle_upload(request, target_path)
 
-
-@router.get("/config/files/{file_id}")
-async def get_server_config_file(
-    user: CurrentUser,
-    file_type: ServerFileType,
-    x_file_name: str = Header(...),
-):
+@router.get("/config/files/{file_type}")
+async def get_server_config_file(user: CurrentUser, file_type: ServerFileType):
     """Get a file from the server configuration."""
 
     if not user.is_admin:
@@ -93,4 +89,14 @@ async def get_server_config_file(
             "Only administrators can set server configuration values."
         )
 
-    pass
+    if file_type not in server_files:
+        raise BadRequestException("Invalid file type.")
+
+    config = await get_server_config()
+    customization = config.customization
+    file_name = customization.__getattribute__(file_type)
+    if not file_name:
+        raise BadRequestException("No file set for this type.")
+
+    target_path = os.path.join(server_files[file_type]["directory"], file_name)
+    return FileResponse(target_path)

@@ -82,7 +82,7 @@ async def save_server_config_data(data: dict[str, Any]) -> None:
         """
         INSERT INTO config (key, value)
         VALUES ('serverConfig', $1)
-        ON CONFLICT (key) DO UPDATE SET value = $1"
+        ON CONFLICT (key) DO UPDATE SET value = $1
         """,
         data,
     )
