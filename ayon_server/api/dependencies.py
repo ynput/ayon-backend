@@ -412,6 +412,16 @@ async def dep_activity_id(
 ActivityID = Annotated[str, Depends(dep_activity_id)]
 
 
+async def dep_file_id(
+    file_id: str = Path(..., title="File ID", **EntityID.META),
+) -> str:
+    """Validate and return an file id specified in an endpoint path."""
+    return file_id
+
+
+FileID = Annotated[str, Depends(dep_file_id)]
+
+
 async def dep_link_type(
     link_type: str = Path(..., title="Link Type"),
 ) -> tuple[str, str, str]:
