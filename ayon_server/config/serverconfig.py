@@ -5,13 +5,16 @@ from ayon_server.lib.redis import Redis
 from ayon_server.settings import BaseSettingsModel, SettingsField
 
 
-class ServerConfigModel(BaseSettingsModel):
-    _layout: str = "root"
-
-    studio_name: str = SettingsField(
-        "",
-        description="The name of the studio",
-        example="Ynput",
+class CustomizationModel(BaseSettingsModel):
+    login_background: str | None = SettingsField(
+        None,
+        title="Login Background",
+        disabled=True,
+    )
+    studio_logo: str | None = SettingsField(
+        None,
+        title="Studio Logo",
+        disabled=True,
     )
 
     motd: str = SettingsField(
@@ -22,6 +25,22 @@ class ServerConfigModel(BaseSettingsModel):
         "Markdown syntax is supported.",
         example="Welcome to Ayon!",
         widget="textarea",
+    )
+
+
+class ServerConfigModel(BaseSettingsModel):
+    _layout: str = "root"
+
+    studio_name: str = SettingsField(
+        "",
+        description="The name of the studio",
+        example="Ynput",
+    )
+
+    customization: CustomizationModel = SettingsField(
+        CustomizationModel(),
+        title="Customization",
+        description="Customization options for the login page",
     )
 
 
@@ -56,3 +75,15 @@ async def get_server_config() -> ServerConfigModel:
     if data is None:
         data = await build_server_config_cache()
     return ServerConfigModel(**data)
+
+
+async def save_server_config_data(data: dict[str, Any]) -> None:
+    await Postgres.execute(
+        """
+        INSERT INTO config (key, value)
+        VALUES ('serverConfig', $1)
+        ON CONFLICT (key) DO UPDATE SET value = $1"
+        """,
+        data,
+    )
+    await build_server_config_cache()

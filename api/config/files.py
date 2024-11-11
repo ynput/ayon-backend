@@ -1,9 +1,12 @@
+import os
 from typing import Any, Literal
 
-from fastapi import Header
+from fastapi import Header, Path, Request
 
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.api.files import handle_upload
+from ayon_server.config.serverconfig import get_server_config, save_server_config_data
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 
 from .router import router
 
@@ -11,17 +14,17 @@ from .router import router
 # Server files (login background, etc.)
 #
 
-ServerFileType = Literal["login-background", "studio-logo"]
+ServerFileType = Literal["login_background", "studio_logo"]
 
 
 server_files: dict[ServerFileType, dict[str, Any]] = {
-    "login-background": {
+    "login_background": {
         "description": "The background image displayed on the login page.",
         "example": "background.jpg",
         "mime_types": ["image/jpeg", "image/png"],
         "directory": "/storage/static/customization",
     },
-    "studio-logo": {
+    "studio_logo": {
         "description": "The logo displayed on the login page.",
         "example": "logo.png",
         "mime_types": ["image/jpeg", "image/png"],
@@ -32,9 +35,24 @@ server_files: dict[ServerFileType, dict[str, Any]] = {
 
 @router.put("/config/files/{file_id}")
 async def upload_server_config_file(
+    request: Request,
     user: CurrentUser,
-    file_type: ServerFileType,
-    x_file_name: str = Header(...),
+    file_type: ServerFileType = Path(
+        ...,
+        description="The type of file to upload.",
+        example="login_background",
+    ),
+    x_file_name: str = Header(
+        ...,
+        description="The name of the file.",
+        example="background.jpg",
+        regex=r"^[a-zA-Z0-9._-]+$",
+    ),
+    content_type: str = Header(
+        ...,
+        example="image/jpeg",
+        regex=r"^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$",
+    ),
 ):
     """Upload a file to the server configuration."""
 
@@ -43,7 +61,23 @@ async def upload_server_config_file(
             "Only administrators can set server configuration values."
         )
 
-    pass
+    if file_type not in server_files:
+        raise BadRequestException("Invalid file type.")
+
+    if content_type.lower() not in server_files[file_type]["mime_types"]:
+        raise BadRequestException("Invalid content type.")
+
+    target_path = os.path.join(server_files[file_type]["directory"], x_file_name)
+
+    config = await get_server_config()
+    config_data = config.dict()
+    if "customization" not in config_data:
+        config_data["customization"] = {}
+    config_data["customization"][file_type] = x_file_name
+
+    await save_server_config_data(config_data)
+
+    await handle_upload(request, target_path)
 
 
 @router.get("/config/files/{file_id}")

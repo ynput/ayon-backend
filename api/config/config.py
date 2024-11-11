@@ -2,13 +2,12 @@ from typing import Any
 
 from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.config.serverconfig import ServerConfigModel, build_server_config_cache
+from ayon_server.config.serverconfig import ServerConfigModel, save_server_config_data
 from ayon_server.config.serverconfig import get_server_config as _get_server_config
 from ayon_server.config.serverconfig import (
     get_server_config_overrides as _get_server_config_overrides,
 )
 from ayon_server.exceptions import ForbiddenException
-from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.overrides import extract_overrides, list_overrides
 from ayon_server.settings.postprocess import postprocess_settings_schema
 
@@ -56,12 +55,5 @@ async def set_server_config(
     original = ServerConfigModel()
     data = extract_overrides(original, payload)
 
-    query = """
-        INSERT INTO config (key, value)
-        VALUES ('serverConfig', $1)
-        ON CONFLICT (key) DO UPDATE SET value = $1
-    """
-
-    await Postgres.execute(query, data)
-    await build_server_config_cache()
+    await save_server_config_data(data)
     return EmptyResponse()
