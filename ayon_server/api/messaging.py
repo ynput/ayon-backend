@@ -76,14 +76,11 @@ class Client:
             self.disconnected = True
 
     async def receive(self):
+        data = await self.sock.receive_text()
         try:
-            data = await self.sock.receive_text()
             message = json_loads(data)
             assert isinstance(message, dict)
             assert "topic" in message
-        except RuntimeError:
-            # Client disconnected. This is normal.
-            return None
         except AssertionError:
             return None
         except Exception:
