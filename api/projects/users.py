@@ -64,7 +64,10 @@ async def update_project_user(
     target_user = await UserEntity.load(user_name)
     target_user_ag = target_user.data.get("accessGroups", {})
     target_user_ag[project_name] = access_groups
-    target_user.data["accessGroups"] = target_user_ag
+    if not target_user_ag[project_name]:
+        target_user_ag.pop(project_name, None)
+    else:
+        target_user.data["accessGroups"] = target_user_ag
     await target_user.save()
 
     async for session in Session.list(user_name):
