@@ -26,6 +26,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages
+from ayon_server.helpers.mimetypes import guess_mime_type
 from ayon_server.helpers.thumbnails import (
     ThumbnailProcessNoop,
     get_fake_thumbnail,
@@ -83,12 +84,17 @@ async def store_thumbnail(
     MAX_THUMBNAIL_WIDTH = 600
     MAX_THUMBNAIL_HEIGHT = 600
 
+    if guess_mime_type(payload) != mime:
+        raise BadRequestException("Mime type does not match the payload")
+
     try:
         thumbnail = await process_thumbnail(
             payload,
             (MAX_THUMBNAIL_WIDTH, MAX_THUMBNAIL_HEIGHT),
             raise_on_noop=True,
         )
+    except ValueError as e:
+        raise BadRequestException(str(e))
     except ThumbnailProcessNoop:
         thumbnail = payload
     else:
