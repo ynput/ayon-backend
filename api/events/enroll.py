@@ -4,7 +4,7 @@ import time
 from fastapi import Request
 from nxtools import logging
 
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, Sender, SenderType
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.events.enroll import EnrollResponseModel, enroll_job
 from ayon_server.exceptions import (
@@ -37,10 +37,15 @@ class EnrollRequestModel(OPModel):
         example="ftrack.sync_to_ayon",
         regex=TOPIC_REGEX,
     )
-    sender: str = Field(
-        ...,
+    sender: str | None = Field(
+        None,
         title="Sender",
         example="workerservice01",
+    )
+    sender_type: str | None = Field(
+        None,
+        title="Sender type",
+        example="worker",
     )
     description: str | None = Field(
         None,
@@ -94,6 +99,8 @@ async def enroll(
     request: Request,
     payload: EnrollRequestModel,
     current_user: CurrentUser,
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EnrollResponseModel | EmptyResponse:
     """Enroll for a new job.
 
@@ -174,11 +181,17 @@ async def enroll(
             ttl=600,
         )
 
+    if payload.sender is None and sender:
+        payload.sender = sender
+    if payload.sender_type is None and sender_type:
+        payload.sender_type = sender_type
+
     try:
         res = await enroll_job(
             source_topic,
             payload.target_topic,
             sender=payload.sender,
+            sender_type=payload.sender_type,
             user_name=user_name,
             description=payload.description,
             sequential=payload.sequential,
