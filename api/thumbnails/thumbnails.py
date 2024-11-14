@@ -24,6 +24,7 @@ from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
     NotFoundException,
+    UnsupportedMediaException,
 )
 from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import guess_mime_type
@@ -84,8 +85,27 @@ async def store_thumbnail(
     MAX_THUMBNAIL_WIDTH = 600
     MAX_THUMBNAIL_HEIGHT = 600
 
-    if guess_mime_type(payload) != mime:
-        raise BadRequestException("Mime type does not match the payload")
+    guessed_mime = guess_mime_type(payload)
+    if guessed_mime is None:
+        # This shouldn't happen, but we'll log it.
+        # Upload will probably fail later on, in process_thumbnail.
+        logging.warning(
+            f"Could not guess mime type of thumbnail. Using provided {mime}"
+        )
+
+    elif guessed_mime != mime:
+        # This is a warning, not an error, because we can still store the thumbnail
+        # even if the mime type is wrong. We're just logging it and using the
+        # correct mime type instead of the provided one.
+        logging.warning(
+            "Thumbnail mime type mismatch: "
+            f"Payload contains {guessed_mime} "
+            f"but was requested to store {mime}"
+        )
+        mime = guessed_mime
+
+    if mime not in ["image/png", "image/jpeg"]:
+        raise UnsupportedMediaException(f"Unsupported thumbnail mime type {mime}")
 
     try:
         thumbnail = await process_thumbnail(
@@ -94,7 +114,8 @@ async def store_thumbnail(
             raise_on_noop=True,
         )
     except ValueError as e:
-        raise BadRequestException(str(e))
+        raise UnsupportedMediaException(str(e))
+
     except ThumbnailProcessNoop:
         thumbnail = payload
     else:
