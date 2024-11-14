@@ -40,6 +40,42 @@ if ayonconfig.force_create_admin:
     ]
 
 
+async def db_migration(has_schema: bool) -> int:
+    """Migrate the database schema.
+
+    Returns the latest migration version applied
+    (or available if db is not initialized).
+    """
+
+    if has_schema:
+        res = await Postgres.fetch("SELECT value FROM config WHERE key = 'dbVersion'")
+        if not res:
+            current_version = 0
+        else:
+            current_version = int(res[0]["value"])
+    else:
+        current_version = 0
+
+    logging.info(f"Current database version: {current_version}")
+
+    migrations_dir = "schemas/migrations"
+    available_migrations = sorted(
+        Path(migrations_dir).glob("*.sql"), key=lambda x: int(x.stem)
+    )
+
+    if has_schema:
+        for migration in available_migrations:
+            migration_version = int(migration.stem)
+            if migration_version <= current_version:
+                continue
+
+            logging.info(f"Applying migration {migration_version}")
+            await Postgres.execute(migration.read_text())
+        return migration_version
+
+    return int(available_migrations[-1].stem)
+
+
 async def main(force: bool | None = None) -> None:
     """Main entry point for setup."""
 
@@ -67,13 +103,20 @@ async def main(force: bool | None = None) -> None:
         schema = Path("schemas/schema.drop.sql").read_text()
         await Postgres.execute(schema)
 
-    if has_schema:
-        # inter-version updates
-        schema = Path("schemas/schema.public.update.sql").read_text()
-        await Postgres.execute(schema)
+    db_version = await db_migration(has_schema)
 
     schema = Path("schemas/schema.public.sql").read_text()
     await Postgres.execute(schema)
+
+    # Save the current database version (latest migration applied)
+
+    await Postgres.execute(
+        """
+        INSERT INTO config (key, value) VALUES ('dbVersion', $1)
+        ON CONFLICT (key) DO UPDATE SET value = $1
+        """,
+        db_version,
+    )
 
     # This is something we can do every time.
     await deploy_attributes()

@@ -1,3 +1,10 @@
+-- This migration will never be triggered autmatically 
+-- As it handles migration from very early beta versions
+-- of Ayon. It is here for reference only. If a migration
+-- from a version older than 0.3.1 is needed, it should be
+-- done manually.
+
+
 ----------------
 -- AYON 0.3.1 --
 ----------------
