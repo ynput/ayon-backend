@@ -36,13 +36,12 @@ async def db_migration(has_schema: bool) -> int:
         Path(migrations_dir).glob("*.sql"), key=lambda x: int(x.stem)
     )
 
-    logging.debug(f"Applying {len(available_migrations)} database migrations")
-    # logging.debug(f"Current database version: {current_version}")
-
     # We evaluate has_schema here rather than in the main function,
     # because we need to know the latest database version, even if
     # the schema is not present yet.
     if has_schema:
+        # logging.debug(f"Current database version: {current_version}")
+        logging.debug(f"Applying {len(available_migrations)} database migrations")
         for migration in available_migrations:
             migration_version = int(migration.stem)
 
