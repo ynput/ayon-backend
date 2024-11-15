@@ -56,7 +56,7 @@ async def db_migration(has_schema: bool) -> int:
     else:
         current_version = 0
 
-    logging.info(f"Current database version: {current_version}")
+    logging.debug(f"Current database version: {current_version}")
 
     migrations_dir = "schemas/migrations"
     available_migrations = sorted(
@@ -66,8 +66,16 @@ async def db_migration(has_schema: bool) -> int:
     if has_schema:
         for migration in available_migrations:
             migration_version = int(migration.stem)
-            if migration_version <= current_version:
-                continue
+
+            # We still need to apply all migrations to ensure
+            # imported project will have the same schema.
+            # The following condition may be uncommented,
+            #
+            # When we switch project backup to json-based,
+            # database aware format.
+
+            # if migration_version <= current_version:
+            #    continue
 
             logging.info(f"Applying migration {migration_version}")
             await Postgres.execute(migration.read_text())
