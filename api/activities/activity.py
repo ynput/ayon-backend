@@ -147,6 +147,7 @@ class ActivityPatchModel(OPModel):
         example=False,
         description="When true, append files to the existing ones. replace them otherwise",  # noqa: E501
     )
+    data: dict[str, Any] | None = Field(None, example={"key": "value"})
 
 
 @router.patch("/activities/{activity_id}")
@@ -164,11 +165,7 @@ async def patch_project_activity(
     Only the author of the activity can edit it.
     """
 
-    if user.is_admin:
-        # admin can update any activity
-        user_name = None
-    else:
-        user_name = user.name
+    user_name = user.name
 
     await update_activity(
         project_name=project_name,
@@ -176,9 +173,11 @@ async def patch_project_activity(
         body=activity.body,
         files=activity.files,
         append_files=activity.append_files,
+        data=activity.data,
         user_name=user_name,
         sender=sender,
         sender_type=sender_type,
+        is_admin=user.is_admin,
     )
 
     background_tasks.add_task(delete_unused_files, project_name)

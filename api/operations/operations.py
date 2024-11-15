@@ -1,5 +1,5 @@
 from contextlib import suppress
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks
 from nxtools import log_traceback
@@ -20,18 +20,9 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
+from .common import OperationType, RollbackException
+
 router = APIRouter(tags=["Projects"])
-
-
-class RollbackException(Exception):
-    pass
-
-
-#
-# Models
-#
-
-OperationType = Literal["create", "update", "delete"]
 
 
 class OperationModel(OPModel):
