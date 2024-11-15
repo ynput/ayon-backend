@@ -132,8 +132,21 @@ async def delete_project_activity(
 
 
 class ActivityPatchModel(OPModel):
-    body: str = Field(..., example="This is a comment")
-    files: list[str] | None = Field(None, example=["file1", "file2"])
+    body: str | None = Field(
+        ...,
+        example="This is a comment",
+        description="When set, update the activity body",
+    )
+    files: list[str] | None = Field(
+        None,
+        example=["file1", "file2"],
+        description="When set, update the activity files",
+    )
+    append_files: bool = Field(
+        False,
+        example=False,
+        description="When true, append files to the existing ones. replace them otherwise",  # noqa: E501
+    )
 
 
 @router.patch("/activities/{activity_id}")
@@ -162,6 +175,7 @@ async def patch_project_activity(
         activity_id=activity_id,
         body=activity.body,
         files=activity.files,
+        append_files=activity.append_files,
         user_name=user_name,
         sender=sender,
         sender_type=sender_type,
