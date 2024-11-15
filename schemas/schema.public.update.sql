@@ -469,7 +469,7 @@ DROP FUNCTION IF EXISTS add_meta_column_to_thumbnails();
 
 
 ----------------
--- AYON 1.5.3 --
+-- AYON 1.5.7 --
 ----------------
 
 DO $$
