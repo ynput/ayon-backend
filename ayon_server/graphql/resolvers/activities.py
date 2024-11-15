@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.edges import ActivityEdge
 from ayon_server.graphql.nodes.activity import ActivityNode
@@ -28,6 +30,8 @@ async def get_activities(
     activity_types: list[str] | None = None,
     reference_types: list[str] | None = None,
     activity_ids: list[str] | None = None,
+    changed_before: str | None = None,
+    changed_after: str | None = None,
 ) -> ActivitiesConnection:
     project_name = root.project_name
 
@@ -59,6 +63,16 @@ async def get_activities(
 
     if activity_ids is not None:
         sql_conditions.append(f"activity_id IN {SQLTool.id_array(activity_ids)}")
+
+    if changed_before:
+        # ensure the date is a valid ISO 8601 datetime
+        changed_before_dt = datetime.fromisoformat(changed_before)
+        sql_conditions.append(f"updated_at < '{changed_before_dt.isoformat()}'")
+
+    if changed_after:
+        # ensure the date is a valid ISO 8601 datetime
+        changed_after_dt = datetime.fromisoformat(changed_after)
+        sql_conditions.append(f"updated_at > '{changed_after_dt.isoformat()}'")
 
     if activity_types is not None:
         validate_name_list(activity_types)
