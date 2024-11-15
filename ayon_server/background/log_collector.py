@@ -19,7 +19,7 @@ except ModuleNotFoundError:
     has_nxtools = False
 
 else:
-    from ayon_server.events import dispatch_event
+    from ayon_server.events import EventStream
 
 
 def parse_log_message(message):
@@ -79,7 +79,7 @@ class LogCollector(BackgroundWorker):
             return
 
         try:
-            await dispatch_event(
+            await EventStream.dispatch(
                 message["topic"],
                 # user=None, (TODO: implement this?)
                 description=message["description"],
@@ -96,7 +96,7 @@ class LogCollector(BackgroundWorker):
         # to be ready.
         while True:
             try:
-                await dispatch_event("server.log_collector_started")
+                await EventStream.dispatch("server.log_collector_started")
             except Exception:
                 # Do not log the exception using the logger,
                 # if you don't like recursion.

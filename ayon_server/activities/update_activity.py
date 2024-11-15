@@ -22,11 +22,13 @@ async def update_activity(
     project_name: str,
     activity_id: str,
     body: str | None = None,
+    *,
     files: list[str] | None = None,
     user_name: str | None = None,
     extra_references: list[ActivityReferenceModel] | None = None,
     data: dict[str, Any] | None = None,
     sender: str | None = None,
+    sender_type: str | None = None,
     append_files: bool = False,
 ) -> None:
     """Update an activity."""
@@ -211,4 +213,5 @@ async def update_activity(
         store=False,
         user=user_name,
         sender=sender,
+        sender_type=sender_type,
     )
