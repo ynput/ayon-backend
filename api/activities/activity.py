@@ -133,7 +133,7 @@ async def delete_project_activity(
 
 class ActivityPatchModel(OPModel):
     body: str | None = Field(
-        ...,
+        None,
         example="This is a comment",
         description="When set, update the activity body",
     )
