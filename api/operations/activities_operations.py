@@ -21,52 +21,6 @@ from ayon_server.utils import create_uuid
 from .common import OperationType
 from .router import router
 
-
-class ActivityOperationModel(OPModel):
-    id: str = Field(
-        default_factory=create_uuid,
-        title="Operation ID",
-        description="identifier manually or automatically assigned to each operation",
-    )
-    type: OperationType = Field(
-        ...,
-        title="Operation type",
-    )
-    activity_id: str | None = Field(
-        None,
-        title="Activity ID",
-        description="ID of the activity. None for create",
-    )
-    data: dict[str, Any] | None = Field(
-        None,
-        title="Data",
-        description="Data to be used for create or update. Ignored for delete.",
-    )
-
-
-class ActivityOperationsRequestModel(OPModel):
-    operations: list[ActivityOperationModel] = Field(default_factory=list)
-    can_fail: bool = False
-
-
-class ActivityOperationResponseModel(OPModel):
-    id: str = Field(..., title="Operation ID")
-    type: OperationType = Field(..., title="Operation type")
-    success: bool = Field(..., title="Operation success")
-    status: int | None = Field(None, title="HTTP-like status code")
-    detail: str | None = Field(None, title="Error message")
-    activity_id: str | None = Field(
-        None,
-        title="Entity ID",
-        description="`None` if type is `create` and the operation fails.",
-    )
-
-
-class ActivityOperationsResponseModel(OPModel):
-    operations: list[ActivityOperationResponseModel] = Field(default_factory=list)
-    success: bool = Field(..., title="Overall success")
-
-
 # Payload models: this is just a copy of the models from api/activities/activity.py
 # TODO: refactor - move these models to a shared location
 
@@ -103,6 +57,55 @@ class ActivityPatchModel(OPModel):
     data: dict[str, Any] | None = Field(None, example={"key": "value"})
 
 
+# Request/response models
+
+
+class ActivityOperationModel(OPModel):
+    id: str = Field(
+        default_factory=create_uuid,
+        title="Operation ID",
+        description="identifier manually or automatically assigned to each operation",
+    )
+    type: OperationType = Field(
+        ...,
+        title="Operation type",
+    )
+    activity_id: str | None = Field(
+        None,
+        title="Activity ID",
+        description="ID of the activity. None for create",
+    )
+    data: dict[str, Any] | None = Field(
+        None,
+        title="Data",
+        description="Data to be used for create or update. Ignored for delete."
+        "See create/patch activity endpoint for details",
+    )
+
+
+class ActivityOperationsRequestModel(OPModel):
+    operations: list[ActivityOperationModel] = Field(default_factory=list)
+    can_fail: bool = False
+
+
+class ActivityOperationResponseModel(OPModel):
+    id: str = Field(..., title="Operation ID")
+    type: OperationType = Field(..., title="Operation type")
+    success: bool = Field(..., title="Operation success")
+    status: int | None = Field(None, title="HTTP-like status code")
+    detail: str | None = Field(None, title="Error message")
+    activity_id: str | None = Field(
+        None,
+        title="Entity ID",
+        description="`None` if type is `create` and the operation fails.",
+    )
+
+
+class ActivityOperationsResponseModel(OPModel):
+    operations: list[ActivityOperationResponseModel] = Field(default_factory=list)
+    success: bool = Field(..., title="Overall success")
+
+
 # Process a single operation
 
 
@@ -128,8 +131,11 @@ async def process_activity_operation(
                     "Only service users can create activities of this type"
                 )
 
-        entity_class = get_entity_class(operation.data["entity_type"])
-        entity = await entity_class.load(project_name, operation.data["entity_id"])
+        entity_class = get_entity_class(operation.data["entityType"])
+        entity_id = operation.data.get("entityId").replace("-", "")
+        if not len(entity_id) == 32:
+            raise BadRequestException("Invalid entity ID")
+        entity = await entity_class.load(project_name, operation.data["entityId"])
 
         try:
             id = await create_activity(
@@ -212,7 +218,7 @@ async def process_activity_operation(
 
 
 @router.post("/projects/{project_name}/operations/activities")
-async def operations(
+async def activities_operations(
     user: CurrentUser,
     project_name: ProjectName,
     payload: ActivityOperationsRequestModel,
