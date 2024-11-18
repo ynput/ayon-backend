@@ -40,7 +40,7 @@ class ProjectActivityPostModel(OPModel):
 
 class ActivityPatchModel(OPModel):
     body: str | None = Field(
-        ...,
+        None,
         example="This is a comment",
         description="When set, update the activity body",
     )
