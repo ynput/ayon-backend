@@ -1,7 +1,7 @@
 from contextlib import suppress
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import BackgroundTasks
 from nxtools import log_traceback
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName, Sender, SenderType
@@ -21,8 +21,7 @@ from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
 from .common import OperationType, RollbackException
-
-router = APIRouter(tags=["Projects"])
+from .router import router
 
 
 class OperationModel(OPModel):
