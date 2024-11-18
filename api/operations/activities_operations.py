@@ -84,7 +84,40 @@ class ActivityOperationModel(OPModel):
 
 
 class ActivityOperationsRequestModel(OPModel):
-    operations: list[ActivityOperationModel] = Field(default_factory=list)
+    operations: list[ActivityOperationModel] = Field(
+        default_factory=list,
+        example=[
+            {
+                "id": "1",
+                "type": "create",
+                "data": {
+                    "entityType": "folder",
+                    "entityId": "12345678901234567890123456789012",
+                    "activity_type": "comment",
+                    "body": "This is a comment",
+                    "timestamp": "2021-01-01T00:00:00Z",
+                    "files": ["12345678901234567890123456789012"],
+                    "data": {"key": "value"},
+                },
+            },
+            {
+                "id": "2",
+                "type": "update",
+                "activityId": "12345678901234567890123456789012",
+                "data": {
+                    "body": "This is an updated comment",
+                    "files": ["12345678901234567890123456789012"],
+                    "append_files": True,
+                    "data": {"key": "newvalue"},
+                },
+            },
+            {
+                "id": "3",
+                "type": "delete",
+                "activityId": "12345678901234567890123456789012",
+            },
+        ],
+    )
     can_fail: bool = False
 
 
@@ -132,7 +165,7 @@ async def process_activity_operation(
                 )
 
         entity_class = get_entity_class(operation.data["entityType"])
-        entity_id = operation.data.get("entityId").replace("-", "")
+        entity_id = operation.data.get("entityId", "").replace("-", "")
         if not len(entity_id) == 32:
             raise BadRequestException("Invalid entity ID")
         entity = await entity_class.load(project_name, operation.data["entityId"])
