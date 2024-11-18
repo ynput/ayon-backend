@@ -1,12 +1,18 @@
 from typing import Any
 
-from fastapi import BackgroundTasks, Header, Query
+from fastapi import BackgroundTasks, Query
 
-from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    FolderID,
+    ProjectName,
+    Sender,
+    SenderType,
+)
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.config import ayonconfig
 from ayon_server.entities import FolderEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
@@ -42,7 +48,8 @@ async def create_folder(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new folder."""
 
@@ -61,8 +68,9 @@ async def create_folder(
 
     await folder.save()
     background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
+        EventStream.dispatch,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )
@@ -81,7 +89,8 @@ async def update_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Patch (partially update) a folder.
 
@@ -123,8 +132,9 @@ async def update_folder(
 
     for event in events:
         background_tasks.add_task(
-            dispatch_event,
-            sender=x_sender,
+            EventStream.dispatch,
+            sender=sender,
+            sender_type=sender_type,
             user=user.name,
             **event,
         )
@@ -143,8 +153,9 @@ async def delete_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
+    sender: Sender,
+    sender_type: SenderType,
     force: bool = Query(False, description="Allow recursive deletion"),
-    x_sender: str | None = Header(default=None),
 ) -> EmptyResponse:
     """Delete a folder.
 
@@ -170,8 +181,9 @@ async def delete_folder(
 
     await folder.delete(force=force)
     background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
+        EventStream.dispatch,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )

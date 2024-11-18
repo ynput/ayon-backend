@@ -185,3 +185,14 @@ async def update_existing_event(
     )
 
     return EmptyResponse()
+
+
+@router.delete("/events/{event_id}", status_code=204)
+async def delete_event(user: CurrentUser, event_id: EventID) -> EmptyResponse:
+    """Delete event by ID."""
+    if not user.is_admin:
+        raise ForbiddenException("Not allowed to delete events")
+
+    await Postgres.execute("DELETE FROM events WHERE id = $1", event_id)
+
+    return EmptyResponse()

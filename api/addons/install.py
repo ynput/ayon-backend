@@ -7,7 +7,7 @@ from fastapi import BackgroundTasks, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.constraints import Constraints
-from ayon_server.events import dispatch_event, update_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.download_addon import download_addon
 from ayon_server.installer import background_installer
@@ -81,7 +81,7 @@ async def upload_addon_zip_file(
     res = await Postgres.fetch(query, zip_info.name, zip_info.version)
     if res:
         event_id = res[0]["id"]
-        await update_event(
+        await EventStream.update(
             event_id,
             description="Reinstalling addon from zip file",
             summary=zip_info.dict(exclude_none=True),
@@ -89,7 +89,7 @@ async def upload_addon_zip_file(
         )
     else:
         # If not, dispatch a new event
-        event_id = await dispatch_event(
+        event_id = await EventStream.dispatch(
             "addon.install",
             description=f"Installing addon {zip_info.name} {zip_info.version}",
             summary=zip_info.dict(exclude_none=True),

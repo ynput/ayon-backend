@@ -1,10 +1,10 @@
 from typing import Any, Literal
 
-from fastapi import Header, Query
+from fastapi import Query
 from nxtools import logging
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, Sender, SenderType
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
@@ -84,8 +84,10 @@ async def list_bundles(
 async def _create_new_bundle(
     conn: Connection,
     bundle: BundleModel,
+    *,
     user: UserEntity | None = None,
     sender: str | None = None,
+    sender_type: str | None = None,
 ):
     # Clear constrained values if they are being updated
     if bundle.is_production:
@@ -132,6 +134,7 @@ async def _create_new_bundle(
     await EventStream.dispatch(
         "bundle.created",
         sender=sender,
+        sender_type=sender_type,
         user=user.name if user else None,
         description=f"Bundle {bundle.name} created",
         summary={
@@ -156,7 +159,8 @@ async def check_bundle_compatibility(
 async def create_new_bundle(
     bundle: BundleModel,
     user: CurrentUser,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
     force: bool = Query(False, description="Force creation of bundle"),
 ) -> EmptyResponse:
     if not user.is_admin:
@@ -177,7 +181,13 @@ async def create_new_bundle(
                     bundle.addons[system_addon_name] = addon_definition.latest.version
 
     async with Postgres.acquire() as conn, conn.transaction():
-        await _create_new_bundle(conn, bundle, user, x_sender)
+        await _create_new_bundle(
+            conn,
+            bundle,
+            user=user,
+            sender=sender,
+            sender_type=sender_type,
+        )
 
     return EmptyResponse(status_code=201)
 
@@ -192,12 +202,13 @@ async def update_bundle(
     bundle_name: str,
     patch: BundlePatchModel,
     user: CurrentUser,
+    sender: Sender,
+    sender_type: SenderType,
     build: list[Platform] | None = Query(
         None,
         title="Request build",
         description="Build dependency packages for selected platforms",
     ),
-    x_sender: str | None = Header(default=None),
     force: bool = Query(False, description="Force creation of bundle"),
 ) -> EmptyResponse:
     if not user.is_admin:
@@ -352,7 +363,8 @@ async def update_bundle(
 
     await EventStream.dispatch(
         "bundle.updated",
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         description=f"Bundle {bundle_name} updated",
         summary={
@@ -368,7 +380,8 @@ async def update_bundle(
     if status_changed_to:
         await EventStream.dispatch(
             "bundle.status_changed",
-            sender=x_sender,
+            sender=sender,
+            sender_type=sender_type,
             user=user.name,
             description=f"Bundle {bundle_name} changed to {status_changed_to}",
             summary={

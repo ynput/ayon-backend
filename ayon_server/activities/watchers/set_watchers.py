@@ -32,6 +32,7 @@ async def set_watchers(
     user: UserEntity | str | None = None,  # who is setting the watchers
     *,
     sender: str | None = None,
+    sender_type: str | None = None,
     commit: bool = True,
 ) -> None:
     """Set watchers of an entity.
@@ -88,6 +89,7 @@ async def set_watchers(
             body="",
             user_name=user_name,
             sender=sender,
+            sender_type=sender_type,
             data={"watcher": watcher},
         )
 

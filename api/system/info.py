@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from ayon_server.addons import AddonLibrary, SSOOption
 from ayon_server.api.dependencies import CurrentUserOptional
 from ayon_server.config import ayonconfig
+from ayon_server.config.serverconfig import get_server_config
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.helpers.email import is_mailing_enabled
@@ -25,18 +26,18 @@ from .sites import SiteInfo
 
 class InfoResponseModel(OPModel):
     motd: str | None = Field(
-        ayonconfig.motd,
+        None,
         title="Message of the day",
         description="Instance specific message to be displayed in the login page",
         example="Hello and welcome to Ayon!",
     )
     login_page_background: str | None = Field(
-        default=ayonconfig.login_page_background,
+        None,
         description="URL of the background image for the login page",
         example="https://i.insider.com/602ee9d81a89f20019a377c6?width=1136&format=jpeg",
     )
     login_page_brand: str | None = Field(
-        default=ayonconfig.login_page_brand,
+        None,
         title="Brand logo",
         description="URL of the brand logo for the login page",
     )
@@ -299,5 +300,25 @@ async def get_site_info(
             "no_admin_user": (not has_admin_user) or None,
             "password_recovery_available": bool(await is_mailing_enabled()),
         }
+        server_config = await get_server_config()
+        customization = server_config.customization
+
+        if customization.motd:
+            additional_info["motd"] = customization.motd
+        elif ayonconfig.motd:  # Deprecated
+            additional_info["motd"] = ayonconfig.motd
+
+        if customization.login_background:
+            url = f"/static/customization/{customization.login_background}"
+            additional_info["login_page_background"] = url
+        elif ayonconfig.login_page_background:  # Deprecated
+            additional_info["login_page_background"] = ayonconfig.login_page_background
+
+        if customization.studio_logo:
+            url = f"/static/customization/{customization.studio_logo}"
+            additional_info["login_page_brand"] = url
+        elif ayonconfig.login_page_brand:  # Deprecated
+            additional_info["login_page_brand"] = ayonconfig.login_page_brand
+
     user_payload = current_user.payload if (current_user is not None) else None
     return InfoResponseModel(user=user_payload, **additional_info)

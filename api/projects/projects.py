@@ -1,6 +1,10 @@
-from fastapi import Header
-
-from ayon_server.api.dependencies import CurrentUser, NewProjectName, ProjectName
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    NewProjectName,
+    ProjectName,
+    Sender,
+    SenderType,
+)
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
@@ -65,6 +69,8 @@ async def create_project(
     put_data: ProjectEntity.model.post_model,  # type: ignore
     user: CurrentUser,
     project_name: NewProjectName,
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Create a new project.
 
@@ -95,7 +101,8 @@ async def create_project(
 
     await EventStream.dispatch(
         "entity.project.created",
-        sender="ayon",
+        sender=sender,
+        sender_type=sender_type,
         project=project.name,
         user=user.name,
         description=f"Created project {project.name}",
@@ -114,7 +121,8 @@ async def update_project(
     patch_data: ProjectEntity.model.patch_model,  # type: ignore
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ):
     """Patch a project.
 
@@ -134,7 +142,8 @@ async def update_project(
 
     await EventStream.dispatch(
         "entity.project.changed",
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         project=project_name,
         user=user.name,
         description=f"Updated project {project_name}",
@@ -172,7 +181,12 @@ async def unassign_users_from_deleted_projects() -> None:
 
 
 @router.delete("/projects/{project_name}", status_code=204)
-async def delete_project(user: CurrentUser, project_name: ProjectName) -> EmptyResponse:
+async def delete_project(
+    user: CurrentUser,
+    project_name: ProjectName,
+    sender: Sender,
+    sender_type: SenderType,
+) -> EmptyResponse:
     """Delete a given project including all its entities."""
 
     project = await ProjectEntity.load(project_name)
@@ -190,7 +204,8 @@ async def delete_project(user: CurrentUser, project_name: ProjectName) -> EmptyR
 
     await EventStream.dispatch(
         "entity.project.deleted",
-        sender="ayon",
+        sender=sender,
+        sender_type=sender_type,
         project=project.name,
         user=user.name,
         description=f"Deleted project {project.name}",

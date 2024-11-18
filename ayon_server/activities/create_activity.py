@@ -34,6 +34,7 @@ async def create_activity(
     entity: ProjectLevelEntity,
     activity_type: ActivityType,
     body: str,
+    *,
     files: list[str] | None = None,
     activity_id: str | None = None,
     user_name: str | None = None,
@@ -41,6 +42,7 @@ async def create_activity(
     data: dict[str, Any] | None = None,
     timestamp: datetime.datetime | None = None,
     sender: str | None = None,
+    sender_type: str | None = None,
 ) -> str:
     """Create an activity.
 
@@ -248,6 +250,7 @@ async def create_activity(
         store=False,
         user=user_name,
         sender=sender,
+        sender_type=sender_type,
     )
 
     # Send inbox notifications
