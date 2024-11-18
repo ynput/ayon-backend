@@ -112,16 +112,11 @@ async def delete_project_activity(
     Only the author or an administrator of the activity can delete it.
     """
 
-    if user.is_admin:
-        # admin can delete any activity
-        user_name = None
-    else:
-        user_name = user.name
-
     await delete_activity(
         project_name,
         activity_id,
-        user_name=user_name,
+        user_name=user.name,
+        is_admin=user.is_admin,
         sender=sender,
         sender_type=sender_type,
     )

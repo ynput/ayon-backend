@@ -212,6 +212,7 @@ async def process_activity_operation(
                 files=patch.files,
                 append_files=patch.append_files,
                 user_name=user.name,
+                is_admin=user.is_admin,
                 sender=sender,
                 sender_type=sender_type,
                 data=patch.data,
@@ -234,6 +235,7 @@ async def process_activity_operation(
                 project_name,
                 operation.activity_id,
                 user_name=user.name,
+                is_admin=user.is_admin,
                 sender=sender,
                 sender_type=sender_type,
             )
