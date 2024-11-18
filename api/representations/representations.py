@@ -1,11 +1,17 @@
 from typing import Any
 
-from fastapi import BackgroundTasks, Header
+from fastapi import BackgroundTasks
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName, RepresentationID
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    ProjectName,
+    RepresentationID,
+    Sender,
+    SenderType,
+)
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import RepresentationEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.events.patch import build_pl_entity_change_events
 
 from .router import router
@@ -46,7 +52,8 @@ async def create_representation(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new representation."""
 
@@ -65,8 +72,9 @@ async def create_representation(
     }
     await representation.save()
     background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
+        EventStream.dispatch,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,  # type: ignore
     )
@@ -87,7 +95,8 @@ async def update_representation(
     user: CurrentUser,
     project_name: ProjectName,
     representation_id: RepresentationID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ):
     """Patch (partially update) a representation."""
 
@@ -98,8 +107,9 @@ async def update_representation(
     await representation.save()
     for event in events:
         background_tasks.add_task(
-            dispatch_event,
-            sender=x_sender,
+            EventStream.dispatch,
+            sender=sender,
+            sender_type=sender_type,
             user=user.name,
             **event,
         )
@@ -119,7 +129,8 @@ async def delete_representation(
     user: CurrentUser,
     project_name: ProjectName,
     representation_id: RepresentationID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ):
     """Delete a representation."""
 
@@ -136,8 +147,9 @@ async def delete_representation(
     }
     await representation.delete()
     background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
+        EventStream.dispatch,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )

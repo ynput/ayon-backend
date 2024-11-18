@@ -76,6 +76,7 @@ async def main(force: bool | None = None) -> None:
     try:
         await Postgres.fetch("SELECT * FROM projects")
     except Exception:
+        logging.warning("Database is empty")
         has_schema = False
         force_install = True
     else:

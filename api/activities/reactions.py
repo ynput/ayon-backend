@@ -1,12 +1,14 @@
 from datetime import datetime
 from typing import Literal
 
-from fastapi import Header, Path
+from fastapi import Path
 
 from ayon_server.api.dependencies import (
     ActivityID,
     CurrentUser,
     ProjectName,
+    Sender,
+    SenderType,
 )
 from ayon_server.entities import UserEntity
 from ayon_server.events.eventstream import EventStream
@@ -23,7 +25,9 @@ async def modify_reactions(
     user: UserEntity,
     reaction: str,
     action: Literal["add", "remove"],
+    *,
     sender: str | None = None,
+    sender_type: str | None = None,
 ):
     """
 
@@ -116,6 +120,7 @@ async def modify_reactions(
         store=False,
         user=user.name,
         sender=sender,
+        sender_type=sender_type,
     )
 
 
@@ -134,10 +139,17 @@ async def create_reaction_to_activity(
     project_name: ProjectName,
     activity_id: ActivityID,
     request: CreateReactionModel,
-    x_sender: str | None = Header(None, description="The sender of the request"),
+    sender: Sender,
+    sender_type: SenderType,
 ):
     await modify_reactions(
-        project_name, activity_id, user, request.reaction, "add", x_sender
+        project_name,
+        activity_id,
+        user,
+        request.reaction,
+        "add",
+        sender=sender,
+        sender_type=sender_type,
     )
 
 
@@ -146,14 +158,21 @@ async def delete_reaction_to_activity(
     user: CurrentUser,
     project_name: ProjectName,
     activity_id: ActivityID,
+    sender: Sender,
+    sender_type: SenderType,
     reaction: str = Path(
         ...,
         description="The reaction to be deleted",
         example="like",
         regex=NAME_REGEX,
     ),
-    x_sender: str | None = Header(None, description="The sender of the request"),
 ):
     await modify_reactions(
-        project_name, activity_id, user, reaction, "remove", x_sender
+        project_name,
+        activity_id,
+        user,
+        reaction,
+        "remove",
+        sender=sender,
+        sender_type=sender_type,
     )

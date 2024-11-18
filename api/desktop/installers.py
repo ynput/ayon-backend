@@ -9,7 +9,7 @@ from nxtools import logging
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.files import handle_download, handle_upload
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.events import dispatch_event, update_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     AyonException,
     ConflictException,
@@ -191,7 +191,7 @@ async def create_installer(
 
             assert event_id
 
-            await update_event(
+            await EventStream.update(
                 event_id,
                 description="Reinstalling installer from URL",
                 summary={"url": url},
@@ -199,7 +199,7 @@ async def create_installer(
                 retries=0,
             )
         else:
-            event_id = await dispatch_event(
+            event_id = await EventStream.dispatch(
                 "installer.install_from_url",
                 hash=hash,
                 description="Installing installer from URL",

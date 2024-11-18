@@ -1,10 +1,16 @@
 from typing import Any
 
-from fastapi import Header, Path
+from fastapi import Path
 from nxtools import logging
 
 from ayon_server.api.clientinfo import ClientInfo
-from ayon_server.api.dependencies import AccessToken, CurrentUser, UserName
+from ayon_server.api.dependencies import (
+    AccessToken,
+    CurrentUser,
+    Sender,
+    SenderType,
+    UserName,
+)
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import validate_password
@@ -120,7 +126,8 @@ async def create_user(
     put_data: NewUserModel,
     user: CurrentUser,
     user_name: UserName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Create a new user."""
 
@@ -158,7 +165,8 @@ async def create_user(
 
     await nuser.save()
     await EventStream.dispatch(
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )
@@ -169,7 +177,8 @@ async def create_user(
 async def delete_user(
     user: CurrentUser,
     user_name: UserName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     if not user.is_manager:
         raise ForbiddenException
@@ -188,7 +197,8 @@ async def delete_user(
     await target_user.delete()
     await EventStream.dispatch(
         "entity.user.deleted",
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )
@@ -366,7 +376,8 @@ async def change_user_name(
     patch_data: ChangeUserNameRequestModel,
     user: CurrentUser,
     user_name: UserName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     if not user.is_manager:
         raise ForbiddenException
@@ -445,7 +456,8 @@ async def change_user_name(
         await Session.delete(token)
 
     await EventStream.dispatch(
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )

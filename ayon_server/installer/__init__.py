@@ -4,7 +4,7 @@ from nxtools import log_traceback, logging
 
 from ayon_server.api.system import require_server_restart
 from ayon_server.background.background_worker import BackgroundWorker
-from ayon_server.events import update_event
+from ayon_server.events import EventStream
 from ayon_server.installer.addons import install_addon_from_url, unpack_addon
 from ayon_server.installer.dependency_packages import download_dependency_package
 from ayon_server.installer.installers import download_installer
@@ -107,7 +107,7 @@ class BackgroundInstaller(BackgroundWorker):
                 r = await Postgres.fetch(
                     "SELECT retries FROM events WHERE id = $1", event_id
                 )
-                await update_event(
+                await EventStream.update(
                     event_id,
                     status="failed",
                     description=f"Failed to process event: {e}",
