@@ -128,14 +128,33 @@ class SystemMetrics:
         total_size = 0
 
         for project_name in project_names:
+            # Uploads size
             res = await Postgres.fetch(
                 f"SELECT SUM(size) FROM project_{project_name}.files"
             )
-            size = res[0]["sum"] or 0
-            total_size += size
+            uploads_size = res[0]["sum"] or 0
+            total_size += uploads_size
+
+            project_size = uploads_size
+
+            # Thumbnails size (originals)
+            # if the originalSize is null, thumbnail is from ayon <1.5.0
+            # if the originalSize is equal to thumbnailSize,
+            # thumbnail wasn't scaled down and it is only stored in
+            # the database and origianal wasn't stored in the storage
+
+            res = await Postgres.fetch(
+                f"""
+                SELECT SUM((meta->'originalSize)::BIGINT)
+                FROM project_{project_name}.thumbnails
+                WHERE meta->'originalSize' IS NOT NULL  -- Ayon <1.5.0
+                AND meta->'originalSize' != meta->'thumbnailSize'
+                """
+            )
+
             m = Metric(
                 "storage_utilization_project",
-                size,
+                project_size,
                 {"project": project_name},
             )
             result.append(m)
