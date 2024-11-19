@@ -145,12 +145,18 @@ class SystemMetrics:
 
             res = await Postgres.fetch(
                 f"""
-                SELECT SUM((meta->'originalSize)::BIGINT)
+                SELECT SUM((meta->'originalSize')::BIGINT)
                 FROM project_{project_name}.thumbnails
                 WHERE meta->'originalSize' IS NOT NULL  -- Ayon <1.5.0
                 AND meta->'originalSize' != meta->'thumbnailSize'
                 """
             )
+
+            thumbnails_size = res[0]["sum"] or 0
+            project_size += thumbnails_size
+
+            if not project_size:
+                continue
 
             m = Metric(
                 "storage_utilization_project",
