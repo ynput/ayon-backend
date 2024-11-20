@@ -1,6 +1,12 @@
 from typing import Annotated, Literal
 
-from ayon_server.access.permissions import Permissions
+from ayon_server.access.permissions import (
+    Permissions,
+    ProjectManagementPermissions,
+    ProjectPermissions,
+    StudioManagementPermissions,
+    StudioPermissions,
+)
 from ayon_server.api.dependencies import CurrentUser, ProjectName, UserName
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
@@ -9,24 +15,32 @@ from ayon_server.settings.settings_field import SettingsField
 
 from .router import router
 
-manager_permissions = Permissions(project={"enabled": False})
-
-
-class StudioPermissions(BaseSettingsModel):
-    create_project: Annotated[bool, SettingsField(title="Create Project")] = False
+manager_permissions = Permissions(
+    studio=StudioManagementPermissions(create_projects=True, view_all_users=True),
+    project=ProjectManagementPermissions(anatomy=2, users=2, settings=2),
+    # we use defaults for folder access and so on
+)
 
 
 class UserPermissionsModel(BaseSettingsModel):
     user_level: Literal["admin", "manager", "user"] = "user"
     studio: Annotated[
-        StudioPermissions | None,
+        StudioManagementPermissions | None,
         SettingsField(
-            title="Studio Permissions", description="Permissions for the studio"
+            title="Studio Permissions",
+            description="Permissions for the studio",
         ),
     ] = None
     projects: Annotated[
-        dict[str, Permissions] | None,
-        SettingsField(example={"project1": Permissions(project={"enabled": True})}),
+        dict[str, ProjectPermissions] | None,
+        SettingsField(
+            example={
+                "project01": ProjectPermissions(),
+                "project02": ProjectPermissions(),
+            },
+            title="Projects Permissions",
+            description="Permissions for individual projects",
+        ),
     ] = None
 
 
@@ -37,42 +51,60 @@ def build_user_permissions_model(user: UserEntity) -> UserPermissionsModel:
         return UserPermissionsModel(user_level=user_level)
 
     default_perms = user.permissions()
-    create_project = (not default_perms.project.enabled) or default_perms.project.create
 
     project_perms = {}
     for project_name in user.data.get("accessGroups", {}):
-        project_perms[project_name] = user.permissions(project_name=project_name)
+        perms = user.permissions(project_name=project_name)
+        project_perms[project_name] = ProjectPermissions(**perms.dict())
 
     return UserPermissionsModel(
-        studio=StudioPermissions(
-            create_project=create_project,
-        ),
+        studio=default_perms.studio,
         projects=project_perms,
     )
 
 
-@router.get(
-    "/me/permissions",
-)
-async def get_current_user_permissions(user: CurrentUser) -> UserPermissionsModel:
+#
+# My permissions
+#
+
+
+@router.get("/me/permissions")
+async def get_my_permissions(user: CurrentUser) -> UserPermissionsModel:
+    """Return the permissions of the current user.
+
+    The result contains the user's studio permissions
+    (taken from the default access groups) and the permissions for each project
+    the user has access to.
+    """
     return build_user_permissions_model(user)
 
 
 @router.get("/me/permissions/{project_name}")
-async def get_current_user_project_permissions(
+async def get_my_project_permissions(
     project_name: ProjectName,
     user: CurrentUser,
-) -> Permissions:
+) -> ProjectPermissions:
+    """Return the project permissions of the current user and the given project"""
+
     if user.is_manager:
         return manager_permissions
     perms = user.permissions(project_name=project_name)
     if perms is None:
         raise ForbiddenException("User does not have access to this project")
-    return perms
+    return ProjectPermissions(**perms.dict())
+
+
+#
+# Other users' permissions
+#
 
 
 @router.get("/{user_name}/permissions")
-async def get_user_permissions(user: CurrentUser, user_name: UserName) -> Permissions:
+async def get_user_studio_permissions(
+    user: CurrentUser, user_name: UserName
+) -> StudioPermissions:
+    """Return the studio permissions of the specified user."""
+
     if not user.is_manager:
         raise ForbiddenException(
             "You do not have permission to view this user's permissions"
@@ -83,7 +115,7 @@ async def get_user_permissions(user: CurrentUser, user_name: UserName) -> Permis
     perms = target_user.permissions()
     if perms is None:
         raise ForbiddenException("User does not have access to this project")
-    return perms
+    return StudioPermissions(**perms.dict())
 
 
 @router.get("/{user_name}/permissions/{project_name}")
@@ -91,7 +123,9 @@ async def get_user_project_permissions(
     project_name: ProjectName,
     user_name: UserName,
     user: CurrentUser,
-) -> Permissions:
+) -> ProjectPermissions:
+    """Return the project permissions of the specified user and projects"""
+
     if not user.is_manager:
         raise ForbiddenException(
             "You do not have permission to view this user's permissions"
@@ -102,4 +136,4 @@ async def get_user_project_permissions(
     perms = target_user.permissions(project_name=project_name)
     if perms is None:
         raise ForbiddenException("User does not have access to this project")
-    return perms
+    return ProjectPermissions(**perms.dict())

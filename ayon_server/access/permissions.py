@@ -25,7 +25,7 @@ async def attr_enum():
 class FolderAccess(BaseSettingsModel):
     """FolderAccess model defines a single whitelist item on accessing a folder."""
 
-    _layout: str = "compact"
+    _layout = "compact"
 
     access_type: str = SettingsField(
         "assigned",
@@ -79,35 +79,68 @@ class EndpointsAccessList(BasePermissionsModel):
     endpoints: list[str] = SettingsField(default_factory=list)
 
 
-class ProjectManagementAccessModel(BaseSettingsModel):
-    _isGroup = True
+# Model for studio management permissions
 
-    enabled: bool = SettingsField(
-        True,
-        title="Restrict access to project management",
-    )
-    create: bool = SettingsField(
+
+class StudioManagementPermissions(BaseSettingsModel):
+    create_projects: bool = SettingsField(
         False,
-        title="Project creation",
+        title="Create projects",
+        description="Allow users to create new projects",
         scope=["studio"],
         widget="permission",
     )
-    users: int = SettingsField(0, title="Users", widget="permission")
-    anatomy: int = SettingsField(0, title="Project anatomy", widget="permission")
-    settings: int = SettingsField(0, title="Addon settings", widget="permission")
+
+    view_all_users: bool = SettingsField(
+        False,
+        title="View all users",
+        description="Allow users to view all users in the studio",
+        scope=["studio"],
+        widget="permission",
+    )
 
 
-class Permissions(BaseSettingsModel):
-    """
-    The Permissions model defines the permissions for an access group.
-    to interact with specific resources in the system.
-    """
+# Model for Project management permissions
 
-    _layout: str = "root"
 
-    project: ProjectManagementAccessModel = SettingsField(
-        default_factory=ProjectManagementAccessModel,
-        title="Restrict project management",
+class ProjectManagementPermissions(BaseSettingsModel):
+    anatomy: int = SettingsField(
+        0,
+        title="Project anatomy",
+        description="Allow users to view or edit the project anatomy",
+        widget="permission",
+    )
+    users: int = SettingsField(
+        0,
+        title="Project access",
+        description="Allow users to view or assign users to project access groups",
+        widget="permission",
+    )
+    settings: int = SettingsField(
+        0,
+        title="Studio settings",
+        description="Allow users to view or edit the project addon settings",
+        widget="permission",
+    )
+
+
+# Full permissions model, we separate project and studio permissions here
+# To be able to return just the relevant part of the permissions to the client
+# But the model used to store all the permissions is the combined one
+
+
+class StudioPermissions(BaseSettingsModel):
+    studio: StudioManagementPermissions = SettingsField(
+        default_factory=StudioManagementPermissions,
+        title="Studio permissions",
+        scope=["studio"],
+    )
+
+
+class ProjectPermissions(BaseSettingsModel):
+    project: ProjectManagementPermissions = SettingsField(
+        default_factory=ProjectManagementPermissions,
+        title="Project permissions",
         scope=["studio", "project"],
     )
 
@@ -115,7 +148,6 @@ class Permissions(BaseSettingsModel):
         default_factory=FolderAccessList,
         title="Restrict folder creation",
         description="Whitelist folders a user can create",
-        section="Folder Access",
     )
 
     read: FolderAccessList = SettingsField(
@@ -159,6 +191,15 @@ class Permissions(BaseSettingsModel):
         title="Restrict REST endpoints",
         description="Whitelist REST endpoints a user can access",
     )
+
+
+class Permissions(ProjectPermissions, StudioPermissions):
+    """
+    The Permissions model defines the permissions for an access group.
+    to interact with specific resources in the system.
+    """
+
+    _layout = "root"
 
     @classmethod
     def from_record(cls, perm_dict: dict[str, Any]) -> "Permissions":
