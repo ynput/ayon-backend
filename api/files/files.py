@@ -2,7 +2,7 @@ import aiocache
 from fastapi import Header, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.api.dependencies import CurrentUser, FileID, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import (
     BadRequestException,
@@ -10,7 +10,6 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages
-from ayon_server.helpers.cdn import get_cdn_link
 from ayon_server.helpers.preview import get_file_preview
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -89,7 +88,7 @@ async def upload_project_file(
 @router.delete("/{file_id}")
 async def delete_project_file(
     project_name: ProjectName,
-    file_id: str,
+    file_id: FileID,
     user: CurrentUser,
 ) -> EmptyResponse:
     check_user_access(project_name, user)
@@ -138,7 +137,7 @@ async def get_file_headers(project_name: str, file_id: str) -> dict[str, str]:
 @router.head("/{file_id}")
 async def get_project_file_head(
     project_name: ProjectName,
-    file_id: str,
+    file_id: FileID,
     user: CurrentUser,
 ) -> Response:
     check_user_access(project_name, user)
@@ -153,7 +152,7 @@ async def get_project_file_head(
 @router.get("/{file_id}", response_model=None)
 async def get_project_file(
     project_name: ProjectName,
-    file_id: str,
+    file_id: FileID,
     user: CurrentUser,
 ) -> FileResponse | Response:
     """Get a project file (comment attachment etc.)
@@ -167,7 +166,7 @@ async def get_project_file(
     storage = await Storages.project(project_name)
 
     if storage.cdn_resolver is not None:
-        return await get_cdn_link(storage.cdn_resolver, project_name, file_id)
+        return await storage.get_cdn_link(file_id)
 
     if storage.storage_type == "s3":
         url = await storage.get_signed_url(file_id, ttl=3600)
@@ -181,7 +180,7 @@ async def get_project_file(
 async def get_project_file_payload(
     request: Request,
     project_name: ProjectName,
-    file_id: str,
+    file_id: FileID,
     user: CurrentUser,
 ) -> FileResponse | Response:
     storage = await Storages.project(project_name)
@@ -202,7 +201,7 @@ async def get_project_file_payload(
 @router.get("/{file_id}/thumbnail", response_model=None)
 async def get_project_file_thumbnail(
     project_name: ProjectName,
-    file_id: str,
+    file_id: FileID,
     user: CurrentUser,
 ) -> FileResponse | Response:
     """Get a project file (comment attachment etc.)

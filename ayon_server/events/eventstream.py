@@ -15,13 +15,25 @@ HandlerType = Callable[[EventModel], Awaitable[None]]
 
 class EventStream:
     model: Type[EventModel] = EventModel
-    hooks: dict[str, list[HandlerType]] = {}
+    hooks: dict[str, dict[str, HandlerType]] = {}
 
     @classmethod
-    def subscribe(cls, topic: str, handler: HandlerType) -> None:
+    def subscribe(cls, topic: str, handler: HandlerType) -> str:
+        token = create_id()
         if topic not in cls.hooks:
-            cls.hooks[topic] = []
-        cls.hooks[topic].append(handler)
+            cls.hooks[topic] = {}
+        cls.hooks[topic][token] = handler
+        return token
+
+    @classmethod
+    def unsubscribe(cls, token: str) -> None:
+        topics_to_remove = []
+        for topic in cls.hooks:
+            cls.hooks[topic].pop(token, None)
+            if not cls.hooks[topic]:
+                topics_to_remove.append(topic)
+        for topic in topics_to_remove:
+            cls.hooks.pop(topic)
 
     @classmethod
     async def dispatch(
@@ -29,6 +41,7 @@ class EventStream:
         topic: str,
         *,
         sender: str | None = None,
+        sender_type: str | None = None,
         hash: str | None = None,
         project: str | None = None,
         user: str | None = None,
@@ -69,6 +82,7 @@ class EventStream:
             id=event_id,
             hash=hash,
             sender=sender,
+            sender_type=sender_type,
             topic=topic,
             project=project,
             user=user,
@@ -86,6 +100,7 @@ class EventStream:
                 id=event.id,
                 hash=event.hash,
                 sender=event.sender,
+                sender_type=event.sender_type,
                 topic=event.topic,
                 project_name=event.project,
                 user_name=event.user,
@@ -124,6 +139,7 @@ class EventStream:
                     "status": event.status,
                     "progress": progress,
                     "sender": sender,
+                    "senderType": sender_type,
                     "store": store,  # useful to allow querying details
                     "recipients": recipients,
                     "createdAt": event.created_at,
@@ -132,7 +148,7 @@ class EventStream:
             )
         )
 
-        handlers = cls.hooks.get(event.topic, [])
+        handlers = cls.hooks.get(event.topic, {}).values()
         for handler in handlers:
             try:
                 await handler(event)
@@ -147,6 +163,7 @@ class EventStream:
         event_id: str,
         *,
         sender: str | None = None,
+        sender_type: str | None = None,
         project: str | None = None,
         user: str | None = None,
         status: EventStatus | None = None,
@@ -162,6 +179,8 @@ class EventStream:
 
         if sender is not None:
             new_data["sender"] = sender
+        if sender_type is not None:
+            new_data["sender_type"] = sender_type
         if project is not None:
             new_data["project_name"] = project
         if status is not None:
@@ -193,6 +212,7 @@ class EventStream:
                     summary,
                     status,
                     sender,
+                    sender_type,
                     created_at,
                     updated_at
             """
@@ -216,6 +236,7 @@ class EventStream:
                 "summary": data["summary"],
                 "status": data["status"],
                 "sender": data["sender"],
+                "senderType": data["sender_type"],
                 "recipients": recipients,
                 "createdAt": data["created_at"],
                 "updatedAt": data["updated_at"],
@@ -238,6 +259,7 @@ class EventStream:
                 project=record["project_name"],
                 user=record["user_name"],
                 sender=record["sender"],
+                sender_type=record["sender_type"],
                 depends_on=record["depends_on"],
                 status=record["status"],
                 retries=record["retries"],

@@ -22,14 +22,14 @@ default_link_types = [
         link_type="generative",
         input_type="version",
         output_type="version",
-        color="#2626e0",
+        color="#3f67de",
         style="solid",
     ),
     LinkType(
         link_type="breakdown",
         input_type="folder",
         output_type="folder",
-        color="#27792a",
+        color="#6edd72",
         style="solid",
     ),
     LinkType(
@@ -43,7 +43,7 @@ default_link_types = [
         link_type="template",
         input_type="folder",
         output_type="folder",
-        color="#d94383",
+        color="#fff824",
         style="solid",
     ),
 ]

@@ -3,7 +3,7 @@ import signal
 
 from nxtools import logging
 
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import ConstraintViolationException
 from ayon_server.lib.postgres import Postgres
 
@@ -41,7 +41,9 @@ async def require_server_restart(
         reason = "Server restart is required"
 
     try:
-        await dispatch_event(topic, hash=topic, description=reason, user=user_name)
+        await EventStream.dispatch(
+            topic, hash=topic, description=reason, user=user_name
+        )
     except ConstraintViolationException:
         # we don't need to do anything here. If the event fails,
         # it means the event was already triggered, and the server

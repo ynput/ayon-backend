@@ -3,7 +3,7 @@ import functools
 import io
 
 from nxtools import logging
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from starlette.concurrency import run_in_threadpool
 
 
@@ -87,41 +87,46 @@ async def process_thumbnail(
     """
 
     def process_image():
-        with Image.open(io.BytesIO(image_bytes)) as img:
-            target_format = format or img.format or "JPEG"
+        try:
+            with Image.open(io.BytesIO(image_bytes)) as img:
+                target_format = format or img.format or "JPEG"
 
-            # Ensure that we have valid dimensions
-            if size == (None, None):
-                raise ValueError("Both width and height cannot be None")
+                # Ensure that we have valid dimensions
+                if size == (None, None):
+                    raise ValueError("Both width and height cannot be None")
 
-            original_width, original_height = img.size
+                original_width, original_height = img.size
 
-            new_width, new_height = calculate_scaled_size(
-                original_width, original_height, *size
-            )
+                new_width, new_height = calculate_scaled_size(
+                    original_width, original_height, *size
+                )
 
-            if new_width >= original_width or new_height >= original_height:
-                # If the requested size is larger than the original image,
-                # return the original image
-                if raise_on_noop:
-                    raise ThumbnailProcessNoop()
-                return image_bytes
+                if new_width >= original_width or new_height >= original_height:
+                    # If the requested size is larger than the original image,
+                    # return the original image
+                    if raise_on_noop:
+                        raise ThumbnailProcessNoop()
+                    return image_bytes
 
-            logging.debug(
-                f"Resizing image from {img.size} to {(new_width, new_height)}"
-            )
-            img = img.resize((new_width, new_height), Image.LANCZOS)  # type: ignore
-            img_byte_arr = io.BytesIO()
+                logging.debug(
+                    f"Resizing image from {img.size} to {(new_width, new_height)}"
+                )
+                img = img.resize((new_width, new_height), Image.LANCZOS)  # type: ignore
+                img_byte_arr = io.BytesIO()
 
-            # Adjustments for specific formats
-            if target_format == "JPEG":
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
-                img.save(img_byte_arr, format=target_format, optimize=True, quality=85)
-            else:
-                img.save(img_byte_arr, format=target_format)
+                # Adjustments for specific formats
+                if target_format == "JPEG":
+                    if img.mode != "RGB":
+                        img = img.convert("RGB")
+                    img.save(
+                        img_byte_arr, format=target_format, optimize=True, quality=85
+                    )
+                else:
+                    img.save(img_byte_arr, format=target_format)
 
-            return img_byte_arr.getvalue()
+                return img_byte_arr.getvalue()
+        except UnidentifiedImageError:
+            raise ValueError("Invalid image format")
 
     # Run the blocking image processing in a separate thread
     normalized_bytes = await run_in_threadpool(process_image)

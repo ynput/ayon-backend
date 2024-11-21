@@ -7,12 +7,13 @@ from nxtools import logging
 from ayon_server.auth.session import Session
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 
 
 def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
+    """Convert anatomy to project data."""
     task_types = [t.dict() for t in anatomy.task_types]
     folder_types = [t.dict() for t in anatomy.folder_types]
     statuses = [t.dict() for t in anatomy.statuses]
@@ -35,15 +36,17 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
             "frame": anatomy.templates.frame,
         }
     }
+
+    templates = anatomy.templates.dict()
     for template_type in (
         "work",
         "publish",
         "hero",
         "delivery",
         "others",
-        "staging_directories",
+        "staging",
     ):
-        template_group = anatomy.templates.dict().get(template_type, [])
+        template_group = templates.get(template_type, [])
         if not template_group:
             continue
         config["templates"][template_type] = {}
@@ -159,7 +162,7 @@ async def create_project_from_anatomy(
     end_time = time.monotonic()
     logging.debug(f"Deployed project {project.name} in {end_time - start_time:.2f}s")
 
-    await dispatch_event(
+    await EventStream.dispatch(
         "entity.project.created",
         sender="ayon",
         project=project.name,

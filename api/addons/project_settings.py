@@ -10,7 +10,7 @@ from ayon_server.api.dependencies import CurrentUser, ProjectName, SiteID
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
 from ayon_server.entities import ProjectEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -235,7 +235,7 @@ async def set_addon_project_settings(
                 variant=variant,
             )
 
-        await dispatch_event(
+        await EventStream.dispatch(
             topic="settings.changed",
             description=f"{addon_name} {version} {variant} project overrides changed",
             summary={
@@ -357,7 +357,7 @@ async def delete_addon_project_overrides(
                 "newValue": {},
             }
 
-        await dispatch_event(
+        await EventStream.dispatch(
             topic="settings.changed",
             description=f"{addon_name} {version} {variant} project overrides removed",
             summary={
@@ -515,7 +515,7 @@ async def modify_project_overrides(
             "newValue": new_overrides,
         }
 
-    await dispatch_event(
+    await EventStream.dispatch(
         topic="settings.changed",
         description=f"{addon_name} {version} {variant} project overrides changed",
         summary={

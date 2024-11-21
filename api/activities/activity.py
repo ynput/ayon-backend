@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import BackgroundTasks, Header
+from fastapi import BackgroundTasks
 
 from ayon_server.activities import (
     ActivityType,
@@ -16,6 +16,8 @@ from ayon_server.api.dependencies import (
     PathEntityID,
     PathProjectLevelEntityType,
     ProjectName,
+    Sender,
+    SenderType,
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException
@@ -56,7 +58,8 @@ async def post_project_activity(
     user: CurrentUser,
     activity: ProjectActivityPostModel,
     background_tasks: BackgroundTasks,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> CreateActivityResponseModel:
     """Create an activity.
 
@@ -82,7 +85,8 @@ async def post_project_activity(
         files=activity.files,
         user_name=user.name,
         timestamp=activity.timestamp,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         data=activity.data,
     )
 
@@ -100,24 +104,21 @@ async def delete_project_activity(
     activity_id: ActivityID,
     user: CurrentUser,
     background_tasks: BackgroundTasks,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete an activity.
 
     Only the author or an administrator of the activity can delete it.
     """
 
-    if user.is_admin:
-        # admin can delete any activity
-        user_name = None
-    else:
-        user_name = user.name
-
     await delete_activity(
         project_name,
         activity_id,
-        user_name=user_name,
-        sender=x_sender,
+        user_name=user.name,
+        is_admin=user.is_admin,
+        sender=sender,
+        sender_type=sender_type,
     )
 
     background_tasks.add_task(delete_unused_files, project_name)
@@ -126,8 +127,22 @@ async def delete_project_activity(
 
 
 class ActivityPatchModel(OPModel):
-    body: str = Field(..., example="This is a comment")
-    files: list[str] | None = Field(None, example=["file1", "file2"])
+    body: str | None = Field(
+        None,
+        example="This is a comment",
+        description="When set, update the activity body",
+    )
+    files: list[str] | None = Field(
+        None,
+        example=["file1", "file2"],
+        description="When set, update the activity files",
+    )
+    append_files: bool = Field(
+        False,
+        example=False,
+        description="When true, append files to the existing ones. replace them otherwise",  # noqa: E501
+    )
+    data: dict[str, Any] | None = Field(None, example={"key": "value"})
 
 
 @router.patch("/activities/{activity_id}")
@@ -137,26 +152,27 @@ async def patch_project_activity(
     user: CurrentUser,
     activity: ActivityPatchModel,
     background_tasks: BackgroundTasks,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Edit an activity.
 
     Only the author of the activity can edit it.
     """
 
-    if user.is_admin:
-        # admin can update any activity
-        user_name = None
-    else:
-        user_name = user.name
+    user_name = user.name
 
     await update_activity(
         project_name=project_name,
         activity_id=activity_id,
         body=activity.body,
         files=activity.files,
+        append_files=activity.append_files,
+        data=activity.data,
         user_name=user_name,
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
+        is_admin=user.is_admin,
     )
 
     background_tasks.add_task(delete_unused_files, project_name)

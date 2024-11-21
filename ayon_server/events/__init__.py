@@ -16,6 +16,7 @@ async def dispatch_event(
     topic: str,
     *,
     sender: str | None = None,
+    sender_type: str | None = None,
     hash: str | None = None,
     project: str | None = None,
     user: str | None = None,
@@ -29,6 +30,7 @@ async def dispatch_event(
     return await EventStream.dispatch(
         topic=topic,
         sender=sender,
+        sender_type=sender_type,
         hash=hash,
         project=project,
         user=user,
@@ -45,6 +47,7 @@ async def update_event(
     event_id: str,
     *,
     sender: str | None = None,
+    sender_type: str | None = None,
     project: str | None = None,
     user: str | None = None,
     status: EventStatus | None = None,
@@ -58,6 +61,7 @@ async def update_event(
     return await EventStream.update(
         event_id=event_id,
         sender=sender,
+        sender_type=sender_type,
         project=project,
         user=user,
         status=status,

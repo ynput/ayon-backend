@@ -12,6 +12,14 @@ SERVER_TYPE=${AYON_SERVER_TYPE:-gunicorn}
 echo "start.sh: Starting setup"
 python -m setup --ensure-installed
 
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "Error occurred during setup. Please check the logs for more information."
+  echo "AYON server cannot start. Terminating..."
+  echo ""
+  exit 1
+fi
+
 # Reload server on signal
 
 function stop_server () {

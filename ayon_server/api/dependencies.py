@@ -412,6 +412,16 @@ async def dep_activity_id(
 ActivityID = Annotated[str, Depends(dep_activity_id)]
 
 
+async def dep_file_id(
+    file_id: str = Path(..., title="File ID", **EntityID.META),
+) -> str:
+    """Validate and return an file id specified in an endpoint path."""
+    return file_id
+
+
+FileID = Annotated[str, Depends(dep_file_id)]
+
+
 async def dep_link_type(
     link_type: str = Path(..., title="Link Type"),
 ) -> tuple[str, str, str]:
@@ -513,3 +523,29 @@ async def dep_site_id(
 
 
 SiteID = Annotated[str | None, Depends(dep_site_id)]
+
+
+async def dep_sender(
+    x_sender: str | None = Header(
+        None,
+        title="Sender",
+        regex=NAME_REGEX,
+    ),
+) -> str | None:
+    return x_sender
+
+
+Sender = Annotated[str | None, Depends(dep_sender)]
+
+
+async def dep_sender_type(
+    x_sender_type: str = Header(
+        "api",
+        title="Sender type",
+        regex=NAME_REGEX,
+    ),
+) -> str:
+    return x_sender_type
+
+
+SenderType = Annotated[str | None, Depends(dep_sender_type)]
