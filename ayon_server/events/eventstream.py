@@ -29,6 +29,8 @@ class EventStream:
     def unsubscribe(cls, token: str) -> None:
         for topic in cls.hooks:
             cls.hooks[topic].pop(token, None)
+            if not cls.hooks[topic]:
+                cls.hooks.pop(topic)
 
     @classmethod
     async def dispatch(
