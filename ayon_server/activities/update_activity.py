@@ -11,6 +11,7 @@ from ayon_server.activities.utils import (
 from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
+    ForbiddenException,
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
@@ -30,6 +31,7 @@ async def update_activity(
     sender: str | None = None,
     sender_type: str | None = None,
     append_files: bool = False,
+    is_admin: bool = False,
 ) -> None:
     """Update an activity."""
 
@@ -57,13 +59,16 @@ async def update_activity(
     activity_data = res[0]["data"]
 
     if user_name and (user_name != activity_data["author"]):
-        logging.warning(
-            f"User {user_name} updated activity {activity_id}"
-            f" owned by {activity_data['author']}"
-        )
-        # raise ForbiddenException("You can only update your own activities")
+        if is_admin:
+            logging.warning(
+                f"User {user_name} updated activity {activity_id}"
+                f" owned by {activity_data['author']}"
+            )
+        else:
+            raise ForbiddenException("You can only update your own activities")
 
     if data:
+        # do not overwrite the author
         data.pop("author", None)
         activity_data.update(data)
 

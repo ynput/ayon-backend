@@ -112,16 +112,11 @@ async def delete_project_activity(
     Only the author or an administrator of the activity can delete it.
     """
 
-    if user.is_admin:
-        # admin can delete any activity
-        user_name = None
-    else:
-        user_name = user.name
-
     await delete_activity(
         project_name,
         activity_id,
-        user_name=user_name,
+        user_name=user.name,
+        is_admin=user.is_admin,
         sender=sender,
         sender_type=sender_type,
     )
@@ -132,8 +127,22 @@ async def delete_project_activity(
 
 
 class ActivityPatchModel(OPModel):
-    body: str = Field(..., example="This is a comment")
-    files: list[str] | None = Field(None, example=["file1", "file2"])
+    body: str | None = Field(
+        None,
+        example="This is a comment",
+        description="When set, update the activity body",
+    )
+    files: list[str] | None = Field(
+        None,
+        example=["file1", "file2"],
+        description="When set, update the activity files",
+    )
+    append_files: bool = Field(
+        False,
+        example=False,
+        description="When true, append files to the existing ones. replace them otherwise",  # noqa: E501
+    )
+    data: dict[str, Any] | None = Field(None, example={"key": "value"})
 
 
 @router.patch("/activities/{activity_id}")
@@ -151,20 +160,19 @@ async def patch_project_activity(
     Only the author of the activity can edit it.
     """
 
-    if user.is_admin:
-        # admin can update any activity
-        user_name = None
-    else:
-        user_name = user.name
+    user_name = user.name
 
     await update_activity(
         project_name=project_name,
         activity_id=activity_id,
         body=activity.body,
         files=activity.files,
+        append_files=activity.append_files,
+        data=activity.data,
         user_name=user_name,
         sender=sender,
         sender_type=sender_type,
+        is_admin=user.is_admin,
     )
 
     background_tasks.add_task(delete_unused_files, project_name)
