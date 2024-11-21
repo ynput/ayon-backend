@@ -91,13 +91,22 @@ class StudioManagementPermissions(BaseSettingsModel):
         widget="permission",
     )
 
-    view_all_users: bool = SettingsField(
+    list_all_users: bool = SettingsField(
         False,
-        title="View all users",
-        description="Allow users to view all users in the studio",
+        title="List all users",
+        description="Allow users to list all users in the studio",
         scope=["studio"],
         widget="permission",
     )
+
+    # For future use, if needed
+
+    # list_all_projects: bool = SettingsField(
+    #     False,
+    #     title="List all projects",
+    #     scope=["studio"],
+    #     widget="permission",
+    # )
 
 
 # Model for Project management permissions

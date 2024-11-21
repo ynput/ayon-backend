@@ -51,7 +51,7 @@ async def get_users(
 
     user = info.context["user"]
     if project_name is None and projects is None:
-        user.check_permissions("studio.view_all_users")
+        user.check_permissions("studio.list_all_users")
 
     # Filter by name
 

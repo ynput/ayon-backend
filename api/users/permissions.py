@@ -16,8 +16,8 @@ from ayon_server.settings.settings_field import SettingsField
 from .router import router
 
 manager_permissions = Permissions(
-    studio=StudioManagementPermissions(create_projects=True, view_all_users=True),
-    project=ProjectManagementPermissions(anatomy=2, users=2, settings=2),
+    studio=StudioManagementPermissions(create_projects=True, list_all_users=True),
+    project=ProjectManagementPermissions(anatomy=2, access=2, settings=2),
     # we use defaults for folder access and so on
 )
 
@@ -106,6 +106,7 @@ async def get_my_project_permissions(
 
 #
 # Other users' permissions
+# Not used in the current version of the frontend. But useful for debugging.
 #
 
 
