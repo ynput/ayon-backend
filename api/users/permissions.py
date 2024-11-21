@@ -21,9 +21,18 @@ manager_permissions = Permissions(
     # we use defaults for folder access and so on
 )
 
+UserLevel = Literal["admin", "manager", "user"]
+
 
 class UserPermissionsModel(BaseSettingsModel):
-    user_level: Literal["admin", "manager", "user"] = "user"
+    user_level: Annotated[
+        UserLevel,
+        SettingsField(
+            title="User Level",
+            example="user",
+        ),
+    ] = "user"
+
     studio: Annotated[
         StudioManagementPermissions | None,
         SettingsField(
@@ -31,6 +40,7 @@ class UserPermissionsModel(BaseSettingsModel):
             description="Permissions for the studio",
         ),
     ] = None
+
     projects: Annotated[
         dict[str, ProjectPermissions] | None,
         SettingsField(
