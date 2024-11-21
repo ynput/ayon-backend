@@ -24,7 +24,7 @@ async def deploy_project(
     to the project entity (along with additional data such as the project name).
     """
 
-    user.check_permissions("project.create")
+    user.check_permissions("studio.create_projects")
 
     await create_project_from_anatomy(
         name=payload.name,

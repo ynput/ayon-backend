@@ -88,7 +88,7 @@ async def create_project(
     ([POST] /api/projects) for general usage.
     """
 
-    user.check_permissions("project.create")
+    user.check_permissions("studio.create_projects")
 
     try:
         project = await ProjectEntity.load(project_name)

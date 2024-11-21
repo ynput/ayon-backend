@@ -51,7 +51,7 @@ async def get_users(
 
     user = info.context["user"]
     if project_name is None and projects is None:
-        user.check_permissions("project.users")
+        user.check_permissions("studio.view_all_users")
 
     # Filter by name
 
@@ -86,9 +86,6 @@ async def get_users(
         ) > 0"""
         cnd = f"({cnd1} OR {cnd2} OR {cnd3})"
         sql_conditions.append(cnd)
-
-    # TODO: allow listing users from all project for normal users, but only if they are
-    #       assigned to the project
 
     #
     # Pagination

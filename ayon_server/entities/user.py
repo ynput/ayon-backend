@@ -241,8 +241,8 @@ class UserEntity(TopLevelEntity):
             raise ValueError(f"Invalid permission key {key}")
 
         perm_group = getattr(permissions, group)
-        if not perm_group.enabled:
-            # no restrictions on group
+        if group not in ["studio", "project"] and not perm_group.enabled:
+            # no restrictions on group (folder access)
             return
 
         perm = getattr(perm_group, perm_name)

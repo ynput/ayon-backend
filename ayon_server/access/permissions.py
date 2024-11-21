@@ -110,7 +110,7 @@ class ProjectManagementPermissions(BaseSettingsModel):
         description="Allow users to view or edit the project anatomy",
         widget="permission",
     )
-    users: int = SettingsField(
+    access: int = SettingsField(
         0,
         title="Project access",
         description="Allow users to view or assign users to project access groups",
@@ -118,7 +118,7 @@ class ProjectManagementPermissions(BaseSettingsModel):
     )
     settings: int = SettingsField(
         0,
-        title="Studio settings",
+        title="Project addon settings",
         description="Allow users to view or edit the project addon settings",
         widget="permission",
     )

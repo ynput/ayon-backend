@@ -20,11 +20,11 @@ async def get_project_users(
     The result is a dictionary where the key is the user's name
     and the value is a list of access groups the user has for the project.
 
-    User invoking this endpoint must have the "project.users" read
+    User invoking this endpoint must have the "project.access" read
     permission for the project.
     """
 
-    user.check_permissions("project.users", project_name)
+    user.check_permissions("project.access", project_name)
 
     query = f"""
         SELECT name, data->'accessGroups'->'{project_name}' as access_groups
@@ -50,7 +50,7 @@ async def update_project_user(
     """Update a user's access groups for a project
 
     This endpoint is used to update a user's access groups for a project.
-    The invoking user must have the "project.users" permission for the project.
+    The invoking user must have the "project.access" permission for the project.
 
     The access groups are a list of strings. The user's access groups
     for the project will be set to this list.
@@ -59,7 +59,7 @@ async def update_project_user(
     and the value is a list of access groups the user has for the project.
     """
 
-    user.check_permissions("project.users", project_name, write=True)
+    user.check_permissions("project.access", project_name, write=True)
 
     target_user = await UserEntity.load(user_name)
     target_user_ag = target_user.data.get("accessGroups", {})
