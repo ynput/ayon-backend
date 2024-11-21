@@ -15,15 +15,20 @@ HandlerType = Callable[[EventModel], Awaitable[None]]
 
 class EventStream:
     model: Type[EventModel] = EventModel
-    hooks: dict[str, list[HandlerType]] = {}
+    hooks: dict[str, dict[str, HandlerType]] = {}
 
     @classmethod
     def subscribe(cls, topic: str, handler: HandlerType) -> str:
         token = create_id()
         if topic not in cls.hooks:
-            cls.hooks[topic] = []
-        cls.hooks[topic].append(handler)
+            cls.hooks[topic] = {}
+        cls.hooks[topic][token] = handler
         return token
+
+    @classmethod
+    def unsubscribe(cls, token: str) -> None:
+        for topic in cls.hooks:
+            cls.hooks[topic].pop(token, None)
 
     @classmethod
     async def dispatch(
@@ -138,7 +143,7 @@ class EventStream:
             )
         )
 
-        handlers = cls.hooks.get(event.topic, [])
+        handlers = cls.hooks.get(event.topic, {}).values()
         for handler in handlers:
             try:
                 await handler(event)
