@@ -56,8 +56,9 @@ class LinksConnection(BaseConnection):
 
 @strawberry.type
 class ThumbnailInfo:
-    source_entity_type: str = strawberry.field()
-    source_entity_id: str = strawberry.field()
+    id: str = strawberry.field()
+    source_entity_type: str | None = strawberry.field(default=None)
+    source_entity_id: str | None = strawberry.field(default=None)
 
 
 @strawberry.interface

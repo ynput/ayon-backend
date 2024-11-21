@@ -4,7 +4,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import VersionEntity
-from ayon_server.graphql.nodes.common import BaseNode
+from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.representations import get_representations
 from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
@@ -34,6 +34,7 @@ class VersionNode(BaseNode):
     tags: list[str]
     task_id: str | None = None
     thumbnail_id: str | None = None
+    thumbnail: ThumbnailInfo | None = None
     has_reviewables: bool = False
     author: str | None = None
     data: str | None = None
@@ -91,6 +92,10 @@ def version_from_record(
     else:
         has_reviewables = False
 
+    thumbnail = None
+    if record["thumbnail_id"]:
+        thumbnail = ThumbnailInfo(id=record["thumbnail_id"])
+
     return VersionNode(
         project_name=project_name,
         id=record["id"],
@@ -100,6 +105,7 @@ def version_from_record(
         product_id=record["product_id"],
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
+        thumbnail=thumbnail,
         has_reviewables=has_reviewables,
         author=author,
         status=record["status"],

@@ -4,7 +4,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import TaskEntity
-from ayon_server.graphql.nodes.common import BaseNode
+from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.types import Info
@@ -31,6 +31,7 @@ class TaskNode(BaseNode):
     label: str | None
     task_type: str
     thumbnail_id: str | None = None
+    thumbnail: ThumbnailInfo | None = None
     assignees: list[str]
     folder_id: str
     status: str
@@ -109,6 +110,10 @@ def task_from_record(
     else:
         has_reviewables = False
 
+    thumbnail = None
+    if record["thumbnail_id"]:
+        thumbnail = ThumbnailInfo(id=record["thumbnail_id"])
+
     return TaskNode(
         project_name=project_name,
         id=record["id"],
@@ -116,6 +121,7 @@ def task_from_record(
         label=record["label"],
         task_type=record["task_type"],
         thumbnail_id=record["thumbnail_id"],
+        thumbnail=thumbnail,
         assignees=assignees,
         folder_id=record["folder_id"],
         status=record["status"],

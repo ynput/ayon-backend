@@ -5,7 +5,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import WorkfileEntity
-from ayon_server.graphql.nodes.common import BaseNode
+from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import json_dumps
@@ -26,6 +26,7 @@ class WorkfileNode(BaseNode):
     path: str
     task_id: str | None
     thumbnail_id: str | None
+    thumbnail: ThumbnailInfo | None = None
     created_by: str | None
     updated_by: str | None
     status: str
@@ -54,6 +55,10 @@ def workfile_from_record(
     data = record.get("data", {})
     name = os.path.basename(record["path"])
 
+    thumbnail = None
+    if record["thumbnail_id"]:
+        thumbnail = ThumbnailInfo(id=record["thumbnail_id"])
+
     return WorkfileNode(
         project_name=project_name,
         id=record["id"],
@@ -61,6 +66,7 @@ def workfile_from_record(
         path=record["path"],
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
+        thumbnail=thumbnail,
         created_by=record["created_by"],
         updated_by=record["updated_by"],
         active=record["active"],
