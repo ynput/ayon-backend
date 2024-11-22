@@ -11,7 +11,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
-    AtrributeFilterInput,
+    AttributeFilterInput,
     FieldInfo,
     argdesc,
     create_folder_access_list,
@@ -53,7 +53,7 @@ async def get_tasks(
         list[str] | None, argdesc("List of parent folder IDs to filter by")
     ] = None,
     attributes: Annotated[
-        list[AtrributeFilterInput] | None, argdesc("Filter by a list of attributes")
+        list[AttributeFilterInput] | None, argdesc("Filter by a list of attributes")
     ] = None,
     names: Annotated[list[str] | None, argdesc("List of names to filter by")] = None,
     statuses: Annotated[

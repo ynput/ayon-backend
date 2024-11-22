@@ -22,7 +22,7 @@ class HasLinksFilter(Enum):
 
 
 @strawberry.input
-class AtrributeFilterInput:
+class AttributeFilterInput:
     name: str
     values: list[str]
 
