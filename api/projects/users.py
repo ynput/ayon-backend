@@ -1,3 +1,5 @@
+import copy
+
 from ayon_server.api.dependencies import CurrentUser, ProjectName, UserName
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
@@ -62,12 +64,20 @@ async def update_project_user(
     user.check_permissions("project.access", project_name, write=True)
 
     target_user = await UserEntity.load(user_name)
-    target_user_ag = target_user.data.get("accessGroups", {})
-    target_user_ag[project_name] = access_groups
-    if not target_user_ag[project_name]:
+    target_user_ag = copy.deepcopy(target_user.data.get("accessGroups", {}))
+
+    if not access_groups:
         target_user_ag.pop(project_name, None)
     else:
-        target_user.data["accessGroups"] = target_user_ag
+        target_user_ag[project_name] = access_groups
+
+    target_user.data["accessGroups"] = target_user_ag
+
+    # target_user_ag[project_name] = access_groups
+    # if not target_user_ag[project_name]:
+    #     target_user_ag.pop(project_name, None)
+    # else:
+    #     target_user.data["accessGroups"] = target_user_ag
     await target_user.save()
 
     async for session in Session.list(user_name):
