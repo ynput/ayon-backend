@@ -1,6 +1,6 @@
 import copy
 
-from fastapi import APIRouter, BackgroundTasks, Body
+from fastapi import BackgroundTasks, Body
 from nxtools import log_traceback
 
 from ayon_server.access.access_groups import AccessGroups
@@ -20,7 +20,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.postprocess import postprocess_settings_schema
 from ayon_server.types import Field, OPModel
 
-router = APIRouter(prefix="", tags=["Access Groups"])
+from .router import router
 
 
 async def clean_up_user_access_groups() -> None:
@@ -70,9 +70,15 @@ async def get_access_group_schema():
 
 
 class AccessGroupObject(OPModel):
-    name: str = Field(..., description="Name of the access group", example="artist")
+    name: str = Field(
+        ...,
+        description="Name of the access group",
+        example="artist",
+    )
     is_project_level: bool = Field(
-        ..., description="Whether the access group is project level", example=False
+        ...,
+        description="Whether the access group is project level",
+        example=False,
     )
 
 
