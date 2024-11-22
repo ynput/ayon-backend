@@ -22,8 +22,10 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.types import Info
 from ayon_server.types import (
+    sanitize_string_list,
     validate_name_list,
     validate_status_list,
+    validate_user_name_list,
 )
 from ayon_server.utils import SQLTool
 
@@ -57,18 +59,40 @@ async def get_tasks(
     statuses: Annotated[
         list[str] | None, argdesc("List of statuses to filter by")
     ] = None,
-    tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
-    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
     assignees: Annotated[
-        list[str] | None, argdesc("List of assignees to filter by")
+        list[str] | None,
+        argdesc(
+            "List tasks with all of the provided assignees. "
+            "Empty list will return tasks with no assignees."
+        ),
     ] = None,
     assignees_any: Annotated[
-        list[str] | None, argdesc("List tasks with any of the selected assignees")
+        list[str] | None,
+        argdesc(
+            "List tasks with any of the provided assignees. "
+            "Empty list will return tasks with any assignees."
+        ),
+    ] = None,
+    tags: Annotated[
+        list[str] | None,
+        argdesc(
+            "List tasks with all of the provided tags."
+            "Empty list will return tasks with no tags."
+        ),
+    ] = None,
+    tags_any: Annotated[
+        list[str] | None,
+        argdesc(
+            "List tasks with any of the provided tags."
+            "Empty list will return tasks with any tags."
+        ),
     ] = None,
     includeFolderChildren: Annotated[
-        bool, argdesc("Include tasks in child folders when folderIds is used")
+        bool,
+        argdesc("Include tasks in child folders when folderIds is used"),
     ] = False,
+    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
 
@@ -196,25 +220,40 @@ async def get_tasks(
             return TasksConnection()
         validate_status_list(statuses)
         sql_conditions.append(f"tasks.status IN {SQLTool.array(statuses)}")
+
     if tags is not None:
         if not tags:
-            return TasksConnection()
-        validate_name_list(tags)
-        sql_conditions.append(f"tasks.tags @> {SQLTool.array(tags, curly=True)}")
+            sql_conditions.append("tasks.tags = '{}'")
+        else:
+            tags = sanitize_string_list(tags)
+            sql_conditions.append(f"tasks.tags @> {SQLTool.array(tags, curly=True)}")
+
+    if tags_any is not None:
+        if not tags_any:
+            sql_conditions.append("tasks.tags != '{}'")
+        else:
+            tags_any = sanitize_string_list(tags_any)
+            sql_conditions.append(
+                f"tasks.tags && {SQLTool.array(tags_any, curly=True)}"
+            )
 
     if assignees is not None:
         if not assignees:
-            return TasksConnection()
-        sql_conditions.append(
-            f"tasks.assignees @> {SQLTool.array(assignees, curly=True)}"
-        )
+            sql_conditions.append("tasks.assignees = '{}'")
+        else:
+            validate_user_name_list(assignees)
+            sql_conditions.append(
+                f"tasks.assignees @> {SQLTool.array(assignees, curly=True)}"
+            )
 
     if assignees_any is not None:
         if not assignees_any:
-            return TasksConnection()
-        sql_conditions.append(
-            f"tasks.assignees && {SQLTool.array(assignees_any, curly=True)}"
-        )
+            sql_conditions.append("tasks.assignees != '{}'")
+        else:
+            validate_user_name_list(assignees_any)
+            sql_conditions.append(
+                f"tasks.assignees && {SQLTool.array(assignees_any, curly=True)}"
+            )
 
     if has_links is not None:
         sql_conditions.extend(get_has_links_conds(project_name, "tasks.id", has_links))
