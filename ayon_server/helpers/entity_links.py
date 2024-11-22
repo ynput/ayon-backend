@@ -10,12 +10,14 @@ async def remove_entity_links(
     entity_id: str,
     conn: Connection | None = None,
 ) -> None:
-    """Remove all links of the given entity"""
-    logging.info("Removing entity links")
+    """Remove all links of the given entity
+
+    This is called when a project-level entity is deleted.
+    """
 
     # We actually don't care about the entity type as the ID
     # is unique enough to identify the entity
-
+    # But we use it in the log message
     _ = entity_type
 
     async def _delete_links(conn: Connection) -> None:
@@ -89,4 +91,4 @@ async def remove_dead_links(project_name: str) -> None:
             count += res[0]["count"]
 
     if count > 0:
-        logging.debug(f"Removed {count} dead links")
+        logging.info(f"Removed {count} dead links")
