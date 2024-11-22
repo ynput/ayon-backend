@@ -154,7 +154,7 @@ class ProjectLevelEntity(BaseEntity):
         project_name: str,
         entity_id: str,
         transaction: Connection | None = None,
-        for_update=False,
+        for_update: bool = False,
     ):
         """Return an entity instance based on its ID and a project name.
 

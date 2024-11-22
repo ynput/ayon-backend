@@ -57,12 +57,17 @@ class UserEntity(TopLevelEntity):
         cls,
         name: str,
         transaction: Connection | None = None,
+        for_update: bool = False,
     ) -> "UserEntity":
         """Load a user from the database."""
 
         if not (
             user_data := await Postgres.fetch(
-                "SELECT * FROM public.users WHERE name = $1", name
+                f"""
+                SELECT * FROM public.users WHERE name = $1
+                {'FOR UPDATE' if transaction and for_update else ''}
+                """,
+                name,
             )
         ):
             raise NotFoundException(f"Unable to load user {name}")
