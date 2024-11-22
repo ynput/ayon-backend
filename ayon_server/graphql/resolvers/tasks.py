@@ -21,7 +21,10 @@ from ayon_server.graphql.resolvers.common import (
     sortdesc,
 )
 from ayon_server.graphql.types import Info
-from ayon_server.types import validate_name_list, validate_status_list
+from ayon_server.types import (
+    validate_name_list,
+    validate_status_list,
+)
 from ayon_server.utils import SQLTool
 
 SORT_OPTIONS = {
@@ -192,7 +195,7 @@ async def get_tasks(
         if not statuses:
             return TasksConnection()
         validate_status_list(statuses)
-        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
+        sql_conditions.append(f"tasks.status IN {SQLTool.array(statuses)}")
     if tags is not None:
         if not tags:
             return TasksConnection()
