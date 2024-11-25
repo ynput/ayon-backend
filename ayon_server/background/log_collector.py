@@ -3,23 +3,10 @@ import queue
 import time
 from typing import Any
 
+from nxtools import logging
+
 from ayon_server.background.background_worker import BackgroundWorker
-
-# Fallback to the default logging module
-# This is just used when ayon_server is loaded in order
-# to get the version number.
-
-try:
-    from nxtools import logging
-
-    has_nxtools = True
-except ModuleNotFoundError:
-    import logging
-
-    has_nxtools = False
-
-else:
-    from ayon_server.events import EventStream
+from ayon_server.events import EventStream
 
 
 def parse_log_message(message):
@@ -59,6 +46,7 @@ class LogCollector(BackgroundWorker):
         self.queue: queue.Queue[dict[str, Any]] = queue.Queue()
         self.msg_id = 0
         self.start_time = time.time()
+        logging.add_handler(self)
 
     def __call__(self, **kwargs):
         # We need to add messages to the queue even if the
@@ -98,6 +86,8 @@ class LogCollector(BackgroundWorker):
         # to be ready.
         while True:
             try:
+                # Creating this event ensures that database is ready
+                # and we can start processing the log messages.
                 await EventStream.dispatch("server.log_collector_started")
             except Exception:
                 # Do not log the exception using the logger,
@@ -125,7 +115,12 @@ class LogCollector(BackgroundWorker):
             await self.process_message(record)
 
 
-log_collector = LogCollector()
+# Create the instance here.
+# We are importing it first it in ayon_server.api.server
+# - that initiates the collector and every consecutive log
+# message will be added to the queue.
+# Then we import it in background_workers - that puts it
+# to the background worker class and starts dumping the
+# messages to the database.
 
-if has_nxtools:
-    logging.add_handler(log_collector)
+log_collector = LogCollector()

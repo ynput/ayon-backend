@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_to_file, log_traceback, logging, slugify
 
+# okay. now the rest
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import Messaging
@@ -25,6 +26,7 @@ from ayon_server.api.responses import ErrorResponse
 from ayon_server.api.static import addon_static_router
 from ayon_server.api.system import clear_server_restart_required
 from ayon_server.auth.session import Session
+from ayon_server.background.log_collector import log_collector
 from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
@@ -33,6 +35,9 @@ from ayon_server.graphql import router as graphql_router
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import parse_access_token
+
+# We just need the log collector to be initialized.
+_ = log_collector
 
 app = fastapi.FastAPI(
     docs_url=None,

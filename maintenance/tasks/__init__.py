@@ -5,7 +5,8 @@ from .remove_old_logs import RemoveOldLogs
 from .remove_unused_activities import RemoveUnusedActivities
 from .remove_unused_files import RemoveUnusedFiles
 from .remove_unused_thumbnails import RemoveUnusedThumbnails
-from .vacuum_db import VacuumDB
+
+# from .vacuum_db import VacuumDB
 
 task_sequence = [
     AutoUpdate,
@@ -14,6 +15,6 @@ task_sequence = [
     RemoveUnusedActivities,
     RemoveUnusedFiles,
     RemoveUnusedThumbnails,
-    VacuumDB,
+    # VacuumDB, -- too expensive. maybe run it manually?
     PushMetrics,
 ]
