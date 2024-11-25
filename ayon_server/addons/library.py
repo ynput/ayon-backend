@@ -175,7 +175,7 @@ class AddonLibrary:
         definition = instance.data.get(addon_name)
         if definition is None:
             return
-        logging.info("Unloading addon", addon_name, addon_version)
+        logging.debug("Unloading addon", addon_name, addon_version)
         definition.unload_version(addon_version)
 
     @classmethod

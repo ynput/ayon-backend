@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 from ayon_server.initialize import ayon_init
 from maintenance.scheduler import MaintenanceScheduler
@@ -12,7 +13,11 @@ async def main():
     # when executed manually.
 
     scheduler = MaintenanceScheduler()
-    await scheduler.run_maintenance()
+
+    if "--one-shot" in sys.argv:
+        await scheduler.run_maintenance()
+    else:
+        await scheduler.run()
 
 
 if __name__ == "__main__":
