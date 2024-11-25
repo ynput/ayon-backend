@@ -1,16 +1,11 @@
-from abc import ABC, abstractmethod
 from typing import Literal
 
 MaintenanceTaskType = Literal["studio", "project"]
 
 
-class BaseMaintenanceTask(ABC):
+class BaseMaintenanceTask:
     task_type: MaintenanceTaskType
     description: str
-
-    @abstractmethod
-    async def main(self, *args, **kwargs):
-        pass
 
 
 class StudioMaintenanceTask(BaseMaintenanceTask):

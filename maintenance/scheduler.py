@@ -10,6 +10,7 @@ class MaintenanceScheduler:
     hour: int = 3  # run at 3:00 every day
     minute: int = 0
     is_running: bool = False
+    task: asyncio.Task[None] | None = None
 
     async def run(self):
         while True:

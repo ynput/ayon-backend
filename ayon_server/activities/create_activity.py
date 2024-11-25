@@ -78,7 +78,7 @@ async def create_activity(
         origin["subtype"] = entity.product_type  # type: ignore
 
     if hasattr(entity, "label"):
-        origin["label"] = entity.label  # type: ignore
+        origin["label"] = entity.label
     data["origin"] = origin
 
     try:
