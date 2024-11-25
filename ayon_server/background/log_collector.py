@@ -67,11 +67,13 @@ class LogCollector(BackgroundWorker):
         if kwargs["message_type"] == 0:
             return
         if len(self.queue.queue) > 1000:
-            logging.warning("Log collector queue is full", handlers=None, user="server")
             return
         self.queue.put(kwargs)
 
     async def process_message(self, record):
+        if EventStream is None:
+            return
+
         self.msg_id += 1
         try:
             message = parse_log_message(record)

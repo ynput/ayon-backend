@@ -1,11 +1,9 @@
-import asyncio
 import time
 
 import httpx
 from nxtools import logging
 
 from ayon_server.addons.library import AddonLibrary
-from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.cloud import get_cloud_api_headers
@@ -14,6 +12,7 @@ from ayon_server.helpers.get_downloaded_addons import get_downloaded_addons
 from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
 from ayon_server.lib.postgres import Postgres
 from ayon_server.version import __version__ as ayon_version
+from maintenance.maintenance_task import StudioMaintenanceTask
 
 
 async def get_required_addons() -> list[dict[str, str]]:
@@ -144,26 +143,14 @@ async def run_auto_update() -> None:
             logging.info(f"Created production bundle with {addon_name} {addon_version}")
 
 
-class AutoUpdate(BackgroundWorker):
-    """Auto-update server addons"""
+class AutoUpdate(StudioMaintenanceTask):
+    description = "Checking for updates"
 
-    async def run(self):
-        await asyncio.sleep(20)
+    async def main(self):
+        try:
+            _ = await get_cloud_api_headers()
+        except Exception:
+            # not connected to cloud. do nothing
+            return
 
-        while True:
-            try:
-                _ = await get_cloud_api_headers()
-            except Exception:
-                # Not connected to Ynput cloud
-                # Do nothing
-                await asyncio.sleep(3600)
-                continue
-
-            try:
-                await run_auto_update()
-            except Exception:
-                pass
-            await asyncio.sleep(3600)
-
-
-auto_update = AutoUpdate()
+        await run_auto_update()

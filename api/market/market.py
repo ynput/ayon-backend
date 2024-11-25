@@ -2,8 +2,8 @@ import semver
 from fastapi import BackgroundTasks
 
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.background.metrics_collector import metrics_collector
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.metrics import post_metrics
 
 from .common import (
     get_local_latest_addon_versions,
@@ -17,12 +17,6 @@ from .models import (
     AddonVersionDetail,
 )
 from .router import router
-
-
-async def post_metrics():
-    if not metrics_collector.should_collect:
-        return
-    await metrics_collector.post_metrics()
 
 
 @router.get("/addons")

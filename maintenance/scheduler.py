@@ -3,6 +3,8 @@ import datetime
 
 from nxtools import log_traceback, logging
 
+from .maintenance import run_maintenance
+
 
 class MaintenanceScheduler:
     hour: int = 3  # run at 3:00 every day
@@ -25,7 +27,7 @@ class MaintenanceScheduler:
             await asyncio.sleep(wait_time)
 
             # Execute the maintenance task
-            await self()
+            await run_maintenance()
 
     def start(self):
         if not self.task:
@@ -39,15 +41,13 @@ class MaintenanceScheduler:
             except asyncio.CancelledError:
                 print("Maintenance scheduler stopped.")
 
-    async def __call__(self):
+    async def run_maintenance(self):
         if self.is_running:
             logging.warning("Maintenance task is already running.")
             return
         self.is_running = True
         try:
-            print("Starting maintenance...")
-            await asyncio.sleep(2)
-            print("Maintenance completed.")
+            await run_maintenance()
         except Exception:
             log_traceback("Maintenance task failed. This should not happen.")
         self.is_running = False

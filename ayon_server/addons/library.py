@@ -48,7 +48,6 @@ class AddonLibrary:
             if not definition.versions:
                 continue
 
-            logging.debug("Initializing addon", definition.name)
             self.data[definition.name] = definition
             if definition.restart_requested:
                 self.restart_requested = True

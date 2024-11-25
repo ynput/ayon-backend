@@ -6,8 +6,13 @@ from maintenance.scheduler import MaintenanceScheduler
 
 async def main():
     await ayon_init()
-    maintenance = MaintenanceScheduler()
-    await maintenance()
+
+    # We run the maintenance tasks from the scheduler
+    # to ensure scheduled maintenance is not in progress
+    # when executed manually.
+
+    scheduler = MaintenanceScheduler()
+    await scheduler.run_maintenance()
 
 
 if __name__ == "__main__":
