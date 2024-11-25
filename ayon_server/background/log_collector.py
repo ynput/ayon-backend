@@ -44,7 +44,6 @@ def parse_log_message(message):
 class LogCollector(BackgroundWorker):
     def initialize(self):
         self.queue: queue.Queue[dict[str, Any]] = queue.Queue()
-        self.msg_id = 0
         self.start_time = time.time()
         logging.add_handler(self)
 
@@ -59,10 +58,6 @@ class LogCollector(BackgroundWorker):
         self.queue.put(kwargs)
 
     async def process_message(self, record):
-        if EventStream is None:
-            return
-
-        self.msg_id += 1
         try:
             message = parse_log_message(record)
         except ValueError:
@@ -83,11 +78,9 @@ class LogCollector(BackgroundWorker):
     async def run(self):
         # During the startup, we cannot write to the database
         # so the following loop patiently waits for the database
-        # to be ready.
+        # to become ready.
         while True:
             try:
-                # Creating this event ensures that database is ready
-                # and we can start processing the log messages.
                 await EventStream.dispatch("server.log_collector_started")
             except Exception:
                 # Do not log the exception using the logger,
@@ -98,7 +91,7 @@ class LogCollector(BackgroundWorker):
 
         while True:
             if self.queue.empty():
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.2)
                 continue
 
             record = self.queue.get()

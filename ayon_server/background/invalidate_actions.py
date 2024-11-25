@@ -17,6 +17,7 @@ class InvalidateActions(BackgroundWorker):
     async def run(self):
         # Execute the first clean-up after a minue,
         # when everything is settled after the start-up.
+        # We don't need to clean up immediately after the start-up.
 
         await asyncio.sleep(60)
 
