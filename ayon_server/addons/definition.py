@@ -29,8 +29,6 @@ class ServerAddonDefinition:
         for version in self.versions.values():
             if self.app_host_name is None:
                 self.app_host_name = version.app_host_name
-            if self.name is None:
-                self.name = version.name
 
             if version.name != self.name:
                 raise ValueError(
