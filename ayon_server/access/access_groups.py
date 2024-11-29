@@ -1,7 +1,5 @@
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.access.permissions import (
     AttributeAccessList,
     EndpointsAccessList,
@@ -45,7 +43,6 @@ class AccessGroups:
     def add_access_group(
         cls, name: str, project_name: str, permissions: Permissions
     ) -> None:
-        logging.debug("Adding access_group", name)
         cls.access_groups[(name, project_name)] = permissions
 
     @classmethod

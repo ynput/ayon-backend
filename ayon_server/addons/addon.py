@@ -94,7 +94,7 @@ class BaseServerAddon:
         self.addon_dir = addon_dir
         self.endpoints = []
         self.restart_requested = False
-        logging.debug(f"Initializing addon {self.name} v{self.version} in {addon_dir}")
+        logging.debug(f"Initializing addon {self.name} v{self.version}")
         self.initialize()
 
     def __repr__(self) -> str:

@@ -2,7 +2,13 @@ __all__ = ["Metrics", "get_metrics"]
 
 import time
 
+import httpx
+
+from ayon_server.config import ayonconfig
+from ayon_server.constraints import Constraints
+from ayon_server.helpers.cloud import get_cloud_api_headers
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
+from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
 
 from .bundles import (
@@ -211,3 +217,60 @@ async def get_metrics(
         system=system_metrics_data,
         **{key: value["value"] for key, value in METRICS_SNAPSHOT.items()},
     )
+
+
+async def should_post_metrics() -> bool:
+    """Check if metrics should be posted to cloud API.
+
+    Returns bool indicating if enough time (8 hours) has elapsed since last post,
+    or if metrics have never been posted before.
+    """
+    last_collected = await Redis.get_json("global", "metrics-last-posted")
+    if last_collected is None:
+        return True
+    if time.time() - last_collected > 8 * 3600:
+        return True
+    return False
+
+
+async def post_metrics():
+    try:
+        headers = await get_cloud_api_headers()
+    except Exception:
+        # if we can't get the headers, we can't send metrics
+        return
+
+    if not await should_post_metrics():
+        return
+
+    saturated = ayonconfig.metrics_send_saturated
+    system = ayonconfig.metrics_send_system
+
+    if not saturated:
+        r = await Constraints.check("saturatedMetrics")
+        if r:
+            saturated = True
+    if not system:
+        r = await Constraints.check("systemMetrics")
+        if r:
+            system = True
+
+    metrics = await get_metrics(saturated=saturated, system=system)
+    payload = metrics.dict(exclude_none=True)
+
+    try:
+        async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+            await client.post(
+                f"{ayonconfig.ynput_cloud_api_url}/api/v1/metrics",
+                json=payload,
+                headers=headers,
+            )
+    except Exception:
+        # fail silently
+        pass
+
+    # update last posted timestamp
+    # event if the post failed, we don't want to do unnecessary work
+    # in the case the connection is down or so
+    now = int(time.time())
+    await Redis.set_json("global", "metrics-last-posted", now)

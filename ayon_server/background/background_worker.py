@@ -1,11 +1,6 @@
 import asyncio
 
-try:
-    from nxtools import logging
-
-    has_nxtools = True
-except ModuleNotFoundError:
-    has_nxtools = False
+from nxtools import log_traceback, logging
 
 
 class BackgroundWorker:
@@ -18,8 +13,7 @@ class BackgroundWorker:
         pass
 
     def start(self):
-        if has_nxtools:
-            logging.info(f"Starting background worker {self.__class__.__name__}")
+        logging.debug(f"Starting background worker {self.__class__.__name__}")
         self.task = asyncio.create_task(self._run())
 
     async def shutdown(self):
@@ -28,9 +22,9 @@ class BackgroundWorker:
 
         self.shutting_down = True
         while self.is_running:
-            print(f"Waiting for {self.__class__.__name__} to stop")
+            logging.debug(f"Waiting for {self.__class__.__name__} to stop", handlers=[])
             await asyncio.sleep(0.1)
-        print(f"{self.__class__.__name__} stopped")
+        logging.debug(f"{self.__class__.__name__} stopped", handlers=[])
 
     @property
     def is_running(self):
@@ -40,18 +34,16 @@ class BackgroundWorker:
         try:
             await self.run()
         except asyncio.CancelledError:
-            print(f"{self.__class__.__name__} is cancelled")
+            logging.debug(f"{self.__class__.__name__} is cancelled", handlers=[])
             self.shutting_down = True
         except Exception:
-            import traceback
-
-            traceback.print_exc()
+            log_traceback(handlers=[])
         finally:
             await self.finalize()
             self.task = None
 
         if not self.shutting_down:
-            print("Restarting", self.__class__.__name__)
+            logging.debug("Restarting", self.__class__.__name__, handlers=[])
             self.start()
 
     async def run(self):
