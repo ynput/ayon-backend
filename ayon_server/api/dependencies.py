@@ -136,7 +136,7 @@ async def dep_current_user(
         user = await UserEntity.load(x_as_user)
 
     endpoint = request.scope["endpoint"].__name__
-    project_name = request.path_params.get("project_name")
+    project_name = request.path_params.get("project_name", "_")
     if not user.is_manager:
         # check if the user has access to the endpoint
         # we allow _ as a project name to check global permissions
