@@ -126,6 +126,11 @@ def validate_topic_list(topics: list[str]) -> list[str]:
     return result
 
 
+def sanitize_string_list(strings: list[str]) -> list[str]:
+    """Make list of strings safe to use in SQL queries."""
+    return [s.replace("'", "''") for s in strings]
+
+
 #
 # Pydantic model used for API requests and responses,
 # entity payloads etc.

@@ -129,9 +129,7 @@ async def get_project_metrics(
             ),
             None,
         )
-        if db_size is None:
-            print("DB size is None for project", project.name)
-        result["db_size"] = db_size
+        result["db_size"] = db_size or 0  # 0 should never happen
 
         storage_utilizations = await system_metrics.get_upload_sizes()
         storage_utilization = next(
@@ -142,9 +140,7 @@ async def get_project_metrics(
             ),
             None,
         )
-        if storage_utilization is None:
-            print("Storage utilization is None for project", project.name)
-        result["storage_utilization"] = storage_utilization
+        result["storage_utilization"] = storage_utilization or 0
 
     if saturated:
         result["folder_types"] = [f["name"] for f in project.folder_types]

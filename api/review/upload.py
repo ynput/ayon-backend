@@ -3,7 +3,13 @@ from nxtools import logging
 
 from ayon_server.activities.create_activity import create_activity
 from ayon_server.activities.watchers.set_watchers import ensure_watching
-from ayon_server.api.dependencies import CurrentUser, ProjectName, VersionID
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    ProjectName,
+    Sender,
+    SenderType,
+    VersionID,
+)
 from ayon_server.entities.version import VersionEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
@@ -36,10 +42,11 @@ async def upload_reviewable(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
+    sender: Sender,
+    sender_type: SenderType,
     label: str | None = Query(None, description="Label", alias="label"),
     content_type: str = Header(...),
     x_file_name: str = Header(...),
-    x_sender: str | None = Header(None),
 ) -> ReviewableModel:
     """Uploads a reviewable for a given version."""
 
@@ -111,7 +118,8 @@ async def upload_reviewable(
 
     await EventStream.dispatch(
         "reviewable.created",
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         project=project_name,
         summary=summary,

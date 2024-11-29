@@ -523,3 +523,29 @@ async def dep_site_id(
 
 
 SiteID = Annotated[str | None, Depends(dep_site_id)]
+
+
+async def dep_sender(
+    x_sender: str | None = Header(
+        None,
+        title="Sender",
+        regex=NAME_REGEX,
+    ),
+) -> str | None:
+    return x_sender
+
+
+Sender = Annotated[str | None, Depends(dep_sender)]
+
+
+async def dep_sender_type(
+    x_sender_type: str = Header(
+        "api",
+        title="Sender type",
+        regex=NAME_REGEX,
+    ),
+) -> str:
+    return x_sender_type
+
+
+SenderType = Annotated[str | None, Depends(dep_sender_type)]
