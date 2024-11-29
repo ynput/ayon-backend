@@ -1,6 +1,6 @@
 import copy
 
-from fastapi import APIRouter, BackgroundTasks, Body
+from fastapi import BackgroundTasks, Body
 from nxtools import log_traceback
 
 from ayon_server.access.access_groups import AccessGroups
@@ -20,7 +20,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.postprocess import postprocess_settings_schema
 from ayon_server.types import Field, OPModel
 
-router = APIRouter(prefix="", tags=["Access Groups"])
+from .router import router
 
 
 async def clean_up_user_access_groups() -> None:
@@ -70,18 +70,24 @@ async def get_access_group_schema():
 
 
 class AccessGroupObject(OPModel):
-    name: str = Field(..., description="Name of the access group", example="artist")
+    name: str = Field(
+        ...,
+        description="Name of the access group",
+        example="artist",
+    )
     is_project_level: bool = Field(
-        ..., description="Whether the access group is project level", example=False
+        ...,
+        description="Whether the access group is project level",
+        example=False,
     )
 
 
 @router.get("/accessGroups/{project_name}")
 async def get_access_groups(
-    user: CurrentUser, project_name: ProjectNameOrUnderscore
+    user: CurrentUser,
+    project_name: ProjectNameOrUnderscore,
 ) -> list[AccessGroupObject]:
     """Get a list of access group for a given project"""
-
     rdict = {}
 
     for ag_key, _perms in AccessGroups.access_groups.items():
@@ -130,7 +136,11 @@ async def save_access_group(
     """
 
     if not user.is_manager:
-        raise ForbiddenException("Only managers can create or update access groups")
+        if project_name == "_":
+            raise ForbiddenException(
+                "Only managers can create or update global access groups"
+            )
+        user.check_permissions("project.access", project_name=project_name, write=True)
 
     scope = "public" if project_name == "_" else f"project_{project_name}"
 
@@ -167,7 +177,9 @@ async def delete_access_group(
     """Delete an access group"""
 
     if not user.is_manager:
-        raise ForbiddenException("Only managers can delete access groups")
+        if project_name == "_":
+            raise ForbiddenException("Only managers can modify global access groups")
+        user.check_permissions("project.access", project_name=project_name, write=True)
 
     if (access_group_name, project_name) not in AccessGroups.access_groups:
         raise NotFoundException(

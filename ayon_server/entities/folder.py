@@ -240,8 +240,8 @@ class FolderEntity(ProjectLevelEntity):
         case of folders we need to check the parent folder.
         """
         if self.parent_id is None:
-            if not user.is_manager:
-                raise ForbiddenException("Only managers can create root folders")
+            # if user can create a project, they can create a root folders
+            user.check_permissions("project.create")
         else:
             await ensure_entity_access(
                 user,

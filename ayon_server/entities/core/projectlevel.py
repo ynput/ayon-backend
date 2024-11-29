@@ -96,7 +96,7 @@ class ProjectLevelEntity(BaseEntity):
 
         # TODO: Clean-up. use model.attrb_model.__fields__ to create blacklist
         attrib = self._payload.attrib.dict()  # type: ignore
-        if not user.is_manager:
+        if not user.is_manager:  # managers have access to all attributes
             # kw["exclude"]["data"] = True
 
             attr_perm = user.permissions(self.project_name).attrib_read
@@ -156,7 +156,7 @@ class ProjectLevelEntity(BaseEntity):
         project_name: str,
         entity_id: str,
         transaction: Connection | None = None,
-        for_update=False,
+        for_update: bool = False,
     ):
         """Return an entity instance based on its ID and a project name.
 

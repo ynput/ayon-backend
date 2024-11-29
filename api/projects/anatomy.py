@@ -2,7 +2,6 @@ from ayon_server.api.dependencies import CurrentUser, ProjectName, Sender, Sende
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
-from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.deploy_project import anatomy_to_project_data
 from ayon_server.helpers.extract_anatomy import extract_project_anatomy
 from ayon_server.settings.anatomy import Anatomy
@@ -29,8 +28,7 @@ async def set_project_anatomy(
 ) -> EmptyResponse:
     """Set a project anatomy."""
 
-    if not user.is_manager:
-        raise ForbiddenException("Only managers can set project anatomy.")
+    user.check_permissions("project.anatomy", project_name, write=True)
 
     project = await ProjectEntity.load(project_name)
 
