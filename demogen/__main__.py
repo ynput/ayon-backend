@@ -70,6 +70,7 @@ async def main() -> None:
     except Exception:
         log_traceback()
         critical_error("Invalid project data provided")
+        raise  # unreachable, but we need to satisfy mypy
 
     anatomy = Anatomy()
     anatomy.tags = generate_tags()
@@ -91,6 +92,7 @@ async def main() -> None:
         name=project_template["name"],
         code=project_template["code"],
         anatomy=anatomy,
+        data={"projectRole": "demo"},
     )
 
     demo = DemoGen()
