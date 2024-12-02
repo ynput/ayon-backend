@@ -59,6 +59,7 @@ class ThumbnailInfo:
     id: str = strawberry.field()
     source_entity_type: str | None = strawberry.field(default=None)
     source_entity_id: str | None = strawberry.field(default=None)
+    relation: str | None = strawberry.field(default=None)
 
 
 @strawberry.interface

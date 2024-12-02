@@ -138,6 +138,7 @@ async def get_kanban(
                 h.path as folder_path,
                 h.attrib->>'priority' as folder_priority,
                 t.thumbnail_id as thumbnail_id,
+                t.data->'thumbnailInfo' as thumbnail_info,
                 EXISTS (
                     SELECT 1 FROM {project_schema}.versions v
                     INNER JOIN {project_schema}.activity_feed af

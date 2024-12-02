@@ -52,12 +52,18 @@ def workfile_from_record(
 ) -> WorkfileNode:
     """Construct a version node from a DB row."""
 
-    data = record.get("data", {})
+    data = record.get("data") or {}
     name = os.path.basename(record["path"])
 
     thumbnail = None
     if record["thumbnail_id"]:
-        thumbnail = ThumbnailInfo(id=record["thumbnail_id"])
+        thumb_data = data.get("thumbnailInfo", {})
+        thumbnail = ThumbnailInfo(
+            id=record["thumbnail_id"],
+            source_entity_type=thumb_data.get("sourceEntityType"),
+            source_entity_id=thumb_data.get("sourceEntityId"),
+            relation=thumb_data.get("relation"),
+        )
 
     return WorkfileNode(
         project_name=project_name,

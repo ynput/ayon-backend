@@ -103,7 +103,7 @@ def task_from_record(
         assignees = record["assignees"]
 
     own_attrib = list(record["attrib"].keys())
-    data = record.get("data", {})
+    data = record.get("data") or {}
 
     if "has_reviewables" in record:
         has_reviewables = record["has_reviewables"]
@@ -112,7 +112,13 @@ def task_from_record(
 
     thumbnail = None
     if record["thumbnail_id"]:
-        thumbnail = ThumbnailInfo(id=record["thumbnail_id"])
+        thumb_data = data.get("thumbnailInfo", {})
+        thumbnail = ThumbnailInfo(
+            id=record["thumbnail_id"],
+            source_entity_type=thumb_data.get("sourceEntityType"),
+            source_entity_id=thumb_data.get("sourceEntityId"),
+            relation=thumb_data.get("relation"),
+        )
 
     return TaskNode(
         project_name=project_name,

@@ -59,8 +59,14 @@ def kanban_node_from_record(
     folder_priority = record.pop("folder_priority", None)
 
     thumbnail = None
+    thumb_data = record.pop("thumbnailInfo") or {}
     if record["thumbnail_id"]:
-        thumbnail = ThumbnailInfo(id=record["thumbnail_id"])
+        thumbnail = ThumbnailInfo(
+            id=record["thumbnail_id"],
+            source_entity_type=thumb_data.get("sourceEntityType"),
+            source_entity_id=thumb_data.get("sourceEntityId"),
+            relation=thumb_data.get("relation"),
+        )
 
     return KanbanNode(
         project_name=project_name,

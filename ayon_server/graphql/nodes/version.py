@@ -80,7 +80,7 @@ def version_from_record(
     if current_user.is_guest and author is not None:
         author = get_nickname(author)
 
-    data = record.get("data", {})
+    data = record.get("data") or {}
     version_no = record["version"]
     if version_no < 0:
         name = "HERO"
@@ -94,7 +94,13 @@ def version_from_record(
 
     thumbnail = None
     if record["thumbnail_id"]:
-        thumbnail = ThumbnailInfo(id=record["thumbnail_id"])
+        thumb_data = data.get("thumbnailInfo", {})
+        thumbnail = ThumbnailInfo(
+            id=record["thumbnail_id"],
+            source_entity_type=thumb_data.get("sourceEntityType"),
+            source_entity_id=thumb_data.get("sourceEntityId"),
+            relation=thumb_data.get("relation"),
+        )
 
     return VersionNode(
         project_name=project_name,
