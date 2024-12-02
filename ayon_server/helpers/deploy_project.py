@@ -135,6 +135,7 @@ async def create_project_from_anatomy(
     *,
     library: bool = False,
     user_name: str | None = None,
+    data: dict[str, Any] | None = None,
 ) -> None:
     """Deploy a project.
 
