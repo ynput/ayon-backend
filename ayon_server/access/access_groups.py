@@ -71,11 +71,12 @@ class AccessGroups:
                 continue
 
             for perm_name, value in access_group:
-                if not value.enabled:
-                    result[perm_name] = {"enabled": False}
-                    continue
-                elif not result[perm_name]["enabled"]:
-                    continue
+                if hasattr(value, "enabled"):
+                    if not value.enabled:
+                        result[perm_name] = {"enabled": False}
+                        continue
+                    elif not result[perm_name]["enabled"]:
+                        continue
 
                 if perm_name == "project":
                     for k, v in result.get(perm_name, {}).items():
