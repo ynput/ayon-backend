@@ -108,7 +108,7 @@ class AyonConfig(BaseModel):
     )
 
     session_ttl: int = Field(
-        default=24 * 3600,
+        default=72 * 3600,
         description="Session lifetime in seconds",
     )
 
