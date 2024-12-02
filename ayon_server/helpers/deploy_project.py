@@ -146,12 +146,16 @@ async def create_project_from_anatomy(
     This is a preffered way of creating a new project, as it will
     create all the necessary data in the database.
     """
+
+    project_data = anatomy_to_project_data(anatomy)
+    project_data["data"].update(data or {})
+
     project = ProjectEntity(
         payload={
             "name": name,
             "code": code,
             "library": library,
-            **anatomy_to_project_data(anatomy),
+            **project_data,
         },
     )
 
