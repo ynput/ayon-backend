@@ -59,7 +59,7 @@ def kanban_node_from_record(
     folder_priority = record.pop("folder_priority", None)
 
     thumbnail = None
-    thumb_data = record.pop("thumbnailInfo", None) or {}
+    thumb_data = record.pop("thumbnail_info", None) or {}
     if record["thumbnail_id"]:
         thumbnail = ThumbnailInfo(
             id=record["thumbnail_id"],
