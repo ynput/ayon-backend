@@ -78,7 +78,7 @@ class AccessGroups:
                     elif not result[perm_name]["enabled"]:
                         continue
 
-                if perm_name == "project":
+                if perm_name in ["project", "studio"]:
                     for k, v in result.get(perm_name, {}).items():
                         old_value = result[perm_name].get(k, 0)
                         new_value = value.__getattribute__(k)
