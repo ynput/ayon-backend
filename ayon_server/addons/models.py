@@ -16,18 +16,18 @@ class PathDefinition(OPModel):
 
 
 class FilesystemSourceInfo(ClientSourceInfo):
-    type: SourceType = "filesystem"
+    type: Literal["filesystem"] = "filesystem"
     path: PathDefinition = Field(default_factory=lambda: PathDefinition())
 
 
 class ServerSourceInfo(ClientSourceInfo):
-    type: SourceType = "server"
+    type: Literal["server"] = "server"
     filename: str | None = None
     path: str | None = None
 
 
 class HttpSourceInfo(ClientSourceInfo):
-    type: SourceType = "http"
+    type: Literal["http"] = "http"
     url: str
     filename: str | None = None
     headers: dict[str, str] | None = None
