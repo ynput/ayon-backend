@@ -3,6 +3,8 @@ from typing import Any
 
 import strawberry
 
+from ayon_server.graphql.nodes.common import ThumbnailInfo
+
 
 @strawberry.type
 class KanbanNode:
@@ -24,6 +26,7 @@ class KanbanNode:
     folder_label: str | None = strawberry.field()
     folder_path: str = strawberry.field()
     thumbnail_id: str | None = strawberry.field(default=None)
+    thumbnail: ThumbnailInfo | None = None
     has_reviewables: bool = strawberry.field(default=False)
 
     last_version_with_thumbnail_id: str | None = strawberry.field(default=None)
@@ -55,9 +58,20 @@ def kanban_node_from_record(
     project_priority = record.pop("project_priority", None)
     folder_priority = record.pop("folder_priority", None)
 
+    thumbnail = None
+    thumb_data = record.pop("thumbnailInfo") or {}
+    if record["thumbnail_id"]:
+        thumbnail = ThumbnailInfo(
+            id=record["thumbnail_id"],
+            source_entity_type=thumb_data.get("sourceEntityType"),
+            source_entity_id=thumb_data.get("sourceEntityId"),
+            relation=thumb_data.get("relation"),
+        )
+
     return KanbanNode(
         project_name=project_name,
         priority=task_priority or folder_priority or project_priority,
+        thumbnail=thumbnail,
         **record,
     )
 
