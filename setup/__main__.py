@@ -43,6 +43,7 @@ async def db_migration(has_schema: bool) -> int:
     if has_schema:
         # logging.debug(f"Current database version: {current_version}")
         logging.debug(f"Applying {len(available_migrations)} database migrations")
+        migration_version = 0
         for migration in available_migrations:
             migration_version = int(migration.stem)
 
@@ -180,7 +181,13 @@ async def main(force: bool | None = None) -> None:
 
     project_list = await get_project_list()
     for project in project_list:
-        await rebuild_inherited_attributes(project.name)
+        try:
+            await rebuild_inherited_attributes(project.name)
+        except Exception:
+            log_traceback(
+                f"Unable to rebuild attributes for {project.name}. "
+                "Project may be corrupted."
+            )
 
     logging.goodnews("Setup is finished")
 
