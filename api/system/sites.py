@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import Query
 
 from ayon_server.api.dependencies import CurrentUser
@@ -13,6 +15,7 @@ class SiteInfo(OPModel):
     hostname: str = Field(..., title="Machine hostname")
     version: str = Field(..., title="Ayon version")
     users: set[str] = Field(..., title="List of users")
+    last_used: datetime = Field(..., title="Last used timestamp")
 
 
 @router.get("/system/sites", tags=["System"])
