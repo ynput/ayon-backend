@@ -6,6 +6,17 @@ CREATE TABLE IF NOT EXISTS public.config(
   value JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
+-- Server updates
+
+CREATE TABLE IF NOT EXISTS public.server_updates(
+  id SERIAL PRIMARY KEY,
+  version VARCHAR NOT NULL,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS server_updates_version_idx ON public.server_updates(version);
+
 -- Projects
 
 CREATE TABLE IF NOT EXISTS public.projects(
@@ -63,7 +74,7 @@ CREATE TABLE IF NOT EXISTS public.events(
   status VARCHAR NOT NULL
     DEFAULT 'finished'
     CHECK (status IN (
-      'pending', 
+      'pending',
       'in_progress',
       'finished',
       'failed',
@@ -126,7 +137,7 @@ CREATE TABLE IF NOT EXISTS public.sites(
 
 
 CREATE TABLE IF NOT EXISTS public.access_groups(
-    name VARCHAR NOT NULL PRIMARY KEY, 
+    name VARCHAR NOT NULL PRIMARY KEY,
     data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
@@ -212,22 +223,22 @@ INSERT INTO config VALUES ('instanceId', to_jsonb(gen_random_uuid()::text)) ON C
 -- INBOX --
 -----------
 
-DO $$ 
-DECLARE 
+DO $$
+DECLARE
     r RECORD;
-BEGIN 
-    FOR r IN 
+BEGIN
+    FOR r IN
         SELECT 'DROP FUNCTION ' || oid::regprocedure || ';' as drop_command
-        FROM pg_proc 
+        FROM pg_proc
         WHERE proname = 'get_user_inbox'
-    LOOP 
+    LOOP
         EXECUTE r.drop_command;
     END LOOP;
 END $$;
 
 
 CREATE OR REPLACE FUNCTION get_user_inbox(
-  user_name TEXT, 
+  user_name TEXT,
   show_active_projects BOOLEAN DEFAULT NULL,
   show_active_messages BOOLEAN DEFAULT NULL,
   show_unread_messages BOOLEAN DEFAULT NULL,
@@ -259,21 +270,21 @@ DECLARE
     query TEXT;
 
 BEGIN
-    FOR project IN 
+    FOR project IN
       SELECT p.name FROM projects AS p JOIN users AS u ON u.name = user_name
       WHERE (show_active_projects IS NULL OR p.active = show_active_projects)
       AND (
         (
-          (u.data->'isManager')::boolean 
+          (u.data->'isManager')::boolean
           OR (u.data->'isAdmin')::boolean
-        ) 
+        )
         OR (u.data->'accessGroups'->p.name IS NOT NULL)
       )
     LOOP
         query := format('
             SELECT
                 ''%s'' AS project_name,
-                
+
                 t.reference_id as reference_id,
                 t.activity_id as activity_id,
                 t.reference_type as reference_type,
@@ -292,10 +303,10 @@ BEGIN
                 t.reference_data as reference_data,
                 t.active as active
 
-            FROM 
+            FROM
                 project_%s.activity_feed t
-            WHERE 
-                t.entity_type = ''user'' 
+            WHERE
+                t.entity_type = ''user''
             AND t.entity_name = %L
             AND t.reference_type != ''author''
             AND t.updated_at <= COALESCE(%L, NOW())
@@ -305,15 +316,15 @@ BEGIN
             %s
             ORDER BY t.updated_at DESC
             LIMIT %s
-        ', 
+        ',
 
-          project.name, 
-          project.name, 
-          user_name, 
+          project.name,
+          project.name,
+          user_name,
           before,
           user_name,
 
-        CASE 
+        CASE
             WHEN show_active_messages IS TRUE THEN 'AND t.active IS TRUE'
             WHEN show_active_messages IS FALSE THEN 'AND t.active IS FALSE'
             ELSE ''
@@ -321,14 +332,14 @@ BEGIN
 
         CASE
             WHEN show_unread_messages IS FALSE THEN 'AND (t.reference_data->>''read'')::boolean'
-            WHEN show_unread_messages IS TRUE THEN 'AND not coalesce((t.reference_data->>''read'')::boolean, false)' 
+            WHEN show_unread_messages IS TRUE THEN 'AND not coalesce((t.reference_data->>''read'')::boolean, false)'
             ELSE ''
         END,
 
         additional_filters,
         last
         );
-        
+
         RETURN QUERY EXECUTE query;
     END LOOP;
 END;
