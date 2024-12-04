@@ -33,6 +33,16 @@ def parse_attrib_data(
 
     attr_limit: list[str] | Literal["all"] = []
 
+    # List all project based on studio permission. For the future use
+    # if project_name and target_type.__name__ == "ProjectAttribType":
+    #     try:
+    #         user.check_project_access(project_name)
+    #     except ForbiddenException:
+    #         user.check_permissions("studio.create_projects")
+    #         attr_limit = []
+    #     else:
+    #         attr_limit = "all"
+
     if user.is_manager:
         attr_limit = "all"
     elif (perms := user.permissions(project_name)) is None:

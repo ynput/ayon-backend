@@ -100,6 +100,13 @@ async def list_projects(
     length = length or None
     offset = max(0, (page - 1) * length) if length else None
 
+    can_list_all_projects = False
+    try:
+        user.check_permissions("studio.create_projects")
+        can_list_all_projects = True
+    except Exception:
+        pass
+
     for row in await Postgres.fetch(
         f"""
             SELECT
@@ -119,7 +126,7 @@ async def list_projects(
         # TODO: skipping projects based on permissions
         # breaks the pagination. Remove pagination completely?
         # Or rather use graphql-like approach with cursor?
-        if not user.is_manager:
+        if not can_list_all_projects:
             access_groups = user.data.get("accessGroups", {})
             if not isinstance(access_groups, dict):
                 continue

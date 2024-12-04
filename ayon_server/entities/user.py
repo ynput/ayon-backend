@@ -57,12 +57,17 @@ class UserEntity(TopLevelEntity):
         cls,
         name: str,
         transaction: Connection | None = None,
+        for_update: bool = False,
     ) -> "UserEntity":
         """Load a user from the database."""
 
         if not (
             user_data := await Postgres.fetch(
-                "SELECT * FROM public.users WHERE name = $1", name
+                f"""
+                SELECT * FROM public.users WHERE name = $1
+                {'FOR UPDATE' if transaction and for_update else ''}
+                """,
+                name,
             )
         ):
             raise NotFoundException(f"Unable to load user {name}")
@@ -218,6 +223,42 @@ class UserEntity(TopLevelEntity):
             or data.get("isService", False)
         )
 
+    def check_permissions(
+        self, key: str, project_name: str | None = None, **kwargs: Any
+    ) -> None:
+        """
+        Check if user has a specific permission.
+
+        Raise forbidden exception if user does not have the permission.
+
+        common kwargs:
+        - addon: str
+
+        """
+        if self.is_manager:
+            return
+
+        permissions = self.permissions(project_name)
+
+        try:
+            group, perm_name = key.split(".")
+        except ValueError:
+            raise ValueError(f"Invalid permission key {key}")
+
+        perm_group = getattr(permissions, group)
+        if group not in ["studio", "project"] and not perm_group.enabled:
+            # no restrictions on group (folder access)
+            return
+
+        perm = getattr(perm_group, perm_name)
+        if not perm:
+            pdef = f" {project_name}" if project_name else ""
+            raise ForbiddenException(f"You are not allowed to access{pdef} {perm_name}")
+
+        if kwargs.get("write") and int(perm) < 2:
+            pdef = f" {project_name}" if project_name else ""
+            raise ForbiddenException(f"You are not allowed to modify{pdef} {perm_name}")
+
     def check_project_access(self, project_name: str) -> None:
         if self.is_manager:
             return
@@ -225,21 +266,22 @@ class UserEntity(TopLevelEntity):
         if project_name.lower() not in access_groups:
             raise ForbiddenException("No access group assigned on this project")
 
-    def permissions(self, project_name: str | None) -> Permissions | None:
+    def permissions(self, project_name: str | None = None) -> Permissions:
         """Return user permissions on a given project."""
 
         if project_name is None:
-            return None
+            active_access_groups = self.data.get("defaultAccessGroups", [])
 
-        try:
-            access_groups = {
-                k.lower(): v for k, v in self.data.get("accessGroups", {}).items()
-            }
-            active_access_groups = access_groups[project_name.lower()]
-        except KeyError:
-            raise ForbiddenException("No access group assigned on this project")
+        else:
+            try:
+                access_groups = {
+                    k.lower(): v for k, v in self.data.get("accessGroups", {}).items()
+                }
+                active_access_groups = access_groups[project_name.lower()]
+            except KeyError:
+                raise ForbiddenException("No access group assigned on this project")
 
-        return AccessGroups.combine(active_access_groups, project_name)
+        return AccessGroups.combine(active_access_groups, project_name or "_")
 
     def set_password(
         self,

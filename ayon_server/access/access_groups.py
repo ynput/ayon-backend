@@ -1,7 +1,5 @@
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.access.permissions import (
     AttributeAccessList,
     EndpointsAccessList,
@@ -45,7 +43,6 @@ class AccessGroups:
     def add_access_group(
         cls, name: str, project_name: str, permissions: Permissions
     ) -> None:
-        logging.debug("Adding access_group", name)
         cls.access_groups[(name, project_name)] = permissions
 
     @classmethod
@@ -74,13 +71,21 @@ class AccessGroups:
                 continue
 
             for perm_name, value in access_group:
-                if not value.enabled:
-                    result[perm_name] = {"enabled": False}
-                    continue
-                elif not result[perm_name]["enabled"]:
-                    continue
+                if hasattr(value, "enabled"):
+                    if not value.enabled:
+                        result[perm_name] = {"enabled": False}
+                        continue
+                    elif not result[perm_name]["enabled"]:
+                        continue
 
-                if perm_name in ("create", "read", "update", "delete"):
+                if perm_name in ["project", "studio"]:
+                    for k, v in result.get(perm_name, {}).items():
+                        old_value = result[perm_name].get(k, 0)
+                        new_value = value.__getattribute__(k)
+                        if isinstance(v, (bool, int)):
+                            result[perm_name][k] = max(old_value, new_value)
+
+                elif perm_name in ("create", "read", "update", "delete"):
                     # TODO: deduplicate
                     assert isinstance(value, FolderAccessList)
                     result[perm_name]["access_list"] = list(

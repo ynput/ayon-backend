@@ -237,7 +237,7 @@ async def update_thumbnail(
     to users with the `manager` role or higher.
     """
 
-    if not user.is_manager:
+    if not user.is_manager:  # TBD
         raise ForbiddenException("Only managers can update arbitrary thumbnails")
     payload = await body_from_request(request)
     await store_thumbnail(
@@ -263,7 +263,7 @@ async def get_thumbnail(
     Since this is can be an security issue, this endpoint is only available
     to users with the `manager` role or higher.
     """
-    if not user.is_manager:
+    if not user.is_manager:  # TBD
         raise ForbiddenException("Only managers can access arbitrary thumbnails")
 
     return await retrieve_thumbnail(

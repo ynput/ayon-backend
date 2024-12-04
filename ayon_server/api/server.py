@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 from nxtools import log_to_file, log_traceback, logging, slugify
 
+# okay. now the rest
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.frontend import init_frontend
 from ayon_server.api.messaging import Messaging
@@ -25,6 +26,7 @@ from ayon_server.api.responses import ErrorResponse
 from ayon_server.api.static import addon_static_router
 from ayon_server.api.system import clear_server_restart_required
 from ayon_server.auth.session import Session
+from ayon_server.background.log_collector import log_collector
 from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
@@ -33,6 +35,17 @@ from ayon_server.graphql import router as graphql_router
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import parse_access_token
+from maintenance.scheduler import MaintenanceScheduler
+
+# We just need the log collector to be initialized.
+_ = log_collector
+# But we need this. but depending on the AYON_RUN_MAINTENANCE
+# environment variable, we might not run the maintenance tasks.
+maintenance_scheduler = MaintenanceScheduler()
+
+#
+# Let's create the app
+#
 
 app = fastapi.FastAPI(
     docs_url=None,
@@ -388,6 +401,7 @@ async def startup_event() -> None:
 
     background_workers.start()
     messaging.start()
+    maintenance_scheduler.start()
 
     # Initialize addons
 
@@ -468,9 +482,6 @@ async def startup_event() -> None:
                 bad_addons[(addon_name, version.version)] = reason
 
     for _addon_name, _addon_version in bad_addons:
-        logging.error(
-            f"Addon {_addon_name} {_addon_version} failed to start. Unloading."
-        )
         reason = bad_addons[(_addon_name, _addon_version)]
         library.unload_addon(_addon_name, _addon_version, reason=reason)
 
@@ -497,7 +508,7 @@ async def startup_event() -> None:
             )
 
         asyncio.create_task(clear_server_restart_required())
-        logging.goodnews("Server is now ready to connect")
+        logging.info("Server is now ready to connect")
 
 
 @app.on_event("shutdown")

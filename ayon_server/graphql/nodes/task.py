@@ -4,7 +4,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import TaskEntity
-from ayon_server.graphql.nodes.common import BaseNode
+from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.types import Info
@@ -31,6 +31,7 @@ class TaskNode(BaseNode):
     label: str | None
     task_type: str
     thumbnail_id: str | None = None
+    thumbnail: ThumbnailInfo | None = None
     assignees: list[str]
     folder_id: str
     status: str
@@ -102,12 +103,22 @@ def task_from_record(
         assignees = record["assignees"]
 
     own_attrib = list(record["attrib"].keys())
-    data = record.get("data", {})
+    data = record.get("data") or {}
 
     if "has_reviewables" in record:
         has_reviewables = record["has_reviewables"]
     else:
         has_reviewables = False
+
+    thumbnail = None
+    if record["thumbnail_id"]:
+        thumb_data = data.get("thumbnailInfo", {})
+        thumbnail = ThumbnailInfo(
+            id=record["thumbnail_id"],
+            source_entity_type=thumb_data.get("sourceEntityType"),
+            source_entity_id=thumb_data.get("sourceEntityId"),
+            relation=thumb_data.get("relation"),
+        )
 
     return TaskNode(
         project_name=project_name,
@@ -116,6 +127,7 @@ def task_from_record(
         label=record["label"],
         task_type=record["task_type"],
         thumbnail_id=record["thumbnail_id"],
+        thumbnail=thumbnail,
         assignees=assignees,
         folder_id=record["folder_id"],
         status=record["status"],

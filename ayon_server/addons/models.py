@@ -2,9 +2,11 @@ from typing import Literal
 
 from ayon_server.types import Field, OPModel
 
+SourceType = Literal["filesystem", "server", "http"]
+
 
 class ClientSourceInfo(OPModel):
-    type: Literal["filesystem", "server", "http"] = Field(...)
+    type: SourceType
 
 
 class PathDefinition(OPModel):
@@ -14,31 +16,31 @@ class PathDefinition(OPModel):
 
 
 class FilesystemSourceInfo(ClientSourceInfo):
-    type: Literal["filesystem"] = Field("filesystem")
+    type: Literal["filesystem"] = "filesystem"
     path: PathDefinition = Field(default_factory=lambda: PathDefinition())
 
 
 class ServerSourceInfo(ClientSourceInfo):
-    type: Literal["server"] = Field("server")
-    filename: str | None = Field(None)
-    path: str | None = Field(None)
+    type: Literal["server"] = "server"
+    filename: str | None = None
+    path: str | None = None
 
 
 class HttpSourceInfo(ClientSourceInfo):
-    type: Literal["http"] = Field("http")
+    type: Literal["http"] = "http"
     url: str
-    filename: str | None = Field(None)
-    headers: dict[str, str] | None = Field(None)
+    filename: str | None = None
+    headers: dict[str, str] | None = None
 
 
 class SSOOption(OPModel):
     name: str = Field(...)
-    title: str | None = Field(None)
-    icon: str | None = Field(None)
-    color: str = Field("#47b7da")
-    text_color: str = Field("#ffffff")
-    redirect_key: str | None = Field(None)
-    url: str = Field(...)
+    title: str | None = None
+    icon: str | None = None
+    color: str = "#47b7da"
+    text_color: str = "#ffffff"
+    redirect_key: str | None = None
+    url: str
     args: dict[str, str] = Field(default_factory=dict)
     callback: str = Field(...)
 

@@ -85,13 +85,9 @@ class Session:
         # extend normal tokens validity, but not service tokens.
         # they should be validated against db forcefully every 10 minutes or so
 
-        # Extend the session lifetime only if it's in its second half
-        # (save update requests).
-        # So it doesn't make sense to call the parameter last_used is it?
-        # Whatever. Fix later.
-
         if not session.is_service:
-            if time.time() - session.created > ayonconfig.session_ttl / 2:
+            remaining_ttl = ayonconfig.session_ttl - (time.time() - session.last_used)
+            if remaining_ttl < ayonconfig.session_ttl - 120:
                 session.last_used = time.time()
                 await Redis.set(cls.ns, token, json_dumps(session.dict()))
 

@@ -145,6 +145,8 @@ def create_pagination(
     if not (last or first):
         first = 100
 
+    curval: str = "0"  # just to keep pyright happy
+
     if after:
         curval = after
 

@@ -6,7 +6,7 @@ from strawberry import LazyType
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.graphql.connections import ActivitiesConnection
-from ayon_server.graphql.nodes.common import ProductType
+from ayon_server.graphql.nodes.common import ProductType, ThumbnailInfo
 from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.folders import get_folder, get_folders
 from ayon_server.graphql.resolvers.products import get_product, get_products
@@ -80,6 +80,7 @@ class ProjectNode:
     data: str | None
     active: bool
     library: bool
+    thumbnail: ThumbnailInfo | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -207,6 +208,9 @@ def project_from_record(
     project_name: str | None, record: dict[str, Any], context: dict[str, Any]
 ) -> ProjectNode:
     """Construct a project node from a DB row."""
+
+    thumbnail = None
+
     data = record.get("data", {})
     return ProjectNode(
         name=record["name"],
@@ -220,6 +224,7 @@ def project_from_record(
             user=context["user"],
             project_name=record["name"],
         ),
+        thumbnail=thumbnail,
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],

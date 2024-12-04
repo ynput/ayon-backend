@@ -4,7 +4,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import FolderEntity
-from ayon_server.graphql.nodes.common import BaseNode
+from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.products import get_products
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.types import Info
@@ -30,6 +30,7 @@ class FolderNode(BaseNode):
     folder_type: str
     parent_id: str | None
     thumbnail_id: str | None
+    thumbnail: ThumbnailInfo | None = None
     path: str | None
     status: str
     tags: list[str]
@@ -103,12 +104,22 @@ def folder_from_record(
     """Construct a folder node from a DB row."""
 
     own_attrib = list(record["attrib"].keys())
-    data = record.get("data")
+    data = record.get("data") or {}
 
     if "has_reviewables" in record:
         has_reviewables = record["has_reviewables"]
     else:
         has_reviewables = False
+
+    thumbnail = None
+    if record["thumbnail_id"]:
+        thumb_data = data.get("thumbnailInfo", {})
+        thumbnail = ThumbnailInfo(
+            id=record["thumbnail_id"],
+            source_entity_type=thumb_data.get("sourceEntityType"),
+            source_entity_id=thumb_data.get("sourceEntityId"),
+            relation=thumb_data.get("relation"),
+        )
 
     return FolderNode(
         project_name=project_name,
@@ -119,6 +130,7 @@ def folder_from_record(
         folder_type=record["folder_type"],
         parent_id=record["parent_id"],
         thumbnail_id=record["thumbnail_id"],
+        thumbnail=thumbnail,
         status=record["status"],
         tags=record["tags"],
         attrib=parse_attrib_data(

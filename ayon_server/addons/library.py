@@ -6,8 +6,6 @@ from nxtools import log_traceback, logging
 from ayon_server.addons.addon import BaseServerAddon
 from ayon_server.addons.definition import ServerAddonDefinition
 from ayon_server.config import ayonconfig
-
-# from ayon_server.addons.utils import classes_from_module, import_module
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 
@@ -48,7 +46,6 @@ class AddonLibrary:
             if not definition.versions:
                 continue
 
-            logging.debug("Initializing addon", definition.name)
             self.data[definition.name] = definition
             if definition.restart_requested:
                 self.restart_requested = True
@@ -178,7 +175,7 @@ class AddonLibrary:
         definition = instance.data.get(addon_name)
         if definition is None:
             return
-        logging.info("Unloading addon", addon_name, addon_version)
+        logging.debug("Unloading addon", addon_name, addon_version)
         definition.unload_version(addon_version)
 
     @classmethod

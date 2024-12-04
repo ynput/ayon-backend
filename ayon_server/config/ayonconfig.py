@@ -19,6 +19,15 @@ caches.set_config(
 class AyonConfig(BaseModel):
     """Server configuration"""
 
+    # We only need to handle AYON_RUN_MAINTENANCE here,
+    # as RUN_SERVER and RUN_SETUP are handled outside the server.
+    run_maintenance: bool = Field(
+        default=True,
+        description="Run maintenance procedure in the background "
+        "in the main server container. "
+        "Set to false when scaling the server to multiple instances.",
+    )
+
     http_listen_address: str = Field(
         default="0.0.0.0",
         description="An address the API server listens on",
@@ -99,7 +108,7 @@ class AyonConfig(BaseModel):
     )
 
     session_ttl: int = Field(
-        default=24 * 3600,
+        default=72 * 3600,
         description="Session lifetime in seconds",
     )
 

@@ -9,6 +9,7 @@ from ayon_server.config import ayonconfig
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
+from ayon_server.version import __version__ as server_version
 from setup.access_groups import deploy_access_groups
 from setup.attributes import deploy_attributes
 from setup.initial_bundle import create_initial_bundle
@@ -42,6 +43,7 @@ async def db_migration(has_schema: bool) -> int:
     if has_schema:
         # logging.debug(f"Current database version: {current_version}")
         logging.debug(f"Applying {len(available_migrations)} database migrations")
+        migration_version = 0
         for migration in available_migrations:
             migration_version = int(migration.stem)
 
@@ -161,6 +163,17 @@ async def main(force: bool | None = None) -> None:
             else:
                 await create_initial_bundle(bundle_data)
 
+    # If the server was updated to a new version,
+    # save the current version in the database.
+
+    await Postgres.execute(
+        """
+        INSERT INTO server_updates (version)
+        VALUES ($1) ON CONFLICT (version) DO NOTHING
+        """,
+        server_version,
+    )
+
     # Attributes may have changed, so we need to rebuild
     # existing hierarchies.
 
@@ -168,7 +181,13 @@ async def main(force: bool | None = None) -> None:
 
     project_list = await get_project_list()
     for project in project_list:
-        await rebuild_inherited_attributes(project.name)
+        try:
+            await rebuild_inherited_attributes(project.name)
+        except Exception:
+            log_traceback(
+                f"Unable to rebuild attributes for {project.name}. "
+                "Project may be corrupted."
+            )
 
     logging.goodnews("Setup is finished")
 

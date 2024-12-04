@@ -311,6 +311,7 @@ CREATE TABLE representations(
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    traits JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],

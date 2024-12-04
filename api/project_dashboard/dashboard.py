@@ -224,7 +224,7 @@ async def get_project_activity(
     return ActivityResponseModel(activity=result)
 
 
-class UsersResponseModel(OPModel):
+class ProjectTeamsResponseModel(OPModel):
     team_size_active: int = Field(0, description="Number of active team members")
     team_size_total: int = Field(0, description="Total number of team members")
     users_with_access_active: int = Field(0, description="Number of active users")
@@ -238,9 +238,9 @@ class UsersResponseModel(OPModel):
 
 
 @router.get("/users")
-async def get_project_users(
+async def get_project_teams(
     user: CurrentUser, project_name: ProjectName
-) -> UsersResponseModel:
+) -> ProjectTeamsResponseModel:
     team_members: list[str] = []
     project = await ProjectEntity.load(project_name)
     for team_data in project.data.get("teams", []):
@@ -275,7 +275,7 @@ async def get_project_users(
         for role in project_roles:
             role_counts[role] = role_counts.get(role, 0) + 1
 
-    return UsersResponseModel(
+    return ProjectTeamsResponseModel(
         team_size_active=team_size_active,
         team_size_total=team_size_total,
         users_with_access_active=users_with_access_active,

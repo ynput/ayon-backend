@@ -2,8 +2,8 @@ import os
 
 import yaml
 
-from ayon_server.addons.utils import import_module
 from ayon_server.config import ayonconfig
+from ayon_server.helpers.modules import import_module
 
 
 def get_addon_from_dir(addon_dir: str) -> tuple[str, str]:
