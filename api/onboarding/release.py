@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 
 import httpx
-from fastapi import Request
+from fastapi import Query, Request
 from pydantic import Field
 
 from ayon_server.api.dependencies import CurrentUser
@@ -58,7 +58,8 @@ class ReleaseInfoModel(OPModel):
 
 
 class ReleaseListItemModel(OPModel):
-    name: str = Field(..., title="Release name", example="2023.08-2D")
+    name: str = Field(..., title="Release name", example="2023.08-Kitsu")
+    release: str = Field(..., title="Release", example="2023.08")
     label: str = Field(..., title="Release label", example="2D Animation")
     bio: str = Field("", title="Release bio", example="2D Animation")
     icon: str = Field("", title="Release icon", example="skeleton")
@@ -105,7 +106,7 @@ async def restart_onboarding(request: Request, user: CurrentUser) -> EmptyRespon
 
 
 @router.get("/releases", response_model_exclude_none=True)
-async def get_releases() -> ReleaseListModel:
+async def get_releases(list_all: bool = Query(False, alias="all")) -> ReleaseListModel:
     """Get the releases"""
 
     headers = await get_cloud_api_headers()
@@ -113,6 +114,7 @@ async def get_releases() -> ReleaseListModel:
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
             f"{ayonconfig.ynput_cloud_api_url}/api/v1/releases",
+            params={"all": list_all},
             headers=headers,
         )
 
