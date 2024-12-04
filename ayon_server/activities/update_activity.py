@@ -124,7 +124,10 @@ async def update_activity(
 
     query = f"""
         UPDATE project_{project_name}.activities
-        SET body = $1, data = $2
+        SET
+            body = $1,
+            data = $2,
+            updated_at = now()
         WHERE id = $3
         """
 
@@ -184,7 +187,10 @@ async def update_activity(
             )
             VALUES
             ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (id) DO
+                UPDATE SET
+                    updated_at = EXCLUDED.updated_at,
+                    data = EXCLUDED.data
             """
         )
 
