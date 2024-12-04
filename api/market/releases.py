@@ -1,15 +1,13 @@
 from datetime import datetime
 from typing import Literal
 
-import httpx
 from fastapi import Query
 from pydantic import Field
 
-from ayon_server.config import ayonconfig
-from ayon_server.helpers.cloud import get_cloud_api_headers
 from ayon_server.installer.models import DependencyPackageManifest, InstallerManifest
 from ayon_server.types import OPModel
 
+from .common import get_market_data
 from .router import router
 
 DocsType = Literal["user", "admin", "developer"]
@@ -72,28 +70,16 @@ class ReleaseListModel(OPModel):
 async def get_releases(list_all: bool = Query(False, alias="all")) -> ReleaseListModel:
     """Get the releases"""
 
-    headers = await get_cloud_api_headers()
-
-    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
-        res = await client.get(
-            f"{ayonconfig.ynput_cloud_api_url}/api/v1/releases",
-            params={"all": list_all},
-            headers=headers,
-        )
-
-    return ReleaseListModel(**res.json())
+    endpoint = "releases"
+    if list_all:
+        endpoint += "?all=true"
+    result = await get_market_data(endpoint)
+    return ReleaseListModel(releases=result["releases"])
 
 
 @router.get("/releases/{release_name}", response_model_exclude_none=True)
 async def get_release_info(release_name: str) -> ReleaseInfoModel:
     """Get the release info"""
 
-    headers = await get_cloud_api_headers()
-
-    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
-        res = await client.get(
-            f"{ayonconfig.ynput_cloud_api_url}/api/v1/releases/{release_name}",
-            headers=headers,
-        )
-
-    return ReleaseInfoModel(**res.json())
+    result = await get_market_data(f"releases/{release_name}")
+    return ReleaseInfoModel(**result)
