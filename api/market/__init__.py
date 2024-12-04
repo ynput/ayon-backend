@@ -1,4 +1,4 @@
-__all__ = ["router", "market"]
+__all__ = ["router", "addons", "releases"]
 
-from . import market
+from . import addons, releases
 from .router import router
