@@ -193,7 +193,7 @@ async def assign_users_to_task(
         for uname in post_data.users:
             assignees.discard(uname)
     elif post_data.mode == "set":
-        assignees = post_data.users
+        assignees = set(post_data.users)
     else:
         raise ValueError(f"Unknown mode: {post_data.mode}")
 
@@ -204,7 +204,7 @@ async def assign_users_to_task(
     task.assignees = list(assignees)
     await task.save()
 
-    event_payload = {
+    event_payload: dict[str, Any] = {
         "description": f"Changed task {task.name} assignees",
         "project": project_name,
         "summary": {"entityId": task.id, "parentId": task.folder_id},
