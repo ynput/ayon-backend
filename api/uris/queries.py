@@ -109,7 +109,7 @@ async def representation_uris(
         version = row["version"]
         version_name = f"v{version:03d}"
         uri = f"ayon+entity://{project_name}/{path}"
-        uri += f"&product={row['product']}"
+        uri += f"?product={row['product']}"
         uri += f"&version={version_name}"
         uri += f"&representation={row['repre']}"
         result.append((id, uri))

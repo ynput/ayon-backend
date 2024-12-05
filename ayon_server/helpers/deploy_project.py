@@ -1,4 +1,5 @@
 import time
+from collections import defaultdict
 from typing import Any
 
 from nxtools import logging
@@ -6,12 +7,13 @@ from nxtools import logging
 from ayon_server.auth.session import Session
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 
 
 def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
+    """Convert anatomy to project data."""
     task_types = [t.dict() for t in anatomy.task_types]
     folder_types = [t.dict() for t in anatomy.folder_types]
     statuses = [t.dict() for t in anatomy.statuses]
@@ -34,15 +36,17 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
             "frame": anatomy.templates.frame,
         }
     }
+
+    templates = anatomy.templates.dict()
     for template_type in (
         "work",
         "publish",
         "hero",
         "delivery",
         "others",
-        "staging_directories",
+        "staging",
     ):
-        template_group = anatomy.templates.dict().get(template_type, [])
+        template_group = templates.get(template_type, [])
         if not template_group:
             continue
         config["templates"][template_type] = {}
@@ -81,36 +85,56 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
 async def assign_default_users_to_project(project_name: str, conn) -> None:
     """Assign a project to all users with default access groups"""
 
-    # TBD: limit to active users only?
     # NOTE: we need to use explicit public here, because the
     # previous statement in the transaction scopes the transaction
     # to the project schema.
+
     query = """
         SELECT u.* FROM public.users AS u
         WHERE jsonb_array_length(data->'defaultAccessGroups')::boolean
+        AND active
         FOR UPDATE OF u
     """
 
     users = await conn.fetch(query)
+    if not users:
+        return
+
+    sessions = defaultdict(list)
+    async for session in Session.list():
+        # querying sessions for all users is not efficient
+        # so we will just load all active sessions and work with them
+        user_name = session.user.name
+        sessions[user_name].append(session.token)
 
     for row in users:
-        logging.debug(f"Assigning project {project_name} to user {row['name']}")
         user = UserEntity.from_record(row)
+
+        if user.is_manager:
+            # we don't need to assign projects to managers and above
+            # as they have access to all projects
+            continue
+
         access_groups = user.data.get("accessGroups", {})
         access_groups[project_name] = user.data["defaultAccessGroups"]
         user.data["accessGroups"] = access_groups
         await user.save(transaction=conn)
 
-        async for session in Session.list(user.name):
-            token = session.token
+        for token in sessions[user.name]:
             await Session.update(token, user)
+
+        # TODO: consider dispatching an event with this information as
+        # it could be used to notify the user.
+        logging.debug(f"Added user {row['name']} to project {project_name}")
 
 
 async def create_project_from_anatomy(
     name: str,
     code: str,
     anatomy: Anatomy,
+    *,
     library: bool = False,
+    user_name: str | None = None,
 ) -> None:
     """Deploy a project.
 
@@ -136,12 +160,12 @@ async def create_project_from_anatomy(
         await assign_default_users_to_project(project.name, conn)
 
     end_time = time.monotonic()
-    logging.info(f"Deployed project {project.name} in {end_time - start_time:.2f}s")
+    logging.debug(f"Deployed project {project.name} in {end_time - start_time:.2f}s")
 
-    await dispatch_event(
+    await EventStream.dispatch(
         "entity.project.created",
         sender="ayon",
         project=project.name,
-        user="",
+        user=user_name,
         description=f"Created project {project.name}",
     )

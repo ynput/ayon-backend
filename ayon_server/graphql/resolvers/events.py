@@ -34,7 +34,10 @@ async def get_events(
     topics: Annotated[list[str] | None, argdesc("List of topics")] = None,
     projects: Annotated[list[str] | None, argdesc("List of projects")] = None,
     users: Annotated[list[str] | None, argdesc("List of users")] = None,
-    states: Annotated[list[str] | None, argdesc("List of states")] = None,
+    states: Annotated[
+        list[str] | None, argdesc("List of states (deprecated. use statuses)")
+    ] = None,
+    statuses: Annotated[list[str] | None, argdesc("List of statuses")] = None,
     has_children: Annotated[bool | None, argdesc("Has children")] = None,
     older_than: Annotated[str | None, argdesc("Timestamp")] = None,
     newer_than: Annotated[str | None, argdesc("Timestamp")] = None,
@@ -72,11 +75,14 @@ async def get_events(
             return EventsConnection()
         users = validate_user_name_list(users)
         sql_conditions.append(f"user_name IN {SQLTool.array(users)}")
-    if states is not None:
-        if not states:
+
+    # states is deprecated
+    statuses = statuses or states
+    if statuses is not None:
+        if not statuses:
             return EventsConnection()
-        states = validate_name_list(states)
-        sql_conditions.append(f"status IN {SQLTool.array(states)}")
+        statuses = validate_name_list(statuses)
+        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
 
     if older_than:
         _ = datetime.datetime.fromisoformat(older_than)

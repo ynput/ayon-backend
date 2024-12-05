@@ -2,6 +2,7 @@ from contextlib import suppress
 from datetime import datetime
 from typing import Any
 
+from nxtools import logging
 from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
@@ -11,6 +12,7 @@ from ayon_server.exceptions import (
     ConstraintViolationException,
     NotFoundException,
 )
+from ayon_server.helpers.entity_links import remove_entity_links
 from ayon_server.helpers.statuses import get_default_status_for_entity
 from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.types import ProjectLevelEntityType
@@ -94,7 +96,7 @@ class ProjectLevelEntity(BaseEntity):
 
         # TODO: Clean-up. use model.attrb_model.__fields__ to create blacklist
         attrib = self._payload.attrib.dict()  # type: ignore
-        if not user.is_manager:
+        if not user.is_manager:  # managers have access to all attributes
             # kw["exclude"]["data"] = True
 
             attr_perm = user.permissions(self.project_name).attrib_read
@@ -154,7 +156,7 @@ class ProjectLevelEntity(BaseEntity):
         project_name: str,
         entity_id: str,
         transaction: Connection | None = None,
-        for_update=False,
+        for_update: bool = False,
     ):
         """Return an entity instance based on its ID and a project name.
 
@@ -259,15 +261,19 @@ class ProjectLevelEntity(BaseEntity):
 
         async def _delete(conn: Connection, **kwargs) -> bool:
             try:
-                res = await conn.fetch(
-                    f"""
+                query = f"""
                     WITH deleted AS (
                         DELETE FROM project_{self.project_name}.{self.entity_type}s
                         WHERE id=$1
                         RETURNING *
                     ) SELECT count(*) FROM deleted;
-                    """,
+                """
+                res = await conn.fetch(query, self.id)
+                await remove_entity_links(
+                    self.project_name,
+                    self.entity_type,
                     self.id,
+                    conn=conn,
                 )
                 return bool(res[0]["count"])
             except Postgres.ForeignKeyViolationError as e:
@@ -284,6 +290,7 @@ class ProjectLevelEntity(BaseEntity):
         else:
             deleted = await _delete(transaction, **kwargs)
 
+        logging.debug(f"Deleted {self.entity_type} {self.id} from {self.project_name}")
         return deleted
 
     async def get_default_status(self) -> str:

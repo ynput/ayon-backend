@@ -1,6 +1,4 @@
-__all__ = ["router"]
+__all__ = ["router", "market"]
 
 from . import market
 from .router import router
-
-assert market

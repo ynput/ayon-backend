@@ -1,10 +1,10 @@
 from typing import Any, Literal
 
-from fastapi import Header, Query
+from fastapi import Query
 from nxtools import logging
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, Sender, SenderType
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
@@ -13,11 +13,12 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
-from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.types import Field, OPModel, Platform
 
 from .actions import promote_bundle
 from .check_bundle import CheckBundleResponseModel, check_bundle
+from .migration import migrate_settings
 from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
@@ -81,57 +82,59 @@ async def list_bundles(
 
 
 async def _create_new_bundle(
+    conn: Connection,
     bundle: BundleModel,
+    *,
     user: UserEntity | None = None,
     sender: str | None = None,
+    sender_type: str | None = None,
 ):
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            # Clear constrained values if they are being updated
-            if bundle.is_production:
-                await conn.execute("UPDATE bundles SET is_production = FALSE")
-            if bundle.is_staging:
-                await conn.execute("UPDATE bundles SET is_staging = FALSE")
-            if bundle.active_user:
-                await conn.execute(
-                    "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
-                    bundle.active_user,
-                )
+    # Clear constrained values if they are being updated
+    if bundle.is_production:
+        await conn.execute("UPDATE bundles SET is_production = FALSE")
+    if bundle.is_staging:
+        await conn.execute("UPDATE bundles SET is_staging = FALSE")
+    if bundle.active_user:
+        await conn.execute(
+            "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
+            bundle.active_user,
+        )
 
-            data: dict[str, Any] = {
-                "addons": bundle.addons,
-                "installer_version": bundle.installer_version,
-                "dependency_packages": bundle.dependency_packages,
-            }
-            if bundle.addon_development:
-                addon_development_dict = {}
-                for key, value in bundle.addon_development.items():
-                    addon_development_dict[key] = value.dict()
-                data["addon_development"] = addon_development_dict
+    data: dict[str, Any] = {
+        "addons": bundle.addons,
+        "installer_version": bundle.installer_version,
+        "dependency_packages": bundle.dependency_packages,
+    }
+    if bundle.addon_development:
+        addon_development_dict = {}
+        for key, value in bundle.addon_development.items():
+            addon_development_dict[key] = value.dict()
+        data["addon_development"] = addon_development_dict
 
-            query = """
-                INSERT INTO bundles
-                (name, data, is_production, is_staging, is_dev, active_user, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            """
+    query = """
+        INSERT INTO bundles
+        (name, data, is_production, is_staging, is_dev, active_user, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+    """
 
-            # we ignore is_archived. it does not make sense to create
-            # an archived bundle
+    # we ignore is_archived. it does not make sense to create
+    # an archived bundle
 
-            await conn.execute(
-                query,
-                bundle.name,
-                data,
-                bundle.is_production,
-                bundle.is_staging,
-                bundle.is_dev,
-                bundle.active_user,
-                bundle.created_at,
-            )
+    await conn.execute(
+        query,
+        bundle.name,
+        data,
+        bundle.is_production,
+        bundle.is_staging,
+        bundle.is_dev,
+        bundle.active_user,
+        bundle.created_at,
+    )
 
     await EventStream.dispatch(
         "bundle.created",
         sender=sender,
+        sender_type=sender_type,
         user=user.name if user else None,
         description=f"Bundle {bundle.name} created",
         summary={
@@ -156,7 +159,8 @@ async def check_bundle_compatibility(
 async def create_new_bundle(
     bundle: BundleModel,
     user: CurrentUser,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
     force: bool = Query(False, description="Force creation of bundle"),
 ) -> EmptyResponse:
     if not user.is_admin:
@@ -176,7 +180,14 @@ async def create_new_bundle(
                 if addon_definition.latest:
                     bundle.addons[system_addon_name] = addon_definition.latest.version
 
-    await _create_new_bundle(bundle, user, x_sender)
+    async with Postgres.acquire() as conn, conn.transaction():
+        await _create_new_bundle(
+            conn,
+            bundle,
+            user=user,
+            sender=sender,
+            sender_type=sender_type,
+        )
 
     return EmptyResponse(status_code=201)
 
@@ -191,12 +202,13 @@ async def update_bundle(
     bundle_name: str,
     patch: BundlePatchModel,
     user: CurrentUser,
+    sender: Sender,
+    sender_type: SenderType,
     build: list[Platform] | None = Query(
         None,
         title="Request build",
         description="Build dependency packages for selected platforms",
     ),
-    x_sender: str | None = Header(default=None),
     force: bool = Query(False, description="Force creation of bundle"),
 ) -> EmptyResponse:
     if not user.is_admin:
@@ -223,7 +235,7 @@ async def update_bundle(
             created_at=row["created_at"],
             addons=data["addons"],
             installer_version=data.get("installer_version", None),
-            dependency_packages=data["dependency_packages"],
+            dependency_packages=data.get("dependency_packages", {}),
             addon_development=addon_development_dict,
             is_production=row["is_production"],
             is_staging=row["is_staging"],
@@ -351,7 +363,8 @@ async def update_bundle(
 
     await EventStream.dispatch(
         "bundle.updated",
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         description=f"Bundle {bundle_name} updated",
         summary={
@@ -367,7 +380,8 @@ async def update_bundle(
     if status_changed_to:
         await EventStream.dispatch(
             "bundle.status_changed",
-            sender=x_sender,
+            sender=sender,
+            sender_type=sender_type,
             user=user.name,
             description=f"Bundle {bundle_name} changed to {status_changed_to}",
             summary={
@@ -446,3 +460,42 @@ async def bundle_actions(
                 await promote_bundle(bundle, user, conn)
 
     return EmptyResponse(status_code=204)
+
+
+class MigrateBundleSettingsRequest(OPModel):
+    source_bundle: str = Field(..., example="old-bundle", description="Source bundle")
+    target_bundle: str = Field(..., example="new-bundle", description="Target bundle")
+    source_variant: str = Field(..., example="production", description="Source variant")
+    target_variant: str = Field(..., example="staging", description="Target variant")
+    with_projects: bool = Field(
+        True,
+        example=True,
+        description="Migrate project settings",
+    )
+
+
+@router.post("/migrateSettingsByBundle")
+async def migrate_settings_by_bundle(
+    user: CurrentUser,
+    request: MigrateBundleSettingsRequest,
+) -> None:
+    """Migrate settings of the addons based on the bundles.
+
+    When called, it collects a list of addons that are present in
+    both source and target bundles and migrates the settings of the
+    addons from the source to the target bundle.
+
+    Target bundle should be a production or staging bundle (or a dev bundle),
+    but source bundle can be any bundle.
+    """
+    if not user.is_admin:
+        raise ForbiddenException("Only admins can migrate bundle settings")
+
+    await migrate_settings(
+        request.source_bundle,
+        request.target_bundle,
+        request.source_variant,
+        request.target_variant,
+        request.with_projects,
+        user_name=user.name,
+    )

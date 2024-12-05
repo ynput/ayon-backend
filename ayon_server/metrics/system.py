@@ -37,6 +37,11 @@ class SystemMetricsData(OPModel):
     runtime_seconds: float = Field(0, title="Runtime", example=123456)
     db_size_shared: int = Field(0, title="Shared database size", example=123456)
     db_size_total: int = Field(0, title="Total database size", example=123456)
+    db_available_connections: int = Field(
+        0,
+        title="Available database connections",
+        example=123456,
+    )
     redis_size_total: int = Field(0, title="Total redis size", example=123456)
     storage_utilization_total: int = Field(
         0,
@@ -50,7 +55,7 @@ class SystemMetrics:
         self.boot_time = psutil.boot_time()
         self.run_time = time.time()
 
-    @aiocache.cached(ttl=60)
+    @aiocache.cached(ttl=120)
     async def get_db_sizes(self) -> list[Metric]:
         result = []
         query = """
@@ -100,14 +105,21 @@ class SystemMetrics:
         for metric in await self.status():
             result += metric.render_prometheus()
 
+        for metric in await self.get_upload_sizes():
+            result += metric.render_prometheus()
+
         for metric in await self.get_db_sizes():
             result += metric.render_prometheus()
 
-        for metric in await self.get_upload_sizes():
-            result += metric.render_prometheus()
+        # ~realtime data
+        db_avail = Metric(
+            "db_available_connections", Postgres.get_available_connections()
+        )
+        result += db_avail.render_prometheus()
+
         return result
 
-    @aiocache.cached(ttl=60)
+    @aiocache.cached(ttl=120)
     async def get_upload_sizes(self) -> list[Metric]:
         result: list[Metric] = []
 
@@ -116,14 +128,39 @@ class SystemMetrics:
         total_size = 0
 
         for project_name in project_names:
+            # Uploads size
             res = await Postgres.fetch(
                 f"SELECT SUM(size) FROM project_{project_name}.files"
             )
-            size = res[0]["sum"] or 0
-            total_size += size
+            uploads_size = res[0]["sum"] or 0
+            total_size += uploads_size
+
+            project_size = uploads_size
+
+            # Thumbnails size (originals)
+            # if the originalSize is null, thumbnail is from ayon <1.5.0
+            # if the originalSize is equal to thumbnailSize,
+            # thumbnail wasn't scaled down and it is only stored in
+            # the database and origianal wasn't stored in the storage
+
+            res = await Postgres.fetch(
+                f"""
+                SELECT SUM((meta->'originalSize')::BIGINT)
+                FROM project_{project_name}.thumbnails
+                WHERE meta->'originalSize' IS NOT NULL  -- Ayon <1.5.0
+                AND meta->'originalSize' != meta->'thumbnailSize'
+                """
+            )
+
+            thumbnails_size = res[0]["sum"] or 0
+            project_size += thumbnails_size
+
+            if not project_size:
+                continue
+
             m = Metric(
                 "storage_utilization_project",
-                size,
+                project_size,
                 {"project": project_name},
             )
             result.append(m)

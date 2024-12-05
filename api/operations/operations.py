@@ -1,14 +1,14 @@
 from contextlib import suppress
-from typing import Any, Literal
+from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Header
+from fastapi import BackgroundTasks
 from nxtools import log_traceback
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.api.dependencies import CurrentUser, ProjectName, Sender, SenderType
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import (
     AyonException,
@@ -20,18 +20,8 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
-router = APIRouter(tags=["Projects"])
-
-
-class RollbackException(Exception):
-    pass
-
-
-#
-# Models
-#
-
-OperationType = Literal["create", "update", "delete"]
+from .common import OperationType, RollbackException
+from .router import router
 
 
 class OperationModel(OPModel):
@@ -159,7 +149,7 @@ async def process_operation(
         await entity.ensure_delete_access(user)
         description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
 
-        if operation.force and not user.is_manager:
+        if operation.force and not user.is_manager:  # TBD
             raise ForbiddenException("Only managers can force delete")
 
         events = [
@@ -288,7 +278,8 @@ async def operations(
     background_tasks: BackgroundTasks,
     project_name: ProjectName,
     user: CurrentUser,
-    x_sender: str | None = Header(None),
+    sender: Sender,
+    sender_type: SenderType,
 ):
     """
     Process multiple operations (create / update / delete) in a single request.
@@ -356,8 +347,9 @@ async def operations(
 
     for event in events:
         background_tasks.add_task(
-            dispatch_event,
-            sender=x_sender,
+            EventStream.dispatch,
+            sender=sender,
+            sender_type=sender_type,
             user=user.name,
             **event,
         )

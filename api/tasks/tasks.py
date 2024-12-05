@@ -1,12 +1,18 @@
 from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Header
+from fastapi import APIRouter, BackgroundTasks
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName, TaskID
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    ProjectName,
+    Sender,
+    SenderType,
+    TaskID,
+)
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.config import ayonconfig
 from ayon_server.entities import TaskEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.types import Field, OPModel
@@ -49,7 +55,8 @@ async def create_task(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new task.
 
@@ -66,8 +73,9 @@ async def create_task(
     }
     await task.save()
     background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
+        EventStream.dispatch,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )
@@ -86,7 +94,8 @@ async def update_task(
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Patch (partially update) a task."""
 
@@ -97,8 +106,9 @@ async def update_task(
     await task.save()
     for event in events:
         background_tasks.add_task(
-            dispatch_event,
-            sender=x_sender,
+            EventStream.dispatch,
+            sender=sender,
+            sender_type=sender_type,
             user=user.name,
             **event,
         )
@@ -116,7 +126,8 @@ async def delete_task(
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete a task."""
 
@@ -131,8 +142,9 @@ async def delete_task(
         event["payload"] = {"entityData": task.dict_simple()}
     await task.delete()
     background_tasks.add_task(
-        dispatch_event,
-        sender=x_sender,
+        EventStream.dispatch,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         **event,
     )
@@ -168,28 +180,42 @@ async def assign_users_to_task(
 ) -> EmptyResponse:
     """Change the list of users assigned to a task."""
 
-    if not user.is_manager and post_data.users != [user.name]:
+    if not user.is_manager and post_data.users != [user.name]:  # TBD
         raise ForbiddenException("Normal users can only assign themselves")
 
     task = await TaskEntity.load(project_name, task_id)
-    assignees = task.assignees
+    assignees = set(task.assignees)
+    original_assignees = set(task.assignees)
 
     if post_data.mode == "add":
-        assignees.extend(post_data.users)
-        # Remove duplicates
-        assignees = list(dict.fromkeys(assignees))
+        assignees.update(post_data.users)
     elif post_data.mode == "remove":
-        assignees = [
-            assignee for assignee in assignees if assignee not in post_data.users
-        ]
+        for uname in post_data.users:
+            assignees.discard(uname)
     elif post_data.mode == "set":
-        assignees = post_data.users
+        assignees = set(post_data.users)
     else:
         raise ValueError(f"Unknown mode: {post_data.mode}")
 
-    task.assignees = assignees
+    if assignees == original_assignees:
+        # nothing changed
+        return EmptyResponse()
+
+    task.assignees = list(assignees)
     await task.save()
 
-    # TODO: trigger event
+    event_payload: dict[str, Any] = {
+        "description": f"Changed task {task.name} assignees",
+        "project": project_name,
+        "summary": {"entityId": task.id, "parentId": task.folder_id},
+        "user": user.name,
+    }
+    if ayonconfig.audit_trail:
+        event_payload["payload"] = {
+            "oldValue": list(original_assignees),
+            "newValue": list(assignees),
+        }
+
+    await EventStream.dispatch("entity.task.assignees_changed", **event_payload)
 
     return EmptyResponse()

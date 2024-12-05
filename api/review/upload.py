@@ -1,17 +1,20 @@
-import os
-
 from fastapi import Header, Query, Request
 from nxtools import logging
 
 from ayon_server.activities.create_activity import create_activity
 from ayon_server.activities.watchers.set_watchers import ensure_watching
-from ayon_server.api.dependencies import CurrentUser, ProjectName, VersionID
-from ayon_server.api.files import handle_upload
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    ProjectName,
+    Sender,
+    SenderType,
+    VersionID,
+)
 from ayon_server.entities.version import VersionEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
-from ayon_server.helpers.ffprobe import availability_from_media_info, extract_media_info
-from ayon_server.helpers.project_files import id_to_path
+from ayon_server.files import Storages
+from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
@@ -39,10 +42,11 @@ async def upload_reviewable(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
+    sender: Sender,
+    sender_type: SenderType,
     label: str | None = Query(None, description="Label", alias="label"),
     content_type: str = Header(...),
     x_file_name: str = Header(...),
-    x_sender: str | None = Header(None),
 ) -> ReviewableModel:
     """Uploads a reviewable for a given version."""
 
@@ -52,19 +56,18 @@ async def upload_reviewable(
     await version.ensure_create_access(user)
 
     file_id = create_uuid()
-    upload_path = id_to_path(project_name, file_id)
-    file_size = await handle_upload(request, upload_path)
+
+    storage = await Storages.project(project_name)
+    file_size = await storage.handle_upload(request, file_id)
 
     logging.debug(f"Uploaded file {x_file_name} ({file_size} bytes)")
 
-    # FFProbe here
-
-    media_info = await extract_media_info(upload_path)
+    media_info = await storage.extract_media_info(file_id)
 
     if not media_info:
         logging.warning(f"Failed to extract media info for {x_file_name}")
         try:
-            os.remove(upload_path)
+            await storage.unlink(file_id)
         except Exception:
             pass
         raise BadRequestException("Failed to extract media info")
@@ -115,7 +118,8 @@ async def upload_reviewable(
 
     await EventStream.dispatch(
         "reviewable.created",
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         user=user.name,
         project=project_name,
         summary=summary,

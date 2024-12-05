@@ -3,6 +3,8 @@ from typing import Any
 
 import strawberry
 
+from ayon_server.graphql.nodes.common import ThumbnailInfo
+
 
 @strawberry.type
 class KanbanNode:
@@ -17,12 +19,15 @@ class KanbanNode:
     assignees: list[str] = strawberry.field()
     updated_at: datetime = strawberry.field()
     created_at: datetime = strawberry.field()
+    priority: str | None = strawberry.field(default=None)
     due_date: datetime | None = strawberry.field(default=None)
     folder_id: str = strawberry.field()
     folder_name: str = strawberry.field()
     folder_label: str | None = strawberry.field()
     folder_path: str = strawberry.field()
     thumbnail_id: str | None = strawberry.field(default=None)
+    thumbnail: ThumbnailInfo | None = None
+    has_reviewables: bool = strawberry.field(default=False)
 
     last_version_with_thumbnail_id: str | None = strawberry.field(default=None)
     last_version_with_reviewable_version_id: str | None = strawberry.field(default=None)
@@ -47,8 +52,26 @@ def kanban_node_from_record(
         due_date = datetime.fromisoformat(due_date)
     record["due_date"] = due_date
 
+    # priorities
+
+    task_priority = record.pop("priority", None)
+    project_priority = record.pop("project_priority", None)
+    folder_priority = record.pop("folder_priority", None)
+
+    thumbnail = None
+    thumb_data = record.pop("thumbnail_info", None) or {}
+    if record["thumbnail_id"]:
+        thumbnail = ThumbnailInfo(
+            id=record["thumbnail_id"],
+            source_entity_type=thumb_data.get("sourceEntityType"),
+            source_entity_id=thumb_data.get("sourceEntityId"),
+            relation=thumb_data.get("relation"),
+        )
+
     return KanbanNode(
         project_name=project_name,
+        priority=task_priority or folder_priority or project_priority,
+        thumbnail=thumbnail,
         **record,
     )
 

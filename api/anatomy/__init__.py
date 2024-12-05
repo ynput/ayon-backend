@@ -157,7 +157,6 @@ async def set_primary_preset(preset_name: str, user: CurrentUser) -> EmptyRespon
     return EmptyResponse()
 
 
-@router.delete("/presets/{preset_name}/primary", status_code=204)
 async def unset_primary_preset(preset_name: str, user: CurrentUser) -> EmptyResponse:
     """Unset the primary preset."""
 

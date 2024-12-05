@@ -22,7 +22,7 @@ class HasLinksFilter(Enum):
 
 
 @strawberry.input
-class AtrributeFilterInput:
+class AttributeFilterInput:
     name: str
     values: list[str]
 
@@ -144,6 +144,8 @@ def create_pagination(
 
     if not (last or first):
         first = 100
+
+    curval: str = "0"  # just to keep pyright happy
 
     if after:
         curval = after

@@ -33,6 +33,16 @@ def parse_attrib_data(
 
     attr_limit: list[str] | Literal["all"] = []
 
+    # List all project based on studio permission. For the future use
+    # if project_name and target_type.__name__ == "ProjectAttribType":
+    #     try:
+    #         user.check_project_access(project_name)
+    #     except ForbiddenException:
+    #         user.check_permissions("studio.create_projects")
+    #         attr_limit = []
+    #     else:
+    #         attr_limit = "all"
+
     if user.is_manager:
         attr_limit = "all"
     elif (perms := user.permissions(project_name)) is None:
@@ -55,7 +65,8 @@ def parse_attrib_data(
             if key in inherited_attrib:
                 data[key] = inherited_attrib[key]
 
-    if project_attrib is not None:
+    project_attrib = {**attribute_library.project_defaults, **(project_attrib or {})}
+    if project_attrib:
         for key in attribute_library.inheritable_attributes():
             if data.get(key) is not None:
                 continue

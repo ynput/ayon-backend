@@ -1,0 +1,35 @@
+#!/bin/bash
+
+execute_module() {
+  local dir="$1"
+  local module="$2"
+  shift 2  # Remove the first two arguments, leaving only additional arguments
+
+  # Check if the module exists in the directory
+  if [[ -d "$dir/$module" ]]; then
+    cd "$dir" || exit 1
+    PYTHONPATH=/backend python -m "$module" "$@"
+  else
+    echo "Module '$module' not found in $dir"
+    exit 1
+  fi
+}
+
+if [[ -z "$1" ]]; then
+  echo "Please specify the module name as the first argument."
+  exit 1
+fi
+
+module_name="$1"
+shift  # Shift the arguments to remove the module name for later usage
+
+# Check the two possible directories
+if [[ -d /storage/ayon-server-cli ]]; then
+  execute_module "/storage/ayon-server-cli" "$module_name" "$@"
+elif [[ -d /ayon-server-cli ]]; then
+  execute_module "/ayon-server-cli" "$module_name" "$@"
+else
+  echo "Ayon server CLI tools not installed."
+  exit 1
+fi
+

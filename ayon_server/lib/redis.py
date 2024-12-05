@@ -4,6 +4,7 @@ from redis import asyncio as aioredis
 from redis.asyncio.client import PubSub
 
 from ayon_server.config import ayonconfig
+from ayon_server.utils import json_dumps, json_loads
 
 GET_SIZE_SCRIPT = """
 local cursor = "0"
@@ -33,6 +34,14 @@ class Redis:
     async def connect(cls) -> None:
         """Create a Redis connection pool"""
         cls.redis_pool = aioredis.from_url(ayonconfig.redis_url)
+
+        try:
+            res = await cls.redis_pool.ping()
+            if not res:
+                raise ConnectionError("Failed to connect to Redis")
+        except Exception as e:
+            raise ConnectionError("Failed to connect to Redis") from e
+
         cls.connected = True
         cls.prefix = (
             f"{ayonconfig.redis_key_prefix}-" if ayonconfig.redis_key_prefix else ""
@@ -45,6 +54,19 @@ class Redis:
             await cls.connect()
         value = await cls.redis_pool.get(f"{cls.prefix}{namespace}-{key}")
         return value
+
+    @classmethod
+    async def get_json(cls, namespace: str, key: str) -> Any:
+        """Get a JSON-serialized value from Redis"""
+        if not cls.connected:
+            await cls.connect()
+        value = await cls.get(namespace, key)
+        if value is None:
+            return None
+        try:
+            return json_loads(value)
+        except Exception as e:
+            raise ValueError(f"Invalid JSON in {namespace}-{key}") from e
 
     @classmethod
     async def set(
@@ -61,6 +83,12 @@ class Redis:
             command.extend(["ex", str(ttl)])
 
         await cls.redis_pool.execute_command(*command)
+
+    @classmethod
+    async def set_json(cls, namespace: str, key: str, value: Any, ttl: int = 0) -> None:
+        """Create/update a record in Redis with JSON-serialized value"""
+        payload = json_dumps(value)
+        await cls.set(namespace, key, payload, ttl)
 
     @classmethod
     async def delete(cls, namespace: str, key: str) -> None:
@@ -118,7 +146,9 @@ class Redis:
         if not cls.connected:
             await cls.connect()
 
-        async for key in cls.redis_pool.scan_iter(match=f"{cls.prefix}{namespace}-*"):
+        async for key in cls.redis_pool.scan_iter(
+            match=f"{cls.prefix}{namespace}-*", count=1000
+        ):
             key_without_ns = key.decode("ascii").removeprefix(
                 f"{cls.prefix}{namespace}-"
             )

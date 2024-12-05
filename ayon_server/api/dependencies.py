@@ -10,6 +10,7 @@ from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
+    ForbiddenException,
     NotFoundException,
     UnauthorizedException,
     UnsupportedMediaException,
@@ -135,12 +136,17 @@ async def dep_current_user(
         user = await UserEntity.load(x_as_user)
 
     endpoint = request.scope["endpoint"].__name__
-    project_name = request.path_params.get("project_name")
+    project_name = request.path_params.get("project_name", "_")
     if not user.is_manager:
-        perms = user.permissions(project_name)
-        if (perms is not None) and perms.endpoints.enabled:
-            if endpoint not in perms.endpoints.endpoints:
-                raise UnauthorizedException(f"{endpoint} is not accessible")
+        # check if the user has access to the endpoint
+        # we allow _ as a project name to check global permissions
+        # (namely /api/accessGroups/_)
+        # but it is up to the endpoint to handle it
+        if project_name != "_":
+            perms = user.permissions(project_name)
+            if (perms is not None) and perms.endpoints.enabled:
+                if endpoint not in perms.endpoints.endpoints:
+                    raise ForbiddenException(f"{endpoint} is not accessible")
     return user
 
 
@@ -411,6 +417,16 @@ async def dep_activity_id(
 ActivityID = Annotated[str, Depends(dep_activity_id)]
 
 
+async def dep_file_id(
+    file_id: str = Path(..., title="File ID", **EntityID.META),
+) -> str:
+    """Validate and return an file id specified in an endpoint path."""
+    return file_id
+
+
+FileID = Annotated[str, Depends(dep_file_id)]
+
+
 async def dep_link_type(
     link_type: str = Path(..., title="Link Type"),
 ) -> tuple[str, str, str]:
@@ -512,3 +528,29 @@ async def dep_site_id(
 
 
 SiteID = Annotated[str | None, Depends(dep_site_id)]
+
+
+async def dep_sender(
+    x_sender: str | None = Header(
+        None,
+        title="Sender",
+        regex=NAME_REGEX,
+    ),
+) -> str | None:
+    return x_sender
+
+
+Sender = Annotated[str | None, Depends(dep_sender)]
+
+
+async def dep_sender_type(
+    x_sender_type: str = Header(
+        "api",
+        title="Sender type",
+        regex=NAME_REGEX,
+    ),
+) -> str:
+    return x_sender_type
+
+
+SenderType = Annotated[str | None, Depends(dep_sender_type)]

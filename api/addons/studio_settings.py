@@ -8,7 +8,7 @@ from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -121,13 +121,12 @@ async def set_addon_studio_settings(
         variant,
         data,
     )
+    payload = {}
     if ayonconfig.audit_trail:
         payload = {
             "originalValue": existing,
             "newValue": data,
         }
-    else:
-        payload = {}
 
     new_settings = await addon.get_studio_settings(variant=variant)
     if original and new_settings:
@@ -135,9 +134,9 @@ async def set_addon_studio_settings(
             old_settings=original, new_settings=new_settings, variant=variant
         )
 
-    await dispatch_event(
+    await EventStream.dispatch(
         topic="settings.changed",
-        description=f"{addon_name}:{addon_version} studio overrides changed",
+        description=f"{addon_name} {addon_version} {variant} studio overrides changed",
         summary={
             "addon_name": addon_name,
             "addon_version": addon_version,
@@ -185,32 +184,48 @@ async def delete_addon_studio_overrides(
 
     old_settings = await addon.get_studio_settings(variant=variant)
 
-    await Postgres.execute(
+    res = await Postgres.fetch(
         """
         DELETE FROM settings
         WHERE addon_name = $1
         AND addon_version = $2
         AND variant = $3
+        RETURNING data
         """,
         addon_name,
         addon_version,
         variant,
     )
 
+    if res:
+        old_overrides = res[0]["data"]
+    else:
+        old_overrides = {}
+
     new_settings = await addon.get_default_settings()
     if old_settings and new_settings:
         await addon.on_settings_changed(
-            old_settings=old_settings, new_settings=new_settings, variant=variant
+            old_settings=old_settings,
+            new_settings=new_settings,
+            variant=variant,
         )
 
-    await dispatch_event(
-        topic="settings.deleted",
-        description=f"{addon_name}:{addon_version} studio overrides deleted",
+    payload = {}
+    if ayonconfig.audit_trail:
+        payload = {
+            "originalValue": old_overrides,
+            "newValue": {},
+        }
+
+    await EventStream.dispatch(
+        topic="settings.changed",
+        description=f"{addon_name} {addon_version} {variant} studio overrides removed",
         summary={
             "addon_name": addon_name,
             "addon_version": addon_version,
             "variant": variant,
         },
+        payload=payload,
         user=user.name,
     )
     return EmptyResponse()
@@ -232,6 +247,10 @@ async def modify_studio_overrides(
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
 
     old_settings = await addon.get_studio_settings(variant=variant)
+    if ayonconfig.audit_trail:
+        old_overrides = await addon.get_studio_overrides(variant=variant)
+    else:
+        old_overrides = {}
 
     if payload.action == "delete":
         await remove_override(addon_name, addon_version, payload.path, variant=variant)
@@ -244,6 +263,26 @@ async def modify_studio_overrides(
         await addon.on_settings_changed(
             old_settings=old_settings, new_settings=new_settings, variant=variant
         )
+
+    event_payload = {}
+    if ayonconfig.audit_trail:
+        new_overrides = await addon.get_studio_overrides(variant=variant)
+        event_payload = {
+            "originalValue": old_overrides,
+            "newValue": new_overrides,
+        }
+
+    await EventStream.dispatch(
+        topic="settings.changed",
+        description=f"{addon_name} {addon_version} {variant} studio overrides changed",
+        summary={
+            "addon_name": addon_name,
+            "addon_version": addon_version,
+            "variant": variant,
+        },
+        payload=event_payload,
+        user=user.name,
+    )
 
     return EmptyResponse()
 

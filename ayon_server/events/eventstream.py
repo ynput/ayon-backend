@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Any, Awaitable, Callable, Type
 
+from nxtools import logging
+
 from ayon_server.exceptions import ConstraintViolationException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
@@ -13,13 +15,25 @@ HandlerType = Callable[[EventModel], Awaitable[None]]
 
 class EventStream:
     model: Type[EventModel] = EventModel
-    hooks: dict[str, list[HandlerType]] = {}
+    hooks: dict[str, dict[str, HandlerType]] = {}
 
     @classmethod
-    def subscribe(cls, topic: str, handler: HandlerType) -> None:
+    def subscribe(cls, topic: str, handler: HandlerType) -> str:
+        token = create_id()
         if topic not in cls.hooks:
-            cls.hooks[topic] = []
-        cls.hooks[topic].append(handler)
+            cls.hooks[topic] = {}
+        cls.hooks[topic][token] = handler
+        return token
+
+    @classmethod
+    def unsubscribe(cls, token: str) -> None:
+        topics_to_remove = []
+        for topic in cls.hooks:
+            cls.hooks[topic].pop(token, None)
+            if not cls.hooks[topic]:
+                topics_to_remove.append(topic)
+        for topic in topics_to_remove:
+            cls.hooks.pop(topic)
 
     @classmethod
     async def dispatch(
@@ -27,6 +41,7 @@ class EventStream:
         topic: str,
         *,
         sender: str | None = None,
+        sender_type: str | None = None,
         hash: str | None = None,
         project: str | None = None,
         user: str | None = None,
@@ -71,6 +86,7 @@ class EventStream:
             id=event_id,
             hash=hash,
             sender=sender,
+            sender_type=sender_type,
             topic=topic,
             project=project,
             user=user,
@@ -86,16 +102,27 @@ class EventStream:
             query = """
                 INSERT INTO
                 events (
-                    id, hash, sender, topic, project_name, user_name,
-                    depends_on, status, description, summary, payload
+                    id,
+                    hash,
+                    sender,
+                    sender_type,
+                    topic,
+                    project_name,
+                    user_name,
+                    depends_on,
+                    status,
+                    description,
+                    summary,
+                    payload
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             """
             if reuse:
                 query += """
                     ON CONFLICT (hash) DO UPDATE SET
                         id = EXCLUDED.id,
                         sender = EXCLUDED.sender,
+                        sender_type = EXCLUDED.sender_type,
                         topic = EXCLUDED.topic,
                         project_name = EXCLUDED.project_name,
                         user_name = EXCLUDED.user_name,
@@ -153,6 +180,7 @@ class EventStream:
                     "status": event.status,
                     "progress": progress,
                     "sender": sender,
+                    "senderType": sender_type,
                     "store": store,  # useful to allow querying details
                     "recipients": recipients,
                     "createdAt": event.created_at,
@@ -161,9 +189,12 @@ class EventStream:
             )
         )
 
-        handlers = cls.hooks.get(event.topic, [])
+        handlers = cls.hooks.get(event.topic, {}).values()
         for handler in handlers:
-            await handler(event)
+            try:
+                await handler(event)
+            except Exception as e:
+                logging.debug(f"Error in event handler: {e}")
 
         return event.id
 
@@ -173,6 +204,7 @@ class EventStream:
         event_id: str,
         *,
         sender: str | None = None,
+        sender_type: str | None = None,
         project: str | None = None,
         user: str | None = None,
         status: EventStatus | None = None,
@@ -188,6 +220,8 @@ class EventStream:
 
         if sender is not None:
             new_data["sender"] = sender
+        if sender_type is not None:
+            new_data["sender_type"] = sender_type
         if project is not None:
             new_data["project_name"] = project
         if status is not None:
@@ -219,6 +253,7 @@ class EventStream:
                     summary,
                     status,
                     sender,
+                    sender_type,
                     created_at,
                     updated_at
             """
@@ -242,6 +277,7 @@ class EventStream:
                 "summary": data["summary"],
                 "status": data["status"],
                 "sender": data["sender"],
+                "senderType": data["sender_type"],
                 "recipients": recipients,
                 "createdAt": data["created_at"],
                 "updatedAt": data["updated_at"],
@@ -264,6 +300,7 @@ class EventStream:
                 project=record["project_name"],
                 user=record["user_name"],
                 sender=record["sender"],
+                sender_type=record["sender_type"],
                 depends_on=record["depends_on"],
                 status=record["status"],
                 retries=record["retries"],

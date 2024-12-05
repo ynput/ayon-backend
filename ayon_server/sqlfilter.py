@@ -34,6 +34,7 @@ class Condition(OPModel):
         "notin",
         "contains",
         "excludes",
+        "like",
     ] = Field("eq")
 
     @validator("operator", pre=True, always=True)
@@ -155,6 +156,8 @@ def build_condition(c: Condition, **kwargs) -> str:
         return f"{key} @> {value}"
     elif operator == "excludes":
         return f"NOT ({key} @> {value})"
+    elif operator == "like":
+        return f"{key} LIKE {value}"
     else:
         raise ValueError(f"Unsupported operator: {operator}")
 

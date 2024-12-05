@@ -11,7 +11,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
-    AtrributeFilterInput,
+    AttributeFilterInput,
     FieldInfo,
     argdesc,
     create_folder_access_list,
@@ -56,7 +56,7 @@ async def get_folders(
     ] = None,
     parent_ids: Annotated[list[str] | None, argdesc("List of parent ids.")] = None,
     attributes: Annotated[
-        list[AtrributeFilterInput] | None, argdesc("Filter by a list of attributes")
+        list[AttributeFilterInput] | None, argdesc("Filter by a list of attributes")
     ] = None,
     folder_types: Annotated[
         list[str] | None, argdesc("List of folder types to filter by")
@@ -99,6 +99,7 @@ async def get_folders(
     # SQL
     #
 
+    sql_cte = []
     sql_columns = [
         "folders.id AS id",
         "folders.name AS name",
@@ -182,6 +183,30 @@ async def get_folders(
             f"""
             INNER JOIN project_{project_name}.hierarchy AS hierarchy
             ON folders.id = hierarchy.id
+            """
+        )
+
+    if fields.any_endswith("hasReviewables"):
+        sql_cte.append(
+            f"""
+            reviewables AS (
+                SELECT p.folder_id AS folder_id
+                FROM project_{project_name}.activity_feed af
+                INNER JOIN project_{project_name}.versions v
+                ON af.entity_id = v.id
+                AND af.entity_type = 'version'
+                AND  af.activity_type = 'reviewable'
+                INNER JOIN project_{project_name}.products p
+                ON p.id = v.product_id
+            )
+            """
+        )
+
+        sql_columns.append(
+            """
+            EXISTS (
+            SELECT 1 FROM reviewables WHERE folder_id = folders.id
+            ) AS has_reviewables
             """
         )
 
@@ -330,7 +355,14 @@ async def get_folders(
     # Query
     #
 
+    if sql_cte:
+        cte = ", ".join(sql_cte)
+        cte = f"WITH {cte}"
+    else:
+        cte = ""
+
     query = f"""
+        {cte}
         SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.folders AS folders
         {" ".join(sql_joins)}

@@ -13,7 +13,7 @@ MAX_CHUNK_SIZE = 1024 * 1024 * 2
 
 
 class VideoResponse(Response):
-    content_type = "video/mp4"
+    pass
 
 
 def get_file_size(file_name: str) -> int:
@@ -43,22 +43,6 @@ def _get_range_header(range_header: str, file_size: int) -> tuple[int, int]:
     if start > end or start < 0 or end > file_size - 1:
         raise RangeNotSatisfiableException(f"Invalid range: {start}-{end}")
     return start, end
-
-
-def get_reviewable_head(request: Request, file_path: str) -> VideoResponse:
-    """Get the headers for a video file."""
-    file_size = get_file_size(file_path)
-    headers = {
-        "content-type": "video/mp4",
-        "content-length": str(file_size),
-        "access-control-expose-headers": (
-            "content-type, accept-ranges, content-length, "
-            "content-range, content-encoding"
-        ),
-    }
-    if file_size <= MAX_200_SIZE:
-        headers["accept-ranges"] = "bytes"
-    return VideoResponse(headers=headers)
 
 
 async def range_requests_response(
@@ -126,8 +110,10 @@ async def range_requests_response(
     )
 
 
-async def serve_video(request: Request, video_path: str) -> VideoResponse:
+async def serve_video(
+    request: Request, video_path: str, content_type: str
+) -> VideoResponse:
     if not os.path.exists(video_path):
         raise NotFoundException("Video not found")
 
-    return await range_requests_response(request, video_path, "video/mp4")
+    return await range_requests_response(request, video_path, content_type)

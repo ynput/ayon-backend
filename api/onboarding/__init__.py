@@ -1,7 +1,4 @@
-__all__ = ["router"]
+__all__ = ["router", "initialize", "release"]
 
 from . import initialize, release
 from .router import router
-
-assert initialize
-assert release

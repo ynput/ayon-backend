@@ -4,7 +4,6 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, Query
-from nxtools import logging
 
 from ayon_server.api.dependencies import ClientSiteID, CurrentUser
 from ayon_server.exceptions import BadRequestException, ServiceUnavailableException
@@ -24,6 +23,7 @@ router = APIRouter(tags=["URIs"])
 
 
 SDF_REGEX = re.compile(r":SDF_FORMAT_ARGS.*$")
+NAME_VALIDATOR = re.compile(NAME_REGEX)
 
 
 def sanitize_uri(uri: str) -> str:
@@ -37,8 +37,8 @@ def validate_name(name: str | None) -> None:
         return
     if name == "*":
         return
-    name_validator = re.compile(NAME_REGEX)
-    assert name_validator.match(name), f"Invalid name: {name}"
+    if not NAME_VALIDATOR.match(name):
+        raise ValueError(f"Invalid name: {name}")
 
 
 def parse_uri(uri: str) -> ParsedURIModel:
@@ -53,16 +53,18 @@ def parse_uri(uri: str) -> ParsedURIModel:
     uri = sanitize_uri(uri)
 
     parsed_uri = urlparse(uri)
-    assert parsed_uri.scheme in [
-        "ayon",
-        "ayon+entity",
-    ], f"Invalid scheme: {parsed_uri.scheme}"
+    if parsed_uri.scheme not in ["ayon", "ayon+entity"]:
+        raise ValueError(f"Invalid scheme: {parsed_uri.scheme}")
 
     project_name = parsed_uri.netloc
-    name_validator = re.compile(NAME_REGEX)
-    assert name_validator.match(project_name), f"Invalid project name: {project_name}"
+    if not NAME_VALIDATOR.match(project_name):
+        raise ValueError(f"Invalid project name: {project_name}")
 
     path = parsed_uri.path.strip("/") or None
+    if path:
+        for element in path.split("/"):
+            if not NAME_VALIDATOR.match(element):
+                raise ValueError(f"Invalid path element: {element}")
 
     qs: dict[str, Any] = parse_qs(parsed_uri.query)
 
@@ -89,11 +91,14 @@ def parse_uri(uri: str) -> ParsedURIModel:
     # assert we don't have incompatible arguments
 
     if task_name is not None or workfile_name is not None:
-        assert product_name is None, "Tasks cannot be queried with products"
-        assert version_name is None, "Tasks cannot be queried with versions"
-        assert (
-            representation_name is None
-        ), "Tasks cannot be queried with representations"
+        if product_name is not None:
+            raise ValueError("Tasks and workfiles cannot be queried with products")
+        if version_name is not None:
+            raise ValueError("Tasks and workfiles cannot be queried with versions")
+        if representation_name is not None:
+            raise ValueError(
+                "Tasks and workfiles cannot be queried with representations"
+            )
 
     return ParsedURIModel(
         uri=uri,
@@ -140,6 +145,7 @@ def get_version_conditions(version_name: str | None) -> list[str]:
         return []
 
     original_version_name = version_name
+    version_name = version_name.strip().lower()
     if version_name.startswith("v"):
         version_name = version_name[1:]
 
@@ -159,8 +165,7 @@ def get_version_conditions(version_name: str | None) -> list[str]:
     if version_name == "hero":
         return ["v.version < 0"]
 
-    logging.debug(f"Invalid version name: {original_version_name}")
-    return ["FALSE"]
+    raise ValueError(f"Invalid version name: {original_version_name}")
 
 
 def get_representation_conditions(representation_name: str | None) -> list[str]:
@@ -187,6 +192,16 @@ async def resolve_entities(
     #     return [ResolvedEntityModel(project_name=req.project_name)]
 
     target_entity_type: ProjectLevelEntityType | None = None
+
+    if not (
+        req.product_name
+        or req.version_name
+        or req.representation_name
+        or req.task_name
+        or req.workfile_name
+        or req.path
+    ):
+        return []
 
     platform = None
     if site_id:
@@ -357,18 +372,28 @@ async def resolve_uris(
     async with Postgres.acquire() as conn:
         async with conn.transaction():
             for uri in request.uris:
-                parsed_uri = parse_uri(uri)
+                try:
+                    parsed_uri = parse_uri(uri)
+                except ValueError as e:
+                    result.append(ResolvedURIModel(uri=uri, error=str(e)))
+                    continue
+
                 if parsed_uri.project_name != current_project:
                     await conn.execute(
                         f"SET LOCAL search_path TO project_{parsed_uri.project_name}"
                     )
                     current_project = parsed_uri.project_name
-                entities = await resolve_entities(
-                    conn,
-                    parsed_uri,
-                    roots.get(current_project, {}),
-                    site_id,
-                    path_only=path_only,
-                )
+
+                try:
+                    entities = await resolve_entities(
+                        conn,
+                        parsed_uri,
+                        roots.get(current_project, {}),
+                        site_id,
+                        path_only=path_only,
+                    )
+                except ValueError as e:
+                    result.append(ResolvedURIModel(uri=uri, entities=[], error=str(e)))
+                    continue
                 result.append(ResolvedURIModel(uri=uri, entities=entities))
     return result

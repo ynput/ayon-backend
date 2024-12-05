@@ -126,6 +126,11 @@ def validate_topic_list(topics: list[str]) -> list[str]:
     return result
 
 
+def sanitize_string_list(strings: list[str]) -> list[str]:
+    """Make list of strings safe to use in SQL queries."""
+    return [s.replace("'", "''") for s in strings]
+
+
 #
 # Pydantic model used for API requests and responses,
 # entity payloads etc.
@@ -227,6 +232,12 @@ class AttributeEnumItem(OPModel):
 
     value: SimpleValue = Field(..., title="Enum value")
     label: str = Field(..., title="Enum label")
+    icon: str | None = Field(None, title="Icon name")
+    color: ColorRGB_hex | None = Field(
+        None,
+        title="Color in RGBA hex format",
+        regex="^#[0-9a-fA-F]{6}$",
+    )
 
 
 def normalize_to_dict(s: dict[Any, Any] | BaseModel) -> dict[Any, Any]:

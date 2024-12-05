@@ -1,3 +1,5 @@
+from nxtools import logging
+
 from ayon_server.entities.core.projectlevel import ProjectLevelEntity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
@@ -25,7 +27,14 @@ async def build_watcher_list(entity: ProjectLevelEntity) -> list[str]:
         ORDER by entity_name ASC
         """
 
-    res = await Postgres.fetch(query, entity.entity_type, entity.id)
+    try:
+        res = await Postgres.fetch(query, entity.entity_type, entity.id)
+    except Postgres.UndefinedTableError:
+        logging.debug(
+            "Unable to get watchers. " f"Project {entity.project_name} no longer exists"
+        )
+        return []
+
     if res:
         watchers = [row["watcher"] for row in res]
 

@@ -165,8 +165,31 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     project_name = get_project_name(keys)
 
     query = f"""
-        SELECT * FROM project_{project_name}.versions
-        WHERE id IN {SQLTool.id_array([k[1] for k in keys])}
+        WITH reviewables AS (
+            SELECT entity_id FROM project_{project_name}.activity_feed
+            WHERE entity_type = 'version'
+            AND   activity_type = 'reviewable'
+        )
+
+        SELECT
+            v.id AS id,
+            v.version AS version,
+            v.product_id AS product_id,
+            v.thumbnail_id AS thumbnail_id,
+            v.task_id AS task_id,
+            v.author AS author,
+            v.attrib AS attrib,
+            v.data AS data,
+            v.active AS active,
+            v.status AS status,
+            v.tags AS tags,
+            v.created_at AS created_at,
+            v.updated_at AS updated_at,
+            EXISTS (
+                SELECT 1 FROM reviewables WHERE entity_id = v.id
+            ) AS has_reviewables
+        FROM project_{project_name}.versions AS v
+        WHERE v.id IN {SQLTool.id_array([k[1] for k in keys])}
         """
 
     async for record in Postgres.iterate(query):
@@ -182,6 +205,12 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
     project_name = get_project_name(keys)
 
     query = f"""
+        WITH reviewables AS (
+            SELECT entity_id FROM project_{project_name}.activity_feed
+            WHERE entity_type = 'version'
+            AND   activity_type = 'reviewable'
+        )
+
         SELECT
             v.id AS id,
             v.version AS version,
@@ -195,7 +224,10 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
             v.status AS status,
             v.tags AS tags,
             v.created_at AS created_at,
-            v.updated_at AS updated_at
+            v.updated_at AS updated_at,
+            EXISTS (
+                SELECT 1 FROM reviewables WHERE entity_id = v.id
+            ) AS has_reviewables
         FROM
             project_{project_name}.versions AS v
         WHERE v.id IN (

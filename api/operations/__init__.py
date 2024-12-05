@@ -1,3 +1,5 @@
-__all__ = ["router"]
+__all__ = ["router", "activities_operations", "operations"]
 
-from .operations import router
+
+from . import activities_operations, operations
+from .router import router

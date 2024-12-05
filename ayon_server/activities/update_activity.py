@@ -11,6 +11,7 @@ from ayon_server.activities.utils import (
 from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
+    ForbiddenException,
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
@@ -22,12 +23,15 @@ async def update_activity(
     project_name: str,
     activity_id: str,
     body: str | None = None,
+    *,
     files: list[str] | None = None,
     user_name: str | None = None,
     extra_references: list[ActivityReferenceModel] | None = None,
     data: dict[str, Any] | None = None,
     sender: str | None = None,
+    sender_type: str | None = None,
     append_files: bool = False,
+    is_admin: bool = False,
 ) -> None:
     """Update an activity."""
 
@@ -55,13 +59,16 @@ async def update_activity(
     activity_data = res[0]["data"]
 
     if user_name and (user_name != activity_data["author"]):
-        logging.warning(
-            f"User {user_name} updated activity {activity_id}"
-            f" owned by {activity_data['author']}"
-        )
-        # raise ForbiddenException("You can only update your own activities")
+        if is_admin:
+            logging.warning(
+                f"User {user_name} updated activity {activity_id}"
+                f" owned by {activity_data['author']}"
+            )
+        else:
+            raise ForbiddenException("You can only update your own activities")
 
     if data:
+        # do not overwrite the author
         data.pop("author", None)
         activity_data.update(data)
 
@@ -117,7 +124,10 @@ async def update_activity(
 
     query = f"""
         UPDATE project_{project_name}.activities
-        SET body = $1, data = $2
+        SET
+            body = $1,
+            data = $2,
+            updated_at = now()
         WHERE id = $3
         """
 
@@ -177,7 +187,10 @@ async def update_activity(
             )
             VALUES
             ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (id) DO
+                UPDATE SET
+                    updated_at = EXCLUDED.updated_at,
+                    data = EXCLUDED.data
             """
         )
 
@@ -211,4 +224,5 @@ async def update_activity(
         store=False,
         user=user_name,
         sender=sender,
+        sender_type=sender_type,
     )

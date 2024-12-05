@@ -6,7 +6,7 @@ import yaml
 from nxtools import log_traceback, logging, slugify
 
 from ayon_server.addons.addon import METADATA_KEYS, BaseServerAddon
-from ayon_server.addons.utils import classes_from_module, import_module
+from ayon_server.helpers.modules import classes_from_module, import_module
 
 if TYPE_CHECKING:
     from ayon_server.addons.library import AddonLibrary
@@ -29,8 +29,6 @@ class ServerAddonDefinition:
         for version in self.versions.values():
             if self.app_host_name is None:
                 self.app_host_name = version.app_host_name
-            if self.name is None:
-                self.name = version.name
 
             if version.name != self.name:
                 raise ValueError(

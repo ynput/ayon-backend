@@ -1,15 +1,19 @@
-from fastapi import Header
-from nxtools import logging
-
-from ayon_server.api.dependencies import CurrentUser, NewProjectName, ProjectName
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    NewProjectName,
+    ProjectName,
+    Sender,
+    SenderType,
+)
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
-from ayon_server.events import dispatch_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     ConflictException,
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.files import Storages
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 
@@ -27,13 +31,7 @@ async def get_project(
 ) -> ProjectEntity.model.main_model:  # type: ignore
     """Retrieve a project by its name."""
 
-    if not user.is_manager:
-        access_groups = user.data.get("accessGroups", {})
-        if project_name not in access_groups:
-            raise ForbiddenException(
-                f"You are not allowed to access {project_name} project"
-            )
-
+    user.check_project_access(project_name)
     project = await ProjectEntity.load(project_name)
     return project.as_user(user)
 
@@ -47,13 +45,7 @@ async def get_project(
 async def get_project_stats(user: CurrentUser, project_name: ProjectName):
     """Retrieve a project statistics by its name."""
 
-    if not user.is_manager:
-        access_groups = user.data.get("accessGroups", {})
-        if project_name not in access_groups:
-            raise ForbiddenException(
-                f"You are not allowed to access {project_name} project statistics"
-            )
-
+    user.check_project_access(project_name)
     counts = {}
     for entity in ["folders", "products", "versions", "representations", "tasks"]:
         res = await Postgres.fetch(
@@ -77,6 +69,8 @@ async def create_project(
     put_data: ProjectEntity.model.post_model,  # type: ignore
     user: CurrentUser,
     project_name: NewProjectName,
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Create a new project.
 
@@ -94,25 +88,26 @@ async def create_project(
     ([POST] /api/projects) for general usage.
     """
 
-    if not user.is_manager:
-        raise ForbiddenException("You need to be a manager in order to create projects")
-
-    action = ""
+    user.check_permissions("studio.create_projects")
 
     try:
         project = await ProjectEntity.load(project_name)
-        # NOTE: Replacing projects is not (and shoud not be) supported
-        # project.replace(put_data)
-        # action = "Replaced"
     except NotFoundException:
         project = ProjectEntity(payload=put_data.dict() | {"name": project_name})
-        action = "Created"
     else:
         raise ConflictException(f"Project {project_name} already exists")
 
     await project.save()
 
-    logging.info(f"[PUT] {action} project {project.name}", user=user.name)
+    await EventStream.dispatch(
+        "entity.project.created",
+        sender=sender,
+        sender_type=sender_type,
+        project=project.name,
+        user=user.name,
+        description=f"Created project {project.name}",
+    )
+
     return EmptyResponse(status_code=201)
 
 
@@ -126,7 +121,8 @@ async def update_project(
     patch_data: ProjectEntity.model.patch_model,  # type: ignore
     user: CurrentUser,
     project_name: ProjectName,
-    x_sender: str | None = Header(default=None),
+    sender: Sender,
+    sender_type: SenderType,
 ):
     """Patch a project.
 
@@ -144,14 +140,14 @@ async def update_project(
     project.patch(patch_data)
     await project.save()
 
-    await dispatch_event(
+    await EventStream.dispatch(
         "entity.project.changed",
-        sender=x_sender,
+        sender=sender,
+        sender_type=sender_type,
         project=project_name,
         user=user.name,
         description=f"Updated project {project_name}",
     )
-    logging.info(f"[PATCH] Updated project {project.name}", user=user.name)
     return EmptyResponse()
 
 
@@ -185,7 +181,12 @@ async def unassign_users_from_deleted_projects() -> None:
 
 
 @router.delete("/projects/{project_name}", status_code=204)
-async def delete_project(user: CurrentUser, project_name: ProjectName) -> EmptyResponse:
+async def delete_project(
+    user: CurrentUser,
+    project_name: ProjectName,
+    sender: Sender,
+    sender_type: SenderType,
+) -> EmptyResponse:
     """Delete a given project including all its entities."""
 
     project = await ProjectEntity.load(project_name)
@@ -194,7 +195,20 @@ async def delete_project(user: CurrentUser, project_name: ProjectName) -> EmptyR
         raise ForbiddenException("You need to be a manager in order to delete projects")
 
     await project.delete()
+
+    # clean-up (TODO: consider running as a background task)
+
+    storage = await Storages.project(project_name)
+    await storage.trash()
     await unassign_users_from_deleted_projects()
-    logging.info(f"[DELETE] Deleted project {project.name}", user=user.name)
+
+    await EventStream.dispatch(
+        "entity.project.deleted",
+        sender=sender,
+        sender_type=sender_type,
+        project=project.name,
+        user=user.name,
+        description=f"Deleted project {project.name}",
+    )
 
     return EmptyResponse()

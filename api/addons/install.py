@@ -1,4 +1,3 @@
-import hashlib
 from datetime import datetime
 from typing import Literal
 
@@ -8,8 +7,9 @@ from fastapi import BackgroundTasks, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.constraints import Constraints
-from ayon_server.events import dispatch_event, update_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.helpers.download_addon import download_addon
 from ayon_server.installer import background_installer
 from ayon_server.installer.addons import get_addon_zip_info
 from ayon_server.lib.postgres import Postgres
@@ -43,39 +43,7 @@ async def upload_addon_zip_file(
         raise ForbiddenException("Only admins can install addons")
 
     if url:
-        hash = hashlib.sha256(f"addon_install_{url}".encode()).hexdigest()
-
-        query = """
-            SELECT id FROM events
-            WHERE topic = 'addon.install_from_url'
-            AND hash = $1
-        """
-
-        summary = {"url": url}
-        if addonName and addonVersion:
-            summary["name"] = addonName
-            summary["version"] = addonVersion
-
-        res = await Postgres.fetch(query, hash)
-        if res:
-            event_id = res[0]["id"]
-            await update_event(
-                event_id,
-                description="Reinstalling addon from URL",
-                summary=summary,
-                status="pending",
-            )
-        else:
-            event_id = await dispatch_event(
-                "addon.install_from_url",
-                hash=hash,
-                description="Installing addon from URL",
-                summary=summary,
-                user=user.name,
-                finished=False,
-            )
-
-        await background_installer.enqueue(event_id)
+        event_id = await download_addon(url, addonName, addonVersion)
         return InstallAddonResponseModel(event_id=event_id)
 
     # Store the zip file in a temporary location
@@ -113,7 +81,7 @@ async def upload_addon_zip_file(
     res = await Postgres.fetch(query, zip_info.name, zip_info.version)
     if res:
         event_id = res[0]["id"]
-        await update_event(
+        await EventStream.update(
             event_id,
             description="Reinstalling addon from zip file",
             summary=zip_info.dict(exclude_none=True),
@@ -121,7 +89,7 @@ async def upload_addon_zip_file(
         )
     else:
         # If not, dispatch a new event
-        event_id = await dispatch_event(
+        event_id = await EventStream.dispatch(
             "addon.install",
             description=f"Installing addon {zip_info.name} {zip_info.version}",
             summary=zip_info.dict(exclude_none=True),

@@ -166,6 +166,9 @@ class AyonSchema(strawberry.Schema):
         for error in errors:
             if isinstance(error.original_error, AyonException):
                 error.extensions = {"status": error.original_error.status}
+                status_code = error.original_error.status
+            else:
+                status_code = 500
 
             tb = traceback.extract_tb(error.__traceback__)
             if not tb:
@@ -178,7 +181,9 @@ class AyonSchema(strawberry.Schema):
             else:
                 path = ""
             message = error.message
-            logging.error(f"GraphQL: {fname}:{line_no} ({path}) {message}")
+
+            if status_code not in [401, 403, 404]:
+                logging.error(f"GraphQL: {fname}:{line_no} ({path}) {message}")
 
 
 router: GraphQLRouter[Any, Any] = GraphQLRouter(

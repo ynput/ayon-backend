@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 import asyncpg
@@ -17,13 +18,32 @@ else:
     Connection = PoolConnectionProxy
 
 
+def timestamptz_endocder(v):
+    if isinstance(v, (int, float)):
+        return datetime.fromtimestamp(v).isoformat()
+    if isinstance(v, datetime):
+        return v.isoformat()
+    if isinstance(v, str):
+        return datetime.fromisoformat(v).isoformat()
+    raise ValueError
+
+
+def timestamptz_decoder(v):
+    if isinstance(v, (int, float)):
+        return datetime.fromtimestamp(v)
+    if isinstance(v, datetime):
+        return v
+    if isinstance(v, str):
+        return datetime.fromisoformat(v)
+    raise ValueError
+
+
 class Postgres:
     """Postgres database connection.
 
     Provides an interface for interacting with a Postgres database.
     """
 
-    default_acquire_timeout: int = 10
     shutting_down: bool = False
     pool: asyncpg.pool.Pool | None = None  # type: ignore
 
@@ -42,7 +62,7 @@ class Postgres:
             raise ConnectionError("Connection pool is not initialized.")
 
         if timeout is None:
-            timeout = cls.default_acquire_timeout
+            timeout = ayonconfig.postgres_pool_timeout
 
         try:
             connection_proxy = await cls.pool.acquire(timeout=timeout)
@@ -70,6 +90,13 @@ class Postgres:
             schema="pg_catalog",
         )
 
+        await conn.set_type_codec(
+            "timestamptz",
+            encoder=timestamptz_endocder,
+            decoder=timestamptz_decoder,
+            schema="pg_catalog",
+        )
+
     @classmethod
     def get_available_connections(cls) -> int:
         """Return a number of connections available for use"""
@@ -82,12 +109,7 @@ class Postgres:
 
     @classmethod
     async def connect(cls) -> None:
-        """Create a PostgreSQL connection pool.
-
-        By default, we use 24 as max_size, since default maximum
-        connection value of postgres is 100 so, 25 is perfect for
-        4 workers and a small reserve.
-        """
+        """Create a PostgreSQL connection pool."""
 
         if cls.shutting_down:
             print("Unable to connect to Postgres while shutting down.")
@@ -95,7 +117,7 @@ class Postgres:
         cls.pool = await asyncpg.create_pool(
             ayonconfig.postgres_url,
             min_size=10,
-            max_size=24,
+            max_size=ayonconfig.postgres_pool_size,
             max_inactive_connection_lifetime=20,
             init=cls.init_connection,
         )
@@ -128,6 +150,14 @@ class Postgres:
             raise ConnectionError
         async with cls.acquire() as connection:
             return await connection.fetch(query, *args, timeout=timeout)
+
+    @classmethod
+    async def fetchrow(cls, query: str, *args: Any, timeout: float = 60):
+        """Run a query and return the first row as a Record."""
+        if cls.pool is None:
+            raise ConnectionError
+        async with cls.acquire() as connection:
+            return await connection.fetchrow(query, *args, timeout=timeout)
 
     @classmethod
     async def iterate(

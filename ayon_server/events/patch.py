@@ -19,6 +19,11 @@ ADDITIONAL_COLUMNS = {
     "product_type": "product_type_changed",
     "author": "author_changed",
     "files": "files_changed",
+    "parent_id": "parent_changed",  # for folders
+    "folder_id": "folder_changed",  # for tasks and products
+    "task_id": "task_changed",  # for workfiles and versions
+    "product_id": "product_changed",  # for versions
+    "version_id": "version_changed",  # for representations
 }
 
 
@@ -180,6 +185,7 @@ def build_pl_entity_change_events(
             continue
 
         description = f"Changed {entity_type} {original_entity.name} {column_name}"
+
         result.append(
             {
                 "topic": f"entity.{entity_type}.{topic_name}",

@@ -1,11 +1,29 @@
+from typing import AsyncGenerator
+
 from nxtools import logging
 
 from ayon_server.activities.create_activity import create_activity
+from ayon_server.entities import VersionEntity
 from ayon_server.entities.core.projectlevel import ProjectLevelEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.lib.postgres import Postgres
 
 from .watcher_list import build_watcher_list, get_watcher_list
+
+
+async def get_task_versions(
+    project_name: str, task_id: str
+) -> AsyncGenerator[VersionEntity, None]:
+    """Get all versions of a task."""
+
+    query = f"""
+        SELECT *
+        FROM project_{project_name}.versions
+        WHERE task_id = $1
+        ORDER BY version DESC
+        """
+    async for row in Postgres.iterate(query, task_id):
+        yield VersionEntity(project_name=project_name, payload=dict(row), exists=True)
 
 
 async def set_watchers(
@@ -14,6 +32,8 @@ async def set_watchers(
     user: UserEntity | str | None = None,  # who is setting the watchers
     *,
     sender: str | None = None,
+    sender_type: str | None = None,
+    commit: bool = True,
 ) -> None:
     """Set watchers of an entity.
 
@@ -51,7 +71,14 @@ async def set_watchers(
             WHERE id IN (SELECT activity_id FROM activities_to_delete)
         """
 
-        await Postgres.execute(query, entity.entity_type, entity.id, unwatchers)
+        try:
+            await Postgres.execute(query, entity.entity_type, entity.id, unwatchers)
+        except Postgres.UndefinedTableError:
+            logging.debug(
+                "Unable to delete watchers. "
+                f"Project {entity.project_name} no longer exists"
+            )
+            return
 
     # Add new watchers
 
@@ -62,8 +89,41 @@ async def set_watchers(
             body="",
             user_name=user_name,
             sender=sender,
+            sender_type=sender_type,
             data={"watcher": watcher},
         )
+
+    # Watch / unwatch all versions of a task
+
+    if entity.entity_type == "task":
+        async for version in get_task_versions(project_name, entity.id):
+            original_watchers = await get_watcher_list(version)
+            new_watchers = [w for w in watchers if w not in original_watchers]
+            unwatchers = [w for w in original_watchers if w not in watchers]
+            query = f"""
+                WITH activities_to_delete AS (
+                    SELECT activity_id FROM project_{project_name}.activity_feed
+                    WHERE activity_type = 'watch'
+                    AND reference_type = 'origin'
+                    AND entity_type = $1
+                    AND entity_id = $2
+                    AND COALESCE(activity_data->>'watcher', '')::TEXT = ANY ($3)
+                )
+                DELETE FROM project_{project_name}.activities
+                WHERE id IN (SELECT activity_id FROM activities_to_delete)
+            """
+            await Postgres.execute(query, "version", version.id, unwatchers)
+
+            for watcher in new_watchers:
+                await create_activity(
+                    entity=version,
+                    activity_type="watch",
+                    body="",
+                    user_name=user_name,
+                    sender=sender,
+                    data={"watcher": watcher},
+                )
+            await build_watcher_list(version)
 
     await build_watcher_list(entity)
 
@@ -76,7 +136,12 @@ async def ensure_watching(entity: ProjectLevelEntity, user: UserEntity | str) ->
 
     user_name = user.name if isinstance(user, UserEntity) else user
 
-    watchers = await get_watcher_list(entity)
+    try:
+        watchers = await get_watcher_list(entity)
+    except Postgres.UndefinedTableError:
+        logging.debug(f"Unable to set watchers. Entity {entity} no longer exists")
+        return
+
     if user_name not in watchers:
         logging.debug(f"Adding {user_name} to watchers of {entity}")
         watchers.append(user_name)

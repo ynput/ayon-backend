@@ -25,7 +25,7 @@ from ayon_server.activities.utils import (
 from ayon_server.activities.watchers.watcher_list import get_watcher_list
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.eventstream import EventStream
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
@@ -34,6 +34,7 @@ async def create_activity(
     entity: ProjectLevelEntity,
     activity_type: ActivityType,
     body: str,
+    *,
     files: list[str] | None = None,
     activity_id: str | None = None,
     user_name: str | None = None,
@@ -41,6 +42,7 @@ async def create_activity(
     data: dict[str, Any] | None = None,
     timestamp: datetime.datetime | None = None,
     sender: str | None = None,
+    sender_type: str | None = None,
 ) -> str:
     """Create an activity.
 
@@ -79,7 +81,12 @@ async def create_activity(
         origin["label"] = entity.label
     data["origin"] = origin
 
-    data["parents"] = await get_parents_from_entity(entity)
+    try:
+        data["parents"] = await get_parents_from_entity(entity)
+    except Postgres.UndefinedTableError as e:
+        raise NotFoundException(
+            "Unable to get references. " f"Project {project_name} no longer exists"
+        ) from e
 
     if activity_type == "comment" and is_body_with_checklist(body):
         data["hasChecklist"] = True
@@ -130,7 +137,12 @@ async def create_activity(
             )
 
         # Add related entities references
-        references.update(await get_references_from_entity(entity))
+        try:
+            references.update(await get_references_from_entity(entity))
+        except Postgres.UndefinedTableError as e:
+            raise NotFoundException(
+                "Unable to get references. " f"Project {project_name} no longer exists"
+            ) from e
 
     #
     # Create the activity
@@ -154,20 +166,31 @@ async def create_activity(
     """
 
     async with Postgres.acquire() as conn, conn.transaction():
-        await conn.execute(query, activity_id, activity_type, body, data, timestamp)
+        try:
+            await conn.execute(query, activity_id, activity_type, body, data, timestamp)
+        except Postgres.UndefinedTableError as e:
+            raise NotFoundException(
+                "Unable to create activity. " f"Project {project_name} no longer exists"
+            ) from e
 
         if files is not None:
-            await conn.execute(
-                f"""
-                UPDATE project_{project_name}.files
-                SET
-                    activity_id = $1,
-                    updated_at = NOW()
-                WHERE id = ANY($2)
-                """,
-                activity_id,
-                files,
-            )
+            try:
+                await conn.execute(
+                    f"""
+                    UPDATE project_{project_name}.files
+                    SET
+                        activity_id = $1,
+                        updated_at = NOW()
+                    WHERE id = ANY($2)
+                    """,
+                    activity_id,
+                    files,
+                )
+            except Postgres.UndefinedTableError as e:
+                raise NotFoundException(
+                    "Unable to update files. "
+                    f"Project {project_name} no longer exists"
+                ) from e
 
         st_ref = await conn.prepare(
             f"""
@@ -190,9 +213,15 @@ async def create_activity(
         """
         )
 
-        await st_ref.executemany(
-            ref.insertable_tuple(activity_id, timestamp) for ref in references
-        )
+        try:
+            await st_ref.executemany(
+                ref.insertable_tuple(activity_id, timestamp) for ref in references
+            )
+        except Postgres.UndefinedTableError as e:
+            raise NotFoundException(
+                "Unable to create references. "
+                f"Project {project_name} no longer exists"
+            ) from e
 
     # Notify the front-end about the new activity
 
@@ -221,6 +250,7 @@ async def create_activity(
         store=False,
         user=user_name,
         sender=sender,
+        sender_type=sender_type,
     )
 
     # Send inbox notifications

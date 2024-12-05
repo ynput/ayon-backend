@@ -16,7 +16,7 @@ from nxtools import log_traceback, logging
 from pydantic import BaseModel
 
 from ayon_server.config import ayonconfig
-from ayon_server.events import update_event
+from ayon_server.events import EventStream
 from ayon_server.exceptions import AyonException
 from ayon_server.version import __version__ as ayon_version
 
@@ -182,7 +182,7 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
     zip_path = zip_info.zip_path
     assert zip_path is not None, "zip_path is not set"
 
-    await update_event(
+    await EventStream.update(
         event_id,
         description=f"Unpacking addon {zip_info.name} {zip_info.version}",
         status="in_progress",
@@ -196,7 +196,7 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
             await asyncio.gather(task)
     except Exception as e:
         logging.error(f"Error while unpacking addon: {e}")
-        await update_event(
+        await EventStream.update(
             event_id,
             description=f"Error while unpacking addon: {e}",
             status="failed",
@@ -207,17 +207,17 @@ async def unpack_addon(event_id: str, zip_info: AddonZipInfo):
     except Exception as e:
         logging.error(f"Error while removing zip file: {e}")
 
-    await update_event(
+    await EventStream.update(
         event_id,
         description=f"Addon {zip_info.name} {zip_info.version} installed",
         status="finished",
     )
 
 
-async def install_addon_from_url(event_id: str, url: str) -> None:
+async def install_addon_from_url(event_id: str, url: str) -> AddonZipInfo:
     """Download the addon zip file from the URL and install it"""
 
-    await update_event(
+    await EventStream.update(
         event_id,
         description=f"Downloading addon from URL {url}",
         status="in_progress",
@@ -249,7 +249,7 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
 
                         if file_size and (time.time() - last_time > 1):
                             percent = int(i / file_size * 100)
-                            await update_event(
+                            await EventStream.update(
                                 event_id,
                                 progress=int(percent / 2),
                                 store=False,
@@ -260,7 +260,7 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
 
         zip_info = get_addon_zip_info(zip_path)
         zip_info.url = url
-        await update_event(
+        await EventStream.update(
             event_id,
             description=f"Installing addon {zip_info.name} {zip_info.version}",
             status="in_progress",
@@ -280,8 +280,10 @@ async def install_addon_from_url(event_id: str, url: str) -> None:
             )
             await asyncio.gather(task)
 
-    await update_event(
+    await EventStream.update(
         event_id,
         description=f"Addon {zip_info.name} {zip_info.version} installed",
         status="finished",
     )
+
+    return zip_info

@@ -11,6 +11,18 @@ async def get_primary_anatomy_preset():
     return Anatomy()
 
 
+async def addons_enum():
+    """Return a list of all installed addons"""
+    from ayon_server.addons.library import AddonLibrary
+
+    instance = AddonLibrary.getinstance()
+    result = []
+    for addon_name, definition in instance.items():
+        result.append({"label": addon_name, "value": addon_name})
+    result.sort(key=lambda x: x["label"])
+    return result
+
+
 async def folder_types_enum(project_name: str | None = None):
     if project_name is None:
         anatomy = await get_primary_anatomy_preset()
@@ -43,6 +55,38 @@ async def task_types_enum(project_name: str | None = None):
             """
         )
     ]
+
+
+async def link_types_enum(project_name: str | None = None):
+    result = []
+    if project_name is None:
+        anatomy = await get_primary_anatomy_preset()
+        for link_type in anatomy.link_types:
+            lt = link_type.link_type
+            li = link_type.input_type
+            lo = link_type.output_type
+
+            label = f"{lt.capitalize()} ({li.capitalize()} -> {lo.capitalize()})"
+            value = f"{lt}|{li}|{lo}"
+            result.append({"label": label, "value": value, "color": link_type.color})
+
+        return result
+
+    q = f"SELECT * FROM project_{project_name}.link_types ORDER BY name"
+    async for row in Postgres.iterate(q):
+        lt = row["link_type"]
+        li = row["input_type"]
+        lo = row["output_type"]
+        label = f"{lt.capitalize()} ({li.capitalize()} -> {lo.capitalize()})"
+        value = f"{lt}|{li}|{lo}"
+        result.append(
+            {
+                "label": label,
+                "value": value,
+                "color": row["data"].get("color", None),
+            }
+        )
+    return result
 
 
 async def secrets_enum(project_name: str | None = None) -> list[str]:

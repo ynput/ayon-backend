@@ -24,8 +24,15 @@ from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
     NotFoundException,
+    UnsupportedMediaException,
 )
-from ayon_server.helpers.thumbnails import get_fake_thumbnail
+from ayon_server.files import Storages
+from ayon_server.helpers.mimetypes import guess_mime_type
+from ayon_server.helpers.thumbnails import (
+    ThumbnailProcessNoop,
+    get_fake_thumbnail,
+    process_thumbnail,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID
@@ -54,6 +61,11 @@ async def body_from_request(request: Request) -> bytes:
 
 
 def get_fake_thumbnail_response() -> Response:
+    """Generate a "fake thumbnail" response.
+
+    This function creates a FastAPI Response object containing an
+    1x1 transparent png and appropriate headers.
+    """
     response = Response(status_code=203, content=get_fake_thumbnail())
     response.headers["Content-Type"] = "image/png"
     response.headers["Cache-Control"] = f"max-age={30}"
@@ -65,18 +77,67 @@ async def store_thumbnail(
     thumbnail_id: str,
     mime: str,
     payload: bytes,
+    user_name: str | None = None,
 ):
     if len(payload) < 10:
         raise BadRequestException("Thumbnail cannot be empty")
 
+    MAX_THUMBNAIL_WIDTH = 600
+    MAX_THUMBNAIL_HEIGHT = 600
+
+    guessed_mime = guess_mime_type(payload)
+    if guessed_mime is None:
+        # This shouldn't happen, but we'll log it.
+        # Upload will probably fail later on, in process_thumbnail.
+        logging.warning(
+            f"Could not guess mime type of thumbnail. Using provided {mime}"
+        )
+
+    elif guessed_mime != mime:
+        # This is a warning, not an error, because we can still store the thumbnail
+        # even if the mime type is wrong. We're just logging it and using the
+        # correct mime type instead of the provided one.
+        logging.warning(
+            "Thumbnail mime type mismatch: "
+            f"Payload contains {guessed_mime} "
+            f"but was requested to store {mime}"
+        )
+        mime = guessed_mime
+
+    if mime not in ["image/png", "image/jpeg"]:
+        raise UnsupportedMediaException(f"Unsupported thumbnail mime type {mime}")
+
+    try:
+        thumbnail = await process_thumbnail(
+            payload,
+            (MAX_THUMBNAIL_WIDTH, MAX_THUMBNAIL_HEIGHT),
+            raise_on_noop=True,
+        )
+    except ValueError as e:
+        raise UnsupportedMediaException(str(e))
+
+    except ThumbnailProcessNoop:
+        thumbnail = payload
+    else:
+        storage = await Storages.project(project_name)
+        await storage.store_thumbnail(thumbnail_id, payload)
+
+    meta = {
+        "originalSize": len(payload),
+        "thumbnailSize": len(thumbnail),
+        "mime": mime,  # eventually, we'll drop the column
+    }
+    if user_name:
+        meta["author"] = user_name
+
     query = f"""
-        INSERT INTO project_{project_name}.thumbnails (id, mime, data)
-        VALUES ($1, $2, $3)
+        INSERT INTO project_{project_name}.thumbnails (id, mime, data, meta)
+        VALUES ($1, $2, $3, $4)
         ON CONFLICT (id)
-        DO UPDATE SET data = EXCLUDED.data
+        DO UPDATE SET data = EXCLUDED.data, meta = EXCLUDED.meta
         RETURNING id
     """
-    await Postgres.execute(query, thumbnail_id, mime, payload)
+    await Postgres.execute(query, thumbnail_id, mime, thumbnail, meta)
     for entity_type in ["workfiles", "versions", "folders", "tasks"]:
         await Postgres.execute(
             f"""
@@ -91,6 +152,7 @@ async def retrieve_thumbnail(
     project_name: str,
     thumbnail_id: str | None,
     placeholder: PlaceholderOption = "none",
+    original: bool = False,
 ) -> Response:
     query = f"SELECT * FROM project_{project_name}.thumbnails WHERE id = $1"
     if thumbnail_id is not None:
@@ -100,11 +162,20 @@ async def retrieve_thumbnail(
             pass  # project does not exist
         else:
             if res:
+                payload = None
+                if original:
+                    storage = await Storages.project(project_name)
+                    try:
+                        payload = await storage.get_thumbnail(thumbnail_id)
+                    except FileNotFoundError:
+                        pass
+
                 record = res[0]
+                payload = payload or record["data"]
                 return Response(
                     media_type=record["mime"],
                     status_code=200,
-                    content=record["data"],
+                    content=payload,
                     headers={
                         "X-Thumbnail-Id": thumbnail_id,
                         "X-Thumbnail-Time": str(record.get("created_at", 0)),
@@ -142,7 +213,9 @@ async def create_thumbnail(
     """
     thumbnail_id = EntityID.create()
     payload = await body_from_request(request)
-    await store_thumbnail(project_name, thumbnail_id, content_type, payload)
+    await store_thumbnail(
+        project_name, thumbnail_id, content_type, payload, user_name=user.name
+    )
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
@@ -164,10 +237,12 @@ async def update_thumbnail(
     to users with the `manager` role or higher.
     """
 
-    if not user.is_manager:
+    if not user.is_manager:  # TBD
         raise ForbiddenException("Only managers can update arbitrary thumbnails")
     payload = await body_from_request(request)
-    await store_thumbnail(project_name, thumbnail_id, content_type, payload)
+    await store_thumbnail(
+        project_name, thumbnail_id, content_type, payload, user_name=user.name
+    )
     return EmptyResponse()
 
 
@@ -180,6 +255,7 @@ async def get_thumbnail(
     project_name: ProjectName,
     thumbnail_id: ThumbnailID,
     placeholder: PlaceholderOption = Query("empty"),
+    original: bool = Query(False),
 ) -> Response:
     """Get a thumbnail by its ID.
 
@@ -187,10 +263,12 @@ async def get_thumbnail(
     Since this is can be an security issue, this endpoint is only available
     to users with the `manager` role or higher.
     """
-    if not user.is_manager:
+    if not user.is_manager:  # TBD
         raise ForbiddenException("Only managers can access arbitrary thumbnails")
 
-    return await retrieve_thumbnail(project_name, thumbnail_id, placeholder)
+    return await retrieve_thumbnail(
+        project_name, thumbnail_id, placeholder=placeholder, original=original
+    )
 
 
 #
@@ -221,6 +299,7 @@ async def create_folder_thumbnail(
         thumbnail_id=thumbnail_id,
         mime=content_type,
         payload=payload,
+        user_name=user.name,
     )
     folder.thumbnail_id = thumbnail_id
     await folder.save()
@@ -233,6 +312,7 @@ async def get_folder_thumbnail(
     project_name: ProjectName,
     folder_id: FolderID,
     placeholder: PlaceholderOption = Query("empty"),
+    original: bool = Query(False),
 ) -> Response:
     try:
         folder = await FolderEntity.load(project_name, folder_id)
@@ -242,7 +322,9 @@ async def get_folder_thumbnail(
             return get_fake_thumbnail_response()
         raise e
 
-    return await retrieve_thumbnail(project_name, folder.thumbnail_id, placeholder)
+    return await retrieve_thumbnail(
+        project_name, folder.thumbnail_id, placeholder=placeholder, original=original
+    )
 
 
 #
@@ -270,6 +352,7 @@ async def create_version_thumbnail(
         thumbnail_id=thumbnail_id,
         mime=content_type,
         payload=payload,
+        user_name=user.name,
     )
     version.thumbnail_id = thumbnail_id
     await version.save()
@@ -282,6 +365,7 @@ async def get_version_thumbnail(
     project_name: ProjectName,
     version_id: VersionID,
     placeholder: PlaceholderOption = Query("empty"),
+    original: bool = Query(False),
 ) -> Response:
     try:
         version = await VersionEntity.load(project_name, version_id)
@@ -290,7 +374,9 @@ async def get_version_thumbnail(
         if placeholder == "empty":
             return get_fake_thumbnail_response()
         raise e
-    return await retrieve_thumbnail(project_name, version.thumbnail_id, placeholder)
+    return await retrieve_thumbnail(
+        project_name, version.thumbnail_id, placeholder=placeholder, original=original
+    )
 
 
 #
@@ -318,6 +404,7 @@ async def create_workfile_thumbnail(
         thumbnail_id=thumbnail_id,
         mime=content_type,
         payload=payload,
+        user_name=user.name,
     )
     workfile.thumbnail_id = thumbnail_id
     await workfile.save()
@@ -332,6 +419,7 @@ async def get_workfile_thumbnail(
     project_name: ProjectName,
     workfile_id: WorkfileID,
     placeholder: PlaceholderOption = Query("empty"),
+    original: bool = Query(False),
 ) -> Response:
     try:
         workfile = await WorkfileEntity.load(project_name, workfile_id)
@@ -341,7 +429,9 @@ async def get_workfile_thumbnail(
             return get_fake_thumbnail_response()
         else:
             raise NotFoundException("Workfile not found")
-    return await retrieve_thumbnail(project_name, workfile.thumbnail_id, placeholder)
+    return await retrieve_thumbnail(
+        project_name, workfile.thumbnail_id, placeholder=placeholder, original=original
+    )
 
 
 #
@@ -401,6 +491,7 @@ async def get_task_thumbnail(
     project_name: ProjectName,
     task_id: TaskID,
     placeholder: PlaceholderOption = Query("empty"),
+    original: bool = Query(False),
 ) -> Response:
     try:
         task = await TaskEntity.load(project_name, task_id)
@@ -420,4 +511,6 @@ async def get_task_thumbnail(
     else:
         thumbnail_id = task.thumbnail_id
 
-    return await retrieve_thumbnail(project_name, thumbnail_id, placeholder)
+    return await retrieve_thumbnail(
+        project_name, thumbnail_id, placeholder=placeholder, original=original
+    )
