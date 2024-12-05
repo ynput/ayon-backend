@@ -140,6 +140,7 @@ class EventStream:
                     event.id,
                     event.hash,
                     event.sender,
+                    event.sender_type,
                     event.topic,
                     event.project,
                     event.user,
