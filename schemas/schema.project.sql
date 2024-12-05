@@ -55,8 +55,6 @@ CREATE TABLE IF NOT EXISTS activities (
 
 CREATE INDEX IF NOT EXISTS idx_activity_type ON activities(activity_type);
 CREATE INDEX IF NOT EXISTS idx_activity_tags ON activities USING gin(tags);
-CREATE INDEX IF NOT EXISTS idx_activity_body ON activities USING gin(body);
-CREATE INDEX IF NOT EXISTS idx_activity_has_checklist ON activities(data->>'hasChecklist');
 
 CREATE TABLE IF NOT EXISTS activity_references (
     id UUID PRIMARY KEY, -- generate uuid1 in python
@@ -80,7 +78,6 @@ CREATE INDEX IF NOT EXISTS idx_activity_reference_type ON activity_references(re
 CREATE INDEX IF NOT EXISTS idx_activity_reference_created_at ON activity_references(created_at);
 CREATE INDEX IF NOT EXISTS idx_activity_reference_updated_at ON activity_references(updated_at);
 CREATE INDEX IF NOT EXISTS idx_activity_reference_active ON activity_references(active);
-CREATE INDEX IF NOT EXISTS idx_activity_reference_read ON activity_references(data->>'read');
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_reference_unique ON activity_references(activity_id, entity_id, entity_name, reference_type);
 
 
