@@ -163,6 +163,8 @@ async def get_projects(
     for project_item in projects:
         if not project_item.active:
             continue
+        if project_item.role in ["demo", "test"]:
+            continue
         project = await ProjectEntity.load(project_item.name)
         metrics = await get_project_metrics(
             project=project,

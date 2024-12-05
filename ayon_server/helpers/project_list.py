@@ -14,10 +14,19 @@ class ProjectListItem(OPModel):
     active: bool = True
     created_at: datetime
     nickname: str
+    role: str | None = None
 
 
 async def build_project_list() -> list[ProjectListItem]:
-    q = """SELECT name, code, active, created_at FROM projects ORDER BY name ASC"""
+    q = """
+        SELECT
+            name,
+            code,
+            active,
+            created_at,
+            data->>'projectRole' as role
+        FROM projects ORDER BY name ASC
+    """
     result: list[dict[str, Any]] = []
     try:
         async for row in Postgres.iterate(q):
@@ -28,6 +37,7 @@ async def build_project_list() -> list[ProjectListItem]:
                     "active": row["active"],
                     "created_at": row["created_at"],
                     "nickname": get_nickname(str(row["created_at"]) + row["name"], 2),
+                    "role": row["role"],
                 }
             )
     except Postgres.UndefinedTableError:
