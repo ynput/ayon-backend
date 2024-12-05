@@ -63,6 +63,12 @@ class DispatchEventRequestModel(OPModel):
         description="Set to False for fire-and-forget events",
         example=True,
     )
+    reuse: bool = Field(
+        False,
+        title="Reuse",
+        description="Allow reusing events with the same hash",
+        example=False,
+    )
 
 
 class UpdateEventRequestModel(OPModel):
@@ -112,6 +118,7 @@ async def post_event(
         payload=request.payload,
         finished=request.finished,
         store=request.store,
+        reuse=request.reuse,
     )
     return DispatchEventResponseModel(id=event_id)
 
