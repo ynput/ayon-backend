@@ -160,10 +160,9 @@ class EventStream:
                     raise ConstraintViolationException(
                         "Unable to reuse the event. Another event depends on it",
                     ) from e
-                else:
-                    raise ConstraintViolationException(
-                        "Event with same hash already exists",
-                    ) from e
+                raise ConstraintViolationException(
+                    "Event with same hash already exists",
+                ) from e
 
         depends_on = (
             str(event.depends_on).replace("-", "") if event.depends_on else None
