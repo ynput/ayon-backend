@@ -26,7 +26,15 @@ async def dispatch_event(
     payload: dict[str, Any] | None = None,
     finished: bool = True,
     store: bool = True,
+    reuse: bool = False,
 ) -> str:
+    """Dispatch an event to the event stream.
+
+    This function is deprecated and is provided only to
+    maintain backwards compatibility with older addons.
+
+    Use `EventStream.dispatch` instead.
+    """
     return await EventStream.dispatch(
         topic=topic,
         sender=sender,
@@ -40,6 +48,7 @@ async def dispatch_event(
         payload=payload,
         finished=finished,
         store=store,
+        reuse=reuse,
     )
 
 
@@ -58,6 +67,14 @@ async def update_event(
     store: bool = True,
     retries: int | None = None,
 ) -> bool:
+    """Update an event in the event stream.
+
+    This function is deprecated and is provided only to
+    maintain backwards compatibility with older addons.
+
+    Use `EventStream.update` instead.
+
+    """
     return await EventStream.update(
         event_id=event_id,
         sender=sender,
