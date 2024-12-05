@@ -315,3 +315,8 @@ class EventStream:
         if event is None:
             raise NotFoundException("Event not found")
         return event
+
+    @classmethod
+    async def delete(cls, event_id: str) -> None:
+        await Postgres.execute("DELETE FROM events WHERE id = $1", event_id)
+        return None

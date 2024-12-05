@@ -193,6 +193,5 @@ async def delete_event(user: CurrentUser, event_id: EventID) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Not allowed to delete events")
 
-    await Postgres.execute("DELETE FROM events WHERE id = $1", event_id)
-
+    await EventStream.delete(event_id)
     return EmptyResponse()
