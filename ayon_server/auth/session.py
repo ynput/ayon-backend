@@ -1,5 +1,6 @@
 __all__ = ["Session"]
 
+import asyncio
 import time
 from typing import Any, AsyncGenerator
 
@@ -125,6 +126,13 @@ class Session:
                 summary=event_summary,
                 payload=event_payload,
             )
+
+        # invalidate least used session if user reached the limit
+        # as a background task
+
+        task = asyncio.create_task(cls.invalidate_least_used(user.name))
+        task.add_done_callback(lambda _: None)
+
         return session
 
     @classmethod
@@ -181,3 +189,27 @@ class Session:
 
             if user_name is None or session.user.name == user_name:
                 yield session
+
+    @classmethod
+    async def invalidate_least_used(cls, user_name: str) -> None:
+        """
+        Check whether the user reached the limit set in the configuration
+        and invalidate the least used sessions.
+        """
+
+        max_sessions = ayonconfig.max_concurent_user_sessions
+        if not max_sessions:
+            # 0 or None means no limit
+            return
+
+        sessions = []
+        async for session in cls.list(user_name):
+            sessions.append(session)
+
+        if len(sessions) <= max_sessions:
+            return
+
+        sessions.sort(key=lambda s: s.last_used)
+        for session in sessions[: len(sessions) - max_sessions]:
+            msg = "Least session invalidated due to limit"
+            await cls.delete(session.token, message=msg)
