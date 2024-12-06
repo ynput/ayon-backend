@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS activities (
     id UUID PRIMARY KEY, -- generate uuid1 in python
     activity_type VARCHAR NOT NULL,
     body TEXT NOT NULL,
+    tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS activities (
 );
 
 CREATE INDEX IF NOT EXISTS idx_activity_type ON activities(activity_type);
+CREATE INDEX IF NOT EXISTS idx_activity_tags ON activities USING gin(tags);
 
 CREATE TABLE IF NOT EXISTS activity_references (
     id UUID PRIMARY KEY, -- generate uuid1 in python
@@ -69,8 +71,13 @@ CREATE TABLE IF NOT EXISTS activity_references (
 );
 
 CREATE INDEX IF NOT EXISTS idx_activity_id ON activity_references(activity_id);
+CREATE INDEX IF NOT EXISTS idx_activity_entity_type ON activity_references(entity_type);
 CREATE INDEX IF NOT EXISTS idx_activity_entity_id ON activity_references(entity_id);
+CREATE INDEX IF NOT EXISTS idx_activity_entity_name ON activity_references(entity_name);
+CREATE INDEX IF NOT EXISTS idx_activity_reference_type ON activity_references(reference_type);
 CREATE INDEX IF NOT EXISTS idx_activity_reference_created_at ON activity_references(created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_reference_updated_at ON activity_references(updated_at);
+CREATE INDEX IF NOT EXISTS idx_activity_reference_active ON activity_references(active);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_reference_unique ON activity_references(activity_id, entity_id, entity_name, reference_type);
 
 
@@ -111,7 +118,7 @@ CREATE OR REPLACE VIEW activity_feed AS
     ref.active as active
 
   FROM
-    activity_references as ref -- corrected typo here
+    activity_references as ref
   INNER JOIN
     activities as act ON ref.activity_id = act.id
   LEFT JOIN
