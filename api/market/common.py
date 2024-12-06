@@ -27,7 +27,7 @@ async def get_market_data(
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
-            f"{ayonconfig.ynput_cloud_api_url}/api/v1/market/{endpoint}",
+            f"{ayonconfig.ynput_cloud_api_url}/api/v1/{endpoint}",
             headers=headers,
         )
 

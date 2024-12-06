@@ -1,10 +1,14 @@
 from fastapi import Request
 
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.models import LoginResponseModel
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
-from ayon_server.exceptions import UnauthorizedException
+from ayon_server.exceptions import ForbiddenException, UnauthorizedException
 from ayon_server.helpers.setup import admin_exists
+from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -79,3 +83,39 @@ async def create_first_admin(
         token=session.token,
         user=session.user,
     )
+
+
+#
+# Onboarding flow
+#
+
+
+@router.post("/abort")
+async def abort_onboarding(user: CurrentUser) -> EmptyResponse:
+    """Abort the onboarding process (disable nag screen)"""
+
+    if not user.is_admin:
+        raise ForbiddenException()
+
+    await Postgres().execute(
+        """
+        INSERT INTO config (key, value)
+        VALUES ('onboardingFinished', 'true'::jsonb)
+        ON CONFLICT (key) DO UPDATE SET value = 'true'::jsonb
+        """
+    )
+    await Redis.set("global", "onboardingFinished", "1")
+    return EmptyResponse()
+
+
+@router.post("/restart")
+async def restart_onboarding(user: CurrentUser) -> EmptyResponse:
+    """Restart the onboarding process"""
+
+    if not user.is_admin:
+        raise ForbiddenException()
+
+    q = "DELETE FROM config WHERE key = 'onboardingFinished'"
+    await Postgres().execute(q)
+    await Redis.delete("global", "onboardingFinished")
+    return EmptyResponse()
