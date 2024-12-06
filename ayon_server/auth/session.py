@@ -217,3 +217,38 @@ class Session:
 
             msg += f" ({user_name} {session.token})"
             logging.debug(msg)
+
+    @classmethod
+    async def logout_user(cls, user_name: str) -> None:
+        """Logout all user sessions."""
+        async for session in cls.list(user_name):
+            token = session.token
+            await Redis.delete(cls.ns, token)
+
+        msg = f"User {user_name} logged out from all sessions"
+        await EventStream.dispatch(
+            "auth.logout",
+            description=msg,
+            user=user_name,
+        )
+
+    @classmethod
+    async def user_save_hook(cls, user: UserEntity, *args) -> None:
+        """This is called when user is saved.
+
+        Update all user sessions with new user data. If user was deactivated,
+        log them out.
+        """
+
+        if user.was_active and not user.active:
+            logging.debug(f"User {user.name} was deactivated. Logging out.")
+            await cls.logout_user(user.name)
+        else:
+            async for session in Session.list(user.name):
+                if user.active:
+                    await Session.update(session.token, user)
+                else:
+                    await Session.delete(session.token, message="User deactivated")
+
+
+UserEntity.save_hooks.append(Session.user_save_hook)
