@@ -5,6 +5,7 @@ import time
 from typing import Any, AsyncGenerator
 
 from fastapi import Request
+from nxtools import logging
 
 from ayon_server.api.clientinfo import ClientInfo, get_client_info, get_real_ip
 from ayon_server.config import ayonconfig
@@ -211,5 +212,8 @@ class Session:
 
         sessions.sort(key=lambda s: s.last_used)
         for session in sessions[: len(sessions) - max_sessions]:
-            msg = "Least session invalidated due to limit"
+            msg = "Least recently used session invalidated due to limit"
             await cls.delete(session.token, message=msg)
+
+            msg += f" ({user_name} {session.token})"
+            logging.debug(msg)
