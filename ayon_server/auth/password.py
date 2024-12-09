@@ -90,9 +90,6 @@ class PasswordAuth:
         if user.is_service:
             raise ForbiddenException("Service users cannot log in")
 
-        if not user.active:
-            raise ForbiddenException("User is not active")
-
         if "password" not in user.data:
             raise ForbiddenException("Password login is not enabled for this user")
 

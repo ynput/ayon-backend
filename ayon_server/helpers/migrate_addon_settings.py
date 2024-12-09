@@ -33,6 +33,7 @@ async def _migrate_addon_settings(
 
     events: list[dict[str, Any]] = []
     event_head = f"{target_addon.name} {target_addon.version} {target_variant}"
+    event_description = ""
 
     event_created = False
     event_payload = {}

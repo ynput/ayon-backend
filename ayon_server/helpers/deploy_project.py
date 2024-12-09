@@ -118,7 +118,7 @@ async def assign_default_users_to_project(project_name: str, conn) -> None:
         access_groups = user.data.get("accessGroups", {})
         access_groups[project_name] = user.data["defaultAccessGroups"]
         user.data["accessGroups"] = access_groups
-        await user.save(transaction=conn)
+        await user.save(transaction=conn, run_hooks=False)
 
         for token in sessions[user.name]:
             await Session.update(token, user)

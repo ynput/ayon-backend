@@ -275,13 +275,6 @@ async def patch_user(
         avatar_bytes = await obtain_avatar(user_name)
         await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
-    async for session in Session.list(user_name):
-        token = session.token
-        if not target_user.active:
-            await Session.delete(token)
-        else:
-            await Session.update(token, target_user)
-
     return EmptyResponse()
 
 
@@ -451,9 +444,7 @@ async def change_user_name(
 
     # Renaming user has many side effects, so we need to log out all Sessions
     # and let the user log in again
-    async for session in Session.list(user_name):
-        token = session.token
-        await Session.delete(token)
+    await Session.logout_user(user_name)
 
     await EventStream.dispatch(
         sender=sender,
@@ -568,11 +559,6 @@ async def assign_access_groups(
 
     target_user.data["accessGroups"] = ag_set
     await target_user.save()
-
-    async for session in Session.list(user_name):
-        token = session.token
-        await Session.update(token, target_user)
-
     return EmptyResponse()
 
 
@@ -594,9 +580,4 @@ async def set_frontend_preferences(
     target_user.data["frontendPreferences"] = preferences
 
     await target_user.save()
-
-    async for session in Session.list(user_name):
-        token = session.token
-        await Session.update(token, target_user)
-
     return EmptyResponse()
