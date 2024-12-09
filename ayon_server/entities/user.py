@@ -81,6 +81,7 @@ class UserEntity(TopLevelEntity):
     async def save(
         self,
         transaction: Connection | None = None,
+        run_hooks: bool = True,
     ) -> bool:
         """Save the user to the database."""
 
@@ -121,8 +122,9 @@ class UserEntity(TopLevelEntity):
                         f"Maximum number of users ({max_users}) reached"
                     )
 
-        for hook in self.save_hooks:
-            await hook(self, conn)  # type: ignore
+        if run_hooks:
+            for hook in self.save_hooks:
+                await hook(self, conn)  # type: ignore
 
         if self.exists:
             data = dict_exclude(

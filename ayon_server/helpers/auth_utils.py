@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Union
 
+from ayon_server.exceptions import UnauthorizedException
+
 if TYPE_CHECKING:
     from ayon_server.api.clientinfo import ClientInfo
     from ayon_server.entities import UserEntity
@@ -11,6 +13,11 @@ class AuthUtils:
         user: "UserEntity",
         client_info: Union["ClientInfo", None] = None,
     ) -> None:
-        """Ensure the user can log in. Raise an exception if not."""
+        """Ensure the user can log in.
 
-        return None
+        Raise UnauthorizedException if user is not allowed to log in.
+        Return None otherwise.
+        """
+
+        if not user.active:
+            raise UnauthorizedException("User is not active")

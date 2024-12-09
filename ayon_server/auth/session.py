@@ -11,6 +11,7 @@ from ayon_server.api.clientinfo import ClientInfo, get_client_info, get_real_ip
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
+from ayon_server.exceptions import UnauthorizedException
 from ayon_server.helpers.auth_utils import AuthUtils
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
@@ -225,16 +226,19 @@ class Session:
     @classmethod
     async def logout_user(cls, user_name: str) -> None:
         """Logout all user sessions."""
+        logged_out = False
         async for session in cls.list(user_name):
             token = session.token
             await Redis.delete(cls.ns, token)
+            logged_out = True
 
-        msg = f"User {user_name} logged out from all sessions"
-        await EventStream.dispatch(
-            "auth.logout",
-            description=msg,
-            user=user_name,
-        )
+        if logged_out:
+            msg = f"User {user_name} logged out from all sessions"
+            await EventStream.dispatch(
+                "auth.logout",
+                description=msg,
+                user=user_name,
+            )
 
     @classmethod
     async def user_save_hook(cls, user: UserEntity, *args) -> None:
@@ -244,15 +248,13 @@ class Session:
         log them out.
         """
 
-        if user.was_active and not user.active:
-            logging.debug(f"User {user.name} was deactivated. Logging out.")
+        try:
+            await AuthUtils.ensure_can_login(user)
+        except UnauthorizedException:
             await cls.logout_user(user.name)
         else:
             async for session in Session.list(user.name):
-                if user.active:
-                    await Session.update(session.token, user)
-                else:
-                    await Session.delete(session.token, message="User deactivated")
+                await Session.update(session.token, user)
 
 
 UserEntity.save_hooks.append(Session.user_save_hook)
