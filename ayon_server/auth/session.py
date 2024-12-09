@@ -11,7 +11,7 @@ from ayon_server.api.clientinfo import ClientInfo, get_client_info, get_real_ip
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
-from ayon_server.helpers.auth_utils import AuthHelper
+from ayon_server.helpers.auth_utils import AuthUtils
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
 from ayon_server.utils import create_hash, json_dumps, json_loads
@@ -111,7 +111,7 @@ class Session:
             token = create_hash()
         client_info = get_client_info(request) if request else None
 
-        await AuthHelper.ensure_can_login(user, client_info)
+        await AuthUtils.ensure_can_login(user, client_info)
 
         session = SessionModel(
             user=user.dict(),

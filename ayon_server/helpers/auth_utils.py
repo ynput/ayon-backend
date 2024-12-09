@@ -5,7 +5,7 @@ if TYPE_CHECKING:
     from ayon_server.entities import UserEntity
 
 
-class AuthHelper:
+class AuthUtils:
     @staticmethod
     async def ensure_can_login(
         user: "UserEntity",
