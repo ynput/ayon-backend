@@ -1,7 +1,6 @@
 import copy
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName, UserName
-from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
 from ayon_server.lib.postgres import Postgres
 
@@ -74,9 +73,4 @@ async def update_project_user(
             target_user_ag[project_name] = access_groups
         target_user.data["accessGroups"] = target_user_ag
         await target_user.save()
-
-    async for session in Session.list(user_name):
-        token = session.token
-        await Session.update(token, target_user)
-
     return await get_project_users(user, project_name)
