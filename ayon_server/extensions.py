@@ -1,6 +1,6 @@
 import os
 
-from nxtools import log_traceback, logging
+from nxtools import log_traceback
 
 from ayon_server.helpers.modules import classes_from_module, import_module
 
@@ -41,7 +41,6 @@ async def init_extensions():
             except Exception:
                 log_traceback()
                 continue
-            logging.info(f"Loading extensions from {file}")
 
             if run_main:
                 await module.main()
@@ -49,5 +48,4 @@ async def init_extensions():
 
             classes = classes_from_module(ServerExtension, module)
             for cls in classes:
-                logging.info(f"Initializing extension {cls.__name__}")
                 await cls().initialize()
