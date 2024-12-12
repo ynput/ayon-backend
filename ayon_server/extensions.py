@@ -39,13 +39,17 @@ async def init_extensions():
             try:
                 module = import_module(mname, mpath)
             except Exception:
-                log_traceback()
+                log_traceback(f"Unable to import extension module {mname}")
                 continue
 
-            if run_main:
-                await module.main()
-                continue
+            try:
+                if run_main:
+                    await module.main()
+                    continue
 
-            classes = classes_from_module(ServerExtension, module)
-            for cls in classes:
-                await cls().initialize()
+                classes = classes_from_module(ServerExtension, module)
+                for cls in classes:
+                    await cls().initialize()
+            except Exception:
+                log_traceback(f"Unable to initialize extension {mname}")
+                continue
