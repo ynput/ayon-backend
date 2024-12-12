@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Literal, Union
 
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.types import OPModel
@@ -9,8 +9,12 @@ if TYPE_CHECKING:
 
 
 class UserPoolModel(OPModel):
-    name: str
-    pool_type: str
+    id: str
+    title: str
+    type: Literal["fixed", "metered"]
+    valid: bool
+    note: str
+    exp: int
     max: int
     used: int
 
@@ -33,5 +37,4 @@ class AuthUtils:
     @staticmethod
     async def get_user_pools() -> list[UserPoolModel]:
         """Return a list of user pools."""
-        # For future use
-        return []
+        return []  # For future use
