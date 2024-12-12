@@ -105,6 +105,9 @@ class UserEntity(TopLevelEntity):
         else:
             do_con_check = False
 
+        if not self.active:
+            self.data.pop("userPool", None)
+
         if do_con_check:
             logging.info(f"Activating user {self.name}")
 
@@ -122,10 +125,6 @@ class UserEntity(TopLevelEntity):
                         f"Maximum number of users ({max_users}) reached"
                     )
 
-        if run_hooks:
-            for hook in self.save_hooks:
-                await hook(self, conn)  # type: ignore
-
         if self.exists:
             data = dict_exclude(
                 self.dict(exclude_none=True), ["ctime", "name", "own_attrib"]
@@ -137,17 +136,19 @@ class UserEntity(TopLevelEntity):
                     **data,
                 )
             )
-            return True
-
-        await conn.execute(
-            *SQLTool.insert(
-                "users",
-                **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
+        else:
+            await conn.execute(
+                *SQLTool.insert(
+                    "users",
+                    **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
+                )
             )
-        )
+            await Redis.delete("user.avatar", self.name)
+            self.exists = True
 
-        await Redis.delete("user.avatar", self.name)
-        self.exists = True
+        if run_hooks:
+            for hook in self.save_hooks:
+                await hook(self, conn)  # type: ignore
         return True
 
     #
