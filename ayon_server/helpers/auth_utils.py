@@ -24,6 +24,7 @@ class AuthUtils:
     async def ensure_can_login(
         user: "UserEntity",
         client_info: Union["ClientInfo", None] = None,
+        post_save: bool = False,
     ) -> None:
         """Ensure the user can log in.
 
