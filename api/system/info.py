@@ -14,6 +14,7 @@ from ayon_server.config import ayonconfig
 from ayon_server.config.serverconfig import get_server_config
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.helpers.email import is_mailing_enabled
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
 from ayon_server.lib.postgres import Postgres
@@ -72,6 +73,7 @@ class InfoResponseModel(OPModel):
     # TODO: use list | None, but ensure it won't break the frontend
     sites: list[SiteInfo] = Field(default_factory=list, title="List of sites")
     sso_options: list[SSOOption] = Field(default_factory=list, title="SSO options")
+    extras: str = Field("")
 
 
 # Ensure that an admin user exists
@@ -247,10 +249,12 @@ async def get_additional_info(user: UserEntity, request: Request):
     sites = await get_user_sites(user.name, current_site)
 
     attr_list = await get_attributes()
+    extras = await CloudUtils.get_extras()
 
     return {
         "attributes": attr_list,
         "sites": sites,
+        "extras": extras,
     }
 
 
