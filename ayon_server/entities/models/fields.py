@@ -298,6 +298,13 @@ representation_fields = [
         "title": "Files",
         "description": "List of files",
     },
+    {
+        "name": "traits",
+        "type": "dict",
+        "title": "Traits",
+        "description": "Dict of traits",
+        "example": "{\"ayon.2d.PixelBased.v1\": {\"display_window_width\": 1920, \"display_window_height\": 1080}}",
+    }
 ]
 
 workfile_fields = [
