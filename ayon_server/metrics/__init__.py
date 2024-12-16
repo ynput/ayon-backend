@@ -6,7 +6,7 @@ import httpx
 
 from ayon_server.config import ayonconfig
 from ayon_server.constraints import Constraints
-from ayon_server.helpers.cloud import get_cloud_api_headers
+from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
 from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
@@ -235,7 +235,7 @@ async def should_post_metrics() -> bool:
 
 async def post_metrics():
     try:
-        headers = await get_cloud_api_headers()
+        headers = await CloudUtils.get_api_headers()
     except Exception:
         # if we can't get the headers, we can't send metrics
         return
