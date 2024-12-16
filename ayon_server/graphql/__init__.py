@@ -134,6 +134,7 @@ class Query:
             is_service=user.is_service,
             is_developer=user.is_developer,
             is_guest=False,  # TODO
+            user_pool=user.data.get("userPool"),
             default_access_groups=user.data.get("defaultAccessGroups", []),
             has_password=bool(user.data.get("password")),
             apiKeyPreview=user.data.get("apiKeyPreview"),

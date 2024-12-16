@@ -43,8 +43,8 @@ class UserNode:
     is_guest: bool
     is_developer: bool
     has_password: bool
-    user_pool: str | None
-    apiKeyPreview: str | None
+    user_pool: str | None = None
+    apiKeyPreview: str | None = None
     deleted: bool = False
 
     @strawberry.field
