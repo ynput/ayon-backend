@@ -43,7 +43,8 @@ class UserNode:
     is_guest: bool
     is_developer: bool
     has_password: bool
-    apiKeyPreview: str | None
+    user_pool: str | None = None
+    apiKeyPreview: str | None = None
     deleted: bool = False
 
     @strawberry.field
@@ -62,6 +63,7 @@ def user_from_record(
     is_developer = data.get("isDeveloper", False)
     is_manager = is_admin or is_service or data.get("isManager", False)
     is_guest = data.get("isGuest", False)
+    user_pool = data.get("userPool")
 
     name = record["name"]
     attrib = parse_attrib_data(UserAttribType, record["attrib"], user=context["user"])
@@ -91,6 +93,7 @@ def user_from_record(
         is_service=is_service,
         is_guest=is_guest,
         is_developer=is_developer,
+        user_pool=user_pool,
         has_password=bool(data.get("password")),
         default_access_groups=data.get("defaultAccessGroups", []),
         apiKeyPreview=data.get("apiKeyPreview"),

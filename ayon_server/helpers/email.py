@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException
-from ayon_server.helpers.cloud import get_cloud_api_headers
+from ayon_server.helpers.cloud import CloudUtils
 
 if TYPE_CHECKING:
     from ayon_server.entities import UserEntity
@@ -30,7 +30,7 @@ async def is_mailing_enabled() -> MailingEnabled:
         return "smtp"
 
     try:
-        headers = await get_cloud_api_headers()
+        headers = await CloudUtils.get_api_headers()
     except AyonException:
         return False
 
@@ -117,7 +117,7 @@ async def send_api_email(
     text: str | None = None,
     html: str | None = None,
 ) -> None:
-    headers = await get_cloud_api_headers()
+    headers = await CloudUtils.get_api_headers()
 
     payload = {
         "recipients": recipients,

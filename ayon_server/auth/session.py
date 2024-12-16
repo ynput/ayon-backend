@@ -249,7 +249,7 @@ class Session:
         """
 
         try:
-            await AuthUtils.ensure_can_login(user)
+            await AuthUtils.ensure_can_login(user, post_save=True)
         except UnauthorizedException:
             await cls.logout_user(user.name)
         else:

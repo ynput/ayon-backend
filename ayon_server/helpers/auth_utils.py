@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 class UserPoolModel(OPModel):
     id: str
-    title: str
+    label: str
     type: Literal["fixed", "metered"]
     valid: bool
     note: str
@@ -24,6 +24,7 @@ class AuthUtils:
     async def ensure_can_login(
         user: "UserEntity",
         client_info: Union["ClientInfo", None] = None,
+        post_save: bool = False,
     ) -> None:
         """Ensure the user can log in.
 
