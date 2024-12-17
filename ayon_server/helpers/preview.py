@@ -25,7 +25,9 @@ VIDEO_THUMBNAIL_STATUS = set()
 
 
 async def create_video_thumbnail(
-    video_path: str, size: tuple[int | None, int | None]
+    video_path: str,
+    size: tuple[int | None, int | None] | None = None,
+    timestamp: float | None = None,
 ) -> bytes:
     """Create a thumbnail image for a video file.
 
@@ -44,19 +46,31 @@ async def create_video_thumbnail(
         ) as temp_file:
             temp_path = str(temp_file.name)
 
-            cmd: list[str] = [
-                "ffmpeg",
-                "-y",
-                "-i",
-                video_path,
-                "-filter:v",
-                f"scale={size[0] or -1 }:{size[1] or -1}",
-                "-frames:v",
-                "1",
-                "-c:v",
-                "mjpeg",
-                temp_path,
-            ]
+            cmd: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error"]
+
+            if timestamp is not None:
+                cmd.extend(["-ss", str(timestamp)])
+
+            cmd.extend(["-y", "-i", video_path])
+
+            if size is not None:
+                cmd.extend(
+                    [
+                        "-filter:v",
+                        f"scale={size[0] or -1 }:{size[1] or -1}",
+                    ]
+                )
+
+            cmd.extend(
+                [
+                    "-frames:v",
+                    "1",
+                    "-c:v",
+                    "mjpeg",
+                    temp_path,
+                ]
+            )
+
             logging.debug(" ".join(cmd))
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
