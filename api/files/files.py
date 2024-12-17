@@ -1,5 +1,7 @@
+import os
+
 import aiocache
-from fastapi import Header, Request, Response
+from fastapi import Header, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 
 from ayon_server.api.dependencies import CurrentUser, FileID, ProjectName
@@ -10,7 +12,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages
-from ayon_server.helpers.preview import get_file_preview
+from ayon_server.helpers.preview import create_video_thumbnail, get_file_preview
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
@@ -213,3 +215,36 @@ async def get_project_file_thumbnail(
     check_user_access(project_name, user)
 
     return await get_file_preview(project_name, file_id)
+
+
+@router.get("/{file_id}/still", response_model=None)
+async def get_project_file_still(
+    project_name: ProjectName,
+    file_id: FileID,
+    user: CurrentUser,
+    timestamp: float = Query(0.0, alias="t"),
+) -> Response:
+    """Get a still frame from a video file.
+
+    The `t` query parameter can be used to specify the time in seconds.
+    """
+
+    check_user_access(project_name, user)
+
+    storage = await Storages.project(project_name)
+
+    if storage.storage_type == "local":
+        path = await storage.get_path(file_id)
+
+        if not os.path.isfile(path):
+            raise NotFoundException("file not found")
+
+    elif storage.storage_type == "s3":
+        path = await storage.get_signed_url(file_id)
+
+    b = await create_video_thumbnail(path, None, timestamp)
+
+    if b == b"":
+        raise NotFoundException("No still frame available")
+
+    return Response(b, media_type="image/jpeg")
