@@ -1,5 +1,5 @@
 import aiocache
-from fastapi import Header, Request, Response
+from fastapi import Header, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 
 from ayon_server.api.dependencies import CurrentUser, FileID, ProjectName
@@ -213,3 +213,20 @@ async def get_project_file_thumbnail(
     check_user_access(project_name, user)
 
     return await get_file_preview(project_name, file_id)
+
+
+@router.get("/{file_id}/still", response_model=None)
+async def get_project_file_still(
+    project_name: ProjectName,
+    file_id: FileID,
+    user: CurrentUser,
+    time: float = Query(0.0),
+    max_size: int = Query(1920),
+) -> FileResponse | Response:
+    """Get a still frame from a video file.
+
+    The `time` query parameter can be used to specify the time in seconds.
+    The `max_size` query parameter can be used to specify the maximum size of the image.
+    """
+
+    return Response("Not implemented", status_code=501)
