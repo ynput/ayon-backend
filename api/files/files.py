@@ -229,7 +229,7 @@ async def get_project_file_still(
     The `t` query parameter can be used to specify the time in seconds.
     """
 
-    _ = user
+    check_user_access(project_name, user)
 
     storage = await Storages.project(project_name)
 
