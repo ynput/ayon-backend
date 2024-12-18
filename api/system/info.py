@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 import aiocache
 from attributes.attributes import AttributeModel  # type: ignore
-from fastapi import Request
+from fastapi import Query, Request
 from nxtools import log_traceback, logging
 from pydantic import ValidationError
 
@@ -70,10 +70,9 @@ class InfoResponseModel(OPModel):
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
 
-    # TODO: use list | None, but ensure it won't break the frontend
-    sites: list[SiteInfo] = Field(default_factory=list, title="List of sites")
-    sso_options: list[SSOOption] = Field(default_factory=list, title="SSO options")
-    extras: str = Field("")
+    sites: list[SiteInfo] | None = Field(None, title="List of sites")
+    sso_options: list[SSOOption] | None = Field(None, title="SSO options")
+    extras: str | None = Field(None)
 
 
 # Ensure that an admin user exists
@@ -280,6 +279,7 @@ async def is_onboarding_finished() -> bool:
 async def get_site_info(
     request: Request,
     current_user: CurrentUserOptional,
+    full: bool = Query(False, description="Include frontend-related information"),
 ) -> InfoResponseModel:
     """Return site information.
 
@@ -289,6 +289,7 @@ async def get_site_info(
     If the user is not logged in, only the message of the day and the API version
     are returned.
     """
+
     additional_info = {}
     if current_user:
         additional_info = await get_additional_info(current_user, request)
@@ -296,7 +297,7 @@ async def get_site_info(
         if current_user.is_admin and not current_user.is_service:
             if not await is_onboarding_finished():
                 additional_info["onboarding"] = True
-    else:
+    elif full:
         sso_options = await get_sso_options(request)
         has_admin_user = await admin_exists()
         additional_info = {

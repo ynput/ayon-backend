@@ -305,12 +305,12 @@ representation_fields = [
         "description": "Dict of traits",
         "example": {
             "ayon.2d.PixelBased.v1": {
-                    "display_window_width": 1920,
-                    "display_window_height": 1080
+                "display_window_width": 1920,
+                "display_window_height": 1080,
             },
-            "ayon.2d.Image.v1": {}
+            "ayon.2d.Image.v1": {},
         },
-    }
+    },
 ]
 
 workfile_fields = [
