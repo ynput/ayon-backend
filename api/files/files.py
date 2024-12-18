@@ -190,6 +190,8 @@ async def get_project_file_payload(
         raise BadRequestException("File storage is not local")
 
     path = await storage.get_path(file_id)
+    if not os.path.isfile(path):
+        raise NotFoundException("File not found")
 
     check_user_access(project_name, user)
     headers = await get_file_headers(project_name, file_id)
