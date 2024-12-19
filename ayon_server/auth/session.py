@@ -136,8 +136,9 @@ class Session:
         # invalidate least used session if user reached the limit
         # as a background task
 
-        task = asyncio.create_task(cls.invalidate_least_used(user.name))
-        task.add_done_callback(lambda _: None)
+        if not user.is_service:
+            task = asyncio.create_task(cls.invalidate_least_used(user.name))
+            task.add_done_callback(lambda _: None)
 
         return session
 
