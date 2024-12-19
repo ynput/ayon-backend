@@ -157,8 +157,12 @@ async def patch_project_activity(
 ) -> EmptyResponse:
     """Edit an activity.
 
-    Only the author of the activity can edit it.
+    Administrators can edit any activity.
+    Users with the access to the project can edit their own activities,
+    and tick/untick checkboxes in the comment
     """
+
+    user.check_project_access(project_name)
 
     user_name = user.name
 
