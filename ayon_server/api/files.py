@@ -2,10 +2,12 @@ import os
 
 import aiofiles
 from fastapi import Request, Response
+from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.helpers.mimetypes import guess_mime_type
+from ayon_server.helpers.statistics import update_traffic_stats
 
 
 async def handle_upload(request: Request, target_path: str) -> int:
@@ -62,6 +64,9 @@ async def handle_download(
         media_type=media_type,
         filename=filename,
         content_disposition_type=content_disposition_type,
+        background=BackgroundTask(
+            update_traffic_stats, "egress", os.path.getsize(path)
+        ),
     )
 
 
