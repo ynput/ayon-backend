@@ -22,9 +22,10 @@ async def get_roots_for_projects(
             site_id,
             timeout=5,
         )
-        if not site_res:
-            raise BadRequestException(detail=f"Site {site_id} does not exist")
-        platform = site_res[0]["platform"]
+        if site_res:
+            platform = site_res[0]["platform"]
+        elif not platform:
+            raise BadRequestException(detail="Site not found and platform not provided")
 
     # get roots from project anatomies
 
