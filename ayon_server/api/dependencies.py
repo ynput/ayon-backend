@@ -99,9 +99,10 @@ async def user_from_api_key(api_key: str) -> UserEntity:
 
     2. As an array of objects in the `apiKeys` field. Each object
        has the following fields:
-        - key: hashed api key
         - id: identifier that allows invalidating the key
+        - key: hashed api key
         - label: a human-readable label
+        - preview: a preview of the key
         - created: timestamp when the key was created
         - expires(optional): timestamp when the key expires
 
