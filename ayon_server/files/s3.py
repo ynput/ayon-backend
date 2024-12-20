@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from typing_extensions import AsyncGenerator
 
+from ayon_server.helpers.statistics import update_traffic_stats
+
 from .common import FileGroup
 
 if TYPE_CHECKING:
@@ -332,5 +334,6 @@ async def handle_s3_upload(
     await uploader.complete()
     upload_time = time.monotonic() - start_time
 
+    await update_traffic_stats("ingress", i, service="s3")
     logging.info(f"Uploaded {i} bytes to {path} in {upload_time:.2f} seconds")
     return i
