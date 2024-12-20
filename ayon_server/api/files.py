@@ -36,6 +36,9 @@ async def handle_upload(request: Request, target_path: str) -> int:
         except Exception:
             pass
         raise AyonException(f"Failed to write file: {e}") from e
+    finally:
+        if i:
+            await update_traffic_stats("ingress", i)
 
     if i == 0:
         try:
