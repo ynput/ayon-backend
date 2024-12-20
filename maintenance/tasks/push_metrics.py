@@ -8,10 +8,9 @@ from maintenance.maintenance_task import StudioMaintenanceTask
 async def stats_cleanup():
     now = datetime.datetime.now()
     begin = now - datetime.timedelta(days=60)
-    begin_date = begin.strftime("%Y-%m-%d")
 
     query = "DELETE FROM traffic_stats WHERE date < $1"
-    await Postgres().execute(query, begin_date)
+    await Postgres().execute(query, begin)
 
 
 class PushMetrics(StudioMaintenanceTask):
