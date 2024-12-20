@@ -94,8 +94,13 @@ class Session:
             if remaining_ttl < ayonconfig.session_ttl - 120:
                 session.last_used = time.time()
                 await Redis.set(cls.ns, token, json_dumps(session.dict()))
+                await cls.on_extend(session)
 
         return session
+
+    @classmethod
+    async def on_extend(cls, session: SessionModel) -> None:
+        pass
 
     @classmethod
     async def create(
