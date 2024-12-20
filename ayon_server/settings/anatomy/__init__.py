@@ -21,7 +21,9 @@ class ProjectAttribModel(
 
 
 class Anatomy(BaseSettingsModel):
-    _layout: str = "root"
+    _layout = "root"
+    _title = "Project anatomy"
+
     roots: list[Root] = SettingsField(
         default=default_roots,
         title="Roots",
@@ -69,9 +71,6 @@ class Anatomy(BaseSettingsModel):
         title="Tags",
         description="Tags configuration",
     )
-
-    class Config:
-        title = "Project anatomy"
 
     @validator("roots", "folder_types", "task_types", "statuses", "tags")
     def ensure_unique_names(cls, value, field):
