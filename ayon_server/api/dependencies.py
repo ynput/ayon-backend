@@ -122,7 +122,7 @@ async def user_from_api_key(api_key: str) -> UserEntity:
     if not (result := await Postgres.fetch(query, hashed_key)):
         raise UnauthorizedException("Invalid API key")
     user = UserEntity.from_record(result[0])
-    if user.data.get("apiKey") == api_key:
+    if user.data.get("apiKey") == hashed_key:
         return user
     for key_data in user.data.get("apiKeys", []):
         if key_data.get("key") != hashed_key:
