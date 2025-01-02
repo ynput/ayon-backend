@@ -6,7 +6,7 @@ from ayon_server.types import ProjectLevelEntityType
 
 
 class LinkType(BaseSettingsModel):
-    _layout: str = "compact"
+    _layout = "compact"
     link_type: str = SettingsField(..., title="Link type", min_length=1, max_length=100)
     input_type: ProjectLevelEntityType = SettingsField(..., title="Input type")
     output_type: ProjectLevelEntityType = SettingsField(..., title="Output type")

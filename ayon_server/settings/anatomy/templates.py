@@ -34,12 +34,12 @@ class DeliveryTemplate(BaseTemplate):
 
 
 class CustomTemplate(BaseTemplate):
-    _layout: str = "compact"
+    _layout = "compact"
     value: str = SettingsField("", title="Template value")
 
 
 class StagingDirectory(BaseTemplate):
-    _layout: str = "compact"
+    _layout = "compact"
     directory: str = SettingsField("")
 
 

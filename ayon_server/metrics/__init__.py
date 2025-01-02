@@ -27,6 +27,7 @@ from .projects import (
 from .services import ServiceInfo, get_active_services
 from .settings import SettingsOverrides, get_studio_settings_overrides
 from .system import SystemMetricsData, system_metrics
+from .traffic import TrafficStat, get_traffic_stats
 from .users import UserCounts, get_user_counts
 
 
@@ -129,6 +130,8 @@ class Metrics(OPModel):
         description=docfm(get_active_services),
     )
 
+    traffic_stats: list[TrafficStat] | None = Field(None, title="Traffic stats")
+
 
 METRICS_SNAPSHOT = {}
 METRICS_SETUP = [
@@ -173,6 +176,11 @@ METRICS_SETUP = [
         "name": "event_topics",
         "getter": get_event_count_per_topic,
         "ttl": 10,
+    },
+    {
+        "name": "traffic_stats",
+        "getter": get_traffic_stats,
+        "ttl": 24,
     },
 ]
 

@@ -29,7 +29,7 @@ def get_default_scopes():
 
 
 class Status(BaseSettingsModel):
-    _layout: str = "compact"
+    _layout = "compact"
 
     name: str = SettingsField(
         ...,

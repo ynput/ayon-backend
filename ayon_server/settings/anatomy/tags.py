@@ -5,7 +5,7 @@ from ayon_server.settings.settings_field import SettingsField
 
 
 class Tag(BaseSettingsModel):
-    _layout: str = "compact"
+    _layout = "compact"
     name: str = SettingsField(
         ..., title="Name", min_length=1, max_length=100, example="fluffy"
     )

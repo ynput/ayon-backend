@@ -5,7 +5,7 @@ from ayon_server.settings.settings_field import SettingsField
 class Root(BaseSettingsModel):
     """Setup root paths"""
 
-    _layout: str = "expanded"
+    _layout = "expanded"
 
     name: str = SettingsField(
         ...,

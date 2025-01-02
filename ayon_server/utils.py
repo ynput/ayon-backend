@@ -32,8 +32,7 @@ def isinstance_namedtuple(obj: Any) -> bool:
 def json_print(data: Any, header: str | None = None) -> None:
     """Print JSON data."""
     if header:
-        print()
-        print(header, flush=True)
+        print(f"\n{header}", flush=True)
     print(json.dumps(data, indent=2), flush=True)
     if header:
         print()
@@ -175,13 +174,8 @@ def parse_api_key(authorization: str) -> str | None:
 
 @functools.lru_cache(maxsize=128)
 def obscure(text: str):
-    obscured = ""
-    for c in text:
-        if c == " ":
-            obscured += c
-        else:
-            obscured += "*"
-    return obscured
+    """obscure all characters in the text except spaces."""
+    return "".join("*" if c != " " else c for c in text)
 
 
 @functools.lru_cache(maxsize=128)

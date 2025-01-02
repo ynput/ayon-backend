@@ -1,11 +1,11 @@
 from datetime import datetime
 from typing import Literal
 
-import aiofiles
 import shortuuid
 from fastapi import BackgroundTasks, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.files import handle_upload
 from ayon_server.constraints import Constraints
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
@@ -55,9 +55,7 @@ async def upload_addon_zip_file(
             raise ForbiddenException("Custom addons uploads are not allowed")
 
     temp_path = f"/tmp/{shortuuid.uuid()}.zip"
-    async with aiofiles.open(temp_path, "wb") as f:
-        async for chunk in request.stream():
-            await f.write(chunk)
+    await handle_upload(request, temp_path)
 
     # Get addon name and version from the zip file
 
