@@ -1,7 +1,7 @@
 """User entity."""
 
 import re
-from typing import Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
 
 from nxtools import logging
 
@@ -27,11 +27,28 @@ from ayon_server.lib.redis import Redis
 from ayon_server.types import AccessType
 from ayon_server.utils import SQLTool, dict_exclude
 
+if TYPE_CHECKING:
+    from ayon_server.api.clientinfo import ClientInfo
+    from ayon_server.auth.session import SessionModel
+
+
+class SessionInfo:
+    is_api_key: bool = False
+    client_info: Optional["ClientInfo"] = None
+
+    def __init__(self, session: "SessionModel") -> None:
+        self.is_api_key = session.is_api_key
+        self.client_info = session.client_info
+
+    def __repr__(self) -> str:
+        return f"SessionInfo(is_api_key={self.is_api_key})"
+
 
 class UserEntity(TopLevelEntity):
     entity_type: str = "user"
     model = ModelSet("user", attribute_library["user"], has_id=False)
     was_active: bool = False
+    session: Optional[SessionInfo] = None
 
     # Cache for path access lists
     # the structure is as follows:
@@ -73,6 +90,9 @@ class UserEntity(TopLevelEntity):
         ):
             raise NotFoundException(f"Unable to load user {name}")
         return cls.from_record(user_data[0])
+
+    def add_session(self, session: "SessionModel") -> None:
+        self.session = SessionInfo(session)
 
     #
     # Save

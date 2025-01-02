@@ -158,6 +158,7 @@ async def dep_current_user(
         if (session_data := await Session.check(api_key, request)) is None:
             user = await user_from_api_key(api_key)
             session_data = await Session.create(user, request, token=api_key)
+        session_data.is_api_key = True
 
     elif access_token is None:
         raise UnauthorizedException("Access token is missing")
@@ -168,6 +169,7 @@ async def dep_current_user(
         raise UnauthorizedException("Invalid access token")
     await Redis.incr("user-requests", session_data.user.name)
     user = UserEntity.from_record(session_data.user.dict())
+    user.add_session(session_data)
 
     if x_as_user is not None and user.is_service:
         # sudo :)
