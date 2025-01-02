@@ -25,7 +25,7 @@ class TaskType(BaseSettingsModel):
 
 
 default_task_types = [
-    TaskType(name="Generic", shortName="gener", icon="task_alt", color="#585858"),
+    TaskType(name="Generic", shortName="gener", icon="task_alt", color="#5c6c79"),
     TaskType(name="Art", shortName="art", icon="palette", color="#BC3333"),
     TaskType(name="Modeling", shortName="mdl", icon="language", color="#E74C4C"),
     TaskType(name="Texture", shortName="tex", icon="brush", color="#D84444"),
