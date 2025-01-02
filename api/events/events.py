@@ -63,6 +63,12 @@ class DispatchEventRequestModel(OPModel):
         description="Set to False for fire-and-forget events",
         example=True,
     )
+    reuse: bool = Field(
+        False,
+        title="Reuse",
+        description="Allow reusing events with the same hash",
+        example=False,
+    )
 
 
 class UpdateEventRequestModel(OPModel):
@@ -112,6 +118,7 @@ async def post_event(
         payload=request.payload,
         finished=request.finished,
         store=request.store,
+        reuse=request.reuse,
     )
     return DispatchEventResponseModel(id=event_id)
 
@@ -193,6 +200,5 @@ async def delete_event(user: CurrentUser, event_id: EventID) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Not allowed to delete events")
 
-    await Postgres.execute("DELETE FROM events WHERE id = $1", event_id)
-
+    await EventStream.delete(event_id)
     return EmptyResponse()

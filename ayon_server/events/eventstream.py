@@ -51,6 +51,7 @@ class EventStream:
         payload: dict[str, Any] | None = None,
         finished: bool = True,
         store: bool = True,
+        reuse: bool = False,
         recipients: list[str] | None = None,
     ) -> str:
         """
@@ -60,6 +61,9 @@ class EventStream:
 
         store:
             whether to store the event in the database
+
+        reuse:
+            allow to reuse an existing event with the same hash
 
         recipients:
             list of user names to notify via websocket (None for all users)
@@ -95,30 +99,67 @@ class EventStream:
         )
 
         if store:
-            query = SQLTool.insert(
-                table="events",
-                id=event.id,
-                hash=event.hash,
-                sender=event.sender,
-                sender_type=event.sender_type,
-                topic=event.topic,
-                project_name=event.project,
-                user_name=event.user,
-                depends_on=depends_on,
-                status=status,
-                description=description,
-                summary=event.summary,
-                payload=event.payload,
-            )
+            query = """
+                INSERT INTO
+                events (
+                    id,
+                    hash,
+                    sender,
+                    sender_type,
+                    topic,
+                    project_name,
+                    user_name,
+                    depends_on,
+                    status,
+                    description,
+                    summary,
+                    payload
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            """
+            if reuse:
+                query += """
+                    ON CONFLICT (hash) DO UPDATE SET
+                        id = EXCLUDED.id,
+                        sender = EXCLUDED.sender,
+                        sender_type = EXCLUDED.sender_type,
+                        topic = EXCLUDED.topic,
+                        project_name = EXCLUDED.project_name,
+                        user_name = EXCLUDED.user_name,
+                        depends_on = EXCLUDED.depends_on,
+                        status = EXCLUDED.status,
+                        description = EXCLUDED.description,
+                        summary = EXCLUDED.summary,
+                        payload = EXCLUDED.payload,
+                        updated_at = NOW()
+                """
 
             try:
-                await Postgres.execute(*query)
+                await Postgres.execute(
+                    query,
+                    event.id,
+                    event.hash,
+                    event.sender,
+                    event.sender_type,
+                    event.topic,
+                    event.project,
+                    event.user,
+                    event.depends_on,
+                    status,
+                    description,
+                    event.summary,
+                    event.payload,
+                )
             except Postgres.ForeignKeyViolationError as e:
                 raise ConstraintViolationException(
                     "Event depends on non-existing event",
                 ) from e
 
             except Postgres.UniqueViolationError as e:
+                if reuse:
+                    raise ConstraintViolationException(
+                        "Unable to reuse the event. Another event depends on it",
+                    ) from e
                 raise ConstraintViolationException(
                     "Event with same hash already exists",
                 ) from e
@@ -274,3 +315,8 @@ class EventStream:
         if event is None:
             raise NotFoundException("Event not found")
         return event
+
+    @classmethod
+    async def delete(cls, event_id: str) -> None:
+        await Postgres.execute("DELETE FROM events WHERE id = $1", event_id)
+        return None
