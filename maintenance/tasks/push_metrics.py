@@ -9,8 +9,9 @@ async def stats_cleanup():
     now = datetime.datetime.now()
     begin = now - datetime.timedelta(days=60)
 
-    query = "DELETE FROM traffic_stats WHERE date < $1"
-    await Postgres().execute(query, begin)
+    for table in ["user_stats", "traffic_stats"]:
+        query = f"DELETE FROM {table} WHERE date < $1"
+        await Postgres().execute(query, begin)
 
 
 class PushMetrics(StudioMaintenanceTask):
