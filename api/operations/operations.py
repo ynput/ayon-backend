@@ -52,4 +52,4 @@ async def operations(
     for operation in payload.operations:
         ops.append(operation)
 
-    return ops.process(can_fail=payload.can_fail)
+    return await ops.process(can_fail=payload.can_fail, raise_on_error=False)

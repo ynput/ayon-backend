@@ -1,8 +1,9 @@
 from contextlib import suppress
 from typing import Annotated, Any
 
-from nxtools import log_traceback
+from asyncpg.exceptions import IntegrityConstraintViolationError
 
+from ayon_server.api.postgres_exceptions import parse_postgres_exception
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
@@ -11,6 +12,7 @@ from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
+    ConflictException,
     ForbiddenException,
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
@@ -234,8 +236,27 @@ async def _process_operations(
                 if raise_on_error:
                     raise e
                 break
+        except IntegrityConstraintViolationError as e:
+            parsed = parse_postgres_exception(e)
+
+            result.append(
+                OperationResponseModel(
+                    success=False,
+                    id=operation.id,
+                    type=operation.type,
+                    status=parsed["code"],
+                    detail=parsed["detail"],
+                    entity_id=operation.entity_id,
+                    entity_type=operation.entity_type,
+                )
+            )
+
+            if not can_fail:
+                if raise_on_error:
+                    raise ConflictException(parsed["detail"])
+                break
+
         except Exception as e:
-            log_traceback()
             result.append(
                 OperationResponseModel(
                     success=False,
@@ -307,9 +328,14 @@ class ProjectLevelOperations:
             )
         )
 
-    def create(self, entity_type: ProjectLevelEntityType, **kwargs) -> None:
+    def create(
+        self,
+        entity_type: ProjectLevelEntityType,
+        entity_id: str | None = None,
+        **kwargs,
+    ) -> None:
         """Create a project level entity."""
-        self.add("create", entity_type, **kwargs)
+        self.add("create", entity_type, entity_id=entity_id, **kwargs)
 
     def update(
         self,
@@ -355,29 +381,17 @@ class ProjectLevelOperations:
 
     # Processing
 
-    async def process(
+    async def _process(
         self,
         can_fail: bool = False,
         raise_on_error: bool = True,
     ) -> OperationsResponseModel:
-        """
-        Process the enqueued operations.
-
-        raise_on_error is ignored if can_fail is True, when set to False,
-        the function will return the response even if there are errors (success=False).
-        When raise_on_error is True, the function will raise an exception when the first
-        error is encountered, and the response will not be returned.
-
-
-        Warning: Method can still raise BadRequestException even if can_fail is True or
-        raise_on_error is False, if the request is invalid
-        (e.g. missing entity_id for update)
-        """
-
         self._validate()
 
-        events: list[dict[str, Any]]
-        response: OperationsResponseModel
+        events: list[dict[str, Any]] = []
+        response: OperationsResponseModel = OperationsResponseModel(
+            operations=[], success=False
+        )  # keep the type checker happy
 
         if can_fail:
             events, response = await _process_operations(
@@ -385,7 +399,7 @@ class ProjectLevelOperations:
                 self.operations,
                 user=self.user,
                 can_fail=True,
-                raise_on_error=raise_on_error,
+                raise_on_error=False,
             )
 
         else:
@@ -415,3 +429,26 @@ class ProjectLevelOperations:
             )
 
         return response
+
+    async def process(
+        self,
+        can_fail: bool = False,
+        raise_on_error: bool = True,
+    ) -> OperationsResponseModel:
+        """
+        Process the enqueued operations.
+
+        raise_on_error is ignored if can_fail is True, when set to False,
+        the function will return the response even if there are errors (success=False).
+        When raise_on_error is True, the function will raise an exception when the first
+        error is encountered, and the response will not be returned.
+
+        Warning: Method can still raise BadRequestException even if can_fail is True or
+        raise_on_error is False, if the request is invalid
+        (e.g. missing entity_id for update)
+        """
+
+        try:
+            return await self._process(can_fail=can_fail, raise_on_error=raise_on_error)
+        finally:
+            self.operations = []
