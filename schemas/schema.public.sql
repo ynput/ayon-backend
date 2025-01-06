@@ -214,6 +214,24 @@ CREATE TABLE IF NOT EXISTS public.services(
   data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
+CREATE TABLE IF NOT EXISTS public.licenses(
+    id UUID NOT NULL PRIMARY KEY,
+    data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+CREATE TABLE IF NOT EXISTS public.traffic_stats(
+    date DATE NOT NULL,
+    service VARCHAR NOT NULL,
+    ingress BIGINT NOT NULL DEFAULT 0,
+    egress BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (date, service)
+);
+
+CREATE TABLE IF NOT EXISTS public.user_stats(
+    date DATE NOT NULL PRIMARY KEY,
+    users JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
 
 -- CREATE THE SITE ID
 INSERT INTO config VALUES ('instanceId', to_jsonb(gen_random_uuid()::text)) ON CONFLICT DO NOTHING;

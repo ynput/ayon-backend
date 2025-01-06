@@ -1,11 +1,11 @@
 from datetime import datetime
 from typing import Literal
 
-import aiofiles
 import shortuuid
 from fastapi import BackgroundTasks, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.files import handle_upload
 from ayon_server.constraints import Constraints
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
@@ -14,6 +14,7 @@ from ayon_server.installer import background_installer
 from ayon_server.installer.addons import get_addon_zip_info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
+from ayon_server.utils import hash_data
 
 from .router import router
 
@@ -55,9 +56,7 @@ async def upload_addon_zip_file(
             raise ForbiddenException("Custom addons uploads are not allowed")
 
     temp_path = f"/tmp/{shortuuid.uuid()}.zip"
-    async with aiofiles.open(temp_path, "wb") as f:
-        async for chunk in request.stream():
-            await f.write(chunk)
+    await handle_upload(request, temp_path)
 
     # Get addon name and version from the zip file
 
@@ -68,34 +67,16 @@ async def upload_addon_zip_file(
     # and contains an addon. If it doesn't, an exception is raised before
     # we reach this point.
 
-    # Let's check if we installed this addon before
-
-    query = """
-        SELECT id FROM events
-        WHERE topic = 'addon.install'
-        AND summary->>'name' = $1
-        AND summary->>'version' = $2
-        LIMIT 1
-    """
-
-    res = await Postgres.fetch(query, zip_info.name, zip_info.version)
-    if res:
-        event_id = res[0]["id"]
-        await EventStream.update(
-            event_id,
-            description="Reinstalling addon from zip file",
-            summary=zip_info.dict(exclude_none=True),
-            status="pending",
-        )
-    else:
-        # If not, dispatch a new event
-        event_id = await EventStream.dispatch(
-            "addon.install",
-            description=f"Installing addon {zip_info.name} {zip_info.version}",
-            summary=zip_info.dict(exclude_none=True),
-            user=user.name,
-            finished=False,
-        )
+    event_hash = hash_data(["addon.install", zip_info.name, zip_info.version])
+    event_id = await EventStream.dispatch(
+        "addon.install",
+        hash=event_hash,
+        description=f"Installing addon {zip_info.name} {zip_info.version}",
+        summary=zip_info.dict(exclude_none=True),
+        user=user.name,
+        finished=False,
+        reuse=True,
+    )
 
     # Start the installation in the background
     # And return the event ID to the client,

@@ -60,6 +60,7 @@ class BaseServerAddon:
     site_settings_model: Type[BaseSettingsModel] | None = None
     app_host_name: str | None = None
     frontend_scopes: dict[str, Any] = {}
+    frontend_modules: dict[str, Any] = {}
 
     compatibility: AddonCompatibilityModel | None = None
 

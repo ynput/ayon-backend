@@ -6,7 +6,7 @@ import httpx
 
 from ayon_server.config import ayonconfig
 from ayon_server.constraints import Constraints
-from ayon_server.helpers.cloud import get_cloud_api_headers
+from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
 from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
@@ -27,7 +27,8 @@ from .projects import (
 from .services import ServiceInfo, get_active_services
 from .settings import SettingsOverrides, get_studio_settings_overrides
 from .system import SystemMetricsData, system_metrics
-from .users import UserCounts, get_user_counts
+from .traffic import TrafficStat, get_traffic_stats
+from .users import UserCounts, UserStat, get_user_counts, get_user_stats
 
 
 def docfm(obj) -> str:
@@ -129,6 +130,9 @@ class Metrics(OPModel):
         description=docfm(get_active_services),
     )
 
+    traffic_stats: list[TrafficStat] | None = Field(None, title="Traffic stats")
+    user_stats: list[UserStat] | None = Field(None, title="User stats")
+
 
 METRICS_SNAPSHOT = {}
 METRICS_SETUP = [
@@ -173,6 +177,16 @@ METRICS_SETUP = [
         "name": "event_topics",
         "getter": get_event_count_per_topic,
         "ttl": 10,
+    },
+    {
+        "name": "traffic_stats",
+        "getter": get_traffic_stats,
+        "ttl": 24,
+    },
+    {
+        "name": "user_stats",
+        "getter": get_user_stats,
+        "ttl": 24,
     },
 ]
 
@@ -235,7 +249,7 @@ async def should_post_metrics() -> bool:
 
 async def post_metrics():
     try:
-        headers = await get_cloud_api_headers()
+        headers = await CloudUtils.get_api_headers()
     except Exception:
         # if we can't get the headers, we can't send metrics
         return

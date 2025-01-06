@@ -6,7 +6,7 @@ import semver
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
-from ayon_server.helpers.cloud import get_cloud_api_headers
+from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.lib.postgres import Postgres
 from ayon_server.version import __version__ as ayon_version
 
@@ -19,7 +19,7 @@ async def get_market_data(
     endpoint = "/".join(args)
 
     try:
-        headers = await get_cloud_api_headers()
+        headers = await CloudUtils.get_api_headers()
     except ForbiddenException:
         headers = {}
 
@@ -27,7 +27,7 @@ async def get_market_data(
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
-            f"{ayonconfig.ynput_cloud_api_url}/api/v1/market/{endpoint}",
+            f"{ayonconfig.ynput_cloud_api_url}/api/v1/{endpoint}",
             headers=headers,
         )
 

@@ -1,6 +1,10 @@
 ----------------
--- AYON 1.5.7 --
+-- AYON 1.6.0 --
 ----------------
+
+-- In 1.6.0, we are adding a new column `sender_type` to the `events` table.
+-- In project schemas, we are adding new columns `traits` to the `representations` table 
+-- and `tags` to the `activities` table.
 
 DO $$
 BEGIN
@@ -17,7 +21,7 @@ BEGIN
 END $$;
 
 
-CREATE OR REPLACE FUNCTION add_traits_column_to_representations()
+CREATE OR REPLACE FUNCTION add_new_columns()
    RETURNS VOID  AS
    $$
    DECLARE rec RECORD;
@@ -27,10 +31,14 @@ CREATE OR REPLACE FUNCTION add_traits_column_to_representations()
              EXECUTE
               'ALTER TABLE IF EXISTS ' || rec.nspname || '.representations ' ||
               'ADD COLUMN IF NOT EXISTS traits JSONB';
+
+             EXECUTE
+              'ALTER TABLE IF EXISTS ' || rec.nspname || '.activities ' ||
+              'ADD COLUMN IF NOT EXISTS tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[]';
         END LOOP;
         RETURN;
    END;
    $$ LANGUAGE plpgsql;
 
-SELECT add_traits_column_to_representations();
-DROP FUNCTION IF EXISTS add_traits_column_to_representations();
+SELECT add_new_columns();
+DROP FUNCTION IF EXISTS add_new_columns();

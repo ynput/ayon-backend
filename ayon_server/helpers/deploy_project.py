@@ -118,7 +118,7 @@ async def assign_default_users_to_project(project_name: str, conn) -> None:
         access_groups = user.data.get("accessGroups", {})
         access_groups[project_name] = user.data["defaultAccessGroups"]
         user.data["accessGroups"] = access_groups
-        await user.save(transaction=conn)
+        await user.save(transaction=conn, run_hooks=False)
 
         for token in sessions[user.name]:
             await Session.update(token, user)
@@ -135,6 +135,7 @@ async def create_project_from_anatomy(
     *,
     library: bool = False,
     user_name: str | None = None,
+    data: dict[str, Any] | None = None,
 ) -> None:
     """Deploy a project.
 
@@ -145,12 +146,16 @@ async def create_project_from_anatomy(
     This is a preffered way of creating a new project, as it will
     create all the necessary data in the database.
     """
+
+    project_data = anatomy_to_project_data(anatomy)
+    project_data["data"].update(data or {})
+
     project = ProjectEntity(
         payload={
             "name": name,
             "code": code,
             "library": library,
-            **anatomy_to_project_data(anatomy),
+            **project_data,
         },
     )
 

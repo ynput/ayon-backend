@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from nxtools import logging
@@ -17,6 +18,19 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Postgres
 
 from .utils import process_activity_files
+
+
+def ensure_only_checkboxes_changed(original_body: str, new_body: str):
+    def unify_checkboxes(text):
+        return re.sub(r"\s*\[[ xX]\]\s*", "[checkbox]", text)
+
+    original_body_placeholder = unify_checkboxes(original_body)
+    new_body_placeholder = unify_checkboxes(new_body)
+
+    if original_body_placeholder == new_body_placeholder:
+        return
+
+    raise ForbiddenException("You are not the owner, you cannot modify the comment")
 
 
 async def update_activity(
@@ -48,16 +62,7 @@ async def update_activity(
     if not res:
         raise NotFoundException("Activity not found")
 
-    if body is None:
-        body = res[0]["body"]
-    assert body is not None, "Body must exist"  # mypy
-
-    activity_type = res[0]["activity_type"]
-    if len(body) > MAX_BODY_LENGTH:
-        raise BadRequestException(f"{activity_type.capitalize()} body is too long")
-
     activity_data = res[0]["data"]
-
     if user_name and (user_name != activity_data["author"]):
         if is_admin:
             logging.warning(
@@ -65,7 +70,23 @@ async def update_activity(
                 f" owned by {activity_data['author']}"
             )
         else:
-            raise ForbiddenException("You can only update your own activities")
+            # Limited access - the user is not is the owner of the activity
+            # nor an admin, so we need to check if the user is trying to
+            # modify the checkboxes in the comment body only.
+            # otherwise, we raise a ForbiddenException
+            if body:
+                ensure_only_checkboxes_changed(res[0]["body"], body)
+
+            if files or append_files or data or extra_references:
+                raise ForbiddenException("You can only edit checkboxes")
+
+    if body is None:
+        body = res[0]["body"]
+    assert body is not None, "Body must exist"  # mypy
+
+    activity_type = res[0]["activity_type"]
+    if len(body) > MAX_BODY_LENGTH:
+        raise BadRequestException(f"{activity_type.capitalize()} body is too long")
 
     if data:
         # do not overwrite the author
@@ -124,7 +145,10 @@ async def update_activity(
 
     query = f"""
         UPDATE project_{project_name}.activities
-        SET body = $1, data = $2
+        SET
+            body = $1,
+            data = $2,
+            updated_at = now()
         WHERE id = $3
         """
 
@@ -184,7 +208,10 @@ async def update_activity(
             )
             VALUES
             ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (id) DO
+                UPDATE SET
+                    updated_at = EXCLUDED.updated_at,
+                    data = EXCLUDED.data
             """
         )
 

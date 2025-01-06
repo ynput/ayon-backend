@@ -185,6 +185,7 @@ def build_pl_entity_change_events(
             continue
 
         description = f"Changed {entity_type} {original_entity.name} {column_name}"
+
         result.append(
             {
                 "topic": f"entity.{entity_type}.{topic_name}",

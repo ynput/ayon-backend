@@ -117,6 +117,11 @@ class AyonConfig(BaseModel):
         description="Skip checking session IP match real IP",
     )
 
+    max_concurent_user_sessions: int | None = Field(
+        default=None,
+        description="Maximum number of concurrent user sessions",
+    )
+
     max_failed_login_attempts: int = Field(
         default=10,
         description="Maximum number of failed login attempts",

@@ -24,7 +24,7 @@ from ayon_server.files.s3 import (
     store_s3_file,
     upload_s3_file,
 )
-from ayon_server.helpers.cloud import get_cloud_api_headers, get_instance_id
+from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.helpers.ffprobe import extract_media_info
 from ayon_server.helpers.project_list import ProjectListItem, get_project_info
 from ayon_server.lib.postgres import Postgres
@@ -92,7 +92,7 @@ class ProjectStorage:
 
     @aiocache.cached()
     async def get_root(self) -> str:
-        instance_id = await get_instance_id()
+        instance_id = await CloudUtils.get_instance_id()
         return self.root.format(instance_id=instance_id)
 
     # Common file management methods
@@ -154,8 +154,7 @@ class ProjectStorage:
                 "fileId": file_id,
             }
 
-            headers = await get_cloud_api_headers()
-
+            headers = await CloudUtils.get_api_headers()
             async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
                 res = await client.post(
                     self.cdn_resolver,

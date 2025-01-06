@@ -95,7 +95,7 @@ async def set_projects_access(
                 access_groups.pop(project_name, None)
 
             user.data["accessGroups"] = access_groups
-            await user.save()
+            await user.save(run_hooks=False)
 
             # Update all active sessions of the user
             for token in sessions[user.name]:

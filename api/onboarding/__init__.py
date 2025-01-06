@@ -1,4 +1,4 @@
-__all__ = ["router", "initialize", "release"]
+__all__ = ["router", "onboarding"]
 
-from . import initialize, release
+from . import onboarding
 from .router import router

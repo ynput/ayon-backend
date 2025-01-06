@@ -1,7 +1,7 @@
 """User entity."""
 
 import re
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from nxtools import logging
 
@@ -37,6 +37,7 @@ class UserEntity(TopLevelEntity):
     # the structure is as follows:
     # project_name[access_type]: [path1, path2, ...]
     path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
+    save_hooks: list[Callable[["UserEntity", Connection], Awaitable[None]]] = []
 
     #
     # Load
@@ -80,6 +81,7 @@ class UserEntity(TopLevelEntity):
     async def save(
         self,
         transaction: Connection | None = None,
+        run_hooks: bool = True,
     ) -> bool:
         """Save the user to the database."""
 
@@ -102,6 +104,9 @@ class UserEntity(TopLevelEntity):
 
         else:
             do_con_check = False
+
+        if not self.active:
+            self.data.pop("userPool", None)
 
         if do_con_check:
             logging.info(f"Activating user {self.name}")
@@ -131,16 +136,19 @@ class UserEntity(TopLevelEntity):
                     **data,
                 )
             )
-            return True
-
-        await conn.execute(
-            *SQLTool.insert(
-                "users",
-                **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
+        else:
+            await conn.execute(
+                *SQLTool.insert(
+                    "users",
+                    **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
+                )
             )
-        )
-        await Redis.delete("user.avatar", self.name)
-        self.exists = True
+            await Redis.delete("user.avatar", self.name)
+            self.exists = True
+
+        if run_hooks:
+            for hook in self.save_hooks:
+                await hook(self, conn)  # type: ignore
         return True
 
     #

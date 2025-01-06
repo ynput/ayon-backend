@@ -8,13 +8,14 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
-from . import info, metrics, secrets, sites
+from . import frontend_modules, info, metrics, secrets, sites
 from .router import router
 
 assert info
 assert metrics
 assert secrets
 assert sites
+assert frontend_modules
 
 
 @router.post("/system/restart", response_class=Response, tags=["System"])
