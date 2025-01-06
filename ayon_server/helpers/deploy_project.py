@@ -77,7 +77,6 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         "tags": tags,
         "attrib": anatomy.attributes.dict(),
         "config": config,
-        "data": {},
     }
 
     return result
@@ -149,7 +148,12 @@ async def create_project_from_anatomy(
     """
 
     project_data = anatomy_to_project_data(anatomy)
-    project_data["data"].update(data or {})
+    if data:
+        if "data" not in project_data:
+            # now we don't expect anything to be in project_data.data
+            # but we will keep this check for now for the future
+            project_data["data"] = {}
+        project_data["data"].update(data)
 
     project = ProjectEntity(
         payload={
