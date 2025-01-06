@@ -239,17 +239,22 @@ class FolderEntity(ProjectLevelEntity):
         Reimplements the method from the parent class, because in
         case of folders we need to check the parent folder.
         """
-        if self.parent_id is None:
-            # if user can create a project, they can create a root folders
-            user.check_permissions("project.create")
+        try:
+            if self.parent_id is None:
+                # if user can create a project, they can create a root folders
+                user.check_permissions("studio.create_projects")
+        except ForbiddenException:
+            pass
         else:
-            await ensure_entity_access(
-                user,
-                self.project_name,
-                self.entity_type,
-                self.parent_id,
-                "create",
-            )
+            return
+
+        await ensure_entity_access(
+            user,
+            self.project_name,
+            self.entity_type,
+            self.parent_id,
+            "create",
+        )
 
     async def ensure_update_access(self, user, **kwargs) -> None:
         """Check if the user has access to update the folder.

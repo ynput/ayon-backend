@@ -258,7 +258,10 @@ class UserEntity(TopLevelEntity):
             # no restrictions on group (folder access)
             return
 
-        perm = getattr(perm_group, perm_name)
+        try:
+            perm = getattr(perm_group, perm_name)
+        except AttributeError:
+            raise ForbiddenException(f"Your permissions do not include {key}")
         if not perm:
             pdef = f" {project_name}" if project_name else ""
             raise ForbiddenException(f"You are not allowed to access{pdef} {perm_name}")

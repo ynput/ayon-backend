@@ -3,6 +3,7 @@ name = "ayon-server"
 version = "1.6.1"
 description = ""
 authors = ["Ynput <info@ynput.io>"]
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.10"

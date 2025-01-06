@@ -140,7 +140,7 @@ async def ensure_entity_access(
     user: "UserEntity",
     project_name: str,
     entity_type: ProjectLevelEntityType,
-    entity_id: str,
+    entity_id: str | None,
     access_type: AccessType = "read",
 ) -> Literal[True]:
     """Check whether the user has access to a given entity.
@@ -155,6 +155,9 @@ async def ensure_entity_access(
     )
     if access_list is None:
         return True
+
+    if entity_id is None:
+        raise ForbiddenException("Limited access to project")
 
     conditions = [f"hierarchy.path like ANY ('{{{', '.join(access_list)}}}')"]
     joins = []
