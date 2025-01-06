@@ -227,6 +227,11 @@ CREATE TABLE IF NOT EXISTS public.traffic_stats(
     PRIMARY KEY (date, service)
 );
 
+CREATE TABLE IF NOT EXISTS public.user_stats(
+    date DATE NOT NULL PRIMARY KEY,
+    users JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
 
 -- CREATE THE SITE ID
 INSERT INTO config VALUES ('instanceId', to_jsonb(gen_random_uuid()::text)) ON CONFLICT DO NOTHING;
