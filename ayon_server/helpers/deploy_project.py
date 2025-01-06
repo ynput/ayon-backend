@@ -77,6 +77,7 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         "tags": tags,
         "attrib": anatomy.attributes.dict(),
         "config": config,
+        "data": {},
     }
 
     return result

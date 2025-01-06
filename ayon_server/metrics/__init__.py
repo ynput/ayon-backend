@@ -28,7 +28,7 @@ from .services import ServiceInfo, get_active_services
 from .settings import SettingsOverrides, get_studio_settings_overrides
 from .system import SystemMetricsData, system_metrics
 from .traffic import TrafficStat, get_traffic_stats
-from .users import UserCounts, get_user_counts
+from .users import UserCounts, UserStat, get_user_counts, get_user_stats
 
 
 def docfm(obj) -> str:
@@ -131,6 +131,7 @@ class Metrics(OPModel):
     )
 
     traffic_stats: list[TrafficStat] | None = Field(None, title="Traffic stats")
+    user_stats: list[UserStat] | None = Field(None, title="User stats")
 
 
 METRICS_SNAPSHOT = {}
@@ -180,6 +181,11 @@ METRICS_SETUP = [
     {
         "name": "traffic_stats",
         "getter": get_traffic_stats,
+        "ttl": 24,
+    },
+    {
+        "name": "user_stats",
+        "getter": get_user_stats,
         "ttl": 24,
     },
 ]
