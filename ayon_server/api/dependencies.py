@@ -1,6 +1,7 @@
 """Request dependencies."""
 
 import re
+import time
 from typing import Annotated, get_args
 
 from fastapi import Cookie, Depends, Header, Path, Query, Request
@@ -88,6 +89,50 @@ async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
 ThumbnailContentType = Annotated[str, Depends(dep_thumbnail_content_type)]
 
 
+async def user_from_api_key(api_key: str) -> UserEntity:
+    """Return a user associated with the given API key.
+
+    Hashed ApiKey may be stored in the database in two ways:
+
+    1. As a string in the `apiKey` field. Original method used
+       by services
+
+    2. As an array of objects in the `apiKeys` field. Each object
+       has the following fields:
+        - id: identifier that allows invalidating the key
+        - key: hashed api key
+        - label: a human-readable label
+        - preview: a preview of the key
+        - created: timestamp when the key was created
+        - expires(optional): timestamp when the key expires
+
+       In this case, the key is stored in the `key` field,
+       is the one we are looking for. We also need to check
+       if the key is not expired.
+    """
+    hashed_key = hash_password(api_key)
+    query = """
+        SELECT * FROM users
+        WHERE data->>'apiKey' = $1
+        OR EXISTS (
+            SELECT 1 FROM jsonb_array_elements(data->'apiKeys') AS ak
+            WHERE ak->>'key' = $1
+        )
+    """
+    if not (result := await Postgres.fetch(query, hashed_key)):
+        raise UnauthorizedException("Invalid API key")
+    user = UserEntity.from_record(result[0])
+    if user.data.get("apiKey") == hashed_key:
+        return user
+    for key_data in user.data.get("apiKeys", []):
+        if key_data.get("key") != hashed_key:
+            continue
+        if key_data.get("expires") and key_data["expires"] < time.time():
+            raise UnauthorizedException("API key has expired")
+        return user
+    raise UnauthorizedException("Invalid API key. This shouldn't happen")
+
+
 async def dep_current_user(
     request: Request,
     x_as_user: str | None = Header(
@@ -110,16 +155,10 @@ async def dep_current_user(
     """
 
     if api_key := x_api_key or api_key:
-        hashed_key = hash_password(api_key)
         if (session_data := await Session.check(api_key, request)) is None:
-            result = await Postgres.fetch(
-                "SELECT * FROM users WHERE data->>'apiKey' = $1 LIMIT 1",
-                hashed_key,
-            )
-            if not result:
-                raise UnauthorizedException("Invalid API key")
-            user = UserEntity.from_record(result[0])
+            user = await user_from_api_key(api_key)
             session_data = await Session.create(user, request, token=api_key)
+        session_data.is_api_key = True
 
     elif access_token is None:
         raise UnauthorizedException("Access token is missing")
@@ -130,6 +169,7 @@ async def dep_current_user(
         raise UnauthorizedException("Invalid access token")
     await Redis.incr("user-requests", session_data.user.name)
     user = UserEntity.from_record(session_data.user.dict())
+    user.add_session(session_data)
 
     if x_as_user is not None and user.is_service:
         # sudo :)

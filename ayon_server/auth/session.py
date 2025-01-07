@@ -24,6 +24,7 @@ class SessionModel(OPModel):
     created: float = 0
     last_used: float = 0
     is_service: bool = False
+    is_api_key: bool = False
     client_info: ClientInfo | None = None
 
     @property
@@ -216,6 +217,8 @@ class Session:
 
         sessions = []
         async for session in cls.list(user_name):
+            if session.is_api_key:
+                continue
             sessions.append(session)
 
         if len(sessions) <= max_sessions:
