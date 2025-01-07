@@ -46,7 +46,6 @@ async def get_current_user(
     This is used for a profile page as well as as an initial check to ensure
     the user is still logged in.
     """
-    print(user.session)
     return user.payload
 
 
