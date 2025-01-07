@@ -136,15 +136,17 @@ async def create_project_from_anatomy(
     library: bool = False,
     user_name: str | None = None,
     data: dict[str, Any] | None = None,
+    assign_users: bool = True,
 ) -> None:
     """Deploy a project.
 
     Create a new project with the given name and code, and deploy the
-    given anatomy to it. Assing the project to all users with
-    defaultAccessGroups.
+    given anatomy to it, assign the project to all users with
+    defaultAccessGroups (if assign_users is True) and dispatch the
+    entity.project.created event.
 
     This is a preffered way of creating a new project, as it will
-    create all the necessary data in the database.
+    create all the necessary data in the database consistently.
     """
 
     project_data = anatomy_to_project_data(anatomy)
@@ -167,7 +169,8 @@ async def create_project_from_anatomy(
     start_time = time.monotonic()
     async with Postgres.acquire() as conn, conn.transaction():
         await project.save(transaction=conn)
-        await assign_default_users_to_project(project.name, conn)
+        if assign_users:
+            await assign_default_users_to_project(project.name, conn)
 
     end_time = time.monotonic()
     logging.debug(f"Deployed project {project.name} in {end_time - start_time:.2f}s")
