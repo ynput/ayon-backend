@@ -133,9 +133,11 @@ class EventStream:
                         payload = EXCLUDED.payload,
                         updated_at = NOW()
                 """
+            else:
+                query += "ON CONFLICT (hash) DO NOTHING"
 
             try:
-                await Postgres.execute(
+                res = await Postgres.execute(
                     query,
                     event.id,
                     event.hash,
@@ -156,13 +158,14 @@ class EventStream:
                 ) from e
 
             except Postgres.UniqueViolationError as e:
-                if reuse:
-                    raise ConstraintViolationException(
-                        "Unable to reuse the event. Another event depends on it",
-                    ) from e
                 raise ConstraintViolationException(
-                    "Event with same hash already exists",
+                    "Unable to reuse the event. Another event depends on it",
                 ) from e
+
+            if (not reuse) and res == "INSERT 0 0":
+                raise ConstraintViolationException(
+                    "Event with the same hash already exists",
+                )
 
         depends_on = (
             str(event.depends_on).replace("-", "") if event.depends_on else None
