@@ -141,7 +141,10 @@ class AddonLibrary:
         for addon_name, addon_version in active_versions.items():
             addon: Optional[BaseServerAddon] = None
             if addon_version:
-                addon = self[addon_name][addon_version]
+                try:
+                    addon = self[addon_name][addon_version]
+                except KeyError:
+                    continue
             output[addon_name] = addon
         return output
 
