@@ -22,14 +22,16 @@ async def list_frontend_modules(user: CurrentUser) -> list[FrontendModuleListIte
         if not addon:
             continue
 
-        if not addon.frontend_modules:
+        frontend_modules = await addon.get_frontend_modules()
+
+        if not frontend_modules:
             continue
 
         result.append(
             FrontendModuleListItem(
                 addon_name=addon.name,
                 addon_version=addon.version,
-                modules=addon.frontend_modules,
+                modules=frontend_modules,
             )
         )
 

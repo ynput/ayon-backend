@@ -190,6 +190,12 @@ class BaseServerAddon:
             }
         )
 
+    async def get_frontend_scopes(self) -> dict[str, Any]:
+        return self.frontend_scopes
+
+    async def get_frontend_modules(self) -> dict[str, Any]:
+        return self.frontend_modules
+
     #
     # File serving
     #
