@@ -62,7 +62,7 @@ async def db_migration(has_schema: bool) -> int:
             #    continue
             # logging.info(f"Applying migration {migration_version}")
 
-            await Postgres.execute(migration.read_text())
+            await Postgres.execute(migration.read_text(), timeout=600)
         return migration_version
 
     return int(available_migrations[-1].stem)
