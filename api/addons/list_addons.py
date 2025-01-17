@@ -79,7 +79,7 @@ async def list_addons(
             vinf = {
                 "has_settings": bool(addon.get_settings_model()),
                 "has_site_settings": bool(addon.get_site_settings_model()),
-                "frontend_scopes": addon.frontend_scopes,
+                "frontend_scopes": await addon.get_frontend_scopes(),
             }
             if details:
                 vinf["client_pyproject"] = await addon.get_client_pyproject()
