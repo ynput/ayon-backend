@@ -61,7 +61,7 @@ def user_from_record(
     is_admin = data.get("isAdmin", False)
     is_service = data.get("isService", False)
     is_developer = data.get("isDeveloper", False)
-    is_manager = is_admin or is_service or data.get("isManager", False)
+    is_manager = data.get("isManager", False)
     is_guest = data.get("isGuest", False)
     user_pool = data.get("userPool")
 
