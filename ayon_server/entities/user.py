@@ -16,6 +16,7 @@ from ayon_server.constraints import Constraints
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
+    ConstraintViolationException,
     ForbiddenException,
     LowPasswordComplexityException,
     NotFoundException,
@@ -48,6 +49,7 @@ class UserEntity(TopLevelEntity):
     entity_type: str = "user"
     model = ModelSet("user", attribute_library["user"], has_id=False)
     was_active: bool = False
+    original_email: str | None = None
     session: Optional[SessionInfo] = None
 
     # Cache for path access lists
@@ -69,6 +71,7 @@ class UserEntity(TopLevelEntity):
         super().__init__(payload, exists, validate)
         self.was_active = self.active and self.exists
         self.was_service = self.is_service and self.exists
+        self.original_email = self.attrib.email
 
     @classmethod
     async def load(
@@ -127,6 +130,24 @@ class UserEntity(TopLevelEntity):
 
         if not self.active:
             self.data.pop("userPool", None)
+
+        if self.attrib.email and (self.attrib.email != self.original_email):
+            logging.info(f"Email changed for user {self.name}")
+            # Email changed, we need to check if it's unique
+            # We cannot use DB index here.
+            res = await conn.fetch(
+                """
+                SELECT name FROM users
+                WHERE LOWER(attrib->>'email') = $1
+                AND name != $2
+                """,
+                self.attrib.email.lower(),
+                self.name,
+            )
+
+            if res:
+                msg = "This email is already used by another user"
+                raise ConstraintViolationException(msg)
 
         if do_con_check:
             logging.info(f"Activating user {self.name}")
