@@ -48,6 +48,7 @@ class OperationModel(OPModel):
     entity_id: Annotated[str | None, Field(title="Entity ID")] = None
     data: Annotated[dict[str, Any] | None, Field(title="Data")] = None
     force: Annotated[bool, Field(title="Force recursive deletion")] = False
+    as_user: str | None = None
 
 
 class OperationResponseModel(OPModel):
@@ -114,6 +115,7 @@ async def _process_operation(
                 "summary": {"entityId": entity.id, "parentId": entity.parent_id},
                 "description": description,
                 "project": project_name,
+                "user": user.name if user else None,
             }
         ]
         await entity.save(transaction=transaction)
@@ -137,8 +139,12 @@ async def _process_operation(
             for_update=True,
             transaction=transaction,
         )
-        await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)
+        if user:
+            await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)
         events = build_pl_entity_change_events(entity, payload)
+        if user:
+            for event in events:
+                event["user"] = user.name
         entity.patch(payload)
         await entity.save(transaction=transaction)
         status = 204
@@ -146,7 +152,8 @@ async def _process_operation(
     elif operation.type == "delete":
         assert operation.entity_id is not None, "entity_id is required for delete"
         entity = await entity_class.load(project_name, operation.entity_id)
-        await entity.ensure_delete_access(user)
+        if user:
+            await entity.ensure_delete_access(user)
         description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
 
         if operation.force and user and not user.is_manager:
@@ -158,6 +165,7 @@ async def _process_operation(
                 "summary": {"entityId": entity.id, "parentId": entity.parent_id},
                 "description": description,
                 "project": project_name,
+                "user": user.name if user else None,
             }
         ]
         if ayonconfig.audit_trail:
@@ -186,8 +194,8 @@ async def _process_operation(
 async def _process_operations(
     project_name: str,
     operations: list[OperationModel],
+    user_map: dict[str, UserEntity | None],
     *,
-    user: UserEntity | None = None,
     can_fail: bool = False,
     raise_on_error: bool = True,
     transaction: Connection | None = None,
@@ -208,6 +216,11 @@ async def _process_operations(
     events: list[dict[str, Any]] = []
 
     for operation in operations:
+        if operation.as_user:
+            user = user_map.get(operation.as_user)
+        else:
+            user = None
+
         try:
             entity, evt, response = await _process_operation(
                 project_name,
@@ -297,6 +310,7 @@ class ProjectLevelOperations:
         self.sender_type = sender_type
         self.project_name = project_name
         self.operations: list[OperationModel] = []
+        self.user_entities_map: dict[str, UserEntity | None] = {}
 
     def append(self, operation: OperationModel) -> None:
         """Append an operation to the list.
@@ -304,7 +318,18 @@ class ProjectLevelOperations:
         This method is used internally or if you
         already have an OperationModel instance.
         """
+
+        if operation.as_user:
+            uname = operation.as_user
+            if uname not in self.user_entities_map:
+                self.user_entities_map[uname] = None
+        elif self.user:
+            uname = self.user.name
+        else:
+            uname = None
+
         assert isinstance(operation, OperationModel)
+        operation.as_user = uname
         self.operations.append(operation)
 
     def add(
@@ -313,16 +338,26 @@ class ProjectLevelOperations:
         entity_type: ProjectLevelEntityType,
         *,
         entity_id: str | None = None,
+        as_user: str | UserEntity | None = None,
         operation_id: str | None = None,
         force: bool = False,
         **kwargs,
     ) -> None:
+        if isinstance(as_user, UserEntity):
+            self.user_entities_map[as_user.name] = as_user
+            uname = as_user.name
+        elif as_user:
+            uname = as_user
+        else:
+            uname = None
+
         self.append(
             OperationModel(
                 id=operation_id or create_uuid(),
                 type=operation_type,
                 entity_type=entity_type,
                 entity_id=entity_id,
+                as_user=uname,
                 force=force,
                 data=kwargs,
             )
@@ -332,28 +367,52 @@ class ProjectLevelOperations:
         self,
         entity_type: ProjectLevelEntityType,
         entity_id: str | None = None,
+        *,
+        as_user: str | UserEntity | None = None,
         **kwargs,
     ) -> None:
         """Create a project level entity."""
-        self.add("create", entity_type, entity_id=entity_id, **kwargs)
+        self.add(
+            "create",
+            entity_type,
+            entity_id=entity_id,
+            as_user=as_user,
+            **kwargs,
+        )
 
     def update(
         self,
         entity_type: ProjectLevelEntityType,
         entity_id: str,
+        *,
+        as_user: str | UserEntity | None = None,
         **kwargs,
     ) -> None:
         """Update a project level entity."""
-        self.add("update", entity_type, entity_id=entity_id, **kwargs)
+        self.add(
+            "update",
+            entity_type,
+            entity_id=entity_id,
+            as_user=as_user,
+            **kwargs,
+        )
 
     def delete(
         self,
         entity_type: ProjectLevelEntityType,
         entity_id: str,
+        *,
+        as_user: str | UserEntity | None = None,
         force: bool = False,
     ) -> None:
         """Delete a project level entity."""
-        self.add("delete", entity_type, entity_id=entity_id, force=force)
+        self.add(
+            "delete",
+            entity_type,
+            entity_id=entity_id,
+            as_user=as_user,
+            force=force,
+        )
 
     # Cross-validation
 
@@ -393,11 +452,19 @@ class ProjectLevelOperations:
             operations=[], success=False
         )  # keep the type checker happy
 
+        # Load user entities that we will use for operaratins to
+        # check access permissions and to dispatch events
+        if self.user:
+            self.user_entities_map[self.user.name] = self.user
+        for uname in self.user_entities_map:
+            if not self.user_entities_map[uname]:
+                self.user_entities_map[uname] = await UserEntity.load(uname)
+
         if can_fail:
             events, response = await _process_operations(
                 self.project_name,
                 self.operations,
-                user=self.user,
+                user_map=self.user_entities_map,
                 can_fail=True,
                 raise_on_error=False,
             )
@@ -408,7 +475,7 @@ class ProjectLevelOperations:
                     events, response = await _process_operations(
                         self.project_name,
                         self.operations,
-                        user=self.user,
+                        user_map=self.user_entities_map,
                         transaction=conn,
                         raise_on_error=raise_on_error,
                     )
@@ -420,11 +487,9 @@ class ProjectLevelOperations:
                         raise RollbackException()
 
         for event in events:
-            uname = self.user.name if self.user else None
             await EventStream.dispatch(
                 sender=self.sender,
                 sender_type=self.sender_type,
-                user=uname,
                 **event,
             )
 
