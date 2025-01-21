@@ -21,18 +21,11 @@ from ayon_server.entities.version import VersionEntity
 from ayon_server.entities.workfile import WorkfileEntity
 from ayon_server.exceptions import (
     AyonException,
-    BadRequestException,
     ForbiddenException,
     NotFoundException,
-    UnsupportedMediaException,
 )
 from ayon_server.files import Storages
-from ayon_server.helpers.mimetypes import guess_mime_type
-from ayon_server.helpers.thumbnails import (
-    ThumbnailProcessNoop,
-    get_fake_thumbnail,
-    process_thumbnail,
-)
+from ayon_server.helpers.thumbnails import get_fake_thumbnail, store_thumbnail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID
@@ -70,82 +63,6 @@ def get_fake_thumbnail_response() -> Response:
     response.headers["Content-Type"] = "image/png"
     response.headers["Cache-Control"] = f"max-age={30}"
     return response
-
-
-async def store_thumbnail(
-    project_name: str,
-    thumbnail_id: str,
-    mime: str,
-    payload: bytes,
-    user_name: str | None = None,
-):
-    if len(payload) < 10:
-        raise BadRequestException("Thumbnail cannot be empty")
-
-    MAX_THUMBNAIL_WIDTH = 600
-    MAX_THUMBNAIL_HEIGHT = 600
-
-    guessed_mime = guess_mime_type(payload)
-    if guessed_mime is None:
-        # This shouldn't happen, but we'll log it.
-        # Upload will probably fail later on, in process_thumbnail.
-        logging.warning(
-            f"Could not guess mime type of thumbnail. Using provided {mime}"
-        )
-
-    elif guessed_mime != mime:
-        # This is a warning, not an error, because we can still store the thumbnail
-        # even if the mime type is wrong. We're just logging it and using the
-        # correct mime type instead of the provided one.
-        logging.warning(
-            "Thumbnail mime type mismatch: "
-            f"Payload contains {guessed_mime} "
-            f"but was requested to store {mime}"
-        )
-        mime = guessed_mime
-
-    if mime not in ["image/png", "image/jpeg"]:
-        raise UnsupportedMediaException(f"Unsupported thumbnail mime type {mime}")
-
-    try:
-        thumbnail = await process_thumbnail(
-            payload,
-            (MAX_THUMBNAIL_WIDTH, MAX_THUMBNAIL_HEIGHT),
-            raise_on_noop=True,
-        )
-    except ValueError as e:
-        raise UnsupportedMediaException(str(e))
-
-    except ThumbnailProcessNoop:
-        thumbnail = payload
-    else:
-        storage = await Storages.project(project_name)
-        await storage.store_thumbnail(thumbnail_id, payload)
-
-    meta = {
-        "originalSize": len(payload),
-        "thumbnailSize": len(thumbnail),
-        "mime": mime,  # eventually, we'll drop the column
-    }
-    if user_name:
-        meta["author"] = user_name
-
-    query = f"""
-        INSERT INTO project_{project_name}.thumbnails (id, mime, data, meta)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (id)
-        DO UPDATE SET data = EXCLUDED.data, meta = EXCLUDED.meta
-        RETURNING id
-    """
-    await Postgres.execute(query, thumbnail_id, mime, thumbnail, meta)
-    for entity_type in ["workfiles", "versions", "folders", "tasks"]:
-        await Postgres.execute(
-            f"""
-            UPDATE project_{project_name}.{entity_type}
-            SET updated_at = NOW() WHERE thumbnail_id = $1
-            """,
-            thumbnail_id,
-        )
 
 
 async def retrieve_thumbnail(
@@ -214,7 +131,11 @@ async def create_thumbnail(
     thumbnail_id = EntityID.create()
     payload = await body_from_request(request)
     await store_thumbnail(
-        project_name, thumbnail_id, content_type, payload, user_name=user.name
+        project_name,
+        thumbnail_id,
+        payload,
+        mime=content_type,
+        user_name=user.name,
     )
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
@@ -241,7 +162,11 @@ async def update_thumbnail(
         raise ForbiddenException("Only managers can update arbitrary thumbnails")
     payload = await body_from_request(request)
     await store_thumbnail(
-        project_name, thumbnail_id, content_type, payload, user_name=user.name
+        project_name,
+        thumbnail_id,
+        payload,
+        mime=content_type,
+        user_name=user.name,
     )
     return EmptyResponse()
 
@@ -350,8 +275,8 @@ async def create_version_thumbnail(
     await store_thumbnail(
         project_name=project_name,
         thumbnail_id=thumbnail_id,
-        mime=content_type,
         payload=payload,
+        mime=content_type,
         user_name=user.name,
     )
     version.thumbnail_id = thumbnail_id
@@ -402,8 +327,8 @@ async def create_workfile_thumbnail(
     await store_thumbnail(
         project_name=project_name,
         thumbnail_id=thumbnail_id,
-        mime=content_type,
         payload=payload,
+        mime=content_type,
         user_name=user.name,
     )
     workfile.thumbnail_id = thumbnail_id
@@ -411,9 +336,7 @@ async def create_workfile_thumbnail(
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
-@router.get(
-    "/projects/{project_name}/workfiles/{workfile_id}/thumbnail",
-)
+@router.get("/projects/{project_name}/workfiles/{workfile_id}/thumbnail")
 async def get_workfile_thumbnail(
     user: CurrentUser,
     project_name: ProjectName,
@@ -475,17 +398,16 @@ async def create_task_thumbnail(
     await store_thumbnail(
         project_name=project_name,
         thumbnail_id=thumbnail_id,
-        mime=content_type,
         payload=payload,
+        mime=content_type,
+        user_name=user.name,
     )
     task.thumbnail_id = thumbnail_id
     await task.save()
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
-@router.get(
-    "/projects/{project_name}/tasks/{task_id}/thumbnail",
-)
+@router.get("/projects/{project_name}/tasks/{task_id}/thumbnail")
 async def get_task_thumbnail(
     user: CurrentUser,
     project_name: ProjectName,
