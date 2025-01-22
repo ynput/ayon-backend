@@ -15,25 +15,44 @@ HandlerType = Callable[[EventModel], Awaitable[None]]
 
 class EventStream:
     model: Type[EventModel] = EventModel
-    hooks: dict[str, dict[str, HandlerType]] = {}
+    local_hooks: dict[str, dict[str, HandlerType]] = {}
+    global_hooks: dict[str, dict[str, HandlerType]] = {}
 
     @classmethod
-    def subscribe(cls, topic: str, handler: HandlerType) -> str:
+    def subscribe(
+        cls, topic: str, handler: HandlerType, all_nodes: bool = False
+    ) -> str:
         token = create_id()
-        if topic not in cls.hooks:
-            cls.hooks[topic] = {}
-        cls.hooks[topic][token] = handler
-        return token
+        if all_nodes:
+            if topic not in cls.global_hooks:
+                cls.global_hooks[topic] = {}
+            cls.global_hooks[topic][token] = handler
+            return token
+        else:
+            if topic not in cls.local_hooks:
+                cls.local_hooks[topic] = {}
+            cls.local_hooks[topic][token] = handler
+            return token
 
     @classmethod
     def unsubscribe(cls, token: str) -> None:
+        # Local hooks
         topics_to_remove = []
-        for topic in cls.hooks:
-            cls.hooks[topic].pop(token, None)
-            if not cls.hooks[topic]:
+        for topic in cls.local_hooks:
+            cls.local_hooks[topic].pop(token, None)
+            if not cls.local_hooks[topic]:
                 topics_to_remove.append(topic)
         for topic in topics_to_remove:
-            cls.hooks.pop(topic)
+            cls.local_hooks.pop(topic)
+
+        # Global hooks
+        topics_to_remove = []
+        for topic in cls.global_hooks:
+            cls.global_hooks[topic].pop(token, None)
+            if not cls.global_hooks[topic]:
+                topics_to_remove.append(topic)
+        for topic in topics_to_remove:
+            cls.global_hooks.pop(topic)
 
     @classmethod
     async def dispatch(
@@ -192,7 +211,7 @@ class EventStream:
             )
         )
 
-        handlers = cls.hooks.get(event.topic, {}).values()
+        handlers = cls.local_hooks.get(event.topic, {}).values()
         for handler in handlers:
             try:
                 await handler(event)

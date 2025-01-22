@@ -13,6 +13,7 @@ from ayon_server.auth.session import Session
 from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
+from ayon_server.events.eventstream import EventStream, HandlerType
 from ayon_server.lib.redis import Redis
 from ayon_server.utils import get_nickname, json_dumps, json_loads, obscure
 
@@ -20,6 +21,28 @@ ALWAYS_SUBSCRIBE = [
     "server.started",
     "server.restart_requested",
 ]
+
+
+async def _handle_subscribers_task(event_id: str, handlers: list[HandlerType]) -> None:
+    event = await EventStream.get(event_id)
+    for handler in handlers:
+        try:
+            await handler(event)
+        except Exception:
+            logging.debug(f"Error in global event handler: {handler}")
+
+
+async def handle_subscribers(message: dict[str, Any]) -> None:
+    event_id = message.get("id", None)
+    store = message.get("store", None)
+    topic = message.get("topic", None)
+    if not (event_id and store):
+        return
+
+    handlers = EventStream.global_hooks.get(topic, {}).values()
+    if not handlers:
+        return
+    asyncio.create_task(_handle_subscribers_task(event_id, list(handlers)))
 
 
 class Client:
@@ -142,6 +165,8 @@ class Messaging(BackgroundWorker):
                         continue
                 else:
                     message = json_loads(raw_message["data"])
+
+                await handle_subscribers(message)
 
                 # TODO: much much smarter logic here
                 for _client_id, client in self.clients.items():
