@@ -52,10 +52,11 @@ async def operations(
     )
 
     for operation in payload.operations:
-        if operation.as_user and not user.is_service or operation.as_user != user.name:
-            raise ForbiddenException(
-                "You are not allowed to perform operations as another user",
-            )
+        if operation.as_user:
+            is_different_user = operation.as_user != user.name
+            if is_different_user and not user.is_service:
+                msg = "You are not allowed to perform operations as another user"
+                raise ForbiddenException(msg)
         ops.append(operation)
 
     return await ops.process(can_fail=payload.can_fail, raise_on_error=False)
