@@ -15,25 +15,26 @@ HandlerType = Callable[[EventModel], Awaitable[None]]
 
 class EventStream:
     model: Type[EventModel] = EventModel
-    hooks: dict[str, dict[str, HandlerType]] = {}
+    local_hooks: dict[str, dict[str, HandlerType]] = {}
+    global_hooks: dict[str, dict[str, HandlerType]] = {}
 
     @classmethod
-    def subscribe(cls, topic: str, handler: HandlerType) -> str:
+    def subscribe(
+        cls, topic: str, handler: HandlerType, all_nodes: bool = False
+    ) -> str:
         token = create_id()
-        if topic not in cls.hooks:
-            cls.hooks[topic] = {}
-        cls.hooks[topic][token] = handler
+        hooks = cls.global_hooks if all_nodes else cls.local_hooks
+        topic_hooks = hooks.setdefault(topic, {})
+        topic_hooks[token] = handler
         return token
 
     @classmethod
     def unsubscribe(cls, token: str) -> None:
-        topics_to_remove = []
-        for topic in cls.hooks:
-            cls.hooks[topic].pop(token, None)
-            if not cls.hooks[topic]:
-                topics_to_remove.append(topic)
-        for topic in topics_to_remove:
-            cls.hooks.pop(topic)
+        for hooks in (cls.global_hooks, cls.local_hooks):
+            for topic, mapping in tuple(hooks.items()):
+                mapping.pop(token, None)
+                if not mapping:
+                    hooks.pop(topic)
 
     @classmethod
     async def dispatch(
@@ -192,7 +193,7 @@ class EventStream:
             )
         )
 
-        handlers = cls.hooks.get(event.topic, {}).values()
+        handlers = cls.local_hooks.get(event.topic, {}).values()
         for handler in handlers:
             try:
                 await handler(event)
