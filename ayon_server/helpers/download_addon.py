@@ -13,6 +13,8 @@ async def download_addon(
     url: str,
     addon_name: str | None = None,
     addon_version: str | None = None,
+    *,
+    no_queue: bool = False,
 ) -> str:
     if (
         allow_custom_addons := await Constraints.check("allowCustomAddons")
@@ -57,5 +59,8 @@ async def download_addon(
     if url_label != url:
         url_label += "..."
     logging.debug(f"Downloading addon from {url_label}")
-    await background_installer.enqueue(event_id)
+    if no_queue:
+        await background_installer.process_event(event_id)
+    else:
+        await background_installer.enqueue(event_id)
     return event_id
