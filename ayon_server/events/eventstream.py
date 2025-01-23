@@ -23,36 +23,18 @@ class EventStream:
         cls, topic: str, handler: HandlerType, all_nodes: bool = False
     ) -> str:
         token = create_id()
-        if all_nodes:
-            if topic not in cls.global_hooks:
-                cls.global_hooks[topic] = {}
-            cls.global_hooks[topic][token] = handler
-            return token
-        else:
-            if topic not in cls.local_hooks:
-                cls.local_hooks[topic] = {}
-            cls.local_hooks[topic][token] = handler
-            return token
+        hooks = cls.global_hooks if all_nodes else cls.local_hooks
+        topic_hooks = hooks.setdefault(topic, {})
+        topic_hooks[token] = handler
+        return token
 
     @classmethod
     def unsubscribe(cls, token: str) -> None:
-        # Local hooks
-        topics_to_remove = []
-        for topic in cls.local_hooks:
-            cls.local_hooks[topic].pop(token, None)
-            if not cls.local_hooks[topic]:
-                topics_to_remove.append(topic)
-        for topic in topics_to_remove:
-            cls.local_hooks.pop(topic)
-
-        # Global hooks
-        topics_to_remove = []
-        for topic in cls.global_hooks:
-            cls.global_hooks[topic].pop(token, None)
-            if not cls.global_hooks[topic]:
-                topics_to_remove.append(topic)
-        for topic in topics_to_remove:
-            cls.global_hooks.pop(topic)
+        for hooks in (cls.global_hooks, cls.local_hooks):
+            for topic, mapping in tuple(hooks.items()):
+                mapping.pop(token, None)
+                if not mapping:
+                    hooks.pop(topic)
 
     @classmethod
     async def dispatch(
