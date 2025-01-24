@@ -167,6 +167,8 @@ class SimpleActionCache:
 
         if not cls.hooks_installed:
             await cls.clear_action_cache()
+            # This can be local hook, because no matter what replica
+            # triggered the event, cached data will be updated in redis
             EventStream.subscribe("entity.project.changed", cls.handle_project_changed)
             EventStream.subscribe("settings.changed", cls.handle_settings_changed)
             cls.hooks_installed = True

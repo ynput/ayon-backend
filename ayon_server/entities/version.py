@@ -91,6 +91,8 @@ class VersionEntity(ProjectLevelEntity):
 
     @property
     def name(self) -> str:
+        if self.version < 0:
+            return "HERO"
         return f"v{self.version:03d}"
 
     @name.setter

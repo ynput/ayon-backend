@@ -56,7 +56,7 @@ def create_initials_svg(
     height: int = 100,
     text_color: str = "white",
 ) -> str:
-    _used_name = full_name or name
+    _used_name = full_name or name.replace("_", " ").replace("-", " ").replace(".", " ")
     initials = "".join([n[0] for n in _used_name.split()])
     initials = initials.upper()
 
@@ -169,14 +169,17 @@ async def obtain_avatar(user_name: str) -> bytes:
 
 
 @router.get("/{user_name}/avatar")
-async def get_avatar(user_name: UserName, _: CurrentUser) -> Response:
+async def get_avatar(user_name: UserName, current_user: CurrentUser) -> Response:
     """Retrieve the avatar for a given user."""
 
-    avatar_bytes = await Redis.get(REDIS_NS, user_name)
+    if current_user.is_guest:
+        avatar_bytes = create_initials_svg(user_name).encode()
 
-    if not avatar_bytes:
-        avatar_bytes = await obtain_avatar(user_name)
-        await Redis.set(REDIS_NS, user_name, avatar_bytes)
+    else:
+        avatar_bytes = await Redis.get(REDIS_NS, user_name)
+        if not avatar_bytes:
+            avatar_bytes = await obtain_avatar(user_name)
+            await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
     return image_response_from_bytes(avatar_bytes)
 
