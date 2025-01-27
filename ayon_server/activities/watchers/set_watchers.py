@@ -146,3 +146,27 @@ async def ensure_watching(entity: ProjectLevelEntity, user: UserEntity | str) ->
         logging.debug(f"Adding {user_name} to watchers of {entity}")
         watchers.append(user_name)
         await set_watchers(entity, watchers, user=user)
+
+
+async def ensure_not_watching(
+    entity: ProjectLevelEntity, user: UserEntity | str
+) -> None:
+    """Ensure that a user is not watching an entity.
+
+    This should be called when a user is unassigned from a task.
+    """
+
+    user_name = user.name if isinstance(user, UserEntity) else user
+
+    try:
+        watchers = await get_watcher_list(entity)
+    except Postgres.UndefinedTableError:
+        logging.debug(f"Unable to set watchers. Entity {entity} no longer exists")
+        return
+
+    logging.debug(f"Watchers: {watchers}")
+
+    if user_name in watchers:
+        logging.debug(f"Removing {user_name} from watchers of {entity}")
+        watchers.remove(user_name)
+        await set_watchers(entity, watchers, user=user)

@@ -16,7 +16,10 @@ __all__ = ["ActivityFeedEventHook"]
 from typing import TYPE_CHECKING, Awaitable, Callable, ClassVar, Type
 
 from ayon_server.activities.create_activity import create_activity
-from ayon_server.activities.watchers.set_watchers import ensure_watching
+from ayon_server.activities.watchers.set_watchers import (
+    ensure_not_watching,
+    ensure_watching,
+)
 from ayon_server.activities.watchers.watcher_list import build_watcher_list
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
@@ -121,6 +124,7 @@ class ActivityFeedEventHook:
             )
 
         for assignee in removed:
+            await ensure_not_watching(entity, assignee)
             name_tag = name_tags[assignee]
             await create_activity(
                 entity,
