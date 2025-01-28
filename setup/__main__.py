@@ -73,7 +73,7 @@ async def main(force: bool | None = None) -> None:
 
     logging.info("Starting setup")
 
-    await ayon_init()
+    await ayon_init(extensions=False)
 
     try:
         await Postgres.fetch("SELECT * FROM projects")
