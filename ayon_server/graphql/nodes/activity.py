@@ -70,6 +70,7 @@ class ActivityNode:
 
     activity_type: str = strawberry.field()
     body: str = strawberry.field()
+    tags: list[str] = strawberry.field()
     activity_data: str = strawberry.field()
     reference_data: str = strawberry.field()
     active: bool = strawberry.field(default=True)
@@ -189,6 +190,7 @@ def activity_from_record(
     assert project_name, "project_name is required"
     activity_data = record.pop("activity_data", {})
     reference_data = record.pop("reference_data", {})
+    tags = record.pop("tags", [])
 
     origin_data = activity_data.get("origin")
     if origin_data:
@@ -219,6 +221,7 @@ def activity_from_record(
         reference_data=json_dumps(reference_data),
         origin=origin,
         parents=parents,
+        tags=tags,
         read=reference_data.pop("read", False),
         reactions=reactions,
         **record,
