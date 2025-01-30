@@ -4,7 +4,10 @@ from nxtools import log_traceback
 
 from ayon_server.helpers.modules import classes_from_module, import_module
 
-PATHS = ["/usr/share/extensions", "/extensions"]
+PATHS = [
+    "/extensions",
+    "/usr/share/extensions",
+]
 
 
 class ServerExtension:
