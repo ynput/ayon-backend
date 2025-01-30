@@ -163,7 +163,7 @@ async def create_activity(
         INSERT INTO project_{project_name}.activities
         (id, activity_type, body, tags, data, created_at, updated_at)
         VALUES
-        ($1, $2, $3, $4, $5, $6, %6)
+        ($1, $2, $3, $4, $5, $6, $6)
     """
 
     async with Postgres.acquire() as conn, conn.transaction():
