@@ -68,6 +68,15 @@ CREATE OR REPLACE FUNCTION create_activity_feed_in_projects ()
             );
             CREATE INDEX IF NOT EXISTS idx_files_activity_id ON files(activity_id);
 
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns 
+                WHERE table_schema = rec.nspname
+                AND table_name = 'activity_feed'
+            ) THEN
+                CONTINUE;
+            END IF;
+
 
             CREATE OR REPLACE VIEW activity_feed AS
               SELECT
