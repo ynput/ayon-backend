@@ -53,8 +53,21 @@ CREATE OR REPLACE FUNCTION create_activity_feed_in_projects ()
                 entity_type VARCHAR NOT NULL,
                 path VARCHAR NOT NULL
             );
+
             CREATE INDEX IF NOT EXISTS entity_paths_path_idx
               ON entity_paths USING GIN (path public.gin_trgm_ops);
+
+            CREATE TABLE IF NOT EXISTS files (
+              id UUID PRIMARY KEY,
+              size BIGINT NOT NULL,
+              author VARCHAR REFERENCES public.users(name) ON DELETE SET NULL ON UPDATE CASCADE,
+              activity_id UUID REFERENCES activities(id) ON DELETE SET NULL,
+              data JSONB NOT NULL DEFAULT '{}'::JSONB, -- contains mime, original file name etc
+              created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+              updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_files_activity_id ON files(activity_id);
+
 
             CREATE OR REPLACE VIEW activity_feed AS
               SELECT
@@ -86,17 +99,6 @@ CREATE OR REPLACE FUNCTION create_activity_feed_in_projects ()
                 activities as act ON ref.activity_id = act.id
               LEFT JOIN
                 entity_paths as ref_paths ON ref.entity_id = ref_paths.entity_id;
-
-            CREATE TABLE IF NOT EXISTS files (
-              id UUID PRIMARY KEY,
-              size BIGINT NOT NULL,
-              author VARCHAR REFERENCES public.users(name) ON DELETE SET NULL ON UPDATE CASCADE,
-              activity_id UUID REFERENCES activities(id) ON DELETE SET NULL,
-              data JSONB NOT NULL DEFAULT '{}'::JSONB, -- contains mime, original file name etc
-              created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-              updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_files_activity_id ON files(activity_id);
 
         END LOOP;
         RETURN;
