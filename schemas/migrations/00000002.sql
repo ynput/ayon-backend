@@ -16,6 +16,7 @@ BEGIN
           AND conrelid = 'public.bundles'::regclass
           AND a.attname = 'active_user'
     ) THEN
+        RAISE WARNING 'Fixing bundles.active_user foreign key';
         -- Drop the existing foreign key constraint
         ALTER TABLE public.bundles
         DROP CONSTRAINT IF EXISTS bundles_active_user_fkey;
@@ -44,6 +45,7 @@ BEGIN
           AND conrelid = 'public.site_settings'::regclass
           AND a.attname = 'user_name'
     ) THEN
+        RAISE WARNING 'Fixing public.site_settings foreign key';
         -- Drop the existing foreign key constraint
         ALTER TABLE public.site_settings
         DROP CONSTRAINT IF EXISTS site_settings_user_name_fkey;
@@ -68,12 +70,12 @@ DECLARE
     constraint_name TEXT;
 BEGIN
     FOR project_schema IN
-        SELECT schema_name
+        SELECT DISTINCT schema_name
         FROM information_schema.schemata
         WHERE schema_name LIKE 'project_%'
     LOOP
         FOR table_name, column_name, constraint_name IN
-            SELECT
+            SELECT DISTINCT
                 tc.table_name,
                 kcu.column_name,
                 tc.constraint_name
@@ -81,12 +83,18 @@ BEGIN
                 information_schema.table_constraints AS tc
                 JOIN information_schema.key_column_usage AS kcu
                     ON tc.constraint_name = kcu.constraint_name
+                JOIN pg_constraint AS pc
+                    ON tc.constraint_name = pc.conname
             WHERE
                 tc.constraint_type = 'FOREIGN KEY'
                 AND kcu.table_schema = project_schema
                 AND kcu.column_name = 'user_name'
+                AND pc.confupdtype != 'c'
         LOOP
             -- Drop existing foreign key constraint
+
+            RAISE WARNING 'Fixing %.%.% foreign key', project_schema, table_name, constraint_name;
+
             EXECUTE format('
                 ALTER TABLE %I.%I
                 DROP CONSTRAINT %I;

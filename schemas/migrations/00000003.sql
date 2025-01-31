@@ -12,13 +12,9 @@ CREATE OR REPLACE FUNCTION add_meta_column_to_thumbnails()
    BEGIN
         FOR rec IN select distinct nspname from pg_namespace where nspname like 'project_%'
         LOOP
-             EXECUTE
-              'ALTER TABLE IF EXISTS ' || rec.nspname || '.thumbnails ' ||
-              'ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT ''{}''::JSONB ';
-
-             EXECUTE
-              'ALTER TABLE IF EXISTS ' || rec.nspname || '.files ' ||
-              'DROP CONSTRAINT IF EXISTS files_author_fkey';
+            EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
+            ALTER TABLE IF EXISTS thumbnails ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT '{}'::JSONB;
+            ALTER TABLE IF EXISTS files DROP CONSTRAINT IF EXISTS files_author_fkey;
         END LOOP;
         RETURN;
    END;
@@ -26,5 +22,3 @@ CREATE OR REPLACE FUNCTION add_meta_column_to_thumbnails()
 
 SELECT add_meta_column_to_thumbnails();
 DROP FUNCTION IF EXISTS add_meta_column_to_thumbnails();
-
-
