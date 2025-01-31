@@ -68,11 +68,10 @@ BEGIN
 
         CREATE INDEX IF NOT EXISTS idx_files_activity_id ON files(activity_id);
 
-        -- Activity feed view ,oved to migration 5
+        -- Activity feed view was moved to migration 5 in 1.7.1
         -- We're updating the view to include the tags column
-        -- so it doesn't need to be created here and replaced later
+        -- so it doesn't need to be created here just to be dropped and recreated later
 
     END LOOP;
     RETURN;
-END;
-$$ LANGUAGE plpgsql;
+END $$;
