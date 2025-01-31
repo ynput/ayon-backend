@@ -30,6 +30,7 @@ async def get_activities(
     activity_types: list[str] | None = None,
     reference_types: list[str] | None = None,
     activity_ids: list[str] | None = None,
+    tags: list[str] | None = None,
     changed_before: str | None = None,
     changed_after: str | None = None,
 ) -> ActivitiesConnection:
@@ -94,6 +95,10 @@ async def get_activities(
     if reference_types is not None:
         validate_name_list(reference_types)
         sql_conditions.append(f"reference_type IN {SQLTool.array(reference_types)}")
+
+    if tags:
+        validate_name_list(tags)
+        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     if entity_ids is not None:
         sql_conditions.append(f"entity_id IN {SQLTool.array(entity_ids)}")

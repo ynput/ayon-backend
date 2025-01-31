@@ -278,6 +278,7 @@ RETURNS TABLE (
     creation_order INTEGER,
     activity_type VARCHAR,
     body TEXT,
+    tags VARCHAR[],
     activity_data JSONB,
     reference_data JSONB,
     active BOOLEAN
@@ -317,6 +318,8 @@ BEGIN
 
                 t.activity_type as activity_type,
                 t.body as body,
+                t.tags as tags,
+      
                 t.activity_data as activity_data,
                 t.reference_data as reference_data,
                 t.active as active

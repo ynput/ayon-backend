@@ -35,6 +35,7 @@ async def create_activity(
     activity_type: ActivityType,
     body: str,
     *,
+    tags: list[str] | None = None,
     files: list[str] | None = None,
     activity_id: str | None = None,
     user_name: str | None = None,
@@ -160,14 +161,23 @@ async def create_activity(
 
     query = f"""
         INSERT INTO project_{project_name}.activities
-        (id, activity_type, body, data, created_at, updated_at)
+        (id, activity_type, body, tags, data, created_at, updated_at)
         VALUES
-        ($1, $2, $3, $4, $5, $5)
+        ($1, $2, $3, $4, $5, $6, $6)
     """
 
     async with Postgres.acquire() as conn, conn.transaction():
+        tags = tags or []
         try:
-            await conn.execute(query, activity_id, activity_type, body, data, timestamp)
+            await conn.execute(
+                query,
+                activity_id,
+                activity_type,
+                body,
+                tags,
+                data,
+                timestamp,
+            )
         except Postgres.UndefinedTableError as e:
             raise NotFoundException(
                 "Unable to create activity. " f"Project {project_name} no longer exists"

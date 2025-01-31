@@ -113,6 +113,7 @@ CREATE OR REPLACE VIEW activity_feed AS
     -- actual activity
     act.activity_type as activity_type,
     act.body as body,
+    act.tags as tags,
     act.data as activity_data,
     ref.data as reference_data,
     ref.active as active
