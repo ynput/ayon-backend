@@ -54,9 +54,9 @@ async def manage_inbox_item(user: CurrentUser, request: ManageInboxItemRequest):
     if request.all:
         base_query = f"""
             UPDATE project_{request.project_name}.activity_references
-            SET {body} WHERE entity_type = 'user' AND entity_name = $2
+            SET {body} WHERE entity_type = 'user' AND entity_name = $1
         """
-        await Postgres.execute(base_query, request.ids, user.name)
+        await Postgres.execute(base_query, user.name)
         return None
 
     base_query = f"""
