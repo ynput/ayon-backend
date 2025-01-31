@@ -27,8 +27,8 @@ BEGIN
     FOR rec IN SELECT DISTINCT nspname FROM pg_namespace WHERE nspname LIKE 'project_%'
     LOOP
         EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
-        ALTER TABLE representations ADD COLUMN IF NOT EXISTS traits JSONB;
-        ALTER TABLE activities ADD COLUMN IF NOT EXISTS tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+        ALTER TABLE IF EXISTS representations ADD COLUMN IF NOT EXISTS traits JSONB;
+        ALTER TABLE IF EXISTS activities ADD COLUMN IF NOT EXISTS tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
     END LOOP;
     RETURN;
 END $$;
