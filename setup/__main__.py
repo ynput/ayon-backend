@@ -69,7 +69,9 @@ async def db_migration(has_schema: bool) -> int:
                 log_traceback(f"Migration {migration.stem} failed")
                 critical_error("Database migration failed. Setup cannot continue.")
             elapsed = time.monotonic() - start_time
-            logging.debug(f"Migration {migration.stem} applied in {elapsed:.2f}s")
+            if elapsed > 1:
+                msg = f"Migration {migration.stem} applied in {elapsed:.2f}s (slow...)"
+                logging.debug(msg)
         return migration_version
 
     return int(available_migrations[-1].stem)
