@@ -144,6 +144,11 @@ class AyonConfig(BaseModel):
         description="Path to the MOTD file",
     )
 
+    instance_banner: str | None = Field(
+        default=None,
+        description="Banner to be displayed in the web interface",
+    )
+
     login_page_background: str | None = Field(
         default=None,
         description="Login page background image",

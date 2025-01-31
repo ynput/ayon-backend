@@ -70,6 +70,7 @@ class InfoResponseModel(OPModel):
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
 
+    instance_banner: str | None = Field(None, title="Instance banner")
     sites: list[SiteInfo] | None = Field(None, title="List of sites")
     sso_options: list[SSOOption] | None = Field(None, title="SSO options")
     extras: str | None = Field(None)
@@ -254,6 +255,7 @@ async def get_additional_info(user: UserEntity, request: Request):
         "attributes": attr_list,
         "sites": sites,
         "extras": extras,
+        "instance_banner": ayonconfig.instance_banner,
     }
 
 
