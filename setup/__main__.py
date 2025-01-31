@@ -62,7 +62,11 @@ async def db_migration(has_schema: bool) -> int:
             #    continue
             # logging.info(f"Applying migration {migration_version}")
 
-            await Postgres.execute(migration.read_text(), timeout=600)
+            try:
+                await Postgres.execute(migration.read_text(), timeout=600)
+            except Exception:
+                log_traceback(f"Migration {migration.stem} failed")
+                critical_error("Database migration failed. Setup cannot continue.")
         return migration_version
 
     return int(available_migrations[-1].stem)
