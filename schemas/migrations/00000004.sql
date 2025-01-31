@@ -3,7 +3,7 @@
 ----------------
 
 -- In 1.6.0, we are adding a new column `sender_type` to the `events` table.
--- In project schemas, we are adding new columns `traits` to the `representations` table 
+-- In project schemas, we are adding new columns `traits` to the `representations` table
 -- and `tags` to the `activities` table.
 
 DO $$
@@ -21,24 +21,14 @@ BEGIN
 END $$;
 
 
-CREATE OR REPLACE FUNCTION add_new_columns()
-   RETURNS VOID  AS
-   $$
-   DECLARE rec RECORD;
-   BEGIN
-        FOR rec IN select distinct nspname from pg_namespace where nspname like 'project_%'
-        LOOP
-             EXECUTE
-              'ALTER TABLE IF EXISTS ' || rec.nspname || '.representations ' ||
-              'ADD COLUMN IF NOT EXISTS traits JSONB';
-
-             EXECUTE
-              'ALTER TABLE IF EXISTS ' || rec.nspname || '.activities ' ||
-              'ADD COLUMN IF NOT EXISTS tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[]';
-        END LOOP;
-        RETURN;
-   END;
-   $$ LANGUAGE plpgsql;
-
-SELECT add_new_columns();
-DROP FUNCTION IF EXISTS add_new_columns();
+DO $$
+DECLARE rec RECORD;
+BEGIN
+    FOR rec IN SELECT DISTINCT nspname FROM pg_namespace WHERE nspname LIKE 'project_%'
+    LOOP
+        EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
+        ALTER TABLE IF EXISTS representations ADD COLUMN IF NOT EXISTS traits JSONB;
+        ALTER TABLE IF EXISTS activities ADD COLUMN IF NOT EXISTS tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+    END LOOP;
+    RETURN;
+END $$;

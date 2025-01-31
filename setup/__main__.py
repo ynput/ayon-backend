@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -61,8 +62,16 @@ async def db_migration(has_schema: bool) -> int:
             # if migration_version <= current_version:
             #    continue
             # logging.info(f"Applying migration {migration_version}")
-
-            await Postgres.execute(migration.read_text(), timeout=600)
+            start_time = time.monotonic()
+            try:
+                await Postgres.execute(migration.read_text(), timeout=600)
+            except Exception:
+                log_traceback(f"Migration {migration.stem} failed")
+                critical_error("Database migration failed. Setup cannot continue.")
+            elapsed = time.monotonic() - start_time
+            if elapsed > 1:
+                msg = f"Migration {migration.stem} applied in {elapsed:.2f}s (slow...)"
+                logging.debug(msg)
         return migration_version
 
     return int(available_migrations[-1].stem)
