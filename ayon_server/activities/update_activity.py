@@ -1,8 +1,6 @@
 import re
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.activities.models import ActivityReferenceModel
 from ayon_server.activities.utils import (
     MAX_BODY_LENGTH,
@@ -66,22 +64,16 @@ async def update_activity(
     activity_data = res[0]["data"]
     activity_tags = res[0]["tags"]
 
-    if user_name and (user_name != activity_data["author"]):
-        if is_admin:
-            logging.warning(
-                f"User {user_name} updated activity {activity_id}"
-                f" owned by {activity_data['author']}"
-            )
-        else:
-            # Limited access - the user is not is the owner of the activity
-            # nor an admin, so we need to check if the user is trying to
-            # modify the checkboxes in the comment body only.
-            # otherwise, we raise a ForbiddenException
-            if body:
-                ensure_only_checkboxes_changed(res[0]["body"], body)
+    if user_name and (user_name != activity_data["author"]) and not is_admin:
+        # Limited access - the user is not is the owner of the activity
+        # nor an admin, so we need to check if the user is trying to
+        # modify the checkboxes in the comment body only.
+        # otherwise, we raise a ForbiddenException
+        if body:
+            ensure_only_checkboxes_changed(res[0]["body"], body)
 
-            if files or append_files or data or extra_references:
-                raise ForbiddenException("You can only edit checkboxes")
+        if files or append_files or data or extra_references:
+            raise ForbiddenException("You can only edit checkboxes")
 
     if body is None:
         body = res[0]["body"]
