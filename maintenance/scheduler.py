@@ -20,8 +20,7 @@ class MaintenanceScheduler:
             next_run = datetime.datetime.combine(
                 now.date(), datetime.time(self.hour, self.minute)
             )
-            if next_run <= now:
-                next_run += datetime.timedelta(days=1)
+            next_run += datetime.timedelta(days=1)
 
             # Wait until the next run time
             wait_time = int((next_run - now).total_seconds())

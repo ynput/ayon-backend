@@ -41,7 +41,8 @@ async def password_reset_request(request: PasswordResetRequestModel):
     pass
 
     async for row in Postgres.iterate(
-        "SELECT name, data FROM users WHERE attrib->>'email' = $1", request.email
+        "SELECT name, data FROM users WHERE LOWER(attrib->>'email') = $1",
+        request.email.lower(),
     ):
         user_data = row["data"]
         break

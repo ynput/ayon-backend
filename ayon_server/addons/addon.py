@@ -190,6 +190,12 @@ class BaseServerAddon:
             }
         )
 
+    async def get_frontend_scopes(self) -> dict[str, Any]:
+        return self.frontend_scopes
+
+    async def get_frontend_modules(self) -> dict[str, Any]:
+        return self.frontend_modules
+
     #
     # File serving
     #
@@ -287,9 +293,9 @@ class BaseServerAddon:
             """
 
         res = await Postgres.fetch(query, self.definition.name, self.version, variant)
-        if not res:
-            return {}
-        data = dict(res[0]["data"])
+        data = {}
+        if res:
+            data = res[0]["data"]
 
         if as_version and as_version != self.version:
             target_addon = self.definition.get(as_version)
@@ -328,9 +334,9 @@ class BaseServerAddon:
             )
         except Postgres.UndefinedTableError:
             raise NotFoundException(f"Project {project_name} does not exists") from None
-        if not res:
-            return {}
-        data = dict(res[0]["data"])
+        data = {}
+        if res:
+            data = res[0]["data"]
 
         if as_version and as_version != self.version:
             target_addon = self.definition.get(as_version)
@@ -370,10 +376,9 @@ class BaseServerAddon:
             user_name,
             site_id,
         )
-        if not res:
-            return {}
-
-        data = dict(res[0]["data"])
+        data = {}
+        if res:
+            data = res[0]["data"]
 
         if as_version and as_version != self.version:
             target_addon = self.definition.get(as_version)

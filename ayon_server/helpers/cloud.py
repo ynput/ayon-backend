@@ -7,6 +7,7 @@ from ayon_server.lib.postgres import Postgres
 class CloudUtils:
     instance_id: str | None = None
     cloud_key: str | None = None
+    licenses_synced_at: float | None = None
 
     @classmethod
     async def get_instance_id(cls) -> str:

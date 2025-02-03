@@ -1,4 +1,4 @@
-__all__ = ["router", "users", "avatar", "password_reset", "permissions"]
+__all__ = ["router", "users", "avatar", "password_reset", "permissions", "apikeys"]
 
-from . import avatar, password_reset, permissions, users
+from . import apikeys, avatar, password_reset, permissions, users
 from .router import router

@@ -16,6 +16,7 @@ BEGIN
           AND conrelid = 'public.bundles'::regclass
           AND a.attname = 'active_user'
     ) THEN
+        RAISE WARNING 'Fixing bundles.active_user foreign key';
         -- Drop the existing foreign key constraint
         ALTER TABLE public.bundles
         DROP CONSTRAINT IF EXISTS bundles_active_user_fkey;
@@ -44,6 +45,7 @@ BEGIN
           AND conrelid = 'public.site_settings'::regclass
           AND a.attname = 'user_name'
     ) THEN
+        RAISE WARNING 'Fixing public.site_settings foreign key';
         -- Drop the existing foreign key constraint
         ALTER TABLE public.site_settings
         DROP CONSTRAINT IF EXISTS site_settings_user_name_fkey;
@@ -58,50 +60,48 @@ BEGIN
     END IF;
 END $$;
 
--- Allow renaming users with project.custom_roots and project.project_site_settings set
+-- Allow renaming users with project.custom_roots and project.project_site_settings
 
 DO $$
-DECLARE
-    project_schema TEXT;
-    table_name TEXT;
-    column_name TEXT;
-    constraint_name TEXT;
+DECLARE rec RECORD;
 BEGIN
-    FOR project_schema IN
-        SELECT schema_name
-        FROM information_schema.schemata
-        WHERE schema_name LIKE 'project_%'
-    LOOP
-        FOR table_name, column_name, constraint_name IN
-            SELECT
-                tc.table_name,
-                kcu.column_name,
-                tc.constraint_name
-            FROM
-                information_schema.table_constraints AS tc
-                JOIN information_schema.key_column_usage AS kcu
-                    ON tc.constraint_name = kcu.constraint_name
-            WHERE
-                tc.constraint_type = 'FOREIGN KEY'
-                AND kcu.table_schema = project_schema
-                AND kcu.column_name = 'user_name'
-        LOOP
-            -- Drop existing foreign key constraint
-            EXECUTE format('
-                ALTER TABLE %I.%I
-                DROP CONSTRAINT %I;
-            ', project_schema, table_name, constraint_name);
+FOR rec IN
+    SELECT DISTINCT
+        tc.table_schema project_schema,
+        tc.table_name,
+        kcu.column_name,
+        tc.constraint_name,
+        pc.confupdtype
+    FROM
+        information_schema.table_constraints AS tc
+    JOIN information_schema.key_column_usage AS kcu
+        ON tc.constraint_name = kcu.constraint_name
+        AND kcu.column_name = 'user_name'
+    JOIN pg_constraint AS pc
+        ON tc.constraint_name = pc.conname
+        AND tc.table_schema = pc.connamespace::regnamespace::text
+        AND pc.confupdtype != 'c'
+    WHERE
+        tc.table_schema LIKE 'project_%'
+        AND tc.constraint_type = 'FOREIGN KEY'
+LOOP
+    RAISE WARNING 'Fixing user_name foreign key on %.%s', rec.project_schema, rec.table_name;
 
-            -- Add new foreign key constraint with ON UPDATE CASCADE
-            EXECUTE format('
-                ALTER TABLE %I.%I
-                ADD CONSTRAINT %I
-                FOREIGN KEY (%I)
-                REFERENCES public.users(name)
-                ON DELETE CASCADE
-                ON UPDATE CASCADE;
-            ', project_schema, table_name, constraint_name, column_name);
-        END LOOP;
-    END LOOP;
+    EXECUTE format(
+        'ALTER TABLE %I.%I DROP CONSTRAINT %I;',
+        rec.project_schema,
+        rec.table_name,
+        rec.constraint_name
+    );
+
+    EXECUTE format(
+        'ALTER TABLE %I.%I ADD CONSTRAINT %I
+        FOREIGN KEY (%I) REFERENCES public.users(name)
+        ON DELETE CASCADE ON UPDATE CASCADE;',
+        rec.project_schema,
+        rec.table_name,
+        rec.constraint_name,
+        rec.column_name
+    );
+END LOOP;
 END $$;
-

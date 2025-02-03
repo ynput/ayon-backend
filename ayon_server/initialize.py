@@ -11,7 +11,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 
 
-async def ayon_init():
+async def ayon_init(extensions: bool = True):
     """Initialize ayon for use with server or stand-alone tools
 
     This connects to the database and installs the event hooks.
@@ -49,6 +49,7 @@ async def ayon_init():
         logging.info(f"Retrying in {retry_interval} seconds", handlers=None)
         await asyncio.sleep(retry_interval)
 
-    await init_extensions()
+    if extensions:
+        await init_extensions()
     ActivityFeedEventHook.install(EventStream)
     await build_project_list()

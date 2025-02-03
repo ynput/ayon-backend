@@ -12,6 +12,7 @@ class DeployProjectRequestModel(OPModel):
     code: str = Field(..., description="Project code")
     anatomy: Anatomy = Field(..., description="Project anatomy")
     library: bool = Field(False, description="Library project")
+    assign_users: bool = Field(True, description="Assign default users to the project")
 
 
 @router.post("/projects", status_code=201)
@@ -32,6 +33,7 @@ async def deploy_project(
         anatomy=payload.anatomy,
         library=payload.library,
         user_name=user.name,
+        assign_users=payload.assign_users,
     )
 
     return EmptyResponse(status_code=201)

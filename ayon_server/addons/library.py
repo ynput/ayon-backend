@@ -29,7 +29,7 @@ class AddonLibrary:
             logging.error(f"Addons directory does not exist: {addons_dir}")
             return None
 
-        for addon_name in os.listdir(addons_dir):
+        for addon_name in sorted(os.listdir(addons_dir)):
             # ignore hidden directories (such as .git)
             if addon_name.startswith("."):
                 continue
@@ -141,7 +141,10 @@ class AddonLibrary:
         for addon_name, addon_version in active_versions.items():
             addon: Optional[BaseServerAddon] = None
             if addon_version:
-                addon = self[addon_name][addon_version]
+                try:
+                    addon = self[addon_name][addon_version]
+                except KeyError:
+                    continue
             output[addon_name] = addon
         return output
 

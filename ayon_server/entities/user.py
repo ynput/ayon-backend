@@ -1,7 +1,7 @@
 """User entity."""
 
 import re
-from typing import Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
 
 from nxtools import logging
 
@@ -16,6 +16,7 @@ from ayon_server.constraints import Constraints
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
+    ConstraintViolationException,
     ForbiddenException,
     LowPasswordComplexityException,
     NotFoundException,
@@ -27,11 +28,29 @@ from ayon_server.lib.redis import Redis
 from ayon_server.types import AccessType
 from ayon_server.utils import SQLTool, dict_exclude
 
+if TYPE_CHECKING:
+    from ayon_server.api.clientinfo import ClientInfo
+    from ayon_server.auth.session import SessionModel
+
+
+class SessionInfo:
+    is_api_key: bool = False
+    client_info: Optional["ClientInfo"] = None
+
+    def __init__(self, session: "SessionModel") -> None:
+        self.is_api_key = session.is_api_key
+        self.client_info = session.client_info
+
+    def __repr__(self) -> str:
+        return f"SessionInfo(is_api_key={self.is_api_key})"
+
 
 class UserEntity(TopLevelEntity):
     entity_type: str = "user"
     model = ModelSet("user", attribute_library["user"], has_id=False)
     was_active: bool = False
+    original_email: str | None = None
+    session: Optional[SessionInfo] = None
 
     # Cache for path access lists
     # the structure is as follows:
@@ -52,6 +71,7 @@ class UserEntity(TopLevelEntity):
         super().__init__(payload, exists, validate)
         self.was_active = self.active and self.exists
         self.was_service = self.is_service and self.exists
+        self.original_email = self.attrib.email
 
     @classmethod
     async def load(
@@ -73,6 +93,9 @@ class UserEntity(TopLevelEntity):
         ):
             raise NotFoundException(f"Unable to load user {name}")
         return cls.from_record(user_data[0])
+
+    def add_session(self, session: "SessionModel") -> None:
+        self.session = SessionInfo(session)
 
     #
     # Save
@@ -107,6 +130,24 @@ class UserEntity(TopLevelEntity):
 
         if not self.active:
             self.data.pop("userPool", None)
+
+        if self.attrib.email and (self.attrib.email != self.original_email):
+            logging.info(f"Email changed for user {self.name}")
+            # Email changed, we need to check if it's unique
+            # We cannot use DB index here.
+            res = await conn.fetch(
+                """
+                SELECT name FROM users
+                WHERE LOWER(attrib->>'email') = $1
+                AND name != $2
+                """,
+                self.attrib.email.lower(),
+                self.name,
+            )
+
+            if res:
+                msg = "This email is already used by another user"
+                raise ConstraintViolationException(msg)
 
         if do_con_check:
             logging.info(f"Activating user {self.name}")

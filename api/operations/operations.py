@@ -1,4 +1,5 @@
 from ayon_server.api.dependencies import CurrentUser, ProjectName, Sender, SenderType
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.operations.project_level import (
     OperationModel,
     OperationsResponseModel,
@@ -49,7 +50,13 @@ async def operations(
         sender=sender,
         sender_type=sender_type,
     )
+
     for operation in payload.operations:
+        if operation.as_user:
+            is_different_user = operation.as_user != user.name
+            if is_different_user and not user.is_service:
+                msg = "You are not allowed to perform operations as another user"
+                raise ForbiddenException(msg)
         ops.append(operation)
 
     return await ops.process(can_fail=payload.can_fail, raise_on_error=False)

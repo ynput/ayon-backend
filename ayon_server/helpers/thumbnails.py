@@ -6,6 +6,11 @@ from nxtools import logging
 from PIL import Image, UnidentifiedImageError
 from starlette.concurrency import run_in_threadpool
 
+from ayon_server.exceptions import UnsupportedMediaException
+from ayon_server.files import Storages
+from ayon_server.helpers.mimetypes import guess_mime_type
+from ayon_server.lib.postgres import Postgres
+
 
 class ThumbnailProcessNoop(Exception):
     pass
@@ -141,3 +146,81 @@ def get_fake_thumbnail() -> bytes:
     """
     base64_string = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="  # noqa
     return base64.b64decode(base64_string)
+
+
+async def store_thumbnail(
+    project_name: str,
+    thumbnail_id: str,
+    payload: bytes,
+    *,
+    mime: str | None = None,
+    user_name: str | None = None,
+):
+    """Store a thumbnail in the database and the storage service."""
+    if len(payload) < 10:
+        raise UnsupportedMediaException("Thumbnail cannot be empty")
+
+    MAX_THUMBNAIL_WIDTH = 600
+    MAX_THUMBNAIL_HEIGHT = 600
+
+    guessed_mime = guess_mime_type(payload)
+    if guessed_mime is None:
+        # This shouldn't happen, but we'll log it.
+        # Upload will probably fail later on, in process_thumbnail.
+        logging.warning(
+            f"Could not guess mime type of thumbnail. Using provided {mime}"
+        )
+
+    elif mime and guessed_mime != mime:
+        # This is a warning, not an error, because we can still store the thumbnail
+        # even if the mime type is wrong. We're just logging it and using the
+        # correct mime type instead of the provided one.
+        logging.warning(
+            "Thumbnail mime type mismatch: "
+            f"Payload contains {guessed_mime} "
+            f"but was requested to store {mime}"
+        )
+        mime = guessed_mime
+
+    if mime not in ["image/png", "image/jpeg"]:
+        raise UnsupportedMediaException(f"Unsupported thumbnail mime type {mime}")
+
+    try:
+        thumbnail = await process_thumbnail(
+            payload,
+            (MAX_THUMBNAIL_WIDTH, MAX_THUMBNAIL_HEIGHT),
+            raise_on_noop=True,
+        )
+    except ValueError as e:
+        raise UnsupportedMediaException(str(e))
+
+    except ThumbnailProcessNoop:
+        thumbnail = payload
+    else:
+        storage = await Storages.project(project_name)
+        await storage.store_thumbnail(thumbnail_id, payload)
+
+    meta = {
+        "originalSize": len(payload),
+        "thumbnailSize": len(thumbnail),
+        "mime": mime,  # eventually, we'll drop the column
+    }
+    if user_name:
+        meta["author"] = user_name
+
+    query = f"""
+        INSERT INTO project_{project_name}.thumbnails (id, mime, data, meta)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (id)
+        DO UPDATE SET data = EXCLUDED.data, meta = EXCLUDED.meta
+        RETURNING id
+    """
+    await Postgres.execute(query, thumbnail_id, mime, thumbnail, meta)
+    for entity_type in ["workfiles", "versions", "folders", "tasks"]:
+        await Postgres.execute(
+            f"""
+            UPDATE project_{project_name}.{entity_type}
+            SET updated_at = NOW() WHERE thumbnail_id = $1
+            """,
+            thumbnail_id,
+        )

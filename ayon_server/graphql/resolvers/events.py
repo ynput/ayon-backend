@@ -50,10 +50,13 @@ async def get_events(
 ) -> EventsConnection:
     """Return a list of events."""
 
+    user = info.context["user"]
     sql_conditions = []
 
     if ids is not None:
         sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
+    elif not user.is_manager:
+        users = [user.name]
 
     if topics is not None:
         if not topics:

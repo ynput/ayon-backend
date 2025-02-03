@@ -70,6 +70,7 @@ async def run_auto_update() -> None:
                 addon_name=addon_name,
                 addon_version=addon_version,
                 url=url,
+                no_queue=True,
             )
             # Just download the addon. After restart, we'll be able to continue
             continue
