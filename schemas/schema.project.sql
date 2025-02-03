@@ -360,9 +360,10 @@ CREATE TABLE workfiles(
 -----------
 
 
-CREATE TABLE lists(
+CREATE TABLE entity_lists(
   id UUID NOT NULL PRIMARY KEY,
   label VARCHAR NOT NULL,
+  list_type VARCHAR NOT NULL, 
   access JSONB NOT NULL DEFAULT '{}'::JSONB,
   template JSONB NOT NULL DEFAULT '{}'::JSONB,
 
@@ -376,9 +377,9 @@ CREATE TABLE lists(
 );
 
 
-CREATE TABLE list_items(
+CREATE TABLE entity_list_items(
   id UUID NOT NULL PRIMARY KEY,
-  list_id UUID NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+  entity_list_id UUID NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
   entity_type VARCHAR NOT NULL,
   entity_id UUID NOT NULL,
   position INTEGER NOT NULL,
