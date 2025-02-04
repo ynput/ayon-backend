@@ -7,8 +7,6 @@ from pydantic.error_wrappers import ValidationError
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.config import ayonconfig
-from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -167,47 +165,10 @@ async def modify_studio_overrides(
     if not user.is_manager:
         raise ForbiddenException
 
-    addon = AddonLibrary.addon(addon_name, addon_version)
-    if addon is None:
-        raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
-
-    old_settings = await addon.get_studio_settings(variant=variant)
-    if ayonconfig.audit_trail:
-        old_overrides = await addon.get_studio_overrides(variant=variant)
-    else:
-        old_overrides = {}
-
     if payload.action == "delete":
         await remove_override(addon_name, addon_version, payload.path, variant=variant)
     elif payload.action == "pin":
         await pin_override(addon_name, addon_version, payload.path, variant=variant)
-
-    new_settings = await addon.get_studio_settings(variant=variant)
-
-    if old_settings and new_settings:
-        await addon.on_settings_changed(
-            old_settings=old_settings, new_settings=new_settings, variant=variant
-        )
-
-    event_payload = {}
-    if ayonconfig.audit_trail:
-        new_overrides = await addon.get_studio_overrides(variant=variant)
-        event_payload = {
-            "originalValue": old_overrides,
-            "newValue": new_overrides,
-        }
-
-    await EventStream.dispatch(
-        topic="settings.changed",
-        description=f"{addon_name} {addon_version} {variant} studio overrides changed",
-        summary={
-            "addon_name": addon_name,
-            "addon_version": addon_version,
-            "variant": variant,
-        },
-        payload=event_payload,
-        user=user.name,
-    )
 
     return EmptyResponse()
 

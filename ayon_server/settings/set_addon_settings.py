@@ -171,15 +171,24 @@ async def set_addon_settings(
     )
 
     # Load the original settings
+    # This is needed only to call Addon.on_settings_changed method
+    # which won't be needed in the future
+    # (we should use subscribe to settings.changed event instead)
 
     original_settings = await load_settings_from_context(context)
 
-    # Construct query
+    # Get the right query
 
     if not data:
-        query, args = get_delete_query(context)
+        if site_id and user_name:
+            query, args = get_site_delete_query(context)
+        else:
+            query, args = get_delete_query(context)
     else:
-        query, args = get_upsert_query(context)
+        if site_id and user_name:
+            query, args = get_site_upsert_query(context)
+        else:
+            query, args = get_upsert_query(context)
 
     # Run the query
 
@@ -196,8 +205,8 @@ async def set_addon_settings(
 
     if ayonconfig.audit_trail:
         payload = {
-            "originalValue": original_data,
-            "newValue": updated_data,
+            "originalValue": original_data or {},
+            "newValue": updated_data or {},
         }
 
     otype = "project " if project_name else "studio "
@@ -228,4 +237,6 @@ async def set_addon_settings(
             new_settings,
             variant=variant,
             project_name=project_name,
+            user_name=user_name,
+            site_id=site_id,
         )
