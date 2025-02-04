@@ -23,6 +23,35 @@ class SettingModifyContext:
     site_id: str | None = None
 
 
+async def load_settings_from_context(
+    context: SettingModifyContext,
+) -> BaseSettingsModel | None:
+    addon = AddonLibrary.addon(context.addon_name, context.addon_version)
+    model = addon.get_settings_model()
+    if not model:
+        msg = f"{addon} does not have settings"
+        raise BadRequestException(msg)
+
+    settings: BaseSettingsModel | None = None
+    if context.project_name:
+        if context.site_id and context.user_name:
+            settings = await addon.get_project_site_settings(
+                project_name=context.project_name,
+                user_name=context.user_name,
+                site_id=context.site_id,
+                variant=context.variant,
+            )
+
+        else:
+            settings = await addon.get_project_settings(
+                context.project_name,
+                variant=context.variant,
+            )
+    else:
+        settings = await addon.get_studio_settings(variant=context.variant)
+    return settings
+
+
 def get_delete_query(context: SettingModifyContext) -> tuple[str, tuple[Any, ...]]:
     query = f"""
         DELETE FROM {context.schema}.settings
@@ -130,22 +159,6 @@ async def set_addon_settings(
     # Make sure we are not setting settings for a non-existent addon
     # This would raise NotFoundException if the addon does not exist
 
-    addon = AddonLibrary.addon(addon_name, addon_version)
-    model = addon.get_settings_model()
-    if not model:
-        msg = f"{addon_name} {addon_version} does not have settings"
-        raise BadRequestException(msg)
-
-    original_settings: BaseSettingsModel | None = None
-    if project_name:
-        original_settings = await addon.get_project_settings(
-            project_name, variant=variant
-        )
-    else:
-        original_settings = await addon.get_studio_settings(variant=variant)
-
-    # Construct query
-
     context = SettingModifyContext(
         schema="public" if project_name is None else f"project_{project_name}",
         addon_name=addon_name,
@@ -156,6 +169,12 @@ async def set_addon_settings(
         project_name=project_name,
         site_id=site_id,
     )
+
+    # Load the original settings
+
+    original_settings = await load_settings_from_context(context)
+
+    # Construct query
 
     if not data:
         query, args = get_delete_query(context)
@@ -198,17 +217,12 @@ async def set_addon_settings(
     )
 
     # Call Addon.on_settings_changed
+    # This is actually deprecated and should be removed in the future
+    # since it won't affect all replicas of the addon
 
-    new_settings: BaseSettingsModel | None = None
-    if project_name:
-        new_settings = await addon.get_project_settings(
-            project_name,
-            variant=variant,
-        )
-    else:
-        new_settings = await addon.get_studio_settings(variant=variant)
-
+    new_settings = await load_settings_from_context(context)
     if original_settings and new_settings:
+        addon = AddonLibrary.addon(addon_name, addon_version)
         await addon.on_settings_changed(
             original_settings,
             new_settings,
