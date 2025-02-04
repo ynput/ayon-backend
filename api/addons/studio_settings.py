@@ -17,6 +17,7 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.overrides import extract_overrides, list_overrides
 from ayon_server.settings.postprocess import postprocess_settings_schema
+from ayon_server.settings.set_addon_settings import set_addon_settings
 
 from .common import ModifyOverridesRequestModel, pin_override, remove_override
 from .router import route_meta, router
@@ -107,44 +108,13 @@ async def set_addon_studio_settings(
     except ValidationError as e:
         raise BadRequestException("Invalid settings", errors=e.errors()) from e
 
-    await Postgres.execute(
-        """
-        INSERT INTO settings
-            (addon_name, addon_version, variant, data)
-        VALUES
-            ($1, $2, $3, $4)
-        ON CONFLICT (addon_name, addon_version, variant)
-            DO UPDATE SET data = $4
-        """,
+    await set_addon_settings(
         addon_name,
         addon_version,
-        variant,
         data,
+        variant=variant,
     )
-    payload = {}
-    if ayonconfig.audit_trail:
-        payload = {
-            "originalValue": existing,
-            "newValue": data,
-        }
 
-    new_settings = await addon.get_studio_settings(variant=variant)
-    if original and new_settings:
-        await addon.on_settings_changed(
-            old_settings=original, new_settings=new_settings, variant=variant
-        )
-
-    await EventStream.dispatch(
-        topic="settings.changed",
-        description=f"{addon_name} {addon_version} {variant} studio overrides changed",
-        summary={
-            "addon_name": addon_name,
-            "addon_version": addon_version,
-            "variant": variant,
-        },
-        user=user.name,
-        payload=payload,
-    )
     return EmptyResponse()
 
 
@@ -174,59 +144,14 @@ async def delete_addon_studio_overrides(
     user: CurrentUser,
     variant: str = Query("production"),
 ) -> EmptyResponse:
-    # TODO: Selectable snapshot
-
     if not user.is_manager:
         raise ForbiddenException
 
-    # Ensure addon exists
-    addon = AddonLibrary.addon(addon_name, addon_version)
-
-    old_settings = await addon.get_studio_settings(variant=variant)
-
-    res = await Postgres.fetch(
-        """
-        DELETE FROM settings
-        WHERE addon_name = $1
-        AND addon_version = $2
-        AND variant = $3
-        RETURNING data
-        """,
+    await set_addon_settings(
         addon_name,
         addon_version,
-        variant,
-    )
-
-    if res:
-        old_overrides = res[0]["data"]
-    else:
-        old_overrides = {}
-
-    new_settings = await addon.get_default_settings()
-    if old_settings and new_settings:
-        await addon.on_settings_changed(
-            old_settings=old_settings,
-            new_settings=new_settings,
-            variant=variant,
-        )
-
-    payload = {}
-    if ayonconfig.audit_trail:
-        payload = {
-            "originalValue": old_overrides,
-            "newValue": {},
-        }
-
-    await EventStream.dispatch(
-        topic="settings.changed",
-        description=f"{addon_name} {addon_version} {variant} studio overrides removed",
-        summary={
-            "addon_name": addon_name,
-            "addon_version": addon_version,
-            "variant": variant,
-        },
-        payload=payload,
-        user=user.name,
+        None,
+        variant=variant,
     )
     return EmptyResponse()
 
@@ -285,6 +210,11 @@ async def modify_studio_overrides(
     )
 
     return EmptyResponse()
+
+
+#
+# Raw overrides. No validation or processing is done on these.
+#
 
 
 @router.get("/{addon_name}/{addon_version}/rawOverrides", **route_meta)
