@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Literal, Union
 
 from pydantic import validator
@@ -6,6 +7,12 @@ from pydantic import validator
 from ayon_server.types import Field, OPModel
 
 ValueType = Union[str, int, float, list[str], list[int], list[float], None]
+
+
+def camel_to_snake(name):
+    """Convert camelCase or PascalCase to snake_case."""
+    name = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+    return name
 
 
 class Condition(OPModel):
@@ -34,6 +41,7 @@ class Condition(OPModel):
         "notin",
         "contains",
         "excludes",
+        "any",
         "like",
     ] = Field("eq")
 
@@ -81,15 +89,23 @@ JSON_FIELDS = [
 def build_condition(c: Condition, **kwargs) -> str:
     """Return a SQL WHERE clause from a Condition object."""
 
-    path = [k.strip() for k in c.key.split("/")]
+    pex = c.key.replace("/", ".")
+    path = [k.strip() for k in pex.split(".")]
     value = c.value
     operator = c.operator
+    cast_type = "text"
     assert path, "Path cannot be empty"
 
     json_fields = kwargs.get("json_fields", JSON_FIELDS)
     table_prefix = kwargs.get("table_prefix")
+    key_whitelist = kwargs.get("key_whitelist", None)
 
     key = path[0]
+    key = camel_to_snake(key)
+    if key_whitelist is not None:
+        if key not in key_whitelist:
+            raise ValueError(f"Invalid key: {key}")
+
     if len(path) == 1 and path[0] not in json_fields:
         # Hack to map project and user to their respective db column names
         if key in ["project", "user"]:
@@ -98,6 +114,8 @@ def build_condition(c: Condition, **kwargs) -> str:
         if isinstance(value, str):
             value = value.replace("'", "''")
             value = f"'{value}'"
+        elif isinstance(value, (int, float)):
+            cast_type = "integer" if isinstance(value, int) else "number"
 
     elif len(path) > 1 and key in json_fields:
         for k in path[1:]:
@@ -118,21 +136,27 @@ def build_condition(c: Condition, **kwargs) -> str:
         if all(isinstance(v, str) for v in value):
             value = [v.replace("'", "''") for v in value]  # type: ignore
             arr_value = "array[" + ", ".join([f"'{v}'" for v in value]) + "]"
-        elif all(isinstance(v, (int, float)) for v in value):
+        elif all(isinstance(v, (int)) for v in value):
             arr_value = "array[" + ", ".join([str(v) for v in value]) + "]"
+            cast_type = "integer"
+        elif all(isinstance(v, (float)) for v in value):
+            arr_value = "array[" + ", ".join([str(v) for v in value]) + "]"
+            cast_type = "number"
         else:
             raise ValueError("Invalid value type in list")
 
         if operator == "in":
             if len(path) > 1:
-                return f"{key} ?| {arr_value}"
+                return f"{key}::{cast_type} ?| {arr_value}"
             else:
-                return f"{key} = ANY({arr_value})"
+                return f"{key}::{cast_type} = ANY({arr_value})"
         elif operator == "notin":
             if len(path) > 1:
-                return f"NOT ({key} ?| {arr_value})"
+                return f"NOT ({key}::{cast_type} ?| {arr_value})"
             else:
-                return f"{key} != ALL({arr_value})"
+                return f"{key}::{cast_type} != ALL({arr_value})"
+        elif operator == "any":
+            return f"{key}::{cast_type}[] && {arr_value}"
         else:
             raise ValueError(f"Invalid list operator: {operator}")
 
