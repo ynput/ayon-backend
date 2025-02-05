@@ -71,6 +71,7 @@ class ActivityNode:
     activity_type: str = strawberry.field()
     body: str = strawberry.field()
     tags: list[str] = strawberry.field()
+    category: str | None = strawberry.field()
     activity_data: str = strawberry.field()
     reference_data: str = strawberry.field()
     active: bool = strawberry.field(default=True)
@@ -191,6 +192,7 @@ def activity_from_record(
     activity_data = record.pop("activity_data", {})
     reference_data = record.pop("reference_data", {})
     tags = record.pop("tags", [])
+    category = activity_data.get("category")
 
     origin_data = activity_data.get("origin")
     if origin_data:
@@ -222,6 +224,7 @@ def activity_from_record(
         origin=origin,
         parents=parents,
         tags=tags,
+        category=category,
         read=reference_data.pop("read", False),
         reactions=reactions,
         **record,

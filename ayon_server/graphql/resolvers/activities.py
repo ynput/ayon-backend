@@ -31,6 +31,7 @@ async def get_activities(
     reference_types: list[str] | None = None,
     activity_ids: list[str] | None = None,
     tags: list[str] | None = None,
+    categories: list[str | None] | None = None,
     changed_before: str | None = None,
     changed_after: str | None = None,
 ) -> ActivitiesConnection:
@@ -100,6 +101,15 @@ async def get_activities(
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
+    if categories:
+        cat_conds = []
+        if None in categories:
+            cat_conds.append("activity_data->>'category' IS NULL")
+        cats = [c for c in categories if c is not None]
+        if cats:
+            cat_conds.append(f"activity_data->>'category' IN {SQLTool.array(cats)}")
+        sql_conditions.append(f"({SQLTool.conditions(cat_conds, 'OR', False)})")
+
     if entity_ids is not None:
         sql_conditions.append(f"entity_id IN {SQLTool.array(entity_ids)}")
         # do not list mentions on the same entity
@@ -148,6 +158,8 @@ async def get_activities(
         {SQLTool.conditions(sql_conditions)}
         {pagination}
     """
+
+    # print(query)
 
     #
     # Execute the query
