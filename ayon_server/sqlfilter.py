@@ -185,6 +185,12 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         column = f"{table_prefix}.{column}"
 
     if isinstance(value, list):
+        if len(value) == 0:
+            if operator == "eq":
+                return f"array_length({column}, 1) IS NULL"
+            if operator == "ne":
+                return f"array_length({column}, 1) IS NOT NULL"
+
         if all(isinstance(v, str) for v in value):
             escaped_list = [v.replace("'", "''") for v in value]  # type: ignore
             arr_value = "array[" + ", ".join([f"'{v}'" for v in escaped_list]) + "]"
@@ -209,6 +215,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 return f"{column}::{cast_type} != ALL({arr_value})"
         elif operator == "any":
             return f"{column}::{cast_type}[] && {arr_value}"
+
         else:
             raise ValueError(f"Invalid list operator: {operator}")
 
