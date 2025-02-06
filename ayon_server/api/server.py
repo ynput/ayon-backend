@@ -303,7 +303,7 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
             continue
 
         if not hasattr(module, "router"):
-            logging.error(f"API plug-in '{module_name}' has no router")
+            logging.debug(f"API plug-in '{module_name}' has no router")
             continue
 
         target_app.include_router(module.router, prefix="/api")
