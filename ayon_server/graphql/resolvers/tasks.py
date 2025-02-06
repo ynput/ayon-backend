@@ -296,12 +296,12 @@ async def get_tasks(
             "thumbnail_id",
         ]
         fq = QueryFilter(**json.loads(filter))
-        fcond = build_filter(
+        if fcond := build_filter(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="tasks",
-        )
-        sql_conditions.append(fcond)
+        ):
+            sql_conditions.append(fcond)
 
     #
     # Joins
