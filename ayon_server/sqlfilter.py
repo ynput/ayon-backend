@@ -1,12 +1,28 @@
 import json
 import re
-from typing import Literal, Union
+from typing import Annotated, Literal, Union
 
 from pydantic import validator
 
 from ayon_server.types import Field, OPModel
 
 ValueType = Union[str, int, float, list[str], list[int], list[float], None]
+OperatorType = Literal[
+    "eq",
+    "lt",
+    "gt",
+    "lte",
+    "gte",
+    "ne",
+    "isnull",
+    "notnull",
+    "in",
+    "notin",
+    "contains",
+    "excludes",
+    "any",
+    "like",
+]
 
 
 def camel_to_snake(name):
@@ -15,35 +31,31 @@ def camel_to_snake(name):
     return name
 
 
-class Condition(OPModel):
-    key: str = Field(
-        ...,
-        title="Key",
-        description="Path to the key separated by slashes",
-        example="summary/newValue",
-    )
-    value: ValueType = Field(
-        None,
-        title="Value",
-        description="Value to compare against",
-        example="New value",
-    )
-    operator: Literal[
-        "eq",
-        "lt",
-        "gt",
-        "lte",
-        "gte",
-        "ne",
-        "isnull",
-        "notnull",
-        "in",
-        "notin",
-        "contains",
-        "excludes",
-        "any",
-        "like",
-    ] = Field("eq")
+class QueryCondition(OPModel):
+    key: Annotated[
+        str,
+        Field(
+            title="Key",
+            description="Path to the key separated by slashes",
+            example="summary/newValue",
+        ),
+    ]
+    value: Annotated[
+        ValueType,
+        Field(
+            title="Value",
+            description="Value to compare against",
+            example="New value",
+        ),
+    ] = None
+    operator: Annotated[
+        OperatorType,
+        Field(
+            title="Operator",
+            description="Comparison operator",
+            example="eq",
+        ),
+    ] = "eq"
 
     @validator("operator", pre=True, always=True)
     def convert_operator_to_lowercase(cls, v):
@@ -51,7 +63,7 @@ class Condition(OPModel):
 
     @validator("value")
     def validate_value(cls, v, values):
-        if values.get("operator") in ("in", "notin"):
+        if values.get("operator") in ("in", "notin", "any"):
             if not isinstance(v, list):
                 raise ValueError("Value must be a list")
         if values.get("operator") not in ("isnull", "notnull"):
@@ -60,17 +72,22 @@ class Condition(OPModel):
         return v
 
 
-class Filter(OPModel):
-    conditions: list[Union[Condition, "Filter"]] = Field(
-        default_factory=list,
-        title="Conditions",
-        description="List of conditions to be evaluated",
-    )
-    operator: Literal["and", "or"] = Field(
-        "and",
-        title="Operator",
-        description="Operator to use when joining conditions",
-    )
+class QueryFilter(OPModel):
+    conditions: Annotated[
+        list[Union[QueryCondition, "QueryFilter"]],
+        Field(
+            default_factory=list,
+            title="Conditions",
+            description="List of conditions to be evaluated",
+        ),
+    ]
+    operator: Annotated[
+        Literal["and", "or"],
+        Field(
+            title="Operator",
+            description="Operator to use when joining conditions",
+        ),
+    ] = "and"
 
     @validator("operator", pre=True, always=True)
     def convert_operator_to_lowercase(cls, v):
@@ -86,7 +103,7 @@ JSON_FIELDS = [
 ]
 
 
-def build_condition(c: Condition, **kwargs) -> str:
+def build_condition(c: QueryCondition, **kwargs) -> str:
     """Return a SQL WHERE clause from a Condition object."""
 
     pex = c.key.replace("/", ".")
@@ -186,7 +203,7 @@ def build_condition(c: Condition, **kwargs) -> str:
         raise ValueError(f"Unsupported operator: {operator}")
 
 
-def build_filter(f: Filter | None, **kwargs) -> str | None:
+def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
     """Return a SQL WHERE clause from a Filter object."""
 
     if f is None:
@@ -197,10 +214,10 @@ def build_filter(f: Filter | None, **kwargs) -> str | None:
 
     result = []
     for c in f.conditions:
-        if isinstance(c, Filter):
+        if isinstance(c, QueryFilter):
             if r := build_filter(c, **kwargs):
                 result.append(r)
-        elif isinstance(c, Condition):
+        elif isinstance(c, QueryCondition):
             if r := build_condition(c, **kwargs):
                 result.append(r)
         else:

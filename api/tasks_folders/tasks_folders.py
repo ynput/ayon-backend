@@ -6,14 +6,14 @@ from nxtools import logging
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.lib.postgres import Postgres
-from ayon_server.sqlfilter import Filter, build_filter
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import Field, OPModel
 
 router = APIRouter(tags=["Tasks"])
 
 
 class TasksFoldersQuery(OPModel):
-    filter: Annotated[Filter | None, Field(description="")] = None
+    filter: Annotated[QueryFilter | None, Field(description="")] = None
 
 
 class TasksFoldersResponse(OPModel):
