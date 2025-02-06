@@ -137,7 +137,7 @@ def create_path_from_key(
     column = camel_to_snake(path[0])
     if column_whitelist is not None and column not in column_whitelist:
         raise ValueError(f"Invalid key: {column}")
-    path[0]
+    path[0] = column
     return path
 
 

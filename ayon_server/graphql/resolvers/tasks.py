@@ -1,3 +1,4 @@
+import json
 from typing import Annotated
 
 from ayon_server.entities.core import attribute_library
@@ -21,6 +22,7 @@ from ayon_server.graphql.resolvers.common import (
     sortdesc,
 )
 from ayon_server.graphql.types import Info
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     sanitize_string_list,
     validate_name_list,
@@ -92,6 +94,7 @@ async def get_tasks(
         bool,
         argdesc("Include tasks in child folders when folderIds is used"),
     ] = False,
+    filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
@@ -275,6 +278,30 @@ async def get_tasks(
                 ->>'{attribute_input.name}' IN {SQLTool.array(values)}
                 """
             )
+
+    if filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "folder_id",
+            "task_type",
+            "status",
+            "tags",
+            "assignees",
+            "attrib",
+            "data",
+            "created_at",
+            "updated_at",
+            "active",
+            "thumbnail_id",
+        ]
+        fq = QueryFilter(**json.loads(filter))
+        fcond = build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="tasks",
+        )
+        sql_conditions.append(fcond)
 
     #
     # Joins
