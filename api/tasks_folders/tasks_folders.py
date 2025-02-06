@@ -51,7 +51,7 @@ async def query_tasks_folders(
 ) -> TasksFoldersResponse:
     result = []
 
-    filter = build_filter(request.filter, key_whitelist=ALLOWED_KEYS)
+    filter = build_filter(request.filter, column_whitelist=ALLOWED_KEYS)
 
     query = f"""
         SELECT DISTINCT folder_id

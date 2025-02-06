@@ -6,7 +6,16 @@ from pydantic import validator
 
 from ayon_server.types import Field, OPModel
 
-ValueType = Union[str, int, float, list[str], list[int], list[float], None]
+ValueType = Union[
+    str,
+    int,
+    float,
+    list[str],
+    list[int],
+    list[float],
+    None,
+]
+
 OperatorType = Literal[
     "eq",
     "lt",
@@ -69,6 +78,7 @@ class QueryCondition(OPModel):
         if values.get("operator") not in ("isnull", "notnull"):
             if v is None:
                 raise ValueError("Value cannot be null")
+
         return v
 
 
@@ -103,56 +113,81 @@ JSON_FIELDS = [
 ]
 
 
+PATH_ELEMENT_REGEX = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
+def create_path_from_key(
+    key: str,
+    column_whitelist: list[str] | None = None,
+) -> list[str]:
+    """Ensure the key is valid and return a list of path elements.
+
+    That means the key must be a valid path separated by slashes or dots.
+    First element must be a valid column name (converted to snake_case).
+    All elements must conform to the PATH_ELEMENT_REGEX.
+    """
+    key = key.replace("/", ".")
+    path = [k.strip() for k in key.split(".")]
+    if not path:
+        raise ValueError("Empty path")
+    if not all(PATH_ELEMENT_REGEX.match(p) for p in path):
+        raise ValueError("Invalid path element detected")
+
+    # First element (column) must be snake_case
+    column = camel_to_snake(path[0])
+    if column_whitelist is not None and column not in column_whitelist:
+        raise ValueError(f"Invalid key: {column}")
+    path[0]
+    return path
+
+
 def build_condition(c: QueryCondition, **kwargs) -> str:
     """Return a SQL WHERE clause from a Condition object."""
 
-    pex = c.key.replace("/", ".")
-    path = [k.strip() for k in pex.split(".")]
+    json_fields = kwargs.get("json_fields", JSON_FIELDS)
+    table_prefix = kwargs.get("table_prefix")
+    column_whitelist = kwargs.get("column_whitelist", None)
+
+    path = create_path_from_key(c.key, column_whitelist)
     value = c.value
     operator = c.operator
     cast_type = "text"
-    assert path, "Path cannot be empty"
+    safe_value: ValueType = None
 
-    json_fields = kwargs.get("json_fields", JSON_FIELDS)
-    table_prefix = kwargs.get("table_prefix")
-    key_whitelist = kwargs.get("key_whitelist", None)
-
-    key = path[0]
-    key = camel_to_snake(key)
-    if key_whitelist is not None:
-        if key not in key_whitelist:
-            raise ValueError(f"Invalid key: {key}")
+    column = path[0]
 
     if len(path) == 1 and path[0] not in json_fields:
         # Hack to map project and user to their respective db column names
-        if key in ["project", "user"]:
-            key = f"{key}_name"
+        # when querying from the events table
+        if column in ["project", "user"]:
+            column = f"{column}_name"
 
         if isinstance(value, str):
-            value = value.replace("'", "''")
-            value = f"'{value}'"
+            safe_value = value.replace("'", "''")
+            safe_value = f"'{value}'"
+
         elif isinstance(value, (int, float)):
             cast_type = "integer" if isinstance(value, int) else "number"
+            safe_value = value
 
-    elif len(path) > 1 and key in json_fields:
+    elif len(path) > 1 and column in json_fields:
         for k in path[1:]:
-            key += f"->'{k}'"
+            column += f"->'{k}'"
 
         if isinstance(value, (str, int, float)):
-            if isinstance(value, str):
-                value = value.replace("'", "''")
-            value = f"'{json.dumps(value)}'"
+            safe_value = json.dumps(value).replace("'", "''")
+            safe_value = f"'{safe_value}'"
 
     else:
         raise ValueError(f"Invalid path: {path}")
 
     if table_prefix:
-        key = f"{table_prefix}.{key}"
+        column = f"{table_prefix}.{column}"
 
     if isinstance(value, list):
         if all(isinstance(v, str) for v in value):
-            value = [v.replace("'", "''") for v in value]  # type: ignore
-            arr_value = "array[" + ", ".join([f"'{v}'" for v in value]) + "]"
+            escaped_list = [v.replace("'", "''") for v in value]  # type: ignore
+            arr_value = "array[" + ", ".join([f"'{v}'" for v in escaped_list]) + "]"
         elif all(isinstance(v, (int)) for v in value):
             arr_value = "array[" + ", ".join([str(v) for v in value]) + "]"
             cast_type = "integer"
@@ -164,41 +199,45 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
 
         if operator == "in":
             if len(path) > 1:
-                return f"{key}::{cast_type} ?| {arr_value}"
+                return f"{column} ?| {arr_value}"
             else:
-                return f"{key}::{cast_type} = ANY({arr_value})"
+                return f"{column}::{cast_type} = ANY({arr_value})"
         elif operator == "notin":
             if len(path) > 1:
-                return f"NOT ({key}::{cast_type} ?| {arr_value})"
+                return f"NOT ({column} ?| {arr_value})"
             else:
-                return f"{key}::{cast_type} != ALL({arr_value})"
+                return f"{column}::{cast_type} != ALL({arr_value})"
         elif operator == "any":
-            return f"{key}::{cast_type}[] && {arr_value}"
+            return f"{column}::{cast_type}[] && {arr_value}"
         else:
             raise ValueError(f"Invalid list operator: {operator}")
 
     if operator == "isnull":
-        return f"{key} IS NULL"
+        return f"{column} IS NULL"
     elif operator == "notnull":
-        return f"{key} IS NOT NULL"
-    elif operator == "eq":
-        return f"{key} = {value}"
+        return f"{column} IS NOT NULL"
+
+    if safe_value is None:
+        raise ValueError(f"Invalid value: {value}")
+
+    if operator == "eq":
+        return f"{column} = {safe_value}"
     elif operator == "lt":
-        return f"{key} < {value}"
+        return f"{column} < {safe_value}"
     elif operator == "gt":
-        return f"{key} > {value}"
+        return f"{column} > {safe_value}"
     elif operator == "lte":
-        return f"{key} <= {value}"
+        return f"{column} <= {safe_value}"
     elif operator == "gte":
-        return f"{key} >= {value}"
+        return f"{column} >= {safe_value}"
     elif operator == "ne":
-        return f"{key} != {value}"
+        return f"{column} != {safe_value}"
     elif operator == "contains":
-        return f"{key} @> {value}"
+        return f"{column} @> {safe_value}"
     elif operator == "excludes":
-        return f"NOT ({key} @> {value})"
+        return f"NOT ({column} @> {safe_value})"
     elif operator == "like":
-        return f"{key} LIKE {value}"
+        return f"{column} LIKE {safe_value}"
     else:
         raise ValueError(f"Unsupported operator: {operator}")
 
