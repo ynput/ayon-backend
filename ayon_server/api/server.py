@@ -357,8 +357,14 @@ def init_addon_static(target_app: fastapi.FastAPI) -> None:
     target_app.include_router(addon_static_router)
 
 
-if os.path.isdir("/storage/static"):  # TODO: Make this configurable
-    app.mount("/static", StaticFiles(directory="/storage/static"), name="static")
+STATIC_DIR = "/storage/static"
+if not os.path.isdir(STATIC_DIR):
+    try:
+        os.makedirs(STATIC_DIR, exist_ok=True)
+    except Exception as e:
+        logging.warning(f"Unable to create {STATIC_DIR}: {e}")
+    else:
+        app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # API must be initialized here
 # Because addons, which are initialized later
