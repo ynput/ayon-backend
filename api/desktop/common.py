@@ -11,7 +11,8 @@ __all__ = [
 import hashlib
 import json
 import os
-from typing import Any, Generator
+from collections.abc import Generator
+from typing import Any
 
 from ayon_server.exceptions import AyonException
 from ayon_server.installer.common import get_desktop_dir

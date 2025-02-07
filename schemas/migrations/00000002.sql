@@ -85,7 +85,7 @@ FOR rec IN
         tc.table_schema LIKE 'project_%'
         AND tc.constraint_type = 'FOREIGN KEY'
 LOOP
-    RAISE WARNING 'Fixing user_name foreign key on %.%s', rec.project_schema, rec.table_name;
+    RAISE WARNING 'Fixing user_name foreign key on %.%', rec.project_schema, rec.table_name;
 
     EXECUTE format(
         'ALTER TABLE %I.%I DROP CONSTRAINT %I;',

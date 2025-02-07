@@ -336,7 +336,7 @@ class FormattingPart:
     @staticmethod
     def validate_value_type(value: Any) -> bool:
         """Check if value can be used for formatting of single key."""
-        if isinstance(value, (numbers.Number, FormatObject)):
+        if isinstance(value, numbers.Number | FormatObject):
             return True
 
         for inh_class in type(value).mro():

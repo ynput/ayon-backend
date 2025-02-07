@@ -1,7 +1,7 @@
 from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import ConstraintViolationException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.sqlfilter import Filter, build_filter
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import SQLTool, hash_data
 
@@ -24,7 +24,7 @@ async def enroll_job(
     user_name: str | None = None,
     description: str | None = None,
     sequential: bool = False,
-    filter: Filter | None = None,
+    filter: QueryFilter | None = None,
     max_retries: int = 3,
     ignore_sender_types: list[str] | None = None,
     ignore_older_than: int | None = None,

@@ -2,7 +2,8 @@ __all__ = ["Session"]
 
 import asyncio
 import time
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from fastapi import Request
 from nxtools import logging

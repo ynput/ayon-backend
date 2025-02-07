@@ -37,6 +37,7 @@ class ProjectActivityPostModel(OPModel):
     id: str | None = Field(None, description="Explicitly set the ID of the activity")
     activity_type: ActivityType = Field(..., example="comment")
     body: str = Field("", example="This is a comment")
+    tags: list[str] | None = Field(None, example=["tag1", "tag2"])
     files: list[str] | None = Field(None, example=["file1", "file2"])
     timestamp: datetime | None = Field(None, example="2021-01-01T00:00:00Z")
     data: dict[str, Any] | None = Field(
@@ -82,6 +83,7 @@ async def post_project_activity(
         activity_id=activity.id,
         activity_type=activity.activity_type,
         body=activity.body,
+        tags=activity.tags,
         files=activity.files,
         user_name=user.name,
         timestamp=activity.timestamp,
@@ -132,6 +134,11 @@ class ActivityPatchModel(OPModel):
         example="This is a comment",
         description="When set, update the activity body",
     )
+    tags: list[str] | None = Field(
+        None,
+        example=["tag1", "tag2"],
+        description="When set, update the activity tags",
+    )
     files: list[str] | None = Field(
         None,
         example=["file1", "file2"],
@@ -170,6 +177,7 @@ async def patch_project_activity(
         project_name=project_name,
         activity_id=activity_id,
         body=activity.body,
+        tags=activity.tags,
         files=activity.files,
         append_files=activity.append_files,
         data=activity.data,

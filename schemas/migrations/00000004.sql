@@ -26,9 +26,14 @@ DECLARE rec RECORD;
 BEGIN
     FOR rec IN SELECT DISTINCT nspname FROM pg_namespace WHERE nspname LIKE 'project_%'
     LOOP
-        EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
-        ALTER TABLE IF EXISTS representations ADD COLUMN IF NOT EXISTS traits JSONB;
-        ALTER TABLE IF EXISTS activities ADD COLUMN IF NOT EXISTS tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+        BEGIN
+          EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
+          ALTER TABLE IF EXISTS representations ADD COLUMN IF NOT EXISTS traits JSONB;
+          ALTER TABLE IF EXISTS activities ADD COLUMN IF NOT EXISTS tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[];
+        EXCEPTION
+          WHEN OTHERS THEN
+             RAISE WARNING 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
+        END;
     END LOOP;
     RETURN;
 END $$;

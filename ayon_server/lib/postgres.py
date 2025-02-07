@@ -1,7 +1,8 @@
 import asyncio
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any
 
 import asyncpg
 import asyncpg.pool
@@ -19,7 +20,7 @@ else:
 
 
 def timestamptz_endocder(v):
-    if isinstance(v, (int, float)):
+    if isinstance(v, int | float):
         return datetime.fromtimestamp(v).isoformat()
     if isinstance(v, datetime):
         return v.isoformat()
@@ -29,7 +30,7 @@ def timestamptz_endocder(v):
 
 
 def timestamptz_decoder(v):
-    if isinstance(v, (int, float)):
+    if isinstance(v, int | float):
         return datetime.fromtimestamp(v)
     if isinstance(v, datetime):
         return v
@@ -66,7 +67,7 @@ class Postgres:
 
         try:
             connection_proxy = await cls.pool.acquire(timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise ServiceUnavailableException("Database pool timeout")
 
         try:
@@ -128,7 +129,7 @@ class Postgres:
         if cls.pool is not None:
             try:
                 await asyncio.wait_for(cls.pool.close(), timeout=5)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 print("Timeout closing Postgres connection pool.")
                 cls.pool.terminate()
             finally:
