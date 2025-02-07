@@ -357,18 +357,20 @@ def init_addon_static(target_app: fastapi.FastAPI) -> None:
     target_app.include_router(addon_static_router)
 
 
-STATIC_DIR = "/storage/static"
-if not os.path.isdir(STATIC_DIR):
+def init_global_staic(target_app: fastapi.FastAPI) -> None:
+    STATIC_DIR = "/storage/static"
     try:
         os.makedirs(STATIC_DIR, exist_ok=True)
     except Exception as e:
         logging.warning(f"Unable to create {STATIC_DIR}: {e}")
-    else:
-        app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+        return
+    target_app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 
 # API must be initialized here
 # Because addons, which are initialized later
 # may need access to classes initialized from the API (such as Attributes)
+init_global_staic(app)
 init_api(app, ayonconfig.api_modules_dir)
 
 #
