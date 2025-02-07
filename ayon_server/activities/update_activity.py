@@ -1,8 +1,6 @@
 import re
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.activities.models import ActivityReferenceModel
 from ayon_server.activities.utils import (
     MAX_BODY_LENGTH,
@@ -38,6 +36,7 @@ async def update_activity(
     activity_id: str,
     body: str | None = None,
     *,
+    tags: list[str] | None = None,
     files: list[str] | None = None,
     user_name: str | None = None,
     extra_references: list[ActivityReferenceModel] | None = None,
@@ -53,7 +52,7 @@ async def update_activity(
 
     res = await Postgres.fetch(
         f"""
-        SELECT activity_type, body, data FROM project_{project_name}.activities
+        SELECT activity_type, body, tags, data FROM project_{project_name}.activities
         WHERE id = $1
         """,
         activity_id,
@@ -63,22 +62,18 @@ async def update_activity(
         raise NotFoundException("Activity not found")
 
     activity_data = res[0]["data"]
-    if user_name and (user_name != activity_data["author"]):
-        if is_admin:
-            logging.warning(
-                f"User {user_name} updated activity {activity_id}"
-                f" owned by {activity_data['author']}"
-            )
-        else:
-            # Limited access - the user is not is the owner of the activity
-            # nor an admin, so we need to check if the user is trying to
-            # modify the checkboxes in the comment body only.
-            # otherwise, we raise a ForbiddenException
-            if body:
-                ensure_only_checkboxes_changed(res[0]["body"], body)
+    activity_tags = res[0]["tags"]
 
-            if files or append_files or data or extra_references:
-                raise ForbiddenException("You can only edit checkboxes")
+    if user_name and (user_name != activity_data["author"]) and not is_admin:
+        # Limited access - the user is not is the owner of the activity
+        # nor an admin, so we need to check if the user is trying to
+        # modify the checkboxes in the comment body only.
+        # otherwise, we raise a ForbiddenException
+        if body:
+            ensure_only_checkboxes_changed(res[0]["body"], body)
+
+        if files or append_files or data or extra_references:
+            raise ForbiddenException("You can only edit checkboxes")
 
     if body is None:
         body = res[0]["body"]
@@ -92,6 +87,9 @@ async def update_activity(
         # do not overwrite the author
         data.pop("author", None)
         activity_data.update(data)
+
+    if tags is not None:
+        activity_tags = tags
 
     activity_data.pop("hasChecklist", None)
     if activity_type == "comment" and is_body_with_checklist(body):
@@ -147,13 +145,14 @@ async def update_activity(
         UPDATE project_{project_name}.activities
         SET
             body = $1,
-            data = $2,
+            tags = $2,
+            data = $3,
             updated_at = now()
-        WHERE id = $3
+        WHERE id = $4
         """
 
     async with Postgres.acquire() as conn, conn.transaction():
-        await conn.execute(query, body, activity_data, activity_id)
+        await conn.execute(query, body, activity_tags, activity_data, activity_id)
 
         if files is not None:
             await conn.execute(
