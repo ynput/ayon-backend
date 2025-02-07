@@ -6,6 +6,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 ALTER EXTENSION pg_trgm SET SCHEMA public;
 
 -- Create activities tables in all project schemas
+
 DO $$
 DECLARE rec RECORD;
 BEGIN
@@ -64,50 +65,13 @@ BEGIN
             created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
         );
+
         CREATE INDEX IF NOT EXISTS idx_files_activity_id ON files(activity_id);
 
-        IF EXISTS (
-            SELECT 1
-            FROM information_schema.columns
-            WHERE table_schema = rec.nspname
-            AND table_name = 'activity_feed'
-        ) THEN
-            CONTINUE;
-        END IF;
-
-
-        CREATE OR REPLACE VIEW activity_feed AS
-            SELECT
-            ref.id as reference_id,
-            ref.activity_id as activity_id,
-            ref.reference_type as reference_type,
-
-            -- what entity we're referencing
-            ref.entity_type as entity_type,
-            ref.entity_id as entity_id, -- for project level entities and other activities
-            ref.entity_name as entity_name, -- for users
-            ref_paths.path as entity_path, -- entity hierarchy position
-
-            -- sorting stuff
-            ref.created_at,
-            ref.updated_at,
-            ref.creation_order,
-
-            -- actual activity
-            act.activity_type as activity_type,
-            act.body as body,
-            act.data as activity_data,
-            ref.data as reference_data,
-            ref.active as active
-
-            FROM
-            activity_references as ref
-            INNER JOIN
-            activities as act ON ref.activity_id = act.id
-            LEFT JOIN
-            entity_paths as ref_paths ON ref.entity_id = ref_paths.entity_id;
+        -- Activity feed view was moved to migration 5 in 1.7.1
+        -- We're updating the view to include the tags column
+        -- so it doesn't need to be created here just to be dropped and recreated later
 
     END LOOP;
     RETURN;
-END;
-$$ LANGUAGE plpgsql;
+END $$;
