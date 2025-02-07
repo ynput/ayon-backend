@@ -1,5 +1,6 @@
 import os
-from typing import Any, ItemsView, Optional
+from collections.abc import ItemsView
+from typing import Any
 
 from nxtools import log_traceback, logging
 
@@ -90,14 +91,14 @@ class AddonLibrary:
     def __iter__(self):
         return iter(self.data)
 
-    async def get_active_versions(self) -> dict[str, dict[str, Optional[str]]]:
+    async def get_active_versions(self) -> dict[str, dict[str, str | None]]:
         bundles = await Postgres.fetch(
             """
             SELECT name, is_production, is_staging, is_dev, data->'addons' as addons
             FROM bundles
             """
         )
-        bundles_by_variant: dict[str, Optional[dict[str, Any]]] = {
+        bundles_by_variant: dict[str, dict[str, Any] | None] = {
             "production": None,
             "staging": None,
         }
@@ -112,7 +113,7 @@ class AddonLibrary:
             if bundle["is_staging"]:
                 bundles_by_variant["staging"] = bundle
 
-        res: dict[str, dict[str, Optional[str]]] = {}
+        res: dict[str, dict[str, str | None]] = {}
         for addon_name in self.data.keys():
             addon_info = res.setdefault(addon_name, {})
             for variant, bundle in bundles_by_variant.items():
@@ -124,7 +125,7 @@ class AddonLibrary:
 
     async def get_addon_versions_by_variant(
         self, variant: str
-    ) -> dict[str, Optional[str]]:
+    ) -> dict[str, str | None]:
         """Return addon versions for passed variant."""
         active_versions = await self.get_active_versions()
         return {
@@ -134,12 +135,12 @@ class AddonLibrary:
 
     async def get_addons_by_variant(
         self, variant: str
-    ) -> dict[str, Optional[BaseServerAddon]]:
+    ) -> dict[str, BaseServerAddon | None]:
         """Return addons for passed variant."""
-        output: dict[str, Optional[BaseServerAddon]] = {}
+        output: dict[str, BaseServerAddon | None] = {}
         active_versions = await self.get_addon_versions_by_variant(variant)
         for addon_name, addon_version in active_versions.items():
-            addon: Optional[BaseServerAddon] = None
+            addon: BaseServerAddon | None = None
             if addon_version:
                 try:
                     addon = self[addon_name][addon_version]

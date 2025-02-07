@@ -1,4 +1,5 @@
-from typing import Any, Awaitable, Union
+from collections.abc import Awaitable
+from typing import Any
 
 from redis import asyncio as aioredis
 from redis.asyncio.client import PubSub
@@ -163,7 +164,7 @@ class Redis:
             await cls.connect()
 
         try:
-            result: Union[Awaitable[str], str] = cls.redis_pool.eval(
+            result: Awaitable[str] | str = cls.redis_pool.eval(
                 GET_SIZE_SCRIPT, 0, f"{cls.prefix}*"
             )
 

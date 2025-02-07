@@ -1,8 +1,9 @@
+from collections.abc import Callable, Generator
 from enum import Enum
-from typing import Annotated, Any, Callable, Generator, TypeVar
+from typing import Annotated, Any, TypeVar
 
 import strawberry
-from strawberry.arguments import StrawberryArgumentAnnotation
+from strawberry.types.arguments import StrawberryArgumentAnnotation
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.exceptions import ForbiddenException

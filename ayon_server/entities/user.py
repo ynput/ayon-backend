@@ -1,7 +1,8 @@
 """User entity."""
 
 import re
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Optional
 
 from nxtools import logging
 
@@ -50,7 +51,7 @@ class UserEntity(TopLevelEntity):
     model = ModelSet("user", attribute_library["user"], has_id=False)
     was_active: bool = False
     original_email: str | None = None
-    session: Optional[SessionInfo] = None
+    session: SessionInfo | None = None
 
     # Cache for path access lists
     # the structure is as follows:

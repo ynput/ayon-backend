@@ -10,7 +10,8 @@ import random
 import threading
 import time
 import uuid
-from typing import Any, Callable, Iterable
+from collections.abc import Callable, Iterable
+from typing import Any
 
 import codenamize
 import orjson

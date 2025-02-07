@@ -267,7 +267,7 @@ class DemoGen:
             self.project.attrib.endDate,
         )
 
-        if end_date < datetime.datetime.now(tz=datetime.timezone.utc):
+        if end_date < datetime.datetime.now(tz=datetime.UTC):
             status = self.get_entity_status(done=True)
         else:
             status = self.get_entity_status()

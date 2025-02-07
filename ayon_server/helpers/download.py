@@ -1,7 +1,7 @@
 import os
 import time
 import uuid
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 import aiofiles
 import httpx

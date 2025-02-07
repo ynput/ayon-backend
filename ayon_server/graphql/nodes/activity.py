@@ -80,7 +80,7 @@ class ActivityNode:
     reactions: list[ActivityReactionNode] = strawberry.field()
 
     @strawberry.field
-    async def author(self, info: Info) -> Optional[UserNode]:
+    async def author(self, info: Info) -> UserNode | None:
         data = json_loads(self.activity_data)
         if "author" in data:
             author = data["author"]
@@ -101,7 +101,7 @@ class ActivityNode:
         return None
 
     @strawberry.field
-    async def assignee(self, info: Info) -> Optional[UserNode]:
+    async def assignee(self, info: Info) -> UserNode | None:
         data = json_loads(self.activity_data)
         if "assignee" in data:
             assignee = data["assignee"]

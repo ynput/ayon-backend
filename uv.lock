@@ -234,7 +234,7 @@ dev = [
     { name = "pre-commit", specifier = ">=2.20.0" },
     { name = "pytest", specifier = ">=7.0.0" },
     { name = "pytest-order", specifier = ">=1.0.1" },
-    { name = "ruff", specifier = "==0.6.9" },
+    { name = "ruff", specifier = ">=0.6.9" },
     { name = "types-aiofiles", specifier = ">=23.2.0.20240403" },
     { name = "types-boto3", specifier = ">=1.0.2" },
     { name = "types-psutil", specifier = ">=5.9.5.20240516" },

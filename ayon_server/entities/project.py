@@ -5,7 +5,7 @@ folder_types of the project and the folder hierarchy.
 """
 
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
@@ -370,12 +370,12 @@ class ProjectEntity(TopLevelEntity):
         self._payload.library = value  # type: ignore
 
     @property
-    def config(self) -> Dict[str, Any]:
+    def config(self) -> dict[str, Any]:
         """Return the entity configuration."""
         return self._payload.config  # type: ignore
 
     @config.setter
-    def config(self, value: Dict[str, Any]) -> None:
+    def config(self, value: dict[str, Any]) -> None:
         """Set the entity configuration."""
         self._payload.config = value  # type: ignore
 

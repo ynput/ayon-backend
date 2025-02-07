@@ -13,7 +13,8 @@ ActivityFeedEventHook.install() is called when server is started
 
 __all__ = ["ActivityFeedEventHook"]
 
-from typing import TYPE_CHECKING, Awaitable, Callable, ClassVar, Type
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, ClassVar
 
 from ayon_server.activities.create_activity import create_activity
 from ayon_server.activities.watchers.set_watchers import (
@@ -32,7 +33,7 @@ class ActivityFeedEventHook:
     topics: ClassVar[dict[str, Callable[["EventModel"], Awaitable[None]]]]
 
     @classmethod
-    def install(cls, event_stream: Type["EventStream"]):
+    def install(cls, event_stream: type["EventStream"]):
         """Subscribe to events that are relevant for the activity feed.
 
         This method is called once, when the server is started.
