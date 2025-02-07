@@ -106,19 +106,19 @@ def get_site_upsert_query(context: SettingModifyContext) -> tuple[str, tuple[Any
             WHERE
                 addon_name = $1
             AND addon_version = $2
-            AND variant = $3
-            AND site_id = $4
-            AND user_name = $5
+            AND site_id = $3
+            AND user_name = $4
         )
         INSERT INTO {context.schema}.project_site_settings (
             addon_name,
             addon_version,
-            variant,
+            site_id,
+            user_name,
             data
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (addon_name, addon_version, variant, site_id, user_name)
-        DO UPDATE SET data = $6
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (addon_name, addon_version, site_id, user_name)
+        DO UPDATE SET data = $5
         RETURNING
             (SELECT original_data FROM existing) AS original_data,
             project_site_settings.data AS updated_data;
@@ -126,7 +126,6 @@ def get_site_upsert_query(context: SettingModifyContext) -> tuple[str, tuple[Any
     args = (
         context.addon_name,
         context.addon_version,
-        context.variant,
         context.site_id,
         context.user_name,
         context.data,
@@ -210,6 +209,9 @@ async def set_addon_settings(
         }
 
     otype = "project " if project_name else "studio "
+    if site_id and user_name:
+        variant = "site"
+        otype = f"({site_id}) "
     description = f"{addon_name} {addon_version} {variant} {otype}overrides changed"
 
     await EventStream.dispatch(
@@ -218,7 +220,8 @@ async def set_addon_settings(
         summary={
             "addon_name": addon_name,
             "addon_version": addon_version,
-            "variant": variant,
+            "variant": variant if not site_id else None,
+            "site_id": site_id,
         },
         user=user_name,
         project=project_name,
