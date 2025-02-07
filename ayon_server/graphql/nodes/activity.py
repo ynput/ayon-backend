@@ -186,7 +186,6 @@ def activity_from_record(
 
     record = dict(record)
     record.pop("cursor", None)
-    record.pop("tags", None)  # Temporary fix
 
     project_name = record.pop("project_name", project_name)
     assert project_name, "project_name is required"
