@@ -53,7 +53,7 @@ async def create_activity(
     """
 
     if timestamp is None:
-        timestamp = datetime.datetime.now(datetime.timezone.utc)
+        timestamp = datetime.datetime.now(datetime.UTC)
 
     if len(body) > MAX_BODY_LENGTH:
         raise BadRequestException(f"{activity_type.capitalize()} body is too long")

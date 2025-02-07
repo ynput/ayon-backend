@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import strawberry
 from strawberry import LazyType
@@ -56,7 +56,7 @@ class VersionNode(BaseNode):
         )
 
     @strawberry.field(description="Task")
-    async def task(self, info: Info) -> Optional[TaskNode]:
+    async def task(self, info: Info) -> TaskNode | None:
         if self.task_id is None:
             return None
         record = await info.context["task_loader"].load(

@@ -2,7 +2,7 @@ import asyncio
 import collections
 import functools
 import threading
-from typing import Any, DefaultDict
+from typing import Any
 
 from nxtools import logging
 
@@ -24,7 +24,7 @@ class AttributeLibrary:
     """
 
     def __init__(self) -> None:
-        self.data: DefaultDict[str, Any] = collections.defaultdict(list)
+        self.data: collections.defaultdict[str, Any] = collections.defaultdict(list)
 
         # Used in info endpoint to get the active list of attributes
         # in the same format as the attributes endpoint

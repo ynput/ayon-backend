@@ -1,7 +1,7 @@
 """Dynamic entity models generation."""
 
 import copy
-from typing import Any, Type
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -79,13 +79,13 @@ class ModelSet:
         self.attributes = attributes or []
         self.has_id = has_id
 
-        self._model: Type[BaseModel] | None = None
-        self._post_model: Type[BaseModel] | None = None
-        self._patch_model: Type[BaseModel] | None = None
-        self._attrib_model: Type[BaseModel] | None = None
+        self._model: type[BaseModel] | None = None
+        self._post_model: type[BaseModel] | None = None
+        self._patch_model: type[BaseModel] | None = None
+        self._attrib_model: type[BaseModel] | None = None
 
     @property
-    def attrib_model(self) -> Type[BaseModel]:
+    def attrib_model(self) -> type[BaseModel]:
         """Return the attribute model."""
         if self._attrib_model is None:
             self._attrib_model = generate_model(
@@ -97,7 +97,7 @@ class ModelSet:
         return self._attrib_model
 
     @property
-    def main_model(self) -> Type[BaseModel]:
+    def main_model(self) -> type[BaseModel]:
         """Return the entity model."""
         if self._model is None:
             self._model = self._generate_entity_model()
@@ -105,7 +105,7 @@ class ModelSet:
         return self._model
 
     @property
-    def post_model(self) -> Type[BaseModel]:
+    def post_model(self) -> type[BaseModel]:
         """Return the post model."""
         if self._post_model is None:
             self._post_model = self._generate_post_model()
@@ -113,7 +113,7 @@ class ModelSet:
         return self._post_model
 
     @property
-    def patch_model(self) -> Type[BaseModel]:
+    def patch_model(self) -> type[BaseModel]:
         """Return the patch model."""
         if self._patch_model is None:
             self._patch_model = self._generate_patch_model()
@@ -186,7 +186,7 @@ class ModelSet:
             },
         ]
 
-    def _generate_entity_model(self) -> Type[BaseModel]:
+    def _generate_entity_model(self) -> type[BaseModel]:
         """Generate the entity model."""
         model_name = f"{self.entity_name.capitalize()}Model"
         pre_fields: list[dict[str, Any]] = (
@@ -246,7 +246,7 @@ class ModelSet:
             EntityModelConfig,
         )
 
-    def _generate_post_model(self) -> Type[BaseModel]:
+    def _generate_post_model(self) -> type[BaseModel]:
         """Generate the post model."""
         model_name = f"{self.entity_name.capitalize()}PostModel"
         # Allow setting the ID explicitly
@@ -272,7 +272,7 @@ class ModelSet:
 
         return generate_model(model_name, fields, EntityModelConfig)
 
-    def _generate_patch_model(self) -> Type[BaseModel]:
+    def _generate_patch_model(self) -> type[BaseModel]:
         """Generate the patch model."""
         model_name = f"{self.entity_name.capitalize()}PatchModel"
         fields = []

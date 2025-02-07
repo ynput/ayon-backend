@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Any, Dict, Optional
+import builtins
+from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import BaseModel
 from strawberry.experimental.pydantic import type as pydantic_type
@@ -37,7 +38,7 @@ class BaseEntity:
             exclude_none=exclude_none,
         )
 
-    def dict_simple(self) -> Dict[str, Any]:
+    def dict_simple(self) -> builtins.dict[str, Any]:
         """Return the entity data as a dict.
         Use aliases instead of the original field names
         and drop inherited attributes.
@@ -120,11 +121,11 @@ class BaseEntity:
         return self._payload.attrib  # type: ignore
 
     @property
-    def data(self) -> Dict[str, Any]:
+    def data(self) -> builtins.dict[str, Any]:
         return self._payload.data  # type: ignore
 
     @data.setter
-    def data(self, value: Dict[str, Any]) -> None:
+    def data(self, value: builtins.dict[str, Any]) -> None:
         self._payload.data = value  # type: ignore
 
     @property

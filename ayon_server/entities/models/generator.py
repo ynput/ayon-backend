@@ -6,7 +6,7 @@ since Python 3.10 syntax does not work with Strawberry yet.
 
 import uuid
 from datetime import datetime
-from typing import Any, List, Literal, Optional, Type, TypeVar, Union
+from typing import Any, Literal, TypeVar
 
 from nxtools import log_traceback
 from pydantic import BaseModel, Field, create_model
@@ -26,10 +26,10 @@ FIELD_TYPES = {
     "float": float,
     "boolean": bool,
     "datetime": datetime,
-    "list_of_strings": List[str],
-    "list_of_integers": List[int],
-    "list_of_any": List[Any],
-    "list_of_submodels": List[Any],
+    "list_of_strings": list[str],
+    "list_of_integers": list[int],
+    "list_of_any": list[Any],
+    "list_of_submodels": list[Any],
     "dict": dict,
 }
 
@@ -77,38 +77,38 @@ class FieldDefinition(BaseModel):
     required: bool = Field(title="Required field", default=False)
 
     type: AttributeType = Field(default="string", title="Field data type")
-    submodel: Optional[Any]
-    list_of_submodels: Optional[Any]
+    submodel: Any | None
+    list_of_submodels: Any | None
     # Descriptive
-    title: Optional[str] = Field(title="Nice field title")
-    description: Optional[str] = Field(title="Field description")
-    example: Optional[Any] = Field(title="Field example")
+    title: str | None = Field(title="Nice field title")
+    description: str | None = Field(title="Field description")
+    example: Any | None = Field(title="Field example")
 
     # Default value
-    default: Optional[Any] = Field(title="Field default value")
-    factory: Optional[Literal["list", "dict", "now", "uuid", "time"]] = Field(
+    default: Any | None = Field(title="Field default value")
+    factory: Literal["list", "dict", "now", "uuid", "time"] | None = Field(
         title="Default factory",
         description="Name of the function to be used to create default values",
     )
 
     # Validation
-    gt: Union[int, float, None] = Field(title="Greater than")
-    ge: Union[int, float, None] = Field(title="Geater or equal")
-    lt: Union[int, float, None] = Field(title="Less")
-    le: Union[int, float, None] = Field(title="Less or equal")
-    min_length: Optional[int] = Field(title="Minimum length")
-    max_length: Optional[int] = Field(title="Maximum length")
-    min_items: Optional[int] = Field(title="Minimum items")
-    max_items: Optional[int] = Field(title="Maximum items")
-    regex: Optional[str] = Field(title="Field regex")
-    enum: Optional[list[AttributeEnumItem]] = Field(None, title="Enum values")
+    gt: int | float | None = Field(title="Greater than")
+    ge: int | float | None = Field(title="Geater or equal")
+    lt: int | float | None = Field(title="Less")
+    le: int | float | None = Field(title="Less or equal")
+    min_length: int | None = Field(title="Minimum length")
+    max_length: int | None = Field(title="Maximum length")
+    min_items: int | None = Field(title="Minimum items")
+    max_items: int | None = Field(title="Maximum items")
+    regex: str | None = Field(title="Field regex")
+    enum: list[AttributeEnumItem] | None = Field(None, title="Enum values")
 
 
 def generate_model(
     model_name: str,
     field_data: list[dict[str, Any]],
     config: C | None = None,
-) -> Type[BaseModel]:
+) -> type[BaseModel]:
     """Create a new model from a given field set."""
     fields = {}
 
@@ -180,7 +180,7 @@ def generate_model(
             ftype = fdef.submodel
         elif fdef.list_of_submodels:
             assert fdef.list_of_submodels
-            ftype = List[fdef.list_of_submodels]  # type: ignore
+            ftype = list[fdef.list_of_submodels]  # type: ignore
         elif fdef.type in FIELD_TYPES:
             if fdef.required:
                 ftype = FIELD_TYPES[fdef.type]

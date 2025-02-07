@@ -10,7 +10,8 @@ import random
 import threading
 import time
 import uuid
-from typing import Any, Callable, Iterable
+from collections.abc import Callable, Iterable
+from typing import Any
 
 import codenamize
 import orjson
@@ -65,7 +66,7 @@ def json_dumps(data: Any, *, default: Callable[[Any], Any] | None = None) -> str
 
 def hash_data(data: Any) -> str:
     """Create a SHA-256 hash from arbitrary (json-serializable) data."""
-    if isinstance(data, (int, float, bool, dict, list, tuple)):
+    if isinstance(data, int | float | bool | dict | list | tuple):
         data = json_dumps(data)
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 

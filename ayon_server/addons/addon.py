@@ -5,7 +5,8 @@ try:
 except ModuleNotFoundError:
     toml = None  # type: ignore
 
-from typing import TYPE_CHECKING, Any, Callable, Literal, Type
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal
 
 from nxtools import log_traceback, logging
 
@@ -56,8 +57,8 @@ class BaseServerAddon:
     # should be defined on addon class
     addon_type: Literal["server", "pipeline"] = "pipeline"
     system: bool = False  # Hide settings for non-admins and make the addon mandatory
-    settings_model: Type[BaseSettingsModel] | None = None
-    site_settings_model: Type[BaseSettingsModel] | None = None
+    settings_model: type[BaseSettingsModel] | None = None
+    site_settings_model: type[BaseSettingsModel] | None = None
     app_host_name: str | None = None
     frontend_scopes: dict[str, Any] = {}
     frontend_modules: dict[str, Any] = {}
@@ -272,10 +273,10 @@ class BaseServerAddon:
     # Settings
     #
 
-    def get_settings_model(self) -> Type[BaseSettingsModel] | None:
+    def get_settings_model(self) -> type[BaseSettingsModel] | None:
         return self.settings_model
 
-    def get_site_settings_model(self) -> Type[BaseSettingsModel] | None:
+    def get_site_settings_model(self) -> type[BaseSettingsModel] | None:
         return self.site_settings_model
 
     # Load overrides from the database

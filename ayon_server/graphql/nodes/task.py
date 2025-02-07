@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import strawberry
 from strawberry import LazyType
@@ -53,7 +53,7 @@ class TaskNode(BaseNode):
         description=get_workfiles.__doc__,
     )
 
-    _folder: Optional[FolderNode] = None
+    _folder: FolderNode | None = None
 
     @strawberry.field
     def type(self) -> str:

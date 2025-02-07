@@ -1,5 +1,6 @@
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Type
+from typing import Any
 
 from nxtools import logging
 
@@ -14,7 +15,7 @@ HandlerType = Callable[[EventModel], Awaitable[None]]
 
 
 class EventStream:
-    model: Type[EventModel] = EventModel
+    model: type[EventModel] = EventModel
     local_hooks: dict[str, dict[str, HandlerType]] = {}
     global_hooks: dict[str, dict[str, HandlerType]] = {}
 
