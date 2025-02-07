@@ -14,7 +14,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.sqlfilter import Filter
+from ayon_server.sqlfilter import QueryFilter
 from ayon_server.types import TOPIC_REGEX, Field, OPModel
 from ayon_server.utils import hash_data
 
@@ -59,7 +59,7 @@ class EnrollRequestModel(OPModel):
         description="Ensure events are processed in sequential order",
         example=True,
     )
-    filter: Filter | None = Field(
+    filter: QueryFilter | None = Field(
         None, title="Filter", description="Filter source events"
     )
     max_retries: int = Field(3, title="Max retries", example=3)

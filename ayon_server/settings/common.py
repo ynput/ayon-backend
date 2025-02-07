@@ -1,7 +1,8 @@
 import inspect
 import re
+from collections.abc import Callable
 from types import GenericAlias
-from typing import Any, Callable, Type
+from typing import Any
 
 from nxtools import logging
 from pydantic import BaseModel, ValidationError, parse_obj_as
@@ -29,7 +30,7 @@ class BaseSettingsModel(BaseModel):
 
 def migrate_settings_overrides(
     old_data: dict[str, Any],
-    new_model_class: Type[BaseSettingsModel],
+    new_model_class: type[BaseSettingsModel],
     defaults: dict[str, Any],
     custom_conversions: dict[str, Callable[[Any], Any]] = {},
     parent_key: str = "",

@@ -1,5 +1,6 @@
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import AsyncGenerator, Literal
+from typing import Literal
 
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import SQLTool

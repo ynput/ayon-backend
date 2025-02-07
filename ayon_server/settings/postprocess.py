@@ -1,6 +1,6 @@
 import collections
 import inspect
-from typing import Any, Deque, Type
+from typing import Any
 
 from nxtools import logging
 
@@ -64,7 +64,7 @@ async def process_enum(
 
 async def postprocess_settings_schema(  # noqa
     schema: dict[str, Any],
-    model: Type["BaseSettingsModel"],
+    model: type["BaseSettingsModel"],
     is_top_level: bool = True,
     context: dict[str, Any] | None = None,
 ) -> None:
@@ -207,8 +207,8 @@ async def postprocess_settings_schema(  # noqa
     if not is_top_level:
         return
 
-    submodels: dict[str, Type[BaseSettingsModel]] = {}
-    submodels_deque: Deque[Type[BaseSettingsModel]] = collections.deque()
+    submodels: dict[str, type[BaseSettingsModel]] = {}
+    submodels_deque: collections.deque[type[BaseSettingsModel]] = collections.deque()
     submodels_deque.append(model)
     while submodels_deque:
         parent = submodels_deque.popleft()

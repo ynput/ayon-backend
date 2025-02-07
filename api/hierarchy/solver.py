@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, DefaultDict
+from typing import Any
 
 HierarchyType = list[dict[str, Any]]
 
@@ -18,7 +18,7 @@ class HierarchyResolver:
         """
         if source is None:
             source = []
-        self._parents: DefaultDict[str, list[Any]] = defaultdict(list[Any])
+        self._parents: defaultdict[str, list[Any]] = defaultdict(list[Any])
         self._hierarchy: list[Any] = []
         self.count = 0
         if not source:
@@ -36,7 +36,7 @@ class HierarchyResolver:
         self._hierarchy = self._build_tree(self._parents, None)
 
     def _build_tree(
-        self, parents: DefaultDict[str, list[Any]], parent: str | None = None
+        self, parents: defaultdict[str, list[Any]], parent: str | None = None
     ) -> HierarchyType:
         items: HierarchyType = []
         for child in parents.get(parent, []):  # type: ignore

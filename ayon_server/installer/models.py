@@ -1,4 +1,4 @@
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 
 from pydantic import Field, validator
 
@@ -64,13 +64,13 @@ class DependencyPackageManifest(BasePackageModel):
         description="Version of the Ayon installer this package is created with",
         example="1.2.3",
     )
-    source_addons: dict[str, Optional[str]] = Field(
+    source_addons: dict[str, str | None] = Field(
         default_factory=dict,
         title="Source addons",
         description="mapping of addon_name:addon_version used to create the package",
         example={"ftrack": "1.2.3", "maya": "2.4"},
     )
-    python_modules: dict[str, Union[str, dict[str, str]]] = Field(
+    python_modules: dict[str, str | dict[str, str]] = Field(
         default_factory=dict,
         title="Python modules",
         description="mapping of module_name:module_version used to create the package",
@@ -91,7 +91,7 @@ class InstallerManifest(BasePackageModel):
         description="Version of Python that the installer is created with",
         example="3.11",
     )
-    python_modules: dict[str, Union[str, dict[str, str]]] = Field(
+    python_modules: dict[str, str | dict[str, str]] = Field(
         default_factory=dict,
         title="Python modules",
         description="mapping of module name:version used to create the installer",

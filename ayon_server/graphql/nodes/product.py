@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import strawberry
 from strawberry import LazyType
@@ -66,7 +66,7 @@ class ProductNode(BaseNode):
         description="Simple (id /version) list of versions in the product",
     )
 
-    _folder: Optional[FolderNode] = None
+    _folder: FolderNode | None = None
 
     @strawberry.field(description="Parent folder of the product")
     async def folder(self, info: Info) -> FolderNode:
@@ -81,7 +81,7 @@ class ProductNode(BaseNode):
         )
 
     @strawberry.field(description="Last version of the product")
-    async def latest_version(self, info: Info) -> Optional[VersionNode]:
+    async def latest_version(self, info: Info) -> VersionNode | None:
         record = await info.context["latest_version_loader"].load(
             (self.project_name, self.id)
         )

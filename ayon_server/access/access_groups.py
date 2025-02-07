@@ -82,7 +82,7 @@ class AccessGroups:
                     for k, v in result.get(perm_name, {}).items():
                         old_value = result[perm_name].get(k, 0)
                         new_value = value.__getattribute__(k)
-                        if isinstance(v, (bool, int)):
+                        if isinstance(v, bool | int):
                             result[perm_name][k] = max(old_value, new_value)
 
                 elif perm_name in ("create", "read", "update", "delete"):

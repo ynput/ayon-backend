@@ -63,7 +63,7 @@ class ActivityReferenceModel(OPModel):
         datetime.datetime,
     ]:
         if timestamp is None:
-            timestamp = datetime.datetime.now(datetime.timezone.utc)
+            timestamp = datetime.datetime.now(datetime.UTC)
         return (
             self.id,
             activity_id,

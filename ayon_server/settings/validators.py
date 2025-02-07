@@ -1,5 +1,6 @@
 import re
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any
 
 import unidecode
 
@@ -8,8 +9,8 @@ from ayon_server.exceptions import BadRequestException
 
 def normalize_name(
     name: str,
-    allowed_chars: Optional[str] = None,
-    replacement: Optional[str] = None,
+    allowed_chars: str | None = None,
+    replacement: str | None = None,
     escape_unicode: bool = True,
     strip: bool = True,
 ) -> str:
