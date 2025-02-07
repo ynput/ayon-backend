@@ -6,15 +6,7 @@ from pydantic import validator
 
 from ayon_server.types import Field, OPModel
 
-ValueType = Union[
-    str,
-    int,
-    float,
-    list[str],
-    list[int],
-    list[float],
-    None,
-]
+ValueType = str | int | float | list[str] | list[int] | list[float] | None
 
 OperatorType = Literal[
     "eq",
@@ -166,7 +158,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             safe_value = value.replace("'", "''")
             safe_value = f"'{value}'"
 
-        elif isinstance(value, (int, float)):
+        elif isinstance(value, int | float):
             cast_type = "integer" if isinstance(value, int) else "number"
             safe_value = value
 
@@ -174,7 +166,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         for k in path[1:]:
             column += f"->'{k}'"
 
-        if isinstance(value, (str, int, float)):
+        if isinstance(value, str | int | float):
             safe_value = json.dumps(value).replace("'", "''")
             safe_value = f"'{safe_value}'"
 

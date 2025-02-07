@@ -66,7 +66,7 @@ def json_dumps(data: Any, *, default: Callable[[Any], Any] | None = None) -> str
 
 def hash_data(data: Any) -> str:
     """Create a SHA-256 hash from arbitrary (json-serializable) data."""
-    if isinstance(data, (int, float, bool, dict, list, tuple)):
+    if isinstance(data, int | float | bool | dict | list | tuple):
         data = json_dumps(data)
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 

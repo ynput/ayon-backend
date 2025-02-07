@@ -20,7 +20,7 @@ else:
 
 
 def timestamptz_endocder(v):
-    if isinstance(v, (int, float)):
+    if isinstance(v, int | float):
         return datetime.fromtimestamp(v).isoformat()
     if isinstance(v, datetime):
         return v.isoformat()
@@ -30,7 +30,7 @@ def timestamptz_endocder(v):
 
 
 def timestamptz_decoder(v):
-    if isinstance(v, (int, float)):
+    if isinstance(v, int | float):
         return datetime.fromtimestamp(v)
     if isinstance(v, datetime):
         return v
