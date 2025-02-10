@@ -81,6 +81,12 @@ def create_uuid() -> str:
     return uuid.uuid1().hex
 
 
+def camelize(src: str) -> str:
+    """Convert snake_case to camelCase."""
+    components = src.split("_")
+    return components[0] + "".join(x.title() for x in components[1:])
+
+
 def dict_exclude(
     data: dict[Any, Any],
     keys: list[str],

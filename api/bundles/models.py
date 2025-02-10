@@ -54,7 +54,7 @@ class BundleModel(BaseBundleModel):
         example={"ftrack": "1.2.3"},
     )
     installer_version: str | None = Field(None, example="1.2.3")
-    dependency_packages: dict[Platform, str | None] = Field(  # type: ignore
+    dependency_packages: dict[Platform, str | None] = Field(
         default_factory=dict,
         **dependency_packages_meta,
     )
@@ -78,7 +78,7 @@ class BundlePatchModel(BaseBundleModel):
         example={"ftrack": None, "kitsu": "1.2.3"},
     )
     installer_version: str | None = Field(None, example="1.2.3")
-    dependency_packages: dict[Platform, str | None] | None = Field(  # type: ignore
+    dependency_packages: dict[Platform, str | None] | None = Field(
         None,
         **dependency_packages_meta,
     )

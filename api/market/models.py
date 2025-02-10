@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from ayon_server.types import Field, OPModel
 
@@ -12,50 +12,113 @@ class RestModel(OPModel):
 
 
 class LinkModel(RestModel):
-    type: Literal["homepage", "github", "documentation", "license"] = Field("homepage")
-    label: str | None = Field(None)
-    url: str = Field(...)
+    type: Annotated[
+        Literal["homepage", "github", "documentation", "license"],
+        Field(
+            title="Link type",
+            example="github",
+        ),
+    ] = "homepage"
+    label: Annotated[
+        str | None,
+        Field(
+            title="Link label",
+            example="ynput/my-addon",
+        ),
+    ] = None
+    url: Annotated[
+        str,
+        Field(
+            title="Link URL",
+            example="https://github.com/ynput/my-addon",
+        ),
+    ]
 
 
 class AddonListItem(RestModel):
-    name: str = Field(..., title="Addon name", example="maya")
-    title: str = Field(..., title="Addon title", example="Maya")
-    description: str | None = Field(
-        None,
-        description="Addon description",
-        example="Maya is a 3D computer graphics application",
-    )
-    org_name: str | None = Field(
-        None, description="Organization name", example="ynput-official"
-    )
-    org_title: str | None = Field(
-        None, description="Organization title", example="Ynput"
-    )
-    icon: str | None = Field(None, example="maya.png")
-    latest_version: str | None = Field(
-        None, description="Latest version of the addon", example="1.0.0"
-    )
-    links: list[LinkModel] | None = Field(
-        None,
-        description="Links to the addon's homepage and GitHub repository",
-        example=[
-            {"type": "github", "url": "https://github.com/ynput/ayon-maya"},
-        ],
-    )
+    name: Annotated[str, Field(title="Addon name", example="maya")]
+    title: Annotated[str, Field(title="Addon title", example="Maya")]
+    description: Annotated[
+        str | None,
+        Field(
+            description="Addon description",
+            example="Maya is a 3D computer graphics application",
+        ),
+    ] = None
+    org_name: Annotated[
+        str | None,
+        Field(
+            title="Organization name",
+            example="ynput-official",
+        ),
+    ] = None
+    org_title: Annotated[
+        str | None,
+        Field(
+            title="Organization title",
+            example="Ynput",
+        ),
+    ] = None
+    icon: Annotated[
+        str | None,
+        Field(
+            title="Icon URL",
+            example="https://example.com/maya.png",
+        ),
+    ] = None
+    latest_version: Annotated[
+        str | None,
+        Field(
+            description="Latest version of the addon",
+            example="1.0.0",
+        ),
+    ] = None
+    links: Annotated[
+        list[LinkModel] | None,
+        Field(
+            description="Links to the addon's homepage and GitHub repository",
+            example=[
+                {"type": "github", "url": "https://github.com/ynput/ayon-maya"},
+            ],
+        ),
+    ] = None
+    available: Annotated[
+        bool,
+        Field(description="Addon is avaliable for download"),
+    ] = True
 
     # ayon only
-    current_production_version: str | None = Field(None, example="1.0.0")
-    current_latest_version: str | None = Field(None, example="1.0.0")
-    is_outdated: bool = Field(False, example=False)
+    current_production_version: Annotated[
+        str | None, Field(title="Current production version", example="1.0.0")
+    ] = None
+    current_latest_version: Annotated[
+        str | None, Field(title="Latest installed version", example="1.0.0")
+    ] = None
+    is_outdated: Annotated[
+        bool, Field(title="Is the current version outdated", example=False)
+    ] = False
 
 
 class AddonList(RestModel):
-    addons: list[AddonListItem] = Field(default_factory=list)
+    addons: Annotated[list[AddonListItem], Field(default_factory=list)]
 
 
 class AddonVersionListItem(RestModel):
-    version: str = Field(..., example="1.0.0")
-    ayon_version: str | None = Field(None, example="1.2.0")
+    version: Annotated[
+        str,
+        Field(
+            title="Addon version",
+            example="1.0.0",
+        ),
+    ]
+    ayon_version: Annotated[
+        str | None,
+        Field(
+            title="Ayon version",
+            description="Required Ayon server version to run the addon",
+            example="1.2.0",
+        ),
+    ] = None
     created_at: datetime | None = Field(None, example="2024-01-01T00:00:00Z")
     updated_at: datetime | None = Field(None, example="2024-01-01T00:00:00Z")
 
