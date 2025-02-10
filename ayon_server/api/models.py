@@ -47,6 +47,7 @@ def RestField(
     repr: bool = True,
     # AYON settings specifics
     example: Any = None,
+    deprecated: bool = False,
     examples: list[Any] | None = None,
     # everything else
     **kwargs: Any,
@@ -99,6 +100,7 @@ def RestField(
         allow_mutation=allow_mutation,
         regex=regex,
         discriminator=discriminator,
+        deprecated=deprecated,
         repr=repr,
         **extra,
     )
