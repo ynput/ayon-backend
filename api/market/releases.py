@@ -2,10 +2,9 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import Query
-from pydantic import Field
 
 from ayon_server.installer.models import DependencyPackageManifest, InstallerManifest
-from ayon_server.types import OPModel
+from ayon_server.models import RestField, RestModel
 
 from .common import get_market_data
 from .router import router
@@ -13,57 +12,59 @@ from .router import router
 DocsType = Literal["user", "admin", "developer"]
 
 
-class ReleaseAddon(OPModel):
-    name: str = Field(..., min_length=1, max_length=64, title="Addon Name")
-    title: str | None = Field(None, min_length=1, max_length=64, title="Addon Title")
-    description: str | None = Field(None, title="Addon Description")
+class ReleaseAddon(RestModel):
+    name: str = RestField(..., min_length=1, max_length=64, title="Addon Name")
+    title: str | None = RestField(
+        None, min_length=1, max_length=64, title="Addon Title"
+    )
+    description: str | None = RestField(None, title="Addon Description")
 
-    icon: str | None = Field(None)
-    preview: str | None = Field(None)
+    icon: str | None = RestField(None)
+    preview: str | None = RestField(None)
 
-    features: list[str] = Field(default_factory=list)
-    families: list[str] = Field(default_factory=list)
+    features: list[str] = RestField(default_factory=list)
+    families: list[str] = RestField(default_factory=list)
 
-    tags: list[str] = Field(default_factory=list)
-    docs: dict[DocsType, str] = Field(default_factory=dict)
-    github: str | None = Field(None, title="GitHub Repository URL")
-    discussion: str | None = Field(None, title="Discussion URL")
+    tags: list[str] = RestField(default_factory=list)
+    docs: dict[DocsType, str] = RestField(default_factory=dict)
+    github: str | None = RestField(None, title="GitHub Repository URL")
+    discussion: str | None = RestField(None, title="Discussion URL")
 
-    is_free: bool = Field(True, title="Is this addon free?")
+    is_free: bool = RestField(True, title="Is this addon free?")
 
-    version: str | None = Field(None, title="Version")
-    url: str | None = Field(None, title="Download URL")
-    checksum: str | None = Field(
+    version: str | None = RestField(None, title="Version")
+    url: str | None = RestField(None, title="Download URL")
+    checksum: str | None = RestField(
         None,
         description="Checksum of the zip file",
         example="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     )
-    mandatory: bool | None = Field(None)
+    mandatory: bool | None = RestField(None)
 
 
-class ReleaseInfoModel(OPModel):
-    name: str = Field(..., title="Release name", example="2023.08-2D")
-    label: str = Field(..., title="Release label", example="2D Animation")
-    created_at: datetime = Field(default_factory=datetime.now)
-    addons: list[ReleaseAddon] = Field(default_factory=list)
-    installers: list[InstallerManifest] | None = Field(None)
-    dependency_packages: list[DependencyPackageManifest] | None = Field(None)
+class ReleaseInfoModel(RestModel):
+    name: str = RestField(..., title="Release name", example="2023.08-2D")
+    label: str = RestField(..., title="Release label", example="2D Animation")
+    created_at: datetime = RestField(default_factory=datetime.now)
+    addons: list[ReleaseAddon] = RestField(default_factory=list)
+    installers: list[InstallerManifest] | None = RestField(None)
+    dependency_packages: list[DependencyPackageManifest] | None = RestField(None)
 
 
-class ReleaseListItemModel(OPModel):
-    name: str = Field(..., title="Release name", example="2023.08-Kitsu")
-    release: str = Field(..., title="Release", example="2023.08")
-    label: str = Field(..., title="Release label", example="2D Animation")
-    bio: str = Field("", title="Release bio", example="2D Animation")
-    icon: str = Field("", title="Release icon", example="skeleton")
-    created_at: datetime = Field(...)
-    is_latest: bool = Field(...)
-    addons: list[str] = Field(...)
-    mandatory_addons: list[str] = Field(default_factory=list)
+class ReleaseListItemModel(RestModel):
+    name: str = RestField(..., title="Release name", example="2023.08-Kitsu")
+    release: str = RestField(..., title="Release", example="2023.08")
+    label: str = RestField(..., title="Release label", example="2D Animation")
+    bio: str = RestField("", title="Release bio", example="2D Animation")
+    icon: str = RestField("", title="Release icon", example="skeleton")
+    created_at: datetime = RestField(...)
+    is_latest: bool = RestField(...)
+    addons: list[str] = RestField(...)
+    mandatory_addons: list[str] = RestField(default_factory=list)
 
 
-class ReleaseListModel(OPModel):
-    releases: list[ReleaseListItemModel] = Field(...)
+class ReleaseListModel(RestModel):
+    releases: list[ReleaseListItemModel] = RestField(...)
 
 
 @router.get("/releases", response_model_exclude_none=True)

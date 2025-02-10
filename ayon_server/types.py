@@ -5,13 +5,13 @@ from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel
 
-from ayon_server.api.models import (
+from ayon_server.exceptions import BadRequestException
+from ayon_server.models import (
     RestField as Field,  # backwards compatibility
 )
-from ayon_server.api.models import (
+from ayon_server.models import (
     RestModel as OPModel,  # backwards compatibility
 )
-from ayon_server.exceptions import BadRequestException
 from ayon_server.utils import camelize  # backwards compatibilitycamelize
 
 #

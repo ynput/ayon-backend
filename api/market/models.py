@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from ayon_server.api.models import RestField, RestModel
+from ayon_server.models import RestField, RestModel
 
 
 class LinkModel(RestModel):
