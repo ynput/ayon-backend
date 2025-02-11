@@ -65,18 +65,14 @@ class AddonListItem(RestModel):
             example="https://example.com/maya.png",
         ),
     ] = None
-    category: Annotated[
-        str | None,
-        RestField(
-            title="Category",
-            example="dcc-integration",
-        ),
-    ] = None
     tags: Annotated[
         list[str],
         RestField(title="Tags", default_factory=list),
     ]
-
+    flags: Annotated[
+        list[str],
+        RestField(title="Flags", default_factory=list),
+    ]
     latest_version: Annotated[
         str | None,
         RestField(
