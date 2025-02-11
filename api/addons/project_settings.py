@@ -8,7 +8,9 @@ from pydantic.error_wrappers import ValidationError
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser, ProjectName, SiteID
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.config import ayonconfig
 from ayon_server.entities import ProjectEntity
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -454,19 +456,51 @@ async def set_raw_addon_project_overrides(
         )
 
     elif user.is_admin:
-        await Postgres.execute(
+        res = await Postgres.fetch(
             f"""
+            WITH existing AS (
+                SELECT data AS original_data
+                FROM project_{project_name}.settings
+                WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
+            )
             INSERT INTO project_{project_name}.settings
                 (addon_name, addon_version, variant, data)
             VALUES
                 ($1, $2, $3, $4)
             ON CONFLICT (addon_name, addon_version, variant)
                 DO UPDATE SET data = $4
+            RETURNING
+                (SELECT original_data FROM existing) AS original_data,
+                settings.data AS updated_data;
             """,
             addon_name,
             addon_version,
             variant,
             payload,
+        )
+        if not res:
+            return EmptyResponse()
+        original_data = res[0]["original_data"]
+        updated_data = res[0]["updated_data"]
+        if ayonconfig.audit_trail:
+            payload = {
+                "originalValue": original_data or {},
+                "newValue": updated_data or {},
+            }
+
+        description = f"{addon_name} {addon_version} {variant} "
+        description += "overrides changed using low-level API"
+        await EventStream.dispatch(
+            topic="settings.changed",
+            description=description,
+            summary={
+                "addon_name": addon_name,
+                "addon_version": addon_version,
+                "variant": variant,
+            },
+            project=project_name,
+            user=user.name,
+            payload=payload,
         )
     else:
         raise ForbiddenException("Only admins can access raw overrides")
