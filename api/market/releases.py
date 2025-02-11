@@ -65,6 +65,7 @@ class ReleaseListItemModel(RestModel):
 
 class ReleaseListModel(RestModel):
     releases: list[ReleaseListItemModel] = RestField(...)
+    detail: str = ""
 
 
 @router.get("/releases", response_model_exclude_none=True)
