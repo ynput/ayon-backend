@@ -1,8 +1,8 @@
 from typing import Any, Literal
 
-from pydantic import Field, validator
+from pydantic import validator
 
-from ayon_server.types import OPModel, Platform
+from ayon_server.types import Field, OPModel, Platform
 
 # For type=server, we do not use absolute url, because base server url can
 # be different for different users. Instead, we provide just the information
