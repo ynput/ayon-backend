@@ -5,7 +5,11 @@ import semver
 
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    ServiceUnavailableException,
+)
 from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.lib.postgres import Postgres
 from ayon_server.version import __version__ as ayon_version
@@ -39,7 +43,7 @@ async def get_market_data(
         raise BadRequestException("Bad request to Market API")
 
     if res.status_code >= 500:
-        raise ForbiddenException("Market API error")
+        raise ServiceUnavailableException("Market API error")
 
     return res.json()
 
