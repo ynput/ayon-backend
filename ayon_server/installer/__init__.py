@@ -38,7 +38,7 @@ class BackgroundInstaller(BackgroundWorker):
         self.restart_needed: bool = False
 
     async def enqueue(self, event_id: str) -> None:
-        logging.debug(f"Background installer: enquing event {event_id}")
+        logging.debug(f"Background installer: enqueuing event {event_id}")
         await self.event_queue.put(event_id)
 
     async def process_event(self, event_id: str) -> None:
