@@ -1,17 +1,17 @@
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import Query
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.cloud import CloudUtils
-from ayon_server.types import Field, OPModel
+from ayon_server.models import RestField, RestModel
 
 from .router import router
 
 
-class LicenseListModel(OPModel):
-    licenses: list[dict[str, Any]] = Field(default_factory=list)
+class LicenseListModel(RestModel):
+    licenses: Annotated[list[dict[str, Any]], RestField(default_factory=list)]
     synced_at: float | None = None
 
 
