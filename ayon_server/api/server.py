@@ -328,6 +328,17 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
                     name=f"{addon_name}_{version}_ws",
                 )
 
+            for router in addon.routers:
+                target_app.include_router(
+                    router,
+                    prefix=f"/api/addons/{addon_name}/{version}",
+                    tags=[f"{addon_definition.friendly_name} {version}"],
+                    include_in_schema=ayonconfig.openapi_include_addon_endpoints,
+                    generate_unique_id_function=lambda x: slugify(
+                        f"{addon_name}_{version}_{x.name}", separator="_"
+                    ),
+                )
+
             for endpoint in addon.endpoints:
                 path = endpoint["path"].lstrip("/")
                 first_element = path.split("/")[0]

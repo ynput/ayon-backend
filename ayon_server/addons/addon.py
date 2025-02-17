@@ -23,6 +23,8 @@ from ayon_server.settings import BaseSettingsModel, apply_overrides
 from ayon_server.settings.common import migrate_settings_overrides
 
 if TYPE_CHECKING:
+    from fastapi import APIRouter
+
     from ayon_server.addons.definition import ServerAddonDefinition
 
 METADATA_KEYS = [
@@ -69,6 +71,7 @@ class BaseServerAddon:
     definition: "ServerAddonDefinition"
     legacy: bool = False  # auto-set to true if it is the old style addon
     endpoints: list[dict[str, Any]]
+    routers: list["APIRouter"]
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str, **kwargs):
         # populate metadata from package.py
@@ -95,6 +98,7 @@ class BaseServerAddon:
         self.definition = definition
         self.addon_dir = addon_dir
         self.endpoints = []
+        self.routers = []
         self.restart_requested = False
         logging.debug(f"Initializing addon {self.name} v{self.version}")
         self.initialize()
@@ -169,6 +173,9 @@ class BaseServerAddon:
         """
         logging.info(f"Addon {self.name}:{self.version} requested server restart")
         self.restart_requested = True
+
+    def add_router(self, router: "APIRouter") -> None:
+        self.routers.append(router)
 
     def add_endpoint(
         self,
