@@ -6,6 +6,7 @@ from typing import Annotated, get_args
 
 from fastapi import Cookie, Depends, Header, Path, Query, Request
 
+from ayon_server.addons import AddonLibrary, BaseServerAddon
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
@@ -31,6 +32,22 @@ from ayon_server.utils import (
     parse_access_token,
     parse_api_key,
 )
+
+
+def dep_current_addon(request: Request) -> BaseServerAddon:
+    path = request.url.path
+    parts = path.split("/")
+    try:
+        addon_index = parts.index("addons")
+        addon_name = parts[addon_index + 1]
+        addon_version = parts[addon_index + 2]
+    except (ValueError, IndexError):
+        raise BadRequestException("Addon name or version missing in the URL")
+    addon = AddonLibrary.addon(addon_name, addon_version)
+    return addon
+
+
+CurrentAddon = Annotated[BaseServerAddon, Depends(dep_current_addon)]
 
 
 async def dep_access_token(
