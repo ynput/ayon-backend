@@ -1,7 +1,6 @@
 from typing import Annotated
 
 from fastapi import APIRouter
-from nxtools import logging
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
@@ -62,7 +61,6 @@ async def query_tasks_folders(
 
     facl = await folder_access_list(user, project_name, "read")
 
-    logging.debug("query", query)
     async for row in Postgres.iterate(query):
         if facl is not None and row["folder_id"] not in facl:
             continue
