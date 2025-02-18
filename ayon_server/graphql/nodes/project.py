@@ -82,7 +82,7 @@ class ProjectNode:
     active: bool
     library: bool
     thumbnail: ThumbnailInfo | None = None
-    project_bundle: str | None = None
+    bundle_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -218,7 +218,7 @@ def project_from_record(
     thumbnail = None
 
     data = record.get("data", {})
-    project_bundle = data.get("projectBundle", None)
+    bundle_name = data.get("bundleName", None)
 
     return ProjectNode(
         name=record["name"],
@@ -234,7 +234,7 @@ def project_from_record(
         ),
         thumbnail=thumbnail,
         data=json_dumps(data) if data else None,
-        project_bundle=project_bundle,
+        bundle_name=bundle_name,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )
