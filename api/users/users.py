@@ -147,6 +147,9 @@ async def create_user(
     else:
         raise ConflictException("User already exists")
 
+    if nuser.is_guest and (nuser.is_service or nuser.is_admin):
+        raise BadRequestException("Guests cannot be service or admin users")
+
     if put_data.password:
         if nuser.is_service:
             raise BadRequestException("Service users cannot have passwords")
