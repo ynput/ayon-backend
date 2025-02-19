@@ -273,7 +273,10 @@ async def create_activity(
         assert ref.entity_name is not None, "This should have been checked before"
         if ref.reference_type == "author":
             continue
-        if ref.reference_type in ["mention", "watching"]:
+        if (
+            ref.reference_type in ["mention", "watching"]
+            and activity_type != "status.change"
+        ):
             notify_important.append(ref.entity_name)
         elif ref.entity_name not in notify_important:
             notify_normal.append(ref.entity_name)
