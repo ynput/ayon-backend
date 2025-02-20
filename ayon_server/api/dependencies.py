@@ -32,6 +32,7 @@ from ayon_server.utils import (
     parse_access_token,
     parse_api_key,
 )
+from nxtools import logging
 
 
 def dep_current_addon(request: Request) -> BaseServerAddon:
@@ -187,6 +188,7 @@ async def dep_current_user(
     await Redis.incr("user-requests", session_data.user.name)
     user = UserEntity.from_record(session_data.user.dict())
     user.add_session(session_data)
+    logging.trace(f"Authenticated as {user.name}", user=user.name)
 
     if x_as_user is not None and user.is_service:
         # sudo :)

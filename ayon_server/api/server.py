@@ -4,6 +4,7 @@ import inspect
 import os
 import pathlib
 import sys
+import time
 import traceback
 
 import fastapi
@@ -33,7 +34,7 @@ from ayon_server.exceptions import AyonException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
-from ayon_server.utils import parse_access_token
+from ayon_server.utils import create_uuid, parse_access_token
 from maintenance.scheduler import MaintenanceScheduler
 from nxtools import log_traceback, logging, slugify
 
@@ -53,6 +54,25 @@ app = fastapi.FastAPI(
     openapi_tags=tags_meta,
     **app_meta,
 )
+
+
+@app.middleware("http")
+async def logging_middleware(request: fastapi.Request, call_next):
+    request_id = create_uuid()
+    context = {
+        "request_id": request_id,
+        "method": request.method,
+        "path": request.url.path,
+    }
+    with logging.contextualize(**context):
+        start_time = time.perf_counter()
+        logging.trace("Request started")
+        response = await call_next(request)
+        process_time = round(time.perf_counter() - start_time, 3)
+        logging.trace("Request finished", process_time=process_time)
+
+    return response
+
 
 #
 # Error handling

@@ -1,6 +1,7 @@
 __all__ = ["logging"]
 
 import sys
+import time
 import traceback
 
 import loguru
@@ -11,20 +12,25 @@ from ayon_server.utils import json_dumps
 from .string_utils import indent
 
 
-def serializer(message: loguru.Message) -> None:
+def serializer(message) -> None:
     record = message.record
 
     if ayonconfig.log_mode == "json":
         simplified = {
-            "level": record["level"].name,
+            "level": record["level"].name.lower(),
             "message": record["message"],
+            "timestamp": time.time(),
             **record["extra"],
         }
         serialized = json_dumps(simplified)
         print(serialized, file=sys.stderr, flush=True)
 
     else:
-        print(message, file=sys.stderr, flush=True)
+        level = record["level"].name
+        message = record["message"]
+        module = record["name"]
+        formatted = f"{level:<8} | {module:<25} | {message}"
+        print(formatted, file=sys.stderr, flush=True)
         if tb := record.get("traceback"):
             print(indent(str(tb)), file=sys.stderr)
 

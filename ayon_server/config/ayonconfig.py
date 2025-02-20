@@ -216,12 +216,19 @@ class AyonConfig(BaseModel):
 
     log_level: Literal["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = (
         Field(
-            default="INFO",
-            description="Log level",
+            default="DEBUG",
+            description="Log level outputed to the console",
         )
     )
 
-    @validator("log_level", pre=True)
+    log_level_db: Literal["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = (
+        Field(
+            default="INFO",
+            description="Log level stored in the event stream",
+        )
+    )
+
+    @validator("log_level", "log_level_db", pre=True)
     def validate_log_level(cls, value: str) -> str:
         return value.upper()
 
