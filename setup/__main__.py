@@ -4,13 +4,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-from nxtools import critical_error, log_to_file, log_traceback, logging
-
-from ayon_server.config import ayonconfig
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.version import __version__ as server_version
+from nxtools import critical_error, log_traceback, logging
 from setup.access_groups import deploy_access_groups
 from setup.attributes import deploy_attributes
 from setup.initial_bundle import create_initial_bundle
@@ -198,13 +196,10 @@ async def main(force: bool | None = None) -> None:
                 "Project may be corrupted."
             )
 
-    logging.goodnews("Setup is finished")
+    logging.success("Setup is finished")
 
 
 if __name__ == "__main__":
-    logging.user = "setup"
-    if ayonconfig.log_file is not None:
-        logging.add_handler(log_to_file(ayonconfig.log_file))
     try:
         asyncio.run(main())
     except Exception:

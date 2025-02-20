@@ -4,7 +4,7 @@ import os
 from typing import Literal
 
 from aiocache import caches
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 caches.set_config(
     {
@@ -206,7 +206,24 @@ class AyonConfig(BaseModel):
     log_file: str | None = Field(
         default=None,
         description="Path to the log file",
+        deprecated=True,
     )
+
+    log_mode: Literal["text", "json"] = Field(
+        default="text",
+        description="Log output format",
+    )
+
+    log_level: Literal["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = (
+        Field(
+            default="INFO",
+            description="Log level",
+        )
+    )
+
+    @validator("log_level", pre=True)
+    def validate_log_level(cls, value: str) -> str:
+        return value.upper()
 
     # Metrics settings
 

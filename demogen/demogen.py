@@ -5,8 +5,6 @@ import random
 import time
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.entities import (
     FolderEntity,
     ProductEntity,
@@ -19,6 +17,7 @@ from ayon_server.entities import (
 from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.utils import create_uuid, dict_exclude
 from demogen.generators import generators
+from nxtools import logging
 from setup.attributes import DEFAULT_ATTRIBUTES
 
 VERSIONS_PER_PRODUCT = 5
@@ -92,9 +91,7 @@ class DemoGen:
         logging.info(f"{self.representation_count} representations created")
         logging.info(f"{self.task_count} tasks created")
         logging.info(f"{self.workfile_count} workfiles created")
-        logging.goodnews(
-            f"Project {self.project_name} demo in {elapsed_time:.2f} seconds"
-        )
+        logging.info(f"Project {self.project_name} demo in {elapsed_time:.2f} seconds")
 
     def get_entity_tags(self):
         """return a list of random tags for entity"""

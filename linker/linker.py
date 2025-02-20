@@ -1,10 +1,9 @@
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import EntityID
 from linker.query import query_entities
+from nxtools import logging
 
 DEBUG = False
 
@@ -76,4 +75,4 @@ async def make_links(
                 author="martas",
             )
             count += 1
-    logging.goodnews(f"Created {count} {link_type} links for project {project_name}")
+    logging.info(f"Created {count} {link_type} links for project {project_name}")
