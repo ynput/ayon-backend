@@ -34,23 +34,3 @@ class ReviewableModel(OPModel):
     created_at: datetime = Field(default_factory=datetime.now, title="Creation Date")
     updated_at: datetime = Field(default_factory=datetime.now, title="Update Date")
     author: ReviewableAuthor = Field(..., title="Author Information")
-
-
-class VersionReviewablesModel(OPModel):
-    id: str = Field(
-        ..., title="Version ID", example="1a3b34ce-1b2c-4d5e-6f7a-8b9c0d1e2f3a"
-    )
-    name: str = Field(..., title="Version Name", example="v001")
-    version: str = Field(..., title="Version Number", example=1)
-    status: str = Field(..., title="Version Status", example="In Review")
-    product_id: str = Field(
-        ..., title="Product ID", example="1a3b34ce-1b2c-4d5e-6f7a-8b9c0d1e2f3a"
-    )
-    product_name: str = Field(..., title="Product Name", example="Product Name")
-    product_type: str = Field(..., title="Product Type", example="Product Type")
-
-    reviewables: list[ReviewableModel] = Field(
-        default_factory=list,
-        title="Reviewables",
-        description="List of available reviewables",
-    )

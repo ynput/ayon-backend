@@ -20,14 +20,17 @@ from ayon_server.files.s3 import (
     get_signed_url,
     handle_s3_upload,
     list_s3_files,
+    remote_to_s3,
     retrieve_s3_file,
     store_s3_file,
     upload_s3_file,
 )
 from ayon_server.helpers.cloud import CloudUtils
+from ayon_server.helpers.download import download_file
 from ayon_server.helpers.ffprobe import extract_media_info
 from ayon_server.helpers.project_list import ProjectListItem, get_project_info
 from ayon_server.lib.postgres import Postgres
+from ayon_server.models.file_info import FileInfo
 
 from .common import FileGroup, StorageType
 from .utils import list_local_files
@@ -136,6 +139,26 @@ class ProjectStorage:
             _file_id,
         )
 
+    #
+    # Getting files out of the storage
+    #
+
+    async def get_signed_url(
+        self,
+        file_id: str,
+        file_group: FileGroup = "uploads",
+        ttl: int = 3600,
+    ) -> str:
+        """Return a signed URL to access the file on the storage over HTTP
+
+        This method is only supported for S3 storages.
+        """
+        if self.storage_type == "s3":
+            path = await self.get_path(file_id, file_group=file_group)
+            assert self.bucket_name  # mypy
+            return await get_signed_url(self, path, ttl)
+        raise Exception("Signed URLs are only supported for S3 storage")
+
     async def get_cdn_link(self, file_id: str) -> RedirectResponse:
         """Return a signed URL to access the file on the CDN over HTTP
 
@@ -189,6 +212,10 @@ class ProjectStorage:
             log_traceback("Error getting CDN link")
             raise AyonException("Failed to get CDN link")
 
+    #
+    # Putting files into the storage
+    #
+
     async def upload_file(self, file_id: str, file_path: str) -> None:
         """Store the locally accessible project file on the storage"""
 
@@ -199,22 +226,6 @@ class ProjectStorage:
             await aioshutil.copyfile(file_path, target_path)
         elif self.storage_type == "s3":
             await upload_s3_file(self, target_path, file_path)
-
-    async def get_signed_url(
-        self,
-        file_id: str,
-        file_group: FileGroup = "uploads",
-        ttl: int = 3600,
-    ) -> str:
-        """Return a signed URL to access the file on the storage over HTTP
-
-        This method is only supported for S3 storages.
-        """
-        if self.storage_type == "s3":
-            path = await self.get_path(file_id, file_group=file_group)
-            assert self.bucket_name  # mypy
-            return await get_signed_url(self, path, ttl)
-        raise Exception("Signed URLs are only supported for S3 storage")
 
     async def handle_upload(
         self,
@@ -234,6 +245,47 @@ class ProjectStorage:
         elif self.storage_type == "s3":
             return await handle_s3_upload(self, request, path)
         raise Exception("Unknown storage type")
+
+    async def upload_from_remote(
+        self,
+        url: str,
+        file_id: str,
+        file_group: FileGroup = "uploads",
+        *,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        params: dict[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> FileInfo:
+        """Upload file from a remote source
+
+        Returns the number of bytes written.
+        """
+        logging.debug(f"Uploading file {file_id} to {self} ({file_group}) from {url}")
+        path = await self.get_path(file_id, file_group=file_group)
+        if self.storage_type == "local":
+            return await download_file(
+                url,
+                path,
+                headers=headers,
+                params=params,
+                method=method,
+                timeout=timeout,
+            )
+        elif self.storage_type == "s3":
+            return await remote_to_s3(
+                self,
+                url,
+                path,
+                headers=headers,
+                params=params,
+                method=method,
+                timeout=timeout,
+            )
+
+    #
+    # Delete files
+    #
 
     async def unlink(
         self,
@@ -275,9 +327,6 @@ class ProjectStorage:
             return True
         else:
             raise Exception("Unknown storage type")
-
-    # Project files (uploads) methods
-    # for comment attachment and reviewables
 
     async def delete_file(self, file_id: str) -> None:
         """Delete file from the storage and database"""
@@ -338,6 +387,10 @@ class ProjectStorage:
                 await self.delete_file(row["id"])
             except Exception:
                 pass
+
+    #
+    # Media info extraction
+    #
 
     async def extract_media_info(self, file_id: str) -> dict[str, Any]:
         """Extract media info from the file
@@ -402,6 +455,12 @@ class ProjectStorage:
         logging.debug(f"Deleting thumbnail {thumbnail_id} from {self}")
         await self.unlink(thumbnail_id, file_group="thumbnails")
 
+    # Trash project storage
+    # This is called when a project is deleted
+    # It won't delete the files, instead it renames the local directory
+    # We don't need to do this for S3 storages, because project storage
+    # are created with unique name based on projcet creation timestamp
+
     async def trash(self) -> None:
         """Mark the project storage for deletion"""
 
@@ -427,7 +486,7 @@ class ProjectStorage:
             pass
 
     # Listing stored files
-    #
+
     async def list_files(
         self, file_group: FileGroup = "uploads"
     ) -> AsyncGenerator[str, None]:

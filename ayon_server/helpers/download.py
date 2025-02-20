@@ -8,6 +8,7 @@ import httpx
 from nxtools import logging
 
 from ayon_server.config import ayonconfig
+from ayon_server.models.file_info import FileInfo
 
 
 def shorten_string(s: str, length: int) -> str:
@@ -24,6 +25,7 @@ def shorten_string(s: str, length: int) -> str:
 
 def get_file_name_from_headers(headers: dict[str, str]) -> str | None:
     """Parse the Content-Disposition header to extract the filename."""
+    headers = {k.lower(): v for k, v in headers.items()}
     header = headers.get("content-disposition")
     if header is None:
         return None
@@ -43,13 +45,14 @@ async def download_file(
     *,
     filename: str | None = None,
     progress_handler: Callable[[int], Awaitable[None]] | None = None,
-    timeout: int | None = None,
+    timeout: float | None = None,
     headers: dict[str, str] | None = None,
     params: dict[str, str] | None = None,
-) -> str:
+    method: str = "GET",
+) -> FileInfo:
     """Downloads a file from a url to a target path
 
-    Returns the path to the downloaded file.
+    Returns the size of the file downloaded
     """
 
     if os.path.isdir(target_path):
@@ -97,7 +100,7 @@ async def download_file(
             follow_redirects=True,
         ) as client:
             async with client.stream(
-                "GET",
+                method,
                 url,
                 headers=headers,
                 params=params,
@@ -124,6 +127,8 @@ async def download_file(
                         # so we'll use the last resort - the basename of the url
                         filename = os.path.basename(url)
 
+                content_type = response.headers.get("content-type")
+
                 # Prepare the target directory and the temporary file path
 
                 target_path = os.path.join(directory, filename)
@@ -145,7 +150,11 @@ async def download_file(
                         await handle_progress(i)
 
         os.rename(temp_file_path, target_path)
-        return target_path
+        finfo_payload = {"filename": filename, "size": i}
+        if content_type:
+            finfo_payload["content_type"] = content_type
+        return FileInfo(**finfo_payload)
+
     finally:
         if os.path.exists(temp_file_path):
             logging.debug(f"Removing temporary file: {temp_file_path}")
