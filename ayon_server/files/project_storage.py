@@ -282,6 +282,7 @@ class ProjectStorage:
                 method=method,
                 timeout=timeout,
             )
+        raise Exception("Unknown storage type")
 
     #
     # Delete files
