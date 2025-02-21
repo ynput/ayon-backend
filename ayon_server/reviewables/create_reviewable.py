@@ -5,8 +5,8 @@ from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
 from ayon_server.files import Storages, create_project_file_record
 from ayon_server.helpers.ffprobe import availability_from_media_info
+from ayon_server.logging import logging
 from ayon_server.reviewables.models import ReviewableAuthor, ReviewableModel
-from nxtools import logging
 
 
 def check_valid_mime(content_type: str) -> None:

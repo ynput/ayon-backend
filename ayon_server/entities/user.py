@@ -4,8 +4,6 @@ import re
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Optional
 
-from nxtools import logging
-
 from ayon_server.access.access_groups import AccessGroups
 from ayon_server.access.permissions import Permissions
 from ayon_server.auth.utils import (
@@ -26,6 +24,7 @@ from ayon_server.helpers.email import send_mail
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logging
 from ayon_server.types import AccessType
 from ayon_server.utils import SQLTool, dict_exclude
 

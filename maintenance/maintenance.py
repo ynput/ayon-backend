@@ -1,9 +1,8 @@
 import time
 
-from nxtools import log_traceback, logging
-
 from ayon_server.events import EventStream
 from ayon_server.helpers.project_list import get_project_list
+from ayon_server.logging import log_traceback, logging
 from maintenance.maintenance_task import (
     ProjectMaintenanceTask,
     StudioMaintenanceTask,

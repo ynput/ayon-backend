@@ -7,8 +7,8 @@ import aiofiles
 import httpx
 
 from ayon_server.config import ayonconfig
+from ayon_server.logging import logging
 from ayon_server.models.file_info import FileInfo
-from nxtools import logging
 
 
 def shorten_string(s: str, length: int) -> str:

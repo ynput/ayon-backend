@@ -6,7 +6,6 @@ from contextlib import suppress
 from typing import Any
 
 from fastapi.websockets import WebSocket, WebSocketDisconnect
-from nxtools import log_traceback, logging
 
 from ayon_server.api.system import restart_server
 from ayon_server.auth.session import Session
@@ -15,6 +14,7 @@ from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.events.eventstream import EventStream, HandlerType
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import log_traceback, logging
 from ayon_server.utils import get_nickname, json_dumps, json_loads, obscure
 
 ALWAYS_SUBSCRIBE = [

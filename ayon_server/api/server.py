@@ -34,9 +34,9 @@ from ayon_server.exceptions import AyonException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
-from ayon_server.utils import create_uuid, parse_access_token
+from ayon_server.logging import log_traceback, logging
+from ayon_server.utils import create_uuid, parse_access_token, slugify
 from maintenance.scheduler import MaintenanceScheduler
-from nxtools import log_traceback, logging, slugify
 
 # We just need the log collector to be initialized.
 _ = log_collector

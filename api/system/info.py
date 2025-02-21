@@ -18,8 +18,8 @@ from ayon_server.helpers.email import is_mailing_enabled
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import log_traceback, logging
 from ayon_server.types import Field, OPModel
-from nxtools import log_traceback, logging
 
 from .router import router
 from .sites import SiteInfo

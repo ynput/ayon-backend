@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from nxtools import log_traceback, logging
 
 from ayon_server.config import ayonconfig
+from ayon_server.logging import log_traceback, logging
 from ayon_server.utils import json_loads
 
 TEMPLATE_ENV = "AYON_SETTINGS_TEMPLATE"

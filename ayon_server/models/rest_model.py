@@ -1,10 +1,10 @@
 from typing import Any
 
-from nxtools import logging
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo, Undefined
 from pydantic.typing import NoArgAnyCallable
 
+from ayon_server.logging import logging
 from ayon_server.utils import camelize, json_dumps, json_loads
 
 

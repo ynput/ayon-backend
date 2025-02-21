@@ -1,11 +1,11 @@
 from fastapi import Response
-from nxtools import logging
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.system import clear_server_restart_required, require_server_restart
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logging
 from ayon_server.types import Field, OPModel
 
 from . import frontend_modules, info, metrics, secrets, sites

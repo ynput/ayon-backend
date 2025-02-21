@@ -6,7 +6,7 @@ from typing import Any
 from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
-from nxtools import logging
+from ayon_server.logging import logging
 
 # probably use this lter
 # try:

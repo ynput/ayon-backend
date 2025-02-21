@@ -2,7 +2,6 @@ from contextlib import suppress
 from datetime import datetime
 from typing import Any
 
-from nxtools import logging
 from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
@@ -15,6 +14,7 @@ from ayon_server.exceptions import (
 from ayon_server.helpers.entity_links import remove_entity_links
 from ayon_server.helpers.statuses import get_default_status_for_entity
 from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.logging import logging
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import SQLTool, dict_exclude
 

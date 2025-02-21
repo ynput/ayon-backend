@@ -12,12 +12,12 @@ import aiofiles
 import httpx
 import semver
 import yaml
-from nxtools import log_traceback, logging
 from pydantic import BaseModel
 
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
 from ayon_server.exceptions import AyonException
+from ayon_server.logging import log_traceback, logging
 from ayon_server.version import __version__ as ayon_version
 
 

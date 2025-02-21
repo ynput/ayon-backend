@@ -2,11 +2,11 @@ from typing import Any, Literal
 
 import semver
 from fastapi import Query, Request
-from nxtools import logging
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import SourceInfo, SourceInfoTypes
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.logging import logging
 from ayon_server.types import Field, OPModel
 
 from .router import route_meta, router

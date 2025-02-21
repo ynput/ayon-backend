@@ -1,8 +1,7 @@
-from nxtools import logging
-
 from ayon_server.entities.core.projectlevel import ProjectLevelEntity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logging
 from ayon_server.utils import json_dumps, json_loads
 
 REDIS_NS = "watchers"

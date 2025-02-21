@@ -15,6 +15,8 @@ caches.set_config(
     }
 )
 
+LogLevel = Literal["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
 
 class AyonConfig(BaseModel):
     """Server configuration"""
@@ -214,18 +216,14 @@ class AyonConfig(BaseModel):
         description="Log output format",
     )
 
-    log_level: Literal["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = (
-        Field(
-            default="DEBUG",
-            description="Log level outputed to the console",
-        )
+    log_level: LogLevel = Field(
+        default="DEBUG",
+        description="Log level for the console output",
     )
 
-    log_level_db: Literal["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = (
-        Field(
-            default="INFO",
-            description="Log level stored in the event stream",
-        )
+    log_level_db: LogLevel = Field(
+        default="INFO",
+        description="Log level stored in the event stream",
     )
 
     @validator("log_level", "log_level_db", pre=True)

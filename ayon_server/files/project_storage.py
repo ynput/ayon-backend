@@ -29,8 +29,8 @@ from ayon_server.helpers.download import download_file
 from ayon_server.helpers.ffprobe import extract_media_info
 from ayon_server.helpers.project_list import ProjectListItem, get_project_info
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import log_traceback, logging
 from ayon_server.models.file_info import FileInfo
-from nxtools import log_traceback, logging
 
 from .common import FileGroup, StorageType
 from .utils import list_local_files

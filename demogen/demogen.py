@@ -15,9 +15,9 @@ from ayon_server.entities import (
     WorkfileEntity,
 )
 from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.logging import logging
 from ayon_server.utils import create_uuid, dict_exclude
 from demogen.generators import generators
-from nxtools import logging
 from setup.attributes import DEFAULT_ATTRIBUTES
 
 VERSIONS_PER_PRODUCT = 5

@@ -1,7 +1,6 @@
 from typing import Any, Literal
 
 from fastapi import Query
-from nxtools import logging
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser, Sender, SenderType
@@ -14,6 +13,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.logging import logging
 from ayon_server.types import Field, OPModel, Platform
 
 from .actions import promote_bundle

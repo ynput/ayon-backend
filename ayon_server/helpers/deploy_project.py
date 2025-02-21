@@ -2,13 +2,12 @@ import time
 from collections import defaultdict
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.auth.session import Session
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.events import EventStream
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logging
 from ayon_server.settings.anatomy import Anatomy
 
 

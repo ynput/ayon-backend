@@ -1,8 +1,7 @@
 import copy
 from typing import Any
 
-from nxtools import logging
-
+from ayon_server.logging import logging
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.utils import dict_remove_path
 

@@ -1,8 +1,9 @@
 from typing import Any
 
-from nxtools import logging
 from pydantic.fields import FieldInfo, Undefined
 from pydantic.typing import AnyCallable, NoArgAnyCallable
+
+from ayon_server.logging import logging
 
 """
 Unused pydantic fields

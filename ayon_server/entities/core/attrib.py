@@ -4,9 +4,8 @@ import functools
 import threading
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logging
 
 
 class AttributeLibrary:

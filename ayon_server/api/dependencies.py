@@ -20,6 +20,7 @@ from ayon_server.exceptions import (
 from ayon_server.helpers.project_list import build_project_list, get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logging
 from ayon_server.types import (
     API_KEY_REGEX,
     NAME_REGEX,
@@ -32,7 +33,6 @@ from ayon_server.utils import (
     parse_access_token,
     parse_api_key,
 )
-from nxtools import logging
 
 
 def dep_current_addon(request: Request) -> BaseServerAddon:
