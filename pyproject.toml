@@ -105,7 +105,6 @@ warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
 module = [
-  "nxtools",
   "user_agents",
   "tomllib",
   "codenamize",

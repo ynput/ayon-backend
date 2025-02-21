@@ -1,10 +1,39 @@
+__all__ = [
+    "camelize",
+    "get_base_name",
+    "get_nickname",
+    "indent",
+    "obscure",
+    "parse_access_token",
+    "parse_api_key",
+    "slugify",
+]
+
+import functools
+import os
 import string
 from typing import Literal, overload
 
+import codenamize
 import unidecode
 
-default_slug_whitelist = string.ascii_letters + string.digits
-slug_separator_whitelist = " ,./\\;:!|*^#@~+-_="
+SLUG_WHITELIST = string.ascii_letters + string.digits
+SLUG_SEPARATORS = " ,./\\;:!|*^#@~+-_="
+
+
+def camelize(src: str) -> str:
+    """Convert snake_case to camelCase."""
+    components = src.split("_")
+    return components[0] + "".join(x.title() for x in components[1:])
+
+
+def get_base_name(file_path: str) -> str:
+    return os.path.splitext(os.path.basename(file_path))[0]
+
+
+@functools.lru_cache(maxsize=128)
+def get_nickname(text: str, length: int = 1):
+    return codenamize.codenamize(text, length)
 
 
 def indent(text: str, length: int = 4) -> str:
@@ -16,6 +45,45 @@ def indent(text: str, length: int = 4) -> str:
     )
 
 
+@functools.lru_cache(maxsize=128)
+def obscure(text: str):
+    """obscure all characters in the text except spaces."""
+    return "".join("*" if c != " " else c for c in text)
+
+
+def parse_access_token(authorization: str) -> str | None:
+    """Parse an authorization header value.
+
+    Get a TOKEN from "Bearer TOKEN" and return a token
+    string or None if the input value does not match
+    the expected format (64 bytes string)
+    """
+    if (not authorization) or not isinstance(authorization, str):
+        return None
+    try:
+        # ttype is not a ttypo :)
+        ttype, token = authorization.split()
+    except ValueError:
+        return None
+    if ttype.lower() != "bearer":
+        return None
+    if len(token) != 64:
+        return None
+    return token
+
+
+def parse_api_key(authorization: str) -> str | None:
+    if (not authorization) or not isinstance(authorization, str):
+        return None
+    try:
+        ttype, token = authorization.split()
+    except ValueError:
+        return None
+    if ttype.lower() != "apikey":
+        return None
+    return token
+
+
 @overload
 def slugify(
     input_string: str,
@@ -24,8 +92,8 @@ def slugify(
     lower: bool = True,
     make_set: Literal[False] = False,
     min_length: int = 1,
-    slug_whitelist: str = default_slug_whitelist,
-    split_chars: str = slug_separator_whitelist,
+    slug_whitelist: str = SLUG_WHITELIST,
+    split_chars: str = SLUG_SEPARATORS,
 ) -> str: ...
 
 
@@ -37,8 +105,8 @@ def slugify(
     lower: bool = True,
     make_set: Literal[True] = True,
     min_length: int = 1,
-    slug_whitelist: str = default_slug_whitelist,
-    split_chars: str = slug_separator_whitelist,
+    slug_whitelist: str = SLUG_WHITELIST,
+    split_chars: str = SLUG_SEPARATORS,
 ) -> set[str]: ...
 
 
@@ -49,8 +117,8 @@ def slugify(
     lower: bool = True,
     make_set: bool = False,
     min_length: int = 1,
-    slug_whitelist: str = default_slug_whitelist,
-    split_chars: str = slug_separator_whitelist,
+    slug_whitelist: str = SLUG_WHITELIST,
+    split_chars: str = SLUG_SEPARATORS,
 ) -> str | set[str]:
     """Slugify a text string.
 

@@ -7,6 +7,5 @@ __all__ = [
     "get_base_name",
 ]
 
-from .file_utils import get_base_name
-from .logging import critical_error, log_traceback, logging
-from .string_utils import indent, slugify
+from ayon_server.logging import critical_error, log_traceback, logging
+from ayon_server.utils.strings import get_base_name, indent, slugify

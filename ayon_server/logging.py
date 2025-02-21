@@ -1,4 +1,4 @@
-__all__ = ["logging"]
+__all__ = ["logging", "log_traceback", "critical_error"]
 
 import sys
 import time
@@ -7,9 +7,11 @@ import traceback
 import loguru
 
 from ayon_server.config import ayonconfig
-from ayon_server.utils import json_dumps
+from ayon_server.utils import indent, json_dumps
 
-from .string_utils import indent
+
+def write_stderr(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
 
 
 def serializer(message) -> None:
@@ -23,16 +25,16 @@ def serializer(message) -> None:
             **record["extra"],
         }
         serialized = json_dumps(simplified)
-        print(serialized, file=sys.stderr, flush=True)
+        write_stderr(serialized)
 
     else:
         level = record["level"].name
         message = record["message"]
         module = record["name"]
         formatted = f"{level:<8} | {module:<25} | {message}"
-        print(formatted, file=sys.stderr, flush=True)
+        write_stderr(formatted)
         if tb := record.get("traceback"):
-            print(indent(str(tb)), file=sys.stderr)
+            write_stderr(indent(str(tb)))
 
 
 def get_logger():
