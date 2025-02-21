@@ -14,7 +14,7 @@ from ayon_server.exceptions import (
 from ayon_server.helpers.entity_links import remove_entity_links
 from ayon_server.helpers.statuses import get_default_status_for_entity
 from ayon_server.lib.postgres import Connection, Postgres
-from ayon_server.logging import logging
+from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import SQLTool, dict_exclude
 
@@ -290,7 +290,7 @@ class ProjectLevelEntity(BaseEntity):
         else:
             deleted = await _delete(transaction, **kwargs)
 
-        logging.debug(f"Deleted {self.entity_type} {self.id} from {self.project_name}")
+        logger.debug(f"Deleted {self.entity_type} {self.id} from {self.project_name}")
         return deleted
 
     async def get_default_status(self) -> str:

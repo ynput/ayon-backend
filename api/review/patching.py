@@ -2,7 +2,7 @@ from ayon_server.api.dependencies import ActivityID, CurrentUser, ProjectName, V
 from ayon_server.entities import VersionEntity
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logging
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -65,8 +65,8 @@ async def sort_version_reviewables(
         requested_ids = set(request.sort)
 
         if requested_ids != valid_ids:
-            logging.debug("Saved:", valid_ids)
-            logging.debug("Requested:", requested_ids)
+            logger.debug("Saved:", valid_ids)
+            logger.debug("Requested:", requested_ids)
             raise BadRequestException(detail="Invalid reviewable ids")
 
         async with Postgres.acquire() as conn, conn.transaction():

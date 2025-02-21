@@ -6,7 +6,7 @@ from typing import Any
 from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
-from ayon_server.logging import logging
+from ayon_server.logging import logger
 
 
 class LogCollector(BackgroundWorker):
@@ -19,7 +19,7 @@ class LogCollector(BackgroundWorker):
     def initialize(self):
         self.queue: queue.Queue[dict[str, Any]] = queue.Queue()
         self.start_time = time.time()
-        logging.add(self, level=ayonconfig.log_level_db)
+        logger.add(self, level=ayonconfig.log_level_db)
 
     def __call__(self, message):
         # We need to add messages to the queue even if the
@@ -81,7 +81,7 @@ class LogCollector(BackgroundWorker):
 
     async def finalize(self):
         while not self.queue.empty():
-            logging.debug(
+            logger.debug(
                 f"Processing {len(self.queue.queue)} remaining log messages",
                 handlers=None,
                 user="server",

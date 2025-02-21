@@ -19,7 +19,7 @@ from ayon_server.events.typing import (
 )
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logging
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -174,7 +174,7 @@ async def update_existing_event(
     new_user = payload.user or event_user or user.name
 
     if payload.project_name:
-        logging.warning(
+        logger.warning(
             "Patching event with projectName is deprecated. Use 'project' instead."
         )
     await EventStream.update(

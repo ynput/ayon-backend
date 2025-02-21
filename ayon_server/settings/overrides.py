@@ -1,7 +1,7 @@
 import copy
 from typing import Any
 
-from ayon_server.logging import logging
+from ayon_server.logging import logger
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.utils import dict_remove_path
 
@@ -35,7 +35,7 @@ def apply_overrides(
                         # TODO: WTF??
                         type(child)(override[name])
                     except ValueError:
-                        logging.warning(f"Invalid value for {name}: {override[name]}")
+                        logger.warning(f"Invalid value for {name}: {override[name]}")
                         continue
                     except TypeError:
                         # This is okay

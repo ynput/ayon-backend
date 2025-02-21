@@ -12,7 +12,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logging
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import EntityID
 
@@ -205,7 +205,7 @@ async def create_entity_link(
     except Postgres.UniqueViolationError:
         raise ConstraintViolationException("Link already exists.") from None
 
-    logging.debug(
+    logger.debug(
         f"Created {link_type_name} link between "
         f"{input_type} {post_data.input} and "
         f"{output_type} {post_data.output}.",

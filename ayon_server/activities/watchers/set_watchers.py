@@ -5,7 +5,7 @@ from ayon_server.entities import VersionEntity
 from ayon_server.entities.core.projectlevel import ProjectLevelEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logging
+from ayon_server.logging import logger
 
 from .watcher_list import build_watcher_list, get_watcher_list
 
@@ -73,7 +73,7 @@ async def set_watchers(
         try:
             await Postgres.execute(query, entity.entity_type, entity.id, unwatchers)
         except Postgres.UndefinedTableError:
-            logging.debug(
+            logger.debug(
                 "Unable to delete watchers. "
                 f"Project {entity.project_name} no longer exists"
             )
@@ -138,11 +138,11 @@ async def ensure_watching(entity: ProjectLevelEntity, user: UserEntity | str) ->
     try:
         watchers = await get_watcher_list(entity)
     except Postgres.UndefinedTableError:
-        logging.debug(f"Unable to set watchers. Entity {entity} no longer exists")
+        logger.debug(f"Unable to set watchers. Entity {entity} no longer exists")
         return
 
     if user_name not in watchers:
-        logging.debug(f"Adding {user_name} to watchers of {entity}")
+        logger.debug(f"Adding {user_name} to watchers of {entity}")
         watchers.append(user_name)
         await set_watchers(entity, watchers, user=user)
 
@@ -160,12 +160,12 @@ async def ensure_not_watching(
     try:
         watchers = await get_watcher_list(entity)
     except Postgres.UndefinedTableError:
-        logging.debug(f"Unable to set watchers. Entity {entity} no longer exists")
+        logger.debug(f"Unable to set watchers. Entity {entity} no longer exists")
         return
 
-    logging.debug(f"Watchers: {watchers}")
+    logger.debug(f"Watchers: {watchers}")
 
     if user_name in watchers:
-        logging.debug(f"Removing {user_name} from watchers of {entity}")
+        logger.debug(f"Removing {user_name} from watchers of {entity}")
         watchers.remove(user_name)
         await set_watchers(entity, watchers, user=user)

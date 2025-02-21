@@ -4,7 +4,7 @@ from typing import Any
 
 from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logging
+from ayon_server.logging import logger
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.types import AttributeEnumItem, SimpleValue, camelize
 
@@ -54,7 +54,7 @@ async def process_enum(
             enum_values.append(item)
         elif isinstance(item, dict):
             if "value" not in item or "label" not in item:
-                logging.warning(f"Invalid enumerator item: {item}")
+                logger.warning(f"Invalid enumerator item: {item}")
                 continue
             enum_values.append(item["value"])
             enum_labels[item["value"]] = item["label"]
@@ -117,7 +117,7 @@ async def postprocess_settings_schema(  # noqa
                             enum_values.append(item)
                         elif isinstance(item, dict):
                             if "value" not in item or "label" not in item:
-                                logging.warning(f"Invalid enumerator item: {item}")
+                                logger.warning(f"Invalid enumerator item: {item}")
                                 continue
                             enum_values.append(item["value"])
                             enum_labels[item["value"]] = item["label"]

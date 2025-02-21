@@ -21,7 +21,7 @@ from ayon_server.installer.models import (
     SourcesPatchModel,
 )
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logging
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 
 from .common import (
@@ -88,11 +88,11 @@ async def list_dependency_packages(user: CurrentUser) -> DependencyPackageList:
         try:
             manifest = get_manifest(filename)
         except Exception as e:
-            logging.warning(f"Failed to load manifest file {filename}: {e}")
+            logger.warning(f"Failed to load manifest file {filename}: {e}")
             continue
 
         if filename != manifest.filename:
-            logging.warning(
+            logger.warning(
                 "Filename in manifest does not match: "
                 f"{filename} != {manifest.filename}"
             )

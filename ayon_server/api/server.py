@@ -34,7 +34,7 @@ from ayon_server.exceptions import AyonException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import log_traceback, logging
+from ayon_server.logging import log_traceback, logger
 from ayon_server.utils import create_uuid, parse_access_token, slugify
 from maintenance.scheduler import MaintenanceScheduler
 
@@ -64,12 +64,12 @@ async def logging_middleware(request: fastapi.Request, call_next):
         "method": request.method,
         "path": request.url.path,
     }
-    with logging.contextualize(**context):
+    with logger.contextualize(**context):
         start_time = time.perf_counter()
-        logging.trace("Request started")
+        logger.trace("Request started")
         response = await call_next(request)
         process_time = round(time.perf_counter() - start_time, 3)
-        logging.trace("Request finished", process_time=process_time)
+        logger.trace("Request finished", process_time=process_time)
 
     return response
 
@@ -151,9 +151,9 @@ async def ayon_exception_handler(
     path += f" {request.url.path.removeprefix('/api')}"
 
     if exc.status == 500:
-        logging.error(f"{path}: {exc}", user=user_name)
+        logger.error(f"{path}: {exc}", user=user_name)
     else:
-        logging.debug(f"{path}: {exc}", user=user_name)
+        logger.debug(f"{path}: {exc}", user=user_name)
 
     return fastapi.responses.JSONResponse(
         status_code=exc.status,
@@ -171,7 +171,7 @@ async def validation_exception_handler(
     request: fastapi.Request,
     exc: RequestValidationError,
 ) -> fastapi.responses.JSONResponse:
-    logging.error(f"Validation error\n{exc}")
+    logger.error(f"Validation error\n{exc}")
     detail = "Validation error"  # TODO: Be descriptive, but not too much
     return fastapi.responses.JSONResponse(
         status_code=400,
@@ -219,7 +219,7 @@ async def assertion_exception_handler(request: fastapi.Request, exc: AssertionEr
         "line": line_no,
     }
 
-    logging.error(detail, user=user_name, **payload)
+    logger.error(detail, user=user_name, **payload)
     return fastapi.responses.JSONResponse(status_code=500, content=payload)
 
 
@@ -235,8 +235,8 @@ async def unhandled_exception_handler(
     tb = traceback.extract_tb(exc.__traceback__)
     fname, line_no, func, _ = tb[-1]
 
-    logging.error(f"{path}: UNHANDLED EXCEPTION", user=user_name)
-    logging.error(exc)
+    logger.error(f"{path}: UNHANDLED EXCEPTION", user=user_name)
+    logger.error(exc)
     return fastapi.responses.JSONResponse(
         status_code=500,
         content={
@@ -318,7 +318,7 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
             continue
 
         if not hasattr(module, "router"):
-            logging.debug(f"API plug-in '{module_name}' has no router")
+            logger.debug(f"API plug-in '{module_name}' has no router")
             continue
 
         target_app.include_router(module.router, prefix="/api")
@@ -359,7 +359,7 @@ def init_addon_endpoints(target_app: fastapi.FastAPI) -> None:
                 first_element = path.split("/")[0]
                 # TODO: site settings? other routes?
                 if first_element in ["settings", "schema", "overrides"]:
-                    logging.error(f"Unable to assing path to endpoint: {path}")
+                    logger.error(f"Unable to assing path to endpoint: {path}")
                     continue
 
                 path = f"/api/addons/{addon_name}/{version}/{path}"
@@ -388,7 +388,7 @@ def init_global_staic(target_app: fastapi.FastAPI) -> None:
     try:
         os.makedirs(STATIC_DIR, exist_ok=True)
     except Exception as e:
-        logging.warning(f"Unable to create {STATIC_DIR}: {e}")
+        logger.warning(f"Unable to create {STATIC_DIR}: {e}")
         return
     target_app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
@@ -444,7 +444,7 @@ async def startup_event() -> None:
     library = AddonLibrary.getinstance()
     addon_records = list(AddonLibrary.items())
     if library.restart_requested:
-        logging.warning("Restart requested, skipping addon setup")
+        logger.warning("Restart requested, skipping addon setup")
         await EventStream.dispatch(
             "server.restart_requested",
             description="Server restart requested during addon initialization",
@@ -463,12 +463,12 @@ async def startup_event() -> None:
                 else:
                     version.pre_setup()
                 if (not restart_requested) and version.restart_requested:
-                    logging.warning(
+                    logger.warning(
                         f"Restart requested during addon {addon_name} pre-setup."
                     )
                     restart_requested = True
             except AssertionError as e:
-                logging.error(
+                logger.error(
                     f"Unable to pre-setup addon {addon_name} {version.version}: {e}"
                 )
                 reason = {"error": str(e)}
@@ -488,7 +488,7 @@ async def startup_event() -> None:
             if addon_name == "ynputcloud" and semver.VersionInfo.parse(
                 version.version
             ) < semver.VersionInfo.parse("1.0.5"):
-                logging.debug(f"Skipping {addon_name} {version.version} setup.")
+                logger.debug(f"Skipping {addon_name} {version.version} setup.")
                 continue
 
             try:
@@ -497,12 +497,12 @@ async def startup_event() -> None:
                 else:
                     version.setup()
                 if (not restart_requested) and version.restart_requested:
-                    logging.warning(
+                    logger.warning(
                         f"Restart requested during addon {addon_name} setup."
                     )
                     restart_requested = True
             except AssertionError as e:
-                logging.error(
+                logger.error(
                     f"Unable to setup addon {addon_name} {version.version}: {e}"
                 )
                 reason = {"error": str(e)}
@@ -542,15 +542,15 @@ async def startup_event() -> None:
             )
 
         asyncio.create_task(clear_server_restart_required())
-        logging.info("Server is now ready to connect")
+        logger.info("Server is now ready to connect")
 
 
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
     """Shutdown event."""
-    logging.info("Server is shutting down")
+    logger.info("Server is shutting down")
 
     await background_workers.shutdown()
     await messaging.shutdown()
     await Postgres.shutdown()
-    logging.info("Server stopped", handlers=None)
+    logger.info("Server stopped", handlers=None)

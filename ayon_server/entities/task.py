@@ -5,7 +5,7 @@ from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import AyonException, NotFoundException
 from ayon_server.lib.postgres import Connection, Postgres
-from ayon_server.logging import logging
+from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import EntityID
 
@@ -66,7 +66,7 @@ class TaskEntity(ProjectLevelEntity):
                         if key in attribute_library.inheritable_attributes():
                             attrib[key] = value
                 elif record["parent_id"] is not None:
-                    logging.warning(
+                    logger.warning(
                         f"Task {record['id']} does not have inherited attributes."
                         "this shouldn't happen"
                     )

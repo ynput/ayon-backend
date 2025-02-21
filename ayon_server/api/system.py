@@ -3,7 +3,7 @@ import signal
 
 from ayon_server.events import EventStream
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logging
+from ayon_server.logging import logger
 
 
 def restart_server():
@@ -12,7 +12,7 @@ def restart_server():
     This is usually called from ayon_server.api.messaging,
     when `server.restart_requested` event is triggered.
     """
-    logging.warning("Server is restarting")
+    logger.warning("Server is restarting")
 
     # Send a SIGHUP to the parent process (gunicorn/granian) to request a reload
     # Gunicorn will restart the server when it receives this signal,
