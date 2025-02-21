@@ -1,3 +1,10 @@
+import os
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+
+from ayon_server.models.file_info import FileInfo
 from ayon_server.utils import dict_remove_path
 
 
@@ -34,3 +41,22 @@ class TestDictRemovePath:
         data = {"a": {"b": {"c": 1}}}
         dict_remove_path(data, ["a"])
         assert data == {}
+
+
+class TestFileInfo:
+    r = FileInfo(
+        filename="example.txt",
+        size=123,
+    )
+
+    assert r.filename == "example.txt"
+    assert r.content_type == "text/plain"
+
+    r = FileInfo(
+        filename="example",
+        size=123,
+        content_type="image/png",
+    )
+
+    assert r.filename == "example"
+    assert r.content_type == "image/png"

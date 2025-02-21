@@ -22,8 +22,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
-from ayon_server.helpers.project_list import get_project_list
-from ayon_server.lib.postgres import Postgres
+from ayon_server.helpers.rename_user import rename_user
 from ayon_server.lib.redis import Redis
 from ayon_server.types import USER_NAME_REGEX, Field, OPModel
 from ayon_server.utils import get_nickname, obscure
@@ -146,6 +145,9 @@ async def create_user(
         nuser.created_by = user.name
     else:
         raise ConflictException("User already exists")
+
+    if nuser.is_guest and (nuser.is_service or nuser.is_admin):
+        raise BadRequestException("Guests cannot be service or admin users")
 
     if put_data.password:
         if nuser.is_service:
@@ -372,87 +374,22 @@ async def change_user_name(
     sender: Sender,
     sender_type: SenderType,
 ) -> EmptyResponse:
+    """Changes the user name of a user.
+
+    This is a manager-only operation. Target user name must not exist.
+    This is a dangerous operation and should be used with caution.
+    """
+
     if not user.is_manager:
         raise ForbiddenException
 
-    event: dict[str, Any] = {
-        "topic": "entity.user.renamed",
-        "description": f"Renamed user {user_name} to {patch_data.new_name}",
-        "summary": {"entityName": user_name},
-        "payload": {"oldValue": user_name, "newValue": patch_data.new_name},
-    }
-
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                "UPDATE users SET name = $1 WHERE name = $2",
-                patch_data.new_name,
-                user_name,
-            )
-
-            # Update tasks assignees - since assignees is an array,
-            # it won't update automatically (there's no foreign key)
-
-            projects = await get_project_list()
-
-            for project in projects:
-                project_name = project.name
-                query = f"""
-                    UPDATE project_{project_name}.tasks SET
-                    assignees = array_replace(
-                        assignees,
-                        '{user_name}',
-                        '{patch_data.new_name}'
-                    )
-                    WHERE '{user_name}' = ANY(assignees)
-                """
-                await conn.execute(query)
-
-                query = f"""
-                    UPDATE project_{project_name}.files SET
-                    author = $1 WHERE author = $2
-                """
-
-                await conn.execute(query, patch_data.new_name, user_name)
-
-                # activities.data->>'author'
-
-                query = f"""
-                    UPDATE project_{project_name}.activities SET
-                    data = jsonb_set(
-                        data,
-                        '{{author}}',
-                        $1::jsonb
-                    )
-                    WHERE data->>'author' = $2
-                """
-
-                # TODO: there is also an author record in:
-                # activities->data->files[]->author
-                # but it is probably not important to update it
-
-                await conn.execute(query, patch_data.new_name, user_name)
-
-                # references
-
-                query = f"""
-                    UPDATE project_{project_name}.activity_references SET
-                    entity_name = $1 WHERE entity_name = $2 AND entity_type = 'user'
-                """
-
-                await conn.execute(query, patch_data.new_name, user_name)
-
-    # Renaming user has many side effects, so we need to log out all Sessions
-    # and let the user log in again
-    await Session.logout_user(user_name)
-
-    await EventStream.dispatch(
+    await rename_user(
+        user_name,
+        patch_data.new_name,
+        invoking_user_name=user.name,
         sender=sender,
         sender_type=sender_type,
-        user=user.name,
-        **event,
     )
-
     return EmptyResponse()
 
 

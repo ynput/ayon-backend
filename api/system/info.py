@@ -28,7 +28,7 @@ from .sites import SiteInfo
 class InfoResponseModel(OPModel):
     motd: str | None = Field(
         None,
-        title="Message of the day",
+        title="Login Page Message",
         description="Instance specific message to be displayed in the login page",
         example="Hello and welcome to Ayon!",
     )
@@ -286,8 +286,8 @@ async def get_site_info(
     This is the initial endpoint that is called when the user opens the page.
     It returns information about the site, the current user and the configuration.
 
-    If the user is not logged in, only the message of the day and the API version
-    are returned.
+    If the user is not logged in, only the login page message (motd) and the
+    API version are returned.
     """
 
     additional_info = {}
