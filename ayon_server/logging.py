@@ -19,7 +19,7 @@ def serializer(message) -> None:
 
     if ayonconfig.log_mode == "json":
         tr = {
-            "file": record["file"],
+            "file": record["file"].path,
             "line": record["line"],
             "function": record["function"],
         }
