@@ -8,21 +8,14 @@ from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
 from ayon_server.logging import logging
 
-# probably use this lter
-# try:
-#     description = message["message"].splitlines()[0]
-# except (IndexError, AttributeError):
-#     raise ValueError("Invalid log message")
-# if len(description) > 100:
-#     description = description[:100] + "..."
-#
-# payload = {
-#     "message": message["message"],
-# }
-#
-
 
 class LogCollector(BackgroundWorker):
+    """Log handler that collects log messages and dispatches them to the event stream.
+
+    It is started as a background worker and runs in the background
+    so it does not block the main loop.
+    """
+
     def initialize(self):
         self.queue: queue.Queue[dict[str, Any]] = queue.Queue()
         self.start_time = time.time()
@@ -33,21 +26,26 @@ class LogCollector(BackgroundWorker):
         # collector is not running to catch the messages
         # that are logged during the startup.
         record = message.record
-        if record["level"].no < 20:
-            return
         if len(self.queue.queue) > 1000:
             return
+
         topic = f"log.{record['level'].name.lower()}"
-        description = record["message"]
-        user = record.get("user")
-        project = record.get("project")
+        description = record["message"].splitlines()[0].strip()
+
+        extra = dict(record["extra"])
+        extra["file"] = record["file"].path
+        extra["function"] = record["function"]
+        extra["line"] = record["line"]
+
+        user = extra.pop("user", None)
+        project = record.pop("project", None)
         self.queue.put(
             {
                 "topic": topic,
                 "description": description,
                 "user": user,
                 "project": project,
-                "payload": record["extra"],
+                "payload": extra,
             }
         )
 

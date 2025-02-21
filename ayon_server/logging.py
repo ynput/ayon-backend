@@ -18,10 +18,16 @@ def serializer(message) -> None:
     record = message.record
 
     if ayonconfig.log_mode == "json":
+        tr = {
+            "file": record["file"],
+            "line": record["line"],
+            "function": record["function"],
+        }
         simplified = {
+            "timestamp": time.time(),
             "level": record["level"].name.lower(),
             "message": record["message"],
-            "timestamp": time.time(),
+            **tr,
             **record["extra"],
         }
         serialized = json_dumps(simplified)
