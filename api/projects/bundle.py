@@ -8,15 +8,16 @@ from ayon_server.types import OPModel
 from .router import router
 
 
-class ProjectBundleRequest(OPModel):
-    bundle_name: str | None = None
+class ProjectBundleModel(OPModel):
+    production: str | None = None
+    staging: str | None = None
 
 
-@router.post("/projects/{project_name}/bundle", status_code=204)
+@router.post("/projects/{project_name}/bundles", status_code=204)
 async def set_project_bundle(
     user: CurrentUser,
     project_name: ProjectName,
-    payload: ProjectBundleRequest,
+    payload: ProjectBundleModel,
     sender: Sender,
     sender_type: SenderType,
 ) -> EmptyResponse:
@@ -29,10 +30,13 @@ async def set_project_bundle(
 
     async with Postgres.acquire() as conn, conn.transaction():
         project = await ProjectEntity.load(project_name, conn, for_update=True)
-        if payload.bundle_name is None:
-            project.data.pop("bundleName", None)
+
+        bundle_data = project.data.get("bundle", {})
+        bundle_data.update(payload.dict(exclude_unset=True))
+        if not bundle_data:
+            project.data.pop("bundle", None)
         else:
-            project.data["bundleName"] = payload.bundle_name
+            project.data["bundle"] = bundle_data
         await project.save(conn)
 
     return EmptyResponse()

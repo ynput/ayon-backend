@@ -67,6 +67,12 @@ class FolderType:
         return self.name.lower()
 
 
+@strawberry.type
+class ProjectBundleType:
+    production: str | None = None
+    staging: str | None = None
+
+
 @ProjectEntity.strawberry_attrib()
 class ProjectAttribType:
     pass
@@ -82,7 +88,7 @@ class ProjectNode:
     active: bool
     library: bool
     thumbnail: ThumbnailInfo | None = None
-    bundle_name: str | None = None
+    bundle: ProjectBundleType
     created_at: datetime
     updated_at: datetime
 
@@ -218,7 +224,12 @@ def project_from_record(
     thumbnail = None
 
     data = record.get("data", {})
-    bundle_name = data.get("bundleName", None)
+    bundle_data = data.get("bundle", {})
+    if bundle_data:
+        bundle = ProjectBundleType(
+            production=bundle_data.get("production", None),
+            staging=bundle_data.get("staging", None),
+        )
 
     return ProjectNode(
         name=record["name"],
@@ -234,7 +245,7 @@ def project_from_record(
         ),
         thumbnail=thumbnail,
         data=json_dumps(data) if data else None,
-        bundle_name=bundle_name,
+        bundle=bundle,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

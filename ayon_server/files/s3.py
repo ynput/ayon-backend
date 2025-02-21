@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING, Any
 
 import boto3
 from fastapi import Request
-from nxtools import logging
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from typing_extensions import AsyncGenerator
 
 from ayon_server.helpers.statistics import update_traffic_stats
+from nxtools import logging
 
 from .common import FileGroup
 

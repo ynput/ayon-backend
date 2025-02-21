@@ -1,5 +1,4 @@
 from fastapi import Header, Query, Request
-from nxtools import logging
 
 from ayon_server.activities.create_activity import create_activity
 from ayon_server.activities.watchers.set_watchers import ensure_watching
@@ -17,6 +16,7 @@ from ayon_server.files import Storages
 from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
+from nxtools import logging
 
 from .common import ReviewableAuthor, ReviewableModel, ReviewableProcessingStatus
 from .router import router
