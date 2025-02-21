@@ -9,15 +9,34 @@ from ayon_server.api.dependencies import (
 from ayon_server.entities import FolderEntity, ProductEntity, TaskEntity, VersionEntity
 from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.lib.postgres import Postgres
-
-from .common import (
+from ayon_server.reviewables.models import (
     ReviewableAuthor,
     ReviewableModel,
     ReviewableProcessingStatus,
-    VersionReviewablesModel,
 )
+from ayon_server.types import Field, OPModel
+
 from .router import router
-from .utils import is_transcoder_available
+
+
+class VersionReviewablesModel(OPModel):
+    id: str = Field(
+        ..., title="Version ID", example="1a3b34ce-1b2c-4d5e-6f7a-8b9c0d1e2f3a"
+    )
+    name: str = Field(..., title="Version Name", example="v001")
+    version: str = Field(..., title="Version Number", example=1)
+    status: str = Field(..., title="Version Status", example="In Review")
+    product_id: str = Field(
+        ..., title="Product ID", example="1a3b34ce-1b2c-4d5e-6f7a-8b9c0d1e2f3a"
+    )
+    product_name: str = Field(..., title="Product Name", example="Product Name")
+    product_type: str = Field(..., title="Product Type", example="Product Type")
+
+    reviewables: list[ReviewableModel] = Field(
+        default_factory=list,
+        title="Reviewables",
+        description="List of available reviewables",
+    )
 
 
 async def get_reviewables(
@@ -135,20 +154,21 @@ async def get_reviewables(
         if availability in ["unknown", "ready"]:
             processing = None
         else:
-            if not await is_transcoder_available():
-                processing = None
-            elif row["event_id"]:
-                processing = ReviewableProcessingStatus(
-                    event_id=row["event_id"],
-                    status=row["event_status"],
-                    description=row["event_description"],
-                )
-            else:
-                processing = ReviewableProcessingStatus(
-                    event_id=None,
-                    status="enqueued",
-                    description="In a transcoder queue",
-                )
+            processing = None
+            # if not await is_transcoder_available():
+            #     processing = None
+            # elif row["event_id"]:
+            #     processing = ReviewableProcessingStatus(
+            #         event_id=row["event_id"],
+            #         status=row["event_status"],
+            #         description=row["event_description"],
+            #     )
+            # else:
+            #     processing = ReviewableProcessingStatus(
+            #         event_id=None,
+            #         status="enqueued",
+            #         description="In a transcoder queue",
+            #     )
 
         versions[row["version_id"]].reviewables.append(
             ReviewableModel(
