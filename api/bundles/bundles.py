@@ -54,6 +54,7 @@ async def list_bundles(
             is_staging=row["is_staging"],
             is_archived=row["is_archived"],
             is_dev=row["is_dev"],
+            is_project=data.get("is_project", False),
             active_user=row["active_user"],
             addon_development=data.get("addon_development", {}),
         )
@@ -105,6 +106,8 @@ async def _create_new_bundle(
         "installer_version": bundle.installer_version,
         "dependency_packages": bundle.dependency_packages,
     }
+    if bundle.is_project:
+        data["is_project"] = True
     if bundle.addon_development:
         addon_development_dict = {}
         for key, value in bundle.addon_development.items():
