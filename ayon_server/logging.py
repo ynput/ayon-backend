@@ -51,6 +51,7 @@ def log_traceback(message="Exception!", **kwargs):
     """Log the current exception traceback."""
     tb = traceback.format_exc()
     logger.error(message, traceback=tb, **kwargs)
+    _write_stderr(indent(tb))
 
 
 def critical_error(message="Critical Error!", **kwargs):
