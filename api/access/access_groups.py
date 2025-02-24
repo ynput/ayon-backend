@@ -16,9 +16,9 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import log_traceback
 from ayon_server.settings.postprocess import postprocess_settings_schema
 from ayon_server.types import Field, OPModel
-from nxtools import log_traceback
 
 from .router import router
 

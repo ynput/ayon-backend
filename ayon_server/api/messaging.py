@@ -14,8 +14,8 @@ from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.events.eventstream import EventStream, HandlerType
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import log_traceback, logger
 from ayon_server.utils import get_nickname, json_dumps, json_loads, obscure
-from nxtools import log_traceback, logging
 
 ALWAYS_SUBSCRIBE = [
     "server.started",
@@ -29,7 +29,7 @@ async def _handle_subscribers_task(event_id: str, handlers: list[HandlerType]) -
         try:
             await handler(event)
         except Exception:
-            logging.debug(f"Error in global event handler: {handler}")
+            logger.debug(f"Error in global event handler: {handler}")
 
 
 async def handle_subscribers(message: dict[str, Any]) -> None:
@@ -214,4 +214,4 @@ class Messaging(BackgroundWorker):
                 log_traceback(handlers=None)
                 await asyncio.sleep(0.5)
 
-        logging.warning("Stopping redis2ws")
+        logger.warning("Stopping redis2ws")

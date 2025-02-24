@@ -7,8 +7,7 @@ from ayon_server.entities import RepresentationEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.utils import json_dumps
-from nxtools import get_base_name
+from ayon_server.utils import get_base_name, json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.version import VersionNode

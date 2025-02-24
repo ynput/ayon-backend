@@ -6,8 +6,8 @@ from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.settings import BaseSettingsModel
-from nxtools import logging
 
 
 @dataclass
@@ -192,7 +192,7 @@ async def set_addon_settings(
 
     res = await Postgres.fetch(query, *args)
     if not res:
-        logging.warning(
+        logger.warning(
             f"Addon settings not found: {addon_name} {addon_version} {variant}"
         )
 

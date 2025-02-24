@@ -6,8 +6,8 @@ from fastapi import Query, Request
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import SourceInfo, SourceInfoTypes
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
-from nxtools import logging
 
 from .router import route_meta, router
 
@@ -89,7 +89,7 @@ async def list_addons(
                     pass
 
                 elif not all(isinstance(x, SourceInfoTypes) for x in source_info):
-                    logging.error(f"Invalid source info for {addon.name} {version}")
+                    logger.error(f"Invalid source info for {addon.name} {version}")
                     source_info = [
                         x for x in source_info if isinstance(x, SourceInfoTypes)
                     ]

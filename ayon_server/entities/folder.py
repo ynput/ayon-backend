@@ -12,9 +12,9 @@ from ayon_server.exceptions import (
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import EntityID, SQLTool, dict_exclude
-from nxtools import logging
 
 
 class FolderEntity(ProjectLevelEntity):
@@ -91,7 +91,7 @@ class FolderEntity(ProjectLevelEntity):
                             attrib[key] = value
 
                 elif record["parent_id"] is not None:
-                    logging.warning(
+                    logger.warning(
                         f"Folder {record['path']} does not have inherited attributes."
                         "this shouldn't happen"
                     )
@@ -202,7 +202,7 @@ class FolderEntity(ProjectLevelEntity):
 
     async def _delete(self, transaction: Connection, **kwargs) -> bool:
         if kwargs.get("force", False):
-            logging.info(f"Force deleting folder and all its children. {self.path}")
+            logger.info(f"Force deleting folder and all its children. {self.path}")
             await transaction.execute(
                 f"""
                 DELETE FROM project_{self.project_name}.products

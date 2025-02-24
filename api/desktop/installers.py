@@ -22,8 +22,8 @@ from ayon_server.installer.models import (
     SourcesPatchModel,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel, Platform
-from nxtools import logging
 
 from .common import (
     InstallResponseModel,
@@ -113,11 +113,11 @@ async def list_installers(
         try:
             manifest = get_manifest(filename)
         except Exception as e:
-            logging.warning(f"Failed to load manifest file {filename}: {e}")
+            logger.warning(f"Failed to load manifest file {filename}: {e}")
             continue
 
         if filename != manifest.filename:
-            logging.warning(
+            logger.warning(
                 f"Filenames in manifest don't match: {filename} != {manifest.filename}"
             )
             continue

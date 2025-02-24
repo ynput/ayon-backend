@@ -2,7 +2,7 @@ import asyncio
 
 from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.lib.postgres import Postgres
-from nxtools import log_traceback
+from ayon_server.logging import log_traceback
 
 
 class InvalidateActions(BackgroundWorker):

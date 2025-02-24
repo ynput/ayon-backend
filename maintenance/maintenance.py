@@ -2,12 +2,12 @@ import time
 
 from ayon_server.events import EventStream
 from ayon_server.helpers.project_list import get_project_list
+from ayon_server.logging import log_traceback, logger
 from maintenance.maintenance_task import (
     ProjectMaintenanceTask,
     StudioMaintenanceTask,
 )
 from maintenance.tasks import task_sequence
-from nxtools import log_traceback, logging
 
 
 async def run_maintenance():
@@ -23,7 +23,7 @@ async def run_maintenance():
         project_list = await get_project_list()
         for task_class in task_sequence:
             task = task_class()
-            logging.info(f"Maintenance: {task.description}")
+            logger.info(f"Maintenance: {task.description}")
             if isinstance(task, StudioMaintenanceTask):
                 description = task.description
                 await EventStream.update(

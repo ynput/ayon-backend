@@ -3,7 +3,7 @@ from typing import Any
 
 from ayon_server.entities.core import attribute_library
 from ayon_server.lib.postgres import Postgres
-from nxtools import logging
+from ayon_server.logging import logger
 
 
 async def _rebuild_in_transaction(
@@ -99,4 +99,4 @@ async def rebuild_inherited_attributes(
         await _rebuild_in_transaction(project_name, project_attrib, transaction)
 
     elapsed = time.monotonic() - start
-    logging.debug(f"Rebuilt inherited attributes for {project_name} in {elapsed:.2f}s")
+    logger.debug(f"Rebuilt inherited attributes for {project_name} in {elapsed:.2f}s")

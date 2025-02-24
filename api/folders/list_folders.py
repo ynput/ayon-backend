@@ -10,9 +10,9 @@ from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.exceptions import AyonException
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import log_traceback
 from ayon_server.types import OPModel
 from ayon_server.utils import json_loads
-from nxtools import log_traceback
 
 from .router import router
 

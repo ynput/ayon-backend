@@ -2,8 +2,8 @@ import time
 
 from ayon_server.config import ayonconfig
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from maintenance.maintenance_task import StudioMaintenanceTask
-from nxtools import logging
 
 
 async def clear_events() -> None:
@@ -48,7 +48,7 @@ async def clear_events() -> None:
         )
         deleted = res[0]["deleted"]
         if deleted:
-            logging.debug(
+            logger.debug(
                 f"Deleted {deleted} old events"
                 f" in {time.monotonic() - start_time:.2f} seconds"
             )

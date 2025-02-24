@@ -22,8 +22,7 @@ from ayon_server.types import (
     validate_topic_list,
     validate_user_name_list,
 )
-from ayon_server.utils import SQLTool
-from nxtools import slugify
+from ayon_server.utils import SQLTool, slugify
 
 
 async def get_events(

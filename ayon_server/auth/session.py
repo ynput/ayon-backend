@@ -14,9 +14,9 @@ from ayon_server.events import EventStream
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.helpers.auth_utils import AuthUtils
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.types import OPModel
 from ayon_server.utils import create_hash, json_dumps, json_loads
-from nxtools import logging
 
 
 class SessionModel(OPModel):
@@ -231,7 +231,7 @@ class Session:
             await cls.delete(session.token, message=msg)
 
             msg += f" ({user_name} {session.token})"
-            logging.debug(msg)
+            logger.debug(msg)
 
     @classmethod
     async def logout_user(cls, user_name: str) -> None:

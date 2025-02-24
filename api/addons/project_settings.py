@@ -16,11 +16,11 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.settings import BaseSettingsModel
 from ayon_server.settings.overrides import extract_overrides, list_overrides
 from ayon_server.settings.postprocess import postprocess_settings_schema
 from ayon_server.settings.set_addon_settings import set_addon_settings
-from nxtools import logging
 
 from .common import (
     ModifyOverridesRequestModel,
@@ -49,7 +49,7 @@ async def get_addon_project_settings_schema(
     model = addon.get_settings_model()
 
     if model is None:
-        logging.error(f"No settings schema for addon {addon_name}")
+        logger.error(f"No settings schema for addon {addon_name}")
         return {}
 
     context = {

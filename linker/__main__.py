@@ -4,8 +4,8 @@ import sys
 from typing import Any
 
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import critical_error, log_traceback
 from linker.linker import make_links
-from nxtools import critical_error, log_traceback
 
 
 async def create_link_type(project_name: str, link_type: str) -> None:
