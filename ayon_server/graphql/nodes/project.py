@@ -230,6 +230,8 @@ def project_from_record(
             production=bundle_data.get("production", None),
             staging=bundle_data.get("staging", None),
         )
+    else:
+        bundle = ProjectBundleType()
 
     return ProjectNode(
         name=record["name"],
