@@ -1,24 +1,22 @@
 """Request dependencies."""
 
 import re
-import time
 from typing import Annotated, get_args
 
 from fastapi import Cookie, Depends, Header, Path, Query, Request
 
 from ayon_server.addons import AddonLibrary, BaseServerAddon
 from ayon_server.auth.session import Session
-from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
     NotFoundException,
+    NotImplementedException,
     UnauthorizedException,
     UnsupportedMediaException,
 )
 from ayon_server.helpers.project_list import build_project_list, get_project_list
-from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import (
@@ -108,47 +106,7 @@ ThumbnailContentType = Annotated[str, Depends(dep_thumbnail_content_type)]
 
 
 async def user_from_api_key(api_key: str) -> UserEntity:
-    """Return a user associated with the given API key.
-
-    Hashed ApiKey may be stored in the database in two ways:
-
-    1. As a string in the `apiKey` field. Original method used
-       by services
-
-    2. As an array of objects in the `apiKeys` field. Each object
-       has the following fields:
-        - id: identifier that allows invalidating the key
-        - key: hashed api key
-        - label: a human-readable label
-        - preview: a preview of the key
-        - created: timestamp when the key was created
-        - expires(optional): timestamp when the key expires
-
-       In this case, the key is stored in the `key` field,
-       is the one we are looking for. We also need to check
-       if the key is not expired.
-    """
-    hashed_key = hash_password(api_key)
-    query = """
-        SELECT * FROM users
-        WHERE data->>'apiKey' = $1
-        OR EXISTS (
-            SELECT 1 FROM jsonb_array_elements(data->'apiKeys') AS ak
-            WHERE ak->>'key' = $1
-        )
-    """
-    if not (result := await Postgres.fetch(query, hashed_key)):
-        raise UnauthorizedException("Invalid API key")
-    user = UserEntity.from_record(result[0])
-    if user.data.get("apiKey") == hashed_key:
-        return user
-    for key_data in user.data.get("apiKeys", []):
-        if key_data.get("key") != hashed_key:
-            continue
-        if key_data.get("expires") and key_data["expires"] < time.time():
-            raise UnauthorizedException("API key has expired")
-        return user
-    raise UnauthorizedException("Invalid API key. This shouldn't happen")
+    raise NotImplementedException("user_from_api_key")
 
 
 async def dep_current_user(
