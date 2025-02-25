@@ -42,6 +42,12 @@ def _serializer(message) -> None:
         if tb := record.get("traceback"):
             _write_stderr(indent(str(tb)))
 
+        if ayonconfig.log_level == "TRACE" and record["extra"]:
+            traces = ""
+            for k, v in record["extra"].items():
+                traces += f"{k}: {v}\n"
+            _write_stderr(indent(traces))
+
 
 logger.remove(0)
 logger.add(_serializer, level=ayonconfig.log_level)
