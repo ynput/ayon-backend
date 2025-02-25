@@ -8,9 +8,21 @@ from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.utils import create_uuid
-from ayon_server.utils.strings import parse_api_key
+from ayon_server.utils.strings import parse_access_token, parse_api_key
+
+
+def access_token_from_request(request: Request) -> str | None:
+    token = request.cookies.get("accessToken")
+    if not token:
+        authorization = request.headers.get("Authorization")
+        if authorization:
+            token = parse_access_token(authorization)
+    if not token:
+        token = request.query_params.get("token")
+    return token
 
 
 async def user_from_api_key(api_key: str) -> UserEntity:
@@ -76,6 +88,37 @@ async def user_from_request(request: Request) -> UserEntity:
             session_data = await Session.create(user, request, token=api_key)
         session_data.is_api_key = True
 
+    elif access_token := access_token_from_request(request):
+        session_data = await Session.check(access_token, request)
+    else:
+        raise UnauthorizedException("Access token is missing")
+
+    if not session_data:
+        raise UnauthorizedException("Invalid access token")
+
+    await Redis.incr("user-requests", session_data.user.name)
+    user = UserEntity.from_record(session_data.user.dict())
+    user.add_session(session_data)
+
+    if (x_as_user := request.headers.get("x-as-user")) and user.is_service:
+        # sudo :)
+        user = await UserEntity.load(x_as_user)
+
+    # endpoint = request.scope["endpoint"].__name__
+    # project_name = request.path_params.get("project_name", "_")
+    # if not user.is_manager:
+    #     # check if the user has access to the endpoint
+    #     # we allow _ as a project name to check global permissions
+    #     # (namely /api/accessGroups/_)
+    #     # but it is up to the endpoint to handle it
+    #     if project_name != "_":
+    #         perms = user.permissions(project_name)
+    #         if (perms is not None) and perms.endpoints.enabled:
+    #             if endpoint not in perms.endpoints.endpoints:
+    #                 raise ForbiddenException(f"{endpoint} is not accessible")
+
+    return user
+
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -86,35 +129,28 @@ class AuthMiddleware(BaseHTTPMiddleware):
             "path": request.url.path,
         }
 
+        try:
+            user = await user_from_request(request)
+            context["user"] = user.name
+            request.state.user = user
+            request.state.unauthorized_reason = None
+        except UnauthorizedException as e:
+            request.state.user = None
+            request.state.unauthorized_reason = str(e)
+
         with logger.contextualize(**context):
             start_time = time.perf_counter()
 
-            response = await call_next(request)  # Call next middleware/endpoint
+            response = await call_next(request)
 
-            process_time = round(time.perf_counter() - start_time, 3)
-            logger.trace("Request finished", process_time=process_time)
+            process_time = time.perf_counter() - start_time
+            status_code = response.status_code
 
-        return response
-
-        # Extract token (example)
-        # token = request.headers.get("Authorization")
-        # user_id = None
-
-        # if token:
-        #     # Fake authentication process
-        #     if token == "Bearer my-secret-token":
-        #         user_id = "user_123"  # In real case, decode JWT or check DB
-        #         request.state.user = user_id  # Attach user info to request
-        #         logger.info(f"Authenticated user: {user_id}")
-        #     else:
-        #         logger.warning("Invalid authentication token")
-        #         return Response("Unauthorized", status_code=401)
-
-        # Log request metadata
-        logger.info(f"Request: {request.method} {request.url}")
-
-        # Log response time
-        duration = time.time() - start_time
-        logger.info(f"Response: {response.status_code} ({duration:.4f}s)")
+            if context["path"] != "/api/info":
+                logger.trace(
+                    "API Request finished",
+                    status_code=status_code,
+                    process_time=process_time,
+                )
 
         return response
