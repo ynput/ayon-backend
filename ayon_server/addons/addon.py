@@ -32,6 +32,7 @@ METADATA_KEYS = [
     "title",
     "services",
     "app_host_name",
+    "allow_project_version_override",
     # compatibility object
     "ayon_server_version",
     "ayon_launcher_version",
@@ -55,6 +56,7 @@ class BaseServerAddon:
     version: str
     title: str | None = None
     services: dict[str, Any] = {}
+    allow_project_version_override: bool = False
 
     # should be defined on addon class
     addon_type: Literal["server", "pipeline"] = "pipeline"
