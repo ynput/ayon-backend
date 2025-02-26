@@ -185,10 +185,10 @@ async def create_new_bundle(
 
     if bundle.is_project:
         for addon_name in list(bundle.addons.keys()):
-            addon_definition = AddonLibrary.get(addon_name)
-            if addon_definition is None:
+            adef = AddonLibrary.get(addon_name)
+            if adef is None:
                 raise BadRequestException(f"Addon {addon_name} does not exist")
-            if not addon_definition.allow_project_override:
+            if not adef.project_can_override_addon_version:
                 bundle.addons.pop(addon_name)
 
     async with Postgres.acquire() as conn, conn.transaction():

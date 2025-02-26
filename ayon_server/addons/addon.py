@@ -32,7 +32,7 @@ METADATA_KEYS = [
     "title",
     "services",
     "app_host_name",
-    "allow_project_version_override",
+    "project_can_override_addon_version",
     # compatibility object
     "ayon_server_version",
     "ayon_launcher_version",
@@ -56,7 +56,7 @@ class BaseServerAddon:
     version: str
     title: str | None = None
     services: dict[str, Any] = {}
-    allow_project_version_override: bool = False
+    project_can_override_addon_version: bool = False
 
     # should be defined on addon class
     addon_type: Literal["server", "pipeline"] = "pipeline"
@@ -107,6 +107,13 @@ class BaseServerAddon:
 
     def __repr__(self) -> str:
         return f"<Addon name='{self.definition.name}' version='{self.version}'>"
+
+    def get_project_can_override_addon_version(self) -> bool:
+        # TODO: This is just for testing until we have a proper implementation
+        # in the addons
+        if self.name in ["max", "aftereffects", "applications", "maya", "nuke"]:
+            return True
+        return self.project_can_override_addon_version
 
     @property
     def friendly_name(self) -> str:

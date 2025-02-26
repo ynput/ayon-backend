@@ -143,7 +143,7 @@ async def get_all_settings(
             if studio_addon_definition is None:
                 logger.debug(f"cannot find addon {addon_name}")
                 continue
-            if studio_addon_definition.allow_project_override:
+            if studio_addon_definition.project_can_override_addon_version:
                 logger.debug(
                     f"addon {addon_name} is allowed to override project bundle"
                 )

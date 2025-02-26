@@ -40,18 +40,14 @@ class ServerAddonDefinition:
             self.title = version.title  # Use the latest title
 
     @property
-    def allow_project_override(self) -> bool:
+    def project_can_override_addon_version(self) -> bool:
         """
         Returns true if the addon (at least one of its versions)
         allows version override per project (using project bundle)
         """
-        # TODO: This is just for testing until we have a proper implementation
-        # in the addons
-        if self.name in ["max", "aftereffects", "applications", "maya", "nuke"]:
-            return True
-
         return any(
-            version.allow_project_version_override for version in self.versions.values()
+            version.get_project_can_override_addon_version()
+            for version in self.versions.values()
         )
 
     @property
