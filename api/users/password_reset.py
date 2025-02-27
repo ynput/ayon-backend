@@ -51,13 +51,16 @@ async def password_reset_request(request: PasswordResetRequestModel):
         )
         return
 
-    password_reset_request = user_data.get("passwordResetRequest", {})
-    password_requet_time = password_reset_request.get("time", None)
-
-    if password_requet_time and (time.time() - password_requet_time) < TOKEN_TTL:
-        raise ForbiddenException(
-            "Attempted password reset too soon after previous attempt"
-        )
+    password_reset_request = user_data.get("passwordResetRequest")
+    if password_reset_request:
+        password_request_time = password_reset_request.get("time", 0)
+        if password_request_time and (time.time() - password_request_time) < 600:
+            logger.error(
+                "Attempted password reset too soon "
+                f"after previous attempt for {request.email}"
+            )
+            msg = "Attempted password reset too soon after previous attempt"
+            raise ForbiddenException(msg)
 
     token = create_hash()
     password_reset_request = {
