@@ -1,8 +1,11 @@
+import sys
 import time
 
+from fastapi.routing import APIRoute
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
+from ayon_server.api.dependencies import NoTraces
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
@@ -12,6 +15,10 @@ from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.utils import create_uuid
 from ayon_server.utils.strings import parse_access_token, parse_api_key
+
+
+def sprint(*args):
+    print(*args, flush=True, file=sys.stderr)
 
 
 def access_token_from_request(request: Request) -> str | None:
@@ -104,6 +111,7 @@ async def user_from_request(request: Request) -> UserEntity:
         # sudo :)
         user = await UserEntity.load(x_as_user)
 
+    # TODO: move somewhere else?
     # endpoint = request.scope["endpoint"].__name__
     # project_name = request.path_params.get("project_name", "_")
     # if not user.is_manager:
@@ -123,10 +131,11 @@ async def user_from_request(request: Request) -> UserEntity:
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request_id = create_uuid()
+        path = request.url.path
         context = {
             "request_id": request_id,
             "method": request.method,
-            "path": request.url.path,
+            "path": path,
         }
 
         try:
@@ -146,11 +155,30 @@ class AuthMiddleware(BaseHTTPMiddleware):
             process_time = time.perf_counter() - start_time
             status_code = response.status_code
 
-            if context["path"] != "/api/info":
-                logger.trace(
-                    "API Request finished",
-                    status_code=status_code,
-                    process_time=process_time,
-                )
+            if not (path.startswith("/api") or path.startswith("/graphql")):
+                return response
+
+            if status_code < 400 and (route := request.scope.get("route")):
+                # We don't need to log successful requests to routes,
+                # that have "NoTraces" dependencies.
+                # They are usually heartbeats that pollute the logs.
+                if isinstance(route, APIRoute):
+                    for dependency in route.dependencies:
+                        if dependency == NoTraces:
+                            return response
+
+            # We're adding 'nodb' flag here, that instructs the
+            # log collect to Not store the message in the event stream.
+
+            extras = {
+                "process_time": process_time,
+                "status_code": status_code,
+                "nodb": True,
+            }
+
+            f_method = f"[{request.method}]"
+            f_result = f" | {status_code} in {process_time:.3f}s"
+            msg = f"{f_method:<9} {path} {f_result}"
+            logger.trace(msg, **extras)
 
         return response

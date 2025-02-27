@@ -27,6 +27,13 @@ from ayon_server.utils import (
 )
 
 
+def dep_no_traces():
+    return None
+
+
+NoTraces = Depends(dep_no_traces)
+
+
 def dep_current_addon(request: Request) -> BaseServerAddon:
     path = request.url.path
     parts = path.split("/")

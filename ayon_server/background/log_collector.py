@@ -39,6 +39,9 @@ class LogCollector(BackgroundWorker):
 
         user = extra.pop("user", None)
         project = record.pop("project", None)
+        if extra.pop("nodb", False):
+            # Used by the API middleware to avoid writing to the database
+            return
         self.queue.put(
             {
                 "topic": topic,
