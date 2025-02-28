@@ -2,6 +2,7 @@ import sys
 import time
 
 from fastapi.routing import APIRoute
+from shortuuid import ShortUUID
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
@@ -13,7 +14,6 @@ from ayon_server.exceptions import UnauthorizedException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
-from ayon_server.utils import create_uuid
 from ayon_server.utils.strings import parse_access_token, parse_api_key
 
 
@@ -128,9 +128,13 @@ async def user_from_request(request: Request) -> UserEntity:
     return user
 
 
+def req_id():
+    return ShortUUID().random(length=16)
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        request_id = create_uuid()
+        request_id = req_id()
         path = request.url.path
         context = {
             "request_id": request_id,
@@ -149,36 +153,35 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         with logger.contextualize(**context):
             start_time = time.perf_counter()
-
             response = await call_next(request)
-
             process_time = time.perf_counter() - start_time
             status_code = response.status_code
 
-            if not (path.startswith("/api") or path.startswith("/graphql")):
-                return response
-
-            if status_code < 400 and (route := request.scope.get("route")):
+            # we don't track statics
+            should_trace = path.startswith("/api") or path.startswith("/graphql")
+            # Before processing the request, we don't have access to
+            # the route information, so we need to check it here
+            # (that's also why we don't track the beginning of the request)
+            if should_trace and (route := request.scope.get("route")):
                 # We don't need to log successful requests to routes,
                 # that have "NoTraces" dependencies.
                 # They are usually heartbeats that pollute the logs.
                 if isinstance(route, APIRoute):
                     for dependency in route.dependencies:
                         if dependency == NoTraces:
-                            return response
+                            should_trace = False
 
             # We're adding 'nodb' flag here, that instructs the
             # log collect to Not store the message in the event stream.
-
-            extras = {
-                "process_time": process_time,
-                "status_code": status_code,
-                "nodb": True,
-            }
-
-            f_method = f"[{request.method}]"
-            f_result = f" | {status_code} in {process_time:.3f}s"
-            msg = f"{f_method:<9} {path} {f_result}"
-            logger.trace(msg, **extras)
+            if should_trace:
+                extras = {
+                    "process_time": process_time,
+                    "status_code": status_code,
+                    "nodb": True,
+                }
+                f_method = f"[{request.method}]"
+                f_result = f" | {status_code} in {process_time:.3f}s"
+                msg = f"{f_method:<9} {path} {f_result}"
+                logger.trace(msg, **extras)
 
         return response

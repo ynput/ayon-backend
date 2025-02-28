@@ -27,6 +27,7 @@ from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.utils import create_uuid
 
 
@@ -251,6 +252,13 @@ async def create_activity(
         "activity_type": activity_type,
         "references": summary_references,
     }
+
+    logger.debug(
+        f"Activity created: {activity_type}",
+        activity_id=activity_id,
+        activity_type=activity_type,
+        nodb=True,
+    )
 
     await EventStream.dispatch(
         "activity.created",

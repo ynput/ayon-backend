@@ -200,6 +200,12 @@ class EventStream:
             except Exception as e:
                 logger.debug(f"Error in event handler: {e}")
 
+        logger.debug(
+            f"Event dispatched: {event.topic} {event.description}",
+            event_id=event.id,
+            nodb=True,
+        )
+
         return event.id
 
     @classmethod
@@ -289,6 +295,12 @@ class EventStream:
             if progress is not None:
                 message["progress"] = progress
             await Redis.publish(json_dumps(message))
+            if store:
+                logger.debug(
+                    f"Event updated: {message['topic']} {message['description']}",
+                    event_id=message["id"],
+                    nodb=True,
+                )
             return True
         return False
 

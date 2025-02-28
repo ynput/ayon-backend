@@ -17,6 +17,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
@@ -86,6 +87,8 @@ async def _process_operation(
     """Process a single operation. Raise an exception on error."""
 
     entity_class = get_entity_class(operation.entity_type)
+
+    logger.debug(f"Operation: {project_name}/{operation.entity_type}/{operation.type}")
 
     # Data for the event triggered after successful operation
     events: list[dict[str, Any]] | None = None
