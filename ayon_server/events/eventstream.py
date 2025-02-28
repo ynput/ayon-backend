@@ -193,19 +193,19 @@ class EventStream:
             )
         )
 
-        handlers = cls.local_hooks.get(event.topic, {}).values()
-        for handler in handlers:
-            try:
-                await handler(event)
-            except Exception as e:
-                logger.debug(f"Error in event handler: {e}")
-
         if not event.topic.startswith("log."):
             logger.debug(
                 f"Event dispatched [{event.topic}]: {event.description}",
                 event_id=event.id,
                 nodb=True,
             )
+
+        handlers = cls.local_hooks.get(event.topic, {}).values()
+        for handler in handlers:
+            try:
+                await handler(event)
+            except Exception as e:
+                logger.warning(f"Error in event handler: {e}")
 
         return event.id
 

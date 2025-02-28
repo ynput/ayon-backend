@@ -27,14 +27,14 @@ def _serializer(message) -> None:
         # JSON mode logging
         #
 
-        simplified = {
+        payload = {
             "timestamp": time.time(),
             "level": level.lower(),
             "message": message,
             "module": module,
             **record["extra"],
         }
-        serialized = json_dumps(simplified)
+        serialized = json_dumps(payload)
         _write_stderr(serialized)
 
     else:
@@ -42,28 +42,20 @@ def _serializer(message) -> None:
         # Text mode logging
         #
 
+        module = module.replace("ayon_server.", "")
+        formatted = f"{level:<7} {module:<26} | {message}"
+        _write_stderr(formatted)
+
         # Format the message according to the log context setting
-        contextual_info = ""
         if ayonconfig.log_context:
-            formatted = f"{level:<7} {message}"
             # Put the module name and extra context info in a separate block
-            contextual_info = f"module: {module}\n"
+            contextual_info = ""
             for k, v in record["extra"].items():
                 if k in CONTEXT_KEY_BLACKLIST:
                     continue
                 contextual_info += f"{k}: {v}\n"
-        else:
-            # If log context is disabled, shorten the module name
-            # to make the message more readable and prepend it to the message
-            module = module.replace("ayon_server.", "ay.")
-            formatted = f"{level:<7} {module:<26} | {message}"
-
-        # Print formatted message
-        _write_stderr(formatted)
-
-        # Print contextual info if available
-        if contextual_info:
-            _write_stderr(indent(contextual_info))
+            if contextual_info:
+                _write_stderr(indent(contextual_info))
 
         # Print traceback if available
         if tb := record.get("traceback"):

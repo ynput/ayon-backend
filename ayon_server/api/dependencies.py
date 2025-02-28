@@ -172,6 +172,7 @@ NewProjectName = Annotated[str, Depends(dep_new_project_name)]
 
 
 async def dep_project_name(
+    current_user: Annotated[UserEntity, Depends(dep_current_user)],
     project_name: str = Path(
         ...,
         title="Project name",
@@ -184,6 +185,8 @@ async def dep_project_name(
     If the name is specified using wrong letter case, it is corrected
     to match the database record.
     """
+
+    current_user.check_project_access(project_name)
 
     project_list = await get_project_list()
 
@@ -205,11 +208,13 @@ ProjectName = Annotated[str, Depends(dep_project_name)]
 
 
 async def dep_project_name_or_underscore(
+    current_user: Annotated[UserEntity, Depends(dep_current_user)],
     project_name: str = Path(..., title="Project name"),
 ) -> str:
     if project_name == "_":
+        # TODO: check if user has access to all projects?
         return project_name
-    return await dep_project_name(project_name)
+    return await dep_project_name(current_user, project_name)
 
 
 ProjectNameOrUnderscore = Annotated[str, Depends(dep_project_name_or_underscore)]

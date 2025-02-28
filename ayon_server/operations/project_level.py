@@ -88,7 +88,12 @@ async def _process_operation(
 
     entity_class = get_entity_class(operation.entity_type)
 
-    logger.debug(f"Operation: {project_name}/{operation.entity_type}/{operation.type}")
+    addr = f"{project_name}/{operation.entity_type}/{operation.entity_id}"
+    logger.debug(
+        f"ProjectLevelOperation: [{operation.type.upper()}] {addr}",
+        project=project_name,
+        operation_id=operation.id,
+    )
 
     # Data for the event triggered after successful operation
     events: list[dict[str, Any]] | None = None

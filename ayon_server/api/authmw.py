@@ -111,20 +111,6 @@ async def user_from_request(request: Request) -> UserEntity:
         # sudo :)
         user = await UserEntity.load(x_as_user)
 
-    # TODO: move somewhere else?
-    # endpoint = request.scope["endpoint"].__name__
-    # project_name = request.path_params.get("project_name", "_")
-    # if not user.is_manager:
-    #     # check if the user has access to the endpoint
-    #     # we allow _ as a project name to check global permissions
-    #     # (namely /api/accessGroups/_)
-    #     # but it is up to the endpoint to handle it
-    #     if project_name != "_":
-    #         perms = user.permissions(project_name)
-    #         if (perms is not None) and perms.endpoints.enabled:
-    #             if endpoint not in perms.endpoints.endpoints:
-    #                 raise ForbiddenException(f"{endpoint} is not accessible")
-
     return user
 
 
