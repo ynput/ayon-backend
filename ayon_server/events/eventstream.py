@@ -200,11 +200,12 @@ class EventStream:
             except Exception as e:
                 logger.debug(f"Error in event handler: {e}")
 
-        logger.debug(
-            f"Event dispatched: {event.topic} {event.description}",
-            event_id=event.id,
-            nodb=True,
-        )
+        if not event.topic.startswith("log."):
+            logger.debug(
+                f"Event dispatched [{event.topic}]: {event.description}",
+                event_id=event.id,
+                nodb=True,
+            )
 
         return event.id
 
@@ -297,7 +298,7 @@ class EventStream:
             await Redis.publish(json_dumps(message))
             if store:
                 logger.debug(
-                    f"Event updated: {message['topic']} {message['description']}",
+                    f"Event updated [{message['topic']}]: {message['description']}",
                     event_id=message["id"],
                     nodb=True,
                 )

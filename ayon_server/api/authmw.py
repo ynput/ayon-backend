@@ -136,32 +136,39 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request_id = req_id()
         path = request.url.path
-        context = {
-            "request_id": request_id,
-            "method": request.method,
-            "path": path,
-        }
+        context = {"request_id": request_id}
 
-        try:
-            user = await user_from_request(request)
-            context["user"] = user.name
-            request.state.user = user
-            request.state.unauthorized_reason = None
-        except UnauthorizedException as e:
-            request.state.user = None
-            request.state.unauthorized_reason = str(e)
+        with logger.contextualize(**context):
+            # At this point, we don't have access to the user
+            # But we want to be able to pair log messages
+            # from the authentication process using request_id
+            try:
+                user = await user_from_request(request)
+                context["user"] = user.name
+                request.state.user = user
+                request.state.unauthorized_reason = None
+            except UnauthorizedException as e:
+                request.state.user = None
+                request.state.unauthorized_reason = str(e)
 
         with logger.contextualize(**context):
             start_time = time.perf_counter()
             response = await call_next(request)
-            process_time = time.perf_counter() - start_time
+            process_time = round(time.perf_counter() - start_time, 4)
             status_code = response.status_code
 
             # we don't track statics
-            should_trace = path.startswith("/api") or path.startswith("/graphql")
+            should_trace = path.startswith("/api")
+
+            # TODO
+            # do not trace graphql queries yet, until we can make
+            # sense of them - we need to at least identify the query
+            # or path.startswith("/graphql")
+
             # Before processing the request, we don't have access to
             # the route information, so we need to check it here
             # (that's also why we don't track the beginning of the request)
+
             if should_trace and (route := request.scope.get("route")):
                 # We don't need to log successful requests to routes,
                 # that have "NoTraces" dependencies.
@@ -173,15 +180,20 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
             # We're adding 'nodb' flag here, that instructs the
             # log collect to Not store the message in the event stream.
+
             if should_trace:
                 extras = {
-                    "process_time": process_time,
-                    "status_code": status_code,
-                    "nodb": True,
+                    **context,
+                    "nodb": True,  # don't store in the event stream
+                    # TODO: Remove?
+                    # Already formated in the log message
+                    # "process_time": process_time,
+                    # "status_code": status_code,
+                    # "method": request.method,
+                    # "path": path,
                 }
-                f_method = f"[{request.method}]"
-                f_result = f" | {status_code} in {process_time:.3f}s"
-                msg = f"{f_method:<9} {path} {f_result}"
+                f_result = f"| {status_code} in {process_time}s"
+                msg = f"[{request.method}] {path} {f_result}"
                 logger.trace(msg, **extras)
 
         return response
