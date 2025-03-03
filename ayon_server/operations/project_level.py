@@ -1,11 +1,11 @@
 from contextlib import suppress
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from asyncpg.exceptions import IntegrityConstraintViolationError
 
 from ayon_server.api.postgres_exceptions import parse_postgres_exception
 from ayon_server.config import ayonconfig
-from ayon_server.entities import UserEntity
+from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events import EventStream
 from ayon_server.events.patch import build_pl_entity_change_events
@@ -105,9 +105,17 @@ async def _process_operation(
         payload_dict = payload.dict()
         if operation.entity_id is not None:
             payload_dict["id"] = operation.entity_id
+
         if operation.entity_type == "version":
             if user and not payload_dict.get("author"):
                 payload_dict["author"] = user.name
+            # The following condition was used in [POST] /versions
+            # migrated here, hopefully it does not break anything
+            if user and not user.is_admin and payload_dict["author"] != user.name:
+                raise ForbiddenException(
+                    "Only admins can create versions for other users"
+                )
+
         elif operation.entity_type == "workfile":
             if user and not payload_dict.get("created_by"):
                 payload_dict["created_by"] = user.name
@@ -137,16 +145,30 @@ async def _process_operation(
         payload = entity_class.model.patch_model(**operation.data)
         assert operation.entity_id is not None, "entity_id is required for update"
 
-        if operation.entity_type == "workfile":
-            if not payload.updated_by:  # type: ignore
-                payload.updated_by = user.name  # type: ignore
-
         entity = await entity_class.load(
             project_name,
             operation.entity_id,
             for_update=True,
             transaction=transaction,
         )
+
+        if operation.entity_type == "folder":
+            folder_entity = cast(FolderEntity, entity)
+            has_versions = bool(await folder_entity.get_versions(transaction))
+            for key in ("name", "folder_type", "parent_id"):
+                if key not in operation.data:
+                    continue
+                old_value = entity.payload.dict(exclude_none=True).get(key)
+                new_value = operation.data[key]
+                if has_versions and old_value != new_value:
+                    raise ForbiddenException(
+                        f"Cannot change {key} of a folder with published versions"
+                    )
+
+        if operation.entity_type == "workfile":
+            if not payload.updated_by:  # type: ignore
+                payload.updated_by = user.name  # type: ignore
+
         if user:
             await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)
         events = build_pl_entity_change_events(entity, payload)
