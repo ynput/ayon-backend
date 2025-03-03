@@ -20,6 +20,7 @@ ADDITIONAL_COLUMNS = {
     "product_type": "product_type_changed",
     "author": "author_changed",
     "files": "files_changed",
+    "config": "config_changed",  # for projects
     "parent_id": "parent_changed",  # for folders
     "folder_id": "folder_changed",  # for tasks and products
     "task_id": "task_changed",  # for workfiles and versions
@@ -240,6 +241,32 @@ def build_project_change_events(
             payload = {
                 "oldValue": oval,
                 "newValue": nval,
+            }
+            result[-1]["payload"] = payload
+
+    for column_name, topic_name in ADDITIONAL_COLUMNS.items():
+        if not hasattr(original_entity, column_name):
+            continue
+
+        if column_name not in patch_data:
+            continue
+
+        if getattr(original_entity, column_name) == patch_data.get(column_name):
+            continue
+
+        description = f"Changed project {column_name}"
+
+        result.append(
+            {
+                "topic": f"entity.project.{topic_name}",
+                "description": description,
+                **common_data,
+            }
+        )
+        if ayonconfig.audit_trail:
+            payload = {
+                "oldValue": getattr(original_entity, column_name),
+                "newValue": patch_data[column_name],
             }
             result[-1]["payload"] = payload
 
