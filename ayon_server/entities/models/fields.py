@@ -11,6 +11,8 @@ See .generator.FieldDefinition model for more information on specifiing
 field parameters.
 """
 
+from typing import Any
+
 from ayon_server.entities.models.submodels import LinkTypeModel, RepresentationFileModel
 from ayon_server.types import (
     ENTITY_ID_EXAMPLE,
@@ -19,6 +21,34 @@ from ayon_server.types import (
     NAME_REGEX,
     PROJECT_NAME_REGEX,
 )
+
+# Getter for project-level fields to avoid circular imports
+# from anatomy. TODO: maybe move anatomy submodels somewhere else?
+
+
+def get_folder_type_model() -> type[Any]:
+    from ayon_server.settings.anatomy.folder_types import FolderType
+
+    return FolderType
+
+
+def get_task_type_model() -> type[Any]:
+    from ayon_server.settings.anatomy.task_types import TaskType
+
+    return TaskType
+
+
+def get_status_model() -> type[Any]:
+    from ayon_server.settings.anatomy.statuses import Status
+
+    return Status
+
+
+def get_tag_model() -> type[Any]:
+    from ayon_server.settings.anatomy.tags import Tag
+
+    return Tag
+
 
 project_fields = [
     # Name is not here, since it's added by ModelSet class
@@ -38,8 +68,7 @@ project_fields = [
     },
     {
         "name": "folder_types",
-        "type": "list_of_any",
-        "factory": "list",
+        "list_of_submodels": get_folder_type_model,
         "title": "Folder types",
         "example": [
             {"name": "Folder", "icon": "folder"},
@@ -49,8 +78,7 @@ project_fields = [
     },
     {
         "name": "task_types",
-        "type": "list_of_any",
-        "factory": "list",
+        "list_of_submodels": get_task_type_model,
         "title": "Task types",
         "example": [
             {"name": "Rigging", "icon": "rig"},
@@ -75,8 +103,7 @@ project_fields = [
     },
     {
         "name": "statuses",
-        "type": "list_of_any",
-        "factory": "list",
+        "list_of_submodels": get_status_model,
         "title": "Statuses",
         "example": [
             {"name": "Unknown"},
@@ -84,8 +111,7 @@ project_fields = [
     },
     {
         "name": "tags",
-        "type": "list_of_any",
-        "factory": "list",
+        "list_of_submodels": get_tag_model,
         "title": "Tags",
         "description": "List of tags available to set on entities.",
         "example": [
