@@ -8,6 +8,7 @@ from ayon_server.api.dependencies import (
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
+from ayon_server.events.patch import build_project_change_events
 from ayon_server.exceptions import (
     ConflictException,
     ForbiddenException,
@@ -131,6 +132,7 @@ async def update_project(
     """
 
     project = await ProjectEntity.load(project_name)
+    events = build_project_change_events(project, patch_data)
 
     if not user.is_manager:
         raise ForbiddenException(
@@ -140,14 +142,13 @@ async def update_project(
     project.patch(patch_data)
     await project.save()
 
-    await EventStream.dispatch(
-        "entity.project.changed",
-        sender=sender,
-        sender_type=sender_type,
-        project=project_name,
-        user=user.name,
-        description=f"Updated project {project_name}",
-    )
+    for edata in events:
+        await EventStream.dispatch(
+            **edata,
+            sender=sender,
+            sender_type=sender_type,
+            user=user.name,
+        )
     return EmptyResponse()
 
 
