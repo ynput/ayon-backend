@@ -1,81 +1,35 @@
+__all__ = [
+    "ProjectLevelOperations",
+    "OperationModel",
+    "OperationResponseModel",
+    "OperationsResponseModel",
+]
+
 from contextlib import suppress
-from typing import Annotated, Any, cast
+from typing import Any
 
 from asyncpg.exceptions import IntegrityConstraintViolationError
 
 from ayon_server.api.postgres_exceptions import parse_postgres_exception
-from ayon_server.config import ayonconfig
-from ayon_server.entities import FolderEntity, UserEntity
+from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events import EventStream
-from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
     ConflictException,
-    ForbiddenException,
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.logging import logger
-from ayon_server.types import Field, OPModel, ProjectLevelEntityType
+from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
-from .common import OperationType, RollbackException
-
-#
-# Models
-#
-
-
-class OperationModel(OPModel):
-    """Model for a single project-level operation.
-
-    Operation type is one of create, update, delete.
-
-    Each operation has a unique ID, that may be used to match the result
-    in the response. The ID is automatically generated if not provided.
-
-    The entity ID is required for update and delete operations, optional for create.
-    The data field is required for create and update operations, ignored for delete.
-
-    Force flag may be used for delete operations to force
-    recursive deletion of the children entities (if applicable).
-    """
-
-    id: Annotated[str, Field(default_factory=create_uuid, title="Operation ID")]
-    type: Annotated[OperationType, Field(title="Operation type")]
-    entity_type: Annotated[ProjectLevelEntityType, Field(title="Entity type")]
-    entity_id: Annotated[str | None, Field(title="Entity ID")] = None
-    data: Annotated[dict[str, Any] | None, Field(title="Data")] = None
-    force: Annotated[bool, Field(title="Force recursive deletion")] = False
-    as_user: str | None = None
-
-
-class OperationResponseModel(OPModel):
-    """Response model for a single operation.
-
-    Entity ID is `None` if the operation is a create and the operation fails.
-    Status returns HTTP-like status code (201, 204, 404, etc.)
-    """
-
-    id: Annotated[str, Field(title="Operation ID")]
-    type: Annotated[OperationType, Field(title="Operation type")]
-    entity_type: Annotated[ProjectLevelEntityType, Field(title="Entity type")]
-    entity_id: Annotated[str | None, Field(title="Entity ID")] = None
-    success: Annotated[bool, Field(title="Operation success")]
-    status: Annotated[int, Field(title="HTTP-like status code")]
-    detail: Annotated[str | None, Field(title="Error message")] = None
-
-
-class OperationsResponseModel(OPModel):
-    operations: Annotated[list[OperationResponseModel], Field(default_factory=list)]
-    success: Annotated[bool, Field(title="Overall success")]
-
-
-#
-# Processing
-#
+from ..common import OperationType, RollbackException
+from .entity_create import create_project_level_entity
+from .entity_delete import delete_project_level_entity
+from .entity_update import update_project_level_entity
+from .models import OperationModel, OperationResponseModel, OperationsResponseModel
 
 
 async def _process_operation(
@@ -88,9 +42,9 @@ async def _process_operation(
 
     entity_class = get_entity_class(operation.entity_type)
 
-    addr = f"{project_name}/{operation.entity_type}/{operation.entity_id}"
+    addr = f"{project_name}/{operation.entity_id}"
     logger.debug(
-        f"ProjectLevelOperation: [{operation.type.upper()}] {addr}",
+        f"[{operation.entity_type.upper()} {operation.type.upper()}] {addr}",
         project=project_name,
         operation_id=operation.id,
     )
@@ -100,108 +54,31 @@ async def _process_operation(
     status = 200
 
     if operation.type == "create":
-        assert operation.data is not None, "data is required for create"
-        payload = entity_class.model.post_model(**operation.data)
-        payload_dict = payload.dict()
-        if operation.entity_id is not None:
-            payload_dict["id"] = operation.entity_id
-
-        if operation.entity_type == "version":
-            if user and not payload_dict.get("author"):
-                payload_dict["author"] = user.name
-            # The following condition was used in [POST] /versions
-            # migrated here, hopefully it does not break anything
-            if user and not user.is_admin and payload_dict["author"] != user.name:
-                raise ForbiddenException(
-                    "Only admins can create versions for other users"
-                )
-
-        elif operation.entity_type == "workfile":
-            if user and not payload_dict.get("created_by"):
-                payload_dict["created_by"] = user.name
-            if not payload_dict.get("updated_by"):
-                payload_dict["updated_by"] = payload_dict["created_by"]
-        entity = entity_class(project_name, payload_dict)
-        if user:
-            await entity.ensure_create_access(user)
-        description = f"{operation.entity_type.capitalize()} {entity.name} created"
-        events = [
-            {
-                "topic": f"entity.{operation.entity_type}.created",
-                "summary": {"entityId": entity.id, "parentId": entity.parent_id},
-                "description": description,
-                "project": project_name,
-                "user": user.name if user else None,
-            }
-        ]
-        await entity.save(transaction=transaction)
-        status = 201
-
-    elif operation.type == "update":
-        # in this case, thumbnailId is camelCase, since we pass a dict
-        assert operation.data is not None, "data is required for update"
-        thumbnail_only = len(operation.data) == 1 and "thumbnailId" in operation.data
-
-        payload = entity_class.model.patch_model(**operation.data)
-        assert operation.entity_id is not None, "entity_id is required for update"
-
-        entity = await entity_class.load(
+        entity, events, status = await create_project_level_entity(
+            entity_class,
             project_name,
-            operation.entity_id,
-            for_update=True,
-            transaction=transaction,
+            operation,
+            user,
+            transaction,
         )
 
-        if operation.entity_type == "folder":
-            folder_entity = cast(FolderEntity, entity)
-            has_versions = bool(await folder_entity.get_versions(transaction))
-            for key in ("name", "folder_type", "parent_id"):
-                if key not in operation.data:
-                    continue
-                old_value = entity.payload.dict(exclude_none=True).get(key)
-                new_value = operation.data[key]
-                if has_versions and old_value != new_value:
-                    raise ForbiddenException(
-                        f"Cannot change {key} of a folder with published versions"
-                    )
-
-        if operation.entity_type == "workfile":
-            if not payload.updated_by:  # type: ignore
-                payload.updated_by = user.name  # type: ignore
-
-        if user:
-            await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)
-        events = build_pl_entity_change_events(entity, payload)
-        if user:
-            for event in events:
-                event["user"] = user.name
-        entity.patch(payload)
-        await entity.save(transaction=transaction)
-        status = 204
+    elif operation.type == "update":
+        entity, events, status = await update_project_level_entity(
+            entity_class,
+            project_name,
+            operation,
+            user,
+            transaction,
+        )
 
     elif operation.type == "delete":
-        assert operation.entity_id is not None, "entity_id is required for delete"
-        entity = await entity_class.load(project_name, operation.entity_id)
-        if user:
-            await entity.ensure_delete_access(user)
-        description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
-
-        if operation.force and user and not user.is_manager:
-            raise ForbiddenException("Only managers can force delete")
-
-        events = [
-            {
-                "topic": f"entity.{operation.entity_type}.deleted",
-                "summary": {"entityId": entity.id, "parentId": entity.parent_id},
-                "description": description,
-                "project": project_name,
-                "user": user.name if user else None,
-            }
-        ]
-        if ayonconfig.audit_trail:
-            events[0]["payload"] = {"entityData": entity.dict_simple()}
-        await entity.delete(transaction=transaction, force=operation.force)
-        status = 204
+        entity, events, status = await delete_project_level_entity(
+            entity_class,
+            project_name,
+            operation,
+            user,
+            transaction,
+        )
 
     else:
         # This should never happen (already validated)
