@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter
 
 from ayon_server.api.dependencies import (
     CurrentUser,
@@ -14,7 +14,7 @@ from ayon_server.operations.project_level import ProjectLevelOperations
 router = APIRouter(tags=["Versions"])
 
 #
-# l [GET]
+# [GET]
 #
 
 
@@ -100,7 +100,6 @@ async def update_version(
 
 @router.delete("/projects/{project_name}/versions/{version_id}", status_code=204)
 async def delete_version(
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
