@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from ayon_server.config import ayonconfig
+from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import ProjectLevelEntity
 
 EventData = dict[str, Any]
@@ -61,7 +62,7 @@ def build_pl_entity_change_events(
     original_entity: ProjectLevelEntity,
     patch: BaseModel,
 ) -> list[EventData]:
-    """Return a list of events triggered by a patch on a project level entity.
+    """Return a listof events triggered by a patch on a project level entity.
 
     This should be called in every operation that updates a project level entity,
     after source entity is loaded and validated against the ACL, but BEFORE the
@@ -199,5 +200,57 @@ def build_pl_entity_change_events(
                 "newValue": patch_data[column_name],
             }
             result[-1]["payload"] = payload
+
+    return result
+
+
+def build_project_change_events(
+    original_entity: ProjectEntity,
+    patch: BaseModel,
+) -> list[EventData]:
+    pass
+
+    patch_data = patch.dict(exclude_unset=True)
+    result: list[EventData] = []
+    common_data = {
+        "project": original_entity.name,
+    }
+
+    if new_attributes := patch_data.get("attrib", {}):
+        result.append(
+            {
+                "topic": "entity.project.attrib_changed",
+                "description": "Changed project attributes",
+                **common_data,
+            }
+        )
+        if ayonconfig.audit_trail:
+            # we need to compare the values here, because setting,
+            # anatomy to project data will always "update"
+            # all the attributes
+            oval = {}
+            nval = {}
+            old_attributes = original_entity.attrib.dict()
+            for key, new_value in new_attributes.items():
+                if old_attributes.get(key) == new_value:
+                    continue
+                oval[key] = old_attributes.get(key)
+                nval[key] = new_value
+
+            payload = {
+                "oldValue": oval,
+                "newValue": nval,
+            }
+            result[-1]["payload"] = payload
+
+    # Original entity.project.changed event
+
+    result.append(
+        {
+            "topic": "entity.project.changed",
+            "description": f"Updated project {original_entity.name}",
+            **common_data,
+        }
+    )
 
     return result
