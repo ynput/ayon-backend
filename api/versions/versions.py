@@ -1,6 +1,4 @@
-from typing import Any
-
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter
 
 from ayon_server.api.dependencies import (
     CurrentUser,
@@ -11,9 +9,7 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import VersionEntity
-from ayon_server.events import EventStream
-from ayon_server.events.patch import build_pl_entity_change_events
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.operations.project_level import ProjectLevelOperations
 
 router = APIRouter(tags=["Versions"])
 
@@ -45,7 +41,6 @@ async def get_version(
 @router.post("/projects/{project_name}/versions", status_code=201)
 async def create_version(
     post_data: VersionEntity.model.post_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     sender: Sender,
@@ -57,32 +52,17 @@ async def create_version(
     """
 
     payload = post_data.dict(exclude_unset=True)
-    if "author" not in payload:
-        payload["author"] = user.name
-
-    if not user.is_admin:
-        if payload["author"] != user.name:
-            raise ForbiddenException(
-                "You can only create versions for yourself, unless you are an admin."
-            )
-
-    version = VersionEntity(project_name=project_name, payload=payload)
-    await version.ensure_create_access(user)
-    event = {
-        "topic": "entity.version.created",
-        "description": f"Version {version.name} created",
-        "summary": {"entityId": version.id, "parentId": version.parent_id},
-        "project": project_name,
-    }
-    await version.save()
-    background_tasks.add_task(
-        EventStream.dispatch,
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
         sender=sender,
         sender_type=sender_type,
-        user=user.name,
-        **event,  # type: ignore
     )
-    return EntityIdResponse(id=version.id)
+
+    ops.create("version", **payload)
+    res = await ops.process(can_fail=False, raise_on_error=True)
+    version_id = res.operations[0].entity_id
+    return EntityIdResponse(id=version_id)
 
 
 #
@@ -93,7 +73,6 @@ async def create_version(
 @router.patch("/projects/{project_name}/versions/{version_id}", status_code=204)
 async def update_version(
     post_data: VersionEntity.model.patch_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
@@ -102,19 +81,15 @@ async def update_version(
 ) -> EmptyResponse:
     """Patch (partially update) a version."""
 
-    version = await VersionEntity.load(project_name, version_id)
-    await version.ensure_update_access(user)
-    events = build_pl_entity_change_events(version, post_data)
-    version.patch(post_data)
-    await version.save()
-    for event in events:
-        background_tasks.add_task(
-            EventStream.dispatch,
-            sender=sender,
-            sender_type=sender_type,
-            user=user.name,
-            **event,
-        )
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
+        sender=sender,
+        sender_type=sender_type,
+    )
+
+    ops.update("version", version_id, **post_data.dict(exclude_unset=True))
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 
 
@@ -125,7 +100,6 @@ async def update_version(
 
 @router.delete("/projects/{project_name}/versions/{version_id}", status_code=204)
 async def delete_version(
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
@@ -137,20 +111,12 @@ async def delete_version(
     This will also delete all representations of the version.
     """
 
-    version = await VersionEntity.load(project_name, version_id)
-    await version.ensure_delete_access(user)
-    event: dict[str, Any] = {
-        "topic": "entity.version.deleted",
-        "description": f"Version {version.name} deleted",
-        "summary": {"entityId": version.id, "parentId": version.parent_id},
-        "project": project_name,
-    }
-    await version.delete()
-    background_tasks.add_task(
-        EventStream.dispatch,
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
         sender=sender,
         sender_type=sender_type,
-        user=user.name,
-        **event,
     )
+    ops.delete("version", version_id)
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()

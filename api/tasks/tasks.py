@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter
 
 from ayon_server.api.dependencies import (
     CurrentUser,
@@ -13,8 +13,8 @@ from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.config import ayonconfig
 from ayon_server.entities import TaskEntity
 from ayon_server.events import EventStream
-from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.types import Field, OPModel
 
 router = APIRouter(tags=["Tasks"])
@@ -52,7 +52,6 @@ async def get_task(
 )
 async def create_task(
     post_data: TaskEntity.model.post_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     sender: Sender,
@@ -63,23 +62,16 @@ async def create_task(
     Use a POST request to create a new task (with a new id).
     """
 
-    task = TaskEntity(project_name=project_name, payload=post_data.dict())
-    await task.ensure_create_access(user)
-    event: dict[str, Any] = {
-        "topic": "entity.task.created",
-        "description": f"Task {task.name} created",
-        "summary": {"entityId": task.id, "parentId": task.parent_id},
-        "project": project_name,
-    }
-    await task.save()
-    background_tasks.add_task(
-        EventStream.dispatch,
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
         sender=sender,
         sender_type=sender_type,
-        user=user.name,
-        **event,
     )
-    return EntityIdResponse(id=task.id)
+    ops.create("task", **post_data.dict(exclude_unset=True))
+    res = await ops.process(can_fail=False, raise_on_error=True)
+    entity_id = res.operations[0].entity_id
+    return EntityIdResponse(id=entity_id)
 
 
 #
@@ -90,7 +82,6 @@ async def create_task(
 @router.patch("/projects/{project_name}/tasks/{task_id}", status_code=204)
 async def update_task(
     post_data: TaskEntity.model.patch_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
@@ -99,19 +90,14 @@ async def update_task(
 ) -> EmptyResponse:
     """Patch (partially update) a task."""
 
-    task = await TaskEntity.load(project_name, task_id)
-    await task.ensure_update_access(user)
-    events = build_pl_entity_change_events(task, post_data)
-    task.patch(post_data)
-    await task.save()
-    for event in events:
-        background_tasks.add_task(
-            EventStream.dispatch,
-            sender=sender,
-            sender_type=sender_type,
-            user=user.name,
-            **event,
-        )
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
+        sender=sender,
+        sender_type=sender_type,
+    )
+    ops.update("task", task_id, **post_data.dict(exclude_unset=True))
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 
 
@@ -122,7 +108,6 @@ async def update_task(
 
 @router.delete("/projects/{project_name}/tasks/{task_id}", status_code=204)
 async def delete_task(
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
@@ -131,23 +116,14 @@ async def delete_task(
 ) -> EmptyResponse:
     """Delete a task."""
 
-    task = await TaskEntity.load(project_name, task_id)
-    event: dict[str, Any] = {
-        "topic": "entity.task.deleted",
-        "description": f"Task {task.name} deleted",
-        "summary": {"entityId": task.id, "parentId": task.parent_id},
-        "project": project_name,
-    }
-    if ayonconfig.audit_trail:
-        event["payload"] = {"entityData": task.dict_simple()}
-    await task.delete()
-    background_tasks.add_task(
-        EventStream.dispatch,
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
         sender=sender,
         sender_type=sender_type,
-        user=user.name,
-        **event,
     )
+    ops.delete("task", task_id)
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 
 

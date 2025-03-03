@@ -1,5 +1,3 @@
-from typing import Any
-
 from fastapi import BackgroundTasks, Query
 
 from ayon_server.api.dependencies import (
@@ -10,12 +8,8 @@ from ayon_server.api.dependencies import (
     SenderType,
 )
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
-from ayon_server.config import ayonconfig
 from ayon_server.entities import FolderEntity
-from ayon_server.events import EventStream
-from ayon_server.events.patch import build_pl_entity_change_events
-from ayon_server.exceptions import ForbiddenException
-from ayon_server.lib.postgres import Postgres
+from ayon_server.operations.project_level import ProjectLevelOperations
 
 from .router import router
 
@@ -53,28 +47,17 @@ async def create_folder(
 ) -> EntityIdResponse:
     """Create a new folder."""
 
-    folder = FolderEntity(project_name=project_name, payload=post_data.dict())
-    await folder.ensure_create_access(user)
-    event: dict[str, Any] = {
-        "topic": "entity.folder.created",
-        "description": f"Folder {folder.name} created",
-        "summary": {"entityId": folder.id, "parentId": folder.parent_id},
-        "project": project_name,
-    }
-    if ayonconfig.audit_trail:
-        event["payload"] = {
-            "newValue": folder.payload.dict(exclude_none=True),
-        }
-
-    await folder.save()
-    background_tasks.add_task(
-        EventStream.dispatch,
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
         sender=sender,
         sender_type=sender_type,
-        user=user.name,
-        **event,
     )
-    return EntityIdResponse(id=folder.id)
+
+    ops.create("folder", **post_data.dict(exclude_unset=True))
+    res = await ops.process(can_fail=False, raise_on_error=True)
+    folder_id = res.operations[0].entity_id
+    return EntityIdResponse(id=folder_id)
 
 
 #
@@ -98,47 +81,14 @@ async def update_folder(
     cannot be changed.
     """
 
-    patch_data = post_data.dict(exclude_unset=True)
-    thumbnail_only = len(patch_data) == 1 and "thumbnail_id" in patch_data
-
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            folder = await FolderEntity.load(
-                project_name, folder_id, transaction=conn, for_update=True
-            )
-
-            await folder.ensure_update_access(user, thumbnail_only=thumbnail_only)
-            has_versions = bool(await folder.get_versions(conn))
-
-            # If the folder has versions, we can't update the name,
-            # folder_type or change the hierarchy
-            for key in ("name", "folder_type", "parent_id"):
-                old_value = folder.payload.dict(exclude_none=True).get(key)
-                new_value = post_data.dict(exclude_none=None).get(key)
-
-                if (new_value is None) or (old_value == new_value):
-                    continue
-
-                if has_versions:
-                    raise ForbiddenException(
-                        f"Cannot update {key} folder with published versions"
-                    )
-
-            events = build_pl_entity_change_events(folder, post_data)
-
-            folder.patch(post_data)
-            await folder.save(transaction=conn)
-            await folder.commit(conn)
-
-    for event in events:
-        background_tasks.add_task(
-            EventStream.dispatch,
-            sender=sender,
-            sender_type=sender_type,
-            user=user.name,
-            **event,
-        )
-
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
+        sender=sender,
+        sender_type=sender_type,
+    )
+    ops.update("folder", folder_id, **post_data.dict(exclude_unset=True))
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 
 
@@ -149,7 +99,6 @@ async def update_folder(
 
 @router.delete("/{folder_id}", status_code=204)
 async def delete_folder(
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
@@ -163,28 +112,13 @@ async def delete_folder(
     its subfolders. Otherwise, deletes the folder and all its subfolders.
     """
 
-    folder = await FolderEntity.load(project_name, folder_id)
-    await folder.ensure_delete_access(user)
-    event: dict[str, Any] = {
-        "topic": "entity.folder.deleted",
-        "description": f"Folder {folder.name} deleted",
-        "summary": {"entityId": folder.id, "parentId": folder.parent_id},
-        "project": project_name,
-    }
-    if ayonconfig.audit_trail:
-        event["payload"] = {
-            "entityData": folder.dict_simple(),
-        }
-
-    if force and not user.is_manager:  # TBD
-        raise ForbiddenException("Only managers can force delete folders")
-
-    await folder.delete(force=force)
-    background_tasks.add_task(
-        EventStream.dispatch,
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
         sender=sender,
         sender_type=sender_type,
-        user=user.name,
-        **event,
     )
+
+    ops.delete("folder", folder_id, force=force)
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
