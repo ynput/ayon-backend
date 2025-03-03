@@ -61,11 +61,9 @@ async def dep_current_user(
 
 async def dep_project_name(
     project_name: str = Path(..., title="Project name", regex=PROJECT_NAME_REGEX),
-):
-    from .dependencies import dep_project_name
-
+) -> str:
     logger.warning("Using deprecated dep_project_name")
-    return await dep_project_name(project_name)
+    return project_name
 
 
 async def dep_representation_id(
