@@ -48,13 +48,13 @@ def get_tags_description(entity_desc: str, list1: list[str], list2: list[str]) -
     description = ""
     if added:
         what = entity_desc + (" tag " if len(added) == 1 else " tags ")
-        description += f"Added {what}" + ", ".join(added) + ". "
+        description += f"Added {what}" + ", ".join(added)
     if removed:
         if added:
             what = ""
         else:
             what = entity_desc + (" tag " if len(removed) == 1 else " tags ")
-        description += f"Removed {what} " + ", ".join(removed) + ". "
+        description += f"Removed {what} " + ", ".join(removed)
 
     return description.strip()
 
@@ -187,6 +187,15 @@ def build_pl_entity_change_events(
             continue
 
         description = f"Changed {entity_type} {original_entity.name} {column_name}"
+        if column_name == "active":
+            if patch_data.get("active"):
+                description = (
+                    f"{entity_type.capitalize()} {original_entity.name} activated"
+                )
+            else:
+                description = (
+                    f"{entity_type.capitalize()} {original_entity.name} deactivated"
+                )
 
         result.append(
             {
@@ -255,6 +264,11 @@ def build_project_change_events(
             continue
 
         description = f"Changed project {column_name}"
+        if column_name == "active":
+            if patch_data.get("active"):
+                description = "Project activated"
+            else:
+                description = "Project deactivated"
 
         result.append(
             {
