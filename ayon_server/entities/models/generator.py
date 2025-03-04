@@ -6,7 +6,7 @@ since Python 3.10 syntax does not work with Strawberry yet.
 
 import uuid
 from datetime import datetime
-from typing import Any, Literal, TypeVar, cast
+from typing import Any, Literal, TypeVar
 
 from pydantic import BaseModel, Field, create_model
 
@@ -14,13 +14,6 @@ from ayon_server.logging import log_traceback
 from ayon_server.types import AttributeEnumItem, AttributeType
 
 C = TypeVar("C", bound=type)
-
-T = TypeVar("T", bound=BaseModel)
-
-
-def get_list_ftype(submodel: type[T]) -> type[list[T]]:
-    return list[T]
-
 
 #
 # Field types
@@ -183,28 +176,11 @@ def generate_model(
         # Field type
         #
 
-        ftype: Any
-
         if fdef.submodel:
-            ftype = cast(type, fdef.submodel)
+            ftype = fdef.submodel
         elif fdef.list_of_submodels:
             assert fdef.list_of_submodels
-
-            # fdef.list_of_submodels could be either a subclass
-            # of pydantic.BaseModel or a callable that returns a subclass
-            # of pydantic.BaseModel
-
-            submodel: type[BaseModel]
-
-            if isinstance(fdef.list_of_submodels, type) and issubclass(
-                fdef.list_of_submodels, BaseModel
-            ):
-                submodel = fdef.list_of_submodels
-                ftype = get_list_ftype(submodel)
-            elif callable(fdef.list_of_submodels):
-                submodel = cast(type[BaseModel], fdef.list_of_submodels())
-                ftype = get_list_ftype(submodel)
-
+            ftype = list[fdef.list_of_submodels]  # type: ignore
         elif fdef.type in FIELD_TYPES:
             if fdef.required:
                 ftype = FIELD_TYPES[fdef.type]
