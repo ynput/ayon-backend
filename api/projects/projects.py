@@ -1,3 +1,5 @@
+from typing import Annotated, cast
+
 from ayon_server.api.dependencies import (
     CurrentUser,
     NewProjectName,
@@ -17,6 +19,11 @@ from ayon_server.exceptions import (
 from ayon_server.files import Storages
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
+from ayon_server.settings.anatomy.folder_types import FolderType
+from ayon_server.settings.anatomy.statuses import Status
+from ayon_server.settings.anatomy.tags import Tag
+from ayon_server.settings.anatomy.task_types import TaskType
+from ayon_server.types import Field
 
 from .router import router
 
@@ -25,16 +32,60 @@ from .router import router
 #
 
 
-@router.get("/projects/{project_name}", response_model_exclude_none=True)
+FOLDER_TYPES_FIELD = Annotated[
+    list[FolderType],
+    Field(default_factory=list, name="folder_types", title="Folder types"),
+]
+
+TASK_TYPES_FIELD = Annotated[
+    list[TaskType],
+    Field(default_factory=list, name="task_types", title="Task types"),
+]
+STATUSES_FIELD = Annotated[
+    list[Status],
+    Field(default_factory=list, title="Statuses"),
+]
+TAGS_FIELD = Annotated[
+    list[Tag],
+    Field(default_factory=list, title="Tags"),
+]
+
+
+class ProjectMainModel(ProjectEntity.model.main_model):
+    folder_types: FOLDER_TYPES_FIELD
+    task_types: TASK_TYPES_FIELD
+    statuses: STATUSES_FIELD
+    tags: TAGS_FIELD
+
+
+class ProjectPostModel(ProjectEntity.model.post_model):
+    folder_types: FOLDER_TYPES_FIELD
+    task_types: TASK_TYPES_FIELD
+    statuses: STATUSES_FIELD
+    tags: TAGS_FIELD
+
+
+class ProjectPatchModel(ProjectEntity.model.patch_model):
+    folder_types: FOLDER_TYPES_FIELD
+    task_types: TASK_TYPES_FIELD
+    statuses: STATUSES_FIELD
+    tags: TAGS_FIELD
+
+
+@router.get(
+    "/projects/{project_name}",
+    response_model_exclude_none=True,
+    response_model_exclude_unset=True,
+)
 async def get_project(
     user: CurrentUser,
     project_name: ProjectName,
-) -> ProjectEntity.model.main_model:  # type: ignore
+) -> ProjectMainModel:  # type: ignore
     """Retrieve a project by its name."""
 
     user.check_project_access(project_name)
     project = await ProjectEntity.load(project_name)
-    return project.as_user(user)
+    return cast(ProjectMainModel, project.as_user(user))
 
 
 #
@@ -67,7 +118,7 @@ async def get_project_stats(user: CurrentUser, project_name: ProjectName):
 
 @router.put("/projects/{project_name}", status_code=201)
 async def create_project(
-    put_data: ProjectEntity.model.post_model,  # type: ignore
+    put_data: ProjectPostModel,
     user: CurrentUser,
     project_name: NewProjectName,
     sender: Sender,
@@ -119,7 +170,7 @@ async def create_project(
 
 @router.patch("/projects/{project_name}", status_code=204)
 async def update_project(
-    patch_data: ProjectEntity.model.patch_model,  # type: ignore
+    patch_data: ProjectPatchModel,
     user: CurrentUser,
     project_name: ProjectName,
     sender: Sender,
@@ -139,7 +190,10 @@ async def update_project(
             "You need to be a manager in order to update a project"
         )
 
-    project.patch(patch_data)
+    patch_data_dict = patch_data.dict(exclude_unset=True)
+    patch_data_converted = ProjectEntity.model.patch_model(**patch_data_dict)
+
+    project.patch(patch_data_converted)
     await project.save()
 
     for edata in events:
