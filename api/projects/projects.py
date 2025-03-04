@@ -51,21 +51,21 @@ TAGS_FIELD = Annotated[
 ]
 
 
-class ProjectMainModel(ProjectEntity.model.main_model):
+class ProjectMainModel(ProjectEntity.model.main_model):  # type: ignore
     folder_types: FOLDER_TYPES_FIELD
     task_types: TASK_TYPES_FIELD
     statuses: STATUSES_FIELD
     tags: TAGS_FIELD
 
 
-class ProjectPostModel(ProjectEntity.model.post_model):
+class ProjectPostModel(ProjectEntity.model.post_model):  # type: ignore
     folder_types: FOLDER_TYPES_FIELD
     task_types: TASK_TYPES_FIELD
     statuses: STATUSES_FIELD
     tags: TAGS_FIELD
 
 
-class ProjectPatchModel(ProjectEntity.model.patch_model):
+class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
     folder_types: FOLDER_TYPES_FIELD
     task_types: TASK_TYPES_FIELD
     statuses: STATUSES_FIELD
@@ -80,7 +80,7 @@ class ProjectPatchModel(ProjectEntity.model.patch_model):
 async def get_project(
     user: CurrentUser,
     project_name: ProjectName,
-) -> ProjectMainModel:  # type: ignore
+) -> ProjectMainModel:
     """Retrieve a project by its name."""
 
     user.check_project_access(project_name)
