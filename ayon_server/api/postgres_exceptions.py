@@ -8,7 +8,7 @@ __all__ = [
 
 
 import re
-from typing import Any
+from typing import TypedDict
 
 from asyncpg.exceptions import (
     ForeignKeyViolationError,
@@ -18,11 +18,20 @@ from asyncpg.exceptions import (
 )
 
 
-def parse_postgres_exception(exc: IntegrityConstraintViolationError) -> dict[str, Any]:
+class ExceptionDetails(TypedDict):
+    code: int
+    detail: str
+    error: str
+
+
+def parse_postgres_exception(
+    exc: IntegrityConstraintViolationError,
+) -> ExceptionDetails:
     if isinstance(exc, NotNullViolationError):
         return {
             "detail": f"Missing required field: {exc.column_name}",
-            "status_code": 400,
+            "error": "not-null-violation",
+            "code": 400,
         }
 
     elif isinstance(exc, ForeignKeyViolationError):
