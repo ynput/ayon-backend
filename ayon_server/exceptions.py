@@ -14,8 +14,10 @@ class AyonException(Exception):
         self,
         detail: str | None = None,
         log: bool | str = False,
+        code: str | None = None,
         **kwargs,
     ) -> None:
+        self.code = code or self.detail.lower().replace(" ", "-")
         if detail is not None:
             self.detail = detail
         self.extra = kwargs

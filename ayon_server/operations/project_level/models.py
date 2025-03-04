@@ -43,6 +43,7 @@ class OperationResponseModel(OPModel):
     entity_id: Annotated[str | None, Field(title="Entity ID")] = None
     success: Annotated[bool, Field(title="Operation success")]
     status: Annotated[int, Field(title="HTTP-like status code")]
+    error_code: Annotated[str | None, Field(title="Error code")] = None
     detail: Annotated[str | None, Field(title="Error message")] = None
 
 
