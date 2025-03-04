@@ -281,7 +281,8 @@ class ProjectLevelEntity(BaseEntity):
                 if self.entity_type == "folder":
                     _ = e  # TODO: use this
                     detail = "Unable to delete a folder with products or tasks."
-                raise ConstraintViolationException(detail)
+                    code = "delete-folder-with-children"
+                raise ConstraintViolationException(detail, code=code)
 
         if transaction is None:
             async with Postgres.acquire() as conn, conn.transaction():

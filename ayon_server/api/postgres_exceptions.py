@@ -6,7 +6,9 @@ __all__ = [
     "UniqueViolationError",
 ]
 
+
 import re
+from typing import TypedDict
 
 from asyncpg.exceptions import (
     ForeignKeyViolationError,
@@ -16,11 +18,20 @@ from asyncpg.exceptions import (
 )
 
 
-def parse_postgres_exception(exc: IntegrityConstraintViolationError):
+class ExceptionDetails(TypedDict):
+    code: int
+    detail: str
+    error: str
+
+
+def parse_postgres_exception(
+    exc: IntegrityConstraintViolationError,
+) -> ExceptionDetails:
     if isinstance(exc, NotNullViolationError):
         return {
             "detail": f"Missing required field: {exc.column_name}",
-            "status_code": 400,
+            "error": "not-null-violation",
+            "code": 400,
         }
 
     elif isinstance(exc, ForeignKeyViolationError):
@@ -44,6 +55,7 @@ def parse_postgres_exception(exc: IntegrityConstraintViolationError):
             detail = exc.message
         return {
             "detail": detail,
+            "error": "foreign-key-violation",
             "code": 409,
         }
 
@@ -69,10 +81,12 @@ def parse_postgres_exception(exc: IntegrityConstraintViolationError):
 
         return {
             "detail": detail,
+            "error": "unique-violation",
             "code": 409,
         }
 
     return {
         "detail": exc.message,
+        "error": "integrity-constraint-violation",
         "code": 500,
     }
