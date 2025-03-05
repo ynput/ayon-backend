@@ -21,7 +21,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Connection, Postgres
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
@@ -148,6 +148,7 @@ async def _process_operations(
                     type=operation.type,
                     status=e.status,
                     detail=e.detail,
+                    error_code=e.code,
                     entity_id=operation.entity_id,
                     entity_type=operation.entity_type,
                 )
@@ -166,6 +167,7 @@ async def _process_operations(
                     type=operation.type,
                     status=parsed["code"],
                     detail=parsed["detail"],
+                    error_code=parsed.get("error"),
                     entity_id=operation.entity_id,
                     entity_type=operation.entity_type,
                 )
@@ -177,6 +179,7 @@ async def _process_operations(
                 break
 
         except Exception as e:
+            log_traceback("Unhandled exception in operations")
             result.append(
                 OperationResponseModel(
                     success=False,
@@ -184,6 +187,7 @@ async def _process_operations(
                     type=operation.type,
                     status=500,
                     detail=str(e),
+                    exception="unhandled-exception",
                     entity_id=operation.entity_id,
                     entity_type=operation.entity_type,
                 )
