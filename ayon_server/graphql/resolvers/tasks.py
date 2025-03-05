@@ -307,7 +307,7 @@ async def get_tasks(
     # Joins
     #
 
-    if attributes or fields.any_endswith("attrib"):
+    if attributes or fields.any_endswith("attrib") or fields.any_endswith("allAttrib"):
         sql_columns.append("pf.attrib as parent_folder_attrib")
         sql_joins.append(
             f"""
