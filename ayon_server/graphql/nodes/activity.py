@@ -205,6 +205,13 @@ def activity_from_record(
     else:
         parents = []
 
+    body = record.pop("body")
+    if context.get("inbox"):
+        body = body.replace("\n", " ")
+        if len(body) == 200:
+            # 200 characters is the inbox limit defined in the database
+            body += "..."
+
     reactions: list[ActivityReactionNode] = []
     if reactions_data := activity_data.get("reactions"):
         for reaction in reactions_data:
@@ -227,6 +234,7 @@ def activity_from_record(
         category=category,
         read=reference_data.pop("read", False),
         reactions=reactions,
+        body=body,
         **record,
     )
     # probably won't be used
