@@ -22,6 +22,7 @@ from ayon_server.graphql.resolvers.common import (
     sortdesc,
 )
 from ayon_server.graphql.types import Info
+from ayon_server.logging import logger
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     sanitize_string_list,
@@ -49,15 +50,21 @@ async def get_tasks(
     before: ARGBefore = None,
     ids: ARGIds = None,
     task_types: Annotated[
-        list[str] | None, argdesc("List of task types to filter by")
+        list[str] | None,
+        argdesc("List of task types to filter by"),
     ] = None,
     folder_ids: Annotated[
-        list[str] | None, argdesc("List of parent folder IDs to filter by")
+        list[str] | None,
+        argdesc("List of parent folder IDs to filter by"),
     ] = None,
     attributes: Annotated[
-        list[AttributeFilterInput] | None, argdesc("Filter by a list of attributes")
+        list[AttributeFilterInput] | None,
+        argdesc("Filter by a list of attributes"),
     ] = None,
-    names: Annotated[list[str] | None, argdesc("List of names to filter by")] = None,
+    names: Annotated[
+        list[str] | None,
+        argdesc("List of names to filter by"),
+    ] = None,
     statuses: Annotated[
         list[str] | None, argdesc("List of statuses to filter by")
     ] = None,
@@ -79,14 +86,14 @@ async def get_tasks(
     tags: Annotated[
         list[str] | None,
         argdesc(
-            "List tasks with all of the provided tags."
+            "List tasks with all of the provided tags. "
             "Empty list will return tasks with no tags."
         ),
     ] = None,
     tags_any: Annotated[
         list[str] | None,
         argdesc(
-            "List tasks with any of the provided tags."
+            "List tasks with any of the provided tags. "
             "Empty list will return tasks with any tags."
         ),
     ] = None,
@@ -143,17 +150,14 @@ async def get_tasks(
                 INNER JOIN project_{project_name}.versions v
                 ON af.entity_id = v.id
                 AND af.entity_type = 'version'
-                AND  af.activity_type = 'reviewable'
+                AND af.activity_type = 'reviewable'
             )
             """
         )
 
         sql_columns.append(
-            """
-            EXISTS (
-            SELECT 1 FROM reviewables WHERE task_id = tasks.id
-            ) AS has_reviewables
-            """
+            "EXISTS (SELECT 1 FROM reviewables WHERE task_id = tasks.id) "
+            "AS has_reviewables"
         )
 
     if ids is not None:
@@ -295,11 +299,17 @@ async def get_tasks(
             "active",
             "thumbnail_id",
         ]
-        fq = QueryFilter(**json.loads(filter))
+        fdata = json.loads(filter)
+        fq = QueryFilter(**fdata)
+        # when filtering by attribute, we need to merge parent folder attributes
+        # with the task attributes to get the full attribute set
         if fcond := build_filter(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="tasks",
+            column_map={
+                "attrib": "(coalesce(pf.attrib, '{}'::jsonb ) || tasks.attrib)"
+            },
         ):
             sql_conditions.append(fcond)
 
@@ -307,17 +317,25 @@ async def get_tasks(
     # Joins
     #
 
-    if attributes or fields.any_endswith("attrib") or fields.any_endswith("allAttrib"):
+    # Do we need to join the parent folder's exported attributes?
+    # We need it if we want to show the task attributes or filter by them
+    if (
+        attributes
+        or fields.any_endswith("attrib")
+        or fields.any_endswith("allAttrib")
+        or attributes
+        or filter
+    ):
         sql_columns.append("pf.attrib as parent_folder_attrib")
         sql_joins.append(
-            f"""
-            LEFT JOIN project_{project_name}.exported_attributes AS pf
-            ON tasks.folder_id = pf.folder_id
-            """
+            f"LEFT JOIN project_{project_name}.exported_attributes AS pf "
+            "ON tasks.folder_id = pf.folder_id\n"
         )
     else:
+        # Otherwise, just return an empty JSONB object
         sql_columns.append("'{}'::JSONB as parent_folder_attrib")
 
+    # Do we need the parent folder data?
     if "folder" in fields or (access_list is not None) or use_folder_query:
         sql_columns.extend(
             [
@@ -337,10 +355,8 @@ async def get_tasks(
             ]
         )
         sql_joins.append(
-            f"""
-            INNER JOIN project_{project_name}.folders
-            ON folders.id = tasks.folder_id
-            """
+            f"INNER JOIN project_{project_name}.folders "
+            "ON folders.id = tasks.folder_id\n"
         )
 
         if (
@@ -353,38 +369,23 @@ async def get_tasks(
         ):
             sql_columns.append("hierarchy.path AS _folder_path")
             sql_joins.append(
-                f"""
-                LEFT JOIN project_{project_name}.hierarchy AS hierarchy
-                ON folders.id = hierarchy.id
-                """
+                f"LEFT JOIN project_{project_name}.hierarchy AS hierarchy "
+                "ON folders.id = hierarchy.id\n"
             )
 
         if any(field.endswith("folder.attrib") for field in fields):
-            sql_columns.extend(
-                [
-                    "pr.attrib as _folder_project_attributes",
-                    "ex.attrib as _folder_inherited_attributes",
-                ]
+            sql_columns.append("pr.attrib as _folder_project_attributes")
+            sql_columns.append("ex.attrib as _folder_inherited_attributes")
+            sql_joins.append(
+                f"LEFT JOIN project_{project_name}.exported_attributes AS ex "
+                "ON folders.parent_id = ex.folder_id\n",
             )
-            sql_joins.extend(
-                [
-                    f"""
-                    LEFT JOIN project_{project_name}.exported_attributes AS ex
-                    ON folders.parent_id = ex.folder_id
-                    """,
-                    f"""
-                    INNER JOIN public.projects AS pr
-                    ON pr.name ILIKE '{project_name}'
-                    """,
-                ]
+            sql_joins.append(
+                f"INNER JOIN public.projects AS pr ON pr.name ILIKE '{project_name}'\n"
             )
         else:
-            sql_columns.extend(
-                [
-                    "'{}'::JSONB as _folder_project_attributes",
-                    "'{}'::JSONB as _folder_inherited_attributes",
-                ]
-            )
+            sql_columns.append("'{}'::JSONB as _folder_project_attributes")
+            sql_columns.append("'{}'::JSONB as _folder_inherited_attributes")
 
     #
     # Pagination
@@ -426,14 +427,20 @@ async def get_tasks(
     else:
         cte = ""
 
+    sql_columns.insert(0, cursor)
+    sql_columns_str = ",\n".join(sql_columns)
+
     query = f"""
-        {cte}
-        SELECT {cursor}, {", ".join(sql_columns)}
-        FROM project_{project_name}.tasks AS tasks
-        {" ".join(sql_joins)}
-        {SQLTool.conditions(sql_conditions)}
-        {pagination}
+{cte}
+SELECT
+{sql_columns_str}
+FROM project_{project_name}.tasks AS tasks
+{" ".join(sql_joins)}
+{SQLTool.conditions(sql_conditions)}
+{pagination}
     """
+
+    logger.trace(f"GraphQL tasks query: \n{query}")
 
     return await resolve(
         TasksConnection,

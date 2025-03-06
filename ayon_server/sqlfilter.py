@@ -200,7 +200,13 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
 
         if all(isinstance(v, str) for v in value):
             escaped_list = [v.replace("'", "''") for v in value]  # type: ignore
-            arr_value = "array[" + ", ".join([f"'{v}'" for v in escaped_list]) + "]"
+            if len(path) > 1:
+                # crawling a json, so we need to quote the values
+                arr_value = (
+                    "array[" + ", ".join([f"'\"{v}\"'" for v in escaped_list]) + "]"
+                )
+            else:
+                arr_value = "array[" + ", ".join([f"'{v}'" for v in escaped_list]) + "]"
         elif all(isinstance(v, (int)) for v in value):
             arr_value = "array[" + ", ".join([str(v) for v in value]) + "]"
             cast_type = "integer"
@@ -211,17 +217,11 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             raise ValueError("Invalid value type in list")
 
         if operator == "in":
-            if len(path) > 1:
-                return f"{column} ?| {arr_value}"
-            else:
-                return f"{column}::{cast_type} = ANY({arr_value})"
+            return f"({column})::{cast_type} = ANY({arr_value})"
         elif operator == "notin":
-            if len(path) > 1:
-                return f"NOT ({column} ?| {arr_value})"
-            else:
-                return f"{column}::{cast_type} != ALL({arr_value})"
+            return f"({column})::{cast_type} != ALL({arr_value})"
         elif operator == "any":
-            return f"{column}::{cast_type}[] && {arr_value}"
+            return f"({column})::{cast_type}[] && {arr_value}"
 
         else:
             raise ValueError(f"Invalid list operator: {operator}")
