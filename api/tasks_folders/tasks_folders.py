@@ -50,13 +50,19 @@ async def query_tasks_folders(
 ) -> TasksFoldersResponse:
     result = []
 
-    filter = build_filter(request.filter, column_whitelist=ALLOWED_KEYS)
+    filter = build_filter(
+        request.filter,
+        column_whitelist=ALLOWED_KEYS,
+        column_prefix="tasks",
+        column_map={"attrib": "(coalesce(f.attrib, '{}'::jsonb ) || tasks.attrib)"},
+    )
 
     query = f"""
         SELECT DISTINCT folder_id
-        FROM project_{project_name}.tasks
-        WHERE
-            {filter}
+        FROM project_{project_name}.tasks tasks
+        INNER JOIN project_{project_name}.exported attributes AS f
+        ON tasks.folder_id = f.folder_id
+        WHERE {filter}
     """
 
     facl = await folder_access_list(user, project_name, "read")
