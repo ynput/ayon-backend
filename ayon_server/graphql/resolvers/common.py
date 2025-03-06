@@ -1,14 +1,17 @@
+from base64 import b64decode, b64encode
 from collections.abc import Callable, Generator
 from enum import Enum
 from typing import Annotated, Any, TypeVar
 
 import strawberry
+from loguru import logger
 from strawberry.types.arguments import StrawberryArgumentAnnotation
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
+from ayon_server.utils import json_dumps, json_loads
 
 DEFAULT_PAGE_SIZE = 100
 
@@ -115,6 +118,76 @@ async def create_folder_access_list(root, info) -> list[str] | None:
     return await folder_access_list(user, project_name)
 
 
+# def create_pagination2(
+#     order_by: list[str],
+#     first: int | None = None,
+#     after: str | None = None,
+#     last: int | None = None,
+#     before: str | None = None,
+#     need_cursor: bool = True,
+# ) -> tuple[str, list[str], str]:
+#     """
+#     Create pagination query and arguments.
+#     returns a tuple of
+#       - pagination query (ORDER BY... part of the query)
+#       - additional conditions (WHERE... part of the query)
+#       - cursor (to add to SELECT... part of the query)
+#     """
+#     pagination = ""
+#     sql_conditions = []
+
+#     assert order_by, "Order by must not be empty"
+
+#     cursor: str  # put to SELECT clause (should be 'SOMETHING as cursor')
+
+#     if len(order_by) == 1 or not need_cursor:
+#         cursor = f"{order_by[0]}"
+#     else:
+#         ccols = [f"{col}::text" for col in order_by]
+#         cursor = f"({'||'.join(ccols)})"
+
+#     if not (last or first):
+#         first = 100
+
+#     curval: str = "0"  # just to keep pyright happy
+
+#     if after:
+#         curval = after
+
+#     elif before:
+#         curval = before
+
+#     if first:
+#         pagination += f"ORDER BY cursor ASC LIMIT {first}"
+#         if after:
+#             sql_conditions.append(f"{cursor} > '{curval}'")
+#     elif last:
+#         pagination += f"ORDER BY cursor DESC LIMIT {last}"
+#         if before:
+#             sql_conditions.append(f"{cursor} < '{curval}'")
+#     return pagination, sql_conditions, f"{cursor} AS cursor"
+
+
+def _decode_cursor(cursor: str | None) -> list:
+    if not cursor:
+        return []
+    try:
+        return json_loads(b64decode(cursor).decode())
+    except Exception as e:
+        logger.debug(f"Invalid cursor {e}")
+        return []
+
+
+def _get_casts(decoded_cursor: list) -> list[str]:
+    casts = []
+    for dval in decoded_cursor:
+        if isinstance(dval, str):
+            casts.append("::text")
+        else:
+            casts.append("::numeric")
+    return casts
+
+
 def create_pagination(
     order_by: list[str],
     first: int | None = None,
@@ -123,46 +196,48 @@ def create_pagination(
     before: str | None = None,
     need_cursor: bool = True,
 ) -> tuple[str, list[str], str]:
-    """
-    Create pagination query and arguments.
-    returns a tuple of
-      - pagination query (ORDER BY... part of the query)
-      - additional conditions (WHERE... part of the query)
-      - cursor (to add to SELECT... part of the query)
-    """
-    pagination = ""
-    sql_conditions = []
+    cursor_arr = []
+    pagination_arr = []
 
-    assert order_by, "Order by must not be empty"
+    logger.debug(f"Pagination from {order_by}")
 
-    cursor: str  # put to SELECT clause (should be 'SOMETHING as cursor')
+    if len(order_by) > 2:
+        raise ValueError("Order by can have only two fields")
 
-    if len(order_by) == 1 or not need_cursor:
-        cursor = f"{order_by[0]}"
+    decoded_cursor = _decode_cursor(before or after)
+    casts = _get_casts(decoded_cursor)
+    operator = "<" if before else ">"
+
+    for i, c in enumerate(order_by):
+        cursor_arr.append(f"{c} AS cursor_{i}")
+        pagination_arr.append(f"{c} {'DESC' if last else ''}")
+
+    if len(decoded_cursor) == 1:
+        conditions = f"""
+        -- paging conditions
+        (
+            {order_by[0]}{casts[0]} {operator} {decoded_cursor[0]}{casts[0]}
+        )
+        """
+    elif len(decoded_cursor) == 2:
+        conditions = f"""
+        -- paging conditions
+        (
+            {order_by[0]}{casts[0]} {operator} {decoded_cursor[0]}{casts[0]}
+        OR (
+
+            {order_by[0]}{casts[0]} = {decoded_cursor[0]}{casts[0]}
+            AND
+            {order_by[1]}{casts[1]} {operator} {decoded_cursor[1]}{casts[1]}
+        )
+        """
     else:
-        ccols = [f"{col}::text" for col in order_by]
-        cursor = f"({'||'.join(ccols)})"
+        conditions = ""
 
-    if not (last or first):
-        first = 100
+    pagination = "ORDER BY " + ", ".join(pagination_arr)
+    cursor = ", ".join(cursor_arr)
 
-    curval: str = "0"  # just to keep pyright happy
-
-    if after:
-        curval = after
-
-    elif before:
-        curval = before
-
-    if first:
-        pagination += f"ORDER BY cursor ASC LIMIT {first}"
-        if after:
-            sql_conditions.append(f"{cursor} > '{curval}'")
-    elif last:
-        pagination += f"ORDER BY cursor DESC LIMIT {last}"
-        if before:
-            sql_conditions.append(f"{cursor} < '{curval}'")
-    return pagination, sql_conditions, f"{cursor} AS cursor"
+    return pagination, [conditions] if conditions else [], cursor
 
 
 R = TypeVar("R")
@@ -177,6 +252,7 @@ async def resolve(
     first: int | None = None,
     last: int | None = None,
     context: dict[str, Any] | None = None,
+    order_by: list[str] | None = None,
 ) -> R:
     """Return a connection object from a query."""
 
@@ -193,7 +269,15 @@ async def resolve(
             node = node_type.from_record(project_name, record, context=context)
         except ForbiddenException:
             continue
-        cursor = record["cursor"]
+
+        cdata = []
+        for i, c in enumerate(order_by or []):
+            cdata.append(record[f"cursor_{i}"])
+        if cdata:
+            logger.debug(f"Cursor data: {cdata}")
+        cursor = b64encode(json_dumps(cdata).encode()).decode()
+
+        # cursor = record["cursor"]
         edges.append(edge_type(node=node, cursor=cursor))
         if count and count == len(edges):
             break

@@ -336,9 +336,9 @@ async def get_folders(
 
     paging_fields = FieldInfo(info, ["folders"])
     need_cursor = paging_fields.has_any(
-        "folders.pageInfo.startCursor",
-        "folders.pageInfo.endCursor",
-        "folders.edges.cursor",
+        "pageInfo.startCursor",
+        "pageInfo.endCursor",
+        "edges.cursor",
     )
 
     pagination, paging_conds, cursor = create_pagination(

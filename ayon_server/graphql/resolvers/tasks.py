@@ -38,6 +38,7 @@ SORT_OPTIONS = {
     "createdAt": "tasks.created_at",
     "updatedAt": "tasks.updated_at",
     "taskType": "tasks.folder_type",
+    "assignees": "array_to_string(tasks.assignees, '')",
 }
 
 
@@ -396,15 +397,17 @@ async def get_tasks(
         if sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
-            order_by.insert(0, f"tasks.attrib->>'{sort_by[7:]}'")
+            r = f"(pf.attrib || tasks.attrib)->'{sort_by[7:]}'"  # noqa
+            order_by.insert(0, r)
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
     paging_fields = FieldInfo(info, ["tasks"])
+    logger.debug(f"Paging fields: {paging_fields.fields}")
     need_cursor = paging_fields.has_any(
-        "tasks.pageInfo.startCursor",
-        "tasks.pageInfo.endCursor",
-        "tasks.edges.cursor",
+        "pageInfo.startCursor",
+        "pageInfo.endCursor",
+        "edges.cursor",
     )
 
     pagination, paging_conds, cursor = create_pagination(
@@ -416,6 +419,8 @@ async def get_tasks(
         need_cursor=need_cursor,
     )
     sql_conditions.extend(paging_conds)
+    logger.debug(f"Needs cursor: {need_cursor}")
+    logger.debug(f"Cursor: {cursor}")
 
     #
     # Query
@@ -440,7 +445,7 @@ FROM project_{project_name}.tasks AS tasks
 {pagination}
     """
 
-    logger.trace(f"GraphQL tasks query: \n{query}")
+    logger.debug(f"GraphQL tasks query: \n{query}")
 
     return await resolve(
         TasksConnection,
@@ -451,6 +456,7 @@ FROM project_{project_name}.tasks AS tasks
         first,
         last,
         context=info.context,
+        order_by=order_by,
     )
 
 
