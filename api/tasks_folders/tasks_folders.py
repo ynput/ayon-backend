@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import Field, OPModel
@@ -50,13 +51,22 @@ async def query_tasks_folders(
 ) -> TasksFoldersResponse:
     result = []
 
-    filter = build_filter(request.filter, column_whitelist=ALLOWED_KEYS)
+    filter = build_filter(
+        request.filter,
+        table_prefix="tasks",
+        column_whitelist=ALLOWED_KEYS,
+        column_map={"attrib": "(coalesce(f.attrib, '{}'::jsonb ) || tasks.attrib)"},
+    )
+
+    if not filter:
+        raise BadRequestException("No filter provided")
 
     query = f"""
-        SELECT DISTINCT folder_id
-        FROM project_{project_name}.tasks
-        WHERE
-            {filter}
+        SELECT DISTINCT tasks.folder_id
+        FROM project_{project_name}.tasks tasks
+        INNER JOIN project_{project_name}.exported_attributes AS f
+        ON tasks.folder_id = f.folder_id
+        WHERE {filter}
     """
 
     facl = await folder_access_list(user, project_name, "read")

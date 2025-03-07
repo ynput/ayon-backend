@@ -31,6 +31,7 @@ class WorkfileNode(BaseNode):
     updated_by: str | None
     status: str
     attrib: WorkfileAttribType
+    all_attrib: str
     data: str | None
     tags: list[str]
 
@@ -64,6 +65,12 @@ def workfile_from_record(
             source_entity_id=thumb_data.get("sourceEntityId"),
             relation=thumb_data.get("relation"),
         )
+    attrib = parse_attrib_data(
+        WorkfileAttribType,
+        record["attrib"],
+        user=context["user"],
+        project_name=project_name,
+    )
 
     return WorkfileNode(
         project_name=project_name,
@@ -78,12 +85,8 @@ def workfile_from_record(
         active=record["active"],
         status=record["status"],
         tags=record["tags"],
-        attrib=parse_attrib_data(
-            WorkfileAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=project_name,
-        ),
+        attrib=WorkfileAttribType(**attrib),
+        all_attrib=json_dumps(attrib),
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],

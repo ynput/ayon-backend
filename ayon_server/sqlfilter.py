@@ -1,12 +1,22 @@
 import json
 import re
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 
-from pydantic import validator
+from pydantic import StrictFloat, StrictInt, StrictStr, validator
 
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 
-ValueType = str | int | float | list[str] | list[int] | list[float] | None
+ValueType = (
+    StrictStr
+    | StrictInt
+    | StrictFloat
+    | list[StrictStr]
+    | list[StrictInt]
+    | list[StrictFloat]
+    | None
+)
+
 
 OperatorType = Literal[
     "eq",
@@ -63,7 +73,8 @@ class QueryCondition(OPModel):
         return v.lower()
 
     @validator("value")
-    def validate_value(cls, v, values):
+    def validate_value(cls, v: ValueType, values: dict[str, Any]):
+        logger.trace(f"Validating {type(v)} value {v} with {values}")
         if values.get("operator") in ("in", "notin", "any"):
             if not isinstance(v, list):
                 raise ValueError("Value must be a list")
@@ -139,6 +150,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     json_fields = kwargs.get("json_fields", JSON_FIELDS)
     table_prefix = kwargs.get("table_prefix")
     column_whitelist = kwargs.get("column_whitelist", None)
+    column_map: dict[str, str] = kwargs.get("column_map", {})
 
     path = create_path_from_key(c.key, column_whitelist)
     value = c.value
@@ -147,6 +159,8 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     safe_value: ValueType = None
 
     column = path[0]
+    if column in column_map:
+        column = column_map[column]
 
     if len(path) == 1 and path[0] not in json_fields:
         # Hack to map project and user to their respective db column names
@@ -162,18 +176,19 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             cast_type = "integer" if isinstance(value, int) else "number"
             safe_value = value
 
-    elif len(path) > 1 and column in json_fields:
+    elif len(path) > 1 and path[0] in json_fields:
         for k in path[1:]:
             column += f"->'{k}'"
 
         if isinstance(value, str | int | float):
             safe_value = json.dumps(value).replace("'", "''")
             safe_value = f"'{safe_value}'"
+            logger.trace(f"Safe value of {type(value)} {value}: {safe_value}")
 
     else:
         raise ValueError(f"Invalid path: {path}")
 
-    if table_prefix:
+    if table_prefix and path[0] not in column_map:
         column = f"{table_prefix}.{column}"
 
     if isinstance(value, list):
@@ -185,7 +200,13 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
 
         if all(isinstance(v, str) for v in value):
             escaped_list = [v.replace("'", "''") for v in value]  # type: ignore
-            arr_value = "array[" + ", ".join([f"'{v}'" for v in escaped_list]) + "]"
+            if len(path) > 1:
+                # crawling a json, so we need to quote the values
+                arr_value = (
+                    "array[" + ", ".join([f"'\"{v}\"'" for v in escaped_list]) + "]"
+                )
+            else:
+                arr_value = "array[" + ", ".join([f"'{v}'" for v in escaped_list]) + "]"
         elif all(isinstance(v, (int)) for v in value):
             arr_value = "array[" + ", ".join([str(v) for v in value]) + "]"
             cast_type = "integer"
@@ -196,17 +217,11 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             raise ValueError("Invalid value type in list")
 
         if operator == "in":
-            if len(path) > 1:
-                return f"{column} ?| {arr_value}"
-            else:
-                return f"{column}::{cast_type} = ANY({arr_value})"
+            return f"({column})::{cast_type} = ANY({arr_value})"
         elif operator == "notin":
-            if len(path) > 1:
-                return f"NOT ({column} ?| {arr_value})"
-            else:
-                return f"{column}::{cast_type} != ALL({arr_value})"
+            return f"({column})::{cast_type} != ALL({arr_value})"
         elif operator == "any":
-            return f"{column}::{cast_type}[] && {arr_value}"
+            return f"({column})::{cast_type}[] && {arr_value}"
 
         else:
             raise ValueError(f"Invalid list operator: {operator}")
@@ -245,9 +260,11 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
     """Return a SQL WHERE clause from a Filter object."""
 
     if f is None:
+        logger.trace("Empty filter")
         return None
 
     if not f.conditions:
+        logger.trace(f"Empty conditions {f.dict()}")
         return None
 
     result = []

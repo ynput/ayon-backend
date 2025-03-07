@@ -35,6 +35,7 @@ class UserNode:
     created_at: datetime
     updated_at: datetime
     attrib: UserAttribType
+    all_attrib: str
     access_groups: str
     default_access_groups: list[str]
     is_admin: bool
@@ -75,16 +76,17 @@ def user_from_record(
         and current_user.name != data.get("createdBy")
     ):
         name = get_nickname(name)
-        if attrib.email:
-            attrib.email = obscure(attrib.email)
-        if attrib.fullName:
-            attrib.fullName = name
-        attrib.avatarUrl = None
+        if email := attrib.get("email"):
+            attrib["email"] = obscure(email)
+        if attrib.get("fullName"):
+            attrib["fullName"] = name
+        attrib["avatarUrl"] = None
 
     return UserNode(
         name=name,
         active=record["active"],
-        attrib=attrib,
+        attrib=UserAttribType(**attrib),
+        all_attrib=json_dumps(attrib),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         access_groups=json_dumps(access_groups),

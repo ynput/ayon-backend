@@ -11,7 +11,6 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
-    FieldInfo,
     argdesc,
     create_folder_access_list,
     create_pagination,
@@ -153,22 +152,14 @@ async def get_workfiles(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, ["workfiles"])
-    need_cursor = paging_fields.has_any(
-        "workfiles.pageInfo.startCursor",
-        "workfiles.pageInfo.endCursor",
-        "workfiles.edges.cursor",
-    )
-
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -179,17 +170,18 @@ async def get_workfiles(
         FROM project_{project_name}.workfiles AS workfiles
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         WorkfilesConnection,
         WorkfileEdge,
         WorkfileNode,
-        project_name,
         query,
-        first,
-        last,
+        project_name=project_name,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 

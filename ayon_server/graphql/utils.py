@@ -22,13 +22,13 @@ ATTRIB_WHITELIST = [
 
 
 def parse_attrib_data(
-    target_type,
+    target_type: Any,
     own_attrib: dict[str, Any],
     user: UserEntity,
     project_name: str | None = None,
     inherited_attrib: dict[str, Any] | None = None,
     project_attrib: dict[str, Any] | None = None,
-):
+) -> dict[str, Any]:
     """ACL agnostic attribute list parser"""
 
     attr_limit: list[str] | Literal["all"] = []
@@ -74,7 +74,7 @@ def parse_attrib_data(
                 data[key] = project_attrib[key]
 
     if not data:
-        return target_type()
+        return {}
     result = {}
     expected_keys = target_type.__dataclass_fields__.keys()
     for key in expected_keys:
@@ -84,4 +84,4 @@ def parse_attrib_data(
                 if attribute_library.by_name(key)["type"] == "datetime":
                     value = datetime.fromisoformat(value)
                 result[key] = value
-    return target_type(**result)
+    return result

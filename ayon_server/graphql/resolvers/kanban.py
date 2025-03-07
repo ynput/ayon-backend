@@ -176,10 +176,8 @@ async def get_kanban(
         KanbanConnection,
         KanbanEdge,
         KanbanNode,
-        None,
         query,
-        None,
-        last,
+        last=last,
         context=info.context,
     )
     return res

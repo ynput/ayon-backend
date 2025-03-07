@@ -31,6 +31,7 @@ class VersionNode(BaseNode):
     product_id: str
     status: str
     attrib: VersionAttribType
+    all_attrib: str
     tags: list[str]
     task_id: str | None = None
     thumbnail_id: str | None = None
@@ -102,6 +103,13 @@ def version_from_record(
             relation=thumb_data.get("relation"),
         )
 
+    attrib = parse_attrib_data(
+        VersionAttribType,
+        record["attrib"],
+        user=context["user"],
+        project_name=project_name,
+    )
+
     return VersionNode(
         project_name=project_name,
         id=record["id"],
@@ -116,12 +124,8 @@ def version_from_record(
         author=author,
         status=record["status"],
         tags=record["tags"],
-        attrib=parse_attrib_data(
-            VersionAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=project_name,
-        ),
+        attrib=VersionAttribType(**attrib),
+        all_attrib=json_dumps(attrib),
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],

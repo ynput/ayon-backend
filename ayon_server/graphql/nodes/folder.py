@@ -35,6 +35,7 @@ class FolderNode(BaseNode):
     tags: list[str]
     attrib: FolderAttribType
     own_attrib: list[str]
+    all_attrib: str
     data: str | None
 
     # GraphQL specifics
@@ -120,6 +121,15 @@ def folder_from_record(
             relation=thumb_data.get("relation"),
         )
 
+    attrib = parse_attrib_data(
+        FolderAttribType,
+        record["attrib"],
+        user=context["user"],
+        project_name=project_name,
+        project_attrib=record["project_attributes"],
+        inherited_attrib=record["inherited_attributes"],
+    )
+
     return FolderNode(
         project_name=project_name,
         id=record["id"],
@@ -132,14 +142,7 @@ def folder_from_record(
         thumbnail=thumbnail,
         status=record["status"],
         tags=record["tags"],
-        attrib=parse_attrib_data(
-            FolderAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=project_name,
-            project_attrib=record["project_attributes"],
-            inherited_attrib=record["inherited_attributes"],
-        ),
+        attrib=FolderAttribType(**attrib),
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
@@ -149,6 +152,7 @@ def folder_from_record(
         has_reviewables=has_reviewables,
         path="/" + record.get("path", "").strip("/"),
         own_attrib=own_attrib,
+        all_attrib=json_dumps(attrib),
     )
 
 

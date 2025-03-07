@@ -68,31 +68,31 @@ async def get_projects(
     #
 
     order_by = ["name"]
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by, first, after, last, before
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
     cols.append(cursor)
 
     #
-    #
+    # Query
     #
 
     query = f"""
         SELECT {', '.join(cols)}
         FROM projects
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         ProjectsConnection,
         ProjectEdge,
         ProjectNode,
-        None,
         query,
-        first,
-        last,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 
