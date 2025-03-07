@@ -52,15 +52,15 @@ async def query_tasks_folders(
 
     filter = build_filter(
         request.filter,
+        table_prefix="tasks",
         column_whitelist=ALLOWED_KEYS,
-        column_prefix="tasks",
         column_map={"attrib": "(coalesce(f.attrib, '{}'::jsonb ) || tasks.attrib)"},
     )
 
     query = f"""
-        SELECT DISTINCT folder_id
+        SELECT DISTINCT tasks.folder_id
         FROM project_{project_name}.tasks tasks
-        INNER JOIN project_{project_name}.exported attributes AS f
+        INNER JOIN project_{project_name}.exported_attributes AS f
         ON tasks.folder_id = f.folder_id
         WHERE {filter}
     """

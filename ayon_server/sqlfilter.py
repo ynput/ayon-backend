@@ -74,7 +74,7 @@ class QueryCondition(OPModel):
 
     @validator("value")
     def validate_value(cls, v: ValueType, values: dict[str, Any]):
-        logger.debug(f"Validating {type(v)} value {v} with {values}")
+        logger.trace(f"Validating {type(v)} value {v} with {values}")
         if values.get("operator") in ("in", "notin", "any"):
             if not isinstance(v, list):
                 raise ValueError("Value must be a list")
@@ -183,7 +183,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         if isinstance(value, str | int | float):
             safe_value = json.dumps(value).replace("'", "''")
             safe_value = f"'{safe_value}'"
-            logger.debug(f"Safe value of {type(value)} {value}: {safe_value}")
+            logger.trace(f"Safe value of {type(value)} {value}: {safe_value}")
 
     else:
         raise ValueError(f"Invalid path: {path}")
@@ -260,11 +260,11 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
     """Return a SQL WHERE clause from a Filter object."""
 
     if f is None:
-        logger.debug("Empty filter")
+        logger.trace("Empty filter")
         return None
 
     if not f.conditions:
-        logger.debug(f"Empty conditions {f.dict()}")
+        logger.trace(f"Empty conditions {f.dict()}")
         return None
 
     result = []
