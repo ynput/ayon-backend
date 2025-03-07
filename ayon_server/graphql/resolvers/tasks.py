@@ -29,7 +29,7 @@ from ayon_server.types import (
     validate_status_list,
     validate_user_name_list,
 )
-from ayon_server.utils import SQLTool
+from ayon_server.utils import SQLTool, slugify
 
 SORT_OPTIONS = {
     "name": "tasks.name",
@@ -101,6 +101,7 @@ async def get_tasks(
         bool,
         argdesc("Include tasks in child folders when folderIds is used"),
     ] = False,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> TasksConnection:
@@ -313,6 +314,18 @@ async def get_tasks(
         ):
             sql_conditions.append(fcond)
 
+    if search:
+        terms = slugify(search, make_set=True)
+        # isn't it nice that slugify effectively prevents sql injections?
+        for term in terms:
+            cond = f"""(
+            tasks.name ILIKE '{term}%'
+            OR tasks.label ILIKE '{term}%'
+            OR tasks.task_type ILIKE '{term}%'
+            OR hierarchy.path ILIKE '%{term}%'
+            )"""
+            sql_conditions.append(cond)
+
     #
     # Joins
     #
@@ -336,7 +349,7 @@ async def get_tasks(
         sql_columns.append("'{}'::JSONB as parent_folder_attrib")
 
     # Do we need the parent folder data?
-    if "folder" in fields or (access_list is not None) or use_folder_query:
+    if "folder" in fields or (access_list is not None) or use_folder_query or search:
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
@@ -366,6 +379,7 @@ async def get_tasks(
             )
             or (access_list is not None)
             or use_folder_query
+            or search
         ):
             sql_columns.append("hierarchy.path AS _folder_path")
             sql_joins.append(
