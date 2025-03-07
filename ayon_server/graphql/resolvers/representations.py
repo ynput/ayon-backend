@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import RepresentationsConnection
 from ayon_server.graphql.edges import RepresentationEdge
 from ayon_server.graphql.nodes.representation import RepresentationNode
@@ -171,11 +172,11 @@ async def get_representation(
     root,
     info: Info,
     id: str,
-) -> RepresentationNode | None:
+) -> RepresentationNode:
     """Return a representation node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Folder ID is not specified")
     connection = await get_representations(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Representation not found")
     return connection.edges[0].node

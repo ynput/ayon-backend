@@ -25,7 +25,6 @@ class FolderAttribType:
 
 @strawberry.type
 class FolderNode(BaseNode):
-    name: str
     label: str | None
     folder_type: str
     parent_id: str | None

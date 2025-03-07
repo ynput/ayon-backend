@@ -2,6 +2,7 @@ import json
 from typing import Annotated
 
 from ayon_server.entities.core import attribute_library
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import TasksConnection
 from ayon_server.graphql.edges import TaskEdge
 from ayon_server.graphql.nodes.task import TaskNode
@@ -447,11 +448,11 @@ async def get_tasks(
     )
 
 
-async def get_task(root, info: Info, id: str) -> TaskNode | None:
+async def get_task(root, info: Info, id: str) -> TaskNode:
     """Return a task node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Task ID not specified")
     connection = await get_tasks(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Task not found")
     return connection.edges[0].node

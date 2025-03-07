@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import ProjectsConnection
 from ayon_server.graphql.edges import ProjectEdge
 from ayon_server.graphql.nodes.project import ProjectNode
@@ -98,14 +98,15 @@ async def get_projects(
 
 
 async def get_project(
-    root, info: Info, name: str | None = None, code: str | None = None
-) -> ProjectNode | None:
+    root,
+    info: Info,
+    name: str | None = None,
+    code: str | None = None,
+) -> ProjectNode:
     """Return a project node based on its name."""
-
     if not (name or code):
         raise BadRequestException("Either name or code must be provided.")
-
     connection = await get_projects(root, info, name=name, code=code)
     if not connection.edges:
-        return None
+        raise NotFoundException("Project not found")
     return connection.edges[0].node

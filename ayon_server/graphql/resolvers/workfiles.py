@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import WorkfilesConnection
 from ayon_server.graphql.edges import WorkfileEdge
 from ayon_server.graphql.nodes.workfile import WorkfileNode
@@ -193,11 +194,11 @@ async def get_workfiles(
     )
 
 
-async def get_workfile(root, info: Info, id: str) -> WorkfileNode | None:
+async def get_workfile(root, info: Info, id: str) -> WorkfileNode:
     """Return a task node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Workfile ID not specified")
     connection = await get_workfiles(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Workfile not found")
     return connection.edges[0].node

@@ -184,7 +184,10 @@ class AyonSchema(strawberry.Schema):
             message = error.message
 
             if status_code not in [401, 403, 404]:
-                logger.error(f"GraphQL: {fname}:{line_no} ({path}) {message}")
+                logger.error(
+                    f"[GRAPHQL ERROR] {path}: {message}",
+                    traceback="".join(tb.format()),
+                )
 
 
 router: GraphQLRouter[Any, Any] = GraphQLRouter(

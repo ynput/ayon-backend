@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import UsersConnection
 from ayon_server.graphql.edges import UserEdge
 from ayon_server.graphql.nodes.user import UserNode
@@ -119,11 +120,11 @@ async def get_users(
     )
 
 
-async def get_user(root, info: Info, name: str) -> UserNode | None:
+async def get_user(root, info: Info, name: str) -> UserNode:
     """Return a project node based on its name."""
     if not name:
-        return None
+        raise BadRequestException("User name not specified")
     connection = await get_users(root, info, name=name)
     if not connection.edges:
-        return None
+        raise NotFoundException("User not found")
     return connection.edges[0].node

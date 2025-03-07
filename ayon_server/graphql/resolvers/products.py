@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from ayon_server.access.utils import folder_access_list
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import ProductsConnection
 from ayon_server.graphql.edges import ProductEdge
 from ayon_server.graphql.nodes.product import ProductNode
@@ -295,11 +296,11 @@ async def get_products(
     )
 
 
-async def get_product(root, info: Info, id: str) -> ProductNode | None:
+async def get_product(root, info: Info, id: str) -> ProductNode:
     """Return a representation node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Folder ID is not specified")
     connection = await get_products(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Folder not found")
     return connection.edges[0].node

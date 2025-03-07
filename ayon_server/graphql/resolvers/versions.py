@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import VersionsConnection
 from ayon_server.graphql.edges import VersionEdge
 from ayon_server.graphql.nodes.version import VersionNode
@@ -271,11 +272,11 @@ async def get_versions(
     )
 
 
-async def get_version(root, info: Info, id: str) -> VersionNode | None:
+async def get_version(root, info: Info, id: str) -> VersionNode:
     """Return a task node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Version ID not specified")
     connection = await get_versions(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Version not found")
     return connection.edges[0].node
