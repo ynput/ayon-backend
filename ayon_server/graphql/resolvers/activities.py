@@ -8,7 +8,6 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
-    FieldInfo,
     create_pagination,
     resolve,
 )
@@ -131,20 +130,12 @@ async def get_activities(
     #
 
     order_by = ["created_at", "creation_order"]
-    paging_fields = FieldInfo(info, ["activities"])
-    need_cursor = paging_fields.has_any(
-        "activities.pageInfo.startCursor",
-        "activities.pageInfo.endCursor",
-        "activities.edges.cursor",
-    )
-
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
     sql_conditions.append(paging_conds)
 
@@ -156,14 +147,8 @@ async def get_activities(
         SELECT {cursor}, *
         FROM project_{project_name}.activity_feed
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
-
-    # print(query)
-
-    #
-    # Execute the query
-    #
 
     return await resolve(
         ActivitiesConnection,

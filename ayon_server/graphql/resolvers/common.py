@@ -153,7 +153,6 @@ def create_pagination(
     after: str | None = None,
     last: int | None = None,
     before: str | None = None,
-    **kwargs,
 ) -> tuple[str, str, str]:
     """
     Generates a pagination SQL query for a GraphQL resolver.

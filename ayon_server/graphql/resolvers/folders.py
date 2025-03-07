@@ -334,20 +334,12 @@ async def get_folders(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, ["folders"])
-    need_cursor = paging_fields.has_any(
-        "pageInfo.startCursor",
-        "pageInfo.endCursor",
-        "edges.cursor",
-    )
-
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
     sql_conditions.append(paging_conds)
 
@@ -369,7 +361,7 @@ async def get_folders(
         {SQLTool.conditions(sql_conditions)}
         GROUP BY {",".join(sql_group_by)}
         {SQLTool.conditions(sql_having).replace("WHERE", "HAVING", 1)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(

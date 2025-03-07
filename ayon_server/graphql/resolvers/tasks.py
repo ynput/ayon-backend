@@ -22,7 +22,6 @@ from ayon_server.graphql.resolvers.common import (
     sortdesc,
 )
 from ayon_server.graphql.types import Info
-from ayon_server.logging import logger
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     sanitize_string_list,
@@ -322,10 +321,10 @@ async def get_tasks(
     # We need it if we want to show the task attributes or filter by them
     if (
         attributes
+        or filter
+        or sort_by
         or fields.any_endswith("attrib")
         or fields.any_endswith("allAttrib")
-        or attributes
-        or filter
     ):
         sql_columns.append("pf.attrib as parent_folder_attrib")
         sql_joins.append(
@@ -410,7 +409,6 @@ async def get_tasks(
         before,
     )
     sql_conditions.append(paging_conds)
-    logger.debug(f"Cursor: {cursor}")
 
     #
     # Query
@@ -434,8 +432,6 @@ FROM project_{project_name}.tasks AS tasks
 {SQLTool.conditions(sql_conditions)}
 {ordering}
     """
-
-    logger.debug(f"GraphQL tasks query: \n{query}")
 
     return await resolve(
         TasksConnection,

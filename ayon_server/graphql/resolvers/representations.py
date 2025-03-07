@@ -138,7 +138,7 @@ async def get_representations(
     #
 
     order_by = ["representations.creation_order"]
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by, first, after, last, before
     )
     sql_conditions.append(paging_conds)
@@ -152,7 +152,7 @@ async def get_representations(
         FROM project_{project_name}.representations
         {' '.join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(

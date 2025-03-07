@@ -254,20 +254,12 @@ async def get_products(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, ["products"])
-    need_cursor = paging_fields.has_any(
-        "products.pageInfo.startCursor",
-        "products.pageInfo.endCursor",
-        "products.edges.cursor",
-    )
-
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
     sql_conditions.append(paging_conds)
 
@@ -280,7 +272,7 @@ async def get_products(
         FROM project_{project_name}.products
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(

@@ -223,20 +223,12 @@ async def get_versions(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, ["versions"])
-    need_cursor = paging_fields.has_any(
-        "versions.pageInfo.startCursor",
-        "versions.pageInfo.endCursor",
-        "versions.edges.cursor",
-    )
-
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
     sql_conditions.append(paging_conds)
 
@@ -256,7 +248,7 @@ async def get_versions(
         FROM project_{project_name}.versions AS versions
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
