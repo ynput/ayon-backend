@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from ayon_server.entities.core import attribute_library
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
 from ayon_server.graphql.nodes.folder import FolderNode
@@ -377,11 +378,11 @@ async def get_folders(
     )
 
 
-async def get_folder(root, info: Info, id: str) -> FolderNode | None:
+async def get_folder(root, info: Info, id: str) -> FolderNode:
     """Return a folder node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Folder ID is not specified")
     connection = await get_folders(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Folder not found")
     return connection.edges[0].node
