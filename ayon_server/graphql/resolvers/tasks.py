@@ -23,6 +23,8 @@ from ayon_server.graphql.resolvers.common import (
     sortdesc,
 )
 from ayon_server.graphql.types import Info
+from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     sanitize_string_list,
@@ -40,6 +42,23 @@ SORT_OPTIONS = {
     "taskType": "tasks.folder_type",
     "assignees": "array_to_string(tasks.assignees, '')",
 }
+
+
+async def get_priority_case() -> str:
+    attr = "priority"
+    res = await Postgres.fetch(
+        "SELECT data->'enum' as enum FROM attributes where name = $1", attr
+    )
+    if not res or not res[0]["enum"]:
+        return f"(pf.attrib || tasks.attrib)->>'{attr}'"
+    case = "CASE"
+    i = 0
+    for i, eval in enumerate(res[0]["enum"]):
+        e = eval["value"]
+        case += f" WHEN (pf.attrib || tasks.attrib)->>'{attr}' = '{e}' THEN {i}"
+    case += f" ELSE {i+1}"
+    case += " END"
+    return case
 
 
 async def get_tasks(
@@ -410,6 +429,9 @@ async def get_tasks(
     if sort_by is not None:
         if sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
+        if sort_by == "attrib.priority":
+            priority_case = await get_priority_case()
+            order_by.insert(0, priority_case)
         elif sort_by.startswith("attrib."):
             r = f"(pf.attrib || tasks.attrib)->'{sort_by[7:]}'"  # noqa
             order_by.insert(0, r)
@@ -447,6 +469,8 @@ FROM project_{project_name}.tasks AS tasks
 {SQLTool.conditions(sql_conditions)}
 {ordering}
     """
+
+    logger.debug(f"Task query\n{query}")
 
     return await resolve(
         TasksConnection,
