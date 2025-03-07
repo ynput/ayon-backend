@@ -141,7 +141,7 @@ async def get_representations(
     pagination, paging_conds, cursor = create_pagination(
         order_by, first, after, last, before
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -159,10 +159,11 @@ async def get_representations(
         RepresentationsConnection,
         RepresentationEdge,
         RepresentationNode,
-        project_name,
         query,
-        first,
-        last,
+        project_name=project_name,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 

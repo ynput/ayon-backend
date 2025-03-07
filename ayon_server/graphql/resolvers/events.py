@@ -130,7 +130,7 @@ async def get_events(
         before,
         need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     if (event_history := await Constraints.check("eventHistory")) is not None:
         event_history = event_history or 7
@@ -148,9 +148,9 @@ async def get_events(
         EventsConnection,
         EventEdge,
         EventNode,
-        None,
         query,
-        first,
-        last,
+        first=first,
+        last=last,
         context=info.context,
+        order_by=order_by,
     )

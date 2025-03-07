@@ -27,7 +27,7 @@ class TaskAttribType:
 
 @strawberry.type
 class TaskNode(BaseNode):
-    name: str
+    # name: str (inherited from BaseNode)
     label: str | None
     task_type: str
     thumbnail_id: str | None = None

@@ -71,7 +71,7 @@ async def get_projects(
     pagination, paging_conds, cursor = create_pagination(
         order_by, first, after, last, before
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
     cols.append(cursor)
 
     #
@@ -89,10 +89,10 @@ async def get_projects(
         ProjectsConnection,
         ProjectEdge,
         ProjectNode,
-        None,
         query,
-        first,
-        last,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 

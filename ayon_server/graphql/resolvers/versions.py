@@ -238,7 +238,7 @@ async def get_versions(
         before,
         need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -263,10 +263,11 @@ async def get_versions(
         VersionsConnection,
         VersionEdge,
         VersionNode,
-        project_name,
         query,
-        first,
-        last,
+        project_name=project_name,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 

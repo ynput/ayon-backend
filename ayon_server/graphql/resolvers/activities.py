@@ -146,7 +146,7 @@ async def get_activities(
         before,
         need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Build the query
@@ -169,9 +169,10 @@ async def get_activities(
         ActivitiesConnection,
         ActivityEdge,
         ActivityNode,
-        project_name,
         query,
-        first,
-        last,
+        project_name=project_name,
+        first=first,
+        last=last,
         context=info.context,
+        order_by=order_by,
     )
