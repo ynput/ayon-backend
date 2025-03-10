@@ -166,7 +166,7 @@ class ServerAddonDefinition:
             addon = Addon(self, addon_dir=addon_dir, **metadata)
             if addon.restart_requested:
                 logger.warning(
-                    f"{addon}requested server restart during initialization."
+                    f"{addon} requested server restart during initialization."
                 )
                 self.restart_requested = True
             self._versions[metadata["version"]] = addon

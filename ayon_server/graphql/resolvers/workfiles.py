@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import WorkfilesConnection
 from ayon_server.graphql.edges import WorkfileEdge
 from ayon_server.graphql.nodes.workfile import WorkfileNode
@@ -10,14 +11,13 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
-    FieldInfo,
     argdesc,
     create_folder_access_list,
-    create_pagination,
     get_has_links_conds,
     resolve,
     sortdesc,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
@@ -152,22 +152,14 @@ async def get_workfiles(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, ["workfiles"])
-    need_cursor = paging_fields.has_any(
-        "workfiles.pageInfo.startCursor",
-        "workfiles.pageInfo.endCursor",
-        "workfiles.edges.cursor",
-    )
-
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -178,26 +170,27 @@ async def get_workfiles(
         FROM project_{project_name}.workfiles AS workfiles
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         WorkfilesConnection,
         WorkfileEdge,
         WorkfileNode,
-        project_name,
         query,
-        first,
-        last,
+        project_name=project_name,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 
 
-async def get_workfile(root, info: Info, id: str) -> WorkfileNode | None:
+async def get_workfile(root, info: Info, id: str) -> WorkfileNode:
     """Return a task node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Workfile ID not specified")
     connection = await get_workfiles(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Workfile not found")
     return connection.edges[0].node

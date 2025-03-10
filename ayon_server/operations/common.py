@@ -1,3 +1,5 @@
+__all__ = ["RollbackException", "OperationType"]
+
 from typing import Literal
 
 

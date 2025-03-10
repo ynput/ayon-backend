@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import ProjectsConnection
 from ayon_server.graphql.edges import ProjectEdge
 from ayon_server.graphql.nodes.project import ProjectNode
@@ -11,9 +11,9 @@ from ayon_server.graphql.resolvers.common import (
     ARGLast,
     FieldInfo,
     argdesc,
-    create_pagination,
     resolve,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name
 from ayon_server.utils import SQLTool
@@ -68,44 +68,45 @@ async def get_projects(
     #
 
     order_by = ["name"]
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by, first, after, last, before
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
     cols.append(cursor)
 
     #
-    #
+    # Query
     #
 
     query = f"""
         SELECT {', '.join(cols)}
         FROM projects
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         ProjectsConnection,
         ProjectEdge,
         ProjectNode,
-        None,
         query,
-        first,
-        last,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 
 
 async def get_project(
-    root, info: Info, name: str | None = None, code: str | None = None
-) -> ProjectNode | None:
+    root,
+    info: Info,
+    name: str | None = None,
+    code: str | None = None,
+) -> ProjectNode:
     """Return a project node based on its name."""
-
     if not (name or code):
         raise BadRequestException("Either name or code must be provided.")
-
     connection = await get_projects(root, info, name=name, code=code)
     if not connection.edges:
-        return None
+        raise NotFoundException("Project not found")
     return connection.edges[0].node

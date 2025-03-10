@@ -28,7 +28,7 @@ async def request_server_restart(user: CurrentUser):
     if user.is_guest:
         raise ForbiddenException("Guests cannot restart the server")
 
-    logger.info(f"{user.name} requested server restart", user=user.name)
+    logger.info(f"{user.name} requested server restart")
     await EventStream.dispatch("server.restart_requested", user=user.name)
     return Response(status_code=204)
 

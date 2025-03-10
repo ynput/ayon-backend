@@ -23,7 +23,7 @@ async def run_maintenance():
         project_list = await get_project_list()
         for task_class in task_sequence:
             task = task_class()
-            logger.info(f"Maintenance: {task.description}")
+            logger.debug(f"Maintenance: {task.description}")
             if isinstance(task, StudioMaintenanceTask):
                 description = task.description
                 await EventStream.update(

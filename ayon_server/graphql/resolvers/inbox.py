@@ -90,10 +90,8 @@ async def get_inbox(
         ActivitiesConnection,
         ActivityEdge,
         ActivityNode,
-        None,
         query,
-        None,
-        last,
+        last=last,
         context=info.context,
     )
     # end_time = time.monotonic()

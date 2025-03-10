@@ -1,5 +1,3 @@
-from typing import Any
-
 from fastapi import BackgroundTasks
 
 from ayon_server.api.dependencies import (
@@ -11,8 +9,7 @@ from ayon_server.api.dependencies import (
 )
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import RepresentationEntity
-from ayon_server.events import EventStream
-from ayon_server.events.patch import build_pl_entity_change_events
+from ayon_server.operations.project_level import ProjectLevelOperations
 
 from .router import router
 
@@ -49,7 +46,6 @@ async def get_representation(
 )
 async def create_representation(
     post_data: RepresentationEntity.model.post_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     sender: Sender,
@@ -57,28 +53,16 @@ async def create_representation(
 ) -> EntityIdResponse:
     """Create a new representation."""
 
-    representation = RepresentationEntity(
-        project_name=project_name, payload=post_data.dict()
-    )
-    await representation.ensure_create_access(user)
-    event = {
-        "topic": "entity.representation.created",
-        "description": f"Representation {representation.name} created",
-        "summary": {
-            "entityId": representation.id,
-            "parentId": representation.parent_id,
-        },
-        "project": project_name,
-    }
-    await representation.save()
-    background_tasks.add_task(
-        EventStream.dispatch,
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
         sender=sender,
         sender_type=sender_type,
-        user=user.name,
-        **event,  # type: ignore
     )
-    return EntityIdResponse(id=representation.id)
+    ops.create("representation", **post_data.dict(exclude_unset=True))
+    res = await ops.process(can_fail=False, raise_on_error=True)
+    entity_id = res.operations[0].entity_id
+    return EntityIdResponse(id=entity_id)
 
 
 #
@@ -100,19 +84,18 @@ async def update_representation(
 ):
     """Patch (partially update) a representation."""
 
-    representation = await RepresentationEntity.load(project_name, representation_id)
-    await representation.ensure_update_access(user)
-    events = build_pl_entity_change_events(representation, post_data)
-    representation.patch(post_data)
-    await representation.save()
-    for event in events:
-        background_tasks.add_task(
-            EventStream.dispatch,
-            sender=sender,
-            sender_type=sender_type,
-            user=user.name,
-            **event,
-        )
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
+        sender=sender,
+        sender_type=sender_type,
+    )
+    ops.update(
+        "representation",
+        representation_id,
+        **post_data.dict(exclude_unset=True),
+    )
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
 
 
@@ -134,23 +117,12 @@ async def delete_representation(
 ):
     """Delete a representation."""
 
-    representation = await RepresentationEntity.load(project_name, representation_id)
-    await representation.ensure_delete_access(user)
-    event: dict[str, Any] = {
-        "topic": "entity.representation.deleted",
-        "description": f"Representation {representation.name} deleted",
-        "summary": {
-            "entityId": representation.id,
-            "parentId": representation.parent_id,
-        },
-        "project": project_name,
-    }
-    await representation.delete()
-    background_tasks.add_task(
-        EventStream.dispatch,
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
         sender=sender,
         sender_type=sender_type,
-        user=user.name,
-        **event,
     )
+    ops.delete("representation", representation_id)
+    await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()

@@ -194,8 +194,9 @@ class EventStream:
         )
 
         if not event.topic.startswith("log."):
+            p = f" ({event.description})" if event.description else ""
             logger.debug(
-                f"Event dispatched [{event.topic}]: {event.description}",
+                f"[EVENT CREATE] {event.topic}{p}",
                 event_id=event.id,
                 nodb=True,
             )
@@ -297,8 +298,9 @@ class EventStream:
                 message["progress"] = progress
             await Redis.publish(json_dumps(message))
             if store:
+                p = f" ({message['description']})" if message["description"] else ""
                 logger.debug(
-                    f"Event updated [{message['topic']}]: {message['description']}",
+                    f"[EVENT UPDATE] {message['topic']}{p}",
                     event_id=message["id"],
                     nodb=True,
                 )

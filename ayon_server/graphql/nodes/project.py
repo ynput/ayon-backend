@@ -84,6 +84,7 @@ class ProjectNode:
     project_name: str = strawberry.field()
     code: str = strawberry.field()
     attrib: ProjectAttribType
+    all_attrib: str
     data: str | None
     active: bool
     library: bool
@@ -233,18 +234,21 @@ def project_from_record(
     else:
         bundle = ProjectBundleType()
 
+    attrib = parse_attrib_data(
+        ProjectAttribType,
+        record["attrib"],
+        user=context["user"],
+        project_name=record["name"],
+    )
+
     return ProjectNode(
         name=record["name"],
         code=record["code"],
         project_name=record["name"],
         active=record["active"],
         library=record["library"],
-        attrib=parse_attrib_data(
-            ProjectAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=record["name"],
-        ),
+        attrib=ProjectAttribType(**attrib),
+        all_attrib=json_dumps(attrib),
         thumbnail=thumbnail,
         data=json_dumps(data) if data else None,
         bundle=bundle,

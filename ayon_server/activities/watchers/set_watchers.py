@@ -134,6 +134,7 @@ async def ensure_watching(entity: ProjectLevelEntity, user: UserEntity | str) ->
     """
 
     user_name = user.name if isinstance(user, UserEntity) else user
+    logger.trace(f"Ensuring {user_name} is watching {entity}")
 
     try:
         watchers = await get_watcher_list(entity)
@@ -156,14 +157,13 @@ async def ensure_not_watching(
     """
 
     user_name = user.name if isinstance(user, UserEntity) else user
+    logger.trace(f"Ensuring {user_name} is not watching {entity}")
 
     try:
         watchers = await get_watcher_list(entity)
     except Postgres.UndefinedTableError:
         logger.debug(f"Unable to set watchers. Entity {entity} no longer exists")
         return
-
-    logger.debug(f"Watchers: {watchers}")
 
     if user_name in watchers:
         logger.debug(f"Removing {user_name} from watchers of {entity}")
