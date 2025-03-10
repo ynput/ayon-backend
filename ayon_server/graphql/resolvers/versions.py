@@ -14,11 +14,11 @@ from ayon_server.graphql.resolvers.common import (
     FieldInfo,
     argdesc,
     create_folder_access_list,
-    create_pagination,
     get_has_links_conds,
     resolve,
     sortdesc,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool

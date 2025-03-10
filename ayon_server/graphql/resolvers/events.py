@@ -12,9 +12,9 @@ from ayon_server.graphql.resolvers.common import (
     ARGIds,
     ARGLast,
     argdesc,
-    create_pagination,
     resolve,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.types import (
     validate_name_list,

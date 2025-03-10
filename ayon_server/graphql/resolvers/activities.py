@@ -8,9 +8,9 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
-    create_pagination,
     resolve,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name_list
 from ayon_server.utils import SQLTool

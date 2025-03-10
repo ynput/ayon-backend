@@ -1,17 +1,16 @@
-from base64 import b64decode, b64encode
 from collections.abc import Callable, Generator
 from enum import Enum
 from typing import Annotated, Any, TypeVar
 
 import strawberry
-from loguru import logger
 from strawberry.types.arguments import StrawberryArgumentAnnotation
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
-from ayon_server.utils import json_dumps, json_loads
+
+from .pagination import encode_cursor
 
 DEFAULT_PAGE_SIZE = 100
 
@@ -119,100 +118,6 @@ async def create_folder_access_list(root, info) -> list[str] | None:
 
 
 #
-# Pagination and sorting
-#
-
-
-def _decode_cursor(cursor: str | None) -> list[Any]:
-    if not cursor:
-        return []
-    try:
-        return json_loads(b64decode(cursor).decode())
-    except Exception as e:
-        logger.debug(f"Invalid cursor {e}")
-        return []
-
-
-def _encode_cursor(decoded_cursor: list[Any]) -> str:
-    return b64encode(json_dumps(decoded_cursor).encode()).decode()
-
-
-def _get_casts(decoded_cursor: list[Any]) -> list[str]:
-    casts = []
-    for dval in decoded_cursor:
-        if isinstance(dval, str):
-            casts.append("::text")
-        else:
-            casts.append("::numeric")
-    return casts
-
-
-def create_pagination(
-    order_by: list[str],
-    first: int | None = None,
-    after: str | None = None,
-    last: int | None = None,
-    before: str | None = None,
-) -> tuple[str, str, str]:
-    """
-    Generates a pagination SQL query for a GraphQL resolver.
-
-    Accepts a list of columns to sort by and GraphQL pagination
-    parameters (`after`, `before`, `first`, `last`).
-
-    Returns a tuple of three strings: `ordering`, `conditions`, and `cursor`.
-
-    - `ordering`: The "ORDER BY" clause of the query,
-        including the `ORDER BY` statement itself.
-    - `conditions`: Conditions for the `WHERE` clause,
-        meant to be combined with other conditions using `AND`.
-    - `cursor`: A set of virtual columns in the `SELECT` section,
-        which the resolver uses to construct the actual cursor.
-    """
-
-    if len(order_by) > 2:
-        raise ValueError("Order by can have only two fields")
-
-    cursor_arr = []
-    ordering_arr = []
-    decoded_cursor = _decode_cursor(before or after)
-    casts = _get_casts(decoded_cursor)
-    operator = "<" if before else ">"
-
-    for i, c in enumerate(order_by):
-        cursor_arr.append(f"{c} AS cursor_{i}")
-        ordering_arr.append(f"{c} {'DESC' if last else ''}")
-
-    # Okay. I know this looks like something a 5YO would write, but hear me out.
-    # We don't need to support more than two cursors. Hopefully.
-    # So trust me, even if this is a mess, it is still MUCH more readable than
-    # doing it a loop for every cursor element. We just cover two cases,
-    # (or three if you're counting 'no cursor').
-
-    if len(decoded_cursor) == 1:
-        conditions = f"""
-        ({order_by[0]}){casts[0]} {operator} {decoded_cursor[0]}{casts[0]}
-        """
-    elif len(decoded_cursor) == 2:
-        conditions = f"""
-(
-    ({order_by[0]}){casts[0]} {operator} {decoded_cursor[0]}{casts[0]}
-    OR (
-        ({order_by[0]}){casts[0]} = {decoded_cursor[0]}{casts[0]}
-        AND
-        ({order_by[1]}){casts[1]} {operator} {decoded_cursor[1]}{casts[1]}
-    )
-)
-"""
-    else:
-        conditions = ""
-
-    ordering = "ORDER BY " + ", ".join(ordering_arr)
-    cursor = ", ".join(cursor_arr)
-    return ordering, conditions, cursor
-
-
-#
 # Actual resolver
 #
 
@@ -251,7 +156,7 @@ async def resolve(
         cdata = []
         for i, c in enumerate(order_by or []):
             cdata.append(record_dict.pop(f"cursor_{i}"))
-        cursor = _encode_cursor(cdata)
+        cursor = encode_cursor(cdata)
 
         try:
             node = node_type.from_record(project_name, record_dict, context=context)
