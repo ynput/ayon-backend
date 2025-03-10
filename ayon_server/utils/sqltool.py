@@ -52,6 +52,9 @@ class SQLTool:
 
         list(['a = 1', 'b = 2']) becomes str("a = 1 AND b = 2")
         """
+        condition_list = [
+            condition.strip() for condition in condition_list if condition.strip()
+        ]
         if condition_list:
             return ("WHERE " if add_where else "") + (
                 f" {operand} ".join(condition_list)

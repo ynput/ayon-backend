@@ -10,6 +10,8 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
 
+from .pagination import encode_cursor
+
 DEFAULT_PAGE_SIZE = 100
 
 
@@ -115,55 +117,9 @@ async def create_folder_access_list(root, info) -> list[str] | None:
     return await folder_access_list(user, project_name)
 
 
-def create_pagination(
-    order_by: list[str],
-    first: int | None = None,
-    after: str | None = None,
-    last: int | None = None,
-    before: str | None = None,
-    need_cursor: bool = True,
-) -> tuple[str, list[str], str]:
-    """
-    Create pagination query and arguments.
-    returns a tuple of
-      - pagination query (ORDER BY... part of the query)
-      - additional conditions (WHERE... part of the query)
-      - cursor (to add to SELECT... part of the query)
-    """
-    pagination = ""
-    sql_conditions = []
-
-    assert order_by, "Order by must not be empty"
-
-    cursor: str  # put to SELECT clause (should be 'SOMETHING as cursor')
-
-    if len(order_by) == 1 or not need_cursor:
-        cursor = f"{order_by[0]}"
-    else:
-        ccols = [f"{col}::text" for col in order_by]
-        cursor = f"({'||'.join(ccols)})"
-
-    if not (last or first):
-        first = 100
-
-    curval: str = "0"  # just to keep pyright happy
-
-    if after:
-        curval = after
-
-    elif before:
-        curval = before
-
-    if first:
-        pagination += f"ORDER BY cursor ASC LIMIT {first}"
-        if after:
-            sql_conditions.append(f"{cursor} > '{curval}'")
-    elif last:
-        pagination += f"ORDER BY cursor DESC LIMIT {last}"
-        if before:
-            sql_conditions.append(f"{cursor} < '{curval}'")
-    return pagination, sql_conditions, f"{cursor} AS cursor"
-
+#
+# Actual resolver
+#
 
 R = TypeVar("R")
 
@@ -172,11 +128,13 @@ async def resolve(
     connection_type: Callable[..., R],
     edge_type,
     node_type,
-    project_name: str | None,
     query: str,
+    *,
+    project_name: str | None = None,
     first: int | None = None,
     last: int | None = None,
     context: dict[str, Any] | None = None,
+    order_by: list[str] | None = None,
 ) -> R:
     """Return a connection object from a query."""
 
@@ -189,11 +147,22 @@ async def resolve(
 
     edges: list[Any] = []
     async for record in Postgres.iterate(query):
+        # Create a standard dictionary from the record
+        record_dict = dict(record)
+
+        # Create cursor:
+        # We need to do that first, because we need to get rid of
+        # the cursor data from the record
+        cdata = []
+        for i, c in enumerate(order_by or []):
+            cdata.append(record_dict.pop(f"cursor_{i}"))
+        cursor = encode_cursor(cdata)
+
         try:
-            node = node_type.from_record(project_name, record, context=context)
+            node = node_type.from_record(project_name, record_dict, context=context)
         except ForbiddenException:
             continue
-        cursor = record["cursor"]
+
         edges.append(edge_type(node=node, cursor=cursor))
         if count and count == len(edges):
             break

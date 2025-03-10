@@ -46,6 +46,7 @@ class ProductNode(BaseNode):
     status: str
     tags: list[str]
     attrib: ProductAttribType
+    all_attrib: str
     data: str | None
 
     # GraphQL specifics
@@ -121,6 +122,12 @@ def product_from_record(
             vlist.append(VersionListItem(id=id, version=vers))
 
     data = record.get("data", {})
+    attrib = parse_attrib_data(
+        ProductAttribType,
+        record["attrib"],
+        user=context["user"],
+        project_name=project_name,
+    )
 
     return ProductNode(
         project_name=project_name,
@@ -130,17 +137,13 @@ def product_from_record(
         product_type=record["product_type"],
         status=record["status"],
         tags=record["tags"],
-        attrib=parse_attrib_data(
-            ProductAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=project_name,
-        ),
+        attrib=ProductAttribType(**attrib),
         data=json_dumps(data) if data else None,
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         version_list=vlist,
+        all_attrib=json_dumps(attrib),
         _folder=folder,
     )
 
