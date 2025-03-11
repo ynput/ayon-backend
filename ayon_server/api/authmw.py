@@ -128,7 +128,7 @@ async def user_from_request(request: Request) -> UserEntity:
             reason = await get_logout_reason(access_token)
         else:
             reason = "Invalid API key"
-        logger.debug(f"Unauthorized request: {reason}")
+        logger.trace(f"Unauthorized request: {reason}")
         raise UnauthorizedException(reason)
 
     await Redis.incr("user-requests", session_data.user.name)
