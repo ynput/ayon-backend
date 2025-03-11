@@ -177,6 +177,7 @@ class Session:
             if not session.user.data.get("isService"):
                 await EventStream.dispatch(
                     "auth.logout",
+                    summary={"token": token},
                     description=message,
                     user=session.user.name,
                 )
@@ -227,14 +228,14 @@ class Session:
 
         sessions.sort(key=lambda s: s.last_used)
         for session in sessions[: len(sessions) - max_sessions]:
-            msg = "Least recently used session invalidated due to limit"
+            msg = "Too many concurrent sessions"
             await cls.delete(session.token, message=msg)
 
             msg += f" ({user_name} {session.token})"
             logger.debug(msg)
 
     @classmethod
-    async def logout_user(cls, user_name: str) -> None:
+    async def logout_user(cls, user_name: str, message: str | None = None) -> None:
         """Logout all user sessions."""
         logged_out = False
         async for session in cls.list(user_name):
@@ -243,10 +244,10 @@ class Session:
             logged_out = True
 
         if logged_out:
-            msg = f"User {user_name} logged out from all sessions"
+            message = message or f"User {user_name} logged out from all sessions"
             await EventStream.dispatch(
                 "auth.logout",
-                description=msg,
+                description=message,
                 user=user_name,
             )
 
