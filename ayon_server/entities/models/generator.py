@@ -4,13 +4,15 @@ Warning! We need to use typing.List in the models,
 since Python 3.10 syntax does not work with Strawberry yet.
 """
 
+import sys
+import time
 import uuid
 from datetime import datetime
 from typing import Any, Literal, TypeVar
 
 from pydantic import BaseModel, Field, create_model
 
-from ayon_server.logging import log_traceback
+from ayon_server.logging import log_traceback, logger
 from ayon_server.types import AttributeEnumItem, AttributeType
 
 C = TypeVar("C", bound=type)
@@ -191,4 +193,10 @@ def generate_model(
 
         fields[fdef.name] = (ftype, Field(**field))  # type: ignore
 
-    return create_model(model_name, __config__=config, **fields)  # type: ignore
+    try:
+        return create_model(model_name, __config__=config, **fields)  # type: ignore
+    except ValueError:
+        logger.error("Unable to start")
+        log_traceback(f"Invalid attribute definition: {model_name}")
+        time.sleep(5)
+        sys.exit(1)
