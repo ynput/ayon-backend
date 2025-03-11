@@ -191,7 +191,14 @@ def generate_model(
         else:
             ftype = Any
 
-        fields[fdef.name] = (ftype, Field(**field))  # type: ignore
+        # ensure we can construct the model
+        try:
+            _ = create_model("test", __config__=config, test=(ftype, Field(**field)))
+        except ValueError:
+            log_traceback(f"Unable to construct attribute '{fdef.name}'")
+            continue
+
+        fields[fdef.name] = (ftype, Field(**field))
 
     try:
         return create_model(model_name, __config__=config, **fields)  # type: ignore
