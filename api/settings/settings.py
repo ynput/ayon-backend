@@ -168,7 +168,6 @@ async def get_all_settings(
             )
 
         project_addons = r[0]["addons"]
-        logger.debug(f"project addons: {project_addons}")
         for addon_name, addon_version in project_addons.items():
             addons[addon_name] = addon_version
             inherited_addons.remove(addon_name)
@@ -314,7 +313,6 @@ async def get_all_settings(
         bundle_name is not None
     ), "Bundle name is None"  # won't happen, shut up pyright
 
-    logger.debug(f"Inherited addons: {inherited_addons}")
     return AllSettingsResponseModel(
         bundle_name=bundle_name,
         addons=addon_result,
