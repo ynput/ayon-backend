@@ -14,7 +14,11 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
-from ayon_server.types import validate_name_list, validate_user_name
+from ayon_server.types import (
+    validate_email_list,
+    validate_name_list,
+    validate_user_name,
+)
 from ayon_server.utils import SQLTool
 
 
@@ -34,6 +38,14 @@ async def get_users(
         argdesc(
             """
             The names of the users to retrieve.
+            """
+        ),
+    ] = None,
+    emails: Annotated[
+        list[str] | None,
+        argdesc(
+            """
+            The emails of the users to retrieve.
             """
         ),
     ] = None,
@@ -67,6 +79,15 @@ async def get_users(
         for name in names:
             validate_user_name(name)
         sql_conditions.append(f"users.name IN {SQLTool.array(names)}")
+
+    if emails is not None:
+        if not emails:
+            return UsersConnection()
+        validate_email_list(emails)
+        emails = [e.lower() for e in emails]
+        sql_conditions.append(
+            f"LOWER(users.attrib->>'email') IN {SQLTool.array(emails)}"
+        )
 
     # Filter by project
 
