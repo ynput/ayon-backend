@@ -49,8 +49,10 @@ class AllSettingsResponseModel(OPModel):
     addons: list[AddonSettingsItemModel] = Field(default_factory=list)
     inherited_addons: list[str] = Field(
         default_factory=list,
-        description="In the case of project bundle, list of addons "
-        "that are inherited from the studio bundle",
+        description=(
+            "If a project bundle is used, this field contains alist of addons "
+            "that are inherited from the studio bundle"
+        ),
     )
 
 
@@ -61,18 +63,48 @@ async def get_all_settings(
     bundle_name: str | None = Query(
         None,
         title="Bundle name",
-        description="Production if not set",
+        description=(
+            "Use explicit bundle name to get the addon list. "
+            "Current production (or staging) will be used if not set"
+        ),
         regex=NAME_REGEX,
     ),
     project_name: str | None = Query(
         None,
         title="Project name",
-        description="Studio settings if not set",
+        description=(
+            "Return project settings for the given project name. "
+            "Studio settings will be returned if not set"
+        ),
         regex=NAME_REGEX,
     ),
-    project_bundle_name: str | None = Query(None),
-    variant: str = Query("production"),
-    summary: bool = Query(False, title="Summary", description="Summary mode"),
+    project_bundle_name: str | None = Query(
+        None,
+        title="Project bundle name",
+        description=(
+            "Use explicit project bundle instead of the default one "
+            "to resolve the project addons."
+        ),
+    ),
+    variant: str = Query(
+        "production",
+        title="Variant",
+        description=(
+            "Variant of the settings to return. "
+            "Production (or staging) will be used if not set"
+            "This field is also used to determine which bundle to use"
+            "if bundle_name or project_bundle_name is not set"
+        ),
+    ),
+    summary: bool = Query(
+        False,
+        title="Summary",
+        description=(
+            "Summary mode. When selected, do not return actual settings "
+            "instead only return the basic information about the addons "
+            "in the specified bundles"
+        ),
+    ),
 ) -> AllSettingsResponseModel:
     """Return all addon settings
 
