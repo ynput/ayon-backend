@@ -251,6 +251,7 @@ async def update_bundle(
             is_production=row["is_production"],
             is_staging=row["is_staging"],
             is_dev=row["is_dev"],
+            is_project=data.get("is_project", False),
             active_user=row["active_user"],
             is_archived=row["is_archived"],
         )
