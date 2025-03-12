@@ -91,7 +91,6 @@ async def get_all_settings(
         title="Variant",
         description=(
             "Variant of the settings to return. "
-            "Production (or staging) will be used if not set"
             "This field is also used to determine which bundle to use"
             "if bundle_name or project_bundle_name is not set"
         ),
@@ -114,12 +113,12 @@ async def get_all_settings(
 
     ## Project settings
 
-    - when project_name is specified, endpoint returns project settings
-      and if the project has a bundle override, it will return settings
-      of the addons specified in the override.
+    When project_name is specified, endpoint returns project settings
+    and if the project has a bundle override, it will return settings
+    of the addons specified in the override.
 
-    - It is also possible to specify project_bundle_name to set the project
-      bundle explicitly (for renderfarms)
+    It is also possible to specify project_bundle_name to set the project
+    bundle explicitly (for renderfarms)
 
     """
 
