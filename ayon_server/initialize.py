@@ -22,31 +22,31 @@ async def ayon_init(extensions: bool = True):
         try:
             await Postgres.connect()
         except ConnectionRefusedError:
-            logger.info("Waiting for PostgreSQL", handlers=None)
+            logger.info("Waiting for PostgreSQL", nodb=True)
         except asyncpg.exceptions.CannotConnectNowError:
-            logger.info("PostgreSQL is starting", handlers=None)
+            logger.info("PostgreSQL is starting", nodb=True)
         except Exception as e:
             msg = " ".join([str(k) for k in e.args])
-            logger.error(f"Unable to connect to the database ({msg})", handlers=None)
+            logger.error(f"Unable to connect to the database ({msg})", nodb=True)
 
         else:  # Connection successful
             break
 
-        logger.info(f"Retrying in {retry_interval} seconds", handlers=None)
+        logger.debug(f"Retrying in {retry_interval} seconds", nodb=True)
         await asyncio.sleep(retry_interval)
 
     while not Redis.connected:
         try:
             await Redis.connect()
         except ConnectionError:
-            logger.info("Waiting for Redis", handlers=None)
+            logger.info("Waiting for Redis", nodb=True)
         except Exception as e:
             msg = " ".join([str(k) for k in e.args])
-            logger.error(f"Unable to connect to Redis ({msg})", handlers=None)
+            logger.error(f"Unable to connect to Redis ({msg})", nodb=True)
         else:
             break
 
-        logger.info(f"Retrying in {retry_interval} seconds", handlers=None)
+        logger.debug(f"Retrying in {retry_interval} seconds", nodb=True)
         await asyncio.sleep(retry_interval)
 
     if extensions:

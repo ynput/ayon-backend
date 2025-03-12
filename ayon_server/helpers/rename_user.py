@@ -78,7 +78,9 @@ async def rename_user(
 
     # Renaming user has many side effects, so we need to log out all Sessions
     # and let the user log in again
-    await Session.logout_user(old_name)
+    await Session.logout_user(
+        old_name, message="User has been logged out after renaming."
+    )
 
     await EventStream.dispatch(
         "entity.user.renamed",

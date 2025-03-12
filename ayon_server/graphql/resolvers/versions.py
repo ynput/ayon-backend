@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import VersionsConnection
 from ayon_server.graphql.edges import VersionEdge
 from ayon_server.graphql.nodes.version import VersionNode
@@ -13,11 +14,11 @@ from ayon_server.graphql.resolvers.common import (
     FieldInfo,
     argdesc,
     create_folder_access_list,
-    create_pagination,
     get_has_links_conds,
     resolve,
     sortdesc,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
@@ -223,22 +224,14 @@ async def get_versions(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, ["versions"])
-    need_cursor = paging_fields.has_any(
-        "versions.pageInfo.startCursor",
-        "versions.pageInfo.endCursor",
-        "versions.edges.cursor",
-    )
-
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -256,26 +249,27 @@ async def get_versions(
         FROM project_{project_name}.versions AS versions
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         VersionsConnection,
         VersionEdge,
         VersionNode,
-        project_name,
         query,
-        first,
-        last,
+        project_name=project_name,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 
 
-async def get_version(root, info: Info, id: str) -> VersionNode | None:
+async def get_version(root, info: Info, id: str) -> VersionNode:
     """Return a task node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Version ID not specified")
     connection = await get_versions(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Version not found")
     return connection.edges[0].node

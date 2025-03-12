@@ -32,6 +32,27 @@ def access_token_from_request(request: Request) -> str | None:
     return token
 
 
+async def get_logout_reason(token: str) -> str:
+    reason = await Redis.get_json("logoutreason", token)
+    if not reason:
+        res = await Postgres.fetch(
+            """
+            SELECT description FROM events
+            WHERE topic = 'auth.logout'
+            AND summary->>'token' = $1
+            AND created_at > NOW() - interval '5 minutes'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            token,
+        )
+        if res:
+            reason = res[0]["description"]
+        else:
+            reason = "Invalid session"
+        await Redis.set_json("logoutreason", "token", reason, ttl=600)
+    return reason
+
+
 async def user_from_api_key(api_key: str) -> UserEntity:
     """Return a user associated with the given API key.
 
@@ -89,6 +110,8 @@ async def user_from_request(request: Request) -> UserEntity:
         if authorization:
             api_key = parse_api_key(authorization)
 
+    access_token: str | None = None
+
     if api_key:
         if (session_data := await Session.check(api_key, request)) is None:
             user = await user_from_api_key(api_key)
@@ -101,7 +124,12 @@ async def user_from_request(request: Request) -> UserEntity:
         raise UnauthorizedException("Access token is missing")
 
     if not session_data:
-        raise UnauthorizedException("Invalid access token")
+        if access_token:
+            reason = await get_logout_reason(access_token)
+        else:
+            reason = "Invalid API key"
+        logger.trace(f"Unauthorized request: {reason}")
+        raise UnauthorizedException(reason)
 
     await Redis.incr("user-requests", session_data.user.name)
     user = UserEntity.from_record(session_data.user.dict())
