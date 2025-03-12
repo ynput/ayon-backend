@@ -442,7 +442,8 @@ async def delete_user_session(
         raise ForbiddenException(
             "You are not allowed to delete sessions which don't belong to you"
         )
-    await Session.delete(session_id)
+    msg = f"Logged out by {current_user.name}"
+    await Session.delete(session_id, message=msg)
     return EmptyResponse()
 
 
