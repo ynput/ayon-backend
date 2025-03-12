@@ -42,7 +42,7 @@ def validate_attribute_data(name: str, fdef: AttributeData) -> None:
     ftype = FIELD_TYPES[fdef.type]
 
     try:
-        _ = create_model("test", test=(ftype, Field(**field)))
+        _ = create_model("test", test=(ftype, Field(**field)))  # type: ignore
     except ValueError as e:
         log_traceback(f"Unable to construct attribute '{name}'")
         raise BadRequestException(

@@ -191,14 +191,20 @@ def generate_model(
         else:
             ftype = Any
 
+        if "default" in field and "default_factory" in field:
+            logger.error(
+                f"Both default and default_factory provided for field '{fdef.name}'"
+            )
+            field.pop("default")
+
         # ensure we can construct the model
         try:
-            _ = create_model("test", __config__=config, test=(ftype, Field(**field)))
+            _ = create_model("test", __config__=config, test=(ftype, Field(**field)))  # type: ignore
         except ValueError:
             log_traceback(f"Unable to construct attribute '{fdef.name}'")
             continue
 
-        fields[fdef.name] = (ftype, Field(**field))
+        fields[fdef.name] = (ftype, Field(**field))  # type: ignore
 
     try:
         return create_model(model_name, __config__=config, **fields)  # type: ignore
