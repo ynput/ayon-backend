@@ -22,7 +22,7 @@ C = TypeVar("C", bound=type)
 #
 
 
-FIELD_TYPES = {
+FIELD_TYPES: dict[AttributeType, type] = {
     "string": str,
     "integer": int,
     "float": float,
