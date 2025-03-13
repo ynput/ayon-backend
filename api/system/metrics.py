@@ -1,7 +1,12 @@
 from fastapi import Query
 from fastapi.responses import PlainTextResponse
 
-from ayon_server.api.dependencies import ApiKey, CurrentUser, CurrentUserOptional
+from ayon_server.api.dependencies import (
+    ApiKey,
+    CurrentUser,
+    CurrentUserOptional,
+    NoTraces,
+)
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
@@ -33,7 +38,7 @@ async def get_production_metrics(
     return metrics
 
 
-@router.get("/metrics/system", tags=["System"])
+@router.get("/metrics/system", tags=["System"], dependencies=[NoTraces])
 async def get_system_metrics(
     user: CurrentUserOptional,
     api_key: ApiKey,
