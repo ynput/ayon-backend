@@ -83,6 +83,7 @@ PROJECT_CODE_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_]*[a-zA-Z0-9_]$"
 # api key can contain alphanumeric characters and hyphens
 API_KEY_REGEX = r"^[a-zA-Z0-9\-]*$"
 SEMVER_REGEX = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"  # noqa: E501
+EMAIL_REGEX = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
 
 
 def validate_name(name: str, regex: str = NAME_REGEX) -> str:
@@ -99,6 +100,18 @@ def validate_user_name(name: str) -> str:
             f"User name '{name}' does not match regex '{USER_NAME_REGEX}'"
         )
     return name
+
+
+def validate_email(email: str) -> str:
+    """Validate email."""
+    if not re.match(EMAIL_REGEX, email):
+        raise BadRequestException(f"Invalid email: '{email}'")
+    return email
+
+
+def validate_email_list(emails: list[str]) -> list[str]:
+    """Validate list of emails."""
+    return [validate_email(email) for email in emails]
 
 
 def validate_name_list(names: list[str], regex: str = NAME_REGEX) -> list[str]:
