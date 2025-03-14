@@ -184,6 +184,14 @@ async def create_new_bundle(
                     bundle.addons[system_addon_name] = addon_definition.latest.version
 
     if bundle.is_project:
+        if bundle.is_production or bundle.is_staging:
+            raise BadRequestException(
+                "Project bunldes cannot be set as production or staging"
+            )
+
+        if bundle.is_dev:
+            raise BadRequestException("Project bundles cannot be set as development")
+
         for addon_name in list(bundle.addons.keys()):
             adef = AddonLibrary.get(addon_name)
             if adef is None:
@@ -260,6 +268,14 @@ async def update_bundle(
             raise BadRequestException(
                 "Cannot archive bundle that is production or staging"
             )
+
+        # Sanity checks
+
+        if bundle.is_project:
+            if patch.is_production or patch.is_staging:
+                raise BadRequestException("Cannot update production or staging bundle")
+            if patch.is_dev:
+                raise BadRequestException("Cannot update dev bundle")
 
         #
         # Dev specific fields
