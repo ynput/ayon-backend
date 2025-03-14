@@ -19,7 +19,9 @@ def check_valid_mime(content_type: str) -> None:
         return None
     if content_type.lower().startswith("image/"):
         return None
-    raise BadRequestException("Only videos are supported for reviewables now")
+    raise BadRequestException(
+        "Only videos and images are supported for reviewables now"
+    )
 
 
 async def create_reviewable(
