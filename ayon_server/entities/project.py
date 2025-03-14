@@ -4,102 +4,26 @@ along with the project data, this entity also handles
 folder_types of the project and the folder hierarchy.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.entities.models.submodels import LinkTypeModel
+from ayon_server.entities.project_aux_tables import (
+    FolderTypeDict,
+    StatusTypeDict,
+    TagTypeDict,
+    TaskTypeDict,
+    aux_table_update,
+    link_types_update,
+)
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import SQLTool, dict_exclude, get_nickname
-
-
-async def aux_table_update(conn, table: str, update_data: list[dict[str, Any]]):
-    """Update auxiliary table."""
-
-    # Fetch the current data first
-    old_data = {}
-    for row in await conn.fetch(f"SELECT name, data FROM {table} ORDER BY position"):
-        old_data[row["name"]] = row["data"]
-
-    position = 0
-    for data in update_data:
-        position += 1
-        name = data.pop("name")
-
-        # Rename
-        original_name = data.pop("original_name", None)
-        if original_name and (original_name in old_data) and name != original_name:
-            await conn.execute(
-                f"""
-                UPDATE {table} SET name = $1, position = $2, data = $3
-                WHERE name = $4
-                """,
-                name,
-                position,
-                data,
-                original_name,
-            )
-
-            del old_data[original_name]
-            continue
-
-        # Upsert
-        await conn.execute(
-            f"INSERT INTO {table} (name, position, data) VALUES ($1, $2, $3) "
-            f"ON CONFLICT (name) DO UPDATE SET position = $2, data = $3",
-            name,
-            position,
-            data,
-        )
-
-        if name in old_data:
-            del old_data[name]
-
-    # Delete the rest
-    if old_data:
-        old_keys = list(old_data.keys())
-        query = f"DELETE FROM {table} WHERE name = ANY($1)"
-        await conn.execute(query, old_keys)
-
-
-async def link_types_update(conn, table: str, update_data: list[LinkTypeModel]):
-    existing_names: list[str] = []
-    for row in await conn.fetch(f"SELECT name FROM {table}"):
-        existing_names.append(row["name"])
-
-    new_names: list[str] = []
-    for link_type_data in update_data or []:
-        name = "|".join(
-            [
-                link_type_data.link_type,
-                link_type_data.input_type,
-                link_type_data.output_type,
-            ]
-        )
-        new_names.append(name)
-
-        # Upsert
-        await conn.execute(
-            f"""
-            INSERT INTO {table} (name, link_type, input_type, output_type, data)
-            VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (name) DO UPDATE SET
-            link_type = $2, input_type = $3, output_type = $4, data = $5
-            """,
-            name,
-            link_type_data.link_type,
-            link_type_data.input_type,
-            link_type_data.output_type,
-            link_type_data.data,
-        )
-
-    for name in existing_names:
-        if name not in new_names:
-            await conn.execute(f"DELETE FROM {table} WHERE name = $1", name)
 
 
 class ProjectEntity(TopLevelEntity):
@@ -284,30 +208,13 @@ class ProjectEntity(TopLevelEntity):
         # Save aux tables
         #
         await aux_table_update(
-            transaction,
-            f"project_{project_name}.folder_types",
-            self.folder_types,
+            transaction, project_name, "folder_types", self.folder_types
         )
-        await aux_table_update(
-            transaction,
-            f"project_{project_name}.task_types",
-            self.task_types,
-        )
-        await aux_table_update(
-            transaction,
-            f"project_{project_name}.statuses",
-            self.statuses,
-        )
-        await aux_table_update(
-            transaction,
-            f"project_{project_name}.tags",
-            self.tags,
-        )
-
+        await aux_table_update(transaction, project_name, "task_types", self.task_types)
+        await aux_table_update(transaction, project_name, "statuses", self.statuses)
+        await aux_table_update(transaction, project_name, "tags", self.tags)
         await link_types_update(
-            transaction,
-            f"project_{project_name}.link_types",
-            self.link_types,
+            transaction, project_name, "link_types", self.link_types
         )
 
         return True
@@ -378,7 +285,7 @@ class ProjectEntity(TopLevelEntity):
         self._payload.config = value  # type: ignore
 
     @property
-    def folder_types(self) -> list[dict[str, Any]]:
+    def folder_types(self) -> Sequence[FolderTypeDict]:
         """Return the folder types."""
         return self._payload.folder_types  # type: ignore
 
@@ -388,7 +295,7 @@ class ProjectEntity(TopLevelEntity):
         self._payload.folder_types = value  # type: ignore
 
     @property
-    def task_types(self) -> list[dict[str, Any]]:
+    def task_types(self) -> Sequence[TaskTypeDict]:
         """Return the task types."""
         return self._payload.task_types  # type: ignore
 
@@ -398,17 +305,7 @@ class ProjectEntity(TopLevelEntity):
         self._payload.task_types = value  # type: ignore
 
     @property
-    def link_types(self) -> list[LinkTypeModel]:
-        """Return the link types."""
-        return self._payload.link_types  # type: ignore
-
-    @link_types.setter
-    def link_types(self, value: list[dict[str, Any]]) -> None:
-        """Set the link types."""
-        self._payload.link_types = value  # type: ignore
-
-    @property
-    def statuses(self) -> list[dict[str, Any]]:
+    def statuses(self) -> Sequence[StatusTypeDict]:
         """Return the statuses."""
         return self._payload.statuses  # type: ignore
 
@@ -418,7 +315,7 @@ class ProjectEntity(TopLevelEntity):
         self._payload.statuses = value  # type: ignore
 
     @property
-    def tags(self) -> list[dict[str, Any]]:
+    def tags(self) -> Sequence[TagTypeDict]:
         """Return the tags."""
         return self._payload.tags  # type: ignore
 
@@ -426,3 +323,15 @@ class ProjectEntity(TopLevelEntity):
     def tags(self, value: list[dict[str, Any]]) -> None:
         """Set the tags."""
         self._payload.tags = value  # type: ignore
+
+    # Link types. Black sheep of aux tables
+
+    @property
+    def link_types(self) -> Sequence[LinkTypeModel]:
+        """Return the link types."""
+        return self._payload.link_types  # type: ignore
+
+    @link_types.setter
+    def link_types(self, value: list[dict[str, Any]]) -> None:
+        """Set the link types."""
+        self._payload.link_types = value  # type: ignore

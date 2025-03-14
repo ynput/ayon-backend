@@ -1,3 +1,13 @@
+__all__ = [
+    "Anatomy",
+    "FolderType",
+    "LinkType",
+    "Root",
+    "Status",
+    "Tag",
+    "TaskType",
+]
+
 from pydantic import validator
 
 from ayon_server.entities import ProjectEntity
@@ -46,30 +56,35 @@ class Anatomy(BaseSettingsModel):
         default_factory=lambda: default_folder_types,
         title="Folder types",
         description="Folder types configuration",
+        example=[default_folder_types[0].dict()],
     )
 
     task_types: list[TaskType] = SettingsField(
         default_factory=lambda: default_task_types,
         title="Task types",
         description="Task types configuration",
+        example=[default_task_types[0].dict()],
     )
 
     link_types: list[LinkType] = SettingsField(
         default_factory=lambda: default_link_types,
         title="Link types",
         description="Link types configuration",
+        example=[default_link_types[0].dict()],
     )
 
     statuses: list[Status] = SettingsField(
         default_factory=lambda: default_statuses,
         title="Statuses",
         description="Statuses configuration",
+        example=[default_statuses[0].dict()],
     )
 
     tags: list[Tag] = SettingsField(
         default_factory=lambda: default_tags,
         title="Tags",
         description="Tags configuration",
+        example=[default_tags[0].dict()],
     )
 
     @validator("roots", "folder_types", "task_types", "statuses", "tags")

@@ -1,24 +1,24 @@
+from collections.abc import Sequence
 from typing import Any
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
-from ayon_server.settings.anatomy import Anatomy
+from ayon_server.settings.anatomy import (
+    Anatomy,
+    FolderType,
+    LinkType,
+    Root,
+    Status,
+    Tag,
+    TaskType,
+)
 
 
 def dict2list(src) -> list[dict[str, Any]]:
     return [{"name": k, "original_name": k, **v} for k, v in src.items()]
 
 
-def process_aux_table(src: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Process auxiliary table."""
-    # TODO: isn't this redundant since we have validators on the model?
-    result = []
-    for data in src:
-        result.append({**data, "original_name": data["name"]})
-    return result
-
-
-def process_link_types(src: list[LinkTypeModel]) -> list[dict[str, Any]]:
+def process_link_types(src: Sequence[LinkTypeModel]) -> list[dict[str, Any]]:
     """Convert project linktypes sumbmodel to anatomy-style linktypes."""
     result = []
     for ltdata in src:
@@ -45,15 +45,13 @@ def extract_project_anatomy(project: ProjectEntity) -> Anatomy:
             continue
         templates[template_group] = dict2list(template_group_def)
 
-    result = {
-        "templates": templates,
-        "roots": dict2list(project.config.get("roots", {})),
-        "folder_types": process_aux_table(project.folder_types),
-        "task_types": process_aux_table(project.task_types),
-        "link_types": process_link_types(project.link_types),
-        "statuses": process_aux_table(project.statuses),
-        "tags": process_aux_table(project.tags),
-        "attributes": project.attrib,
-    }
-
-    return Anatomy(**result)
+    return Anatomy(
+        templates=templates,
+        attributes=project.attrib,
+        roots=[Root(**k) for k in dict2list(project.config.get("roots", {}))],
+        folder_types=[FolderType(**k) for k in project.folder_types],
+        task_types=[TaskType(**k) for k in project.task_types],
+        statuses=[Status(**k) for k in project.statuses],
+        tags=[Tag(**k) for k in project.tags],
+        link_types=[LinkType(**k) for k in process_link_types(project.link_types)],
+    )
