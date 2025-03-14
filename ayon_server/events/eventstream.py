@@ -194,11 +194,13 @@ class EventStream:
         )
 
         if not event.topic.startswith("log."):
-            logger.debug(
-                f"Event dispatched [{event.topic}]: {event.description}",
-                event_id=event.id,
-                nodb=True,
-            )
+            p = f" ({event.description})" if event.description else ""
+            ctx = {"nodb": True, "event_id": event.id}
+            if event.user:
+                ctx["user"] = event.user
+            if event.project:
+                ctx["project"] = event.project
+            logger.debug(f"[EVENT CREATE] {event.topic}{p}", **ctx)
 
         handlers = cls.local_hooks.get(event.topic, {}).values()
         for handler in handlers:
@@ -297,12 +299,14 @@ class EventStream:
                 message["progress"] = progress
             await Redis.publish(json_dumps(message))
             if store:
-                logger.debug(
-                    f"Event updated [{message['topic']}]: {message['description']}",
-                    event_id=message["id"],
-                    nodb=True,
-                )
-            return True
+                p = f" ({message['description']})" if message["description"] else ""
+                ctx = {"nodb": True, "event_id": message["id"]}
+                if message["user"]:
+                    ctx["user"] = message["user"]
+                if message["project"]:
+                    ctx["project"] = message["project"]
+                logger.debug(f"[EVENT UPDATE] {message['topic']}{p}", **ctx)
+                return True
         return False
 
     @classmethod

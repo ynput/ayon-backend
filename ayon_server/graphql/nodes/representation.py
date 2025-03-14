@@ -32,11 +32,11 @@ class RepresentationAttribType:
 
 @strawberry.type
 class RepresentationNode(BaseNode):
-    name: str
     version_id: str
     status: str
     tags: list[str]
     attrib: RepresentationAttribType
+    all_attrib: str
     data: str | None
 
     # GraphQL specifics
@@ -85,6 +85,12 @@ def representation_from_record(
     """Construct a representation node from a DB row."""
 
     data = record.get("data") or {}
+    attrib = parse_attrib_data(
+        RepresentationAttribType,
+        record["attrib"],
+        user=context["user"],
+        project_name=project_name,
+    )
 
     return RepresentationNode(
         project_name=project_name,
@@ -93,12 +99,8 @@ def representation_from_record(
         version_id=record["version_id"],
         status=record["status"],
         tags=record["tags"],
-        attrib=parse_attrib_data(
-            RepresentationAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=project_name,
-        ),
+        attrib=RepresentationAttribType(**attrib),
+        all_attrib=json_dumps(attrib),
         data=json_dumps(data) if data else None,
         active=record["active"],
         created_at=record["created_at"],

@@ -57,8 +57,7 @@ class LogCollector(BackgroundWorker):
             await EventStream.dispatch(**record)
         except Exception:
             m = f"Unable to dispatch log message: {record}"
-            # do not use the logger, if you don't like recursion
-            print(m, flush=True)
+            logger.warning(m, nodb=True)
 
     async def run(self):
         # During the startup, we cannot write to the database
@@ -68,8 +67,6 @@ class LogCollector(BackgroundWorker):
             try:
                 await EventStream.dispatch("server.log_collector_started")
             except Exception:
-                # Do not log the exception using the logger,
-                # if you don't like recursion.
                 await asyncio.sleep(0.5)
                 continue
             break
@@ -84,10 +81,8 @@ class LogCollector(BackgroundWorker):
 
     async def finalize(self):
         while not self.queue.empty():
-            logger.debug(
-                f"Processing {len(self.queue.queue)} remaining log messages",
-                handlers=None,
-                user="server",
+            logger.trace(
+                f"Processing {len(self.queue.queue)} remaining log messages", nodb=True
             )
             record = self.queue.get()
             await self.process_message(record)

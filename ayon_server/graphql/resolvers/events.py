@@ -11,11 +11,10 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGIds,
     ARGLast,
-    FieldInfo,
     argdesc,
-    create_pagination,
     resolve,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.types import (
     validate_name_list,
@@ -114,23 +113,15 @@ async def get_events(
         if lconds:
             sql_conditions.extend(lconds)
 
-    paging_fields = FieldInfo(info, ["events"])
-    need_cursor = paging_fields.has_any(
-        "events.pageInfo.startCursor",
-        "events.pageInfo.endCursor",
-        "events.edges.cursor",
-    )
-
     order_by = ["creation_order"]
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     if (event_history := await Constraints.check("eventHistory")) is not None:
         event_history = event_history or 7
@@ -141,16 +132,16 @@ async def get_events(
     query = f"""
         SELECT {cursor}, * FROM events
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         EventsConnection,
         EventEdge,
         EventNode,
-        None,
         query,
-        first,
-        last,
+        first=first,
+        last=last,
         context=info.context,
+        order_by=order_by,
     )

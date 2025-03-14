@@ -60,23 +60,27 @@ class SystemMetrics:
         result = []
         query = """
             SELECT
+                projects.name AS project_name,
                 nspname AS schema_name,
                 SUM(pg_total_relation_size(pg_class.oid)) AS schema_size
-            FROM pg_class
-            JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid
+            FROM
+                public.projects
+            RIGHT JOIN pg_namespace
+                ON pg_namespace.nspname ILIKE 'project_' || projects.name
+            LEFT JOIN pg_class ON pg_class.relnamespace = pg_namespace.oid
             WHERE pg_namespace.nspname NOT IN ('pg_catalog', 'information_schema')
-            GROUP BY nspname
+            GROUP BY projects.name, nspname
+            ORDER BY projects.name;
         """
         res = await Postgres.fetch(query)
         total_size = 0
         for record in res:
-            schema = record["schema_name"]
-            if schema == "public":
+            if project_name := record["project_name"]:
+                tags = {"project": project_name}
+                key = "db_size_project"
+            elif record["schema_name"] == "public":
                 tags = None
                 key = "db_size_shared"
-            elif schema.startswith("project_"):
-                tags = {"project": schema[8:]}
-                key = "db_size_project"
             else:
                 continue
             result.append(Metric(key, record["schema_size"], tags))
@@ -123,7 +127,7 @@ class SystemMetrics:
     async def get_upload_sizes(self) -> list[Metric]:
         result: list[Metric] = []
 
-        projects = await Postgres.fetch("SELECT name FROM projects")
+        projects = await Postgres.fetch("SELECT name FROM projects ORDER BY name")
         project_names = [row["name"] for row in projects]
         total_size = 0
 
@@ -154,9 +158,6 @@ class SystemMetrics:
 
             thumbnails_size = res[0]["sum"] or 0
             project_size += thumbnails_size
-
-            if not project_size:
-                continue
 
             m = Metric(
                 "storage_utilization_project",

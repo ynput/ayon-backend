@@ -86,14 +86,13 @@ async def get_inbox(
     #
 
     # start_time = time.monotonic()
+    info.context["inbox"] = True
     res = await resolve(
         ActivitiesConnection,
         ActivityEdge,
         ActivityNode,
-        None,
         query,
-        None,
-        last,
+        last=last,
         context=info.context,
     )
     # end_time = time.monotonic()

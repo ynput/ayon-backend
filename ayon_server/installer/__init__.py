@@ -37,7 +37,7 @@ class BackgroundInstaller(BackgroundWorker):
         self.restart_needed: bool = False
 
     async def enqueue(self, event_id: str) -> None:
-        logger.debug(f"Background installer: enqueuing event {event_id}")
+        logger.debug("Background installer: enqueuing event", event_id=event_id)
         await self.event_queue.put(event_id)
 
     async def process_event(self, event_id: str) -> None:
@@ -49,14 +49,17 @@ class BackgroundInstaller(BackgroundWorker):
         if not res:
             return
 
-        if res[0]["status"] == "failed" and res[0]["retries"] > 3:
-            logger.error(f"Event {event_id} failed too many times")
-            raise TooManyRetries()
-
         topic = res[0]["topic"]
         summary = res[0]["summary"]
 
-        logger.info(f"Background installer: processing {topic} event: {event_id}")
+        if res[0]["status"] == "failed" and res[0]["retries"] > 3:
+            logger.error(
+                f"Background installer: {topic} failed too many times",
+                event_id=event_id,
+            )
+            raise TooManyRetries()
+
+        logger.info(f"Background installer: processing {topic}", event_id=event_id)
 
         if topic == "addon.install":
             await unpack_addon(
@@ -76,7 +79,8 @@ class BackgroundInstaller(BackgroundWorker):
             await download_installer(event_id, summary["url"])
 
         logger.info(
-            f"Background installer: finished processing {topic} event: {event_id}"
+            f"Background installer: Finished processing {topic}",
+            event_id=event_id,
         )
 
         asyncio.create_task(handle_need_restart(self))
@@ -102,7 +106,10 @@ class BackgroundInstaller(BackgroundWorker):
             except TooManyRetries:
                 pass
             except Exception as e:
-                log_traceback(f"Error while processing event {event_id}: {e}")
+                log_traceback(
+                    "Background installer: error while processing event",
+                    event_id=event_id,
+                )
                 r = await Postgres.fetch(
                     "SELECT retries FROM events WHERE id = $1", event_id
                 )

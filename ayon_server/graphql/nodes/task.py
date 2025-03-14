@@ -27,7 +27,6 @@ class TaskAttribType:
 
 @strawberry.type
 class TaskNode(BaseNode):
-    name: str
     label: str | None
     task_type: str
     thumbnail_id: str | None = None
@@ -40,6 +39,7 @@ class TaskNode(BaseNode):
     attrib: TaskAttribType
     data: str | None
     own_attrib: list[str]
+    all_attrib: str
 
     # GraphQL specifics
 
@@ -120,6 +120,14 @@ def task_from_record(
             relation=thumb_data.get("relation"),
         )
 
+    attrib = parse_attrib_data(
+        TaskAttribType,
+        record["attrib"],
+        user=context["user"],
+        project_name=project_name,
+        inherited_attrib=record["parent_folder_attrib"],
+    )
+
     return TaskNode(
         project_name=project_name,
         id=record["id"],
@@ -133,18 +141,13 @@ def task_from_record(
         status=record["status"],
         has_reviewables=has_reviewables,
         tags=record["tags"],
-        attrib=parse_attrib_data(
-            TaskAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=project_name,
-            inherited_attrib=record["parent_folder_attrib"],
-        ),
+        attrib=TaskAttribType(**attrib),
         data=json_dumps(data) if data else None,
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         own_attrib=own_attrib,
+        all_attrib=json_dumps(attrib),
         _folder=folder,
     )
 

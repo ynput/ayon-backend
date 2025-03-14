@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from ayon_server.access.utils import folder_access_list
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import ProductsConnection
 from ayon_server.graphql.edges import ProductEdge
 from ayon_server.graphql.nodes.product import ProductNode
@@ -13,11 +14,11 @@ from ayon_server.graphql.resolvers.common import (
     ARGLast,
     FieldInfo,
     argdesc,
-    create_pagination,
     get_has_links_conds,
     resolve,
     sortdesc,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
@@ -254,22 +255,14 @@ async def get_products(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, ["products"])
-    need_cursor = paging_fields.has_any(
-        "products.pageInfo.startCursor",
-        "products.pageInfo.endCursor",
-        "products.edges.cursor",
-    )
-
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -280,26 +273,27 @@ async def get_products(
         FROM project_{project_name}.products
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         ProductsConnection,
         ProductEdge,
         ProductNode,
-        project_name,
         query,
-        first,
-        last,
+        project_name=project_name,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 
 
-async def get_product(root, info: Info, id: str) -> ProductNode | None:
+async def get_product(root, info: Info, id: str) -> ProductNode:
     """Return a representation node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Folder ID is not specified")
     connection = await get_products(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Folder not found")
     return connection.edges[0].node
