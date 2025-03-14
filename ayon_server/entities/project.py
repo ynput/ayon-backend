@@ -28,12 +28,10 @@ async def aux_table_update(conn, table: str, update_data: list[dict[str, Any]]):
     position = 0
     for data in update_data:
         position += 1
-        name = data["name"]
+        name = data.pop("name")
 
         # Rename
-        original_name = data.get("original_name")
-        if "original_name" in data:
-            del data["original_name"]
+        original_name = data.pop("original_name", None)
         if original_name and (original_name in old_data) and name != original_name:
             await conn.execute(
                 f"""
