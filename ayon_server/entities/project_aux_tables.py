@@ -17,26 +17,26 @@ class BaseAuxTable(TypedDict):
 
 
 class FolderTypeDict(BaseAuxTable):
-    shortName: str
-    icon: str
+    shortName: NotRequired[str]
+    icon: NotRequired[str]
 
 
 class TaskTypeDict(BaseAuxTable):
-    shortName: str
-    icon: str
-    color: str
+    shortName: NotRequired[str]
+    icon: NotRequired[str]
+    color: NotRequired[str]
 
 
 class TagTypeDict(BaseAuxTable):
-    color: str
+    color: NotRequired[str]
 
 
 class StatusTypeDict(BaseAuxTable):
-    shortName: str
-    state: State
-    icon: str
-    color: str
-    scope: list[str]
+    shortName: NotRequired[str]
+    state: NotRequired[State]
+    icon: NotRequired[str]
+    color: NotRequired[str]
+    scope: NotRequired[list[str]]
 
 
 AuxTableType = FolderTypeDict | TaskTypeDict | TagTypeDict | StatusTypeDict

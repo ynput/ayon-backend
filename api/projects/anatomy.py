@@ -32,7 +32,6 @@ async def set_project_anatomy(
     user.check_permissions("project.anatomy", project_name, write=True)
 
     project = await ProjectEntity.load(project_name)
-
     patch_data = anatomy_to_project_data(payload)
     patch = ProjectEntity.model.patch_model(**patch_data)
     events = build_project_change_events(project, patch)

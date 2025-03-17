@@ -284,13 +284,15 @@ class ProjectEntity(TopLevelEntity):
         """Set the entity configuration."""
         self._payload.config = value  # type: ignore
 
+    # Project aux tables
+
     @property
     def folder_types(self) -> Sequence[FolderTypeDict]:
         """Return the folder types."""
         return self._payload.folder_types  # type: ignore
 
     @folder_types.setter
-    def folder_types(self, value: list[dict[str, Any]]) -> None:
+    def folder_types(self, value: Sequence[FolderTypeDict]) -> None:
         """Set the folder types."""
         self._payload.folder_types = value  # type: ignore
 
@@ -300,7 +302,7 @@ class ProjectEntity(TopLevelEntity):
         return self._payload.task_types  # type: ignore
 
     @task_types.setter
-    def task_types(self, value: list[dict[str, Any]]) -> None:
+    def task_types(self, value: Sequence[TaskTypeDict]) -> None:
         """Set the task types."""
         self._payload.task_types = value  # type: ignore
 
@@ -310,7 +312,7 @@ class ProjectEntity(TopLevelEntity):
         return self._payload.statuses  # type: ignore
 
     @statuses.setter
-    def statuses(self, value: list[dict[str, Any]]) -> None:
+    def statuses(self, value: Sequence[StatusTypeDict]) -> None:
         """Set the statuses."""
         self._payload.statuses = value  # type: ignore
 
@@ -320,7 +322,7 @@ class ProjectEntity(TopLevelEntity):
         return self._payload.tags  # type: ignore
 
     @tags.setter
-    def tags(self, value: list[dict[str, Any]]) -> None:
+    def tags(self, value: Sequence[TagTypeDict]) -> None:
         """Set the tags."""
         self._payload.tags = value  # type: ignore
 
