@@ -72,11 +72,12 @@ async def get_config_value(
     user: CurrentUser,
     key: str = Path(..., description="The key of the configuration value to retrieve"),
 ) -> Any:
-    config = _get_server_config()
+    config = await _get_server_config()
+    config_dict = config.dict()
 
     try:
-        value = getattr(config, key)
-    except AttributeError:
+        value = config_dict[key]
+    except KeyError:
         raise BadRequestException(f"Config key '{key}' not found")
 
     if key in all_users_keys:
