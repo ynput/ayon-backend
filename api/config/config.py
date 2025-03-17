@@ -1,5 +1,7 @@
 from typing import Any
 
+from fastapi import Path
+
 from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config.serverconfig import ServerConfigModel, save_server_config_data
@@ -7,7 +9,7 @@ from ayon_server.config.serverconfig import get_server_config as _get_server_con
 from ayon_server.config.serverconfig import (
     get_server_config_overrides as _get_server_config_overrides,
 )
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.settings.overrides import extract_overrides, list_overrides
 from ayon_server.settings.postprocess import postprocess_settings_schema
 
@@ -57,3 +59,32 @@ async def set_server_config(
 
     await save_server_config_data(data)
     return EmptyResponse()
+
+
+all_users_keys = [
+    "studio_name",
+    "project_options",
+]
+
+
+@router.get("/config/value/{key}")
+async def get_config_value(
+    user: CurrentUser,
+    key: str = Path(..., description="The key of the configuration value to retrieve"),
+) -> Any:
+    config = _get_server_config()
+
+    try:
+        value = getattr(config, key)
+    except AttributeError:
+        raise BadRequestException(f"Config key '{key}' not found")
+
+    if key in all_users_keys:
+        return value
+
+    if not user.is_admin:
+        raise ForbiddenException(
+            "Only administrators can view this configuration value"
+        )
+
+    return value
