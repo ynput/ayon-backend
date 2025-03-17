@@ -27,6 +27,17 @@ class CustomizationModel(BaseSettingsModel):
     )
 
 
+class ProjectOptionsModel(BaseSettingsModel):
+    project_code_regex: str = SettingsField(
+        "^.{0,3}",
+        title="Project Code Regex",
+        description=(
+            "A regular expression that is used "
+            "to create project code from the project name."
+        ),
+    )
+
+
 class ServerConfigModel(BaseSettingsModel):
     _layout: str = "root"
 
@@ -40,6 +51,11 @@ class ServerConfigModel(BaseSettingsModel):
         CustomizationModel(),
         title="Customization",
         description="Customization options for the login page",
+    )
+
+    project_options: ProjectOptionsModel = SettingsField(
+        ProjectOptionsModel(),
+        title="Project Options",
     )
 
 
