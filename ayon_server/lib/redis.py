@@ -140,6 +140,14 @@ class Redis:
         ]
 
     @classmethod
+    async def delete_ns(cls, namespace: str):
+        if not cls.connected:
+            await cls.connect()
+        keys = await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
+        for key in keys:
+            await cls.redis_pool.delete(key)
+
+    @classmethod
     async def iterate(cls, namespace: str):
         """Iterate over stored keys and yield [key, payload] tuples
         matching given namespace.

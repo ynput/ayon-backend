@@ -188,6 +188,8 @@ async def create_new_bundle(
             sender=sender,
             sender_type=sender_type,
         )
+    if bundle.is_production or bundle.is_staging:
+        await AddonLibrary.clear_addon_list_cache()
 
     return EmptyResponse(status_code=201)
 
@@ -361,6 +363,9 @@ async def update_bundle(
             bundle_name,
         )
 
+    if patch.is_production is not None or patch.is_staging is not None:
+        await AddonLibrary.clear_addon_list_cache()
+
     await EventStream.dispatch(
         "bundle.updated",
         sender=sender,
@@ -458,6 +463,7 @@ async def bundle_actions(
 
             if action.action == "promote":
                 await promote_bundle(bundle, user, conn)
+                await AddonLibrary.clear_addon_list_cache()
 
     return EmptyResponse(status_code=204)
 

@@ -7,12 +7,19 @@ from ayon_server.addons.definition import ServerAddonDefinition
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 
 
 class AddonLibrary:
     ADDONS_DIR = ayonconfig.addons_dir
     _instance = None
+
+    @staticmethod
+    async def clear_addon_list_cache():
+        keys = await Redis.keys("addon-list")
+        for key in keys:
+            await Redis.delete_ns("addon-list")
 
     @classmethod
     def getinstance(cls) -> "AddonLibrary":
