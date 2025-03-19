@@ -200,6 +200,8 @@ async def lifespan(app: "FastAPI"):
         # Frontend must be initialized last (since it is mounted to /)
         init_frontend(app)
 
+        await AddonLibrary.clear_addon_list_cache()
+
         if start_event is not None:
             await EventStream.update(
                 start_event,
