@@ -40,7 +40,7 @@ SORT_OPTIONS = {
     "status": "tasks.status",
     "createdAt": "tasks.created_at",
     "updatedAt": "tasks.updated_at",
-    "taskType": "tasks.folder_type",
+    "taskType": "tasks.task_type",
     "assignees": "array_to_string(tasks.assignees, '')",
 }
 
