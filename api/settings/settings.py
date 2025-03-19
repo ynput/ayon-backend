@@ -159,6 +159,7 @@ async def get_all_settings(
 
     bundle_name = brow[0]["name"]
     addons: dict[str, str] = brow[0]["addons"]  # {addon_name: addon_version}
+    logger.trace(f"Got studio bundle {bundle_name}")
 
     # Check if there's a project bundle available
     # and get its name
@@ -176,6 +177,7 @@ async def get_all_settings(
             raise NotFoundException(status_code=404, detail="Project not found")
         try:
             project_bundle_name = r[0]["bundle"][variant]
+            logger.trace(f"Got project bundle {project_bundle_name}")
         except Exception:
             project_bundle_name = None
 
@@ -199,6 +201,7 @@ async def get_all_settings(
             )
 
         project_addons = r[0]["addons"]
+        logger.trace(f"Got project addons {project_addons}")
         for addon_name, addon_version in project_addons.items():
             addons[addon_name] = addon_version
             inherited_addons.remove(addon_name)
