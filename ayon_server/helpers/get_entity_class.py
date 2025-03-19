@@ -1,4 +1,4 @@
-from typing import Literal, TypeVar, overload
+from typing import Literal, overload
 
 from ayon_server.entities import (
     FolderEntity,
@@ -9,8 +9,6 @@ from ayon_server.entities import (
     WorkfileEntity,
 )
 from ayon_server.entities.core import ProjectLevelEntity
-
-T = TypeVar("T", bound=ProjectLevelEntity)
 
 FolderLiteral = Literal["folder"]
 TaskLiteral = Literal["task"]
