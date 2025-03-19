@@ -8,12 +8,23 @@ from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import Field, OPModel
+from ayon_server.utils import SQLTool, slugify
 
 router = APIRouter(tags=["Tasks"])
 
 
 class TasksFoldersQuery(OPModel):
-    filter: Annotated[QueryFilter | None, Field(description="")] = None
+    filter: Annotated[
+        QueryFilter | None,
+        Field(title="Filter", description="Filter object used to resolve the tasks"),
+    ] = None
+    search: Annotated[
+        str | None,
+        Field(
+            title="Text search",
+            description="'fulltext' search used to resolve the tasks",
+        ),
+    ] = None
 
 
 class TasksFoldersResponse(OPModel):
@@ -50,23 +61,39 @@ async def query_tasks_folders(
     request: TasksFoldersQuery,
 ) -> TasksFoldersResponse:
     result = []
+    conditions = []
 
-    filter = build_filter(
-        request.filter,
-        table_prefix="tasks",
-        column_whitelist=ALLOWED_KEYS,
-        column_map={"attrib": "(coalesce(f.attrib, '{}'::jsonb ) || tasks.attrib)"},
-    )
+    if request.filter:
+        filter = build_filter(
+            request.filter,
+            table_prefix="tasks",
+            column_whitelist=ALLOWED_KEYS,
+            column_map={"attrib": "(coalesce(f.attrib, '{}'::jsonb ) || tasks.attrib)"},
+        )
+        if filter is not None:
+            conditions.append(filter)
 
-    if not filter:
-        raise BadRequestException("No filter provided")
+    if request.search:
+        terms = slugify(request.search, make_set=True)
+        # isn't it nice that slugify effectively prevents sql injections?
+        for term in terms:
+            cond = f"""(
+            tasks.name ILIKE '{term}%'
+            OR tasks.label ILIKE '{term}%'
+            OR tasks.task_type ILIKE '{term}%'
+            OR f.path ILIKE '%{term}%'
+            )"""
+        conditions.append(cond)
+
+    if not conditions:
+        raise BadRequestException("No filter or search term provided")
 
     query = f"""
         SELECT DISTINCT tasks.folder_id
         FROM project_{project_name}.tasks tasks
         INNER JOIN project_{project_name}.exported_attributes AS f
         ON tasks.folder_id = f.folder_id
-        WHERE {filter}
+        {SQLTool.conditions(conditions)}
     """
 
     facl = await folder_access_list(user, project_name, "read")
