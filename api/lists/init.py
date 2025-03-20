@@ -32,12 +32,13 @@ CREATE TABLE entity_lists(
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
   updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+  creation_order SERIAL NOT NULL
 );
 """,
     """
 CREATE TABLE entity_list_items(
   id UUID NOT NULL PRIMARY KEY,
-  entity_list_id UUID NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+  entity_list_id UUID NOT NULL REFERENCES entity_lists(id) ON DELETE CASCADE,
   entity_type VARCHAR NOT NULL,
   entity_id UUID NOT NULL,
   position INTEGER NOT NULL,
@@ -50,7 +51,6 @@ CREATE TABLE entity_list_items(
   updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
-  creation_order SERIAL NOT NULL
 );
 """,
 ]
@@ -62,8 +62,10 @@ async def initialize_entity_lists_for_project(
     project_name: ProjectName,
 ) -> EmptyResponse:
     async with Postgres.acquire() as conn, conn.transaction():
-        await conn.execute(f"SET LOCAL search_path TO '{project_name}'")
+        await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
         for query in queries:
+            # do not use .format() here because of '{}'::JSONB
+            query = query.replace("{project_name}", project_name)
             await conn.execute(query)
 
     return EmptyResponse()
