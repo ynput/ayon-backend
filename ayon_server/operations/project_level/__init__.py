@@ -122,8 +122,9 @@ async def _process_operations(
             user = None
 
         addr = f"{project_name}/{operation.entity_id}"
+        op_tag = f"[{operation.entity_type.upper()} {operation.type.upper()}]"
         logger.debug(
-            f"[{operation.entity_type.upper()} {operation.type.upper()}] {addr}",
+            f"{op_tag} {addr}",
             project=project_name,
             operation_id=operation.id,
         )
@@ -142,7 +143,7 @@ async def _process_operations(
                 to_commit.append(entity)
         except AyonException as e:
             logger.debug(
-                f"[{operation.entity_type.upper()}] failed: {e.detail}",
+                f"{op_tag} failed: {e.detail}",
                 project=project_name,
                 operation_id=operation.id,
             )
@@ -165,7 +166,7 @@ async def _process_operations(
         except IntegrityConstraintViolationError as e:
             parsed = parse_postgres_exception(e)
             logger.debug(
-                f"[{operation.entity_type.upper()}] failed: {parsed['detail']}",
+                f"{op_tag} failed: {parsed['detail']}",
                 project=project_name,
                 operation_id=operation.id,
             )
@@ -188,7 +189,7 @@ async def _process_operations(
                 break
 
         except Exception as e:
-            log_traceback("Unhandled exception in operations")
+            log_traceback(f"{op_tag} Unhandled exception")
             result.append(
                 OperationResponseModel(
                     success=False,
