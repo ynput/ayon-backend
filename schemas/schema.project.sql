@@ -366,42 +366,8 @@ CREATE INDEX workfile_thumbnail_idx ON workfiles(thumbnail_id);
 -- Lists --
 -----------
 
-
-CREATE TABLE entity_lists(
-  id UUID NOT NULL PRIMARY KEY,
-  label VARCHAR NOT NULL,
-  list_type VARCHAR NOT NULL, 
-  access JSONB NOT NULL DEFAULT '{}'::JSONB,
-  template JSONB NOT NULL DEFAULT '{}'::JSONB,
-
-  attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
-  data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
-
-  active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-
-CREATE TABLE entity_list_items(
-  id UUID NOT NULL PRIMARY KEY,
-  entity_list_id UUID NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
-  entity_type VARCHAR NOT NULL,
-  entity_id UUID NOT NULL,
-  position INTEGER NOT NULL,
-
-  attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
-  data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
-
-  created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-  updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-  creation_order SERIAL NOT NULL
-);
-
+-- TODO: when the final DB structure is ready,
+-- the queries from /api/lists/init.py will be moved here (and to the migration scripts)
 
 -----------
 -- LINKS --
