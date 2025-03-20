@@ -8,8 +8,6 @@ except ModuleNotFoundError:
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
-from nxtools import log_traceback, logging
-
 from ayon_server.actions.context import ActionContext
 from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
 from ayon_server.actions.manifest import (
@@ -19,10 +17,13 @@ from ayon_server.actions.manifest import (
 from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import log_traceback, logger
 from ayon_server.settings import BaseSettingsModel, apply_overrides
 from ayon_server.settings.common import migrate_settings_overrides
 
 if TYPE_CHECKING:
+    from fastapi import APIRouter
+
     from ayon_server.addons.definition import ServerAddonDefinition
 
 METADATA_KEYS = [
@@ -69,6 +70,7 @@ class BaseServerAddon:
     definition: "ServerAddonDefinition"
     legacy: bool = False  # auto-set to true if it is the old style addon
     endpoints: list[dict[str, Any]]
+    routers: list["APIRouter"]
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str, **kwargs):
         # populate metadata from package.py
@@ -95,8 +97,9 @@ class BaseServerAddon:
         self.definition = definition
         self.addon_dir = addon_dir
         self.endpoints = []
+        self.routers = []
         self.restart_requested = False
-        logging.debug(f"Initializing addon {self.name} v{self.version}")
+        logger.debug(f"Initializing addon {self.name} v{self.version}")
         self.initialize()
 
     def __repr__(self) -> str:
@@ -167,8 +170,11 @@ class BaseServerAddon:
         If called from setup the server will restart after all addons are
         setup.
         """
-        logging.info(f"Addon {self.name}:{self.version} requested server restart")
+        logger.info(f"Addon {self.name}:{self.version} requested server restart")
         self.restart_requested = True
+
+    def add_router(self, router: "APIRouter") -> None:
+        self.routers.append(router)
 
     def add_endpoint(
         self,

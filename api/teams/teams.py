@@ -1,12 +1,33 @@
+from typing import Annotated
+
 from fastapi import Query
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.types import USER_NAME_REGEX
 
 from .models import TeamListItemModel, TeamMemberModel, TeamModel, TeamPutModel
 from .router import router
+
+
+def dep_team_name(
+    team_name: str = Query(min_length=2, max_length=64, title="Team Name"),
+) -> str:
+    return team_name
+
+
+TeamName = Annotated[str, dep_team_name]
+
+
+def dep_member_name(
+    member_name: str = Query(title="User Name", regex=USER_NAME_REGEX),
+) -> str:
+    return member_name
+
+
+MemberName = Annotated[str, dep_member_name]
 
 
 @router.get("", response_model_exclude_none=True)
@@ -56,7 +77,7 @@ async def get_teams(
 
 @router.put("/{team_name}", status_code=204)
 async def save_team(
-    team_name: str,
+    team_name: TeamName,
     team: TeamPutModel,
     project_name: ProjectName,
     current_user: CurrentUser,
@@ -88,7 +109,7 @@ async def save_team(
 
 @router.put("/{team_name}/members/{member_name}", status_code=204)
 async def save_team_member(
-    team_name: str,
+    team_name: TeamName,
     member_name: str,
     member: TeamMemberModel,
     project_name: ProjectName,
@@ -133,7 +154,9 @@ async def save_team_member(
 
 @router.delete("/{team_name}", status_code=204)
 async def delete_team(
-    team_name: str, project_name: ProjectName, current_user: CurrentUser
+    team_name: TeamName,
+    project_name: ProjectName,
+    current_user: CurrentUser,
 ) -> EmptyResponse:
     """Delete a team."""
 
@@ -160,8 +183,8 @@ async def delete_team(
 
 @router.delete("/{team_name}/members/{member_name}", status_code=204)
 async def delete_team_member(
-    team_name: str,
-    member_name: str,
+    team_name: TeamName,
+    member_name: MemberName,
     project_name: ProjectName,
     current_user: CurrentUser,
 ) -> EmptyResponse:

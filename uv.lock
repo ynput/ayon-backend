@@ -145,7 +145,7 @@ wheels = [
 
 [[package]]
 name = "ayon-server"
-version = "1.7.1"
+version = "1.7.4"
 source = { editable = "." }
 dependencies = [
     { name = "aiocache" },
@@ -161,7 +161,7 @@ dependencies = [
     { name = "granian" },
     { name = "gunicorn" },
     { name = "httpx" },
-    { name = "nxtools" },
+    { name = "loguru" },
     { name = "orjson" },
     { name = "pillow" },
     { name = "psutil" },
@@ -175,6 +175,7 @@ dependencies = [
     { name = "strawberry-graphql", extra = ["fastapi"] },
     { name = "toml" },
     { name = "typer" },
+    { name = "unidecode" },
     { name = "user-agents" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -209,7 +210,7 @@ requires-dist = [
     { name = "granian", specifier = ">=1.1.1" },
     { name = "gunicorn", specifier = ">=23.0" },
     { name = "httpx", specifier = ">=0.26" },
-    { name = "nxtools", specifier = "==1.6" },
+    { name = "loguru", specifier = ">=0.7.3" },
     { name = "orjson", specifier = ">=3.8.6" },
     { name = "pillow", specifier = ">=10.3.0" },
     { name = "psutil", specifier = ">=5.9.4" },
@@ -223,6 +224,7 @@ requires-dist = [
     { name = "strawberry-graphql", extras = ["fastapi"], specifier = ">=0.243.0" },
     { name = "toml", specifier = ">=0.10.2" },
     { name = "typer", specifier = ">=0.12.5" },
+    { name = "unidecode", specifier = ">=1.3.8" },
     { name = "user-agents", specifier = ">=2.2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.25" },
 ]
@@ -631,6 +633,19 @@ wheels = [
 ]
 
 [[package]]
+name = "loguru"
+version = "0.7.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "win32-setctime", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3a/05/a1dae3dffd1116099471c643b8924f5aa6524411dc6c63fdae648c4f1aca/loguru-0.7.3.tar.gz", hash = "sha256:19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6", size = 63559 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0c/29/0348de65b8cc732daa3e33e67806420b2ae89bdce2b04af740289c5c6c8c/loguru-0.7.3-py3-none-any.whl", hash = "sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c", size = 61595 },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -728,19 +743,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/43/16/fc88b08840de0e0a72a2f9d8c6bae36be573e475a6326ae854bcc549fc45/nodeenv-1.9.1.tar.gz", hash = "sha256:6ec12890a2dab7946721edbfbcd91f3319c6ccc9aec47be7c7e6b7011ee6645f", size = 47437 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d2/1d/1b658dbd2b9fa9c4c9f32accbfc0205d532c8c6194dc0f2a4c0428e7128a/nodeenv-1.9.1-py2.py3-none-any.whl", hash = "sha256:ba11c9782d29c27c70ffbdda2d7415098754709be8a7056d79a737cd901155c9", size = 22314 },
-]
-
-[[package]]
-name = "nxtools"
-version = "1.6"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama" },
-    { name = "unidecode" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b8/db/49d09a2b2991fff854878aae301b7f964c89242660337c030084b7a19ecb/nxtools-1.6.tar.gz", hash = "sha256:e91839eef643483a3165165a46a693ad976d40a393ee5476a341e4e8bb102b92", size = 18176 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/6d/3e97c9bb6805fec30447e8df843f8f468ca7c31ec909ef9e26642cc8a76f/nxtools-1.6-py3-none-any.whl", hash = "sha256:cde2d2c19193a2bd9c8071eeb3f121474ec34ab5c014de9a90f0c434cdfee716", size = 19865 },
 ]
 
 [[package]]
@@ -1394,6 +1396,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/8a/98/2d9906746cdc6a6ef809ae6338005b3f21bb568bea3165cfc6a243fdc25c/wheel-0.45.1.tar.gz", hash = "sha256:661e1abd9198507b1409a20c02106d9670b2576e916d58f520316666abca6729", size = 107545 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0b/2c/87f3254fd8ffd29e4c02732eee68a83a1d3c346ae39bc6822dcbcb697f2b/wheel-0.45.1-py3-none-any.whl", hash = "sha256:708e7481cc80179af0e556bbf0cc00b8444c7321e2700b8d8580231d13017248", size = 72494 },
+]
+
+[[package]]
+name = "win32-setctime"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b3/8f/705086c9d734d3b663af0e9bb3d4de6578d08f46b1b101c2442fd9aecaa2/win32_setctime-1.2.0.tar.gz", hash = "sha256:ae1fdf948f5640aae05c511ade119313fb6a30d7eabe25fef9764dca5873c4c0", size = 4867 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/07/c6fe3ad3e685340704d314d765b7912993bcb8dc198f0e7a89382d37974b/win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390", size = 4083 },
 ]
 
 [[package]]

@@ -1,12 +1,11 @@
 import time
 
-from nxtools import logging
-
 from ayon_server.auth.models import LoginResponseModel
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_hash
 
@@ -47,18 +46,21 @@ async def password_reset_request(request: PasswordResetRequestModel):
         user_data = row["data"]
         break
     else:
-        logging.error(
+        logger.error(
             f"Attempted password reset using non-existent email: {request.email}"
         )
         return
 
-    password_reset_request = user_data.get("passwordResetRequest", {})
-    password_requet_time = password_reset_request.get("time", None)
-
-    if password_requet_time and (time.time() - password_requet_time) < TOKEN_TTL:
-        raise ForbiddenException(
-            "Attempted password reset too soon after previous attempt"
-        )
+    password_reset_request = user_data.get("passwordResetRequest")
+    if password_reset_request:
+        password_request_time = password_reset_request.get("time", 0)
+        if password_request_time and (time.time() - password_request_time) < 600:
+            logger.error(
+                "Attempted password reset too soon "
+                f"after previous attempt for {request.email}"
+            )
+            msg = "Attempted password reset too soon after previous attempt"
+            raise ForbiddenException(msg)
 
     token = create_hash()
     password_reset_request = {
@@ -81,7 +83,7 @@ async def password_reset_request(request: PasswordResetRequestModel):
         text=PASSWORD_RESET_EMAIL_TEMPLATE_PLAIN.format(**tplvars),
         html=PASSWORD_RESET_EMAIL_TEMPLATE_HTML.format(**tplvars),
     )
-    logging.info(f"Sent password reset email to {request.email}")
+    logger.info(f"Sent password reset email to {request.email}")
 
 
 class PasswordResetModel(OPModel):
@@ -102,14 +104,14 @@ async def password_reset(request: PasswordResetModel) -> LoginResponseModel:
         user_data = row["data"]
         break
     else:
-        logging.error("Attempted password reset using invalid token")
+        logger.error("Attempted password reset using invalid token")
         raise ForbiddenException("Invalid token")
 
     password_reset_request = user_data.get("passwordResetRequest", {})
     password_request_time = password_reset_request.get("time", None)
 
     if not password_request_time or (time.time() - password_request_time) > TOKEN_TTL:
-        logging.error("Attempted password reset using expired token")
+        logger.error("Attempted password reset using expired token")
         raise ForbiddenException(ERROR_MESSAGE)
 
     if request.password is None:

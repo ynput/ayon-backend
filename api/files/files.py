@@ -11,7 +11,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
-from ayon_server.files import Storages
+from ayon_server.files import Storages, create_project_file_record
 from ayon_server.helpers.preview import create_video_thumbnail, get_file_preview
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -67,21 +67,14 @@ async def upload_project_file(
     storage = await Storages.project(project_name)
     file_size = await storage.handle_upload(request, file_id)
 
-    data = {
-        "filename": x_file_name,
-        "mime": content_type,
-    }
-
-    await Postgres.execute(
-        f"""
-        INSERT INTO project_{project_name}.files (id, size, author, activity_id, data)
-        VALUES ($1, $2, $3, $4, $5)
-        """,
-        file_id,
-        file_size,
-        user.name,
-        x_activity_id,
-        data,
+    await create_project_file_record(
+        project_name,
+        x_file_name,
+        size=file_size,
+        content_type=content_type,
+        file_id=file_id,
+        user_name=user.name,
+        activity_id=x_activity_id,
     )
 
     return CreateFileResponseModel(id=file_id)

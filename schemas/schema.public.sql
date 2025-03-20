@@ -317,9 +317,9 @@ BEGIN
                 t.creation_order as creation_order,
 
                 t.activity_type as activity_type,
-                t.body as body,
+                substring(t.body from 1 for 200) as body,
                 t.tags as tags,
-      
+
                 t.activity_data as activity_data,
                 t.reference_data as reference_data,
                 t.active as active

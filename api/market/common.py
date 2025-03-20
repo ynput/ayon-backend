@@ -5,7 +5,11 @@ import semver
 
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    ServiceUnavailableException,
+)
 from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.lib.postgres import Postgres
 from ayon_server.version import __version__ as ayon_version
@@ -13,6 +17,7 @@ from ayon_server.version import __version__ as ayon_version
 
 async def get_market_data(
     *args: str,
+    api_version: str = "v1",
 ) -> dict[str, Any]:
     """Get data from the market API"""
 
@@ -27,14 +32,18 @@ async def get_market_data(
 
     async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
         res = await client.get(
-            f"{ayonconfig.ynput_cloud_api_url}/api/v1/{endpoint}",
+            f"{ayonconfig.ynput_cloud_api_url}/api/{api_version}/{endpoint}",
             headers=headers,
         )
 
     if res.status_code == 401:
         raise ForbiddenException("Unauthorized instance")
 
-    res.raise_for_status()  # should not happen
+    if res.status_code >= 400 and res.status_code < 500:
+        raise BadRequestException("Bad request to Market API")
+
+    if res.status_code >= 500:
+        raise ServiceUnavailableException("Market API error")
 
     return res.json()
 

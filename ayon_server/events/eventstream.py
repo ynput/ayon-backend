@@ -2,11 +2,10 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.exceptions import ConstraintViolationException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.utils import SQLTool, json_dumps
 
 from .base import EventModel, EventStatus, create_id
@@ -194,12 +193,21 @@ class EventStream:
             )
         )
 
+        if not event.topic.startswith("log."):
+            p = f" ({event.description})" if event.description else ""
+            ctx = {"nodb": True, "event_id": event.id}
+            if event.user:
+                ctx["user"] = event.user
+            if event.project:
+                ctx["project"] = event.project
+            logger.debug(f"[EVENT CREATE] {event.topic}{p}", **ctx)
+
         handlers = cls.local_hooks.get(event.topic, {}).values()
         for handler in handlers:
             try:
                 await handler(event)
             except Exception as e:
-                logging.debug(f"Error in event handler: {e}")
+                logger.warning(f"Error in event handler: {e}")
 
         return event.id
 
@@ -290,7 +298,15 @@ class EventStream:
             if progress is not None:
                 message["progress"] = progress
             await Redis.publish(json_dumps(message))
-            return True
+            if store:
+                p = f" ({message['description']})" if message["description"] else ""
+                ctx = {"nodb": True, "event_id": message["id"]}
+                if message["user"]:
+                    ctx["user"] = message["user"]
+                if message["project"]:
+                    ctx["project"] = message["project"]
+                logger.debug(f"[EVENT UPDATE] {message['topic']}{p}", **ctx)
+                return True
         return False
 
     @classmethod

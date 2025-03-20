@@ -7,10 +7,10 @@
 
 from typing import Annotated, Any
 
-from fastapi import Cookie, Depends, Header, Path, Query, Request
-from nxtools import logging
+from fastapi import Cookie, Header, Path, Query, Request
 
-from ayon_server.types import API_KEY_REGEX, PROJECT_NAME_REGEX, USER_NAME_REGEX
+from ayon_server.logging import logger
+from ayon_server.types import PROJECT_NAME_REGEX
 from ayon_server.utils import EntityID, parse_access_token, parse_api_key
 
 
@@ -52,33 +52,23 @@ async def dep_api_key(
 
 async def dep_current_user(
     request: Request,
-    x_as_user: str | None = Header(
-        None,
-        regex=USER_NAME_REGEX,
-        include_in_schema=False,
-    ),
-    x_api_key: str | None = Header(None, regex=API_KEY_REGEX, include_in_schema=False),
-    access_token: str | None = Depends(dep_access_token),
-    api_key: str | None = Depends(dep_api_key),
 ) -> Any:
     from .dependencies import dep_current_user
 
-    logging.warning("Using deprecated dep_current_user")
-    return await dep_current_user(request, x_as_user, x_api_key, access_token, api_key)
+    logger.warning("Using deprecated dep_current_user")
+    return await dep_current_user(request)
 
 
 async def dep_project_name(
     project_name: str = Path(..., title="Project name", regex=PROJECT_NAME_REGEX),
-):
-    from .dependencies import dep_project_name
-
-    logging.warning("Using deprecated dep_project_name")
-    return await dep_project_name(project_name)
+) -> str:
+    logger.warning("Using deprecated dep_project_name")
+    return project_name
 
 
 async def dep_representation_id(
     representation_id: str = Path(..., title="Version ID", **EntityID.META),
 ) -> str:
     """Validate and return a representation id specified in an endpoint path."""
-    logging.warning("Using deprecated dep_representation_id")
+    logger.warning("Using deprecated dep_representation_id")
     return representation_id

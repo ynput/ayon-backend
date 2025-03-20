@@ -6,7 +6,6 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 from fastapi import Request
-from nxtools import logging
 
 from ayon_server.api.clientinfo import ClientInfo, get_client_info, get_real_ip
 from ayon_server.config import ayonconfig
@@ -15,6 +14,7 @@ from ayon_server.events import EventStream
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.helpers.auth_utils import AuthUtils
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.types import OPModel
 from ayon_server.utils import create_hash, json_dumps, json_loads
 
@@ -177,6 +177,7 @@ class Session:
             if not session.user.data.get("isService"):
                 await EventStream.dispatch(
                     "auth.logout",
+                    summary={"token": token},
                     description=message,
                     user=session.user.name,
                 )
@@ -227,14 +228,14 @@ class Session:
 
         sessions.sort(key=lambda s: s.last_used)
         for session in sessions[: len(sessions) - max_sessions]:
-            msg = "Least recently used session invalidated due to limit"
+            msg = "Too many concurrent sessions"
             await cls.delete(session.token, message=msg)
 
             msg += f" ({user_name} {session.token})"
-            logging.debug(msg)
+            logger.debug(msg)
 
     @classmethod
-    async def logout_user(cls, user_name: str) -> None:
+    async def logout_user(cls, user_name: str, message: str | None = None) -> None:
         """Logout all user sessions."""
         logged_out = False
         async for session in cls.list(user_name):
@@ -243,10 +244,10 @@ class Session:
             logged_out = True
 
         if logged_out:
-            msg = f"User {user_name} logged out from all sessions"
+            message = message or f"User {user_name} logged out from all sessions"
             await EventStream.dispatch(
                 "auth.logout",
-                description=msg,
+                description=message,
                 user=user_name,
             )
 

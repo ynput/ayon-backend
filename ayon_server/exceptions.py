@@ -1,6 +1,6 @@
 from typing import Any
 
-from nxtools import logging
+from ayon_server.logging import logger
 
 
 class AyonException(Exception):
@@ -14,15 +14,17 @@ class AyonException(Exception):
         self,
         detail: str | None = None,
         log: bool | str = False,
+        code: str | None = None,
         **kwargs,
     ) -> None:
+        self.code = code or self.detail.lower().replace(" ", "-")
         if detail is not None:
             self.detail = detail
         self.extra = kwargs
         if log is True:
-            logging.error(f"EXCEPTION: {self.status} {self.detail}")
+            logger.error(f"EXCEPTION: {self.status} {self.detail}")
         elif isinstance(log, str):
-            logging.error(f"EXCEPTION: {self.status} {log}")
+            logger.error(f"EXCEPTION: {self.status} {log}")
 
         super().__init__(self.detail)
 

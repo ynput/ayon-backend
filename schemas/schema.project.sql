@@ -167,6 +167,7 @@ CREATE TABLE folders(
 );
 
 CREATE INDEX folder_parent_idx ON folders(parent_id);
+CREATE INDEX folder_thumbnail_idx ON folders(thumbnail_id);
 CREATE UNIQUE INDEX folder_creation_order_idx ON folders(creation_order);
 
 -- Two partial indices are used as a workaround for root folders (which have parent_id NULL)
@@ -235,6 +236,7 @@ CREATE TABLE tasks(
 
 CREATE INDEX task_parent_idx ON tasks(folder_id);
 CREATE INDEX task_type_idx ON tasks(task_type);
+CREATE INDEX task_thumbnail_idx ON tasks(thumbnail_id);
 CREATE UNIQUE INDEX task_creation_order_idx ON tasks(creation_order);
 CREATE UNIQUE INDEX task_unique_name ON tasks(folder_id, name);
 
@@ -288,6 +290,7 @@ CREATE TABLE versions(
 );
 
 CREATE INDEX version_parent_idx ON versions(product_id);
+CREATE INDEX version_thumbnail_idx ON versions(thumbnail_id);
 CREATE UNIQUE INDEX version_creation_order_idx ON versions(creation_order);
 CREATE UNIQUE INDEX version_unique_version_parent ON versions (product_id, version) WHERE (active IS TRUE);
 
@@ -355,6 +358,9 @@ CREATE TABLE workfiles(
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
 );
+
+CREATE INDEX workfile_parent_idx ON workfiles(task_id);
+CREATE INDEX workfile_thumbnail_idx ON workfiles(thumbnail_id);
 
 -----------
 -- Lists --

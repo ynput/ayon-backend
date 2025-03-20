@@ -18,6 +18,7 @@ from ayon_server.graphql.resolvers.tasks import get_task, get_tasks
 from ayon_server.graphql.resolvers.versions import get_version, get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfile, get_workfiles
 from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.helpers.tags import get_used_project_tags
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_dumps
 
@@ -77,6 +78,7 @@ class ProjectNode:
     project_name: str = strawberry.field()
     code: str = strawberry.field()
     attrib: ProjectAttribType
+    all_attrib: str
     data: str | None
     active: bool
     library: bool
@@ -203,6 +205,10 @@ class ProjectNode:
             )
         ]
 
+    @strawberry.field(description="List of tags used in the project")
+    async def used_tags(self) -> list[str]:
+        return await get_used_project_tags(self.project_name)
+
 
 def project_from_record(
     project_name: str | None, record: dict[str, Any], context: dict[str, Any]
@@ -212,18 +218,21 @@ def project_from_record(
     thumbnail = None
 
     data = record.get("data", {})
+    attrib = parse_attrib_data(
+        ProjectAttribType,
+        record["attrib"],
+        user=context["user"],
+        project_name=record["name"],
+    )
+
     return ProjectNode(
         name=record["name"],
         code=record["code"],
         project_name=record["name"],
         active=record["active"],
         library=record["library"],
-        attrib=parse_attrib_data(
-            ProjectAttribType,
-            record["attrib"],
-            user=context["user"],
-            project_name=record["name"],
-        ),
+        attrib=ProjectAttribType(**attrib),
+        all_attrib=json_dumps(attrib),
         thumbnail=thumbnail,
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],

@@ -5,13 +5,17 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any
 
 import boto3
+import httpx
 from fastapi import Request
-from nxtools import logging
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from typing_extensions import AsyncGenerator
 
+from ayon_server.config import ayonconfig
+from ayon_server.helpers.download import get_file_name_from_headers
 from ayon_server.helpers.statistics import update_traffic_stats
+from ayon_server.logging import logger
+from ayon_server.models.file_info import FileInfo
 
 from .common import FileGroup
 
@@ -187,7 +191,7 @@ class S3Uploader:
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
 
     def _init_file_upload(self, key: str):
-        logging.debug(f"Initiating upload for {key}", user="s3")
+        logger.debug(f"Initiating upload for {key}", user="s3")
         if self._multipart:
             raise Exception("Multipart upload already started")
 
@@ -279,14 +283,14 @@ class S3Uploader:
         if self._worker_task:
             await self._worker_task  # Wait for the worker to finish.
 
-        logging.debug(f"Completing upload for {self._key}", user="s3")
+        logger.debug(f"Completing upload for {self._key}", user="s3")
         await asyncio.get_running_loop().run_in_executor(self._executor, self._complete)
 
     def _abort(self) -> None:
         if not self._multipart:
             return
 
-        logging.warning(f"Aborting upload for {self._key}", user="s3")
+        logger.warning(f"Aborting upload for {self._key}", user="s3")
         self._client.abort_multipart_upload(
             Bucket=self.bucket_name,
             Key=self._key,
@@ -335,5 +339,60 @@ async def handle_s3_upload(
     upload_time = time.monotonic() - start_time
 
     await update_traffic_stats("ingress", i, service="s3")
-    logging.info(f"Uploaded {i} bytes to {path} in {upload_time:.2f} seconds")
+    logger.info(f"Uploaded {i} bytes to {path} in {upload_time:.2f} seconds")
     return i
+
+
+async def remote_to_s3(
+    storage: "ProjectStorage",
+    url: str,
+    path: str,
+    *,
+    timeout: float | None = None,
+    headers: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
+    method: str = "GET",
+) -> FileInfo:
+    start_time = time.monotonic()
+    client = await get_s3_client(storage)
+    assert storage.bucket_name
+    uploader = S3Uploader(client, storage.bucket_name)
+
+    await uploader.init_file_upload(path)
+
+    i = 0
+    buffer_size = 1024 * 1024 * 5
+    buff = b""
+
+    async with httpx.AsyncClient(
+        timeout=timeout or ayonconfig.http_timeout,
+        follow_redirects=True,
+    ) as client:
+        async with client.stream(
+            method,
+            url,
+            headers=headers,
+            params=params,
+        ) as response:
+            content_type = response.headers.get("content-type")
+            filename = get_file_name_from_headers(dict(response.headers))
+            filename = filename or path.split("/")[-1].split("?")[0]
+
+            async for chunk in response.aiter_bytes():
+                buff += chunk
+                if len(buff) >= buffer_size:
+                    await uploader.push_chunk(buff)
+                    i += len(buff)
+                    buff = b""
+
+            if buff:
+                await uploader.push_chunk(buff)
+                i += len(buff)
+
+    await uploader.complete()
+    upload_time = time.monotonic() - start_time
+    logger.info(f"Uploaded {i} bytes to {path} in {upload_time:.2f} seconds")
+    finfo_payload = {"size": i, "filename": filename}
+    if content_type:
+        finfo_payload["content_type"] = content_type
+    return FileInfo(**finfo_payload)

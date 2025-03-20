@@ -5,11 +5,10 @@ from urllib.parse import urlparse
 import aiocache
 from attributes.attributes import AttributeModel  # type: ignore
 from fastapi import Query, Request
-from nxtools import log_traceback, logging
 from pydantic import ValidationError
 
 from ayon_server.addons import AddonLibrary, SSOOption
-from ayon_server.api.dependencies import CurrentUserOptional
+from ayon_server.api.dependencies import CurrentUserOptional, NoTraces
 from ayon_server.config import ayonconfig
 from ayon_server.config.serverconfig import get_server_config
 from ayon_server.entities import UserEntity
@@ -19,6 +18,7 @@ from ayon_server.helpers.email import is_mailing_enabled
 from ayon_server.info import ReleaseInfo, get_release_info, get_uptime, get_version
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import log_traceback, logger
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -28,7 +28,7 @@ from .sites import SiteInfo
 class InfoResponseModel(OPModel):
     motd: str | None = Field(
         None,
-        title="Message of the day",
+        title="Login Page Message",
         description="Instance specific message to be displayed in the login page",
         example="Hello and welcome to Ayon!",
     )
@@ -182,7 +182,7 @@ async def get_user_sites(
         # if the current site is not in the database
         # or has been changed, upsert it
         if current_needs_update or not current_site_exists:
-            logging.debug(f"Registering to site {current_site.id}", user=user_name)
+            logger.debug(f"Registering to site {current_site.id}")
             mdata = current_site.dict()
             mid = mdata.pop("id")
             await Postgres.execute(
@@ -275,7 +275,12 @@ async def is_onboarding_finished() -> bool:
 #
 
 
-@router.get("/info", response_model_exclude_none=True, tags=["System"])
+@router.get(
+    "/info",
+    response_model_exclude_none=True,
+    tags=["System"],
+    dependencies=[NoTraces],
+)
 async def get_site_info(
     request: Request,
     current_user: CurrentUserOptional,
@@ -286,8 +291,8 @@ async def get_site_info(
     This is the initial endpoint that is called when the user opens the page.
     It returns information about the site, the current user and the configuration.
 
-    If the user is not logged in, only the message of the day and the API version
-    are returned.
+    If the user is not logged in, only the login page message (motd) and the
+    API version are returned.
     """
 
     additional_info = {}

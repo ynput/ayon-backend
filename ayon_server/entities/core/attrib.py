@@ -4,9 +4,8 @@ import functools
 import threading
 from typing import Any
 
-from nxtools import logging
-
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 
 
 class AttributeLibrary:
@@ -40,10 +39,9 @@ class AttributeLibrary:
 
     def initial_load_thread(self) -> None:
         if Postgres.pool is not None:
-            logging.warning(
-                "Postgres pool exist durint attribute load. " "This should not happen.",
-                user="server",
-                handlers=None,
+            logger.error(
+                "Postgres pool exist during attribute load. " "This should not happen.",
+                nodb=True,
             )
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

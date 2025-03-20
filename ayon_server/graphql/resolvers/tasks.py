@@ -2,6 +2,7 @@ import json
 from typing import Annotated
 
 from ayon_server.entities.core import attribute_library
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import TasksConnection
 from ayon_server.graphql.edges import TaskEdge
 from ayon_server.graphql.nodes.task import TaskNode
@@ -16,10 +17,13 @@ from ayon_server.graphql.resolvers.common import (
     FieldInfo,
     argdesc,
     create_folder_access_list,
-    create_pagination,
     get_has_links_conds,
     resolve,
     sortdesc,
+)
+from ayon_server.graphql.resolvers.pagination import (
+    create_pagination,
+    get_attrib_sort_case,
 )
 from ayon_server.graphql.types import Info
 from ayon_server.sqlfilter import QueryFilter, build_filter
@@ -29,14 +33,15 @@ from ayon_server.types import (
     validate_status_list,
     validate_user_name_list,
 )
-from ayon_server.utils import SQLTool
+from ayon_server.utils import SQLTool, slugify
 
 SORT_OPTIONS = {
     "name": "tasks.name",
     "status": "tasks.status",
     "createdAt": "tasks.created_at",
     "updatedAt": "tasks.updated_at",
-    "taskType": "tasks.folder_type",
+    "taskType": "tasks.task_type",
+    "assignees": "array_to_string(tasks.assignees, '')",
 }
 
 
@@ -49,15 +54,21 @@ async def get_tasks(
     before: ARGBefore = None,
     ids: ARGIds = None,
     task_types: Annotated[
-        list[str] | None, argdesc("List of task types to filter by")
+        list[str] | None,
+        argdesc("List of task types to filter by"),
     ] = None,
     folder_ids: Annotated[
-        list[str] | None, argdesc("List of parent folder IDs to filter by")
+        list[str] | None,
+        argdesc("List of parent folder IDs to filter by"),
     ] = None,
     attributes: Annotated[
-        list[AttributeFilterInput] | None, argdesc("Filter by a list of attributes")
+        list[AttributeFilterInput] | None,
+        argdesc("Filter by a list of attributes"),
     ] = None,
-    names: Annotated[list[str] | None, argdesc("List of names to filter by")] = None,
+    names: Annotated[
+        list[str] | None,
+        argdesc("List of names to filter by"),
+    ] = None,
     statuses: Annotated[
         list[str] | None, argdesc("List of statuses to filter by")
     ] = None,
@@ -79,14 +90,14 @@ async def get_tasks(
     tags: Annotated[
         list[str] | None,
         argdesc(
-            "List tasks with all of the provided tags."
+            "List tasks with all of the provided tags. "
             "Empty list will return tasks with no tags."
         ),
     ] = None,
     tags_any: Annotated[
         list[str] | None,
         argdesc(
-            "List tasks with any of the provided tags."
+            "List tasks with any of the provided tags. "
             "Empty list will return tasks with any tags."
         ),
     ] = None,
@@ -94,6 +105,7 @@ async def get_tasks(
         bool,
         argdesc("Include tasks in child folders when folderIds is used"),
     ] = False,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> TasksConnection:
@@ -143,17 +155,14 @@ async def get_tasks(
                 INNER JOIN project_{project_name}.versions v
                 ON af.entity_id = v.id
                 AND af.entity_type = 'version'
-                AND  af.activity_type = 'reviewable'
+                AND af.activity_type = 'reviewable'
             )
             """
         )
 
         sql_columns.append(
-            """
-            EXISTS (
-            SELECT 1 FROM reviewables WHERE task_id = tasks.id
-            ) AS has_reviewables
-            """
+            "EXISTS (SELECT 1 FROM reviewables WHERE task_id = tasks.id) "
+            "AS has_reviewables"
         )
 
     if ids is not None:
@@ -202,9 +211,6 @@ async def get_tasks(
     elif root.__class__.__name__ == "FolderNode":
         # cannot use isinstance here because of circular imports
         sql_conditions.append(f"tasks.folder_id = '{root.id}'")
-
-    # if name:
-    #     sql_conditions.append(f"tasks.name ILIKE '{name}'")
 
     if names is not None:
         if not names:
@@ -295,30 +301,56 @@ async def get_tasks(
             "active",
             "thumbnail_id",
         ]
-        fq = QueryFilter(**json.loads(filter))
+        fdata = json.loads(filter)
+        fq = QueryFilter(**fdata)
+        # when filtering by attribute, we need to merge parent folder attributes
+        # with the task attributes to get the full attribute set
         if fcond := build_filter(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="tasks",
+            column_map={
+                "attrib": "(coalesce(pf.attrib, '{}'::jsonb ) || tasks.attrib)"
+            },
         ):
             sql_conditions.append(fcond)
+
+    if search:
+        terms = slugify(search, make_set=True)
+        # isn't it nice that slugify effectively prevents sql injections?
+        for term in terms:
+            cond = f"""(
+            tasks.name ILIKE '{term}%'
+            OR tasks.label ILIKE '{term}%'
+            OR tasks.task_type ILIKE '{term}%'
+            OR hierarchy.path ILIKE '%{term}%'
+            )"""
+            sql_conditions.append(cond)
 
     #
     # Joins
     #
 
-    if attributes or fields.any_endswith("attrib"):
+    # Do we need to join the parent folder's exported attributes?
+    # We need it if we want to show the task attributes or filter by them
+    if (
+        attributes
+        or filter
+        or sort_by
+        or fields.any_endswith("attrib")
+        or fields.any_endswith("allAttrib")
+    ):
         sql_columns.append("pf.attrib as parent_folder_attrib")
         sql_joins.append(
-            f"""
-            LEFT JOIN project_{project_name}.exported_attributes AS pf
-            ON tasks.folder_id = pf.folder_id
-            """
+            f"LEFT JOIN project_{project_name}.exported_attributes AS pf "
+            "ON tasks.folder_id = pf.folder_id\n"
         )
     else:
+        # Otherwise, just return an empty JSONB object
         sql_columns.append("'{}'::JSONB as parent_folder_attrib")
 
-    if "folder" in fields or (access_list is not None) or use_folder_query:
+    # Do we need the parent folder data?
+    if "folder" in fields or (access_list is not None) or use_folder_query or search:
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
@@ -337,10 +369,8 @@ async def get_tasks(
             ]
         )
         sql_joins.append(
-            f"""
-            INNER JOIN project_{project_name}.folders
-            ON folders.id = tasks.folder_id
-            """
+            f"INNER JOIN project_{project_name}.folders "
+            "ON folders.id = tasks.folder_id\n"
         )
 
         if (
@@ -350,41 +380,27 @@ async def get_tasks(
             )
             or (access_list is not None)
             or use_folder_query
+            or search
         ):
             sql_columns.append("hierarchy.path AS _folder_path")
             sql_joins.append(
-                f"""
-                LEFT JOIN project_{project_name}.hierarchy AS hierarchy
-                ON folders.id = hierarchy.id
-                """
+                f"LEFT JOIN project_{project_name}.hierarchy AS hierarchy "
+                "ON folders.id = hierarchy.id\n"
             )
 
         if any(field.endswith("folder.attrib") for field in fields):
-            sql_columns.extend(
-                [
-                    "pr.attrib as _folder_project_attributes",
-                    "ex.attrib as _folder_inherited_attributes",
-                ]
+            sql_columns.append("pr.attrib as _folder_project_attributes")
+            sql_columns.append("ex.attrib as _folder_inherited_attributes")
+            sql_joins.append(
+                f"LEFT JOIN project_{project_name}.exported_attributes AS ex "
+                "ON folders.parent_id = ex.folder_id\n",
             )
-            sql_joins.extend(
-                [
-                    f"""
-                    LEFT JOIN project_{project_name}.exported_attributes AS ex
-                    ON folders.parent_id = ex.folder_id
-                    """,
-                    f"""
-                    INNER JOIN public.projects AS pr
-                    ON pr.name ILIKE '{project_name}'
-                    """,
-                ]
+            sql_joins.append(
+                f"INNER JOIN public.projects AS pr ON pr.name ILIKE '{project_name}'\n"
             )
         else:
-            sql_columns.extend(
-                [
-                    "'{}'::JSONB as _folder_project_attributes",
-                    "'{}'::JSONB as _folder_inherited_attributes",
-                ]
-            )
+            sql_columns.append("'{}'::JSONB as _folder_project_attributes")
+            sql_columns.append("'{}'::JSONB as _folder_inherited_attributes")
 
     #
     # Pagination
@@ -395,26 +411,21 @@ async def get_tasks(
         if sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
-            order_by.insert(0, f"tasks.attrib->>'{sort_by[7:]}'")
+            attr_name = sort_by[7:]
+            exp = "(pf.attrib || tasks.attrib)"
+            attr_case = await get_attrib_sort_case(attr_name, exp)
+            order_by.insert(0, attr_case)
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, ["tasks"])
-    need_cursor = paging_fields.has_any(
-        "tasks.pageInfo.startCursor",
-        "tasks.pageInfo.endCursor",
-        "tasks.edges.cursor",
-    )
-
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -426,32 +437,39 @@ async def get_tasks(
     else:
         cte = ""
 
+    sql_columns.insert(0, cursor)
+    sql_columns_str = ",\n".join(sql_columns)
+
     query = f"""
-        {cte}
-        SELECT {cursor}, {", ".join(sql_columns)}
-        FROM project_{project_name}.tasks AS tasks
-        {" ".join(sql_joins)}
-        {SQLTool.conditions(sql_conditions)}
-        {pagination}
+{cte}
+SELECT
+{sql_columns_str}
+FROM project_{project_name}.tasks AS tasks
+{" ".join(sql_joins)}
+{SQLTool.conditions(sql_conditions)}
+{ordering}
     """
+
+    # logger.debug(f"Task query\n{query}")
 
     return await resolve(
         TasksConnection,
         TaskEdge,
         TaskNode,
-        project_name,
         query,
-        first,
-        last,
+        project_name=project_name,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 
 
-async def get_task(root, info: Info, id: str) -> TaskNode | None:
+async def get_task(root, info: Info, id: str) -> TaskNode:
     """Return a task node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Task ID not specified")
     connection = await get_tasks(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Task not found")
     return connection.edges[0].node

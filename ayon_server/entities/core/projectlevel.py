@@ -2,7 +2,6 @@ from contextlib import suppress
 from datetime import datetime
 from typing import Any
 
-from nxtools import logging
 from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
@@ -15,6 +14,7 @@ from ayon_server.exceptions import (
 from ayon_server.helpers.entity_links import remove_entity_links
 from ayon_server.helpers.statuses import get_default_status_for_entity
 from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import SQLTool, dict_exclude
 
@@ -278,10 +278,12 @@ class ProjectLevelEntity(BaseEntity):
                 return bool(res[0]["count"])
             except Postgres.ForeignKeyViolationError as e:
                 detail = f"Unable to delete {self.entity_type} {self.id}"
+                code: str | None = None
                 if self.entity_type == "folder":
                     _ = e  # TODO: use this
                     detail = "Unable to delete a folder with products or tasks."
-                raise ConstraintViolationException(detail)
+                    code = "delete-folder-with-children"
+                raise ConstraintViolationException(detail, code=code)
 
         if transaction is None:
             async with Postgres.acquire() as conn, conn.transaction():
@@ -290,7 +292,7 @@ class ProjectLevelEntity(BaseEntity):
         else:
             deleted = await _delete(transaction, **kwargs)
 
-        logging.debug(f"Deleted {self.entity_type} {self.id} from {self.project_name}")
+        logger.debug(f"Deleted {self.entity_type} {self.id} from {self.project_name}")
         return deleted
 
     async def get_default_status(self) -> str:

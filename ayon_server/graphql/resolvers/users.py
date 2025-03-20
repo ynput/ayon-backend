@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import UsersConnection
 from ayon_server.graphql.edges import UserEdge
 from ayon_server.graphql.nodes.user import UserNode
@@ -9,11 +10,15 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGLast,
     argdesc,
-    create_pagination,
     resolve,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
-from ayon_server.types import validate_name_list, validate_user_name
+from ayon_server.types import (
+    validate_email_list,
+    validate_name_list,
+    validate_user_name,
+)
 from ayon_server.utils import SQLTool
 
 
@@ -33,6 +38,14 @@ async def get_users(
         argdesc(
             """
             The names of the users to retrieve.
+            """
+        ),
+    ] = None,
+    emails: Annotated[
+        list[str] | None,
+        argdesc(
+            """
+            The emails of the users to retrieve.
             """
         ),
     ] = None,
@@ -67,6 +80,15 @@ async def get_users(
             validate_user_name(name)
         sql_conditions.append(f"users.name IN {SQLTool.array(names)}")
 
+    if emails is not None:
+        if not emails:
+            return UsersConnection()
+        validate_email_list(emails)
+        emails = [e.lower() for e in emails]
+        sql_conditions.append(
+            f"LOWER(users.attrib->>'email') IN {SQLTool.array(emails)}"
+        )
+
     # Filter by project
 
     if projects is None:
@@ -92,10 +114,10 @@ async def get_users(
     #
 
     order_by = ["name"]
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by, first, after, last, before
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -104,26 +126,26 @@ async def get_users(
     query = f"""
         SELECT {cursor}, * FROM users
         {SQLTool.conditions(sql_conditions)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         UsersConnection,
         UserEdge,
         UserNode,
-        None,
         query,
-        first,
-        last,
+        first=first,
+        last=last,
         context=info.context,
+        order_by=order_by,
     )
 
 
-async def get_user(root, info: Info, name: str) -> UserNode | None:
+async def get_user(root, info: Info, name: str) -> UserNode:
     """Return a project node based on its name."""
     if not name:
-        return None
+        raise BadRequestException("User name not specified")
     connection = await get_users(root, info, name=name)
     if not connection.edges:
-        return None
+        raise NotFoundException("User not found")
     return connection.edges[0].node

@@ -1,79 +1,49 @@
 from datetime import datetime
-from typing import Literal
 
 from fastapi import Query
-from pydantic import Field
 
 from ayon_server.installer.models import DependencyPackageManifest, InstallerManifest
-from ayon_server.types import OPModel
+from ayon_server.models import RestField, RestModel
 
 from .common import get_market_data
+from .models import AddonVersionDetail
 from .router import router
 
-DocsType = Literal["user", "admin", "developer"]
+
+class BaseReleaseInfo(RestModel):
+    name: str = RestField(..., title="Release name", example="2023.08-Kitsu")
+    label: str = RestField(..., title="Release label", example="2D Animation")
+    release: str = RestField(..., title="Release", example="2023.08")
+    description: str = RestField("", title="Release bio", example="2D Animation")
+    icon: str = RestField("", title="Release icon", example="skeleton")
+    created_at: datetime = RestField(...)
+    mandatory_addons: list[str] = RestField(default_factory=list)
 
 
-class ReleaseAddon(OPModel):
-    name: str = Field(..., min_length=1, max_length=64, title="Addon Name")
-    title: str | None = Field(None, min_length=1, max_length=64, title="Addon Title")
-    description: str | None = Field(None, title="Addon Description")
-
-    icon: str | None = Field(None)
-    preview: str | None = Field(None)
-
-    features: list[str] = Field(default_factory=list)
-    families: list[str] = Field(default_factory=list)
-
-    tags: list[str] = Field(default_factory=list)
-    docs: dict[DocsType, str] = Field(default_factory=dict)
-    github: str | None = Field(None, title="GitHub Repository URL")
-    discussion: str | None = Field(None, title="Discussion URL")
-
-    is_free: bool = Field(True, title="Is this addon free?")
-
-    version: str | None = Field(None, title="Version")
-    url: str | None = Field(None, title="Download URL")
-    checksum: str | None = Field(
-        None,
-        description="Checksum of the zip file",
-        example="1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-    )
-    mandatory: bool | None = Field(None)
+class ReleaseListItemModel(BaseReleaseInfo):
+    is_latest: bool = RestField(...)
+    addons: list[str] = RestField(...)
 
 
-class ReleaseInfoModel(OPModel):
-    name: str = Field(..., title="Release name", example="2023.08-2D")
-    label: str = Field(..., title="Release label", example="2D Animation")
-    created_at: datetime = Field(default_factory=datetime.now)
-    addons: list[ReleaseAddon] = Field(default_factory=list)
-    installers: list[InstallerManifest] | None = Field(None)
-    dependency_packages: list[DependencyPackageManifest] | None = Field(None)
+class ReleaseInfoModel(BaseReleaseInfo):
+    addons: list[AddonVersionDetail] = RestField(default_factory=list)
+    installers: list[InstallerManifest] | None = RestField(None)
+    dependency_packages: list[DependencyPackageManifest] | None = RestField(None)
 
 
-class ReleaseListItemModel(OPModel):
-    name: str = Field(..., title="Release name", example="2023.08-Kitsu")
-    release: str = Field(..., title="Release", example="2023.08")
-    label: str = Field(..., title="Release label", example="2D Animation")
-    bio: str = Field("", title="Release bio", example="2D Animation")
-    icon: str = Field("", title="Release icon", example="skeleton")
-    created_at: datetime = Field(...)
-    is_latest: bool = Field(...)
-    addons: list[str] = Field(...)
-    mandatory_addons: list[str] = Field(default_factory=list)
-
-
-class ReleaseListModel(OPModel):
-    releases: list[ReleaseListItemModel] = Field(...)
+class ReleaseListModel(RestModel):
+    releases: list[ReleaseListItemModel] = RestField(...)
+    detail: str = ""
 
 
 @router.get("/releases", response_model_exclude_none=True)
 async def get_releases(list_all: bool = Query(False, alias="all")) -> ReleaseListModel:
     """Get the releases"""
 
-    endpoint = "releases"
+    endpoint = "market/releases"
     if list_all:
         endpoint += "?all=true"
-    result = await get_market_data(endpoint)
+    result = await get_market_data(endpoint, api_version="v2")
     return ReleaseListModel(releases=result["releases"])
 
 
@@ -81,5 +51,5 @@ async def get_releases(list_all: bool = Query(False, alias="all")) -> ReleaseLis
 async def get_release_info(release_name: str) -> ReleaseInfoModel:
     """Get the release info"""
 
-    result = await get_market_data(f"releases/{release_name}")
+    result = await get_market_data(f"market/releases/{release_name}", api_version="v2")
     return ReleaseInfoModel(**result)

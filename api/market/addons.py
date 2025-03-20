@@ -27,7 +27,7 @@ async def market_addon_list(
     if not user.is_admin:
         raise ForbiddenException("Only admins can access the market")
 
-    result = await get_market_data("market/addons")
+    result = await get_market_data("market/addons", api_version="v2")
     addon_list = AddonList(addons=result.get("addons", []))
 
     installed_addons = await get_local_latest_addon_versions()
@@ -55,7 +55,7 @@ async def market_addon_detail(user: CurrentUser, addon_name: str) -> AddonDetail
     if not user.is_admin:
         raise ForbiddenException("Only admins can access the market")
 
-    result = await get_market_data("market/addons", addon_name)
+    result = await get_market_data("market/addons", addon_name, api_version="v2")
     addon_detail = AddonDetail(**result)
 
     installed_addons = await get_local_latest_addon_versions()
@@ -119,7 +119,9 @@ async def market_addon_version_detail(
     if not user.is_admin:
         raise ForbiddenException("Only admins can access the market")
 
-    result = await get_market_data("market/addons", addon_name, addon_version)
+    result = await get_market_data(
+        "market/addons", addon_name, addon_version, api_version="v2"
+    )
     version_detail = AddonVersionDetail(**result)
 
     required_version = version_detail.ayon_version

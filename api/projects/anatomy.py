@@ -2,6 +2,7 @@ from ayon_server.api.dependencies import CurrentUser, ProjectName, Sender, Sende
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
+from ayon_server.events.patch import build_project_change_events
 from ayon_server.helpers.deploy_project import anatomy_to_project_data
 from ayon_server.helpers.extract_anatomy import extract_project_anatomy
 from ayon_server.settings.anatomy import Anatomy
@@ -31,20 +32,19 @@ async def set_project_anatomy(
     user.check_permissions("project.anatomy", project_name, write=True)
 
     project = await ProjectEntity.load(project_name)
-
     patch_data = anatomy_to_project_data(payload)
     patch = ProjectEntity.model.patch_model(**patch_data)
+    events = build_project_change_events(project, patch)
     project.patch(patch)
 
     await project.save()
 
-    await EventStream.dispatch(
-        "entity.project.changed",
-        sender=sender,
-        sender_type=sender_type,
-        project=project_name,
-        user=user.name,
-        description=f"Project {project_name} anatomy has been changed",
-    )
+    for event in events:
+        await EventStream.dispatch(
+            **event,
+            sender=sender,
+            sender_type=sender_type,
+            user=user.name,
+        )
 
     return EmptyResponse()

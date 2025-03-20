@@ -1,15 +1,18 @@
-__all__ = [
-    "OPModel",
-    "Field",
-]
+__all__ = ["OPModel", "Field", "camelize"]
 
 import re
 from typing import Any, Literal, NamedTuple
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ayon_server.exceptions import BadRequestException
-from ayon_server.utils import json_dumps, json_loads
+from ayon_server.models import (
+    RestField as Field,  # backwards compatibility
+)
+from ayon_server.models import (
+    RestModel as OPModel,  # backwards compatibility
+)
+from ayon_server.utils import camelize  # backwards compatibilitycamelize
 
 #
 # Common constants and types used everywhere
@@ -80,6 +83,7 @@ PROJECT_CODE_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_]*[a-zA-Z0-9_]$"
 # api key can contain alphanumeric characters and hyphens
 API_KEY_REGEX = r"^[a-zA-Z0-9\-]*$"
 SEMVER_REGEX = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"  # noqa: E501
+EMAIL_REGEX = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
 
 
 def validate_name(name: str, regex: str = NAME_REGEX) -> str:
@@ -96,6 +100,18 @@ def validate_user_name(name: str) -> str:
             f"User name '{name}' does not match regex '{USER_NAME_REGEX}'"
         )
     return name
+
+
+def validate_email(email: str) -> str:
+    """Validate email."""
+    if not re.match(EMAIL_REGEX, email):
+        raise BadRequestException(f"Invalid email: '{email}'")
+    return email
+
+
+def validate_email_list(emails: list[str]) -> list[str]:
+    """Validate list of emails."""
+    return [validate_email(email) for email in emails]
 
 
 def validate_name_list(names: list[str], regex: str = NAME_REGEX) -> list[str]:
@@ -129,31 +145,6 @@ def validate_topic_list(topics: list[str]) -> list[str]:
 def sanitize_string_list(strings: list[str]) -> list[str]:
     """Make list of strings safe to use in SQL queries."""
     return [s.replace("'", "''") for s in strings]
-
-
-#
-# Pydantic model used for API requests and responses,
-# entity payloads etc.
-#
-
-
-def camelize(src: str) -> str:
-    """Convert snake_case to camelCase."""
-    components = src.split("_")
-    return components[0] + "".join(x.title() for x in components[1:])
-
-
-class OPModel(BaseModel):
-    """Base API model."""
-
-    class Config:
-        """API model config."""
-
-        orm_mode = True
-        allow_population_by_field_name = True
-        alias_generator = camelize
-        json_loads = json_loads
-        json_dumps = json_dumps
 
 
 #

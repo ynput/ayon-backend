@@ -4,7 +4,6 @@ from typing import Any
 
 import strawberry
 from graphql import GraphQLError
-from nxtools import logging
 from strawberry.dataloader import DataLoader
 from strawberry.fastapi import GraphQLRouter
 from strawberry.types import ExecutionContext
@@ -45,6 +44,8 @@ from ayon_server.graphql.resolvers.projects import get_project, get_projects
 from ayon_server.graphql.resolvers.users import get_user, get_users
 from ayon_server.graphql.types import Info
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
+from ayon_server.utils import json_dumps
 
 
 async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
@@ -128,6 +129,7 @@ class Query:
             updated_at=user.updated_at,
             created_at=user.created_at,
             attrib=UserAttribType(**user.attrib.dict()),
+            all_attrib=json_dumps(user.attrib.dict()),
             access_groups=user.data.get("accessGroups", {}),
             is_admin=user.is_admin,
             is_manager=user.is_manager,
@@ -184,7 +186,10 @@ class AyonSchema(strawberry.Schema):
             message = error.message
 
             if status_code not in [401, 403, 404]:
-                logging.error(f"GraphQL: {fname}:{line_no} ({path}) {message}")
+                logger.error(
+                    f"[GRAPHQL ERROR] {path}: {message}",
+                    traceback="".join(tb.format()),
+                )
 
 
 router: GraphQLRouter[Any, Any] = GraphQLRouter(

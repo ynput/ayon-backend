@@ -4,13 +4,15 @@ Warning! We need to use typing.List in the models,
 since Python 3.10 syntax does not work with Strawberry yet.
 """
 
+import sys
+import time
 import uuid
 from datetime import datetime
 from typing import Any, Literal, TypeVar
 
-from nxtools import log_traceback
 from pydantic import BaseModel, Field, create_model
 
+from ayon_server.logging import log_traceback, logger
 from ayon_server.types import AttributeEnumItem, AttributeType
 
 C = TypeVar("C", bound=type)
@@ -20,7 +22,7 @@ C = TypeVar("C", bound=type)
 #
 
 
-FIELD_TYPES = {
+FIELD_TYPES: dict[AttributeType, type] = {
     "string": str,
     "integer": int,
     "float": float,
@@ -189,6 +191,25 @@ def generate_model(
         else:
             ftype = Any
 
+        if "default" in field and "default_factory" in field:
+            logger.error(
+                f"Both default and default_factory provided for field '{fdef.name}'"
+            )
+            field.pop("default")
+
+        # ensure we can construct the model
+        try:
+            _ = create_model("test", __config__=config, test=(ftype, Field(**field)))  # type: ignore
+        except ValueError:
+            log_traceback(f"Unable to construct attribute '{fdef.name}'")
+            continue
+
         fields[fdef.name] = (ftype, Field(**field))  # type: ignore
 
-    return create_model(model_name, __config__=config, **fields)  # type: ignore
+    try:
+        return create_model(model_name, __config__=config, **fields)  # type: ignore
+    except ValueError:
+        logger.error("Unable to start")
+        log_traceback(f"Invalid attribute definition: {model_name}")
+        time.sleep(5)
+        sys.exit(1)

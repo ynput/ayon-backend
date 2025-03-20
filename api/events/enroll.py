@@ -2,9 +2,8 @@ import re
 import time
 
 from fastapi import Request
-from nxtools import logging
 
-from ayon_server.api.dependencies import CurrentUser, Sender, SenderType
+from ayon_server.api.dependencies import CurrentUser, NoTraces, Sender, SenderType
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.events.enroll import EnrollResponseModel, enroll_job
 from ayon_server.exceptions import (
@@ -14,6 +13,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.sqlfilter import QueryFilter
 from ayon_server.types import TOPIC_REGEX, Field, OPModel
 from ayon_server.utils import hash_data
@@ -94,7 +94,7 @@ def validate_source_topic(value: str) -> str:
 
 
 # response model must be here
-@router.post("/enroll", response_model=EnrollResponseModel)
+@router.post("/enroll", response_model=EnrollResponseModel, dependencies=[NoTraces])
 async def enroll(
     request: Request,
     payload: EnrollRequestModel,
@@ -120,7 +120,7 @@ async def enroll(
             if not args:
                 print()
             else:
-                logging.debug("🦥", *args)
+                logger.debug("🦥", *args)
 
     if not current_user.is_service:
         raise ForbiddenException("Only services can enroll for jobs")

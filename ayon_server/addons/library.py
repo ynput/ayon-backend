@@ -2,18 +2,24 @@ import os
 from collections.abc import ItemsView
 from typing import Any
 
-from nxtools import log_traceback, logging
-
 from ayon_server.addons.addon import BaseServerAddon
 from ayon_server.addons.definition import ServerAddonDefinition
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
+from ayon_server.logging import log_traceback, logger
 
 
 class AddonLibrary:
     ADDONS_DIR = ayonconfig.addons_dir
     _instance = None
+
+    @staticmethod
+    async def clear_addon_list_cache():
+        keys = await Redis.keys("addon-list")
+        for key in keys:
+            await Redis.delete_ns("addon-list")
 
     @classmethod
     def getinstance(cls) -> "AddonLibrary":
@@ -27,7 +33,7 @@ class AddonLibrary:
         self.restart_requested = False
         addons_dir = self.get_addons_dir()
         if addons_dir is None:
-            logging.error(f"Addons directory does not exist: {addons_dir}")
+            logger.error(f"Addons directory does not exist: {addons_dir}")
             return None
 
         for addon_name in sorted(os.listdir(addons_dir)):
@@ -179,7 +185,7 @@ class AddonLibrary:
         definition = instance.data.get(addon_name)
         if definition is None:
             return
-        logging.debug("Unloading addon", addon_name, addon_version)
+        logger.debug("Unloading addon", addon_name, addon_version)
         definition.unload_version(addon_version)
 
     @classmethod

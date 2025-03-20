@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from ayon_server.entities.core import attribute_library
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
 from ayon_server.graphql.nodes.folder import FolderNode
@@ -15,11 +16,11 @@ from ayon_server.graphql.resolvers.common import (
     FieldInfo,
     argdesc,
     create_folder_access_list,
-    create_pagination,
     get_has_links_conds,
     resolve,
     sortdesc,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.types import (
     validate_name,
@@ -334,22 +335,14 @@ async def get_folders(
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
-    paging_fields = FieldInfo(info, ["folders"])
-    need_cursor = paging_fields.has_any(
-        "folders.pageInfo.startCursor",
-        "folders.pageInfo.endCursor",
-        "folders.edges.cursor",
-    )
-
-    pagination, paging_conds, cursor = create_pagination(
+    ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
         after,
         last,
         before,
-        need_cursor=need_cursor,
     )
-    sql_conditions.extend(paging_conds)
+    sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -369,26 +362,27 @@ async def get_folders(
         {SQLTool.conditions(sql_conditions)}
         GROUP BY {",".join(sql_group_by)}
         {SQLTool.conditions(sql_having).replace("WHERE", "HAVING", 1)}
-        {pagination}
+        {ordering}
     """
 
     return await resolve(
         FoldersConnection,
         FolderEdge,
         FolderNode,
-        project_name,
         query,
-        first,
-        last,
+        project_name=project_name,
+        first=first,
+        last=last,
+        order_by=order_by,
         context=info.context,
     )
 
 
-async def get_folder(root, info: Info, id: str) -> FolderNode | None:
+async def get_folder(root, info: Info, id: str) -> FolderNode:
     """Return a folder node based on its ID"""
     if not id:
-        return None
+        raise BadRequestException("Folder ID is not specified")
     connection = await get_folders(root, info, ids=[id])
     if not connection.edges:
-        return None
+        raise NotFoundException("Folder not found")
     return connection.edges[0].node

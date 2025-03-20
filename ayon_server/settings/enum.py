@@ -40,6 +40,18 @@ async def folder_types_enum(project_name: str | None = None):
     ]
 
 
+async def product_types_enum() -> list[str]:
+    return [
+        row["name"]
+        async for row in Postgres.iterate(
+            """
+            SELECT name FROM public.product_types
+            ORDER BY name
+            """
+        )
+    ]
+
+
 async def task_types_enum(project_name: str | None = None):
     if project_name is None:
         anatomy = await get_primary_anatomy_preset()

@@ -1,12 +1,12 @@
-from typing import Literal, get_args
+from typing import get_args
 
 from pydantic import validator
 
-from ayon_server.settings.common import BaseSettingsModel
+from ayon_server.entities.project_aux_tables import State
 from ayon_server.settings.settings_field import SettingsField
 from ayon_server.types import ProjectLevelEntityType
 
-State = Literal["not_started", "in_progress", "done", "blocked"]
+from .aux_model import BaseAuxModel
 
 
 def get_state_enum():
@@ -28,16 +28,7 @@ def get_default_scopes():
     return get_args(ProjectLevelEntityType)
 
 
-class Status(BaseSettingsModel):
-    _layout = "compact"
-
-    name: str = SettingsField(
-        ...,
-        title="Name",
-        min_length=1,
-        max_length=100,
-        example="In progress",
-    )
+class Status(BaseAuxModel):
     shortName: str = SettingsField(
         "",
         title="Short name",
@@ -73,20 +64,11 @@ class Status(BaseSettingsModel):
         example=None,
     )  # Used for renaming, we don't show it in the UI
 
-    @validator("original_name")
-    def validate_original_name(cls, v, values):
-        if v is None:
-            return values["name"]
-        return v
-
     @validator("scope")
     def validate_scope(cls, v, values):
         if v is None:
             return get_default_scopes()
         return v
-
-    def __hash__(self):
-        return hash(self.name)
 
 
 default_statuses = [
