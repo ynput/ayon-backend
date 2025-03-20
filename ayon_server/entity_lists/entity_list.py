@@ -70,6 +70,8 @@ class EntityList:
         result.user = user
         result.exists = True
 
+        return result
+
     @classmethod
     async def load(
         cls,
