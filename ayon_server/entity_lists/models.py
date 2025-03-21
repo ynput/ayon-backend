@@ -14,20 +14,60 @@ class ListAccessLevel(IntEnum):
 
 
 class EntityListItemModel(OPModel):
-    id: Annotated[str, Field(default_factory=create_uuid)]
+    id: Annotated[str, Field(default_factory=create_uuid, title="Item ID")]
 
-    entity_type: ProjectLevelEntityType
-    entity_id: str = Field(...)
-    position: Annotated[int, Field(0)]
+    entity_type: Annotated[
+        ProjectLevelEntityType,
+        Field(
+            title="Entity type",
+            description="Type of the list item entity",
+            example="version",
+        ),
+    ]
+    entity_id: Annotated[
+        str,
+        Field(
+            title="Entity ID",
+            description="ID of the list item entity",
+        ),
+    ]
+    position: Annotated[
+        int,
+        Field(
+            title="Position",
+            description="Position of the item in the list",
+        ),
+    ] = 0
 
-    attrib: dict[str, Any] = Field(default_factory=dict)
-    data: dict[str, Any] = Field(default_factory=dict)
-    tags: list[str] = Field(default_factory=list)
+    attrib: Annotated[
+        dict[str, Any],
+        Field(
+            default_factory=dict,
+            title="Item attributes",
+            description="Overrides of the listed entity attributes",
+        ),
+    ]
+    data: Annotated[
+        dict[str, Any],
+        Field(
+            default_factory=dict,
+            title="Item data",
+            description="Additional data associated with the item",
+        ),
+    ]
+    tags: Annotated[
+        list[str],
+        Field(
+            default_factory=list,
+            title="Item tags",
+            description="Tags associated with the item",
+        ),
+    ]
 
     created_by: str | None = None
     updated_by: str | None = None
-    created_at: datetime | None = Field(default_factory=datetime.utcnow)
-    updated_at: datetime | None = Field(default_factory=datetime.utcnow)
+    created_at: Annotated[datetime, Field(default_factory=datetime.utcnow)]
+    updated_at: Annotated[datetime, Field(default_factory=datetime.utcnow)]
 
 
 class EntityListModel(OPModel):

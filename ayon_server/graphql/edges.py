@@ -94,12 +94,6 @@ class ActivityEdge(BaseEdge):
     cursor: str | None = strawberry.field(default=None)
 
 
-# @strawberry.type
-# class InboxEdge(BaseEdge):
-#     node: ActivityNode = strawberry.field(description="The inbox node")
-#     cursor: str | None = strawberry.field(default=None)
-
-
 @strawberry.type
 class KanbanEdge(BaseEdge):
     node: KanbanNode = strawberry.field(description="The kanban node")
