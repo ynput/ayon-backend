@@ -71,9 +71,10 @@ async def update_activity(
         # otherwise, we raise a ForbiddenException
         if body:
             ensure_only_checkboxes_changed(res[0]["body"], body)
-
-        if files or append_files or data or extra_references:
-            raise ForbiddenException("You can only edit checkboxes")
+        # prevent updating files, references, or data
+        files = None
+        extra_references = None
+        data = None
 
     if body is None:
         body = res[0]["body"]
