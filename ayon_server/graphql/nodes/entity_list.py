@@ -6,10 +6,21 @@ import strawberry
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
 from ayon_server.utils import json_dumps
+from ayon_server.utils.json import json_loads
 
 #
 # Entity list item
 #
+
+
+@strawberry.type
+class EntityListSummary:
+    folder_count: int = strawberry.field(default=0)
+    task_count: int = strawberry.field(default=0)
+    product_count: int = strawberry.field(default=0)
+    version_count: int = strawberry.field(default=0)
+    representation_count: int = strawberry.field(default=0)
+    workfile_count: int = strawberry.field(default=0)
 
 
 @strawberry.type
@@ -54,6 +65,18 @@ class EntityListItemEdge(BaseEdge):
             raise ValueError
         record = await loader.load((self.project_name, self.entity_id))
         return parser(self.project_name, record, info.context)
+
+    @strawberry.field(description="Summary")
+    def summary(self) -> EntityListSummary:
+        summary_data = json_loads(self.data).get("summary", {})
+        return EntityListSummary(
+            folder_count=summary_data.get("folder_count", 0),
+            task_count=summary_data.get("task_count", 0),
+            product_count=summary_data.get("product_count", 0),
+            version_count=summary_data.get("version_count", 0),
+            representation_count=summary_data.get("representation_count", 0),
+            workfile_count=summary_data.get("workfile_count", 0),
+        )
 
     @classmethod
     def from_record(
