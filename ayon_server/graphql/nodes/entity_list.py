@@ -7,6 +7,10 @@ from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
 from ayon_server.utils import json_dumps
 
+#
+# Entity list item
+#
+
 
 @strawberry.type
 class EntityListItemEdge(BaseEdge):
@@ -78,6 +82,11 @@ class EntityListItemEdge(BaseEdge):
 @strawberry.type
 class EntityListItemsConnection(BaseConnection):
     edges: list[EntityListItemEdge] = strawberry.field(default_factory=list)
+
+
+#
+# Entity list
+#
 
 
 @strawberry.type
