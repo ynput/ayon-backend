@@ -4,7 +4,7 @@ from ayon_server.api.dependencies import (
     Sender,
     SenderType,
 )
-from ayon_server.api.responses import EmptyResponse, EntityIdResponse
+from ayon_server.api.responses import EmptyResponse
 from ayon_server.entity_lists.create_entity_list import (
     create_entity_list as _create_entity_list,
 )
@@ -15,6 +15,8 @@ from ayon_server.entity_lists.materialize import (
     materialize_entity_list as _materialize_entity_list,
 )
 from ayon_server.entity_lists.models import EntityListModel
+from ayon_server.entity_lists.summary import EntityListSummary, get_entity_list_summary
+from ayon_server.events import EventStream
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
@@ -28,7 +30,7 @@ async def create_entity_list(
     payload: EntityListModel,
     sender: Sender,
     sender_type: SenderType,
-) -> EntityIdResponse:
+) -> EntityListSummary:
     """Create a new entity list.
 
     When passing list item, position field will be ignored and instead,
@@ -49,7 +51,10 @@ async def create_entity_list(
             data=payload.data,
             tags=payload.tags,
             user=user,
+            sender=sender,
+            sender_type=sender_type,
             conn=conn,
+            send_event=False,
         )
 
         for position, list_item in enumerate(payload.items):
@@ -66,8 +71,18 @@ async def create_entity_list(
                 user=user,
                 conn=conn,
             )
+        summary = await get_entity_list_summary(conn, project_name, list_id)
 
-    return EntityIdResponse(id=list_id)
+    await EventStream.dispatch(
+        "entity_list.created",
+        description=f"Entity list '{summary['label']}' created",
+        summary=dict(summary),
+        project=project_name,
+        user=user.name if user else None,
+        sender=sender,
+        sender_type=sender_type,
+    )
+    return summary
 
 
 @router.post("/{list_id}/materialize")
@@ -77,16 +92,24 @@ async def materialize_entity_list(
     list_id: str,
     sender: Sender,
     sender_type: SenderType,
-) -> EmptyResponse:
-    """Materialize an entity list.
+) -> EntityListSummary:
+    """Materialize an entity list."""
 
-    This endpoint is used to materialize an entity list.
-    """
-
-    await _materialize_entity_list(
+    return await _materialize_entity_list(
         project_name,
         list_id,
         user=user,
+        sender=sender,
+        sender_type=sender_type,
     )
+
+
+@router.patch("/{list_id}")
+async def update_entity_list(
+    user: CurrentUser,
+    project_name: ProjectName,
+    list_id: str,
+) -> EmptyResponse:
+    # TODO
 
     return EmptyResponse()

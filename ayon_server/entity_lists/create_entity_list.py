@@ -2,10 +2,13 @@ import re
 from typing import Any
 
 from ayon_server.entities.user import UserEntity
+from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.types import PROJECT_NAME_REGEX
 from ayon_server.utils import create_uuid
+
+from .summary import EntityListSummary, get_entity_list_summary
 
 
 async def _create_entity_list(
@@ -21,7 +24,7 @@ async def _create_entity_list(
     template: dict[str, Any] | None,
     user: UserEntity | None,
     conn: Connection,
-):
+) -> EntityListSummary:
     await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
     await conn.execute(
         """
@@ -41,12 +44,12 @@ async def _create_entity_list(
         tags,
     )
 
-    # TODO: Emit events
+    return await get_entity_list_summary(conn, project_name, id)
 
 
 async def create_entity_list(
     project_name: str,
-    list_type: str,
+    entity_list_type: str,
     label: str,
     *,
     id: str | None = None,
@@ -56,8 +59,11 @@ async def create_entity_list(
     tags: list[str] | None = None,
     template: dict[str, Any] | None = None,
     user: UserEntity | None = None,
+    sender: str | None = None,
+    sender_type: str | None = None,
     conn: Connection | None = None,
-):
+    send_event: bool = True,
+) -> EntityListSummary:
     # Populate default values
 
     if id is None:
@@ -82,9 +88,9 @@ async def create_entity_list(
 
     if conn is None:
         async with Postgres.acquire() as conn, conn.transaction():
-            await _create_entity_list(
+            summary = await _create_entity_list(
                 project_name,
-                list_type,
+                entity_list_type,
                 label,
                 id=id,
                 attrib=attrib,
@@ -95,11 +101,10 @@ async def create_entity_list(
                 user=user,
                 conn=conn,
             )
-            return id
     else:
-        await _create_entity_list(
+        summary = await _create_entity_list(
             project_name,
-            list_type,
+            entity_list_type,
             label,
             id=id,
             attrib=attrib,
@@ -110,4 +115,15 @@ async def create_entity_list(
             user=user,
             conn=conn,
         )
-        return id
+
+    if send_event:
+        await EventStream.dispatch(
+            "entity_list.created",
+            description=f"{entity_list_type} entity list '{label}' created",
+            summary=dict(summary),
+            project=project_name,
+            user=user.name if user else None,
+            sender=sender,
+            sender_type=sender_type,
+        )
+    return summary

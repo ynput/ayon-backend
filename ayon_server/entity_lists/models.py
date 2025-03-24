@@ -14,7 +14,15 @@ class ListAccessLevel(IntEnum):
 
 
 class EntityListItemModel(OPModel):
-    id: Annotated[str, Field(default_factory=create_uuid, title="Item ID")]
+    id: Annotated[
+        str,
+        Field(
+            default_factory=create_uuid,
+            title="Item ID",
+            description="ID of the list item entity",
+            example="123e4567-e89b-12d3-a456-426614174000",
+        ),
+    ]
 
     entity_type: Annotated[
         ProjectLevelEntityType,
@@ -24,18 +32,22 @@ class EntityListItemModel(OPModel):
             example="version",
         ),
     ]
+
     entity_id: Annotated[
         str,
         Field(
             title="Entity ID",
             description="ID of the list item entity",
+            example="123e4567-e89b-12d3-a456-426614174000",
         ),
     ]
+
     position: Annotated[
         int,
         Field(
             title="Position",
             description="Position of the item in the list",
+            example=42,
         ),
     ] = 0
 
@@ -47,6 +59,7 @@ class EntityListItemModel(OPModel):
             description="Overrides of the listed entity attributes",
         ),
     ]
+
     data: Annotated[
         dict[str, Any],
         Field(
@@ -55,6 +68,7 @@ class EntityListItemModel(OPModel):
             description="Additional data associated with the item",
         ),
     ]
+
     tags: Annotated[
         list[str],
         Field(
@@ -64,10 +78,41 @@ class EntityListItemModel(OPModel):
         ),
     ]
 
-    created_by: str | None = None
-    updated_by: str | None = None
-    created_at: Annotated[datetime, Field(default_factory=datetime.utcnow)]
-    updated_at: Annotated[datetime, Field(default_factory=datetime.utcnow)]
+    created_by: Annotated[
+        str | None,
+        Field(
+            title="Created by",
+            description="Name of the user who created the item",
+            example="admin",
+        ),
+    ] = None
+
+    updated_by: Annotated[
+        str | None,
+        Field(
+            title="Updated by",
+            description="Name of the user who last updated the item",
+            example="editor",
+        ),
+    ] = None
+
+    created_at: Annotated[
+        datetime,
+        Field(
+            default_factory=datetime.utcnow,
+            title="Created at",
+            description="Timestamp of when the item was created",
+        ),
+    ]
+
+    updated_at: Annotated[
+        datetime,
+        Field(
+            default_factory=datetime.utcnow,
+            title="Updated at",
+            description="Timestamp of when the item was last updated",
+        ),
+    ]
 
 
 class EntityListModel(OPModel):
