@@ -7,9 +7,11 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
+    resolve,
 )
-from ayon_server.graphql.types import Info, PageInfo
-from ayon_server.lib.postgres import Postgres
+from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.types import Info
+from ayon_server.utils import SQLTool
 
 
 async def get_entity_list_items(
@@ -22,52 +24,33 @@ async def get_entity_list_items(
     before: ARGBefore = None,
 ) -> EntityListItemsConnection:
     project_name = root.project_name
+    sql_conditions = [f"entity_list_id = '{entity_list_id}'"]
 
-    edges: list[EntityListItemEdge] = []
+    order_by = ["position"]
+    ordering, paging_conds, cursor = create_pagination(
+        order_by,
+        first,
+        after,
+        last,
+        before,
+    )
 
+    sql_conditions.append(paging_conds)
     query = f"""
-        SELECT *
+        SELECT {cursor}, *
         FROM project_{project_name}.entity_list_items
-        WHERE entity_list_id = $1
+        {SQLTool.conditions(sql_conditions)}
         ORDER BY position ASC
     """
 
-    async for row in Postgres.iterate(query, entity_list_id):
-        item_id = row["id"]
-        entity_type = row["entity_type"]
-        entity_id = row["entity_id"]
-        position = row["position"]
-
-        attrib = row["attrib"]
-        data = row["data"]
-        tags = row["tags"]
-
-        created_by = row["created_by"]
-        updated_by = row["updated_by"]
-
-        created_at = row["created_at"]
-        updated_at = row["updated_at"]
-
-        edges.append(
-            EntityListItemEdge(
-                id=item_id,
-                project_name=project_name,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                position=position,
-                attrib=attrib,
-                data=data,
-                tags=tags,
-                created_by=created_by,
-                updated_by=updated_by,
-                created_at=created_at,
-                updated_at=updated_at,
-            )
-        )
-
-    page_info = PageInfo(
-        has_next_page=False,
-        end_cursor="noway",
+    return await resolve(
+        EntityListItemsConnection,
+        EntityListItemEdge,
+        None,
+        query,
+        project_name=project_name,
+        first=first,
+        last=last,
+        context=info.context,
+        order_by=order_by,
     )
-
-    return EntityListItemsConnection(edges=edges, page_info=page_info)

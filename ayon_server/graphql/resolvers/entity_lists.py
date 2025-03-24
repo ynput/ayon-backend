@@ -25,8 +25,12 @@ async def get_entity_lists(
     ids: ARGIds = None,
 ) -> EntityListsConnection:
     project_name = root.project_name
-
     sql_conditions = []
+
+    # Allow access to managers, owners and explicitly shared lists
+    user = info.context["user"]
+    if not user.is_manager:
+        sql_conditions.append(f"(created_by='{user.name}' OR access ? '{user.name}'")
 
     #
     # Pagination

@@ -5,6 +5,7 @@ import strawberry
 
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
+from ayon_server.utils import json_dumps
 
 
 @strawberry.type
@@ -25,6 +26,8 @@ class EntityListItemEdge(BaseEdge):
     updated_by: str | None = strawberry.field(default=None)
     created_at: datetime = strawberry.field(default=None)
     updated_at: datetime = strawberry.field(default=None)
+
+    cursor: str | None = strawberry.field(default=None)
 
     @strawberry.field(description="Item node")
     async def node(self, info: Info) -> "BaseNode":
@@ -47,6 +50,29 @@ class EntityListItemEdge(BaseEdge):
             raise ValueError
         record = await loader.load((self.project_name, self.entity_id))
         return parser(self.project_name, record, info.context)
+
+    @classmethod
+    def from_record(
+        cls,
+        project_name: str,
+        record: dict[str, Any],
+        context: dict[str, Any],
+    ) -> "EntityListItemEdge":
+        return cls(
+            project_name=project_name,
+            id=record["id"],
+            entity_type=record["entity_type"],
+            entity_id=record["entity_id"],
+            position=record["position"],
+            attrib=json_dumps(record["attrib"]),
+            data=json_dumps(record["data"]),
+            tags=record["tags"],
+            created_by=record["created_by"],
+            updated_by=record["updated_by"],
+            created_at=record["created_at"],
+            updated_at=record["updated_at"],
+            cursor=record["cursor"],
+        )
 
 
 @strawberry.type
