@@ -61,7 +61,7 @@ async def materialize_entity_list(
         summary = await get_entity_list_summary(conn, project_name, entity_list_id)
 
     await EventStream.dispatch(
-        "entity_list.created",
+        "entity_list.items_changed",
         description=f"Materialized entity list '{summary['label']}'",
         summary=dict(summary),
         project=project_name,

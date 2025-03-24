@@ -2,14 +2,14 @@ from typing import NotRequired, Required, TypedDict
 
 from ayon_server.lib.postgres import Connection
 
-ENTITY_LIST_SUMMARY_EVENT_FIELDS = ["id", "entity_list_type", "label"]
+ENTITY_LIST_SUMMARY_EVENT_FIELDS = ["id", "list_type", "label"]
 
 
 class EntityListSummary(TypedDict):
     # this only goes to the event stream
 
     id: Required[str]
-    entity_list_type: Required[str]
+    list_type: Required[str]
     label: Required[str]
 
     # the following goes to data (and event stream)
@@ -32,14 +32,14 @@ async def get_entity_list_summary(
 
     res = await conn.fetch(
         f"""
-        SELECT entity_list_type, label FROM project_{project_name}.entity_lists
+        SELECT list_type, label FROM project_{project_name}.entity_lists
         WHERE id = $1
     """,
         entity_list_id,
     )
     result: EntityListSummary = {
         "id": entity_list_id,
-        "entity_list_type": res[0]["entity_list_type"],
+        "list_type": res[0]["list_type"],
         "label": res[0]["label"],
     }
     query = f"""

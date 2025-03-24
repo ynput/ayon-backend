@@ -49,7 +49,7 @@ async def _create_entity_list(
 
 async def create_entity_list(
     project_name: str,
-    entity_list_type: str,
+    list_type: str,
     label: str,
     *,
     id: str | None = None,
@@ -90,7 +90,7 @@ async def create_entity_list(
         async with Postgres.acquire() as conn, conn.transaction():
             summary = await _create_entity_list(
                 project_name,
-                entity_list_type,
+                list_type,
                 label,
                 id=id,
                 attrib=attrib,
@@ -104,7 +104,7 @@ async def create_entity_list(
     else:
         summary = await _create_entity_list(
             project_name,
-            entity_list_type,
+            list_type,
             label,
             id=id,
             attrib=attrib,
@@ -119,7 +119,7 @@ async def create_entity_list(
     if send_event:
         await EventStream.dispatch(
             "entity_list.created",
-            description=f"{entity_list_type} entity list '{label}' created",
+            description=f"{list_type} entity list '{label}' created",
             summary=dict(summary),
             project=project_name,
             user=user.name if user else None,

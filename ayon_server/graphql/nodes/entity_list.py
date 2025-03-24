@@ -94,7 +94,7 @@ class EntityListNode:
     project_name: str = strawberry.field()
 
     id: str = strawberry.field()
-
+    list_type: str = strawberry.field()
     label: str = strawberry.field()
 
     active: bool = strawberry.field()
@@ -126,6 +126,7 @@ def entity_list_from_record(
     return EntityListNode(
         project_name=project_name,
         id=record["id"],
+        list_type=record["list_type"],
         label=record["label"],
         active=record["active"],
         created_at=record["created_at"],
