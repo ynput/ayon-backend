@@ -1,10 +1,9 @@
 from ayon_server.entities import UserEntity
 from ayon_server.entity_lists.create_list_item import create_list_item
-from ayon_server.events import EventStream
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
-from .summary import EntityListSummary, get_entity_list_summary
+from .summary import EntityListSummary, get_entity_list_summary, on_list_items_changed
 
 
 async def collect_versions_with_reviewables(project_name: str) -> list[str]:
@@ -60,13 +59,14 @@ async def materialize_entity_list(
 
         summary = await get_entity_list_summary(conn, project_name, entity_list_id)
 
-    await EventStream.dispatch(
-        "entity_list.items_changed",
-        description=f"Materialized entity list '{summary['label']}'",
-        summary=dict(summary),
-        project=project_name,
-        user=user.name if user else None,
-        sender=sender,
-        sender_type=sender_type,
-    )
+        await on_list_items_changed(
+            conn,
+            project_name,
+            entity_list_id,
+            description="Materialized entity list {label}",
+            user=user,
+            sender=sender,
+            sender_type=sender_type,
+        )
+
     return summary

@@ -62,7 +62,6 @@ async def create_entity_list(
     sender: str | None = None,
     sender_type: str | None = None,
     conn: Connection | None = None,
-    send_event: bool = True,
 ) -> EntityListSummary:
     # Populate default values
 
@@ -116,14 +115,13 @@ async def create_entity_list(
             conn=conn,
         )
 
-    if send_event:
-        await EventStream.dispatch(
-            "entity_list.created",
-            description=f"{list_type} entity list '{label}' created",
-            summary=dict(summary),
-            project=project_name,
-            user=user.name if user else None,
-            sender=sender,
-            sender_type=sender_type,
-        )
+    await EventStream.dispatch(
+        "entity_list.created",
+        description=f"{list_type} entity list '{label}' created",
+        summary=dict(summary),
+        project=project_name,
+        user=user.name if user else None,
+        sender=sender,
+        sender_type=sender_type,
+    )
     return summary

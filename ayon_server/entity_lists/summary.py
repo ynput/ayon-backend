@@ -1,5 +1,7 @@
 from typing import NotRequired, Required, TypedDict
 
+from ayon_server.entities import UserEntity
+from ayon_server.events import EventStream
 from ayon_server.lib.postgres import Connection
 
 ENTITY_LIST_SUMMARY_EVENT_FIELDS = ["id", "list_type", "label"]
@@ -53,3 +55,41 @@ async def get_entity_list_summary(
         result[f"{row['entity_type']}_count"] = row["count"]  # type: ignore
 
     return result
+
+
+async def on_list_items_changed(
+    conn: Connection,
+    project_name: str,
+    entity_list_id: str,
+    *,
+    description: str = "Entity list {label} items changed",
+    user: UserEntity | None = None,
+    sender: str | None = None,
+    sender_type: str | None = None,
+) -> EntityListSummary:
+    summary = await get_entity_list_summary(conn, project_name, entity_list_id)
+    payload = {
+        k: v for k, v in summary.items() if k not in ENTITY_LIST_SUMMARY_EVENT_FIELDS
+    }
+    await conn.execute(
+        f"""
+        UPDATE project_{project_name}.entity_lists
+        SET data = jsonb_set(data, '{{summary}}', $1::jsonb)
+        WHERE id = $2
+    """,
+        payload,
+        entity_list_id,
+    )
+
+    description = description.format(label=summary["label"])
+
+    await EventStream.dispatch(
+        "entity_list.items_changed",
+        description=description,
+        summary=dict(summary),
+        project=project_name,
+        user=user.name if user else None,
+        sender=sender,
+        sender_type=sender_type,
+    )
+    return summary

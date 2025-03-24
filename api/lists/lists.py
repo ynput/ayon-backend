@@ -15,8 +15,11 @@ from ayon_server.entity_lists.materialize import (
     materialize_entity_list as _materialize_entity_list,
 )
 from ayon_server.entity_lists.models import EntityListModel
-from ayon_server.entity_lists.summary import EntityListSummary, get_entity_list_summary
-from ayon_server.events import EventStream
+from ayon_server.entity_lists.summary import (
+    EntityListSummary,
+    get_entity_list_summary,
+    on_list_items_changed,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
@@ -54,7 +57,6 @@ async def create_entity_list(
             sender=sender,
             sender_type=sender_type,
             conn=conn,
-            send_event=False,
         )
 
         for position, list_item in enumerate(payload.items):
@@ -71,17 +73,19 @@ async def create_entity_list(
                 user=user,
                 conn=conn,
             )
-        summary = await get_entity_list_summary(conn, project_name, list_id)
 
-    await EventStream.dispatch(
-        "entity_list.created",
-        description=f"Entity list '{summary['label']}' created",
-        summary=dict(summary),
-        project=project_name,
-        user=user.name if user else None,
-        sender=sender,
-        sender_type=sender_type,
-    )
+        if payload.items:
+            summary = await on_list_items_changed(
+                conn,
+                project_name,
+                list_id,
+                user=user,
+                sender=sender,
+                sender_type=sender_type,
+            )
+        else:
+            summary = await get_entity_list_summary(conn, project_name, list_id)
+
     return summary
 
 
