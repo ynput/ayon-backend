@@ -6,8 +6,10 @@ from fastapi import Query, Request
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import SourceInfo, SourceInfoTypes
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
+from ayon_server.utils.hashing import hash_data
 
 from .router import route_meta, router
 
@@ -52,15 +54,15 @@ class AddonList(OPModel):
     addons: list[AddonListItem] = Field(..., description="List of available addons")
 
 
-@router.get("", response_model_exclude_none=True, **route_meta)
-async def list_addons(
-    request: Request,
-    user: CurrentUser,
-    details: bool = Query(False, title="Show details"),
-) -> AddonList:
-    """List all available addons."""
+async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
+    ns = "addon-list"
+    key = hash_data((base_url, details))
 
-    base_url = f"{request.url.scheme}://{request.url.netloc}"
+    addon_list = await Redis.get_json(ns, key)
+    if addon_list is not None:
+        return [AddonListItem(**item) for item in addon_list]
+
+    logger.trace("Fetching addon list")
 
     result = []
     library = AddonLibrary.getinstance()
@@ -69,17 +71,12 @@ async def list_addons(
     active_versions = await library.get_active_versions()
 
     for definition in library.data.values():
+        addon = None
         vers = active_versions.get(definition.name, {})
         versions = {}
-        is_system = False
         items = list(definition.versions.items())
         items.sort(key=lambda x: semver.VersionInfo.parse(x[0]))
         for version, addon in items:
-            if addon.system:
-                if not user.is_admin:
-                    continue
-                is_system = True
-
             pcoav = addon.get_project_can_override_addon_version()
             vinf = {
                 "has_settings": bool(addon.get_settings_model()),
@@ -95,13 +92,15 @@ async def list_addons(
                     pass
 
                 elif not all(isinstance(x, SourceInfoTypes) for x in source_info):
-                    logger.error(f"Invalid source info for {addon.name} {version}")
+                    logger.error(
+                        f"Invalid source info for {addon.name} {addon.version}"
+                    )
                     source_info = [
                         x for x in source_info if isinstance(x, SourceInfoTypes)
                     ]
                 vinf["client_source_info"] = source_info
-
                 vinf["services"] = addon.services or None
+
             versions[version] = VersionInfo(**vinf)
 
         for version, reason in library.get_broken_versions(definition.name).items():
@@ -110,6 +109,8 @@ async def list_addons(
         if not versions:
             continue
 
+        assert addon is not None, "Addon not found"
+
         result.append(
             AddonListItem(
                 name=definition.name,
@@ -117,11 +118,29 @@ async def list_addons(
                 versions=versions,
                 description=definition.__doc__ or "",
                 production_version=vers.get("production"),
-                system=is_system,
+                system=bool(addon.system),
                 staging_version=vers.get("staging"),
                 addon_type=addon.addon_type,
                 project_can_override_addon_version=definition.project_can_override_addon_version,
             )
         )
+
     result.sort(key=lambda x: x.name)
-    return AddonList(addons=result)
+    await Redis.delete_ns("addon-list")
+    await Redis.set_json("addon-list", key, [addon.dict() for addon in result])
+    return result
+
+
+@router.get("", response_model_exclude_none=True, **route_meta)
+async def list_addons(
+    request: Request,
+    user: CurrentUser,
+    details: bool = Query(False, title="Show details"),
+) -> AddonList:
+    """List all available addons."""
+
+    base_url = f"{request.url.scheme}://{request.url.netloc}"
+    addon_list = await _get_addon_list(base_url, details)
+    if not user.is_admin:
+        addon_list = [addon for addon in addon_list if not addon.system]
+    return AddonList(addons=addon_list)

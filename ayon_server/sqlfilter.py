@@ -260,7 +260,6 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
     """Return a SQL WHERE clause from a Filter object."""
 
     if f is None:
-        logger.trace("Empty filter")
         return None
 
     if not f.conditions:

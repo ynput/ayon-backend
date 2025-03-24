@@ -42,13 +42,6 @@ async def _process_operation(
 
     entity_class = get_entity_class(operation.entity_type)
 
-    addr = f"{project_name}/{operation.entity_id}"
-    logger.debug(
-        f"[{operation.entity_type.upper()} {operation.type.upper()}] {addr}",
-        project=project_name,
-        operation_id=operation.id,
-    )
-
     # Data for the event triggered after successful operation
     events: list[dict[str, Any]] | None = None
     status = 200
@@ -128,6 +121,14 @@ async def _process_operations(
         else:
             user = None
 
+        addr = f"{project_name}/{operation.entity_id}"
+        op_tag = f"[{operation.entity_type.upper()} {operation.type.upper()}]"
+        logger.debug(
+            f"{op_tag} {addr}",
+            project=project_name,
+            operation_id=operation.id,
+        )
+
         try:
             entity, evt, response = await _process_operation(
                 project_name,
@@ -141,6 +142,11 @@ async def _process_operations(
             if entity.entity_type not in [e.entity_type for e in to_commit]:
                 to_commit.append(entity)
         except AyonException as e:
+            logger.debug(
+                f"{op_tag} failed: {e.detail}",
+                project=project_name,
+                operation_id=operation.id,
+            )
             result.append(
                 OperationResponseModel(
                     success=False,
@@ -159,7 +165,11 @@ async def _process_operations(
                 break
         except IntegrityConstraintViolationError as e:
             parsed = parse_postgres_exception(e)
-
+            logger.debug(
+                f"{op_tag} failed: {parsed['detail']}",
+                project=project_name,
+                operation_id=operation.id,
+            )
             result.append(
                 OperationResponseModel(
                     success=False,
@@ -179,7 +189,7 @@ async def _process_operations(
                 break
 
         except Exception as e:
-            log_traceback("Unhandled exception in operations")
+            log_traceback(f"{op_tag} Unhandled exception")
             result.append(
                 OperationResponseModel(
                     success=False,
@@ -187,7 +197,6 @@ async def _process_operations(
                     type=operation.type,
                     status=500,
                     detail=str(e),
-                    exception="unhandled-exception",
                     entity_id=operation.entity_id,
                     entity_type=operation.entity_type,
                 )

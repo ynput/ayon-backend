@@ -278,6 +278,7 @@ class ProjectLevelEntity(BaseEntity):
                 return bool(res[0]["count"])
             except Postgres.ForeignKeyViolationError as e:
                 detail = f"Unable to delete {self.entity_type} {self.id}"
+                code: str | None = None
                 if self.entity_type == "folder":
                     _ = e  # TODO: use this
                     detail = "Unable to delete a folder with products or tasks."
