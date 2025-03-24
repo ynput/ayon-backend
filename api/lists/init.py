@@ -17,9 +17,9 @@ queries = [
     """
 CREATE TABLE entity_lists(
   id UUID NOT NULL PRIMARY KEY,
-  label VARCHAR NOT NULL,
   list_type VARCHAR NOT NULL,
-  owner VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE CASCADE,
+  label VARCHAR NOT NULL,
+  owner VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
   access JSONB NOT NULL DEFAULT '{}'::JSONB,
   template JSONB NOT NULL DEFAULT '{}'::JSONB,
 

@@ -78,3 +78,5 @@ class EntityListModel(OPModel):
     tags: list[str] = Field(default_factory=list)
     items: list[EntityListItemModel] = Field(default_factory=list)
     access: dict[str, ListAccessLevel] = Field(default_factory=dict)
+    attrib: dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
