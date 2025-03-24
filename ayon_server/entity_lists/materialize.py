@@ -1,6 +1,7 @@
 from ayon_server.entities import UserEntity
 from ayon_server.entity_lists.create_list_item import create_list_item
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 
 
 async def collect_versions_with_reviewables(project_name: str) -> list[str]:
@@ -34,11 +35,13 @@ async def materialize_entity_list(
 
     async with Postgres.acquire() as conn, conn.transaction():
         await conn.execute(f"SET SEARCH_PATH TO project_{project_name}")
+        logger.debug("Clearing entity list items")
         await conn.execute(
             "DELETE FROM entity_list_items WHERE entity_list_id = $1",
             entity_list_id,
         )
         for position, version_id in enumerate(version_ids):
+            logger.trace(f"Creating list item for version {version_id}")
             await create_list_item(
                 project_name,
                 entity_list_id,
@@ -46,5 +49,6 @@ async def materialize_entity_list(
                 version_id,
                 position=position,
                 user=user,
+                conn=conn,
                 skip_schema_switching=True,
             )

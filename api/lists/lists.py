@@ -4,12 +4,15 @@ from ayon_server.api.dependencies import (
     Sender,
     SenderType,
 )
-from ayon_server.api.responses import EntityIdResponse
+from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entity_lists.create_entity_list import (
     create_entity_list as _create_entity_list,
 )
 from ayon_server.entity_lists.create_list_item import (
     create_list_item as _create_list_item,
+)
+from ayon_server.entity_lists.materialize import (
+    materialize_entity_list as _materialize_entity_list,
 )
 from ayon_server.entity_lists.models import EntityListModel
 from ayon_server.lib.postgres import Postgres
@@ -65,3 +68,25 @@ async def create_entity_list(
             )
 
     return EntityIdResponse(id=list_id)
+
+
+@router.post("/{list_id}/materialize")
+async def materialize_entity_list(
+    user: CurrentUser,
+    project_name: ProjectName,
+    list_id: str,
+    sender: Sender,
+    sender_type: SenderType,
+) -> EmptyResponse:
+    """Materialize an entity list.
+
+    This endpoint is used to materialize an entity list.
+    """
+
+    await _materialize_entity_list(
+        project_name,
+        list_id,
+        user=user,
+    )
+
+    return EmptyResponse()

@@ -29,7 +29,7 @@ async def _create_list_item(
         await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
     await conn.execute(
         """
-        INSERT INTO list_items
+        INSERT INTO entity_list_items
         (
           id, entity_list_id, entity_type, entity_id,
           position, attrib, data, tags, created_by, updated_by
@@ -77,7 +77,8 @@ async def create_list_item(
         tags = []
 
     if conn is not None:
-        await create_list_item(
+        await _create_list_item(
+            conn,
             project_name,
             entity_list_id,
             entity_type,
@@ -93,7 +94,8 @@ async def create_list_item(
 
     else:
         async with Postgres.acquire() as conn, conn.transaction():
-            await create_list_item(
+            await _create_list_item(
+                conn,
                 project_name,
                 entity_list_id,
                 entity_type,
