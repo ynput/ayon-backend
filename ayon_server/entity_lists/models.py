@@ -13,7 +13,7 @@ class ListAccessLevel(IntEnum):
     ADMIN = 40  # Can update/delete the list itself and add new users to the list
 
 
-class ListConfigModel(OPModel):
+class EntityListConfig(OPModel):
     entity_types: Annotated[
         list[ProjectLevelEntityType],
         Field(
@@ -199,8 +199,9 @@ class EntityListModel(EntityListPatchModel, BaseGetModel):
     ] = None
 
     config: Annotated[
-        ListConfigModel | None,
+        EntityListConfig | None,
         Field(
+            default_factory=EntityListConfig,
             title="List configuration",
         ),
-    ] = None
+    ]

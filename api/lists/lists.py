@@ -18,6 +18,7 @@ from ayon_server.entity_lists.materialize import (
     materialize_entity_list as _materialize_entity_list,
 )
 from ayon_server.entity_lists.models import (
+    EntityListConfig,
     EntityListItemModel,
     EntityListModel,
     EntityListPatchModel,
@@ -53,6 +54,8 @@ async def create_entity_list(
     if not payload.label:
         raise BadRequestException("Label is required")
 
+    config = payload.config if payload.config else EntityListConfig()
+
     async with Postgres.acquire() as conn, conn.transaction():
         await _create_entity_list(
             project_name,
@@ -61,7 +64,7 @@ async def create_entity_list(
             template=payload.template,
             access=payload.access,
             attrib=payload.attrib,
-            config=payload.config,
+            config=config,
             data=payload.data,
             tags=payload.tags,
             user=user,
@@ -72,6 +75,11 @@ async def create_entity_list(
 
         if payload.items:
             for position, list_item in enumerate(payload.items):
+                if list_item.entity_type not in config.entity_types:
+                    raise BadRequestException(
+                        f"Unsupported entity type: {list_item.entity_type}"
+                    )
+
                 await _create_list_item(
                     project_name,
                     list_id,

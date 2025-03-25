@@ -8,43 +8,8 @@ from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.types import PROJECT_NAME_REGEX
 from ayon_server.utils import create_uuid
 
+from .models import EntityListConfig
 from .summary import EntityListSummary, get_entity_list_summary
-
-
-async def _create_entity_list(
-    project_name: str,
-    label: str,
-    *,
-    id: str,
-    attrib: dict[str, Any],
-    data: dict[str, Any],
-    access: dict[str, Any],
-    config: dict[str, Any],
-    tags: list[str] | None,
-    template: dict[str, Any] | None,
-    user: UserEntity | None,
-    conn: Connection,
-) -> EntityListSummary:
-    await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
-    await conn.execute(
-        """
-        INSERT INTO entity_lists
-        (id, label, config, owner, access, template, attrib, data, tags)
-        VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        """,
-        id,
-        label,
-        config,
-        user.name if user else None,
-        access,
-        template,
-        attrib,
-        data,
-        tags,
-    )
-
-    return await get_entity_list_summary(conn, project_name, id)
 
 
 async def create_entity_list(
@@ -52,11 +17,11 @@ async def create_entity_list(
     label: str,
     *,
     id: str | None = None,
+    tags: list[str] | None = None,
     attrib: dict[str, Any] | None = None,
     data: dict[str, Any] | None = None,
     access: dict[str, Any] | None = None,
-    config: dict[str, Any] | None = None,
-    tags: list[str] | None = None,
+    config: dict[str, Any] | EntityListConfig | None = None,
     template: dict[str, Any] | None = None,
     user: UserEntity | None = None,
     sender: str | None = None,
@@ -77,45 +42,50 @@ async def create_entity_list(
         data = {}
     if template is None:
         template = {}
+
     if config is None:
-        config = {}
+        config_obj = EntityListConfig()
+    elif isinstance(config, EntityListConfig):
+        config_obj = config
+    else:
+        config_obj = EntityListConfig(**config)
 
     # Sanity checks
 
     if not re.match(PROJECT_NAME_REGEX, project_name):
         raise BadRequestException(f"Invalid project name {project_name}")
 
+    query = """
+        INSERT INTO entity_lists
+        (id, label, config, owner, access, template, attrib, data, tags)
+        VALUES
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    """
+    args = (
+        id,
+        label,
+        config_obj.dict(),
+        user.name if user else None,
+        access,
+        template,
+        attrib,
+        data,
+        tags,
+    )
+
     # Create a transaction if none is provided
+
+    async def execute_transaction(conn: Connection) -> EntityListSummary:
+        await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
+        await conn.execute(query, *args)
+        return await get_entity_list_summary(conn, project_name, id)
+        return summary
 
     if conn is None:
         async with Postgres.acquire() as conn, conn.transaction():
-            summary = await _create_entity_list(
-                project_name,
-                label,
-                id=id,
-                attrib=attrib,
-                data=data,
-                access=access,
-                config=config,
-                tags=tags,
-                template=template,
-                user=user,
-                conn=conn,
-            )
+            summary = await execute_transaction(conn)
     else:
-        summary = await _create_entity_list(
-            project_name,
-            label,
-            id=id,
-            attrib=attrib,
-            data=data,
-            config=config,
-            access=access,
-            tags=tags,
-            template=template,
-            user=user,
-            conn=conn,
-        )
+        summary = await execute_transaction(conn)
 
     await EventStream.dispatch(
         "entity_list.created",
