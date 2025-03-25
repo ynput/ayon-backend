@@ -2,6 +2,7 @@ from typing import Annotated, Any
 
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
+from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Connection
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
@@ -9,7 +10,6 @@ from ayon_server.utils import create_uuid
 
 class EntityListSummary(OPModel):
     id: Annotated[str, Field(..., title="List ID", example=create_uuid())]
-    list_type: Annotated[str, Field(..., title="List Type", example="my_list_type")]
     label: Annotated[str, Field(..., title="Label", example="My List")]
 
     folders: Annotated[int, Field(title="Folder count", ge=0)] = 0
@@ -39,17 +39,19 @@ async def get_entity_list_summary(
     as well as in the event created by creating or updating entity list.
     """
 
-    res = await conn.fetch(
+    res = await conn.fetchrow(
         f"""
-        SELECT list_type, label FROM project_{project_name}.entity_lists
+        SELECT label FROM project_{project_name}.entity_lists
         WHERE id = $1
     """,
         entity_list_id,
     )
+    if res is None:
+        raise NotFoundException(f"Entity list with id {entity_list_id} not found")
+
     result = EntityListSummary(
         id=entity_list_id,
-        list_type=res[0]["list_type"],
-        label=res[0]["label"],
+        label=res["label"],
     )
     query = f"""
         SELECT entity_type, count(*) as count

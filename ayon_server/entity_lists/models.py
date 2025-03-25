@@ -13,6 +13,16 @@ class ListAccessLevel(IntEnum):
     ADMIN = 40  # Can update/delete the list itself and add new users to the list
 
 
+class ListConfigModel(OPModel):
+    entity_types: Annotated[
+        list[ProjectLevelEntityType],
+        Field(
+            title="Entity Types",
+            description="Entity types that can be included in the list",
+        ),
+    ] = ["folder", "version", "task"]
+
+
 class BaseGetModel(OPModel):
     id: Annotated[
         str,
@@ -136,21 +146,6 @@ class EntityListPatchModel(OPModel):
         ),
     ] = None
 
-    list_type: Annotated[
-        str | None,
-        Field(
-            title="List type",
-            example="my_list_type",
-        ),
-    ] = None
-
-    template: Annotated[
-        dict[str, Any] | None,
-        Field(
-            title="List template",
-        ),
-    ] = None
-
     tags: Annotated[
         list[str] | None,
         Field(
@@ -187,11 +182,25 @@ class EntityListPatchModel(OPModel):
         ),
     ] = None
 
+    template: Annotated[
+        dict[str, Any] | None,
+        Field(
+            title="List template",
+        ),
+    ] = None
+
 
 class EntityListModel(EntityListPatchModel, BaseGetModel):
     items: Annotated[
         list[EntityListItemModel] | None,
         Field(
             title="List items",
+        ),
+    ] = None
+
+    config: Annotated[
+        ListConfigModel | None,
+        Field(
+            title="List configuration",
         ),
     ] = None

@@ -11,6 +11,9 @@ from ayon_server.entity_lists.create_entity_list import (
 from ayon_server.entity_lists.create_list_item import (
     create_list_item as _create_list_item,
 )
+from ayon_server.entity_lists.delete_entity_list import (
+    delete_entity_list as _delete_entity_list,
+)
 from ayon_server.entity_lists.materialize import (
     materialize_entity_list as _materialize_entity_list,
 )
@@ -50,19 +53,15 @@ async def create_entity_list(
     if not payload.label:
         raise BadRequestException("Label is required")
 
-    if not payload.list_type:
-        # TODO: add list type validation here
-        raise BadRequestException("List type is required")
-
     async with Postgres.acquire() as conn, conn.transaction():
         await _create_entity_list(
             project_name,
-            payload.list_type,
             payload.label,
             id=list_id,
             template=payload.template,
             access=payload.access,
             attrib=payload.attrib,
+            config=payload.config,
             data=payload.data,
             tags=payload.tags,
             user=user,
@@ -168,3 +167,15 @@ async def get_entity_list(
             result.items.append(EntityListItemModel(**dict(row)))
 
     return result
+
+
+@router.delete("/{list_id}")
+async def delete_entity_list(
+    user: CurrentUser,
+    project_name: ProjectName,
+    list_id: str,
+) -> EmptyResponse:
+    """Delete entity list"""
+
+    await _delete_entity_list(project_name, list_id, user=user)
+    return EmptyResponse()

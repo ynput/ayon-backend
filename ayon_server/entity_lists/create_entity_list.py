@@ -13,13 +13,13 @@ from .summary import EntityListSummary, get_entity_list_summary
 
 async def _create_entity_list(
     project_name: str,
-    list_type: str,
     label: str,
     *,
     id: str,
     attrib: dict[str, Any],
     data: dict[str, Any],
     access: dict[str, Any],
+    config: dict[str, Any],
     tags: list[str] | None,
     template: dict[str, Any] | None,
     user: UserEntity | None,
@@ -29,13 +29,13 @@ async def _create_entity_list(
     await conn.execute(
         """
         INSERT INTO entity_lists
-        (id, label, list_type, owner, access, template, attrib, data, tags)
+        (id, label, config, owner, access, template, attrib, data, tags)
         VALUES
         ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         """,
         id,
         label,
-        list_type,
+        config,
         user.name if user else None,
         access,
         template,
@@ -49,13 +49,13 @@ async def _create_entity_list(
 
 async def create_entity_list(
     project_name: str,
-    list_type: str,
     label: str,
     *,
     id: str | None = None,
     attrib: dict[str, Any] | None = None,
     data: dict[str, Any] | None = None,
     access: dict[str, Any] | None = None,
+    config: dict[str, Any] | None = None,
     tags: list[str] | None = None,
     template: dict[str, Any] | None = None,
     user: UserEntity | None = None,
@@ -77,6 +77,8 @@ async def create_entity_list(
         data = {}
     if template is None:
         template = {}
+    if config is None:
+        config = {}
 
     # Sanity checks
 
@@ -89,12 +91,12 @@ async def create_entity_list(
         async with Postgres.acquire() as conn, conn.transaction():
             summary = await _create_entity_list(
                 project_name,
-                list_type,
                 label,
                 id=id,
                 attrib=attrib,
                 data=data,
                 access=access,
+                config=config,
                 tags=tags,
                 template=template,
                 user=user,
@@ -103,11 +105,11 @@ async def create_entity_list(
     else:
         summary = await _create_entity_list(
             project_name,
-            list_type,
             label,
             id=id,
             attrib=attrib,
             data=data,
+            config=config,
             access=access,
             tags=tags,
             template=template,
@@ -117,7 +119,7 @@ async def create_entity_list(
 
     await EventStream.dispatch(
         "entity_list.created",
-        description=f"{list_type} entity list '{label}' created",
+        description=f"Entity list '{label}' created",
         summary=dict(summary),
         project=project_name,
         user=user.name if user else None,
