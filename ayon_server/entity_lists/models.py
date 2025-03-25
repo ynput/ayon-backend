@@ -13,17 +13,18 @@ class ListAccessLevel(IntEnum):
     ADMIN = 40  # Can update/delete the list itself and add new users to the list
 
 
-class EntityListItemModel(OPModel):
+class BaseGetModel(OPModel):
     id: Annotated[
         str,
         Field(
             default_factory=create_uuid,
-            title="Item ID",
-            description="ID of the list item entity",
+            title="ID",
             example="123e4567-e89b-12d3-a456-426614174000",
         ),
     ]
 
+
+class EntityListItemPatchModel(OPModel):
     entity_type: Annotated[
         ProjectLevelEntityType,
         Field(
@@ -115,13 +116,79 @@ class EntityListItemModel(OPModel):
     ]
 
 
-class EntityListModel(OPModel):
-    id: Annotated[str, Field(default_factory=create_uuid)]
-    label: Annotated[str, Field(...)]
-    list_type: Annotated[str, Field(...)]
-    template: Annotated[dict[str, Any] | None, Field()] = None
-    tags: list[str] = Field(default_factory=list)
-    items: list[EntityListItemModel] = Field(default_factory=list)
-    access: dict[str, ListAccessLevel] = Field(default_factory=dict)
-    attrib: dict[str, Any] = Field(default_factory=dict)
-    data: dict[str, Any] = Field(default_factory=dict)
+class EntityListItemModel(EntityListItemPatchModel, BaseGetModel):
+    pass
+
+
+class EntityListPatchModel(OPModel):
+    label: Annotated[
+        str | None,
+        Field(
+            title="List label",
+            example="My list",
+        ),
+    ] = None
+
+    list_type: Annotated[
+        str | None,
+        Field(
+            title="List type",
+            example="my_list_type",
+        ),
+    ] = None
+
+    template: Annotated[
+        dict[str, Any] | None,
+        Field(
+            title="List template",
+        ),
+    ] = None
+
+    tags: Annotated[
+        list[str] | None,
+        Field(
+            default_factory=list,
+            title="Tags",
+        ),
+    ] = None
+
+    access: Annotated[
+        dict[str, ListAccessLevel] | None,
+        Field(
+            default_factory=dict,
+            title="List access",
+            description=(
+                "Access control for the list. "
+                " be specified for individual users or teams."
+            ),
+            example={
+                "john": ListAccessLevel.READ,
+                "!producers": ListAccessLevel.UPDATE,
+            },
+        ),
+    ] = None
+
+    items: Annotated[
+        list[EntityListItemModel] | None,
+        Field(
+            title="List items",
+        ),
+    ] = None
+
+    attrib: Annotated[
+        dict[str, Any] | None,
+        Field(
+            title="List attributes",
+        ),
+    ] = None
+
+    data: Annotated[
+        dict[str, Any] | None,
+        Field(
+            title="List data",
+        ),
+    ] = None
+
+
+class EntityListModel(EntityListPatchModel, BaseGetModel):
+    pass

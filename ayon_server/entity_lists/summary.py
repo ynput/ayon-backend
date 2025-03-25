@@ -1,27 +1,34 @@
-from typing import NotRequired, Required, TypedDict
+from typing import Annotated, Any
 
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
 from ayon_server.lib.postgres import Connection
+from ayon_server.types import Field, OPModel
+from ayon_server.utils import create_uuid
 
-ENTITY_LIST_SUMMARY_EVENT_FIELDS = ["id", "list_type", "label"]
 
+class EntityListSummary(OPModel):
+    id: Annotated[str, Field(..., title="List ID", example=create_uuid())]
+    list_type: Annotated[str, Field(..., title="List Type", example="my_list_type")]
+    label: Annotated[str, Field(..., title="Label", example="My List")]
 
-class EntityListSummary(TypedDict):
-    # this only goes to the event stream
+    folder_count: Annotated[int, Field(title="Folder count", ge=0)] = 0
+    task_count: Annotated[int, Field(title="Task count", ge=0)] = 0
+    product_count: Annotated[int, Field(title="Product count", ge=0)] = 0
+    version_count: Annotated[int, Field(title="Version count", ge=0)] = 0
+    representation_count: Annotated[int, Field(title="Representation count", ge=0)] = 0
+    workfile_count: Annotated[int, Field(title="Workfile count", ge=0)] = 0
 
-    id: Required[str]
-    list_type: Required[str]
-    label: Required[str]
-
-    # the following goes to data (and event stream)
-
-    folder_count: NotRequired[int]
-    task_count: NotRequired[int]
-    product_count: NotRequired[int]
-    version_count: NotRequired[int]
-    representation_count: NotRequired[int]
-    workfile_count: NotRequired[int]
+    def get_summary_data(self) -> dict[str, Any]:
+        data = {
+            "folder_count": self.folder_count,
+            "task_count": self.task_count,
+            "product_count": self.product_count,
+            "version_count": self.version_count,
+            "representation_count": self.representation_count,
+            "workfile_count": self.workfile_count,
+        }
+        return {k: v for k, v in data.items() if v > 0}
 
 
 async def get_entity_list_summary(
@@ -39,11 +46,11 @@ async def get_entity_list_summary(
     """,
         entity_list_id,
     )
-    result: EntityListSummary = {
-        "id": entity_list_id,
-        "list_type": res[0]["list_type"],
-        "label": res[0]["label"],
-    }
+    result = EntityListSummary(
+        id=entity_list_id,
+        list_type=res[0]["list_type"],
+        label=res[0]["label"],
+    )
     query = f"""
         SELECT entity_type, count(*) as count
         FROM project_{project_name}.entity_list_items
@@ -52,7 +59,9 @@ async def get_entity_list_summary(
     """
     res = await conn.fetch(query, entity_list_id)
     for row in res:
-        result[f"{row['entity_type']}_count"] = row["count"]  # type: ignore
+        key = f"{row['entity_type']}_count"
+        assert key in result.__fields__, f"Weird. {key} not in {result.__fields__}"
+        setattr(result, key, row["count"])
 
     return result
 
@@ -68,20 +77,17 @@ async def on_list_items_changed(
     sender_type: str | None = None,
 ) -> EntityListSummary:
     summary = await get_entity_list_summary(conn, project_name, entity_list_id)
-    payload = {
-        k: v for k, v in summary.items() if k not in ENTITY_LIST_SUMMARY_EVENT_FIELDS
-    }
     await conn.execute(
         f"""
         UPDATE project_{project_name}.entity_lists
         SET data = jsonb_set(data, '{{summary}}', $1::jsonb)
         WHERE id = $2
     """,
-        payload,
+        summary.get_summary_data(),
         entity_list_id,
     )
 
-    description = description.format(label=summary["label"])
+    description = description.format(label=summary.label)
 
     await EventStream.dispatch(
         "entity_list.items_changed",

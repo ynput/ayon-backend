@@ -1,9 +1,7 @@
-"""
-This endpoint is used during the development of entity list feature.
+# TODO: Remove before merging. This is a temporary endpoint used during the development
+# of entity list feature.  When the final DB structure is ready,
+# the queries will be moved to the migration scripts.
 
-When the final DB structure is ready, the queries will be moved to
-the migration scripts.
-"""
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
@@ -61,6 +59,12 @@ async def initialize_entity_lists_for_project(
     user: CurrentUser,
     project_name: ProjectName,
 ) -> EmptyResponse:
+    """
+    This endpoint is used during the development of entity list feature.
+
+    When the final DB structure is ready, the queries will be moved to
+    the migration scripts.
+    """
     async with Postgres.acquire() as conn, conn.transaction():
         await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
         for query in queries:
