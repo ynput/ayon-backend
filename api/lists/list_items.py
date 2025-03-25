@@ -13,6 +13,7 @@ from ayon_server.entity_lists.update_list_item import (
 from ayon_server.entity_lists.update_list_item import (
     update_list_item as _update_list_item,
 )
+from ayon_server.exceptions import BadRequestException
 
 from .router import router
 
@@ -30,7 +31,7 @@ async def update_entity_list_item(
     payload_dict = payload.dict(exclude_unset=True, exclude_none=True)
     for key in list(payload_dict.keys()):
         if key not in UPDATEABLE_FIELDS:
-            payload_dict.pop(key, None)
+            raise BadRequestException(f"{key} cannot be updated on an entity list item")
 
     await _update_list_item(
         project_name,

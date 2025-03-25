@@ -157,7 +157,11 @@ async def get_entity_list(
             raise NotFoundException(status_code=404, detail="List not found")
 
         result = EntityListModel(**dict(list_data), items=[])
-        q = "SELECT * FROM entity_list_items WHERE entity_list_id = $1"
+        q = """
+        SELECT * FROM entity_list_items
+        WHERE entity_list_id = $1
+        ORDER BY position ASC
+        """
         statement = await conn.prepare(q)
         assert isinstance(result.items, list), "Items should be a list"
         async for row in statement.cursor(list_id):
