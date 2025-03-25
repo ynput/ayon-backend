@@ -15,12 +15,12 @@ from ayon_server.utils.json import json_loads
 
 @strawberry.type
 class EntityListSummary:
-    folder_count: int = strawberry.field(default=0)
-    task_count: int = strawberry.field(default=0)
-    product_count: int = strawberry.field(default=0)
-    version_count: int = strawberry.field(default=0)
-    representation_count: int = strawberry.field(default=0)
-    workfile_count: int = strawberry.field(default=0)
+    folders: int = strawberry.field(default=0)
+    tasks: int = strawberry.field(default=0)
+    products: int = strawberry.field(default=0)
+    versions: int = strawberry.field(default=0)
+    representations: int = strawberry.field(default=0)
+    workfiles: int = strawberry.field(default=0)
 
 
 @strawberry.type
@@ -70,12 +70,12 @@ class EntityListItemEdge(BaseEdge):
     def summary(self) -> EntityListSummary:
         summary_data = json_loads(self.data).get("summary", {})
         return EntityListSummary(
-            folder_count=summary_data.get("folder_count", 0),
-            task_count=summary_data.get("task_count", 0),
-            product_count=summary_data.get("product_count", 0),
-            version_count=summary_data.get("version_count", 0),
-            representation_count=summary_data.get("representation_count", 0),
-            workfile_count=summary_data.get("workfile_count", 0),
+            folders=summary_data.get("folders", 0),
+            tasks=summary_data.get("tasks", 0),
+            products=summary_data.get("products", 0),
+            versions=summary_data.get("versions", 0),
+            representations=summary_data.get("representations", 0),
+            workfiles=summary_data.get("workfiles", 0),
         )
 
     @classmethod

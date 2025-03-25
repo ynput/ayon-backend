@@ -52,6 +52,15 @@ class EntityListItemPatchModel(OPModel):
         ),
     ] = 0
 
+    label: Annotated[
+        str | None,
+        Field(
+            title="Label",
+            description="Label of the item",
+            example="Version 1",
+        ),
+    ] = None
+
     attrib: Annotated[
         dict[str, Any],
         Field(
@@ -147,7 +156,6 @@ class EntityListPatchModel(OPModel):
     tags: Annotated[
         list[str] | None,
         Field(
-            default_factory=list,
             title="Tags",
         ),
     ] = None
@@ -155,7 +163,6 @@ class EntityListPatchModel(OPModel):
     access: Annotated[
         dict[str, ListAccessLevel] | None,
         Field(
-            default_factory=dict,
             title="List access",
             description=(
                 "Access control for the list. "

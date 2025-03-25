@@ -14,13 +14,17 @@ from ayon_server.entity_lists.create_list_item import (
 from ayon_server.entity_lists.materialize import (
     materialize_entity_list as _materialize_entity_list,
 )
-from ayon_server.entity_lists.models import EntityListModel, EntityListPatchModel
+from ayon_server.entity_lists.models import (
+    EntityListItemModel,
+    EntityListModel,
+    EntityListPatchModel,
+)
 from ayon_server.entity_lists.summary import (
     EntityListSummary,
     get_entity_list_summary,
     on_list_items_changed,
 )
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
@@ -41,7 +45,7 @@ async def create_entity_list(
     the position will be determined by the order of the items in the list.
     """
 
-    list_id = create_uuid()
+    list_id = payload.id or create_uuid()
 
     if not payload.label:
         raise BadRequestException("Label is required")
@@ -129,3 +133,34 @@ async def update_entity_list(
     # TODO
 
     return EmptyResponse()
+
+
+@router.get("/{list_id}")
+async def get_entity_list(
+    user: CurrentUser,
+    project_name: ProjectName,
+    list_id: str,
+) -> EntityListModel:
+    """Get entity list
+
+    This is for testing only. Since lists could be huge,
+    it is not recommended to get them using this endpoint,
+
+    Use GraphQL API to get the list items instead.
+    """
+
+    async with Postgres.acquire() as conn, conn.transaction():
+        await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
+        q = "SELECT * FROM entity_lists WHERE id = $1"
+        list_data = await conn.fetchrow(q, list_id)
+        if list_data is None:
+            raise NotFoundException(status_code=404, detail="List not found")
+
+        result = EntityListModel(**dict(list_data), items=[])
+        q = "SELECT * FROM entity_list_items WHERE entity_list_id = $1"
+        statement = await conn.prepare(q)
+        assert isinstance(result.items, list), "Items should be a list"
+        async for row in statement.cursor(list_id):
+            result.items.append(EntityListItemModel(**dict(row)))
+
+    return result

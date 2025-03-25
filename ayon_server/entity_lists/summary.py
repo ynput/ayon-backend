@@ -12,21 +12,21 @@ class EntityListSummary(OPModel):
     list_type: Annotated[str, Field(..., title="List Type", example="my_list_type")]
     label: Annotated[str, Field(..., title="Label", example="My List")]
 
-    folder_count: Annotated[int, Field(title="Folder count", ge=0)] = 0
-    task_count: Annotated[int, Field(title="Task count", ge=0)] = 0
-    product_count: Annotated[int, Field(title="Product count", ge=0)] = 0
-    version_count: Annotated[int, Field(title="Version count", ge=0)] = 0
-    representation_count: Annotated[int, Field(title="Representation count", ge=0)] = 0
-    workfile_count: Annotated[int, Field(title="Workfile count", ge=0)] = 0
+    folders: Annotated[int, Field(title="Folder count", ge=0)] = 0
+    tasks: Annotated[int, Field(title="Task count", ge=0)] = 0
+    products: Annotated[int, Field(title="Product count", ge=0)] = 0
+    versions: Annotated[int, Field(title="Version count", ge=0)] = 0
+    representations: Annotated[int, Field(title="Representation count", ge=0)] = 0
+    workfiles: Annotated[int, Field(title="Workfile count", ge=0)] = 0
 
     def get_summary_data(self) -> dict[str, Any]:
         data = {
-            "folder_count": self.folder_count,
-            "task_count": self.task_count,
-            "product_count": self.product_count,
-            "version_count": self.version_count,
-            "representation_count": self.representation_count,
-            "workfile_count": self.workfile_count,
+            "folders": self.folders,
+            "tasks": self.tasks,
+            "products": self.products,
+            "versions": self.versions,
+            "representations": self.representations,
+            "workfiles": self.workfiles,
         }
         return {k: v for k, v in data.items() if v > 0}
 
@@ -59,7 +59,7 @@ async def get_entity_list_summary(
     """
     res = await conn.fetch(query, entity_list_id)
     for row in res:
-        key = f"{row['entity_type']}_count"
+        key = f"{row['entity_type']}s"
         assert key in result.__fields__, f"Weird. {key} not in {result.__fields__}"
         setattr(result, key, row["count"])
 

@@ -88,6 +88,18 @@ def merge_jsonb_fields(
     return merged_data
 
 
+UPDATEABLE_FIELDS = [
+    "label",
+    "position",
+    "owner",
+    "access",
+    "attrib",
+    "data",
+    "tags",
+    "active",
+]
+
+
 async def _update_list_item(
     conn: Connection,
     project_name: str,
@@ -97,17 +109,18 @@ async def _update_list_item(
     label: str | None = None,
     position: int | None = None,
     owner: str | None = None,
-    access: dict[str, Any] | None = None,
     attrib: dict[str, Any] | None = None,
     data: dict[str, Any] | None = None,
     tags: list[str] | None = None,
-    active: bool | None = None,
     user: UserEntity | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
     run_post_update_hook: bool = True,
 ):
-    select_query = "SELECT * FROM entity_list_items WHERE id = $1"
+    select_query = f"""
+        SELECT {','.join(UPDATEABLE_FIELDS)}
+        FROM entity_list_items WHERE id = $1
+    """
     result = await conn.fetchrow(select_query, list_item_id)
     if result is None:
         raise NotFoundException(f"Entity list item with ID '{list_item_id}' not found")
@@ -128,14 +141,7 @@ async def _update_list_item(
     if tags is not None:
         update_dict["tags"] = tags
 
-    if active is not None:
-        update_dict["active"] = active
-
     # JSONB fields
-
-    if access is not None:
-        # TODO: manager only
-        update_dict["access"] = merge_jsonb_fields(update_dict["access"], access)
 
     if attrib is not None:
         update_dict["attrib"] = merge_jsonb_fields(update_dict["attrib"], attrib)
@@ -145,8 +151,8 @@ async def _update_list_item(
 
     # Construct the update query
 
-    update_statements = []
-    update_values = []
+    update_statements: list[str] = []
+    update_values: list[Any] = []
 
     for key, value in update_dict.items():
         index = len(update_statements) + 1
@@ -186,11 +192,9 @@ async def update_list_item(
     label: str | None = None,
     position: int | None = None,
     owner: str | None = None,
-    access: dict[str, Any] | None = None,
     attrib: dict[str, Any] | None = None,
     data: dict[str, Any] | None = None,
     tags: list[str] | None = None,
-    active: bool | None = None,
     user: UserEntity | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
@@ -206,11 +210,9 @@ async def update_list_item(
             label=label,
             position=position,
             owner=owner,
-            access=access,
             attrib=attrib,
             data=data,
             tags=tags,
-            active=active,
             user=user,
             sender=sender,
             sender_type=sender_type,
@@ -225,11 +227,9 @@ async def update_list_item(
             label=label,
             position=position,
             owner=owner,
-            access=access,
             attrib=attrib,
             data=data,
             tags=tags,
-            active=active,
             user=user,
             sender=sender,
             sender_type=sender_type,
