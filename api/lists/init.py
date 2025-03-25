@@ -39,9 +39,9 @@ CREATE TABLE entity_list_items(
   entity_list_id UUID NOT NULL REFERENCES entity_lists(id) ON DELETE CASCADE,
   entity_type VARCHAR NOT NULL,
   entity_id UUID NOT NULL,
+
   position INTEGER NOT NULL,
   label VARCHAR NOT NULL DEFAULT '',
-
   attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],

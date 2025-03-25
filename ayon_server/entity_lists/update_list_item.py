@@ -34,16 +34,16 @@ async def _change_list_item_postion(
                 position - 1
 
             WHEN position >= $2
-                AND position < (SELECT old_position FROM item) THEN
+                AND position < (SELECT old_position FROM item_info) THEN
                 position + 1
 
             ELSE position
         END
     WHERE
-        entity_list_id = (SELECT entity_list_id FROM item)
-        position
-            BETWEEN LEAST($2, (SELECT old_position FROM item))
-            AND GREATEST($2, (SELECT old_position FROM item))
+        entity_list_id = (SELECT entity_list_id FROM item_info)
+    AND position
+        BETWEEN LEAST($2, (SELECT old_position FROM item_info))
+        AND GREATEST($2, (SELECT old_position FROM item_info))
     OR
         id = $1;
     """
@@ -91,12 +91,9 @@ def merge_jsonb_fields(
 UPDATEABLE_FIELDS = [
     "label",
     "position",
-    "owner",
-    "access",
     "attrib",
     "data",
     "tags",
-    "active",
 ]
 
 
@@ -108,7 +105,6 @@ async def _update_list_item(
     *,
     label: str | None = None,
     position: int | None = None,
-    owner: str | None = None,
     attrib: dict[str, Any] | None = None,
     data: dict[str, Any] | None = None,
     tags: list[str] | None = None,
@@ -117,6 +113,8 @@ async def _update_list_item(
     sender_type: str | None = None,
     run_post_update_hook: bool = True,
 ):
+    await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
+
     select_query = f"""
         SELECT {','.join(UPDATEABLE_FIELDS)}
         FROM entity_list_items WHERE id = $1
@@ -133,10 +131,6 @@ async def _update_list_item(
 
     if label is not None:
         update_dict["label"] = label
-
-    if owner is not None:
-        # TODO: manager only
-        update_dict["owner"] = owner
 
     if tags is not None:
         update_dict["tags"] = tags
@@ -157,7 +151,7 @@ async def _update_list_item(
     for key, value in update_dict.items():
         index = len(update_statements) + 1
         update_statements.append(f"{key} = ${index}")
-        update_values = value
+        update_values.append(value)
 
     id_idx = len(update_statements) + 1
     update_values.append(list_item_id)
@@ -191,7 +185,6 @@ async def update_list_item(
     *,
     label: str | None = None,
     position: int | None = None,
-    owner: str | None = None,
     attrib: dict[str, Any] | None = None,
     data: dict[str, Any] | None = None,
     tags: list[str] | None = None,
@@ -209,7 +202,6 @@ async def update_list_item(
             list_item_id,
             label=label,
             position=position,
-            owner=owner,
             attrib=attrib,
             data=data,
             tags=tags,
@@ -226,7 +218,6 @@ async def update_list_item(
             list_item_id,
             label=label,
             position=position,
-            owner=owner,
             attrib=attrib,
             data=data,
             tags=tags,

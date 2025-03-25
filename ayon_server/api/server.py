@@ -206,16 +206,22 @@ async def unhandled_exception_handler(
     path += f" {request.url.path.removeprefix('/api')}"
 
     tb = traceback.extract_tb(exc.__traceback__)
-    fname, line_no, func, _ = tb[-1]
+    root_cause = tb[-1] if tb else None
+    textual = "".join(traceback.format_exception_only(type(exc), exc)).strip()
 
-    logger.error(f"{path}: UNHANDLED EXCEPTION", user=user_name)
-    logger.error(exc)
+    if root_cause:
+        fname, line_no, func, _ = root_cause
+    else:
+        fname, line_no, func = "unknown", "unknown", "unknown"
+
+    logger.error("UNHANDLED EXCEPTION", user=user_name, path=path)
+    logger.error(textual, user=user_name, path=path)
     return fastapi.responses.JSONResponse(
         status_code=500,
         content={
             "code": 500,
             "detail": "Internal server error",
-            "traceback": f"{exc}",
+            "traceback": f"{textual}",
             "path": path,
             "file": fname,
             "function": func,

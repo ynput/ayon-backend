@@ -25,24 +25,6 @@ class BaseGetModel(OPModel):
 
 
 class EntityListItemPatchModel(OPModel):
-    entity_type: Annotated[
-        ProjectLevelEntityType,
-        Field(
-            title="Entity type",
-            description="Type of the list item entity",
-            example="version",
-        ),
-    ]
-
-    entity_id: Annotated[
-        str,
-        Field(
-            title="Entity ID",
-            description="ID of the list item entity",
-            example="123e4567-e89b-12d3-a456-426614174000",
-        ),
-    ]
-
     position: Annotated[
         int,
         Field(
@@ -126,7 +108,23 @@ class EntityListItemPatchModel(OPModel):
 
 
 class EntityListItemModel(EntityListItemPatchModel, BaseGetModel):
-    pass
+    entity_type: Annotated[
+        ProjectLevelEntityType,
+        Field(
+            title="Entity type",
+            description="Type of the list item entity",
+            example="version",
+        ),
+    ]
+
+    entity_id: Annotated[
+        str,
+        Field(
+            title="Entity ID",
+            description="ID of the list item entity",
+            example="123e4567-e89b-12d3-a456-426614174000",
+        ),
+    ]
 
 
 class EntityListPatchModel(OPModel):
@@ -175,13 +173,6 @@ class EntityListPatchModel(OPModel):
         ),
     ] = None
 
-    items: Annotated[
-        list[EntityListItemModel] | None,
-        Field(
-            title="List items",
-        ),
-    ] = None
-
     attrib: Annotated[
         dict[str, Any] | None,
         Field(
@@ -198,4 +189,9 @@ class EntityListPatchModel(OPModel):
 
 
 class EntityListModel(EntityListPatchModel, BaseGetModel):
-    pass
+    items: Annotated[
+        list[EntityListItemModel] | None,
+        Field(
+            title="List items",
+        ),
+    ] = None
