@@ -47,11 +47,22 @@ CREATE TABLE entity_list_items(
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
 
+  folder_path VARCHAR NOT NULL DEFAULT '',
+
   created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
   updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS
+    entity_list_items_entity_list_id ON entity_list_items (entity_list_id);
+CREATE INDEX IF NOT EXISTS
+    entity_list_items_entity_type ON entity_list_items (entity_type);
+CREATE INDEX IF NOT EXISTS
+    entity_list_items_entity_id ON entity_list_items (entity_id);
+
+
 """
 
 

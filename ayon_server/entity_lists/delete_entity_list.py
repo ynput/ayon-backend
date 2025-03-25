@@ -1,32 +1,7 @@
 from ayon_server.entities import UserEntity
-from ayon_server.entity_lists.summary import get_entity_list_summary
+from ayon_server.entity_lists.summary import EntityListSummary, get_entity_list_summary
 from ayon_server.events import EventStream
 from ayon_server.lib.postgres import Connection, Postgres
-
-
-async def _delete_entity_list(
-    conn: Connection,
-    project_name: str,
-    entity_list_id: str,
-    *,
-    user: UserEntity | None = None,
-) -> None:
-    """Delete entity list"""
-
-    summary = await get_entity_list_summary(conn, project_name, entity_list_id)
-
-    query = "DELETE FROM entity_lists WHERE id = $1"
-
-    await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
-    await conn.execute(query, entity_list_id)
-
-    await EventStream.dispatch(
-        "entity_list_deleted",
-        summary=summary.dict(),
-        description=f"Deleted entity list {summary.label}",
-        project=project_name,
-        user=user.name if user else None,
-    )
 
 
 async def delete_entity_list(
@@ -38,8 +13,23 @@ async def delete_entity_list(
 ) -> None:
     """Delete entity list"""
 
+    async def execute_delete(conn: Connection) -> EntityListSummary:
+        summary = await get_entity_list_summary(conn, project_name, list_id)
+        query = "DELETE FROM entity_lists WHERE id = $1"
+        await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
+        await conn.execute(query, list_id)
+        return summary
+
     if conn is None:
         async with Postgres.acquire() as conn, conn.transaction():
-            await _delete_entity_list(conn, project_name, list_id, user=user)
+            summary = await execute_delete(conn)
     else:
-        await _delete_entity_list(conn, project_name, list_id, user=user)
+        summary = await execute_delete(conn)
+
+    await EventStream.dispatch(
+        "entity_list_deleted",
+        summary=summary.dict(),
+        description=f"Deleted entity list {summary.label}",
+        project=project_name,
+        user=user.name if user else None,
+    )

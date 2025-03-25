@@ -8,6 +8,68 @@ from ayon_server.types import PROJECT_NAME_REGEX, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
 
+async def get_folder_path(
+    conn: Connection,
+    entity_type: ProjectLevelEntityType,
+    entity_id: str,
+) -> str:
+    """Get the parent folder path of an entity
+
+    We store the path in the list item record in order to solve
+    access control.
+    """
+    joins = []
+
+    if entity_type in ("product", "version", "representation"):
+        joins.append(
+            """
+            INNER JOIN products
+            ON products.folder_id = folders.id
+            """
+        )
+        if entity_type in ("version", "representation"):
+            joins.append(
+                """
+                INNER JOIN versions
+                ON versions.product_id = products.id
+                """
+            )
+            if entity_type == "representation":
+                joins.append(
+                    """
+                    INNER JOIN representations
+                    ON representations.version_id = versions.id
+                    """
+                )
+
+    elif entity_type in ("task", "workfile"):
+        joins.append(
+            """
+            INNER JOIN tasks
+            ON tasks.folder_id = folders.id
+            """
+        )
+
+        if entity_type == "workfile":
+            joins.append(
+                """
+                INNER JOIN workfiles
+                ON workfiles.task_id = tasks.id
+                """
+            )
+
+    query = f"""
+    SELECT folders.path as path
+    FROM hierarchy as folders
+    {' '.join(joins)}
+    WHERE {entity_type}s.id = $1
+    """
+    res = await conn.fetchrow(query, entity_id)
+    if not res:
+        raise ValueError(f"Entity {entity_type} with id {entity_id} not found")
+    return res["path"]
+
+
 async def _create_list_item(
     conn: Connection,
     project_name: str,
@@ -27,14 +89,17 @@ async def _create_list_item(
 
     if not skip_schema_switching:
         await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
+
+    folder_path = await get_folder_path(conn, entity_type, entity_id)
+
     await conn.execute(
         """
         INSERT INTO entity_list_items
         (
           id, entity_list_id, entity_type, entity_id,
-          position, attrib, data, tags, created_by, updated_by
+          position, attrib, data, tags, folder_path, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
         """,
         id,
         entity_list_id,
@@ -44,7 +109,7 @@ async def _create_list_item(
         attrib,
         data,
         tags,
-        user_name,
+        folder_path,
         user_name,
     )
 
