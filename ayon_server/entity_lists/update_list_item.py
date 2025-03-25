@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from ayon_server.entities import UserEntity
+from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Connection, Postgres
 
 from .summary import on_list_items_changed
@@ -74,6 +75,19 @@ async def change_list_item_position(
     )
 
 
+def merge_jsonb_fields(
+    old_data: dict[str, Any],
+    new_data: dict[str, Any],
+) -> dict[str, Any]:
+    merged_data = old_data.copy()
+    for key, value in new_data.items():
+        if value is None:
+            merged_data.pop(key, None)
+        else:
+            merged_data[key] = value
+    return merged_data
+
+
 async def _update_list_item(
     conn: Connection,
     project_name: str,
@@ -93,7 +107,14 @@ async def _update_list_item(
     sender_type: str | None = None,
     run_post_update_hook: bool = True,
 ):
-    update_dict: dict[str, Any] = {"updated_at": datetime.utcnow()}
+    select_query = "SELECT * FROM entity_list_items WHERE id = $1"
+    result = await conn.fetchrow(select_query, list_item_id)
+    if result is None:
+        raise NotFoundException(f"Entity list item with ID '{list_item_id}' not found")
+
+    update_dict = dict(result)
+    update_dict["updated_at"] = datetime.utcnow()
+
     if user is not None:
         update_dict["updated_by"] = user.name
 
@@ -104,51 +125,38 @@ async def _update_list_item(
         # TODO: manager only
         update_dict["owner"] = owner
 
-    if access is not None:
-        # TODO: manager only
-        update_dict["access"] = access
-
-    if attrib is not None:
-        update_dict["attrib"] = attrib
-
-    if data is not None:
-        update_dict["data"] = data
-
     if tags is not None:
         update_dict["tags"] = tags
 
     if active is not None:
         update_dict["active"] = active
 
+    # JSONB fields
+
+    if access is not None:
+        # TODO: manager only
+        update_dict["access"] = merge_jsonb_fields(update_dict["access"], access)
+
+    if attrib is not None:
+        update_dict["attrib"] = merge_jsonb_fields(update_dict["attrib"], attrib)
+
+    if data is not None:
+        update_dict["data"] = merge_jsonb_fields(update_dict["data"], data)
+
     # Construct the update query
 
     update_statements = []
     update_values = []
-    jsonb_fields = ["access", "attrib", "data"]
 
     for key, value in update_dict.items():
-        if key in jsonb_fields and isinstance(value, dict):
-            for sub_key, sub_value in value.items():
-                index = len(update_statements) + 1
-                if sub_value is None:
-                    # Remove the key from the JSONB field
-                    update_statements.append(f"{key} = {key} - '${index}'")
-                    update_values.append(sub_key)
-                else:
-                    # Update or add the key in the JSONB field
-                    update_statements.append(
-                        f"{key} = jsonb_set({key}, '{{{sub_key}}}', ${index}::jsonb, true)"  # noqa: E501
-                    )
-                    update_values.append(sub_value)
-
-        else:
-            index = len(update_statements) + 1
-            update_statements.append(f"{key} = ${index}")
+        index = len(update_statements) + 1
+        update_statements.append(f"{key} = ${index}")
+        update_values = value
 
     id_idx = len(update_statements) + 1
     update_values.append(list_item_id)
     query = f"""
-        UPDATE entity_lists SET
+        UPDATE entity_list_items SET
         {', '.join(update_statements)}
         WHERE id = ${id_idx}
     """
