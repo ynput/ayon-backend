@@ -189,6 +189,15 @@ class EntityListPatchModel(OPModel):
         ),
     ] = None
 
+    owner: Annotated[
+        str | None,
+        Field(
+            title="List owner",
+            description="Name of the user who created the list",
+            example="john",
+        ),
+    ] = None
+
 
 class EntityListModel(EntityListPatchModel, BaseGetModel):
     items: Annotated[
@@ -205,3 +214,21 @@ class EntityListModel(EntityListPatchModel, BaseGetModel):
             title="List configuration",
         ),
     ]
+
+    created_by: Annotated[
+        str | None,
+        Field(
+            title="List creator",
+            description="Name of the user who created the list",
+            example="john",
+        ),
+    ] = None
+
+    updated_by: Annotated[
+        str | None,
+        Field(
+            title="List updater",
+            description="Name of the user who updated the list",
+            example="john",
+        ),
+    ] = None
