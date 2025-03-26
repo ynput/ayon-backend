@@ -172,16 +172,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
             status_code = response.status_code
 
             # we don't track statics
-            should_trace = path.startswith("/api")
 
             # TODO
             # do not trace graphql queries yet, until we can make
             # sense of them - we need to at least identify the query
-            # or path.startswith("/graphql")
 
             # Before processing the request, we don't have access to
             # the route information, so we need to check it here
             # (that's also why we don't track the beginning of the request)
+            should_trace = path.startswith("/api")  # or path.startswith("/graphql")
 
             if should_trace and (route := request.scope.get("route")):
                 # We don't need to log successful requests to routes,

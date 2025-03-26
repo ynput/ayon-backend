@@ -3,16 +3,15 @@ import time
 from typing import Any
 
 from fastapi import Response
-from pydantic.error_wrappers import ValidationError
+from starlette.responses import StreamingResponse
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
-from ayon_server.exceptions import AyonException
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.redis import Redis
-from ayon_server.logging import log_traceback
+from ayon_server.logging import logger
 from ayon_server.types import OPModel
-from ayon_server.utils import json_loads
+from ayon_server.utils import camelize, json_dumps, json_loads
 
 from .router import router
 
@@ -67,34 +66,40 @@ async def get_folder_list(
     access_list = await folder_access_list(user, project_name, "read")
     entities = await get_entities(project_name)
 
-    result = []
-    for folder in entities:
-        if access_list is not None and folder["path"] not in access_list:
-            continue
-        if not attrib:
-            folder.pop("attrib", None)
-            folder.pop("own_attrib", None)
-        else:
-            pass  # TODO: handle attrib whitelist
-        result.append(folder)
-
     elapsed_time = time.monotonic() - start_time
-    detail = (
-        f"{len(result)} folders "
-        f"of {project_name} fetched in {elapsed_time:.2f} seconds"
-    )
+    ent_count = len(entities)
+    me = f"{ent_count} folders {'with' if attrib else 'without'} attr of {project_name}"
+    detail = f"{me} fetched in {elapsed_time:.3f} seconds"
+    logger.trace(detail)
 
-    # we need to do the validation here in order to convert snake_case to camelCase
-    # dumping to json here to bypass fastapi re-validation, which takes ages
+    camelize_memo = {}
 
-    try:
-        r = FolderListModel(detail=detail, folders=result).json(
-            by_alias=True,
-            exclude_unset=True,
-        )
-    except ValidationError:
-        await rebuild_hierarchy_cache(project_name)
-        log_traceback("Wrong model. Revalidating")
-        raise AyonException("Invalid cache data. Please try again")
+    def camelize_memoized(src: str) -> str:
+        if src not in camelize_memo:
+            camelize_memo[src] = camelize(src)
+        return camelize_memo[src]
 
-    return Response(content=r, media_type="application/json")
+    async def json_stream():
+        start_time = time.monotonic()
+        yield '{"detail": "' + detail + '", "folders": ['
+        first = True
+        for folder in entities:
+            if access_list is not None and folder["path"] not in access_list:
+                continue
+
+            if not first:
+                yield ","
+            first = False
+
+            if not attrib:
+                folder.pop("attrib", None)
+                folder.pop("own_attrib", None)
+
+            parsed = {camelize_memoized(key): value for key, value in folder.items()}
+
+            yield json_dumps(parsed)
+        yield "]}"
+        elapsed_time = time.monotonic() - start_time
+        logger.trace(f"{me} streamed in {elapsed_time:.3f} seconds")
+
+    return StreamingResponse(json_stream(), media_type="application/json")
