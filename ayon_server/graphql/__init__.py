@@ -3,7 +3,7 @@ import traceback
 from typing import Any
 
 import strawberry
-from graphql import GraphQLError, GraphQLSyntaxError
+from graphql import GraphQLError
 from strawberry.dataloader import DataLoader
 from strawberry.fastapi import GraphQLRouter
 from strawberry.types import ExecutionContext
@@ -174,12 +174,12 @@ class AyonSchema(strawberry.Schema):
                     # Don't log operational errors
                     continue
 
-            elif isinstance(error, GraphQLSyntaxError):
+            elif isinstance(error, GraphQLError) and error.original_error is None:
                 message = error.message
                 if error.locations:
                     line_no = error.locations[0]
                     location = f" at line {line_no.line}"
-                logger.error(f"[GRAPHQL SYNTAX ERROR] {message}{location}")
+                logger.error(f"[GRAPHQL] {message}{location}")
                 status_code = 400
                 continue
 
@@ -210,7 +210,9 @@ class AyonSchema(strawberry.Schema):
                 )
                 continue
 
-            logger.error(f"Unhandled GraphQL error: {error}")
+            logger.error(
+                f"[GRAPHQL] Unhandled '{error.__class__.__name__}' error: {error}"
+            )
 
 
 router: GraphQLRouter[Any, Any] = GraphQLRouter(
