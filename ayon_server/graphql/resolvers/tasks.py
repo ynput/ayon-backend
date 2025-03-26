@@ -342,7 +342,7 @@ async def get_tasks(
     ):
         sql_columns.append("pf.attrib as parent_folder_attrib")
         sql_joins.append(
-            f"LEFT JOIN project_{project_name}.exported_attributes AS pf "
+            f"INNER JOIN project_{project_name}.exported_attributes AS pf "
             "ON tasks.folder_id = pf.folder_id\n"
         )
     else:
@@ -350,7 +350,13 @@ async def get_tasks(
         sql_columns.append("'{}'::JSONB as parent_folder_attrib")
 
     # Do we need the parent folder data?
-    if "folder" in fields or (access_list is not None) or use_folder_query or search:
+    if (
+        (access_list is not None)
+        or use_folder_query
+        or search
+        or sort_by == "path"
+        or "folder" in fields
+    ):
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
@@ -374,17 +380,18 @@ async def get_tasks(
         )
 
         if (
-            any(
+            (access_list is not None)
+            or use_folder_query
+            or search
+            or sort_by == "path"
+            or any(
                 field.endswith("folder.path") or field.endswith("folder.parents")
                 for field in fields
             )
-            or (access_list is not None)
-            or use_folder_query
-            or search
         ):
             sql_columns.append("hierarchy.path AS _folder_path")
             sql_joins.append(
-                f"LEFT JOIN project_{project_name}.hierarchy AS hierarchy "
+                f"INNER JOIN project_{project_name}.hierarchy AS hierarchy "
                 "ON folders.id = hierarchy.id\n"
             )
 
@@ -410,6 +417,8 @@ async def get_tasks(
     if sort_by is not None:
         if sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
+        elif sort_by == "path":
+            order_by = ["hierarchy.path", "tasks.name"]
         elif sort_by.startswith("attrib."):
             attr_name = sort_by[7:]
             exp = "(pf.attrib || tasks.attrib)"
@@ -450,6 +459,8 @@ FROM project_{project_name}.tasks AS tasks
 {ordering}
     """
 
+    # Keep it here for debugging :)
+    # from ayon_server.logging import logger
     # logger.debug(f"Task query\n{query}")
 
     return await resolve(
