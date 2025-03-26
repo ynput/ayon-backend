@@ -79,7 +79,6 @@ def create_pagination(
 
     if len(order_by) > 2:
         raise ValueError("Order by can have only two fields")
-
     cursor_arr = []
     ordering_arr = []
     decoded_cursor, casts = decode_cursor(before or after)

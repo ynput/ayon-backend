@@ -218,4 +218,4 @@ async def lifespan(app: "FastAPI"):
     await background_workers.shutdown()
     await messaging.shutdown()
     await Postgres.shutdown()
-    logger.info("Server stopped", handlers=None)
+    logger.info("Server stopped", nodb=True)
