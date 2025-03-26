@@ -2,7 +2,7 @@ import datetime
 import time
 from typing import Any
 
-from fastapi import Response
+from fastapi import Query, Response
 from starlette.responses import StreamingResponse
 
 from ayon_server.access.utils import folder_access_list
@@ -50,7 +50,7 @@ async def get_entities(project_name: str) -> list[dict[str, str]]:
 async def get_folder_list(
     user: CurrentUser,
     project_name: ProjectName,
-    attrib: bool = False,
+    attrib: bool = Query(False, description="Include folder attributes"),
 ):
     """Return all folders in the project. Fast.
 
@@ -63,7 +63,9 @@ async def get_folder_list(
     """
 
     start_time = time.monotonic()
-    access_list = await folder_access_list(user, project_name, "read")
+
+    _access_list = await folder_access_list(user, project_name, "read")
+    access_list: set[str] | None = None if _access_list is None else set(_access_list)
     entities = await get_entities(project_name)
 
     elapsed_time = time.monotonic() - start_time
@@ -81,7 +83,7 @@ async def get_folder_list(
 
     async def json_stream():
         start_time = time.monotonic()
-        yield '{"detail": "' + detail + '", "folders": ['
+        yield '{"folders": ['
         first = True
         for folder in entities:
             if access_list is not None and folder["path"] not in access_list:
