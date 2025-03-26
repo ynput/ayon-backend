@@ -3,7 +3,7 @@ import traceback
 from typing import Any
 
 import strawberry
-from graphql import GraphQLError
+from graphql import GraphQLError, GraphQLSyntaxError
 from strawberry.dataloader import DataLoader
 from strawberry.fastapi import GraphQLRouter
 from strawberry.types import ExecutionContext
@@ -170,26 +170,47 @@ class AyonSchema(strawberry.Schema):
             if isinstance(error.original_error, AyonException):
                 error.extensions = {"status": error.original_error.status}
                 status_code = error.original_error.status
+                if status_code in [401, 403, 404]:
+                    # Don't log operational errors
+                    continue
+
+            elif isinstance(error, GraphQLSyntaxError):
+                message = error.message
+                if error.locations:
+                    line_no = error.locations[0]
+                    location = f" at line {line_no.line}"
+                logger.error(f"[GRAPHQL SYNTAX ERROR] {message}{location}")
+                status_code = 400
+                continue
+
             else:
                 status_code = 500
 
-            tb = traceback.extract_tb(error.__traceback__)
-            if not tb:
-                continue
-            fname, line_no, func, msg = tb[-1]
-            # strip cwd from fname
-            fname = fname.replace(os.getcwd(), "")
-            if error.path:
-                path = "/".join([str(k) for k in error.path])
-            else:
-                path = ""
-            message = error.message
+            if error.original_error:
+                # get the module and line number of the original error
+                tb = traceback.extract_tb(error.original_error.__traceback__)
+                if not tb:
+                    continue
+                fname, line_no, func, msg = tb[-1]
 
-            if status_code not in [401, 403, 404]:
+                fname = fname.replace(os.getcwd(), "")
+                fname = fname.removeprefix("/ayon_server/")
+                fname = fname.removesuffix(".py")
+                fname = fname.replace("/", ".")
+
+                if error.path:
+                    path = "/".join([str(k) for k in error.path])
+                else:
+                    path = ""
+
+                message = error.message
                 logger.error(
-                    f"[GRAPHQL ERROR] {path}: {message}",
-                    traceback="".join(tb.format()),
+                    f"[GRAPHQL] Error resolving {path} (line {line_no}): {message}",
+                    module=fname,
                 )
+                continue
+
+            logger.error(f"Unhandled GraphQL error: {error}")
 
 
 router: GraphQLRouter[Any, Any] = GraphQLRouter(
