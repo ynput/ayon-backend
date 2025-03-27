@@ -93,6 +93,7 @@ async def download_file(
             logger.debug(f"Error in download progress handler: {e}")
 
     i = 0
+    temp_file_path: str | None = None
 
     try:
         async with httpx.AsyncClient(
@@ -156,6 +157,6 @@ async def download_file(
         return FileInfo(**finfo_payload)
 
     finally:
-        if os.path.exists(temp_file_path):
+        if temp_file_path and os.path.exists(temp_file_path):
             logger.debug(f"Removing temporary file: {temp_file_path}")
             os.remove(temp_file_path)
