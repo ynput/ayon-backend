@@ -6,7 +6,7 @@ from ayon_server.auth.models import LoginResponseModel
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException, UnauthorizedException
-from ayon_server.helpers.setup import admin_exists
+from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
@@ -60,7 +60,7 @@ async def create_first_admin(
     logged-in mode.
     """
 
-    if await admin_exists():
+    if await CloudUtils.get_admin_exists():
         raise UnauthorizedException("Admin already initialized")
 
     user = UserEntity(

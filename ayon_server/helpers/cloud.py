@@ -8,6 +8,17 @@ class CloudUtils:
     instance_id: str | None = None
     cloud_key: str | None = None
     licenses_synced_at: float | None = None
+    admin_exists: bool = False
+
+    @classmethod
+    async def get_admin_exists(cls) -> bool:
+        if cls.admin_exists:
+            return True
+        query = "SELECT name FROM users WHERE data->>'isAdmin' = 'true'"
+        if await Postgres.fetch(query):
+            cls.admin_exists = True
+            return True
+        return False
 
     @classmethod
     async def get_instance_id(cls) -> str:

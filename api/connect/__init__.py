@@ -7,7 +7,6 @@ from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.cloud import CloudUtils
-from ayon_server.helpers.setup import admin_exists
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
@@ -77,8 +76,7 @@ async def get_ynput_cloud_info(user: CurrentUserOptional) -> YnputConnectRespons
         raise ForbiddenException("Guests cannot load Ynput Cloud information")
 
     if user is None:
-        has_admin = await admin_exists()
-        if has_admin:
+        if await CloudUtils.get_admin_exists():
             raise ForbiddenException(
                 "Connecting to Ynput Cloud without login "
                 "is allowed only on the first run"
@@ -134,8 +132,7 @@ async def set_ynput_cloud_key(
         raise ForbiddenException("Only admins can set the Ynput Cloud key")
 
     if user is None:
-        has_admin = await admin_exists()
-        if has_admin:
+        if await CloudUtils.get_admin_exists():
             raise ForbiddenException(
                 "Connecting to Ynput Cloud is allowed only on first run"
             )
