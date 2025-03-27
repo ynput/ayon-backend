@@ -266,9 +266,12 @@ async def ws_endpoint(websocket: WebSocket) -> None:
             if message is None:
                 continue
 
-            if message["topic"] == "auth":
+            if (
+                message["topic"] == "auth"
+                and (token := message.get("token")) is not None
+            ):
                 await client.authorize(
-                    message.get("token"),
+                    token,
                     topics=message.get("subscribe", []),
                     project=message.get("project"),
                 )
