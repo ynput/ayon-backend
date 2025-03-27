@@ -345,7 +345,7 @@ async def get_all_settings(
 
     assert (
         bundle_name is not None
-    ), "Bundle name is None"  # won't happen, shut up pyright
+    ), "Bundle name is None"  # won't happen, keep pyright happy
 
     return AllSettingsResponseModel(
         bundle_name=bundle_name,
