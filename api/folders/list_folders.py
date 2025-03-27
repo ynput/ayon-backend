@@ -31,6 +31,7 @@ class FolderListItem(OPModel):
     has_tasks: bool = False
     has_children: bool = False
     task_names: list[str] | None
+    tags: list[str] | None
     status: str
     attrib: dict[str, Any] | None = None
     own_attrib: list[str] | None = None
