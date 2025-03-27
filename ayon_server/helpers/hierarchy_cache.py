@@ -21,6 +21,7 @@ async def rebuild_hierarchy_cache(
             f.folder_type,
             f.status,
             f.attrib,
+            f.tags,
             f.updated_at,
             ea.attrib as all_attrib,
             ea.path as path,
@@ -54,6 +55,7 @@ async def rebuild_hierarchy_cache(
                 "task_names": row["task_names"] if row["task_names"] != [None] else [],
                 "status": row["status"],
                 "attrib": row["all_attrib"],
+                "tags": row["tags"],
                 "own_attrib": list(row["attrib"].keys()),
                 "updated_at": row["updated_at"],
             }

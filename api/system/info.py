@@ -75,30 +75,6 @@ class InfoResponseModel(OPModel):
     extras: str | None = Field(None)
 
 
-# Ensure that an admin user exists
-# This is used to determine if the 'Create admin user' form should be displayed
-# We raise an exception in ensure_admin_user_exists, so the False value is not cached
-# and when the admin user is created, we use the cache to avoid unnecessary queries
-
-
-@aiocache.cached()
-async def ensure_admin_user_exists() -> None:
-    res = await Postgres.fetch(
-        "SELECT name FROM users WHERE (data->'isAdmin')::boolean"
-    )
-    if not res:
-        raise ValueError("No admin user exists")
-    return None
-
-
-async def admin_exists() -> bool:
-    try:
-        await ensure_admin_user_exists()
-        return True
-    except ValueError:
-        return False
-
-
 # Get all SSO options from the active addons
 
 
@@ -304,7 +280,7 @@ async def get_site_info(
                 additional_info["onboarding"] = True
     elif full:
         sso_options = await get_sso_options(request)
-        has_admin_user = await admin_exists()
+        has_admin_user = await CloudUtils.get_admin_exists()
         additional_info = {
             "sso_options": sso_options,
             "no_admin_user": (not has_admin_user) or None,
