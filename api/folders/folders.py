@@ -57,6 +57,7 @@ async def create_folder(
     ops.create("folder", **post_data.dict(exclude_unset=True))
     res = await ops.process(can_fail=False, raise_on_error=True)
     folder_id = res.operations[0].entity_id
+    assert folder_id is not None, "Folder ID is None. This should never happen."
     return EntityIdResponse(id=folder_id)
 
 

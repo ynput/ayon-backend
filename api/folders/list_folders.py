@@ -2,19 +2,22 @@ import datetime
 import time
 from typing import Any
 
-from fastapi import Response
-from pydantic.error_wrappers import ValidationError
+from fastapi import Query, Response
+from starlette.responses import StreamingResponse
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
-from ayon_server.exceptions import AyonException
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.redis import Redis
-from ayon_server.logging import log_traceback
+from ayon_server.logging import logger
 from ayon_server.types import OPModel
-from ayon_server.utils import json_loads
+from ayon_server.utils import camelize, json_dumps, json_loads
 
 from .router import router
+
+# This model is only used for the API documentaion,
+# it is not actually used in the code as we stream the json response
+# that is generated on the fly.
 
 
 class FolderListItem(OPModel):
@@ -28,6 +31,7 @@ class FolderListItem(OPModel):
     has_tasks: bool = False
     has_children: bool = False
     task_names: list[str] | None
+    tags: list[str] | None
     status: str
     attrib: dict[str, Any] | None = None
     own_attrib: list[str] | None = None
@@ -39,7 +43,11 @@ class FolderListModel(OPModel):
     folders: list[FolderListItem]
 
 
-async def get_entities(project_name: str) -> list[dict[str, str]]:
+async def get_entities(project_name: str) -> list[dict[str, Any]]:
+    """Load folder entities from Redis cache.
+
+    If the cache is not found, rebuild it and return the result.
+    """
     entities_data = await Redis.get("project.folders", project_name)
     if entities_data is None:
         return await rebuild_hierarchy_cache(project_name)
@@ -51,7 +59,7 @@ async def get_entities(project_name: str) -> list[dict[str, str]]:
 async def get_folder_list(
     user: CurrentUser,
     project_name: ProjectName,
-    attrib: bool = False,
+    attrib: bool = Query(False, description="Include folder attributes"),
 ):
     """Return all folders in the project. Fast.
 
@@ -60,41 +68,73 @@ async def get_folder_list(
     since it uses a cache. The cache is updated every time a
     folder is created, updated, or deleted.
 
-    The endpoint handles ACL and also returns folder attributes.
+    The endpoint handles ACL and optionally also returns folder attributes.
     """
 
+    # The sole purpose of this endpoint is to provide a complete list of
+    # folder to the user without blocking other requests. Fast.
+    #
+    # Project can contain thousands of folders and the result could be up to
+    # several megabytes in size, so we need to be careful  not to block other
+    # requests while fetching the list and processing the result.
+    #
+    # Hence it uses a few dirty tricks to achieve this.
+    #
+    # Folder list is fetched from redis, where it is stored as JSON in a
+    # very similar manner we need to return, but:
+    #
+    # - for top level keys, it uses snake_case notation as used in the database
+    #   instead of camelCase as used in the frontend.
+    # - all folders are stored there, so we need to filter out the ones the user
+    #   does not have access to. So we cannot avoid parsing the JSON, solving the ACL
+    #
+    #  We can however skip validation and applying the data to the model.
+    #  Instead, as we parse the rows, we stream the result using a generator.
+
     start_time = time.monotonic()
-    access_list = await folder_access_list(user, project_name, "read")
+
+    _access_list = await folder_access_list(user, project_name, "read")
+    access_list: set[str] | None = None if _access_list is None else set(_access_list)
     entities = await get_entities(project_name)
 
-    result = []
-    for folder in entities:
-        if access_list is not None and folder["path"] not in access_list:
-            continue
-        if not attrib:
-            folder.pop("attrib", None)
-            folder.pop("own_attrib", None)
-        else:
-            pass  # TODO: handle attrib whitelist
-        result.append(folder)
-
     elapsed_time = time.monotonic() - start_time
-    detail = (
-        f"{len(result)} folders "
-        f"of {project_name} fetched in {elapsed_time:.2f} seconds"
-    )
+    ent_count = len(entities)
+    me = f"{ent_count} folders {'with' if attrib else 'without'} attr of {project_name}"
+    detail = f"{me} fetched in {elapsed_time:.3f} seconds"
+    logger.trace(detail)
 
-    # we need to do the validation here in order to convert snake_case to camelCase
-    # dumping to json here to bypass fastapi re-validation, which takes ages
+    # save a few nanoseconds by caching the result of camelize.
+    # there's just a few top level keys and they repeat for every row,
+    # so it does not make sense to process the string every time
 
-    try:
-        r = FolderListModel(detail=detail, folders=result).json(
-            by_alias=True,
-            exclude_unset=True,
-        )
-    except ValidationError:
-        await rebuild_hierarchy_cache(project_name)
-        log_traceback("Wrong model. Revalidating")
-        raise AyonException("Invalid cache data. Please try again")
+    camelize_memo = {}
 
-    return Response(content=r, media_type="application/json")
+    def camelize_memoized(src: str) -> str:
+        if src not in camelize_memo:
+            camelize_memo[src] = camelize(src)
+        return camelize_memo[src]
+
+    async def json_stream():
+        start_time = time.monotonic()
+        yield '{"folders": ['
+        first = True
+        for folder in entities:
+            if access_list is not None and folder["path"] not in access_list:
+                continue
+
+            if not first:
+                yield ","
+            first = False
+
+            if not attrib:
+                folder.pop("attrib", None)
+                folder.pop("own_attrib", None)
+
+            parsed = {camelize_memoized(key): value for key, value in folder.items()}
+
+            yield json_dumps(parsed)
+        yield "]}"
+        elapsed_time = time.monotonic() - start_time
+        logger.trace(f"{me} streamed in {elapsed_time:.3f} seconds")
+
+    return StreamingResponse(json_stream(), media_type="application/json")

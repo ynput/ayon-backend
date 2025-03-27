@@ -6,7 +6,7 @@ import aiofiles
 import httpx
 from fastapi import Request, Response
 
-from ayon_server.api.dependencies import CurrentUser, UserName
+from ayon_server.api.dependencies import CurrentUser, NoTraces, UserName
 from ayon_server.api.files import image_response_from_bytes
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import NotFoundException
@@ -146,19 +146,23 @@ async def obtain_avatar(user_name: str) -> bytes:
 
     if not avatar_bytes and res[0]["url"]:
         avatar_url = res[0]["url"]
+        err = f"Failed to fetch user {user_name} avatar from {avatar_url}."
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(avatar_url)
-                response.raise_for_status()
-                avatar_bytes = response.content
-            except httpx.HTTPStatusError:
-                logger.warning(
-                    f"Failed to fetch user {user_name} avatar from {avatar_url}. "
-                    f"Error: {response.status_code}"
-                )
+            except Exception as e:
+                logger.error(f"{err} Error: {e}")
             else:
-                avatar_bytes = await process_thumbnail(avatar_bytes, format="JPEG")
-                logger.debug(f"Successfully fetched avatar for {user_name} from url")
+                try:
+                    response.raise_for_status()
+                    avatar_bytes = response.content
+                except httpx.HTTPStatusError:
+                    logger.warning(f"{err} Error: {response.status_code}")
+                else:
+                    avatar_bytes = await process_thumbnail(avatar_bytes, format="JPEG")
+                    logger.debug(
+                        f"Successfully fetched avatar for {user_name} from url"
+                    )
 
     if not avatar_bytes:
         full_name = res[0]["full_name"] or ""
@@ -168,7 +172,7 @@ async def obtain_avatar(user_name: str) -> bytes:
     return avatar_bytes
 
 
-@router.get("/{user_name}/avatar")
+@router.get("/{user_name}/avatar", dependencies=[NoTraces])
 async def get_avatar(user_name: UserName, current_user: CurrentUser) -> Response:
     """Retrieve the avatar for a given user."""
 

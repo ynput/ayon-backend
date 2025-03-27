@@ -15,6 +15,7 @@ from ayon_server.api.system import clear_server_restart_required
 from ayon_server.background.workers import background_workers
 from ayon_server.config import ayonconfig
 from ayon_server.events import EventStream
+from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback, logger
@@ -96,6 +97,7 @@ async def lifespan(app: "FastAPI"):
 
     await ayon_init()
     await load_access_groups()
+    await CloudUtils.clear_cloud_info_cache()
 
     # Start background tasks
 
@@ -218,4 +220,4 @@ async def lifespan(app: "FastAPI"):
     await background_workers.shutdown()
     await messaging.shutdown()
     await Postgres.shutdown()
-    logger.info("Server stopped", handlers=None)
+    logger.info("Server stopped", nodb=True)

@@ -22,9 +22,9 @@ class BackgroundWorker:
 
         self.shutting_down = True
         while self.is_running:
-            logger.debug(f"Waiting for {self.__class__.__name__} to stop", handlers=[])
+            logger.debug(f"Waiting for {self.__class__.__name__} to stop", nodb=True)
             await asyncio.sleep(0.1)
-        logger.debug(f"{self.__class__.__name__} stopped", handlers=[])
+        logger.debug(f"{self.__class__.__name__} stopped", nodb=True)
 
     @property
     def is_running(self):
@@ -34,16 +34,16 @@ class BackgroundWorker:
         try:
             await self.run()
         except asyncio.CancelledError:
-            logger.debug(f"{self.__class__.__name__} is cancelled", handlers=[])
+            logger.debug(f"{self.__class__.__name__} is cancelled", nodb=True)
             self.shutting_down = True
         except Exception:
-            log_traceback(handlers=[])
+            log_traceback(nodb=True)
         finally:
             await self.finalize()
             self.task = None
 
         if not self.shutting_down:
-            logger.debug("Restarting", self.__class__.__name__, handlers=[])
+            logger.debug("Restarting", self.__class__.__name__, nodb=True)
             self.start()
 
     async def run(self):
