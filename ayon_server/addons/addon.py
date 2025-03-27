@@ -111,8 +111,8 @@ class BaseServerAddon:
     def get_project_can_override_addon_version(self) -> bool:
         # TODO: This is just for testing until we have a proper implementation
         # in the addons
-        if self.name in ["max", "aftereffects", "applications", "maya", "nuke"]:
-            return True
+        # if self.name in ["max", "aftereffects", "applications", "maya", "nuke"]:
+        #     return True
         return self.project_can_override_addon_version
 
     @property
