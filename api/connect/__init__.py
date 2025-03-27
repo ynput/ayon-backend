@@ -37,7 +37,7 @@ async def get_ynput_cloud_info(user: CurrentUserOptional) -> YnputCloudInfoModel
                 "Connecting to Ynput Cloud without login "
                 "is allowed only on the first run"
             )
-    elif not user.is_guest:
+    elif user.is_guest:
         raise ForbiddenException("Guests cannot load Ynput Cloud information")
     return await CloudUtils.get_cloud_info()
 
