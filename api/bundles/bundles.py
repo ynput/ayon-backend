@@ -186,7 +186,7 @@ async def create_new_bundle(
     if bundle.is_project:
         if bundle.is_production or bundle.is_staging:
             raise BadRequestException(
-                "Project bunldes cannot be set as production or staging"
+                "Project bundles cannot be set as production or staging"
             )
 
         if bundle.is_dev:
