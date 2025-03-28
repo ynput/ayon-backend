@@ -38,6 +38,7 @@ class RepresentationNode(BaseNode):
     attrib: RepresentationAttribType
     all_attrib: str
     data: str | None
+    traits: str | None
 
     # GraphQL specifics
 
@@ -107,6 +108,7 @@ def representation_from_record(
         updated_at=record["updated_at"],
         context=json_dumps(data.get("context", {})),
         files=parse_files(record.get("files", [])),
+        traits=json_dumps(record["traits"]) if record["traits"] else None,
     )
 
 
