@@ -6,17 +6,23 @@ from ayon_server.events.patch import build_project_change_events
 from ayon_server.helpers.deploy_project import anatomy_to_project_data
 from ayon_server.helpers.extract_anatomy import extract_project_anatomy
 from ayon_server.settings.anatomy import Anatomy
+from ayon_server.utils import RequestCoalescer
 
 from .router import router
+
+coalesce = RequestCoalescer()
+
+
+async def _get_project_anatomy(project_name: ProjectName) -> Anatomy:
+    project = await ProjectEntity.load(project_name)
+    return extract_project_anatomy(project)
 
 
 @router.get("/projects/{project_name}/anatomy")
 async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> Anatomy:
     """Retrieve a project anatomy."""
     user.check_project_access(project_name)
-    project = await ProjectEntity.load(project_name)
-    anatomy = extract_project_anatomy(project)
-    return anatomy
+    return await coalesce(_get_project_anatomy, project_name)
 
 
 @router.post("/projects/{project_name}/anatomy", status_code=204)
