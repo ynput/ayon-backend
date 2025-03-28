@@ -33,8 +33,8 @@ async def load_access_groups() -> None:
     from ayon_server.access.access_groups import AccessGroups
 
     await AccessGroups.load()
-    EventStream.subscribe("access_group.updated", AccessGroups.load, True)
-    EventStream.subscribe("access_group.deleted", AccessGroups.load, True)
+    EventStream.subscribe("access_group.updated", AccessGroups.update_hook, True)
+    EventStream.subscribe("access_group.deleted", AccessGroups.update_hook, True)
 
 
 def init_addon_endpoints(target_app: "FastAPI") -> None:

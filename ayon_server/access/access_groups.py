@@ -45,8 +45,7 @@ class AccessGroups:
     access_groups: dict[tuple[str, str], Permissions] = {}
 
     @classmethod
-    async def load(cls, *args, **kwargs) -> None:
-        logger.trace(f"Loading access groups {args}")
+    async def load(cls) -> None:
         cls.access_groups = {}
         async for row in Postgres.iterate(
             "SELECT name, data FROM public.access_groups"
