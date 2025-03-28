@@ -83,10 +83,15 @@ async def query_tasks_folders(
             OR tasks.task_type ILIKE '{term}%'
             OR f.path ILIKE '%{term}%'
             )"""
-        conditions.append(cond)
+            conditions.append(cond)
 
     if not conditions:
         raise BadRequestException("No filter or search term provided")
+
+    facl = await folder_access_list(user, project_name, "read")
+    if facl is not None:
+        cond = f"f.path like ANY ('{{ {','.join(facl)} }}')"
+        conditions.append(cond)
 
     query = f"""
         SELECT DISTINCT tasks.folder_id
@@ -96,11 +101,7 @@ async def query_tasks_folders(
         {SQLTool.conditions(conditions)}
     """
 
-    facl = await folder_access_list(user, project_name, "read")
-
     async for row in Postgres.iterate(query):
-        if facl is not None and row["folder_id"] not in facl:
-            continue
         result.append(row["folder_id"])
 
     return TasksFoldersResponse(folder_ids=result)

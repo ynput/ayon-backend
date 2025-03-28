@@ -1,12 +1,14 @@
+import sys
 from typing import TYPE_CHECKING, Literal
 
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import AccessType, ProjectLevelEntityType
 from ayon_server.utils import SQLTool
 
 if TYPE_CHECKING:
+    from ayon_server.access.permissions import FolderAccessList
     from ayon_server.entities import UserEntity
+    from ayon_server.types import AccessType, ProjectLevelEntityType
 
 
 def path_to_paths(
@@ -37,10 +39,73 @@ def path_to_paths(
     return result
 
 
+async def parse_permset(
+    user: "UserEntity",
+    project_name: str,
+    access_type: "AccessType",
+    permset: "FolderAccessList",
+) -> list[str] | None:
+    """Convert a permission set to a list of paths"""
+    if not permset.enabled:
+        return None
+
+    # TODO: Enable caching when we figure out how to invalidate it
+    # ns = "folder-access-list"
+    # key = f"{project_name}:{user.name}:{access_type}"
+    # if (cached := await Redis.get_json(ns, key)) is not None:
+    #     return cached
+
+    fpaths = set()
+    for perm in permset.access_list:
+        if perm.access_type == "hierarchy":
+            assert perm.path is not None, "Path is required for hierarchy access"
+            for path in path_to_paths(
+                perm.path,
+                # Read access implies reading parent folders
+                include_parents=access_type == "read",
+            ):
+                fpaths.add(path)
+
+        elif perm.access_type == "children":
+            assert perm.path is not None, "Path is required for children access"
+            for path in path_to_paths(
+                perm.path,
+                include_parents=access_type == "read",
+                include_self=False,
+            ):
+                fpaths.add(path)
+
+        elif perm.access_type == "assigned":
+            query = f"""
+                SELECT
+                    h.path
+                FROM
+                    project_{project_name}.hierarchy as h
+                INNER JOIN
+                    project_{project_name}.tasks as t
+                    ON h.id = t.folder_id
+                WHERE
+                    '{user.name}' = ANY (t.assignees)
+                """
+            async for record in Postgres.iterate(query):
+                for path in path_to_paths(
+                    record["path"],
+                    include_parents=access_type == "read",
+                ):
+                    fpaths.add(path)
+    folder_list = list(fpaths)
+    # logger.trace(
+    #     f"Caching {user.name} {project_name} {access_type} "
+    #     f"access: {', '.join(folder_list)}"
+    # )
+    # await Redis.set_json(ns, key, folder_list)
+    return folder_list
+
+
 async def folder_access_list(
     user: "UserEntity",
     project_name: str,
-    access_type: AccessType = "read",
+    access_type: "AccessType" = "read",
 ) -> list[str] | None:
     """Return a list of paths user has access to
 
@@ -78,49 +143,12 @@ async def folder_access_list(
 
     perms = user.permissions(project_name)
     assert perms is not None, "folder_access_list without selected project"
-    fpaths = set()
 
     permset = perms.__getattribute__(access_type)
-    if not permset.enabled:
+
+    path_list = await parse_permset(user, project_name, access_type, permset)
+    if path_list is None:
         return None
-
-    for perm in permset.access_list:
-        if perm.access_type == "hierarchy":
-            for path in path_to_paths(
-                perm.path,
-                # Read access implies reading parent folders
-                include_parents=access_type == "read",
-            ):
-                fpaths.add(path)
-
-        elif perm.access_type == "children":
-            for path in path_to_paths(
-                perm.path,
-                include_parents=access_type == "read",
-                include_self=False,
-            ):
-                fpaths.add(path)
-
-        elif perm.access_type == "assigned":
-            query = f"""
-                SELECT
-                    h.path
-                FROM
-                    project_{project_name}.hierarchy as h
-                INNER JOIN
-                    project_{project_name}.tasks as t
-                    ON h.id = t.folder_id
-                WHERE
-                    '{user.name}' = ANY (t.assignees)
-                """
-            async for record in Postgres.iterate(query):
-                for path in path_to_paths(
-                    record["path"],
-                    include_parents=access_type == "read",
-                ):
-                    fpaths.add(path)
-
-    path_list = list(fpaths)
 
     # cache the result for the lifetime of the request
     if project_name not in user.path_access_cache:
@@ -139,9 +167,9 @@ async def folder_access_list(
 async def ensure_entity_access(
     user: "UserEntity",
     project_name: str,
-    entity_type: ProjectLevelEntityType,
+    entity_type: "ProjectLevelEntityType",
     entity_id: str | None,
-    access_type: AccessType = "read",
+    access_type: "AccessType" = "read",
 ) -> Literal[True]:
     """Check whether the user has access to a given entity.
 
@@ -214,3 +242,66 @@ async def ensure_entity_access(
     async for _ in Postgres.iterate(query):
         return True
     raise ForbiddenException("Entity access denied")
+
+
+class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+
+
+class AccessChecker:
+    def __init__(self):
+        self.root = TrieNode()
+        self.exact_paths = set()
+        self.is_none = False
+
+    def __getitem__(self, path: str) -> bool:
+        if self.is_none:
+            return True
+        if path in self.exact_paths:
+            return True
+        return self.search(path)
+
+    def search(self, path: str) -> bool:
+        node = self.root
+        for char in path.split("/"):
+            if char in node.children:
+                node = node.children[char]
+            else:
+                return False
+            if node.is_end:
+                return True
+        return node.is_end
+
+    async def load(
+        self,
+        user: "UserEntity",
+        project_name: str,
+        access_type: "AccessType" = "read",
+    ) -> None:
+        fal = await folder_access_list(user, project_name, access_type)
+        if fal is None:
+            self.is_none = True
+            return
+
+        for row in fal:
+            path = row.strip('"')
+            if path.endswith("/%"):
+                node = self.root
+                for char in path[:-2].split("/"):
+                    if char not in node.children:
+                        node.children[char] = TrieNode()
+                    node = node.children[char]
+                node.is_end = True
+            else:
+                self.exact_paths.add(path)
+
+    def visualize(self) -> None:
+        def _visualize(node: TrieNode, prefix: str) -> None:
+            if node.is_end:
+                print(prefix + "*", file=sys.stderr, flush=True)
+            for char, child in node.children.items():
+                _visualize(child, prefix + char)
+
+        _visualize(self.root, "")
