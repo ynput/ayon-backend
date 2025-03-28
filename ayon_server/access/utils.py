@@ -123,6 +123,10 @@ async def folder_access_list(
 
     The list is returned as a list of strings WITHOUT leading slash,
     so it can be used directly in an SQL query.
+
+    WARNING: The result uses SQL syntax and paths are enclosed in double quotes.
+    % is used as a wildcard. If you need to check the folder access outside of SQL,
+    use AccessChecker class.
     """
 
     if user.is_manager:
@@ -250,12 +254,40 @@ class TrieNode:
 
 
 class AccessChecker:
+    """
+    AccessChecker is used to determine if a user has access
+    to specific paths within a project.
+
+    This class builds a trie (prefix tree) structure to efficiently
+    check if a given path is accessible based on the user's permissions.
+    It also supports exact path matching and wildcard path matching.
+
+    Usage:
+        access_checker = AccessChecker()
+        await access_checker.load(user, project_name, access_type)
+        has_access = access_checker["some/path"]
+
+    Attributes:
+        root (TrieNode): The root node of the trie.
+        exact_paths (set): A set of exact paths the user has access to.
+        is_none (bool): A flag indicating if the user has unrestricted access.
+    """
+
     def __init__(self):
         self.root = TrieNode()
         self.exact_paths = set()
         self.is_none = False
 
     def __getitem__(self, path: str) -> bool:
+        """
+        Check if the user has access to the given path.
+
+        Args:
+            path (str): The path to check access for.
+
+        Returns:
+            bool: True if the user has access, False otherwise.
+        """
         if self.is_none:
             return True
         if path in self.exact_paths:
@@ -263,6 +295,15 @@ class AccessChecker:
         return self.search(path)
 
     def search(self, path: str) -> bool:
+        """
+        Search the trie to determine if the path is accessible.
+
+        Args:
+            path (str): The path to search for in the trie.
+
+        Returns:
+            bool: True if the path is accessible, False otherwise.
+        """
         node = self.root
         for char in path.split("/"):
             if char in node.children:
@@ -279,6 +320,17 @@ class AccessChecker:
         project_name: str,
         access_type: "AccessType" = "read",
     ) -> None:
+        """
+        Load the user's access permissions into the trie structure.
+
+        Args:
+            user (UserEntity): The user whose permissions are being loaded.
+            project_name (str): The name of the project.
+            access_type (AccessType): The type of access to check (default is "read").
+
+        Returns:
+            None
+        """
         fal = await folder_access_list(user, project_name, access_type)
         if fal is None:
             self.is_none = True
