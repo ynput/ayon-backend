@@ -1,9 +1,10 @@
+import asyncio
 import datetime
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from fastapi import Query, Response
-from starlette.responses import StreamingResponse
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
@@ -43,20 +44,91 @@ class FolderListModel(OPModel):
     folders: list[FolderListItem]
 
 
-async def get_entities(project_name: str) -> list[dict[str, Any]]:
-    """Load folder entities from Redis cache.
+class FolderListLoader:
+    _current_futures: dict[str, asyncio.Task[list[dict[str, Any]]]]
+    _lock: asyncio.Lock
+    _executor: ThreadPoolExecutor
 
-    If the cache is not found, rebuild it and return the result.
-    """
-    entities_data = await Redis.get("project.folders", project_name)
-    if entities_data is None:
-        return await rebuild_hierarchy_cache(project_name)
-    else:
-        return json_loads(entities_data)
+    def __init__(self):
+        self._current_futures = {}
+        self._lock = asyncio.Lock()
+        self._executor = ThreadPoolExecutor(max_workers=10)
+
+    async def get_folder_list(self, project_name: str) -> list[dict[str, Any]]:
+        async with self._lock:
+            if project_name not in self._current_futures:
+                pass
+
+                self._current_futures[project_name] = asyncio.create_task(
+                    self._load_folders(project_name)
+                )
+
+        data = await self._current_futures[project_name]
+
+        async with self._lock:
+            self._current_futures.pop(project_name, None)
+
+        return data
+
+    async def _load_folders(self, project_name: str) -> list[dict[str, Any]]:
+        logger.trace(f"Loading folders for project {project_name}")
+        camelize_memo = {}
+
+        def camelize_memoized(src: str) -> str:
+            if src not in camelize_memo:
+                camelize_memo[src] = camelize(src)
+            return camelize_memo[src]
+
+        def process_record(record: dict[str, Any]) -> dict[str, Any]:
+            return {camelize_memoized(k): v for k, v in record.items()}
+
+        entities_data = await Redis.get("project.folders", project_name)
+        if entities_data is None:
+            folder_list = await rebuild_hierarchy_cache(project_name)
+        else:
+            folder_list = json_loads(entities_data)
+
+        assert isinstance(folder_list, list)
+        return [process_record(record) for record in folder_list]
+
+    def _build_response(
+        self,
+        folder_list: list[dict[str, Any]],
+        folder_access_list: set[str] | None,
+    ) -> Response:
+        return Response(
+            json_dumps(
+                {
+                    "folders": [
+                        record
+                        for record in folder_list
+                        if folder_access_list is None
+                        or record["path"] in folder_access_list
+                    ]
+                }
+            ),
+            media_type="application/json",
+        )
+
+    async def build_response(
+        self,
+        folder_list: list[dict[str, Any]],
+        folder_access_list: set[str] | None,
+    ) -> Response:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            self._build_response,
+            folder_list,
+            folder_access_list,
+        )
+
+
+folder_list_loader = FolderListLoader()
 
 
 @router.get("", response_class=Response, responses={200: {"model": FolderListModel}})
-async def get_folder_list(
+async def get_folder_list2(
     user: CurrentUser,
     project_name: ProjectName,
     attrib: bool = Query(False, description="Include folder attributes"),
@@ -78,8 +150,6 @@ async def get_folder_list(
     # several megabytes in size, so we need to be careful  not to block other
     # requests while fetching the list and processing the result.
     #
-    # Hence it uses a few dirty tricks to achieve this.
-    #
     # Folder list is fetched from redis, where it is stored as JSON in a
     # very similar manner we need to return, but:
     #
@@ -87,54 +157,22 @@ async def get_folder_list(
     #   instead of camelCase as used in the frontend.
     # - all folders are stored there, so we need to filter out the ones the user
     #   does not have access to. So we cannot avoid parsing the JSON, solving the ACL
-    #
-    #  We can however skip validation and applying the data to the model.
-    #  Instead, as we parse the rows, we stream the result using a generator.
 
     start_time = time.monotonic()
-
     _access_list = await folder_access_list(user, project_name, "read")
     access_list: set[str] | None = None if _access_list is None else set(_access_list)
-    entities = await get_entities(project_name)
+    elapsed_time = time.monotonic() - start_time
+    logger.trace(f"Loaded folder access list in {elapsed_time:.3f} seconds")
 
+    start_time = time.monotonic()
+    entities = await folder_list_loader.get_folder_list(project_name)
     elapsed_time = time.monotonic() - start_time
     ent_count = len(entities)
     me = f"{ent_count} folders {'with' if attrib else 'without'} attr of {project_name}"
     detail = f"{me} fetched in {elapsed_time:.3f} seconds"
     logger.trace(detail)
 
-    # save a few nanoseconds by caching the result of camelize.
-    # there's just a few top level keys and they repeat for every row,
-    # so it does not make sense to process the string every time
-
-    camelize_memo = {}
-
-    def camelize_memoized(src: str) -> str:
-        if src not in camelize_memo:
-            camelize_memo[src] = camelize(src)
-        return camelize_memo[src]
-
-    async def json_stream():
-        start_time = time.monotonic()
-        yield '{"folders": ['
-        first = True
-        for folder in entities:
-            if access_list is not None and folder["path"] not in access_list:
-                continue
-
-            if not first:
-                yield ","
-            first = False
-
-            if not attrib:
-                folder.pop("attrib", None)
-                folder.pop("own_attrib", None)
-
-            parsed = {camelize_memoized(key): value for key, value in folder.items()}
-
-            yield json_dumps(parsed)
-        yield "]}"
-        elapsed_time = time.monotonic() - start_time
-        logger.trace(f"{me} streamed in {elapsed_time:.3f} seconds")
-
-    return StreamingResponse(json_stream(), media_type="application/json")
+    return await folder_list_loader.build_response(
+        entities,
+        access_list,
+    )
