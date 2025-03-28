@@ -150,14 +150,8 @@ async def get_folder_list(
     #   does not have access to. So we cannot avoid parsing the JSON, solving the ACL
 
     start_time = time.monotonic()
-    # _access_list = await folder_access_list(user, project_name, "read")
-    # access_list: set[str] | None = (
-    #     None if _access_list is None else {r.strip('"') for r in _access_list}
-    # )
-
     access_checker = AccessChecker()
     await access_checker.load(user, project_name, "read")
-    access_checker.visualize()
 
     elapsed_time = time.monotonic() - start_time
     logger.trace(f"Loaded folder access list in {elapsed_time:.3f} seconds")

@@ -1,4 +1,3 @@
-import sys
 from typing import TYPE_CHECKING, Literal
 
 from ayon_server.exceptions import ForbiddenException
@@ -296,12 +295,3 @@ class AccessChecker:
                 node.is_end = True
             else:
                 self.exact_paths.add(path)
-
-    def visualize(self) -> None:
-        def _visualize(node: TrieNode, prefix: str) -> None:
-            if node.is_end:
-                print(prefix + "*", file=sys.stderr, flush=True)
-            for char, child in node.children.items():
-                _visualize(child, prefix + char)
-
-        _visualize(self.root, "")
