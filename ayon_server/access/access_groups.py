@@ -1,4 +1,3 @@
-import asyncio
 from typing import TYPE_CHECKING, Any
 
 from ayon_server.access.permissions import (
@@ -8,37 +7,13 @@ from ayon_server.access.permissions import (
     FolderAccessList,
     Permissions,
 )
-from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
-from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import normalize_to_dict
 
 if TYPE_CHECKING:
     from ayon_server.events import EventModel
-
-
-async def get_access_group(
-    access_group_name: str, project_name: str = "_"
-) -> Permissions:
-    """Too bad we cannot use this :-(
-    We need to access access group without async... but i'll keep this here for now.
-    Who knows...
-    """
-    ns = "access-group"
-    key = f"{access_group_name}:{project_name}"
-    lock = asyncio.Lock()
-    async with lock:
-        if (data := await Redis.get_json(ns, key)) is None:
-            schema = "public" if project_name == "_" else f"project_{project_name}"
-            query = f" SELECT name, data FROM {schema}.access_groups WHERE name = $1"
-            res = await Postgres.fetchrow(query, access_group_name)
-            if res is None:
-                raise NotFoundException(f"Access group '{access_group_name}' not found")
-            data = dict(res)
-            await Redis.set_json(ns, key, data)
-    return Permissions.from_record(data)
 
 
 class AccessGroups:
