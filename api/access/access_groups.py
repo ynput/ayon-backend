@@ -2,7 +2,6 @@ import copy
 
 from fastapi import BackgroundTasks, Body
 
-from ayon_server.access.access_groups import AccessGroups
 from ayon_server.access.permissions import Permissions
 from ayon_server.api.dependencies import (
     AccessGroupName,
@@ -10,6 +9,7 @@ from ayon_server.api.dependencies import (
     ProjectNameOrUnderscore,
 )
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     ConstraintViolationException,
     ForbiddenException,
@@ -187,8 +187,14 @@ async def save_access_group(
             f"Unable to add access group {access_group_name}"
         ) from None
 
-    # await AccessGroups.load()
-    # TODO: messaging: notify other instances
+    description = f"Updated access group {access_group_name}"
+    await EventStream.dispatch(
+        "access_group.updated",
+        summary={"name": access_group_name},
+        description=description,
+        project=project_name if project_name != "_" else None,
+        user=user.name,
+    )
     return EmptyResponse()
 
 
@@ -206,22 +212,29 @@ async def delete_access_group(
             raise ForbiddenException("Only managers can modify global access groups")
         user.check_permissions("project.access", project_name=project_name, write=True)
 
-    if (access_group_name, project_name) not in AccessGroups.access_groups:
-        raise NotFoundException(
-            f"Unable to delete access group {access_group_name}. Not found"
+    schema = "public" if project_name == "_" else f"project_{project_name}"
+
+    query = f"""
+        WITH deleted AS (
+            DELETE FROM {schema}.access_groups
+            WHERE name = $1 RETURNING *
         )
+        SELECT * FROM deleted
+    """
 
-    scope = "public" if project_name == "_" else f"project_{project_name}"
+    res = await Postgres.fetch(query, access_group_name)
+    if not res[0]["count"]:
+        raise NotFoundException(f"Access group {access_group_name} not found")
 
-    await Postgres.execute(
-        f"DELETE FROM {scope}.access_groups WHERE name = $1",
-        access_group_name,
-    )
-
-    if scope == "public":
+    if schema == "public":
         background_tasks.add_task(clean_up_user_access_groups)
 
-    # await AccessGroups.load()
-    # TODO: messaging: notify other instances
-
+    description = f"Deleted access group {access_group_name}"
+    await EventStream.dispatch(
+        "access_group.deleted",
+        summary={"name": access_group_name},
+        description=description,
+        project=project_name if project_name != "_" else None,
+        user=user.name,
+    )
     return EmptyResponse()
