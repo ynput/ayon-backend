@@ -57,8 +57,6 @@ class FolderListLoader:
     async def get_folder_list(self, project_name: str) -> list[dict[str, Any]]:
         async with self._lock:
             if project_name not in self._current_futures:
-                pass
-
                 self._current_futures[project_name] = asyncio.create_task(
                     self._load_folders(project_name)
                 )
@@ -128,7 +126,7 @@ folder_list_loader = FolderListLoader()
 
 
 @router.get("", response_class=Response, responses={200: {"model": FolderListModel}})
-async def get_folder_list2(
+async def get_folder_list(
     user: CurrentUser,
     project_name: ProjectName,
     attrib: bool = Query(False, description="Include folder attributes"),
@@ -172,7 +170,4 @@ async def get_folder_list2(
     detail = f"{me} fetched in {elapsed_time:.3f} seconds"
     logger.trace(detail)
 
-    return await folder_list_loader.build_response(
-        entities,
-        access_list,
-    )
+    return await folder_list_loader.build_response(entities, access_list)
