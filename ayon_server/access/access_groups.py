@@ -72,6 +72,7 @@ class AccessGroups:
     async def update_hook(cls, event: "EventModel") -> None:
         if event.topic == "access_group.deleted":
             cls.access_groups.pop((event.summary["name"], event.project or "_"), None)
+            logger.trace(f"Deleted access group {event.summary['name']}")
             return
         if event.topic != "access_group.updated":
             return

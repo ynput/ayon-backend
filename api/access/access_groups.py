@@ -219,11 +219,10 @@ async def delete_access_group(
             DELETE FROM {schema}.access_groups
             WHERE name = $1 RETURNING *
         )
-        SELECT * FROM deleted
+        SELECT name FROM deleted
     """
 
-    res = await Postgres.fetch(query, access_group_name)
-    if not res[0]["count"]:
+    if not await Postgres.fetch(query, access_group_name):
         raise NotFoundException(f"Access group {access_group_name} not found")
 
     if schema == "public":
