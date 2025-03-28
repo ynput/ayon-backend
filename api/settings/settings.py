@@ -47,6 +47,13 @@ class AddonSettingsItemModel(OPModel):
 class AllSettingsResponseModel(OPModel):
     bundle_name: str = Field(..., regex=NAME_REGEX)
     addons: list[AddonSettingsItemModel] = Field(default_factory=list)
+    inherited_addons: list[str] = Field(
+        default_factory=list,
+        description=(
+            "If a project bundle is used, this field contains alist of addons "
+            "that are inherited from the studio bundle"
+        ),
+    )
 
 
 @router.get("/settings", response_model_exclude_none=True)
@@ -56,19 +63,69 @@ async def get_all_settings(
     bundle_name: str | None = Query(
         None,
         title="Bundle name",
-        description="Production if not set",
+        description=(
+            "Use explicit bundle name to get the addon list. "
+            "Current production (or staging) will be used if not set"
+        ),
         regex=NAME_REGEX,
     ),
     project_name: str | None = Query(
         None,
         title="Project name",
-        description="Studio settings if not set",
+        description=(
+            "Return project settings for the given project name. "
+            "Studio settings will be returned if not set"
+        ),
         regex=NAME_REGEX,
     ),
-    variant: str = Query("production"),
-    summary: bool = Query(False, title="Summary", description="Summary mode"),
+    project_bundle_name: str | None = Query(
+        None,
+        title="Project bundle name",
+        description=(
+            "Use explicit project bundle instead of the default one "
+            "to resolve the project addons."
+        ),
+    ),
+    variant: str = Query(
+        "production",
+        title="Variant",
+        description=(
+            "Variant of the settings to return. "
+            "This field is also used to determine which bundle to use"
+            "if bundle_name or project_bundle_name is not set"
+        ),
+    ),
+    summary: bool = Query(
+        False,
+        title="Summary",
+        description=(
+            "Summary mode. When selected, do not return actual settings "
+            "instead only return the basic information about the addons "
+            "in the specified bundles"
+        ),
+    ),
 ) -> AllSettingsResponseModel:
+    """Return all addon settings
+
+    ## Studio settings
+
+    When project name is not specified, studio settings are returned
+
+    ## Project settings
+
+    When project_name is specified, endpoint returns project settings
+    and if the project has a bundle override, it will return settings
+    of the addons specified in the override.
+
+    It is also possible to specify project_bundle_name to set the project
+    bundle explicitly (for renderfarms)
+
+    """
+
+    # Get the studio bundle
+
     if variant not in ("production", "staging"):
+        # Dev bundle
         query = [
             """
             SELECT name, is_production, is_staging, data->'addons' as addons
@@ -77,6 +134,7 @@ async def get_all_settings(
             variant,
         ]
     elif bundle_name is None:
+        # Current production / staging
         query = [
             f"""
             SELECT name, is_production, is_staging, data->'addons' as addons
@@ -84,6 +142,7 @@ async def get_all_settings(
             """
         ]
     else:
+        # Explicit bundle name
         query = [
             """
             SELECT name, is_production, is_staging, data->'addons' as addons
@@ -96,8 +155,60 @@ async def get_all_settings(
     if not brow:
         raise NotFoundException(status_code=404, detail="Bundle not found")
 
+    # Studio bundle name and list of addons from the studio bundle
+
     bundle_name = brow[0]["name"]
-    addons = brow[0]["addons"]
+    addons: dict[str, str] = brow[0]["addons"]  # {addon_name: addon_version}
+    logger.trace(f"Got studio bundle {bundle_name}")
+
+    # Check if there's a project bundle available
+    # and get its name
+
+    if (
+        project_name
+        and (not project_bundle_name)
+        and variant in ("production", "staging")
+    ):
+        r = await Postgres.fetch(
+            "SELECT data->'bundle' as bundle FROM projects WHERE name = $1",
+            project_name,
+        )
+        if not r:
+            raise NotFoundException(status_code=404, detail="Project not found")
+        try:
+            project_bundle_name = r[0]["bundle"][variant]
+            logger.trace(f"Got project bundle {project_bundle_name}")
+        except Exception:
+            project_bundle_name = None
+
+    inherited_addons: set[str] = set(addons.keys())
+
+    # Load the project bundle and merge it with the studio bundle
+
+    if project_bundle_name:
+        r = await Postgres.fetch(
+            """
+            SELECT data->'addons' as addons FROM bundles
+            WHERE name = $1 AND coalesce((data->'is_project')::boolean, false)
+            """,
+            project_bundle_name,
+        )
+        if not r:
+            raise NotFoundException(
+                status_code=404,
+                detail=f"Project bundle {project_bundle_name} not found"
+                f"Studio {variant} bundle is not set",
+            )
+
+        project_addons = r[0]["addons"]
+        logger.trace(f"Got project addons {project_addons}")
+        for addon_name, addon_version in project_addons.items():
+            addons[addon_name] = addon_version
+            inherited_addons.remove(addon_name)
+
+    #
+    # Iterate over all addons and load the settings
+    #
 
     addon_result = []
     for addon_name, addon_version in addons.items():
@@ -126,6 +237,16 @@ async def get_all_settings(
                 )
             )
             continue
+
+        if project_bundle_name and addon_name not in inherited_addons:
+            overridable = addon.get_project_can_override_addon_version()
+            if not overridable:
+                logger.error(
+                    f"Addon {addon_name} {addon_version} "
+                    f"declared in project bundle {project_bundle_name} "
+                    f"cannot be overridden per project"
+                )
+                continue
 
         # Determine which scopes addon has settings for
 
@@ -212,7 +333,9 @@ async def get_all_settings(
                 has_project_overrides=settings._has_project_overrides
                 if settings
                 else None,
-                has_site_overrides=settings._has_site_overrides if settings else None,
+                has_project_site_overrides=settings._has_site_overrides
+                if settings
+                else None,
                 settings=settings.dict() if (settings and not summary) else {},
                 site_settings=site_settings,
             )
@@ -220,7 +343,12 @@ async def get_all_settings(
 
     addon_result.sort(key=lambda x: x.title.lower())
 
+    assert (
+        bundle_name is not None
+    ), "Bundle name is None"  # won't happen, keep pyright happy
+
     return AllSettingsResponseModel(
         bundle_name=bundle_name,
         addons=addon_result,
+        inherited_addons=list(inherited_addons) if project_bundle_name else [],
     )
