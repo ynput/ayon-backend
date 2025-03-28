@@ -88,22 +88,27 @@ async def get_access_groups(
     project_name: ProjectNameOrUnderscore,
 ) -> list[AccessGroupObject]:
     """Get a list of access group for a given project"""
-    rdict = {}
 
-    for ag_key, _perms in AccessGroups.access_groups.items():
-        access_group_name, pname = ag_key
-        if pname == "_":
-            if access_group_name in rdict:
-                continue
-            else:
-                rdict[access_group_name] = {"isProjectLevel": False}
-        elif pname == project_name:
-            rdict[access_group_name] = {"isProjectLevel": pname != "_"}
-
-    result: list[AccessGroupObject] = []
-    for access_group_name, data in rdict.items():
-        result.append(AccessGroupObject(name=access_group_name, **data))
-    result.sort(key=lambda x: x.name)
+    if project_name == "_":
+        query = """
+            SELECT name, FALSE AS is_project_level
+            FROM public.access_groups ORDER BY name
+        """
+    else:
+        query = f"""
+            SELECT g.name, p.data IS NOT NULL AS is_project_level
+            FROM public.access_groups g
+            LEFT JOIN project_{project_name}.access_groups p ON g.name = p.name
+            ORDER BY g.name
+        """
+    result = []
+    async for row in Postgres.iterate(query):
+        result.append(
+            AccessGroupObject(
+                name=row["name"],
+                is_project_level=row["is_project_level"],
+            )
+        )
     return result
 
 
@@ -117,7 +122,27 @@ async def get_access_group(
     project_name: ProjectNameOrUnderscore,
 ) -> Permissions:
     """Get an access group definition"""
-    return AccessGroups.combine([access_group_name], project_name)
+    # return AccessGroups.combine([access_group_name], project_name)
+
+    if project_name == "_":
+        query = """
+            SELECT name, data
+            FROM public.access_groups
+            WHERE name = $1
+        """
+    else:
+        query = f"""
+            SELECT g.name, COALESCE(p.data, g.data) as data
+            FROM public.access_groups g
+            LEFT JOIN project_{project_name}.access_groups p ON g.name = p.name
+            WHERE g.name = $1
+        """
+
+    res = await Postgres.fetchrow(query, access_group_name)
+    if res is None:
+        raise NotFoundException(f"Access group '{access_group_name}' not found")
+
+    return Permissions.from_record(res["data"])
 
 
 @router.put(
@@ -162,7 +187,7 @@ async def save_access_group(
             f"Unable to add access group {access_group_name}"
         ) from None
 
-    await AccessGroups.load()
+    # await AccessGroups.load()
     # TODO: messaging: notify other instances
     return EmptyResponse()
 
@@ -196,7 +221,7 @@ async def delete_access_group(
     if scope == "public":
         background_tasks.add_task(clean_up_user_access_groups)
 
-    await AccessGroups.load()
+    # await AccessGroups.load()
     # TODO: messaging: notify other instances
 
     return EmptyResponse()
