@@ -131,25 +131,63 @@ async def anatomy_presets_enum():
 
 
 async def anatomy_template_items_enum(project_name: str | None = None):
-    if not project_name:
-        return []
+    """ Provides values of template names from Anatomy
 
+    Args:
+        project_name: str
+
+    Returns:
+        list[dict[str,str]]
+
+    """
+    if not project_name:
+        template_names = await _get_template_names_studio()
+    else:
+        template_names = await _get_template_names_project(project_name)
+
+    return [
+        {"label": template_name, "value": template_name}
+        for template_name in template_names
+    ]
+
+
+async def _get_template_names_project(project_name: str):
     template_names = []
 
     query = f"SELECT * FROM public.projects WHERE name = '{project_name}'"
     async for row in Postgres.iterate(query):
         config = row["config"]
         for template_area, templates in config["templates"].items():
-            logger.info(f"template_area::{template_area}")
             for template_key in list(templates.keys()):
                 template_name = f'{template_area}_{template_key}'
                 template_names.append(template_name)
+    return template_names
 
-    # template_names = ["publish_default", "other_default"]
-    return [
-        {"label": template_name, "value": template_name}
-        for template_name in template_names
-    ]
+
+async def _get_template_names_studio():
+    anatomy = await get_primary_anatomy_preset()
+    data = anatomy.dict()
+
+    template_names = []
+
+    for template_type in (
+            "work",
+            "publish",
+            "hero",
+            "delivery",
+            "others",
+            "staging",
+    ):
+        template_group = data["templates"].get(template_type, [])
+
+        if not template_group:
+            continue
+        for template in template_group:
+            template_name = f'{template_type}_{template["name"]}'
+            template_names.append(template_name)
+
+    return template_names
+
 
 #
 # Addon host names
