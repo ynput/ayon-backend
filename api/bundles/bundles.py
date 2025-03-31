@@ -15,6 +15,7 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel, Platform
+from ayon_server.utils import RequestCoalescer
 
 from .actions import promote_bundle
 from .check_bundle import CheckBundleResponseModel, check_bundle
@@ -27,11 +28,7 @@ from .router import router
 #
 
 
-@router.get("/bundles", response_model_exclude_none=True)
-async def list_bundles(
-    user: CurrentUser,
-    archived: bool = Query(False, description="Include archived bundles"),
-) -> ListBundleModel:
+async def _list_bundles(archived: bool = False):
     result: list[BundleModel] = []
     production_bundle: str | None = None
     staging_bundle: str | None = None
@@ -75,6 +72,15 @@ async def list_bundles(
         staging_bundle=staging_bundle,
         dev_bundles=dev_bundles,
     )
+
+
+@router.get("/bundles", response_model_exclude_none=True)
+async def list_bundles(
+    user: CurrentUser,
+    archived: bool = Query(False, description="Include archived bundles"),
+) -> ListBundleModel:
+    coalesce = RequestCoalescer()
+    return await coalesce(_list_bundles, archived)
 
 
 #

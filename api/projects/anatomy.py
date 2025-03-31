@@ -10,8 +10,6 @@ from ayon_server.utils import RequestCoalescer
 
 from .router import router
 
-coalesce = RequestCoalescer()
-
 
 async def _get_project_anatomy(project_name: ProjectName) -> Anatomy:
     project = await ProjectEntity.load(project_name)
@@ -22,6 +20,7 @@ async def _get_project_anatomy(project_name: ProjectName) -> Anatomy:
 async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> Anatomy:
     """Retrieve a project anatomy."""
     user.check_project_access(project_name)
+    coalesce = RequestCoalescer()
     return await coalesce(_get_project_anatomy, project_name)
 
 
