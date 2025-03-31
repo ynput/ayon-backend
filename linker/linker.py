@@ -5,8 +5,6 @@ from ayon_server.logging import logger
 from ayon_server.utils import EntityID
 from linker.query import query_entities
 
-DEBUG = False
-
 
 async def create_link(
     project_name: str,
@@ -18,12 +16,11 @@ async def create_link(
     link_type_name, input_type, output_type = link_type.split("|")
     link_id = EntityID.create()
 
-    if DEBUG:
-        logger.debug(
-            f"Creating {link_type_name} link between "
-            f"{input_type} {input_id} and "
-            f"{output_type} {output_id}"
-        )
+    logger.trace(
+        f"Creating {link_type_name} link between "
+        f"{input_type} {input_id} and "
+        f"{output_type} {output_id}"
+    )
     await Postgres.execute(
         f"""
         INSERT INTO project_{project_name}.links

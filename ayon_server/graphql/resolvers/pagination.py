@@ -25,28 +25,33 @@ async def get_attrib_sort_case(attr: str, exp: str) -> str:
     return case
 
 
-def decode_cursor(cursor: str | None) -> list[Any]:
+def decode_cursor(cursor: str | None) -> tuple[list[str], list[str]]:
+    """
+    returns a list of cursor values and casts
+    """
+
     if not cursor:
-        return []
+        return ([], [])
     try:
-        return json_loads(b64decode(cursor).decode())
+        cur_data = json_loads(b64decode(cursor).decode())
+        vals = []
+        casts = []
+        for c in cur_data:
+            if isinstance(c, str):
+                val = c.replace("'", "''")
+                vals.append(f"'{val}'::text")
+                casts.append("::text")
+            else:
+                vals.append(f"{c}::numeric")
+                casts.append("::numeric")
+        return vals, casts
     except Exception as e:
         logger.debug(f"Invalid cursor {e}")
-        return []
+        return ([], [])
 
 
 def encode_cursor(decoded_cursor: list[Any]) -> str:
     return b64encode(json_dumps(decoded_cursor).encode()).decode()
-
-
-def get_casts(decoded_cursor: list[Any]) -> list[str]:
-    casts = []
-    for dval in decoded_cursor:
-        if isinstance(dval, str):
-            casts.append("::text")
-        else:
-            casts.append("::numeric")
-    return casts
 
 
 def create_pagination(
@@ -74,11 +79,9 @@ def create_pagination(
 
     if len(order_by) > 2:
         raise ValueError("Order by can have only two fields")
-
     cursor_arr = []
     ordering_arr = []
-    decoded_cursor = decode_cursor(before or after)
-    casts = get_casts(decoded_cursor)
+    decoded_cursor, casts = decode_cursor(before or after)
     operator = "<" if before else ">"
 
     for i, c in enumerate(order_by):
@@ -93,16 +96,16 @@ def create_pagination(
 
     if len(decoded_cursor) == 1:
         conditions = f"""
-        ({order_by[0]}){casts[0]} {operator} {decoded_cursor[0]}{casts[0]}
+        ({order_by[0]}){casts[0]} {operator} {decoded_cursor[0]}
         """
     elif len(decoded_cursor) == 2:
         conditions = f"""
 (
-    ({order_by[0]}){casts[0]} {operator} {decoded_cursor[0]}{casts[0]}
+    ({order_by[0]}){casts[0]} {operator} {decoded_cursor[0]}
     OR (
-        ({order_by[0]}){casts[0]} = {decoded_cursor[0]}{casts[0]}
+        ({order_by[0]}){casts[0]} = {decoded_cursor[0]}
         AND
-        ({order_by[1]}){casts[1]} {operator} {decoded_cursor[1]}{casts[1]}
+        ({order_by[1]}){casts[1]} {operator} {decoded_cursor[1]}
     )
 )
 """

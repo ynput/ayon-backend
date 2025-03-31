@@ -23,6 +23,7 @@ class VersionInfo(OPModel):
     services: dict[str, Any] | None = Field(None)
     is_broken: bool = Field(False)
     reason: dict[str, str] | None = Field(None)
+    project_can_override_addon_version: bool = Field(False)
 
 
 class AddonListItem(OPModel):
@@ -43,7 +44,10 @@ class AddonListItem(OPModel):
     addon_type: Literal["server", "pipeline"] = Field(
         ..., description="Type of the addon"
     )
-    system: bool | None = Field(None, description="Is the addon a system addon?")
+    system: bool = Field(False, description="Is the addon a system addon?")
+    project_can_override_addon_version: bool = Field(
+        False, description="Allow project override"
+    )
 
 
 class AddonList(OPModel):
@@ -73,10 +77,12 @@ async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
         items = list(definition.versions.items())
         items.sort(key=lambda x: semver.VersionInfo.parse(x[0]))
         for version, addon in items:
+            pcoav = addon.get_project_can_override_addon_version()
             vinf = {
                 "has_settings": bool(addon.get_settings_model()),
                 "has_site_settings": bool(addon.get_site_settings_model()),
                 "frontend_scopes": await addon.get_frontend_scopes(),
+                "project_can_override_addon_version": pcoav,
             }
             if details:
                 vinf["client_pyproject"] = await addon.get_client_pyproject()
@@ -112,9 +118,10 @@ async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
                 versions=versions,
                 description=definition.__doc__ or "",
                 production_version=vers.get("production"),
-                system=addon.system or None,
+                system=bool(addon.system),
                 staging_version=vers.get("staging"),
                 addon_type=addon.addon_type,
+                project_can_override_addon_version=definition.project_can_override_addon_version,
             )
         )
 

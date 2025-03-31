@@ -54,6 +54,7 @@ async def list_bundles(
             is_staging=row["is_staging"],
             is_archived=row["is_archived"],
             is_dev=row["is_dev"],
+            is_project=data.get("is_project", False),
             active_user=row["active_user"],
             addon_development=data.get("addon_development", {}),
         )
@@ -105,6 +106,8 @@ async def _create_new_bundle(
         "installer_version": bundle.installer_version,
         "dependency_packages": bundle.dependency_packages,
     }
+    if bundle.is_project:
+        data["is_project"] = True
     if bundle.addon_development:
         addon_development_dict = {}
         for key, value in bundle.addon_development.items():
@@ -180,6 +183,22 @@ async def create_new_bundle(
                 if addon_definition.latest:
                     bundle.addons[system_addon_name] = addon_definition.latest.version
 
+    if bundle.is_project:
+        if bundle.is_production or bundle.is_staging:
+            raise BadRequestException(
+                "Project bundles cannot be set as production or staging"
+            )
+
+        if bundle.is_dev:
+            raise BadRequestException("Project bundles cannot be set as development")
+
+        for addon_name in list(bundle.addons.keys()):
+            adef = AddonLibrary.get(addon_name)
+            if adef is None:
+                raise BadRequestException(f"Addon {addon_name} does not exist")
+            if not adef.project_can_override_addon_version:
+                bundle.addons.pop(addon_name)
+
     async with Postgres.acquire() as conn, conn.transaction():
         await _create_new_bundle(
             conn,
@@ -242,6 +261,7 @@ async def update_bundle(
             is_production=row["is_production"],
             is_staging=row["is_staging"],
             is_dev=row["is_dev"],
+            is_project=data.get("is_project", False),
             active_user=row["active_user"],
             is_archived=row["is_archived"],
         )
@@ -250,6 +270,14 @@ async def update_bundle(
             raise BadRequestException(
                 "Cannot archive bundle that is production or staging"
             )
+
+        # Sanity checks
+
+        if bundle.is_project:
+            if patch.is_production or patch.is_staging:
+                raise BadRequestException("Cannot update production or staging bundle")
+            if patch.is_dev:
+                raise BadRequestException("Cannot update dev bundle")
 
         #
         # Dev specific fields
@@ -318,6 +346,7 @@ async def update_bundle(
             "addons": bundle.addons,
             "dependency_packages": bundle.dependency_packages,
             "installer_version": bundle.installer_version,
+            "is_project": bundle.is_project,
         }
         if bundle.is_dev:
             data["addon_development"] = {
@@ -378,6 +407,7 @@ async def update_bundle(
             "isStaging": bundle.is_staging,
             "isArchived": bundle.is_archived,
             "isDev": bundle.is_dev,
+            "isProject": bundle.is_project,
         },
         payload=data,
     )

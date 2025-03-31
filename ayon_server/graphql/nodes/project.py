@@ -72,6 +72,12 @@ class FolderType:
         return self.name.lower()
 
 
+@strawberry.type
+class ProjectBundleType:
+    production: str | None = None
+    staging: str | None = None
+
+
 @ProjectEntity.strawberry_attrib()
 class ProjectAttribType:
     pass
@@ -88,6 +94,7 @@ class ProjectNode:
     active: bool
     library: bool
     thumbnail: ThumbnailInfo | None = None
+    bundle: ProjectBundleType
     created_at: datetime
     updated_at: datetime
 
@@ -101,7 +108,7 @@ class ProjectNode:
         description=get_entity_lists.__doc__,
     )
 
-    folder: FolderNode = strawberry.field(
+    folder: FolderNode | None = strawberry.field(
         resolver=get_folder,
         description=get_folder.__doc__,
     )
@@ -111,7 +118,7 @@ class ProjectNode:
         description=get_folders.__doc__,
     )
 
-    task: TaskNode = strawberry.field(
+    task: TaskNode | None = strawberry.field(
         resolver=get_task,
         description=get_task.__doc__,
     )
@@ -121,7 +128,7 @@ class ProjectNode:
         description=get_tasks.__doc__,
     )
 
-    product: ProductNode = strawberry.field(
+    product: ProductNode | None = strawberry.field(
         resolver=get_product,
         description=get_product.__doc__,
     )
@@ -131,7 +138,7 @@ class ProjectNode:
         description=get_products.__doc__,
     )
 
-    version: VersionNode = strawberry.field(
+    version: VersionNode | None = strawberry.field(
         resolver=get_version,
         description=get_version.__doc__,
     )
@@ -141,7 +148,7 @@ class ProjectNode:
         description=get_versions.__doc__,
     )
 
-    representation: RepresentationNode = strawberry.field(
+    representation: RepresentationNode | None = strawberry.field(
         resolver=get_representation,
         description=get_representation.__doc__,
     )
@@ -151,7 +158,7 @@ class ProjectNode:
         description=get_representations.__doc__,
     )
 
-    workfile: WorkfileNode = strawberry.field(
+    workfile: WorkfileNode | None = strawberry.field(
         resolver=get_workfile,
         description=get_workfile.__doc__,
     )
@@ -233,6 +240,15 @@ def project_from_record(
     thumbnail = None
 
     data = record.get("data", {})
+    bundle_data = data.get("bundle", {})
+    if bundle_data:
+        bundle = ProjectBundleType(
+            production=bundle_data.get("production", None),
+            staging=bundle_data.get("staging", None),
+        )
+    else:
+        bundle = ProjectBundleType()
+
     attrib = parse_attrib_data(
         ProjectAttribType,
         record["attrib"],
@@ -250,6 +266,7 @@ def project_from_record(
         all_attrib=json_dumps(attrib),
         thumbnail=thumbnail,
         data=json_dumps(data) if data else None,
+        bundle=bundle,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )

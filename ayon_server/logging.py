@@ -20,7 +20,7 @@ def _serializer(message) -> None:
     record = message.record
     level = record["level"].name
     message = record["message"]
-    module = record["name"]
+    module = record["extra"].pop("module", None) or record["name"]
 
     if ayonconfig.log_mode == "json":
         #

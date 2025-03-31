@@ -96,7 +96,13 @@ class Client:
         try:
             await self.sock.send_text(json_dumps(message))
         except WebSocketDisconnect:
+            logger.warning("[WS] Client disconnected")
             self.disconnected = True
+        except RuntimeError:
+            logger.warning("[WS] Client disconnected (RTE)")
+            self.disconnected = True
+        except Exception:
+            log_traceback("[WS] Error sending message")
 
     async def receive(self):
         data = await self.sock.receive_text()
@@ -211,7 +217,7 @@ class Messaging(BackgroundWorker):
                 await self.purge()
 
             except Exception:
-                log_traceback(handlers=None)
+                log_traceback("Unhandled exception in messaging loop", nodb=True)
                 await asyncio.sleep(0.5)
 
         logger.warning("Stopping redis2ws")

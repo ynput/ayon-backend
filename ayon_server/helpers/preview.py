@@ -6,6 +6,7 @@ from fastapi import Response
 
 from ayon_server.api.files import image_response_from_bytes
 from ayon_server.exceptions import (
+    AyonException,
     NotFoundException,
     ServiceUnavailableException,
     UnsupportedMediaException,
@@ -131,6 +132,9 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
 
     elif storage.storage_type == "s3":
         path = await storage.get_signed_url(file_id)
+
+    else:
+        raise AyonException("Unsupported storage type. This should not happen")
 
     if is_video_mime_type(mime_type):
         pvw_bytes = await create_video_thumbnail(path, FILE_PREVIEW_SIZE)

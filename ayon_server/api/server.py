@@ -8,6 +8,7 @@ import fastapi
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
+from starlette.requests import ClientDisconnect
 
 # okay. now the rest
 from ayon_server.api.authmw import AuthMiddleware
@@ -50,6 +51,12 @@ app.add_middleware(AuthMiddleware)
 #
 # Error handling
 #
+
+
+@app.exception_handler(ClientDisconnect)
+async def client_disconnect_handler(request: fastapi.Request, exc: ClientDisconnect):
+    logger.warning("Client disconnected", nodb=True)
+    return fastapi.Response(status_code=499)
 
 
 async def user_name_from_request(request: fastapi.Request) -> str:
@@ -265,9 +272,12 @@ async def ws_endpoint(websocket: WebSocket) -> None:
             if message is None:
                 continue
 
-            if message["topic"] == "auth":
+            if (
+                message["topic"] == "auth"
+                and (token := message.get("token")) is not None
+            ):
                 await client.authorize(
-                    message.get("token"),
+                    token,
                     topics=message.get("subscribe", []),
                     project=message.get("project"),
                 )

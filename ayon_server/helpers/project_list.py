@@ -43,7 +43,8 @@ async def build_project_list() -> list[ProjectListItem]:
     except Postgres.UndefinedTableError:
         # No projects table, return an empty list
         pass
-    await Redis.set("global", "project-list", json_dumps(result))
+    else:
+        await Redis.set("global", "project-list", json_dumps(result))
     return [ProjectListItem(**item) for item in result]
 
 

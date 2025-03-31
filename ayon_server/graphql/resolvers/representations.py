@@ -62,6 +62,7 @@ async def get_representations(
         "representations.creation_order AS creation_order",
         "representations.files AS files",  # TODO: query conditionally
         "representations.data AS data",
+        "representations.traits AS traits",
     ]
 
     sql_joins = []

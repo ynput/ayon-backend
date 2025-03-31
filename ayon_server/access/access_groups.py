@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ayon_server.access.permissions import (
     AttributeAccessList,
@@ -9,7 +9,11 @@ from ayon_server.access.permissions import (
 )
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.types import normalize_to_dict
+
+if TYPE_CHECKING:
+    from ayon_server.events import EventModel
 
 
 class AccessGroups:
@@ -38,6 +42,27 @@ class AccessGroups:
                     project_name,
                     Permissions.from_record(row["data"]),
                 )
+
+    @classmethod
+    async def update_hook(cls, event: "EventModel") -> None:
+        if event.topic == "access_group.deleted":
+            cls.access_groups.pop((event.summary["name"], event.project or "_"), None)
+            logger.trace(f"Deleted access group {event.summary['name']}")
+            return
+        if event.topic != "access_group.updated":
+            return
+        schema = "public" if not event.project else f"project_{event.project}"
+        name = event.summary["name"]
+        query = f"SELECT data FROM {schema}.access_groups WHERE name = $1"
+        res = await Postgres.fetchrow(query, name)
+        if not res:
+            logger.warning(f"Unable to update access group {name}: not found")
+            return
+        cls.access_groups[(name, event.project or "_")] = Permissions.from_record(
+            res["data"]
+        )
+        suffix = f" for project {event.project}" if event.project else ""
+        logger.debug(f"Updated access group {name}{suffix}")
 
     @classmethod
     def add_access_group(
