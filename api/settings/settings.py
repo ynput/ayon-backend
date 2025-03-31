@@ -4,6 +4,7 @@ from typing import Any
 from fastapi import Query
 
 from ayon_server.addons import AddonLibrary
+from ayon_server.addons.settings_caching import load_all_settings
 from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.exceptions import NotFoundException
 from ayon_server.logging import log_traceback, logger
@@ -132,6 +133,16 @@ async def get_all_settings(
         project_bundle_name=project_bundle_name,
         variant=variant,
     )
+
+    all_settings = await coalesce(
+        load_all_settings,
+        addons=addon_list["addons"],
+        variant=variant,
+        project_name=project_name,
+        user_name=user.name,
+        site_id=site_id,
+    )
+    logger.debug(all_settings)
 
     #
     # Iterate over all addons and load the settings
