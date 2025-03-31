@@ -138,6 +138,15 @@ class EntityListItemModel(EntityListItemPatchModel, BaseGetModel):
 
 
 class EntityListPatchModel(OPModel):
+    entity_list_type: Annotated[
+        str | None,
+        Field(
+            title="Entity list type",
+            description="Type of the entity list",
+            example="generic",
+        ),
+    ] = None
+
     label: Annotated[
         str | None,
         Field(

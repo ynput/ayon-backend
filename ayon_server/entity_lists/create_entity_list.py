@@ -14,6 +14,7 @@ from .summary import EntityListSummary, get_entity_list_summary
 
 async def create_entity_list(
     project_name: str,
+    entity_list_type: str,
     label: str,
     *,
     id: str | None = None,
@@ -57,12 +58,14 @@ async def create_entity_list(
 
     query = """
         INSERT INTO entity_lists
-        (id, label, config, owner, access, template, attrib, data, tags)
+        (id, entity_list_type, label, config, owner,
+        access, template, attrib, data, tags)
         VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     """
     args = (
         id,
+        entity_list_type,
         label,
         config_obj.dict(),
         user.name if user else None,

@@ -54,11 +54,15 @@ async def create_entity_list(
     if not payload.label:
         raise BadRequestException("Label is required")
 
+    if not payload.entity_list_type:
+        raise BadRequestException("Entity list type is required")
+
     config = payload.config if payload.config else EntityListConfig()
 
     async with Postgres.acquire() as conn, conn.transaction():
         await _create_entity_list(
             project_name,
+            payload.entity_list_type,
             payload.label,
             id=list_id,
             template=payload.template,

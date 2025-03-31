@@ -10,6 +10,14 @@ from ayon_server.utils import create_uuid
 
 class EntityListSummary(OPModel):
     id: Annotated[str, Field(..., title="List ID", example=create_uuid())]
+    entity_list_type: Annotated[
+        str | None,
+        Field(
+            title="Entity list type",
+            description="Type of the entity list",
+            example="generic",
+        ),
+    ]
     label: Annotated[str, Field(..., title="Label", example="My List")]
 
     folders: Annotated[int, Field(title="Folder count", ge=0)] = 0
@@ -41,7 +49,7 @@ async def get_entity_list_summary(
 
     res = await conn.fetchrow(
         f"""
-        SELECT label FROM project_{project_name}.entity_lists
+        SELECT entity_list_type, label FROM project_{project_name}.entity_lists
         WHERE id = $1
     """,
         entity_list_id,
@@ -51,6 +59,7 @@ async def get_entity_list_summary(
 
     result = EntityListSummary(
         id=entity_list_id,
+        entity_list_type=res["entity_list_type"],
         label=res["label"],
     )
     query = f"""
