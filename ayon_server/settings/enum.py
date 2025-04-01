@@ -6,6 +6,16 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 
 
+PROCESSED_TEMPLATE_CATEGORIES = [
+    "work",
+    "publish",
+    "hero",
+    "delivery",
+    "others",
+    "staging"
+]
+
+
 async def get_primary_anatomy_preset():
     query = "SELECT * FROM anatomy_presets WHERE is_primary is TRUE"
     async for row in Postgres.iterate(query):
@@ -181,6 +191,8 @@ async def _get_template_names_project(
         for template_category, templates in config["templates"].items():
             if selected_category and template_category != selected_category:
                 continue
+            if template_category not in PROCESSED_TEMPLATE_CATEGORIES:
+                continue
             for template_key in list(templates.keys()):
                 template_name = await _get_template_name_in_enum(
                     template_category,
@@ -196,14 +208,7 @@ async def _get_template_names_studio(selected_category: str):
     data = anatomy.dict()
 
     template_names = []
-    template_categories = [
-        "work",
-        "publish",
-        "hero",
-        "delivery",
-        "others",
-        "staging"
-    ]
+    template_categories = PROCESSED_TEMPLATE_CATEGORIES
     if selected_category:
         template_categories = [selected_category]
     for template_category in template_categories:
