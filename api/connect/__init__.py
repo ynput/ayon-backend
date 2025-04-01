@@ -112,6 +112,7 @@ async def get_feedback_token(user: CurrentUser) -> FeedbackTokenModel:
     payload = {
         "name": user.attrib.fullName or user.name,
         "email": user.attrib.email,
+        "avatarUrl": user.attrib.avatarUrl,
     }
 
     try:
