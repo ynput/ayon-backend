@@ -145,8 +145,6 @@ async def get_user_sites(
             # we can use elif here, because we only need to check one condition
             elif site.platform != current_site.platform:
                 current_needs_update = True
-            elif site.hostname != current_site.hostname:
-                current_needs_update = True
             elif site.version != current_site.version:
                 current_needs_update = True
             # do not add the current site to the list,
