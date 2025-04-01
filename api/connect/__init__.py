@@ -100,6 +100,9 @@ class FeedbackTokenModel(OPModel):
 async def get_feedback_token(user: CurrentUser) -> FeedbackTokenModel:
     """Generate a feedback token for the user"""
 
+    if user.is_guest:
+        raise ForbiddenException("Guest users cannot generate feedback tokens")
+
     headers = await CloudUtils.get_api_headers()
     res = None
 
