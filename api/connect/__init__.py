@@ -1,14 +1,20 @@
+import httpx
 from fastapi import APIRouter, Query
 from fastapi.responses import RedirectResponse
 
 from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import (
+    AyonException,
+    BadRequestException,
+    ForbiddenException,
+)
 from ayon_server.helpers.cloud import (
     CloudUtils,
     YnputCloudInfoModel,
 )
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 
 router = APIRouter(prefix="/connect", tags=["Ynput Cloud"])
@@ -84,3 +90,37 @@ async def delete_ynput_cloud_key(user: CurrentUser) -> EmptyResponse:
         raise ForbiddenException("Only admins can remove the Ynput cloud key")
     await CloudUtils.remove_ynput_cloud_key()
     return EmptyResponse()
+
+
+class FeedbackTokenModel(OPModel):
+    token: str
+
+
+@router.get("/feedback")
+async def get_feedback_token(user: CurrentUser) -> FeedbackTokenModel:
+    """Generate a feedback token for the user"""
+
+    headers = await CloudUtils.get_api_headers()
+    res = None
+
+    if not user.attrib.email:
+        raise BadRequestException("User email is not set")
+
+    payload = {
+        "name": user.attrib.fullName or user.name,
+        "email": user.attrib.email,
+    }
+
+    try:
+        url = f"{ayonconfig.ynput_cloud_api_url}/api/v2/feedback"
+        async with httpx.AsyncClient(headers=headers) as client:
+            res = await client.post(url, json=payload)
+            res.raise_for_status()
+            token = res.json()["token"]
+    except Exception:
+        logger.error("Failed to generate feedback token")
+        if res is not None:
+            logger.error(res.text)
+        raise AyonException("Failed to generate feedback token")
+
+    return FeedbackTokenModel(token=token)
