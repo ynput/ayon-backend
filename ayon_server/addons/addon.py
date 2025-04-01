@@ -361,7 +361,7 @@ class BaseServerAddon:
                 )
             except Postgres.UndefinedTableError:
                 raise NotFoundException(
-                    f"Project {project_name} does not exists"
+                    f"Project {project_name} does not exist"
                 ) from None
             if res:
                 data = res[0]["data"]
