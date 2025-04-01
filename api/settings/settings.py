@@ -1,5 +1,4 @@
 import traceback
-from typing import Any
 
 from fastapi import Query
 
@@ -9,53 +8,12 @@ from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.exceptions import NotFoundException
 from ayon_server.logging import log_traceback, logger
 from ayon_server.settings import BaseSettingsModel
-from ayon_server.types import NAME_REGEX, SEMVER_REGEX, Field, OPModel
+from ayon_server.types import NAME_REGEX
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
+from .models import AddonSettingsItemModel, AllSettingsResponseModel
 from .router import router
 from .settings_addons_list import get_addon_list_for_settings
-
-
-class AddonSettingsItemModel(OPModel):
-    name: str = Field(..., title="Addon name", regex=NAME_REGEX, example="my-addon")
-    version: str = Field(
-        ..., title="Addon version", regex=SEMVER_REGEX, example="1.0.0"
-    )
-    title: str = Field(..., title="Addon title", example="My Addon")
-
-    has_settings: bool = Field(False)
-    has_project_settings: bool = Field(False)
-    has_project_site_settings: bool = Field(False)
-    has_site_settings: bool = Field(False)
-
-    # None value means that project does not have overrides
-    # or project/site was not specified in the request
-    has_studio_overrides: bool | None = Field(None)
-    has_project_overrides: bool | None = Field(None)
-    has_project_site_overrides: bool | None = Field(None)
-
-    # Final settings for the addon depending on the request (project, site)
-    # it returns either studio, project or project/site settings
-    settings: dict[str, Any] = Field(default_factory=dict)
-
-    # If site_id is specified and the addon has site settings model,
-    # return studio level site settings here
-    site_settings: dict[str, Any] | None = Field(default_factory=dict)
-
-    is_broken: bool = Field(False)
-    reason: dict[str, str] | None = Field(None)
-
-
-class AllSettingsResponseModel(OPModel):
-    bundle_name: str = Field(..., regex=NAME_REGEX)
-    addons: list[AddonSettingsItemModel] = Field(default_factory=list)
-    inherited_addons: list[str] = Field(
-        default_factory=list,
-        description=(
-            "If a project bundle is used, this field contains alist of addons "
-            "that are inherited from the studio bundle"
-        ),
-    )
 
 
 @router.get("/settings", response_model_exclude_none=True)
@@ -142,7 +100,6 @@ async def get_all_settings(
         user_name=user.name,
         site_id=site_id,
     )
-    # logger.debug(all_settings)
 
     #
     # Iterate over all addons and load the settings
