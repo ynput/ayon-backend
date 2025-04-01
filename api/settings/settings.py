@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import Query
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.addons.settings_caching import load_all_settings
+from ayon_server.addons.settings_caching import AddonSettingsCache, load_all_settings
 from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.exceptions import NotFoundException
 from ayon_server.logging import log_traceback, logger
@@ -142,7 +142,7 @@ async def get_all_settings(
         user_name=user.name,
         site_id=site_id,
     )
-    logger.debug(all_settings)
+    # logger.debug(all_settings)
 
     #
     # Iterate over all addons and load the settings
@@ -210,6 +210,10 @@ async def get_all_settings(
         settings: BaseSettingsModel | None = None
 
         try:
+            key = addon.name, addon_version
+            scache = all_settings.get(key, AddonSettingsCache())
+            addon.settings_cache = scache
+
             if site_id:
                 site_settings = await addon.get_site_settings(user.name, site_id)
 
