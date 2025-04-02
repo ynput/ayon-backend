@@ -26,6 +26,10 @@ async def get_default_status_for_entity(
             if entity_subtype not in entity_subtype_filter:
                 continue
 
+        if (entity_scope_filter := data.get("scope")) is not None:
+            if entity_type not in entity_scope_filter:
+                continue
+
         return name
 
     raise AyonException("No default status available")
