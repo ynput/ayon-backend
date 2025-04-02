@@ -184,7 +184,7 @@ async def _anatomy_template_items_enum(project_name: str | None, category: str):
 
 async def _get_template_names_project(
     project_name: str,
-    selected_category: str
+    category: str
 ):
     template_names = []
 
@@ -192,7 +192,7 @@ async def _get_template_names_project(
     async for row in Postgres.iterate(query):
         config = row["config"]
         for template_category, templates in config["templates"].items():
-            if selected_category and template_category != selected_category:
+            if template_category != category:
                 continue
             if template_category not in PROCESSED_TEMPLATE_CATEGORIES:
                 continue
