@@ -162,8 +162,8 @@ def anatomy_template_items_enum(
     """
     return functools.partial(
         _anatomy_template_items_enum,
-        project_name,
-        category
+        project_name=project_name,
+        category=category
     )
 
 
