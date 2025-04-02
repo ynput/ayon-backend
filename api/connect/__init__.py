@@ -92,12 +92,23 @@ async def delete_ynput_cloud_key(user: CurrentUser) -> EmptyResponse:
     return EmptyResponse()
 
 
-class FeedbackTokenModel(OPModel):
-    token: str
+class UserCustomFields(OPModel):
+    org_id: str | None = None
+    instance_id: str | None = None
+    verified_user: str | None = None
+
+
+class UserVerificationResponse(OPModel):
+    name: str
+    email: str
+    user_id: str
+    user_hash: str
+    profile_picture: str | None = None
+    custom_fields: UserCustomFields
 
 
 @router.get("/feedback")
-async def get_feedback_token(user: CurrentUser) -> FeedbackTokenModel:
+async def get_feedback_verification(user: CurrentUser) -> UserVerificationResponse:
     """Generate a feedback token for the user"""
 
     if user.is_guest:
@@ -120,11 +131,10 @@ async def get_feedback_token(user: CurrentUser) -> FeedbackTokenModel:
         async with httpx.AsyncClient(headers=headers) as client:
             res = await client.post(url, json=payload)
             res.raise_for_status()
-            token = res.json()["token"]
-    except Exception:
-        logger.error("Failed to generate feedback token")
+            data = res.json()
+            return UserVerificationResponse(**data)
+    except Exception as e:
+        logger.error(f"Failed to generate feedback token: {e}")
         if res is not None:
             logger.error(res.text)
         raise AyonException("Failed to generate feedback token")
-
-    return FeedbackTokenModel(token=token)

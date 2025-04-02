@@ -35,7 +35,7 @@ async def run_maintenance():
 
             elif isinstance(task, ProjectMaintenanceTask):
                 for project in project_list:
-                    description = f"task.description for project {project.name}"
+                    description = f"{task.description} for project {project.name}"
                     await EventStream.update(
                         event_id,
                         status="in_progress",
