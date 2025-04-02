@@ -167,7 +167,7 @@ def anatomy_template_items_enum(
     )
 
 
-async def _anatomy_template_items_enum(project_name: str, category: str):
+async def _anatomy_template_items_enum(project_name: str | None, category: str):
     if not project_name:
         template_names = await _get_template_names_studio(category)
     else:
