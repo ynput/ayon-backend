@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -12,6 +13,8 @@ from asyncpg.pool import PoolConnectionProxy
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException, ServiceUnavailableException
 from ayon_server.utils import EntityID, json_dumps, json_loads
+
+query_count: ContextVar[int] = ContextVar("query_count", default=0)
 
 if TYPE_CHECKING:
     Connection = PoolConnectionProxy[Any]
@@ -37,6 +40,11 @@ def timestamptz_decoder(v):
     if isinstance(v, str):
         return datetime.fromisoformat(v)
     raise ValueError
+
+
+def query_log(query: str, *args):
+    # TODO: implement statistics
+    pass
 
 
 class Postgres:
@@ -141,6 +149,7 @@ class Postgres:
         """Execute a SQL query and return a status (e.g. 'INSERT 0 2')"""
         if cls.pool is None:
             raise ConnectionError
+        query_log(query, *args)
         async with cls.acquire() as connection:
             return await connection.execute(query, *args, timeout=timeout)
 
@@ -149,6 +158,7 @@ class Postgres:
         """Run a query and return the results as a list of Record."""
         if cls.pool is None:
             raise ConnectionError
+        query_log(query, *args)
         async with cls.acquire() as connection:
             return await connection.fetch(query, *args, timeout=timeout)
 
@@ -157,6 +167,7 @@ class Postgres:
         """Run a query and return the first row as a Record."""
         if cls.pool is None:
             raise ConnectionError
+        query_log(query, *args)
         async with cls.acquire() as connection:
             return await connection.fetchrow(query, *args, timeout=timeout)
 
@@ -168,6 +179,7 @@ class Postgres:
         transaction: Connection | None = None,
     ):
         """Run a query and return a generator yielding resulting rows records."""
+        query_log(query, *args)
         if transaction:  # temporary. will be fixed
             if not transaction.is_in_transaction():
                 raise AyonException(

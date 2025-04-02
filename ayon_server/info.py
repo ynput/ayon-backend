@@ -1,7 +1,9 @@
 import os
 import time
+from functools import cache
 from typing import Any
 
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 from ayon_server.version import __version__
 
@@ -18,9 +20,7 @@ class ReleaseInfo(OPModel):
     backend_commit: str = Field(..., title="Backend commit", example="1234567")
 
 
-release_info: dict[str, Any] = {}
-
-
+@cache
 def get_release_info() -> ReleaseInfo | None:
     """
     Retrieve the release information from the RELEASE file.
@@ -35,17 +35,11 @@ def get_release_info() -> ReleaseInfo | None:
         mounted local directory.
     """
 
+    if not os.path.isfile("RELEASE"):
+        return None
+
     try:
-        if release_info.get("error", False):
-            return None
-
-        if release_info:
-            return ReleaseInfo(**release_info)
-
-        if not os.path.isfile("RELEASE"):
-            release_info["error"] = True
-            return None
-
+        release_info: dict[str, Any] = {}
         with open("RELEASE") as f:
             for line in f:
                 key, value = line.strip().split("=")
@@ -53,6 +47,7 @@ def get_release_info() -> ReleaseInfo | None:
 
         return ReleaseInfo(**release_info)
     except Exception:
+        logger.debug("Failed to load RELEASE file", nodb=True)
         return None
 
 
@@ -60,6 +55,7 @@ def get_uptime() -> int:
     return int(time.time() - BOOT_TIME)
 
 
+@cache
 def get_version():
     """
     Get the version of the Ayon API
