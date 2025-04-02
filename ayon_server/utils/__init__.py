@@ -6,6 +6,7 @@ __all__ = [
     "json_loads",
     "json_dumps",
     "json_print",
+    "RequestCoalescer",
     "SQLTool",
     "camelize",
     "get_base_name",
@@ -25,6 +26,7 @@ __all__ = [
 from .entity_id import EntityID
 from .hashing import create_hash, create_uuid, hash_data
 from .json import json_dumps, json_loads, json_print
+from .request_coalescer import RequestCoalescer
 from .sqltool import SQLTool
 from .strings import (
     camelize,
