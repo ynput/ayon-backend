@@ -2,6 +2,7 @@ import httpx
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.config import ayonconfig
+from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
@@ -10,6 +11,7 @@ from ayon_server.exceptions import (
 from ayon_server.helpers.cloud import (
     CloudUtils,
 )
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import OPModel
 
@@ -53,20 +55,13 @@ async def get_companies() -> list[CompanyInfo]:
     return companies
 
 
-@router.get("/feedback")
-async def get_feedback_verification(user: CurrentUser) -> UserVerificationResponse:
-    """Generate a feedback token for the user"""
-    level = "user"
-    if user.is_guest:
-        raise ForbiddenException("Guest users cannot generate feedback tokens")
-    elif user.is_admin:
-        level = "admin"
-    elif user.is_manager:
-        level = "manager"
+async def _get_feedback_verification(
+    user: UserEntity, headers: dict[str, str]
+) -> UserVerificationResponse:
+    if data := await Redis.get_json("feedback-verification", user.name):
+        return UserVerificationResponse(**data)
 
-    headers = await CloudUtils.get_api_headers()
     res = None
-
     if not user.attrib.email:
         raise BadRequestException("User email is not set")
 
@@ -85,10 +80,32 @@ async def get_feedback_verification(user: CurrentUser) -> UserVerificationRespon
                 **res.json(),
                 companies=await get_companies(),
             )
-            data.custom_fields.level = level
+            await Redis.set_json(
+                "feedback-verification",
+                user.name,
+                data.dict(),
+            )
             return data
     except Exception as e:
         logger.error(f"Failed to generate feedback token: {e}")
         if res is not None:
             logger.error(res.text)
         raise AyonException("Failed to generate feedback token")
+
+
+@router.get("/feedback")
+async def get_feedback_verification(user: CurrentUser) -> UserVerificationResponse:
+    """Generate a feedback token for the user"""
+    level = "user"
+    if user.is_guest:
+        raise ForbiddenException("Guest users cannot generate feedback tokens")
+    elif user.is_admin:
+        level = "admin"
+    elif user.is_manager:
+        level = "manager"
+    # Get headers here to abort if not connected to the cloud
+    headers = await CloudUtils.get_api_headers()
+
+    res = await _get_feedback_verification(user, headers)
+    res.custom_fields.level = level
+    return res
