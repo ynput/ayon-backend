@@ -1,5 +1,7 @@
 from typing import Any
 
+from pydantic import validator
+
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import NotFoundException
@@ -16,9 +18,12 @@ class ActionContext(OPModel):
     _project_entity: ProjectEntity | None = None
     _entities: list[ProjectLevelEntity] | None = None
 
-    project_name: str = Field(
+    project_name: str | None = Field(
         ...,
-        description="The name of the project",
+        description=(
+            "The name of the project. "
+            "If not provided, use global actions, the rest of the fields are ignored."
+        ),
         example="my_project",
     )
     entity_type: ProjectLevelEntityType | None = Field(
@@ -42,8 +47,20 @@ class ActionContext(OPModel):
         example=["1a3bfe33-1b1b-4b1b-8b1b-1b1b1b1b1b1b"],
     )
 
+    @validator("entity_type", "entity_subtypes", "entity_ids")
+    def global_actions_only(cls, v, values):
+        """
+        If project_name is not provided, ignore the rest of the fields.
+        """
+        if values.get("project_name") is None:
+            return None
+        return v
+
     async def get_entities(self) -> list[ProjectLevelEntity]:
         """Cached entities DURING THE REQUEST"""
+
+        if self.project_name is None:
+            return []
 
         if self.entity_type is None or self.entity_ids is None:
             return []
@@ -61,8 +78,11 @@ class ActionContext(OPModel):
             self._entities = result
         return self._entities
 
-    async def get_project_entity(self) -> ProjectEntity:
+    async def get_project_entity(self) -> ProjectEntity | None:
         """Cached project entity DURING THE REQUEST"""
+
+        if not self.project_name:
+            return None
 
         if self._project_entity is None:
             self._project_entity = await ProjectEntity.load(self.project_name)
