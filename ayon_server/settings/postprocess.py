@@ -33,10 +33,8 @@ async def process_enum(
         context = {}
 
     # enum_resolver could use partial for passing arguments in
-    partial_args = []
     partial_kwargs = {}
     if isinstance(enum_resolver, functools.partial):
-        partial_args = enum_resolver.args
         partial_kwargs = enum_resolver.keywords
         enum_resolver = enum_resolver.func
 
@@ -48,8 +46,6 @@ async def process_enum(
             ctx_data[key] = context[key]
         elif key in partial_kwargs:
             ctx_data[key] = partial_kwargs[key]
-        elif partial_args:
-            ctx_data[key] = partial_args[index]
         else:
             ctx_data[key] = None
 
