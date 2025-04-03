@@ -46,7 +46,7 @@ async def process_enum(
     for index, key in enumerate(resolver_args):
         if key in context:
             ctx_data[key] = context[key]
-        elif partial_kwargs and partial_kwargs.get(key):
+        elif key in partial_kwargs:
             ctx_data[key] = partial_kwargs[key]
         elif partial_args:
             ctx_data[key] = partial_args[index]

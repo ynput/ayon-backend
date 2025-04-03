@@ -143,8 +143,8 @@ async def anatomy_presets_enum():
 
 
 def anatomy_template_items_enum(
-    project_name: str | None = None,
-    category: str | None = None
+    project_name: str | None,
+    category: Literal["work", "publish", "hero", "delivery", "others", "staging"]
 ):
     """ Provides values of template names from Anatomy as dropdown.
 
@@ -162,12 +162,12 @@ def anatomy_template_items_enum(
     """
     return functools.partial(
         _anatomy_template_items_enum,
-        project_name,
-        category
+        project_name=project_name,
+        category=category
     )
 
 
-async def _anatomy_template_items_enum(project_name: str, category: str):
+async def _anatomy_template_items_enum(project_name: str | None, category: str):
     if not project_name:
         template_names = await _get_template_names_studio(category)
     else:
@@ -184,7 +184,7 @@ async def _anatomy_template_items_enum(project_name: str, category: str):
 
 async def _get_template_names_project(
     project_name: str,
-    selected_category: str
+    category: str
 ):
     template_names = []
 
@@ -192,7 +192,7 @@ async def _get_template_names_project(
     async for row in Postgres.iterate(query):
         config = row["config"]
         for template_category, templates in config["templates"].items():
-            if selected_category and template_category != selected_category:
+            if template_category != category:
                 continue
             if template_category not in PROCESSED_TEMPLATE_CATEGORIES:
                 continue
