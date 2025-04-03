@@ -84,6 +84,7 @@ async def _get_feedback_verification(
                 "feedback-verification",
                 user.name,
                 data.dict(),
+                ttl=7200,
             )
             return data
     except Exception as e:
