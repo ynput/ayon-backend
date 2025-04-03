@@ -308,7 +308,7 @@ class BaseServerAddon:
         """Load the studio overrides from the database."""
 
         data = {}
-        if self.settings_cache is not None:
+        if self.settings_cache and self.settings_cache.studio is not None:
             data = self.settings_cache.studio or {}
         else:
             query = """
@@ -348,7 +348,7 @@ class BaseServerAddon:
         """Load the project overrides from the database."""
 
         data = {}
-        if self.settings_cache:
+        if self.settings_cache and self.settings_cache.project is not None:
             data = self.settings_cache.project or {}
         else:
             query = f"""
@@ -393,8 +393,8 @@ class BaseServerAddon:
     ) -> dict[str, Any]:
         """Load the site overrides from the database."""
         data = {}
-        if self.settings_cache:
-            data = self.settings_cache.site or {}
+        if self.settings_cache and self.settings_cache.project_site is not None:
+            data = self.settings_cache.project_site or {}
         else:
             res = await Postgres.fetch(
                 f"""
@@ -525,23 +525,27 @@ class BaseServerAddon:
         if site_settings_model is None:
             return None
 
-        data = {}
-        query = """
-            SELECT data FROM site_settings
-            WHERE site_id = $1 AND addon_name = $2
-            AND addon_version = $3 AND user_name = $4
-        """
-        async for row in Postgres.iterate(
-            query,
-            site_id,
-            self.name,
-            self.version,
-            user_name,
-        ):
-            data = row["data"]
-            break
+        if self.settings_cache and self.settings_cache.site is not None:
+            data = self.settings_cache.site or {}
+
         else:
-            return None
+            data = {}
+            query = """
+                SELECT data FROM site_settings
+                WHERE site_id = $1 AND addon_name = $2
+                AND addon_version = $3 AND user_name = $4
+            """
+            async for row in Postgres.iterate(
+                query,
+                site_id,
+                self.name,
+                self.version,
+                user_name,
+            ):
+                data = row["data"]
+                break
+            else:
+                return None
 
         return site_settings_model(**data).dict()
 
