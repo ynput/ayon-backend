@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import validator
 
@@ -18,34 +18,56 @@ class ActionContext(OPModel):
     _project_entity: ProjectEntity | None = None
     _entities: list[ProjectLevelEntity] | None = None
 
-    project_name: str | None = Field(
-        ...,
-        description=(
-            "The name of the project. "
-            "If not provided, use global actions, the rest of the fields are ignored."
+    project_name: Annotated[
+        str | None,
+        Field(
+            title="Project Name",
+            description=(
+                "The name of the project. "
+                "If not provided, use global actions, "
+                "the rest of the fields are ignored."
+            ),
+            example="my_project",
         ),
-        example="my_project",
-    )
-    entity_type: ProjectLevelEntityType | None = Field(
-        ...,
-        description="The type of the entity",
-        example="folder",
-    )
+    ] = None
+
+    entity_type: Annotated[
+        ProjectLevelEntityType | None,
+        Field(
+            title="Entity Type",
+            description=(
+                "The type of the entity. "
+                "If not specified, project-lever "
+                "or global actions are used."
+            ),
+            example="folder",
+        ),
+    ] = None
 
     # frontend already knows this, so it can speed up
     # the action resolving process when it sends this.
-    entity_subtypes: list[str] | None = Field(
-        None,
-        description="List of subtypes present in the entity list",
-        example=["asset"],
-    )
 
-    entity_ids: list[str] | None = Field(
-        ...,
-        title="Entity IDs",
-        description="The IDs of the entities",
-        example=["1a3bfe33-1b1b-4b1b-8b1b-1b1b1b1b1b1b"],
-    )
+    entity_subtypes: Annotated[
+        list[str] | None,
+        Field(
+            title="Entity Subtypes",
+            description="List of subtypes present in the entity list",
+            example=["asset"],
+        ),
+    ] = None
+
+    entity_ids: Annotated[
+        list[str] | None,
+        Field(
+            title="Entity IDs",
+            description="The IDs of the entities",
+            example=["1a3bfe33-1b1b-4b1b-8b1b-1b1b1b1b1b1b"],
+        ),
+    ] = None
+
+    #
+    # Sanity checks
+    #
 
     @validator("entity_type", "entity_subtypes", "entity_ids")
     def global_actions_only(cls, v, values):
@@ -56,13 +78,28 @@ class ActionContext(OPModel):
             return None
         return v
 
+    @validator("entity_ids")
+    def validate_entity_ids(cls, v, values):
+        if values.get("project_name") is None:
+            return None
+        if values.get("entity_type") is None:
+            return None
+        if v is None:
+            return []
+        return v
+
+    #
+    # Entity caching
+    #
+
     async def get_entities(self) -> list[ProjectLevelEntity]:
         """Cached entities DURING THE REQUEST"""
 
-        if self.project_name is None:
-            return []
-
-        if self.entity_type is None or self.entity_ids is None:
+        if (
+            self.project_name is None
+            or self.entity_type is None
+            or self.entity_ids is None
+        ):
             return []
 
         if self._entities is None:
@@ -73,6 +110,7 @@ class ActionContext(OPModel):
                     entity = await entity_class.load(self.project_name, entity_id)
                 except NotFoundException:
                     continue
+
                 result.append(entity)
 
             self._entities = result
@@ -87,6 +125,10 @@ class ActionContext(OPModel):
         if self._project_entity is None:
             self._project_entity = await ProjectEntity.load(self.project_name)
         return self._project_entity
+
+    #
+    # Context comparison
+    #
 
     def __hash__(self):
         elength = len(self.entity_ids) > 1 if self.entity_ids else 0
