@@ -15,6 +15,7 @@ from ayon_server.actions.manifest import (
     SimpleActionManifest,
 )
 from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
+from ayon_server.addons.settings_caching import AddonSettingsCache
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback, logger
@@ -31,6 +32,8 @@ METADATA_KEYS = [
     "version",
     "title",
     "services",
+    "app_host_name",
+    "project_can_override_addon_version",
     # compatibility object
     "ayon_server_version",
     "ayon_launcher_version",
@@ -54,6 +57,7 @@ class BaseServerAddon:
     version: str
     title: str | None = None
     services: dict[str, Any] = {}
+    project_can_override_addon_version: bool = False
 
     # should be defined on addon class
     addon_type: Literal["server", "pipeline"] = "pipeline"
@@ -71,6 +75,7 @@ class BaseServerAddon:
     legacy: bool = False  # auto-set to true if it is the old style addon
     endpoints: list[dict[str, Any]]
     routers: list["APIRouter"]
+    settings_cache: AddonSettingsCache | None = None  # to optimize /api/settings
 
     def __init__(self, definition: "ServerAddonDefinition", addon_dir: str, **kwargs):
         # populate metadata from package.py
@@ -98,12 +103,20 @@ class BaseServerAddon:
         self.addon_dir = addon_dir
         self.endpoints = []
         self.routers = []
+        self.settings_cache = None
         self.restart_requested = False
         logger.debug(f"Initializing addon {self.name} v{self.version}")
         self.initialize()
 
     def __repr__(self) -> str:
         return f"<Addon name='{self.definition.name}' version='{self.version}'>"
+
+    def get_project_can_override_addon_version(self) -> bool:
+        # TODO: This is just for testing until we have a proper implementation
+        # in the addons
+        # if self.name in ["max", "aftereffects", "applications", "maya", "nuke"]:
+        #     return True
+        return self.project_can_override_addon_version
 
     @property
     def friendly_name(self) -> str:
@@ -294,15 +307,19 @@ class BaseServerAddon:
     ) -> dict[str, Any]:
         """Load the studio overrides from the database."""
 
-        query = """
-            SELECT data FROM settings
-            WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
-            """
-
-        res = await Postgres.fetch(query, self.definition.name, self.version, variant)
         data = {}
-        if res:
-            data = res[0]["data"]
+        if self.settings_cache is not None:
+            data = self.settings_cache.studio or {}
+        else:
+            query = """
+                SELECT data FROM settings
+                WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
+                """
+            res = await Postgres.fetch(
+                query, self.definition.name, self.version, variant
+            )
+            if res:
+                data = res[0]["data"]
 
         if as_version and as_version != self.version:
             target_addon = self.definition.get(as_version)
@@ -330,20 +347,24 @@ class BaseServerAddon:
     ) -> dict[str, Any]:
         """Load the project overrides from the database."""
 
-        query = f"""
-            SELECT data FROM project_{project_name}.settings
-            WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
-            """
-
-        try:
-            res = await Postgres.fetch(
-                query, self.definition.name, self.version, variant
-            )
-        except Postgres.UndefinedTableError:
-            raise NotFoundException(f"Project {project_name} does not exists") from None
         data = {}
-        if res:
-            data = res[0]["data"]
+        if self.settings_cache:
+            data = self.settings_cache.project or {}
+        else:
+            query = f"""
+                SELECT data FROM project_{project_name}.settings
+                WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
+                """
+            try:
+                res = await Postgres.fetch(
+                    query, self.definition.name, self.version, variant
+                )
+            except Postgres.UndefinedTableError:
+                raise NotFoundException(
+                    f"Project {project_name} does not exist"
+                ) from None
+            if res:
+                data = res[0]["data"]
 
         if as_version and as_version != self.version:
             target_addon = self.definition.get(as_version)
@@ -371,21 +392,23 @@ class BaseServerAddon:
         as_version: str | None = None,
     ) -> dict[str, Any]:
         """Load the site overrides from the database."""
-
-        res = await Postgres.fetch(
-            f"""
-            SELECT data FROM project_{project_name}.project_site_settings
-            WHERE addon_name = $1 AND addon_version = $2
-            AND user_name = $3 AND site_id = $4
-            """,
-            self.definition.name,
-            self.version,
-            user_name,
-            site_id,
-        )
         data = {}
-        if res:
-            data = res[0]["data"]
+        if self.settings_cache:
+            data = self.settings_cache.site or {}
+        else:
+            res = await Postgres.fetch(
+                f"""
+                SELECT data FROM project_{project_name}.project_site_settings
+                WHERE addon_name = $1 AND addon_version = $2
+                AND user_name = $3 AND site_id = $4
+                """,
+                self.definition.name,
+                self.version,
+                user_name,
+                site_id,
+            )
+            if res:
+                data = res[0]["data"]
 
         if as_version and as_version != self.version:
             target_addon = self.definition.get(as_version)

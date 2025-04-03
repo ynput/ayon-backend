@@ -275,7 +275,7 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                     topics=message.get("subscribe", []),
                     project=message.get("project"),
                 )
-    except WebSocketDisconnect:
+    except (RuntimeError, WebSocketDisconnect):
         try:
             del messaging.clients[client.id]
         except KeyError:

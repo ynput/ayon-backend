@@ -214,16 +214,16 @@ async def patch_user(
     user_name: UserName,
     access_token: AccessToken,
 ) -> EmptyResponse:
+    payload.data["updatedBy"] = user.name
+    target_user = await UserEntity.load(user_name)
+
     if user_name == user.name and (not user.is_manager):
         # Normal users can only patch their attributes
         # (such as full name and email)
         payload.data = {}
-        payload.active = None
+        payload.active = target_user.active
     elif not user.is_manager:
         raise ForbiddenException("Only managers can modify other users")
-
-    payload.data["updatedBy"] = user.name
-    target_user = await UserEntity.load(user_name)
 
     if target_user.is_admin and (not user.is_admin):
         raise ForbiddenException("Admins can only be modified by other admins")

@@ -261,7 +261,8 @@ class Session:
 
         try:
             await AuthUtils.ensure_can_login(user, post_save=True)
-        except UnauthorizedException:
+        except UnauthorizedException as e:
+            logger.trace(f"User cannot log in after save: {e}")
             await cls.logout_user(user.name)
         else:
             async for session in Session.list(user.name):

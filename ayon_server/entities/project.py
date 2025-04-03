@@ -23,6 +23,7 @@ from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.utils import SQLTool, dict_exclude, get_nickname
 
 
@@ -45,6 +46,9 @@ class ProjectEntity(TopLevelEntity):
         """Load a project from the database."""
 
         project_name = name
+
+        if payload := await Redis.get_json("project-data", project_name):
+            return cls.from_record(payload=payload)
 
         if not (
             project_data := await Postgres.fetch(
@@ -125,6 +129,7 @@ class ProjectEntity(TopLevelEntity):
             "tags": tags,
         }
         cls.original_attributes = project_data[0]["attrib"]
+        await Redis.set_json("project-data", project_name, payload, ttl=3600)
         return cls.from_record(payload=payload)
 
     #
@@ -141,6 +146,8 @@ class ProjectEntity(TopLevelEntity):
                     async with conn.transaction():
                         return await self._save(conn)
         finally:
+            await Redis.delete("project-anatomy", self.name)
+            await Redis.delete("project-data", self.name)
             await build_project_list()
 
     async def _save(self, transaction) -> bool:
@@ -216,7 +223,6 @@ class ProjectEntity(TopLevelEntity):
         await link_types_update(
             transaction, project_name, "link_types", self.link_types
         )
-
         return True
 
     #
@@ -233,6 +239,8 @@ class ProjectEntity(TopLevelEntity):
                     async with conn.transaction():
                         return await self._delete(conn)
         finally:
+            await Redis.delete("project-anatomy", self.name)
+            await Redis.delete("project-data", self.name)
             await build_project_list()
 
     async def _delete(self, transaction) -> bool:
