@@ -60,11 +60,7 @@ async def _get_feedback_verification(
 ) -> UserVerificationResponse:
     if data := await Redis.get_json("feedback-verification", user.name):
         return UserVerificationResponse(**data)
-
     res = None
-    if not user.attrib.email:
-        raise BadRequestException("User email is not set")
-
     payload = {
         "name": user.attrib.fullName or user.name,
         "email": user.attrib.email,
@@ -104,6 +100,10 @@ async def get_feedback_verification(user: CurrentUser) -> UserVerificationRespon
         level = "admin"
     elif user.is_manager:
         level = "manager"
+
+    if not user.attrib.email:
+        raise BadRequestException("User email is not set")
+
     # Get headers here to abort if not connected to the cloud
     headers = await CloudUtils.get_api_headers()
 
