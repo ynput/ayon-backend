@@ -1,19 +1,9 @@
 import functools
-
+from typing import Literal
 from aiocache import cached
 
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
-
-
-PROCESSED_TEMPLATE_CATEGORIES = [
-    "work",
-    "publish",
-    "hero",
-    "delivery",
-    "others",
-    "staging"
-]
 
 
 async def get_primary_anatomy_preset():
@@ -143,8 +133,8 @@ async def anatomy_presets_enum():
 
 
 def anatomy_template_items_enum(
-    project_name: str | None,
-    category: Literal["work", "publish", "hero", "delivery", "others", "staging"]
+    project_name: str | None = None,
+    category: Literal["work", "publish", "hero", "delivery", "others", "staging"] | None = None
 ):
     """ Provides values of template names from Anatomy as dropdown.
 
@@ -191,55 +181,21 @@ async def _get_template_names_project(
     query = f"SELECT * FROM public.projects WHERE name = '{project_name}'"
     async for row in Postgres.iterate(query):
         config = row["config"]
-        for template_category, templates in config["templates"].items():
-            if template_category != category:
-                continue
-            if template_category not in PROCESSED_TEMPLATE_CATEGORIES:
-                continue
-            for template_key in list(templates.keys()):
-                template_name = await _get_template_name_in_enum(
-                    template_category,
-                    template_key,
-                    selected_category
-                )
-                template_names.append(template_name)
+        template_category = config["templates"].get(category,[])
+        for template_name in list(template_category.keys()):
+            template_names.append(template_name)
     return template_names
 
 
-async def _get_template_names_studio(selected_category: str):
+async def _get_template_names_studio(category: str):
     anatomy = await get_primary_anatomy_preset()
     data = anatomy.dict()
 
-    template_names = []
-    template_categories = PROCESSED_TEMPLATE_CATEGORIES
-    if selected_category:
-        template_categories = [selected_category]
-    for template_category in template_categories:
-        template_group = data["templates"].get(template_category, [])
-        if not template_group:
-            continue
-        for template in template_group:
-            template_name = await _get_template_name_in_enum(
-                template_category,
-                template["name"],
-                selected_category
-            )
-            template_names.append(template_name)
-
+    return [
+        template["name"]
+        for template in data["templates"].get(category, [])
+    ]
     return template_names
-
-
-async def _get_template_name_in_enum(
-    template_category,
-    template_key,
-    selected_category
-):
-    """Creates template name based on presence of 'selected_category'."""
-    if selected_category:
-        template_name = template_key
-    else:
-        template_name = f"{template_category}_{template_key}"
-    return template_name
 
 
 #
