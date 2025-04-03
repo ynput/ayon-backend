@@ -1,4 +1,5 @@
 import asyncio
+import time
 import traceback
 
 from fastapi import Query
@@ -85,6 +86,8 @@ async def get_all_settings(
 
     """
 
+    start_time = time.monotonic()
+
     coalesce = RequestCoalescer()
 
     addon_list = await coalesce(
@@ -104,6 +107,9 @@ async def get_all_settings(
         site_id=site_id,
     )
 
+    elapsed_time = time.monotonic() - start_time
+    logger.trace(f"Settings preloaded in {elapsed_time:.02f} seconds")
+
     #
     # Iterate over all addons and load the settings
     #
@@ -114,6 +120,7 @@ async def get_all_settings(
     # is already blocked.
 
     async with lock:
+        start_time = time.monotonic()
         addon_result = []
         for addon_name, addon_version in addon_list["addons"].items():
             if addon_version is None:
@@ -219,11 +226,8 @@ async def get_all_settings(
                         },
                     )
                 )
-                continue
-
-            finally:
-                # clean-up pre-cached settings from the addon
                 addon.settings_cache = None
+                continue
 
             # Add addon to the result
 
@@ -252,8 +256,12 @@ async def get_all_settings(
                     site_settings=site_settings,
                 )
             )
+            addon.settings_cache = None
 
         addon_result.sort(key=lambda x: x.title.lower())
+
+        elapsed_time = time.monotonic() - start_time
+        logger.trace(f"Settings object generated in {elapsed_time:.02f} seconds")
 
         return AllSettingsResponseModel(
             bundle_name=addon_list["bundle_name"],
