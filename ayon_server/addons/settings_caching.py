@@ -69,36 +69,37 @@ async def load_all_settings(
 
     # Project level settings
 
-    query = f"""
-        SELECT addon_name, addon_version, data
-        FROM project_{project_name}.settings
-        WHERE
-            addon_name || '-' || addon_version = ANY($1)
-        AND variant = $2
-    """
-
-    async for row in Postgres.iterate(query, hashes, variant):
-        key = row["addon_name"], row["addon_version"]
-        if key not in result:
-            result[key] = AddonSettingsCache()
-        result[key].project = row["data"]
-
-    # Project site level settings
-
-    if site_id and user_name and project_name:
+    if project_name:
         query = f"""
             SELECT addon_name, addon_version, data
-            FROM project_{project_name}.project_site_settings
+            FROM project_{project_name}.settings
             WHERE
                 addon_name || '-' || addon_version = ANY($1)
-            AND site_id = $2
-            AND user_name = $3
+            AND variant = $2
         """
-        async for row in Postgres.iterate(query, hashes, site_id, user_name):
+
+        async for row in Postgres.iterate(query, hashes, variant):
             key = row["addon_name"], row["addon_version"]
             if key not in result:
                 result[key] = AddonSettingsCache()
-            result[key].project_site = row["data"]
+            result[key].project = row["data"]
+
+        # Project site level settings
+
+        if site_id and user_name and project_name:
+            query = f"""
+                SELECT addon_name, addon_version, data
+                FROM project_{project_name}.project_site_settings
+                WHERE
+                    addon_name || '-' || addon_version = ANY($1)
+                AND site_id = $2
+                AND user_name = $3
+            """
+            async for row in Postgres.iterate(query, hashes, site_id, user_name):
+                key = row["addon_name"], row["addon_version"]
+                if key not in result:
+                    result[key] = AddonSettingsCache()
+                result[key].project_site = row["data"]
 
     logger.trace(f"Settings cache loaded in {time.time() - start_time:.2f} seconds")
 
