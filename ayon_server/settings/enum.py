@@ -143,8 +143,8 @@ async def anatomy_presets_enum():
 
 
 def anatomy_template_items_enum(
-    project_name: str | None = None,
-    category: str | None = None
+    project_name: str | None,
+    category: Literal["work", "publish", "hero", "delivery", "others", "staging"]
 ):
     """ Provides values of template names from Anatomy as dropdown.
 
