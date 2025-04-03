@@ -14,6 +14,7 @@ class AddonSettingsCache:
     studio: dict[str, Any] | None = None
     project: dict[str, Any] | None = None
     site: dict[str, Any] | None = None
+    project_site: dict[str, Any] | None = None
 
 
 AddonKey = tuple[str, str]
@@ -29,69 +30,76 @@ async def load_all_settings(
 ) -> SettingsCache:
     if site_id and not user_name:
         raise BadRequestException("User name is required when site ID is provided")
-    if site_id and not project_name:
-        raise BadRequestException("Project name is required when site ID is provided")
 
     start_time = time.time()
     hashes = []
-
     for addon_name, addon_version in addons.items():
         hashes.append(f"{addon_name}-{addon_version}")
 
-    cols = [
-        "st.addon_name",
-        "st.addon_version",
-        "st.data as studio",
-    ]
-    joins = []
-    conds = [
-        "st.addon_name || '-' || st.addon_version = ANY($1)",
-        "st.variant = $2",
-    ]
-    vals: list[Any] = [hashes, variant]
-    if project_name:
-        cols.append("pr.data as project")
-        joins.append(
-            f"""
-            LEFT JOIN project_{project_name}.settings as pr
-            ON
-                pr.addon_name = st.addon_name
-            AND pr.addon_version = st.addon_version
-            AND pr.variant = st.variant
-            """
-        )
-    if site_id:
-        cols.append("si.data as site")
-        joins.append(
-            f"""
-            LEFT JOIN project_{project_name}.project_site_settings as si
-            ON
-                si.addon_name = st.addon_name
-            AND si.addon_version = st.addon_version
-            AND si.variant = st.variant
-            """
-        )
-        conds.extend(["si.site_id = $3", "si.user_name = $4"])
-        vals.extend([site_id, user_name])
+    result: SettingsCache = {}
 
-    query = f"""
-    SELECT
-        {','.join(cols)}
-    FROM
-        settings st
-        {' '.join(joins)}
-    WHERE
-        {' AND '.join(conds)}
+    # Studio level settings
+
+    query = """
+        SELECT addon_name, addon_version, data
+        FROM public.settings
+        WHERE
+            addon_name || '-' || addon_version = ANY($1)
+        AND variant = $2
     """
 
-    result: SettingsCache = {}
-    async for row in Postgres.iterate(query, *vals):
+    async for row in Postgres.iterate(query, hashes, variant):
         key = row["addon_name"], row["addon_version"]
-        result[key] = AddonSettingsCache(
-            studio=row["studio"],
-            project=row.get("project"),
-            site=row.get("site"),
-        )
+        result[key] = AddonSettingsCache(studio=row["data"])
+
+    if site_id and user_name:
+        query = """
+            SELECT addon_name, addon_version, data
+            FROM public.site_settings
+            WHERE
+                addon_name || '-' || addon_version = ANY($1)
+            AND site_id = $2
+            AND user_name = $3
+        """
+        async for row in Postgres.iterate(query, hashes, site_id, user_name):
+            key = row["addon_name"], row["addon_version"]
+            if key not in result:
+                result[key] = AddonSettingsCache()
+            result[key].site = row["data"]
+
+    # Project level settings
+
+    query = f"""
+        SELECT addon_name, addon_version, data
+        FROM project_{project_name}.settings
+        WHERE
+            addon_name || '-' || addon_version = ANY($1)
+        AND variant = $2
+    """
+
+    async for row in Postgres.iterate(query, hashes, variant):
+        key = row["addon_name"], row["addon_version"]
+        if key not in result:
+            result[key] = AddonSettingsCache()
+        result[key].project = row["data"]
+
+    # Project site level settings
+
+    if site_id and user_name and project_name:
+        query = f"""
+            SELECT addon_name, addon_version, data
+            FROM project_{project_name}.project_site_settings
+            WHERE
+                addon_name || '-' || addon_version = ANY($1)
+            AND site_id = $2
+            AND user_name = $3
+        """
+        async for row in Postgres.iterate(query, hashes, site_id, user_name):
+            key = row["addon_name"], row["addon_version"]
+            if key not in result:
+                result[key] = AddonSettingsCache()
+            result[key].project_site = row["data"]
+
     logger.trace(f"Settings cache loaded in {time.time() - start_time:.2f} seconds")
 
     return result
