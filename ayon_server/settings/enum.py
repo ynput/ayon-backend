@@ -178,10 +178,11 @@ async def _get_template_names_project(
 ):
     template_names = []
 
-    query = f"SELECT * FROM public.projects WHERE name = '{project_name}'"
+    query = (f"SELECT config->'templates' as tpls "
+             f"FROM public.projects WHERE name = '{project_name}'")
     async for row in Postgres.iterate(query):
-        config = row["config"]
-        template_category = config["templates"].get(category,[])
+        templates = row["tpls"]
+        template_category = templates.get(category, {})
         for template_name in list(template_category.keys()):
             template_names.append(template_name)
     return template_names
