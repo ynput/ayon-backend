@@ -1,3 +1,5 @@
+import functools
+from typing import Literal
 from aiocache import cached
 
 from ayon_server.lib.postgres import Postgres
@@ -129,6 +131,71 @@ async def anatomy_presets_enum():
     result.insert(1, {"value": "__builtin__", "label": "<BUILT-IN>"})
     return result
 
+
+def anatomy_template_items_enum(
+    project_name: str | None = None,
+    category: Literal["work", "publish", "hero", "delivery", "others", "staging"] | None = None
+):
+    """ Provides values of template names from Anatomy as dropdown.
+
+    Wrapper for actual function as Settings require callable.
+
+    If no category is required it must be used as:
+        `enum_resolver=anatomy_template_items_enum()`
+    Args:
+        project_name: str
+        category: str: type of templates 'publish'|'render'...
+
+    Returns:
+        list[dict[str,str]]
+
+    """
+    return functools.partial(
+        _anatomy_template_items_enum,
+        project_name=project_name,
+        category=category
+    )
+
+
+async def _anatomy_template_items_enum(project_name: str | None, category: str):
+    if not project_name:
+        template_names = await _get_template_names_studio(category)
+    else:
+        template_names = await _get_template_names_project(
+            project_name,
+            category
+        )
+
+    return [
+        {"label": template_name, "value": template_name}
+        for template_name in sorted(template_names)
+    ]
+
+
+async def _get_template_names_project(
+    project_name: str,
+    category: str
+):
+    template_names = []
+
+    query = (f"SELECT config->'templates' as tpls "
+             f"FROM public.projects WHERE name = '{project_name}'")
+    async for row in Postgres.iterate(query):
+        templates = row["tpls"]
+        template_category = templates.get(category, {})
+        for template_name in list(template_category.keys()):
+            template_names.append(template_name)
+    return template_names
+
+
+async def _get_template_names_studio(category: str):
+    anatomy = await get_primary_anatomy_preset()
+    data = anatomy.dict()
+
+    return [
+        template["name"]
+        for template in data["templates"].get(category, {})
+    ]
 
 #
 # Addon host names
