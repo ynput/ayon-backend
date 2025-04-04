@@ -41,7 +41,7 @@ async def process_enum(
     resolver_args = inspect.getfullargspec(enum_resolver).args
 
     ctx_data = {}
-    for index, key in enumerate(resolver_args):
+    for key in resolver_args:
         if key in context:
             ctx_data[key] = context[key]
         elif key in partial_kwargs:
