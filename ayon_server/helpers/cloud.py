@@ -42,6 +42,13 @@ class YnputCloudInfoModel(OPModel):
             example="Ynput",
         ),
     ]
+    org_title: Annotated[
+        str,
+        Field(
+            description="Name of the organization",
+            example="Ynput",
+        ),
+    ]
 
     collect_saturated_metrics: Annotated[
         bool,

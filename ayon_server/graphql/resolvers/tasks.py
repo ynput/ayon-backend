@@ -287,19 +287,18 @@ async def get_tasks(
 
     if filter:
         column_whitelist = [
-            "id",
-            "name",
-            "folder_id",
-            "task_type",
-            "status",
-            "tags",
+            "active",
             "assignees",
             "attrib",
-            "data",
             "created_at",
-            "updated_at",
-            "active",
+            "folder_id",
+            "id",
+            "label" "name",
+            "status",
+            "tags",
+            "task_type",
             "thumbnail_id",
+            "updated_at",
         ]
         fdata = json.loads(filter)
         fq = QueryFilter(**fdata)

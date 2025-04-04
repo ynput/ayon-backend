@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import Query, Response
 
-from ayon_server.access.utils import folder_access_list
+from ayon_server.access.utils import AccessChecker
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.redis import Redis
@@ -92,18 +92,11 @@ class FolderListLoader:
     def _build_response(
         self,
         folder_list: list[dict[str, Any]],
-        folder_access_list: set[str] | None,
+        access_checker: AccessChecker,
     ) -> Response:
         return Response(
             json_dumps(
-                {
-                    "folders": [
-                        record
-                        for record in folder_list
-                        if folder_access_list is None
-                        or record["path"] in folder_access_list
-                    ]
-                }
+                {"folders": [r for r in folder_list if access_checker[r["path"]]]}
             ),
             media_type="application/json",
         )
@@ -111,14 +104,14 @@ class FolderListLoader:
     async def build_response(
         self,
         folder_list: list[dict[str, Any]],
-        folder_access_list: set[str] | None,
+        access_checker: AccessChecker,
     ) -> Response:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
             self._build_response,
             folder_list,
-            folder_access_list,
+            access_checker,
         )
 
 
@@ -157,8 +150,9 @@ async def get_folder_list(
     #   does not have access to. So we cannot avoid parsing the JSON, solving the ACL
 
     start_time = time.monotonic()
-    _access_list = await folder_access_list(user, project_name, "read")
-    access_list: set[str] | None = None if _access_list is None else set(_access_list)
+    access_checker = AccessChecker()
+    await access_checker.load(user, project_name, "read")
+
     elapsed_time = time.monotonic() - start_time
     logger.trace(f"Loaded folder access list in {elapsed_time:.3f} seconds")
 
@@ -170,4 +164,4 @@ async def get_folder_list(
     detail = f"{me} fetched in {elapsed_time:.3f} seconds"
     logger.trace(detail)
 
-    return await folder_list_loader.build_response(entities, access_list)
+    return await folder_list_loader.build_response(entities, access_checker)
