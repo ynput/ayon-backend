@@ -194,7 +194,7 @@ async def _get_template_names_studio(category: str):
 
     return [
         template["name"]
-        for template in data["templates"].get(category, [])
+        for template in data["templates"].get(category, {})
     ]
 
 #
