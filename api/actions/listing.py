@@ -1,3 +1,5 @@
+from typing import Annotated
+
 import aiocache
 
 from ayon_server.actions.context import ActionContext
@@ -14,10 +16,14 @@ from ayon_server.utils import json_dumps, json_loads
 
 
 class AvailableActionsListModel(OPModel):
-    actions: list[BaseActionManifest] = Field(
-        default_factory=list,
-        description="The list of available actions",
-    )
+    actions: Annotated[
+        list[BaseActionManifest],
+        Field(
+            title="Available actions",
+            default_factory=list,
+            description="The list of available actions",
+        ),
+    ]
 
 
 @aiocache.cached(ttl=60)
