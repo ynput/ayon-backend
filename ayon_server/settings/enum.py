@@ -195,8 +195,6 @@ async def _get_template_names_studio(category: str):
         template["name"]
         for template in data["templates"].get(category, [])
     ]
-    return template_names
-
 
 #
 # Addon host names
