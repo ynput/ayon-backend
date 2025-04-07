@@ -31,6 +31,7 @@ OperatorType = Literal[
     "notin",
     "contains",
     "excludes",
+    "excludesany",
     "any",
     "like",
 ]
@@ -218,8 +219,10 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
 
         if operator == "contains":
             return f"({column})::{cast_type}[] @> {arr_value}"
-        elif operator == "excludes":
+        elif operator == "excludesany":
             return f"NOT (({column})::{cast_type}[] @> {arr_value})"
+        elif operator == "excludes":
+            return f"NOT(({column})::{cast_type}[] && {arr_value})"
         elif operator == "any":
             return f"({column})::{cast_type}[] && {arr_value}"
 
