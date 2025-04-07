@@ -1,5 +1,6 @@
 import functools
-from typing import Literal
+from collections.abc import Coroutine
+from typing import Any, Literal
 
 from aiocache import cached
 
@@ -133,11 +134,15 @@ async def anatomy_presets_enum():
     return result
 
 
+TemplateItemsCategory = Literal[
+    "work", "publish", "hero", "delivery", "others", "staging"
+]
+
+
 def anatomy_template_items_enum(
+    category: TemplateItemsCategory,
     project_name: str | None = None,
-    category: Literal["work", "publish", "hero", "delivery", "others", "staging"]
-    | None = None,
-):
+) -> functools.partial[Coroutine[Any, Any, list[dict[str, str]]]]:
     """Provides values of template names from Anatomy as dropdown.
 
     Wrapper for actual function as Settings require callable.
@@ -157,7 +162,10 @@ def anatomy_template_items_enum(
     )
 
 
-async def _anatomy_template_items_enum(project_name: str | None, category: str):
+async def _anatomy_template_items_enum(
+    project_name: str | None,
+    category: TemplateItemsCategory,
+) -> list[dict[str, str]]:
     if not project_name:
         template_names = await _get_template_names_studio(category)
     else:
@@ -169,7 +177,10 @@ async def _anatomy_template_items_enum(project_name: str | None, category: str):
     ]
 
 
-async def _get_template_names_project(project_name: str, category: str):
+async def _get_template_names_project(
+    project_name: str,
+    category: TemplateItemsCategory,
+) -> list[str]:
     template_names = []
 
     query = (
@@ -184,7 +195,7 @@ async def _get_template_names_project(project_name: str, category: str):
     return template_names
 
 
-async def _get_template_names_studio(category: str):
+async def _get_template_names_studio(category: TemplateItemsCategory) -> list[str]:
     anatomy = await get_primary_anatomy_preset()
     data = anatomy.dict()
 
