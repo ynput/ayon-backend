@@ -186,8 +186,7 @@ async def _get_template_names_project(
     async for row in Postgres.iterate(query):
         templates = row["tpls"]
         template_category = templates.get(category, {})
-        for template_name in list(template_category.keys()):
-            template_names.append(template_name)
+        template_names.extend(template_category.keys())
     return template_names
 
 
