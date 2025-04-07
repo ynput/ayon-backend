@@ -20,7 +20,7 @@ __all__ = [
     "anatomy_presets_enum",
     "ensure_unique_names",
     "normalize_name",
-    "anatomy_template_items_enum"
+    "anatomy_template_items_enum",
 ]
 
 from pydantic import Field  # This is deprecated and will be removed in the future
@@ -28,11 +28,11 @@ from pydantic import Field  # This is deprecated and will be removed in the futu
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.enum import (
     anatomy_presets_enum,
+    anatomy_template_items_enum,
     folder_types_enum,
     link_types_enum,
     secrets_enum,
     task_types_enum,
-    anatomy_template_items_enum
 )
 from ayon_server.settings.models import (
     ImageIOBaseModel,

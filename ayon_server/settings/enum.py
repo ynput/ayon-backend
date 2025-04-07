@@ -1,5 +1,6 @@
 import functools
 from typing import Literal
+
 from aiocache import cached
 
 from ayon_server.lib.postgres import Postgres
@@ -134,9 +135,10 @@ async def anatomy_presets_enum():
 
 def anatomy_template_items_enum(
     project_name: str | None = None,
-    category: Literal["work", "publish", "hero", "delivery", "others", "staging"] | None = None
+    category: Literal["work", "publish", "hero", "delivery", "others", "staging"]
+    | None = None,
 ):
-    """ Provides values of template names from Anatomy as dropdown.
+    """Provides values of template names from Anatomy as dropdown.
 
     Wrapper for actual function as Settings require callable.
 
@@ -151,9 +153,7 @@ def anatomy_template_items_enum(
 
     """
     return functools.partial(
-        _anatomy_template_items_enum,
-        project_name=project_name,
-        category=category
+        _anatomy_template_items_enum, project_name=project_name, category=category
     )
 
 
@@ -161,10 +161,7 @@ async def _anatomy_template_items_enum(project_name: str | None, category: str):
     if not project_name:
         template_names = await _get_template_names_studio(category)
     else:
-        template_names = await _get_template_names_project(
-            project_name,
-            category
-        )
+        template_names = await _get_template_names_project(project_name, category)
 
     return [
         {"label": template_name, "value": template_name}
@@ -172,14 +169,13 @@ async def _anatomy_template_items_enum(project_name: str | None, category: str):
     ]
 
 
-async def _get_template_names_project(
-    project_name: str,
-    category: str
-):
+async def _get_template_names_project(project_name: str, category: str):
     template_names = []
 
-    query = (f"SELECT config->'templates' as tpls "
-             f"FROM public.projects WHERE name = '{project_name}'")
+    query = (
+        f"SELECT config->'templates' as tpls "
+        f"FROM public.projects WHERE name = '{project_name}'"
+    )
     async for row in Postgres.iterate(query):
         templates = row["tpls"]
         template_category = templates.get(category, {})
@@ -192,10 +188,8 @@ async def _get_template_names_studio(category: str):
     anatomy = await get_primary_anatomy_preset()
     data = anatomy.dict()
 
-    return [
-        template["name"]
-        for template in data["templates"].get(category, {})
-    ]
+    return [template["name"] for template in data["templates"].get(category, {})]
+
 
 #
 # Addon host names
