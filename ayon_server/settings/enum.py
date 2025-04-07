@@ -141,14 +141,12 @@ TemplateItemsCategory = Literal[
 
 def anatomy_template_items_enum(
     category: TemplateItemsCategory,
-    project_name: str | None = None,
 ) -> functools.partial[Coroutine[Any, Any, list[dict[str, str]]]]:
     """Provides values of template names from Anatomy as dropdown.
 
     Wrapper for actual function as Settings require callable.
 
     Args:
-        project_name: str
         category: str: type of templates 'publish'|'render'...
 
     Returns:
@@ -156,7 +154,7 @@ def anatomy_template_items_enum(
 
     """
     return functools.partial(
-        _anatomy_template_items_enum, project_name=project_name, category=category
+        _anatomy_template_items_enum, project_name=None, category=category
     )
 
 
