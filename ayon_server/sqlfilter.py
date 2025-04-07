@@ -216,12 +216,17 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         else:
             raise ValueError("Invalid value type in list")
 
-        if operator == "in":
-            return f"({column})::{cast_type} = ANY({arr_value})"
-        elif operator == "notin":
-            return f"({column})::{cast_type} != ALL({arr_value})"
+        if operator == "contains":
+            return f"({column})::{cast_type}[] @> {arr_value}"
+        elif operator == "excludes":
+            return f"NOT (({column})::{cast_type}[] @> {arr_value})"
         elif operator == "any":
             return f"({column})::{cast_type}[] && {arr_value}"
+
+        elif operator == "in":
+            return f"({column})::{cast_type} = ANY({arr_value})"
+        elif operator == "notin":
+            return f"NOT ({column})::{cast_type} = ANY({arr_value})"
 
         else:
             raise ValueError(f"Invalid list operator: {operator}")
@@ -247,9 +252,9 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     elif operator == "ne":
         return f"{column} != {safe_value}"
     elif operator == "contains":
-        return f"{column} @> {safe_value}"
+        return f"{safe_value} = ANY({column})"
     elif operator == "excludes":
-        return f"NOT ({column} @> {safe_value})"
+        return f"NOT ({safe_value} = ANY({column}))"
     elif operator == "like":
         return f"{column} LIKE {safe_value}"
     else:
