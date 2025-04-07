@@ -1,7 +1,8 @@
 from typing import TYPE_CHECKING, Any
 
 from ayon_server.access.permissions import (
-    AttributeAccessList,
+    AttributeReadAccessList,
+    AttributeWriteAccessList,
     EndpointsAccessList,
     FolderAccess,
     FolderAccessList,
@@ -122,7 +123,9 @@ class AccessGroups:
                     )
 
                 elif perm_name in ("attrib_read", "attrib_write"):
-                    assert isinstance(value, AttributeAccessList)
+                    assert isinstance(
+                        value, AttributeReadAccessList | AttributeWriteAccessList
+                    )
                     result[perm_name]["attributes"] = list(
                         set(result[perm_name].get("attributes", []))
                         | set(value.attributes)

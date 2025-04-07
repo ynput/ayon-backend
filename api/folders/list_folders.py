@@ -21,6 +21,51 @@ from .router import router
 # that is generated on the fly.
 
 
+def _build_response(
+    folder_list: list[dict[str, Any]],
+    access_checker: AccessChecker,
+    attrib_whitelist: set[str] | None = None,
+) -> Response:
+    def acl_checker(folder: dict[str, Any]) -> bool:
+        return access_checker[folder["path"]]
+
+    def attr_parser(folder: dict[str, Any]) -> dict[str, Any]:
+        if attrib_whitelist is None:
+            return folder
+
+        # folder_list must not be mutated as it could be used
+        # by other requests at the same time. therefore, if we
+        # pop or filter attributes, we need to do that on a copy
+
+        if attrib_whitelist == set():
+            # sligthly faster than copying
+            return {k: v for k, v in folder.items() if k not in ("attrib", "ownAttrib")}
+
+        _filtered_attribs = {
+            k: v for k, v in folder["attrib"].items() if k in attrib_whitelist
+        }
+        _filtered_own_attribs = [
+            k for k in folder["ownAttrib"] if k in attrib_whitelist
+        ]
+
+        _folder = folder.copy()
+        _folder["attrib"] = _filtered_attribs
+        _folder["ownAttrib"] = _filtered_own_attribs
+        return _folder
+
+    return Response(
+        json_dumps(
+            # {"folders": list(map(attr_parser, filter(acl_checker, folder_list)))},
+            {
+                "folders": [
+                    attr_parser(folder) for folder in folder_list if acl_checker(folder)
+                ]
+            },
+        ),
+        media_type="application/json",
+    )
+
+
 class FolderListItem(OPModel):
     id: str
     path: str
@@ -89,29 +134,19 @@ class FolderListLoader:
         assert isinstance(folder_list, list)
         return [process_record(record) for record in folder_list]
 
-    def _build_response(
-        self,
-        folder_list: list[dict[str, Any]],
-        access_checker: AccessChecker,
-    ) -> Response:
-        return Response(
-            json_dumps(
-                {"folders": [r for r in folder_list if access_checker[r["path"]]]}
-            ),
-            media_type="application/json",
-        )
-
     async def build_response(
         self,
         folder_list: list[dict[str, Any]],
         access_checker: AccessChecker,
+        attrib_whitelist: set[str] | None = None,
     ) -> Response:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
-            self._build_response,
+            _build_response,
             folder_list,
             access_checker,
+            attrib_whitelist,
         )
 
 
@@ -164,4 +199,16 @@ async def get_folder_list(
     detail = f"{me} fetched in {elapsed_time:.3f} seconds"
     logger.trace(detail)
 
-    return await folder_list_loader.build_response(entities, access_checker)
+    attrib_whitelist: set[str] | None = None
+    if not attrib:
+        attrib_whitelist = set()
+
+    elif not user.is_manager:
+        perms = user.permissions(project_name=project_name)
+        if perms.attrib_read.enabled:
+            attrib_whitelist = set(perms.attrib_read.attributes)
+            logger.debug(f"{user} {project_name} attrib whitelist {attrib_whitelist}")
+
+    return await folder_list_loader.build_response(
+        entities, access_checker, attrib_whitelist
+    )
