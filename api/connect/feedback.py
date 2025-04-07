@@ -7,6 +7,7 @@ from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
     ForbiddenException,
+    ServiceUnavailableException,
 )
 from ayon_server.helpers.cloud import (
     CloudUtils,
@@ -59,7 +60,9 @@ async def _get_feedback_verification(
 ) -> UserVerificationResponse:
     if data := await Redis.get_json("feedback-verification", user.name):
         if data.get("status") == "error":
-            raise AyonException(f"Failed to load feedback token: {data['detail']}")
+            raise ServiceUnavailableException(
+                f"Failed to load feedback token: {data['detail']}"
+            )
         return UserVerificationResponse(**data)
     res = None
     payload = {
