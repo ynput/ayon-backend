@@ -147,8 +147,6 @@ def anatomy_template_items_enum(
 
     Wrapper for actual function as Settings require callable.
 
-    If no category is required it must be used as:
-        `enum_resolver=anatomy_template_items_enum()`
     Args:
         project_name: str
         category: str: type of templates 'publish'|'render'...
