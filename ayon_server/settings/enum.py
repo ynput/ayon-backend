@@ -134,6 +134,10 @@ async def anatomy_presets_enum():
     return result
 
 
+#
+# Anatomy template items
+#
+
 TemplateItemsCategory = Literal[
     "work", "publish", "hero", "delivery", "others", "staging"
 ]
