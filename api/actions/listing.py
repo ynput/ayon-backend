@@ -104,7 +104,7 @@ async def evaluate_simple_action(
         if not context.entity_ids:
             return False
 
-        if action.allow_multiselection and len(context.entity_ids) != 1:
+        if not action.allow_multiselection and len(context.entity_ids) > 1:
             return False
 
         if action.entity_subtypes:
