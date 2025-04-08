@@ -278,7 +278,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     elif operator == "excludes":
         return f"NOT ({safe_value} = ANY({column}))"
     elif operator == "like":
-        return f"{column} LIKE {safe_value}"
+        return f"{column} ILIKE {safe_value}"
     else:
         raise ValueError(f"Unsupported operator: {operator}")
 
