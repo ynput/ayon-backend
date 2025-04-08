@@ -134,6 +134,10 @@ async def anatomy_presets_enum():
     return result
 
 
+#
+# Anatomy template items
+#
+
 TemplateItemsCategory = Literal[
     "work", "publish", "hero", "delivery", "others", "staging"
 ]
@@ -141,16 +145,12 @@ TemplateItemsCategory = Literal[
 
 def anatomy_template_items_enum(
     category: TemplateItemsCategory,
-    project_name: str | None = None,
 ) -> functools.partial[Coroutine[Any, Any, list[dict[str, str]]]]:
     """Provides values of template names from Anatomy as dropdown.
 
     Wrapper for actual function as Settings require callable.
 
-    If no category is required it must be used as:
-        `enum_resolver=anatomy_template_items_enum()`
     Args:
-        project_name: str
         category: str: type of templates 'publish'|'render'...
 
     Returns:
@@ -158,7 +158,7 @@ def anatomy_template_items_enum(
 
     """
     return functools.partial(
-        _anatomy_template_items_enum, project_name=project_name, category=category
+        _anatomy_template_items_enum, project_name=None, category=category
     )
 
 
@@ -190,8 +190,7 @@ async def _get_template_names_project(
     async for row in Postgres.iterate(query):
         templates = row["tpls"]
         template_category = templates.get(category, {})
-        for template_name in list(template_category.keys()):
-            template_names.append(template_name)
+        template_names.extend(template_category.keys())
     return template_names
 
 
