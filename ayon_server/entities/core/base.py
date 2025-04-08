@@ -6,6 +6,7 @@ from strawberry.experimental.pydantic import type as pydantic_type
 
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Connection
 
 if TYPE_CHECKING:
@@ -59,27 +60,32 @@ class BaseEntity:
     def patch(self, patch_data: BaseModel, user: Optional["UserEntity"] = None) -> None:
         """Apply a patch to the entity."""
 
+        pattr = patch_data.dict(exclude_unset=True).get("attrib", {})
+
         if user is not None and hasattr(self, "project_name"):
             if not (user.is_manager):
                 # If a normal user tries to patch a project-level entity,
                 # we need to check what attributes are being modified.
                 # and if the user is allowed to do so.
                 patch_data = patch_data.copy(deep=True)
-                user.permissions(self.project_name)
+                perms = user.permissions(self.project_name)
 
-                # TODO: check for attribute whitelist
-                # and drop any attributes that are not allowed
-                # from the patch data.
-
-                # TODO: don't forget to use user.is_developer
-                # to include developerMode attribute
-                pattr = patch_data.dict().get("attrib", {})
                 if not user.is_developer and "developerMode" in pattr:
                     patch_data.attrib.developerMode = None  # type: ignore
 
-        if (attrib := patch_data.dict().get("attrib")) is not None:
-            for key in attrib:
-                if attrib.get(key) is None:
+                if perms.attrib_write.enabled:
+                    for attr, val in pattr.items():
+                        if getattr(self.attrib, attr) == val:
+                            continue
+                        if attr not in perms.attrib_write.attributes:
+                            raise ForbiddenException(
+                                f"You are not allowed to modify {attr}"
+                                f" attribute in {self.project_name}"
+                            )
+
+        if pattr:
+            for key in pattr:
+                if pattr.get(key) is None:
                     continue
                 if key in self.own_attrib:
                     continue

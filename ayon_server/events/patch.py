@@ -155,26 +155,32 @@ def build_pl_entity_change_events(
                     result[-1]["payload"] = payload
 
     if new_attributes := patch_data.get("attrib", {}):
-        attr_list = ", ".join(new_attributes.keys())
-        description = (
-            f"Changed {entity_type} {original_entity.name} attributes: {attr_list}"
-        )
-        result.append(
-            {
-                "topic": f"entity.{entity_type}.attrib_changed",
-                "description": description,
-                **common_data,
-            }
-        )
+        evt = {
+            "topic": f"entity.{entity_type}.attrib_changed",
+            **common_data,
+        }
+
+        old_attributes = original_entity.attrib.dict()
+        for key in list(old_attributes.keys()):
+            if key not in new_attributes:
+                old_attributes.pop(key)
+                continue
+            if new_attributes.get(key) == old_attributes[key]:
+                old_attributes.pop(key, None)
+                new_attributes.pop(key, None)
+
         if ayonconfig.audit_trail:
-            payload = {
-                "oldValue": {
-                    k: original_entity.attrib.dict().get(k)
-                    for k in new_attributes.keys()
-                },
+            evt["payload"] = {
+                "oldValue": old_attributes,
                 "newValue": new_attributes,
             }
-            result[-1]["payload"] = payload
+
+        if new_attributes:
+            attr_list = ", ".join(new_attributes.keys())
+            evt["description"] = (
+                f"Changed {entity_type} {original_entity.name} attributes: {attr_list}"
+            )
+            result.append(evt)
 
     for column_name, topic_name in ADDITIONAL_COLUMNS.items():
         if not hasattr(original_entity, column_name):
