@@ -34,13 +34,21 @@ async def _list_bundles(archived: bool = False):
     staging_bundle: str | None = None
     dev_bundles: list[str] = []
 
-    async for row in Postgres.iterate("SELECT * FROM bundles ORDER by created_at DESC"):
-        # do not show archived bundles unless requested
-        if not archived and row["is_archived"]:
-            continue
+    cond = ""
+    if not archived:
+        cond = "WHERE is_archived IS FALSE"
 
+    query = f"""
+        SELECT
+            name, is_production, is_staging, is_dev,
+            is_archived, active_user, created_at, data
+        FROM bundles
+        {cond}
+        ORDER BY created_at DESC
+    """
+
+    async for row in Postgres.iterate(query):
         data = row["data"]
-
         bundle = BundleModel(
             name=row["name"],
             created_at=row["created_at"],

@@ -42,15 +42,19 @@ class TasksFoldersResponse(OPModel):
 
 
 ALLOWED_KEYS = [
-    "id",
-    "name",
-    "label",
-    "status",
-    "task_type",
+    "active",
     "assignees",
     "attrib",
-    "active",
+    "created_at",
+    "folder_id",
+    "id",
+    "label",
+    "name",
+    "status",
     "tags",
+    "task_type",
+    "thumbnail_id",
+    "updated_at",
 ]
 
 
@@ -64,12 +68,17 @@ async def query_tasks_folders(
     conditions = []
 
     if request.filter:
-        filter = build_filter(
-            request.filter,
-            table_prefix="tasks",
-            column_whitelist=ALLOWED_KEYS,
-            column_map={"attrib": "(coalesce(f.attrib, '{}'::jsonb ) || tasks.attrib)"},
-        )
+        try:
+            filter = build_filter(
+                request.filter,
+                table_prefix="tasks",
+                column_whitelist=ALLOWED_KEYS,
+                column_map={
+                    "attrib": "(coalesce(f.attrib, '{}'::jsonb ) || tasks.attrib)"
+                },
+            )
+        except ValueError as e:
+            raise BadRequestException(str(e))
         if filter is not None:
             conditions.append(filter)
 

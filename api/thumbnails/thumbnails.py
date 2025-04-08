@@ -1,3 +1,4 @@
+import functools
 from typing import Any, Literal
 
 import aiocache
@@ -53,6 +54,7 @@ async def body_from_request(request: Request) -> bytes:
     return result
 
 
+@functools.cache
 def get_fake_thumbnail_response() -> Response:
     """Generate a "fake thumbnail" response.
 

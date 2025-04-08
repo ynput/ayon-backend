@@ -1,4 +1,5 @@
 import collections
+import functools
 import inspect
 from typing import Any
 
@@ -31,12 +32,20 @@ async def process_enum(
     if context is None:
         context = {}
 
+    # enum_resolver could use partial for passing arguments in
+    partial_kwargs = {}
+    if isinstance(enum_resolver, functools.partial):
+        partial_kwargs = enum_resolver.keywords
+        enum_resolver = enum_resolver.func
+
     resolver_args = inspect.getfullargspec(enum_resolver).args
 
     ctx_data = {}
     for key in resolver_args:
         if key in context:
             ctx_data[key] = context[key]
+        elif key in partial_kwargs:
+            ctx_data[key] = partial_kwargs[key]
         else:
             ctx_data[key] = None
 
