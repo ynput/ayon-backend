@@ -7,12 +7,12 @@ from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
     ForbiddenException,
+    ServiceUnavailableException,
 )
 from ayon_server.helpers.cloud import (
     CloudUtils,
 )
 from ayon_server.lib.redis import Redis
-from ayon_server.logging import logger
 from ayon_server.types import OPModel
 
 from .router import router
@@ -59,6 +59,10 @@ async def _get_feedback_verification(
     user: UserEntity, headers: dict[str, str]
 ) -> UserVerificationResponse:
     if data := await Redis.get_json("feedback-verification", user.name):
+        if data.get("status") == "error":
+            raise ServiceUnavailableException(
+                f"Failed to load feedback token: {data['detail']}"
+            )
         return UserVerificationResponse(**data)
     res = None
     payload = {
@@ -84,10 +88,20 @@ async def _get_feedback_verification(
             )
             return data
     except Exception as e:
-        logger.error(f"Failed to generate feedback token: {e}")
         if res is not None:
-            logger.error(res.text)
-        raise AyonException("Failed to generate feedback token")
+            try:
+                detail = res.json()["detail"]
+            except Exception:
+                detail = res.text[:100]
+        else:
+            detail = str(e)
+        await Redis.set_json(
+            "feedback-verification",
+            user.name,
+            {"status": "error", "detail": detail},
+            ttl=600,
+        )
+        raise AyonException(f"Failed to generate feedback token: {detail}")
 
 
 @router.get("/feedback")
