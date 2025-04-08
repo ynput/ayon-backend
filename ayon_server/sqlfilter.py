@@ -20,6 +20,7 @@ ValueType = (
 
 OperatorType = Literal[
     "eq",
+    "like",
     "lt",
     "gt",
     "lte",
@@ -30,10 +31,12 @@ OperatorType = Literal[
     "in",
     "notin",
     "contains",
+    "includes",
     "excludes",
+    "includesall",
+    "excludesall",
+    "includesany",
     "excludesany",
-    "any",
-    "like",
 ]
 
 
@@ -71,7 +74,7 @@ class QueryCondition(OPModel):
 
     @validator("operator", pre=True, always=True)
     def convert_operator_to_lowercase(cls, v):
-        return v.lower()
+        return v.lower().replace("-", "").replace("_", "")
 
     @validator("value")
     def validate_value(cls, v: ValueType, values: dict[str, Any]):
@@ -217,26 +220,43 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         else:
             raise ValueError("Invalid value type in list")
 
-        if operator == "contains":
+        # Both field and value are arrays
+
+        if operator == "includesall":
+            # Field contains all values in the array
             return f"({column})::{cast_type}[] @> {arr_value}"
-        elif operator == "excludesany":
+
+        elif operator == "excludesall":
+            # Field does not contain the given array
             return f"NOT (({column})::{cast_type}[] @> {arr_value})"
-        elif operator == "excludes":
+
+        elif operator == "excludesany":
+            # Field does not contain any of the values in the array
             return f"NOT(({column})::{cast_type}[] && {arr_value})"
-        elif operator == "any":
+
+        elif operator == "includesany":
+            # There's an intersection between the field and the array
             return f"({column})::{cast_type}[] && {arr_value}"
 
+        # Field is scalar, but array is provided in the filter
+
         elif operator == "in":
+            # Field matches one of the values in the array
             return f"({column})::{cast_type} = ANY({arr_value})"
+
         elif operator == "notin":
+            # Field does not match any of the values in the array
             return f"NOT ({column})::{cast_type} = ANY({arr_value})"
 
         else:
             raise ValueError(f"Invalid list operator: {operator}")
 
     if operator == "isnull":
+        # Field is null. Value is ignored
         return f"{column} IS NULL"
+
     elif operator == "notnull":
+        # Field is not null. Value is ignored
         return f"{column} IS NOT NULL"
 
     if safe_value is None:
@@ -254,7 +274,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         return f"{column} >= {safe_value}"
     elif operator == "ne":
         return f"{column} != {safe_value}"
-    elif operator == "contains":
+    elif operator == "includes":
         return f"{safe_value} = ANY({column})"
     elif operator == "excludes":
         return f"NOT ({safe_value} = ANY({column}))"
