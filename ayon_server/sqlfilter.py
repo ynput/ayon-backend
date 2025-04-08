@@ -20,6 +20,7 @@ ValueType = (
 
 OperatorType = Literal[
     "eq",
+    "like",
     "lt",
     "gt",
     "lte",
@@ -29,10 +30,12 @@ OperatorType = Literal[
     "notnull",
     "in",
     "notin",
-    "contains",
+    "includes",
     "excludes",
-    "any",
-    "like",
+    "includesall",
+    "excludesall",
+    "includesany",
+    "excludesany",
 ]
 
 
@@ -70,7 +73,7 @@ class QueryCondition(OPModel):
 
     @validator("operator", pre=True, always=True)
     def convert_operator_to_lowercase(cls, v):
-        return v.lower()
+        return v.lower().replace("-", "").replace("_", "")
 
     @validator("value")
     def validate_value(cls, v: ValueType, values: dict[str, Any]):
@@ -157,6 +160,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     operator = c.operator
     cast_type = "text"
     safe_value: ValueType = None
+    json_list_column: str | None = None
 
     column = path[0]
     if column in column_map:
@@ -180,10 +184,34 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         for k in path[1:]:
             column += f"->'{k}'"
 
-        if isinstance(value, str | int | float):
-            safe_value = json.dumps(value).replace("'", "''")
-            safe_value = f"'{safe_value}'"
-            logger.trace(f"Safe value of {type(value)} {value}: {safe_value}")
+        if operator in (
+            "includesall",
+            "excludesall",
+            "includesany",
+            "excludesany",
+            "includes",
+            "excludes",
+        ):
+            # JSON Field is an array, so we need to cast it to the correct type
+            if isinstance(value, str):
+                json_list_column = "text"
+            elif isinstance(value, int | float):
+                json_list_column = "integer" if isinstance(value, int) else "number"
+            elif isinstance(value, list):
+                if len(value) == 0:
+                    raise ValueError("Empty array")
+                if all(isinstance(v, str) for v in value):
+                    json_list_column = "text"
+                elif all(isinstance(v, (int)) for v in value):
+                    json_list_column = "integer"
+                elif all(isinstance(v, (float)) for v in value):
+                    json_list_column = "number"
+                else:
+                    raise ValueError("Invalid value type in list")
+
+        safe_value = json.dumps(value).replace("'", "''")
+        safe_value = f"'{safe_value}'::jsonb"
+        logger.trace(f"Safe value of {type(value)} {value}: {safe_value}")
 
     else:
         raise ValueError(f"Invalid path: {path}")
@@ -191,44 +219,112 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     if table_prefix and path[0] not in column_map:
         column = f"{table_prefix}.{column}"
 
+    # Provided value is a list
     if isinstance(value, list):
+        # Field is a JSON array
+
+        if json_list_column:
+            if operator == "includesall":
+                return f"({column})::jsonb @> {safe_value}"
+
+            elif operator == "excludesall":
+                return f"NOT ({column})::jsonb @> {safe_value}"
+
+            elif operator == "includesany":
+                return f"""EXISTS (
+                  SELECT 1
+                  FROM jsonb_array_elements({column}) a(val1)
+                  JOIN jsonb_array_elements({safe_value}) b(val2)
+                  ON a.val1::{json_list_column} = b.val2::{json_list_column}
+                )"""
+
+            elif operator == "excludesany":
+                return f"""NOT EXISTS (
+                  SELECT 1
+                  FROM jsonb_array_elements({column}) a(val1)
+                  JOIN jsonb_array_elements({safe_value}) b(val2)
+                  ON a.val1::{json_list_column} = b.val2::{json_list_column}
+                )"""
+
+            raise ValueError("JSON filter error")
+
+        # Field is a Postgres array (or we are checking empty JSON array)
+
         if len(value) == 0:
             if operator == "eq":
+                if len(path) > 1:
+                    return f"NOT EXISTS (SELECT 1 FROM jsonb_array_elements({column}))"
                 return f"array_length({column}, 1) IS NULL"
+
             if operator == "ne":
+                if len(path) > 1:
+                    return f"EXISTS (SELECT 1 FROM jsonb_array_elements({column}))"
                 return f"array_length({column}, 1) IS NOT NULL"
 
         if all(isinstance(v, str) for v in value):
             escaped_list = [v.replace("'", "''") for v in value]  # type: ignore
             if len(path) > 1:
                 # crawling a json, so we need to quote the values
+                # this is needed for in and notin
                 arr_value = (
                     "array[" + ", ".join([f"'\"{v}\"'" for v in escaped_list]) + "]"
                 )
             else:
                 arr_value = "array[" + ", ".join([f"'{v}'" for v in escaped_list]) + "]"
+            cast_type = "text"
+
         elif all(isinstance(v, (int)) for v in value):
             arr_value = "array[" + ", ".join([str(v) for v in value]) + "]"
             cast_type = "integer"
+
         elif all(isinstance(v, (float)) for v in value):
             arr_value = "array[" + ", ".join([str(v) for v in value]) + "]"
             cast_type = "number"
+
         else:
             raise ValueError("Invalid value type in list")
 
-        if operator == "in":
-            return f"({column})::{cast_type} = ANY({arr_value})"
-        elif operator == "notin":
-            return f"({column})::{cast_type} != ALL({arr_value})"
-        elif operator == "any":
+        # Both field and value are arrays
+
+        if operator == "includesall":
+            # Field contains all values in the array
+            return f"({column})::{cast_type}[] @> {arr_value}"
+
+        elif operator == "excludesall":
+            # Field does not contain the given array
+            return f"NOT (({column})::{cast_type}[] @> {arr_value})"
+
+        elif operator == "excludesany":
+            # Field does not contain any of the values in the array
+            return f"NOT(({column})::{cast_type}[] && {arr_value})"
+
+        elif operator == "includesany":
+            # There's an intersection between the field and the array
             return f"({column})::{cast_type}[] && {arr_value}"
+
+        # Field is scalar, but array is provided in the filter
+
+        elif operator == "in":
+            # Field matches one of the values in the array
+            return f"({column})::{cast_type} = ANY({arr_value})"
+
+        elif operator == "notin":
+            # Field does not match any of the values in the array
+            return f"NOT ({column})::{cast_type} = ANY({arr_value})"
 
         else:
             raise ValueError(f"Invalid list operator: {operator}")
 
+    #
+    # Provided value is a scalar
+    #
+
     if operator == "isnull":
+        # Field is null. Value is ignored
         return f"{column} IS NULL"
+
     elif operator == "notnull":
+        # Field is not null. Value is ignored
         return f"{column} IS NOT NULL"
 
     if safe_value is None:
@@ -236,6 +332,8 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
 
     if operator == "eq":
         return f"{column} = {safe_value}"
+    elif operator == "like":
+        return f"{column} ILIKE {safe_value}"
     elif operator == "lt":
         return f"{column} < {safe_value}"
     elif operator == "gt":
@@ -246,12 +344,27 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         return f"{column} >= {safe_value}"
     elif operator == "ne":
         return f"{column} != {safe_value}"
-    elif operator == "contains":
-        return f"{column} @> {safe_value}"
+
+    # Field is a list
+
+    elif operator == "includes":
+        if json_list_column:
+            return f"""EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements({column}) AS elem
+              WHERE elem = {safe_value}
+            )"""
+        return f"{safe_value} = ANY({column})"
+
     elif operator == "excludes":
-        return f"NOT ({column} @> {safe_value})"
-    elif operator == "like":
-        return f"{column} LIKE {safe_value}"
+        if json_list_column:
+            return f"""NOT EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements({column}) AS elem
+              WHERE elem = {safe_value}
+            )"""
+        return f"NOT ({safe_value} = ANY({column}))"
+
     else:
         raise ValueError(f"Unsupported operator: {operator}")
 
