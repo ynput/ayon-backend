@@ -30,7 +30,6 @@ OperatorType = Literal[
     "notnull",
     "in",
     "notin",
-    "contains",
     "includes",
     "excludes",
     "includesall",
