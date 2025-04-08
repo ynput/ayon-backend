@@ -183,6 +183,10 @@ class AyonConfig(BaseModel):
         description="Include addon endpoints in the OpenAPI schema",
     )
 
+    use_git_suffix_for_addons: bool = Field(
+        default=True, description="Use git suffix for addon versions. "
+    )
+
     log_retention_days: int = Field(
         default=7,
         description="Number of days to keep logs in the event log",
@@ -204,6 +208,8 @@ class AyonConfig(BaseModel):
         description="The default timeout for HTTP requests the server uses "
         "to connect to external services",
     )
+
+    # Logging settings
 
     log_file: str | None = Field(
         default=None,
