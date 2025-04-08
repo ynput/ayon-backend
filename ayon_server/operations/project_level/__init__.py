@@ -9,6 +9,7 @@ from contextlib import suppress
 from typing import Any
 
 from asyncpg.exceptions import IntegrityConstraintViolationError
+from pydantic.error_wrappers import ValidationError
 
 from ayon_server.api.postgres_exceptions import parse_postgres_exception
 from ayon_server.entities import UserEntity
@@ -155,6 +156,28 @@ async def _process_operations(
                     status=e.status,
                     detail=e.detail,
                     error_code=e.code,
+                    entity_id=operation.entity_id,
+                    entity_type=operation.entity_type,
+                )
+            )
+            if not can_fail:
+                if raise_on_error:
+                    raise e
+                break
+        except ValidationError as e:
+            logger.debug(
+                f"{op_tag} failed: {e}",
+                project=project_name,
+                operation_id=operation.id,
+            )
+            result.append(
+                OperationResponseModel(
+                    success=False,
+                    id=operation.id,
+                    type=operation.type,
+                    status=400,
+                    detail=f"Invalid data provided: {e}",
+                    error_code="invalid_data",
                     entity_id=operation.entity_id,
                     entity_type=operation.entity_type,
                 )

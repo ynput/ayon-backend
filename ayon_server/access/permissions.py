@@ -68,8 +68,17 @@ class FolderAccessList(BasePermissionsModel):
     )
 
 
-class AttributeAccessList(BasePermissionsModel):
+class AttributeReadAccessList(BasePermissionsModel):
     attributes: list[str] = SettingsField(
+        title="Readable attributes",
+        default_factory=list,
+        enum_resolver=attr_enum,
+    )
+
+
+class AttributeWriteAccessList(BasePermissionsModel):
+    attributes: list[str] = SettingsField(
+        title="Writable attributes",
         default_factory=list,
         enum_resolver=attr_enum,
     )
@@ -183,14 +192,14 @@ class ProjectPermissions(BaseSettingsModel):
         description="Whitelist folders a user can delete",
     )
 
-    attrib_read: AttributeAccessList = SettingsField(
-        default_factory=AttributeAccessList,
+    attrib_read: AttributeReadAccessList = SettingsField(
+        default_factory=AttributeReadAccessList,
         title="Restrict attribute read",
         description="Whitelist attributes a user can read",
     )
 
-    attrib_write: AttributeAccessList = SettingsField(
-        default_factory=AttributeAccessList,
+    attrib_write: AttributeWriteAccessList = SettingsField(
+        default_factory=AttributeWriteAccessList,
         title="Restrict attribute update",
         description="Whitelist attributes a user can write",
     )

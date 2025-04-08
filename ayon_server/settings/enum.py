@@ -1,3 +1,7 @@
+import functools
+from collections.abc import Coroutine
+from typing import Any, Literal
+
 from aiocache import cached
 
 from ayon_server.lib.postgres import Postgres
@@ -128,6 +132,73 @@ async def anatomy_presets_enum():
     result.insert(0, {"value": "__primary__", "label": primary_label})
     result.insert(1, {"value": "__builtin__", "label": "<BUILT-IN>"})
     return result
+
+
+#
+# Anatomy template items
+#
+
+TemplateItemsCategory = Literal[
+    "work", "publish", "hero", "delivery", "others", "staging"
+]
+
+
+def anatomy_template_items_enum(
+    category: TemplateItemsCategory,
+) -> functools.partial[Coroutine[Any, Any, list[dict[str, str]]]]:
+    """Provides values of template names from Anatomy as dropdown.
+
+    Wrapper for actual function as Settings require callable.
+
+    Args:
+        category: str: type of templates 'publish'|'render'...
+
+    Returns:
+        list[dict[str,str]]
+
+    """
+    return functools.partial(
+        _anatomy_template_items_enum, project_name=None, category=category
+    )
+
+
+async def _anatomy_template_items_enum(
+    project_name: str | None,
+    category: TemplateItemsCategory,
+) -> list[dict[str, str]]:
+    if not project_name:
+        template_names = await _get_template_names_studio(category)
+    else:
+        template_names = await _get_template_names_project(project_name, category)
+
+    return [
+        {"label": template_name, "value": template_name}
+        for template_name in sorted(template_names)
+    ]
+
+
+async def _get_template_names_project(
+    project_name: str,
+    category: TemplateItemsCategory,
+) -> list[str]:
+    template_names = []
+
+    query = (
+        f"SELECT config->'templates' as tpls "
+        f"FROM public.projects WHERE name = '{project_name}'"
+    )
+    async for row in Postgres.iterate(query):
+        templates = row["tpls"]
+        template_category = templates.get(category, {})
+        template_names.extend(template_category.keys())
+    return template_names
+
+
+async def _get_template_names_studio(category: TemplateItemsCategory) -> list[str]:
+    anatomy = await get_primary_anatomy_preset()
+    data = anatomy.dict()
+
+    return [template["name"] for template in data["templates"].get(category, {})]
 
 
 #
