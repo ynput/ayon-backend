@@ -51,7 +51,7 @@ async def get_user_counts(
 
     async for row in Postgres.iterate(query):
         if row["is_service"]:
-            counts.service += 1
+            counts.services += 1
             # do not count service users to total
             continue
 
