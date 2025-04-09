@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from ayon_server.helpers.auth_utils import AuthUtils
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import get_nickname
@@ -10,6 +11,9 @@ class UserCounts(OPModel):
     active: Annotated[int, Field(title="Active users", example=42)] = 0
     admins: Annotated[int, Field(title="Admin users", example=1)] = 0
     managers: Annotated[int, Field(title="Manager users", example=8)] = 0
+    services: Annotated[int, Field(title="Service users", example=1)] = 0
+    licenses_total: Annotated[int, Field(title="Total licenses", example=42)] = 0
+    licenses_used: Annotated[int, Field(title="Used licenses", example=42)] = 0
 
 
 class UserStat(OPModel):
@@ -22,27 +26,50 @@ async def get_user_counts(
 ) -> UserCounts | None:
     """Number of total and active users, admins and managers"""
 
+    # iterating kinda gives us more control over the result,
+    # than running counts... we need to match valid pools,
+    # handle admins and managers differently... so this is
+    # just more flexible
+
     query = """
-    SELECT
-    COUNT(*) AS total,
-    COUNT(*) FILTER (WHERE active) AS active,
-    COUNT(*) FILTER (WHERE data->>'isAdmin' = 'true') AS admins,
-    COUNT(*) FILTER (WHERE data->>'isManager' = 'true') AS managers
-    FROM users;
+        SELECT
+            active,
+            data->'isAdmin' AS is_admin,
+            data->'isManager' AS is_manager,
+            data->'isService' AS is_service,
+            data->'userPool' AS user_pool
+        FROM users
     """
 
-    res = await Postgres.fetch(query)
+    counts = UserCounts()
 
-    if not res:
-        return None
-    row = res[0]
+    valid_pools = set()
+    for pool in await AuthUtils.get_user_pools():
+        if pool.valid:
+            valid_pools.add(pool.id)
+            counts.licenses_total += pool.max
 
-    return UserCounts(
-        total=row["total"] or 0,
-        active=row["active"] or 0,
-        admins=row["admins"] or 0,
-        managers=row["managers"] or 0,
-    )
+    async for row in Postgres.iterate(query):
+        if row["is_service"]:
+            counts.service += 1
+            # do not count service users to total
+            continue
+
+        counts.total += 1
+
+        if row["active"]:
+            counts.active += 1
+
+        if row["is_admin"]:
+            counts.admins += 1
+        elif row["is_manager"]:
+            # do not count admins to managers if both are set
+            counts.managers += 1
+
+        if row["user_pool"] and row["user_pool"] in valid_pools:
+            counts.licenses_used += 1
+
+    return counts
 
 
 async def get_user_stats(
