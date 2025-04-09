@@ -133,7 +133,7 @@ class PatchServiceRequestModel(ServiceConfigModel):
         title="Config",
         deprecated=True,
         description="Deprecated, use top level fields instead",
-        example=None,
+        example={},
     )
 
 
@@ -163,7 +163,7 @@ async def patch_service(
         service_data["hostname"] = hostname
 
     if (patch_config := patch_dict.pop("config", None)) is not None:
-        patch_dict.update(patch_config)
+        service_data["data"].update(patch_config)
 
     await Postgres.execute(
         *SQLTool.update(
