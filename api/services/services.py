@@ -154,7 +154,6 @@ async def patch_service(
     service_data = dict(service_data_record)
 
     patch_dict = payload.dict(exclude_unset=True)
-    service_data["data"].update(patch_dict)
 
     if (should_run := patch_dict.pop("should_run", None)) is not None:
         service_data["should_run"] = should_run
@@ -162,7 +161,10 @@ async def patch_service(
     if (hostname := patch_dict.pop("hostname", None)) is not None:
         service_data["hostname"] = hostname
 
+    service_data["data"].update(patch_dict)
+
     if (patch_config := patch_dict.pop("config", None)) is not None:
+        # Old-style config (deprecated)
         service_data["data"].update(patch_config)
 
     await Postgres.execute(
