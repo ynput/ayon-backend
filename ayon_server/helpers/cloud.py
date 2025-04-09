@@ -6,6 +6,7 @@ from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 
 
@@ -22,33 +23,41 @@ class YnputCloudInfoModel(OPModel):
             description="Ynput cloud instance ID",
         ),
     ]
+
+    connected: Annotated[
+        bool,
+        Field(
+            description="Is the instance connected to Ynput Cloud?",
+        ),
+    ] = False
+
     instance_name: Annotated[
-        str,
+        str | None,
         Field(
             description="Name of the instance",
             example="ayon-staging",
         ),
-    ]
+    ] = None
     org_id: Annotated[
-        str,
+        str | None,
         Field(
             description="Organization ID",
         ),
-    ]
+    ] = None
     org_name: Annotated[
-        str,
+        str | None,
         Field(
             description="Name of the organization",
             example="Ynput",
         ),
-    ]
+    ] = None
     org_title: Annotated[
-        str,
+        str | None,
         Field(
             description="Name of the organization",
             example="Ynput",
         ),
-    ]
+    ] = None
 
     collect_saturated_metrics: Annotated[
         bool,
@@ -65,12 +74,12 @@ class YnputCloudInfoModel(OPModel):
     ] = False
 
     subscriptions: Annotated[
-        list[YnputCloudSubscriptionModel],
+        list[YnputCloudSubscriptionModel] | None,
         Field(
             default_factory=list,
             description="List of subscriptions",
         ),
-    ]
+    ] = None
 
 
 class CloudUtils:
@@ -169,11 +178,11 @@ class CloudUtils:
     @classmethod
     async def get_cloud_info(cls, force: bool = False) -> YnputCloudInfoModel:
         """Get the instance id."""
+        instance_id = await cls.get_instance_id()
         try:
-            instance_id = await cls.get_instance_id()
             ynput_cloud_key = await cls.get_ynput_cloud_key()
         except Exception:
-            raise ForbiddenException("Not connected to ynput cloud")
+            return YnputCloudInfoModel(instance_id=instance_id)
         data = await Redis.get_json("global", "cloudinfo")
         if not data:
             return await cls.request_cloud_info(instance_id, ynput_cloud_key)
@@ -189,21 +198,27 @@ class CloudUtils:
             "x-ynput-cloud-instance": instance_id,
             "x-ynput-cloud-key": instance_key,
         }
-        async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
-            res = await client.get(
-                f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
-                headers=headers,
-            )
-            if res.status_code in [401, 403]:
-                await cls.remove_ynput_cloud_key()
-                raise ForbiddenException("Invalid Ynput connect key")
-
-            if res.status_code >= 400:
-                raise ForbiddenException(
-                    f"Unable to connect to Ynput Cloud. Server error {res.status_code}"
+        try:
+            async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+                res = await client.get(
+                    f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
+                    headers=headers,
                 )
-            data = res.json()
-            await Redis.set_json("global", "cloudinfo", data)
+                if res.status_code in [401, 403]:
+                    await cls.remove_ynput_cloud_key()
+                    raise ForbiddenException("Unable to connect to Ynput Cloud [ERR 0]")
+
+                if res.status_code >= 400:
+                    raise ForbiddenException(
+                        f"Unable to connect to Ynput Cloud [ERR {res.status_code}]"
+                    )
+                data = res.json()
+                data["connected"] = True
+        except Exception as e:
+            logger.warning(f"Unable to connect to Ynput Cloud. Error: {e}")
+            data = {"instance_id": instance_id, "connected": False}
+
+        await Redis.set_json("global", "cloudinfo", data)
         return YnputCloudInfoModel(**data)
 
 
