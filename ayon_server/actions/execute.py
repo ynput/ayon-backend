@@ -102,9 +102,7 @@ class ActionExecutor:
         self,
         success: bool = True,
         message: str | None = None,
-        *,
-        uri: str | None = None,
-        payload: dict[str, Any] | None = None,
+        **kwargs: Any,
     ) -> ExecuteResponseModel:
         """Return a response for a server actions
 
@@ -120,6 +118,5 @@ class ActionExecutor:
             success=success,
             type="server",
             message=message,
-            uri=uri,
-            payload=payload,
+            payload=kwargs,
         )
