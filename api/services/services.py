@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import Path
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, NoTraces
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -44,7 +44,7 @@ class ServiceListModel(OPModel):
     services: list[ServiceModel] = Field(default_factory=list)
 
 
-@router.get("/services", tags=["Services"])
+@router.get("/services", tags=["Services"], dependencies=[NoTraces])
 async def list_services(user: CurrentUser) -> ServiceListModel:
     query = """
         SELECT *, extract(epoch from (now() - last_seen)) as last_seen_delta
@@ -123,9 +123,18 @@ async def delete_service(user: CurrentUser, name: str = Path(...)) -> EmptyRespo
     return EmptyResponse()
 
 
-class PatchServiceRequestModel(OPModel):
+class PatchServiceRequestModel(ServiceConfigModel):
     should_run: bool | None = Field(None)
-    config: ServiceConfigModel | None = Field(None)
+    hostname: str | None = Field(None)
+
+    # Deprecated, kept for backwards compatibility
+    config: ServiceConfigModel | None = Field(
+        None,
+        title="Config",
+        deprecated=True,
+        description="Deprecated, use top level fields instead",
+        example=None,
+    )
 
 
 @router.patch("/services/{service_name}", status_code=204, tags=["Services"])
@@ -137,19 +146,30 @@ async def patch_service(
     if not user.is_admin:
         raise ForbiddenException("Only admins can modify services")
 
-    res = await Postgres.fetch(
-        "SELECT should_run, data FROM services WHERE name = $1 LIMIT 1", service_name
-    )
-    if not res:
+    query = "SELECT should_run, data FROM services WHERE name = $1 LIMIT 1"
+    service_data_record = await Postgres.fetchrow(query, service_name)
+    if service_data_record is None:
         raise NotFoundException("Service not found")
 
-    service_data = dict(res[0])
-    if payload.should_run is not None:
-        service_data["should_run"] = payload.should_run
-    if payload.config is not None:
-        service_data["data"].update(payload.config.dict())
+    service_data = dict(service_data_record)
+
+    patch_dict = payload.dict(exclude_unset=True)
+    service_data["data"].update(patch_dict)
+
+    if (should_run := patch_dict.pop("should_run", None)) is not None:
+        service_data["should_run"] = should_run
+
+    if (hostname := patch_dict.pop("hostname", None)) is not None:
+        service_data["hostname"] = hostname
+
+    if (patch_config := patch_dict.pop("config", None)) is not None:
+        patch_dict.update(patch_config)
 
     await Postgres.execute(
-        *SQLTool.update("services", f"WHERE name='{service_name}'", **service_data)
+        *SQLTool.update(
+            "services",
+            f"WHERE name='{service_name}'",
+            **service_data,
+        )
     )
     return EmptyResponse()

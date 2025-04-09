@@ -1,9 +1,6 @@
 from datetime import datetime
 
-from fastapi import Depends
-
-from ayon_server.api.dependencies import NoTraces, dep_current_user
-from ayon_server.entities import UserEntity
+from ayon_server.api.dependencies import CurrentUser, NoTraces
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -59,7 +56,7 @@ class HeartbeatResponseModel(OPModel):
     response_model=HostListResponseModel,
     tags=["Services"],
 )
-async def list_hosts(user: UserEntity = Depends(dep_current_user)):
+async def list_hosts(user: CurrentUser):
     """Return a list of all hosts.
 
     A host is an instance of Ayon Service Host (ASH) that is capable of
@@ -79,10 +76,7 @@ async def list_hosts(user: UserEntity = Depends(dep_current_user)):
     tags=["Services"],
     dependencies=[NoTraces],
 )
-async def host_heartbeat(
-    payload: HeartbeatRequestModel,
-    user: UserEntity = Depends(dep_current_user),
-):
+async def host_heartbeat(payload: HeartbeatRequestModel, user: CurrentUser):
     """Send a heartbeat from a host.
 
     This endpoint is called by ASH to send a heartbeat to the API. The
