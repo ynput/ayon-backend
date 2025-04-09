@@ -74,17 +74,16 @@ class YnputCloudInfoModel(OPModel):
     ] = False
 
     subscriptions: Annotated[
-        list[YnputCloudSubscriptionModel] | None,
+        list[YnputCloudSubscriptionModel],
         Field(
             default_factory=list,
             description="List of subscriptions",
         ),
-    ] = None
+    ]
 
 
 class CloudUtils:
     instance_id: str | None = None
-    cloud_key: str | None = None
     licenses_synced_at: float | None = None
     admin_exists: bool = False
 
@@ -104,28 +103,31 @@ class CloudUtils:
         if cls.instance_id:
             return cls.instance_id
 
-        res = await Postgres.fetch("SELECT value FROM config WHERE key = 'instanceId'")
-        if not res:
-            raise AyonException("instance id not set. This shouldn't happen.")
-        cls.instance_id = res[0]["value"]
-        assert cls.instance_id is not None
-        return cls.instance_id
+        query = "SELECT value FROM config WHERE key = 'instanceId'"
+        res = await Postgres.fetchrow(query)
+        if not res or (instance_id := res["value"]) is None:
+            raise AyonException(
+                "Instance id not set. This shouldn't happen. "
+                "Your database may be corrupted, please run the setup."
+            )
+        cls.instance_id = instance_id
+        return instance_id
 
     @classmethod
     async def get_ynput_cloud_key(cls) -> str:
         """Get the Ynput Cloud key"""
 
-        if cls.cloud_key:
-            return cls.cloud_key
+        if not (ckey := await Redis.get("global", "ynput_cloud_key")):
+            query = "SELECT value FROM secrets WHERE name = 'ynput_cloud_key'"
+            res = await Postgres.fetchrow(query)
+            if not res:
+                ckey = "none"
+            await Redis.set("global", "ynput_cloud_key", ckey)
 
-        query = "SELECT value FROM secrets WHERE name = 'ynput_cloud_key'"
-        res = await Postgres.fetch(query)
-        if not res:
-            raise ForbiddenException("Ayon is not connected to Ynput Cloud [ERR 1]")
+        if ckey == "none":
+            raise ForbiddenException("Ayon is not connected to Ynput Cloud [ERR 2]")
 
-        cls.cloud_key = res[0]["value"]
-        assert cls.cloud_key is not None
-        return cls.cloud_key
+        return ckey
 
     @classmethod
     async def get_api_headers(cls) -> dict[str, str]:
@@ -148,7 +150,7 @@ class CloudUtils:
             key,
         )
         await cls.clear_cloud_info_cache()
-        cls.cloud_key = key
+        await Redis.set("global", "ynput_cloud_key", key)
 
     @classmethod
     async def remove_ynput_cloud_key(cls) -> None:
@@ -156,7 +158,7 @@ class CloudUtils:
         query = "DELETE FROM secrets WHERE name = 'ynput_cloud_key'"
         await Postgres.execute(query)
         await cls.clear_cloud_info_cache()
-        cls.cloud_key = None
+        await Redis.delete("global", "ynput_cloud_key")
 
     @classmethod
     async def get_licenses(cls, refresh: bool = False) -> list[dict[str, Any]]:
@@ -182,7 +184,7 @@ class CloudUtils:
         try:
             ynput_cloud_key = await cls.get_ynput_cloud_key()
         except Exception:
-            return YnputCloudInfoModel(instance_id=instance_id)
+            return YnputCloudInfoModel(instance_id=instance_id, subscriptions=[])
         data = await Redis.get_json("global", "cloudinfo")
         if not data:
             return await cls.request_cloud_info(instance_id, ynput_cloud_key)
