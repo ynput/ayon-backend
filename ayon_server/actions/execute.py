@@ -1,5 +1,5 @@
 import urllib.parse
-from typing import Literal
+from typing import Any, Literal
 
 from ayon_server.actions.context import ActionContext
 from ayon_server.entities import UserEntity
@@ -23,14 +23,17 @@ class ExecuteResponseModel(OPModel):
         description="The message to display",
         example="Action executed successfully",
     )
+
     uri: str | None = Field(
         None,
         description="The uri to call from the browser",
         example="ayon-launcher://action?server_url=http%3A%2F%2Flocalhost%3A8000%2F&token=eyJaaaa",
     )
 
-    # TODO: for http/browser actions
-    # payload: dict | None = Field(None, description="The payload of the request")
+    payload: dict[str, Any] | None = Field(
+        None,
+        description="The payload of the request",
+    )
 
 
 class ActionExecutor:
@@ -99,6 +102,9 @@ class ActionExecutor:
         self,
         success: bool = True,
         message: str | None = None,
+        *,
+        uri: str | None = None,
+        payload: dict[str, Any] | None = None,
     ) -> ExecuteResponseModel:
         """Return a response for a server actions
 
@@ -114,5 +120,6 @@ class ActionExecutor:
             success=success,
             type="server",
             message=message,
-            uri=None,
+            uri=uri,
+            payload=payload,
         )
