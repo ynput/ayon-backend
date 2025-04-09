@@ -161,11 +161,13 @@ async def patch_service(
     if (hostname := patch_dict.pop("hostname", None)) is not None:
         service_data["hostname"] = hostname
 
-    service_data["data"].update(patch_dict)
-
+    # Old-style config (deprecated)
     if (patch_config := patch_dict.pop("config", None)) is not None:
-        # Old-style config (deprecated)
         service_data["data"].update(patch_config)
+
+    # at this point patch_dict should only contain config fields
+    # and this is the new style config that should take precedence
+    service_data["data"].update(patch_dict)
 
     await Postgres.execute(
         *SQLTool.update(
