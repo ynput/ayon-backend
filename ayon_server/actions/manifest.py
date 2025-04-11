@@ -24,20 +24,28 @@ class BaseActionManifest(OPModel):
     identifier: str = Field(
         ...,
         description="The identifier of the action",
-        example="maya.launch",
+        example="application.launch.adsk_3dsmax/2024",
     )
 
     label: str = Field(
         ...,
         title="Label",
         description="Human-friendly name of the action",
-        example="Launch Maya",
+        example="3ds Max 2024",
     )
+
+    group_label: str | None = Field(
+        None,
+        title="Group Label",
+        description="The label of the group the action belongs to",
+        example="3ds Max",
+    )
+
     category: str = Field(
         "General",
         title="Category",
         description="Action category",
-        example="Launch",
+        example="Applications",
     )
     order: int = Field(
         100,
@@ -61,13 +69,14 @@ class BaseActionManifest(OPModel):
         None,
         title="Addon Name",
         description="The name of the addon providing the action",
-        example="maya",
+        example="applications",
     )
+
     addon_version: str | None = Field(
         None,
         title="Addon Version",
         description="The version of the addon providing the action",
-        example="1.5.6",
+        example="1.2.3",
     )
 
     variant: str | None = Field(
