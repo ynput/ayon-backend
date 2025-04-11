@@ -4,108 +4,172 @@ The metadata includes the label, position, order, icon, addon name, and addon ve
 This is all the information needed to display the action in the frontend.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from ayon_server.types import Field, OPModel
 
+IconType = Literal["material-symbols", "url"]
+
 
 class IconModel(OPModel):
-    type: Literal["material-symbols", "url"] = Field("url")
-    name: str | None = Field(
-        None, description="The name of the icon (for material-symbols)"
-    )
-    color: str | None = Field(
-        None, description="The color of the icon (for material-symbols)"
-    )
-    url: str | None = Field(None, description="The URL of the icon (for url)")
+    type: Annotated[
+        IconType,
+        Field(
+            title="Icon Type",
+            example="material-symbols",
+        ),
+    ] = "url"
+
+    name: Annotated[
+        str | None,
+        Field(
+            title="Icon Name",
+            description="The name of the icon (for type material-symbols)",
+            example="icon_of_sin",
+        ),
+    ] = None
+
+    color: Annotated[
+        str | None,
+        Field(
+            title="Icon Color",
+            description="The color of the icon (for type material-symbols)",
+            example="#FF0000",
+        ),
+    ] = None
+
+    url: Annotated[
+        str | None,
+        Field(
+            description="The URL of the icon (for type url)",
+            example="https://example.com/icon.png",
+        ),
+    ] = None
 
 
 class BaseActionManifest(OPModel):
-    identifier: str = Field(
-        ...,
-        description="The identifier of the action",
-        example="application.launch.adsk_3dsmax/2024",
-    )
+    identifier: Annotated[
+        str,
+        Field(
+            title="Identifier",
+            description="The identifier of the action",
+            example="application.launch.adsk_3dsmax/2024",
+        ),
+    ]
 
-    label: str = Field(
-        ...,
-        title="Label",
-        description="Human-friendly name of the action",
-        example="3ds Max 2024",
-    )
+    label: Annotated[
+        str,
+        Field(
+            title="Label",
+            description="Human-friendly name of the action",
+            example="3ds Max 2024",
+        ),
+    ]
 
-    group_label: str | None = Field(
-        None,
-        title="Group Label",
-        description="The label of the group the action belongs to",
-        example="3ds Max",
-    )
+    group_label: Annotated[
+        str | None,
+        Field(
+            title="Group Label",
+            description="The label of the group the action belongs to",
+            example="3ds Max",
+        ),
+    ] = None
 
-    category: str = Field(
-        "General",
-        title="Category",
-        description="Action category",
-        example="Applications",
-    )
-    order: int = Field(
-        100,
-        title="Order",
-        description="The order of the action",
-        example=100,
-    )
-    icon: IconModel | None = Field(
-        None,
-        description="Path to the action icon",
-        example={"type": "material-symbols", "name": "launch"},
-    )
+    category: Annotated[
+        str,
+        Field(
+            title="Category",
+            description="Action category",
+            example="Applications",
+        ),
+    ] = "General"
+
+    order: Annotated[
+        int,
+        Field(
+            title="Order",
+            description="The order of the action",
+            example=100,
+        ),
+    ] = 100
+
+    icon: Annotated[
+        IconModel | None,
+        Field(
+            title="Icon",
+            description="An icon for the action",
+            example={"type": "material-symbols", "name": "launch"},
+        ),
+    ] = None
 
     # auto-populated by endpoints based on user preferences
 
-    featured: bool = Field(False)
+    featured: Annotated[
+        bool,
+        Field(
+            title="Featured action",
+            description="Sort icon to the top",
+        ),
+    ] = False
 
     # Addon name and addon version are auto-populated by the server
 
-    addon_name: str | None = Field(
-        None,
-        title="Addon Name",
-        description="The name of the addon providing the action",
-        example="applications",
-    )
+    addon_name: Annotated[
+        str | None,
+        Field(
+            title="Addon Name",
+            description="The name of the addon providing the action",
+            example="applications",
+        ),
+    ] = None
 
-    addon_version: str | None = Field(
-        None,
-        title="Addon Version",
-        description="The version of the addon providing the action",
-        example="1.2.3",
-    )
+    addon_version: Annotated[
+        str | None,
+        Field(
+            title="Addon Version",
+            description="The version of the addon providing the action",
+            example="1.2.3",
+        ),
+    ] = None
 
-    variant: str | None = Field(
-        None,
-        description="The settings variant of the addon",
-        example="production",
-    )
+    variant: Annotated[
+        str | None,
+        Field(
+            title="Variant",
+            description="The settings variant of the addon",
+            example="production",
+        ),
+    ] = None
 
 
 class SimpleActionManifest(BaseActionManifest):
     _action_type = "simple"
 
-    entity_type: str | None = Field(
-        None,
-        title="Entity Type",
-        description="The type of the entity",
-        example="folder",
-    )
-    entity_subtypes: list[str] | None = Field(
-        default_factory=list,
-        title="Entity Subtypes",
-        description="The subtype of the entity (folder type, task type)",
-        example=["asset"],
-    )
-    allow_multiselection: bool = Field(
-        False,
-        title="Allow Multiselection",
-        description="Allow multiple entities to be selected",
-    )
+    entity_type: Annotated[
+        str | None,
+        Field(
+            title="Entity Type",
+            description="The type of the entity",
+            example="folder",
+        ),
+    ] = None
+
+    entity_subtypes: Annotated[
+        list[str] | None,
+        Field(
+            title="Entity Subtypes",
+            description="The subtype of the entity (folder type, task type)",
+            example=["asset"],
+        ),
+    ] = None
+
+    allow_multiselection: Annotated[
+        bool,
+        Field(
+            title="Allow Multiselection",
+            description="Allow multiple entities to be selected",
+        ),
+    ] = False
 
 
 class DynamicActionManifest(BaseActionManifest):
