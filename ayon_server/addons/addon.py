@@ -1,5 +1,7 @@
 import os
 
+from ayon_server.entities.user import UserEntity
+
 try:
     import toml
 except ModuleNotFoundError:
@@ -8,6 +10,7 @@ except ModuleNotFoundError:
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
+from ayon_server.actions.config import get_action_config, set_action_config
 from ayon_server.actions.context import ActionContext
 from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
 from ayon_server.actions.manifest import (
@@ -21,6 +24,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback, logger
 from ayon_server.settings import BaseSettingsModel, apply_overrides
 from ayon_server.settings.common import migrate_settings_overrides
+from ayon_server.utils import hash_data
 
 if TYPE_CHECKING:
     from fastapi import APIRouter
@@ -678,4 +682,71 @@ class BaseServerAddon:
         executor: ActionExecutor,
     ) -> ExecuteResponseModel:
         """Execute an action provided by the addon"""
-        raise ValueError(f"Unknown action: {executor.identifier}")
+        raise BadRequestException(f"Unknown action: {executor.identifier}")
+
+    async def create_config_hash(
+        self,
+        identifier: str,
+        context: ActionContext,
+        user: UserEntity,
+        variant: str,
+    ) -> str:
+        """Create a hash for action config store"""
+        return hash_data(
+            [
+                user.name,
+                identifier,
+                context.project_name,
+            ]
+        )
+
+    async def set_action_config(
+        self,
+        identifier: str,
+        context: ActionContext,
+        user: UserEntity,
+        variant: str,
+        config: dict[str, Any],
+    ) -> None:
+        """Set action config provided by the addon"""
+        hash = await self.create_config_hash(
+            identifier,
+            context,
+            user,
+            variant,
+        )
+
+        # Keep in mind that even though, contextual
+        # kwargs here are optional, you should always
+        # provide them. Otherwise you won't be able
+        # to clean up the config later.
+        #
+        # Well... you could always TRUNCATE TABLE, but...
+
+        await set_action_config(
+            hash,
+            config,
+            addon_name=self.name,
+            addon_version=self.version,
+            identifier=identifier,
+            project_name=context.project_name,
+            user_name=user.name,
+        )
+
+    async def get_action_config(
+        self,
+        identifier: str,
+        context: ActionContext,
+        user: UserEntity,
+        variant: str,
+    ) -> dict[str, Any]:
+        """Get action config provided by the addon"""
+
+        hash = await self.create_config_hash(
+            identifier,
+            context,
+            user,
+            variant,
+        )
+
+        return await get_action_config(hash)

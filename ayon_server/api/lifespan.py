@@ -215,6 +215,7 @@ async def lifespan(app: "FastAPI"):
 
         asyncio.create_task(clear_server_restart_required())
         logger.info("Server is now ready to connect")
+        logger.trace(f"{len(app.routes)} routes registered")
 
     yield
 
