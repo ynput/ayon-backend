@@ -299,7 +299,6 @@ class ProjectLevelEntity(BaseEntity):
         return await get_default_status_for_entity(
             self.project_name,
             self.entity_type,
-            self.entity_subtype,
         )
 
     #
