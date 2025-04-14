@@ -65,6 +65,15 @@ class ActionContext(OPModel):
         ),
     ] = None
 
+    form_data: Annotated[
+        dict[str, Any] | None,
+        Field(
+            title="Form Data",
+            description="The data from the form",
+            example={"key": "value"},
+        ),
+    ] = None
+
     #
     # Sanity checks
     #

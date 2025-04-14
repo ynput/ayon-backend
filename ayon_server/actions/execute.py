@@ -4,6 +4,7 @@ from typing import Any, Literal
 from ayon_server.actions.context import ActionContext
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
+from ayon_server.forms import SimpleForm
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_hash
 
@@ -102,6 +103,12 @@ class ActionExecutor:
         self,
         success: bool = True,
         message: str | None = None,
+        *,
+        query_params: dict[str, Any] | None = None,
+        navigate: str | None = None,
+        download: str | None = None,
+        copy: str | None = None,
+        form: SimpleForm | None = None,
         **kwargs: Any,
     ) -> ExecuteResponseModel:
         """Return a response for a server actions
@@ -114,11 +121,23 @@ class ActionExecutor:
         if message is None:
             message = f"Action {self.identifier} executed successfully"
 
+        payload = {**kwargs}
+        if query_params:
+            payload["__queryParams"] = query_params
+        if navigate:
+            payload["__navigate"] = navigate
+        if download:
+            payload["__download"] = download
+        if copy:
+            payload["__copy"] = copy
+        if form:
+            payload["__form"] = list(form)
+
         return ExecuteResponseModel(
             success=success,
             type="server",
             message=message,
-            payload=kwargs,
+            payload=payload,
         )
 
     async def get_action_config(self) -> dict[str, Any]:
