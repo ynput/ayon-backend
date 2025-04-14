@@ -158,8 +158,8 @@ class SimpleActionCache:
     async def get(
         cls,
         addon: BaseServerAddon,
-        project_name: str,
-        variant: str,
+        project_name: str | None = None,
+        variant: str = "production",
     ) -> list[SimpleActionManifest]:
         """Get a list of simple actions for a given context.
 
@@ -180,7 +180,7 @@ class SimpleActionCache:
             cls.hooks_installed = True
 
         # The cache key
-        cache_key = f"{addon.name}|{addon.version}|{project_name}|{variant}"
+        cache_key = f"{addon.name}|{addon.version}|{project_name or ''}|{variant}"
 
         cached_data = await Redis.get(cls.ns, cache_key)
         if cached_data is None:
