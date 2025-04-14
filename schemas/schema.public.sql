@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS action_config(
   addon_version VARCHAR,
   project_name VARCHAR REFERENCES public.projects(name) ON DELETE CASCADE ON UPDATE CASCADE,
   user_name VARCHAR REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
-  last_used BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()),
+  last_used BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
 );
 
 CREATE INDEX IF NOT EXISTS idx_action_config_addon_name ON action_config (addon_name);

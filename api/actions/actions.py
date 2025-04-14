@@ -86,7 +86,7 @@ async def list_all_actions(user: CurrentUser) -> list[BaseActionManifest]:
     return actions
 
 
-@router.post("/configure")
+@router.post("/config")
 async def configure_action(
     user: CurrentUser,
     config: ActionConfig,

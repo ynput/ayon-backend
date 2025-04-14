@@ -120,3 +120,23 @@ class ActionExecutor:
             message=message,
             payload=kwargs,
         )
+
+    async def get_action_config(self) -> dict[str, Any]:
+        """Get action config for the given hash.
+
+        This is used to get the action config from the database
+        and return it to the user.
+        """
+        from ayon_server.addons.library import AddonLibrary
+
+        addon = AddonLibrary.addon(
+            self.addon_name,
+            self.addon_version,
+        )
+
+        return await addon.get_action_config(
+            identifier=self.identifier,
+            context=self.context,
+            user=self.user,
+            variant=self.variant,
+        )

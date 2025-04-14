@@ -692,13 +692,13 @@ class BaseServerAddon:
         variant: str,
     ) -> str:
         """Create a hash for action config store"""
-        return hash_data(
-            [
-                user.name,
-                identifier,
-                context.project_name,
-            ]
-        )
+        hash_content = [
+            user.name,
+            identifier,
+            context.project_name,
+        ]
+        logger.trace(f"Creating config hash from {hash_content}")
+        return hash_data(hash_content)
 
     async def set_action_config(
         self,

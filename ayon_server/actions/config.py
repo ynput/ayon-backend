@@ -53,6 +53,7 @@ async def get_action_config(hash: str) -> dict[str, Any]:
             "SELECT data, last_used FROM action_config WHERE hash = $1", hash
         )
         res = res or {"last_used": now, "data": {}}
+        res = dict(res)
         if res["last_used"] < now - BUMP_TTL:
             await Postgres.execute(
                 "UPDATE action_config SET last_used = $1 WHERE hash = $2", now, hash
@@ -110,3 +111,4 @@ async def set_action_config(
         user_name,
         now,
     )
+    await Redis.delete("action-config", hash)

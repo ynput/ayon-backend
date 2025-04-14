@@ -4,7 +4,7 @@ The metadata includes the label, position, order, icon, addon name, and addon ve
 This is all the information needed to display the action in the frontend.
 """
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from ayon_server.types import Field, OPModel
 
@@ -101,6 +101,8 @@ class BaseActionManifest(OPModel):
             example={"type": "material-symbols", "name": "launch"},
         ),
     ] = None
+
+    config_fields: list[dict[str, Any]] | None = None
 
     # auto-populated by endpoints based on user preferences
 
