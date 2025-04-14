@@ -9,7 +9,7 @@ class SimpleFormField(TypedDict):
     name: str
     label: NotRequired[str]
     placeholder: NotRequired[Any]
-    default: NotRequired[str]
+    value: NotRequired[str]
     regex: NotRequired[str]
     required: NotRequired[bool]
     multiline: NotRequired[bool]
@@ -42,7 +42,7 @@ class SimpleForm(list[SimpleFormField]):
         self,
         name: str,
         label: str | None = None,
-        default: str | None = None,
+        value: str | None = None,
         *,
         placeholder: str | None = None,
         regex: str | None = None,
@@ -54,7 +54,7 @@ class SimpleForm(list[SimpleFormField]):
             name=name,
             label=label,
             placeholder=placeholder,
-            default=default,
+            value=value,
             regex=regex,
             required=required,
             multiline=multiline,
@@ -64,13 +64,39 @@ class SimpleForm(list[SimpleFormField]):
         self,
         name: str,
         label: str | None = None,
-        default: bool = False,
+        value: bool = False,
     ) -> "SimpleForm":
         return self.add_field(
             type="checkbox",
             name=name,
             label=label,
-            default=default,
+            value=value,
+        )
+
+    def select(
+        self,
+        name: str,
+        label: str | None = None,
+        value: str | None = None,
+        options: list[str] | None = None,
+    ) -> "SimpleForm":
+        return self.add_field(
+            type="select",
+            name=name,
+            label=label,
+            value=value,
+            options=options,
+        )
+
+    def hidden(
+        self,
+        name: str,
+        value: str | None = None,
+    ) -> "SimpleForm":
+        return self.add_field(
+            type="hidden",
+            name=name,
+            value=value,
         )
 
     # TODO: other field types
