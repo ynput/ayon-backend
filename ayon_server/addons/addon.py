@@ -709,7 +709,7 @@ class BaseServerAddon:
         config: dict[str, Any],
     ) -> None:
         """Set action config provided by the addon"""
-        hash = await self.create_config_hash(
+        config_hash = await self.create_config_hash(
             identifier,
             context,
             user,
