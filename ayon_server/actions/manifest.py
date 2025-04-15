@@ -6,6 +6,8 @@ This is all the information needed to display the action in the frontend.
 
 from typing import Annotated, Any, Literal
 
+from pydantic import validator
+
 from ayon_server.types import Field, OPModel
 
 IconType = Literal["material-symbols", "url"]
@@ -103,6 +105,10 @@ class BaseActionManifest(OPModel):
     ] = None
 
     config_fields: list[dict[str, Any]] | None = None
+
+    @validator("config_fields", pre=True)
+    def validate_config_fields(cls, v: Any) -> list[dict[str, Any]] | None:
+        return list(v) if isinstance(v, list) else None
 
     # auto-populated by endpoints based on user preferences
 
