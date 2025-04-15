@@ -250,6 +250,7 @@ CREATE TABLE products(
 
     folder_id UUID NOT NULL REFERENCES folders(id),
     product_type VARCHAR NOT NULL REFERENCES public.product_types(name) ON UPDATE CASCADE,
+    product_base_type VARCHAR NULL REFERENCES public.product_base_types(name) ON UPDATE CASCADE ON DELETE SET NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -263,6 +264,7 @@ CREATE TABLE products(
 
 CREATE INDEX product_parent_idx ON products(folder_id);
 CREATE INDEX product_type_idx ON products(product_type);
+CREATE INDEX product_base_type_idx ON products(product_base_type);
 CREATE UNIQUE INDEX product_creation_order_idx ON products(creation_order);
 CREATE UNIQUE INDEX product_unique_name_parent ON products (folder_id, name) WHERE (active IS TRUE);
 

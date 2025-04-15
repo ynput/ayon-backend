@@ -58,6 +58,17 @@ CREATE TABLE IF NOT EXISTS public.product_types(
 );
 
 
+CREATE TABLE IF NOT EXISTS public.product_base_types(
+  name VARCHAR NOT NULL PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+CREATE TABLE IF NOT EXISTS public.product_type_mappings(
+  product_type VARCHAR NOT NULL REFERENCES public.product_types(name),
+  product_base_type VARCHAR NOT NULL REFERENCES public.product_base_types(name),
+  PRIMARY KEY (product_type, product_base_type)
+);
+
 ------------
 -- Events --
 ------------
