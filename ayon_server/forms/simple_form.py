@@ -184,3 +184,57 @@ class SimpleForm(list[SimpleFormField]):
             name=name,
             value=value,
         )
+
+    def integer(
+        self,
+        name: str,
+        label: str | None = None,
+        value: int | None = None,
+        *,
+        placeholder: str | None = None,
+        min: int | None = None,
+        max: int | None = None,
+    ) -> "SimpleForm":
+        """Add an integer input field to the form.
+
+        The integer input field is used to get an integer value from the user.
+        It can be used to get a single line of text or a multiline text.
+
+        The `placeholder` parameter can be used to display a hint to the user.
+        """
+        return self.add_field(
+            type="integer",
+            name=name,
+            label=label,
+            placeholder=placeholder,
+            value=value,
+            min=min,
+            max=max,
+        )
+
+    def float(
+        self,
+        name: str,
+        label: str | None = None,
+        value: float | None = None,
+        *,
+        placeholder: str | None = None,
+        min: float | None = None,
+        max: float | None = None,
+    ) -> "SimpleForm":
+        """Add a float input field to the form.
+
+        The float input field is used to get a float value from the user.
+        It can be used to get a single line of text or a multiline text.
+
+        The `placeholder` parameter can be used to display a hint to the user.
+        """
+        return self.add_field(
+            type="float",
+            name=name,
+            label=label,
+            placeholder=placeholder,
+            value=value,
+            min=min,
+            max=max,
+        )
