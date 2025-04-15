@@ -107,18 +107,15 @@ class SimpleForm(list[SimpleFormField]):
             syntax=syntax,
         )
 
-    def checkbox(
+    def boolean(
         self,
         name: str,
         label: str | None = None,
         value: bool = False,
     ) -> "SimpleForm":
-        """Add a checkbox field to the form.
-
-        The checkbox field is used to get a boolean value from the user.
-        """
+        """Add a checkbox or switch field to the form."""
         return self.add_field(
-            type="checkbox",
+            type="boolean",
             name=name,
             label=label,
             value=value,
