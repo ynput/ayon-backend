@@ -104,6 +104,7 @@ class SimpleForm(list[SimpleFormField]):
             value=value,
             regex=regex,
             multiline=multiline,
+            syntax=syntax,
         )
 
     def checkbox(

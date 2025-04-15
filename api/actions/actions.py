@@ -122,7 +122,7 @@ async def execute_action(
     request: Request,
     user: CurrentUser,
     context: ActionContext,
-    adddon_name: str = Query(..., title="Addon Name", alias="addonName"),
+    addon_name: str = Query(..., title="Addon Name", alias="addonName"),
     addon_version: str = Query(..., title="Addon Version", alias="addonVersion"),
     variant: str = Query("production", title="Action Variant"),
     identifier: str = Query(..., title="Action Identifier"),
@@ -156,7 +156,7 @@ async def execute_action(
     # Get the addon
 
     # if the addon is not installed, addonlibrary raises 404
-    addon = AddonLibrary.addon(adddon_name, addon_version)
+    addon = AddonLibrary.addon(addon_name, addon_version)
 
     # Create an action executor and run the action
 
@@ -164,7 +164,7 @@ async def execute_action(
     executor.user = user
     executor.access_token = access_token
     executor.server_url = server_url
-    executor.addon_name = adddon_name
+    executor.addon_name = addon_name
     executor.addon_version = addon_version
     executor.variant = variant
     executor.identifier = identifier
