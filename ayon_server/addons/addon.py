@@ -684,7 +684,7 @@ class BaseServerAddon:
         """Execute an action provided by the addon"""
         raise BadRequestException(f"Unknown action: {executor.identifier}")
 
-    async def create_config_hash(
+    async def create_action_config_hash(
         self,
         identifier: str,
         context: ActionContext,
@@ -709,7 +709,7 @@ class BaseServerAddon:
         config: dict[str, Any],
     ) -> None:
         """Set action config provided by the addon"""
-        config_hash = await self.create_config_hash(
+        config_hash = await self.create_action_config_hash(
             identifier,
             context,
             user,
@@ -724,7 +724,7 @@ class BaseServerAddon:
         # Well... you could always TRUNCATE TABLE, but...
 
         await set_action_config(
-            hash,
+            config_hash,
             config,
             addon_name=self.name,
             addon_version=self.version,
@@ -742,11 +742,11 @@ class BaseServerAddon:
     ) -> dict[str, Any]:
         """Get action config provided by the addon"""
 
-        hash = await self.create_config_hash(
+        config_hash = await self.create_action_config_hash(
             identifier,
             context,
             user,
             variant,
         )
 
-        return await get_action_config(hash)
+        return await get_action_config(config_hash)
