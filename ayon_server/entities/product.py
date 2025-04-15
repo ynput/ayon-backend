@@ -66,3 +66,11 @@ class ProductEntity(ProjectLevelEntity):
     @product_type.setter
     def product_type(self, value: str):
         self._payload.product_type = value  # type: ignore
+
+    @property
+    def product_base_type(self) -> str:
+        return self._payload.product_base_type  # type: ignore
+
+    @product_base_type.setter
+    def product_base_type(self, value: str):
+        self._payload.product_base_type = value  # type: ignore

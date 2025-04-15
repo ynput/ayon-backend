@@ -43,6 +43,7 @@ class ProductAttribType:
 class ProductNode(BaseNode):
     folder_id: str
     product_type: str
+    product_base_type: str | None
     status: str
     tags: list[str]
     attrib: ProductAttribType
@@ -135,6 +136,7 @@ def product_from_record(
         name=record["name"],
         folder_id=record["folder_id"],
         product_type=record["product_type"],
+        product_base_type=record.get("product_base_type"),
         status=record["status"],
         tags=record["tags"],
         attrib=ProductAttribType(**attrib),
