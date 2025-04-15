@@ -8,6 +8,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import validator
 
+from ayon_server.forms.simple_form import SimpleFormField
 from ayon_server.types import Field, OPModel
 
 IconType = Literal["material-symbols", "url"]
@@ -104,7 +105,17 @@ class BaseActionManifest(OPModel):
         ),
     ] = None
 
-    config_fields: list[dict[str, Any]] | None = None
+    config_fields: Annotated[
+        list[SimpleFormField] | None,
+        Field(
+            title="Config Fields",
+            description="List of fields to be displayed in the action settings",
+            example=[
+                {"type": "text", "name": "host", "label": "Host"},
+                {"type": "text", "name": "port", "label": "Port"},
+            ],
+        ),
+    ]
 
     @validator("config_fields", pre=True)
     def validate_config_fields(cls, v: Any) -> list[dict[str, Any]] | None:

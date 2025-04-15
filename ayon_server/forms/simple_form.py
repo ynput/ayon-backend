@@ -1,19 +1,21 @@
 from typing import Any, Literal, NotRequired, TypedDict
 
-SimpleFormFieldType = Literal["text", "checkbox", "label"]
-SimpleFormHighlightType = Literal["info", "warning", "error"]
+SimpleFormFieldType = Literal[
+    "text",
+    "boolean",
+    "select",
+    "multiselect",
+    "hidden",
+    "integer",
+    "float",
+    "label",
+]
 
-
-class SimpleFormField(TypedDict):
-    type: SimpleFormFieldType
-    name: str
-    label: NotRequired[str]
-    placeholder: NotRequired[Any]
-    value: NotRequired[str]
-    regex: NotRequired[str]
-    required: NotRequired[bool]
-    multiline: NotRequired[bool]
-    highlight: NotRequired[SimpleFormHighlightType]
+SimpleFormHighlightType = Literal[
+    "info",
+    "warning",
+    "error",
+]
 
 
 class FormSelectOption(TypedDict):
@@ -21,6 +23,21 @@ class FormSelectOption(TypedDict):
     label: str
     icon: NotRequired[str]
     color: NotRequired[str]
+
+
+class SimpleFormField(TypedDict):
+    type: SimpleFormFieldType
+    name: str
+    label: NotRequired[str]
+    placeholder: NotRequired[Any]
+    value: NotRequired[str | int | float | bool | list[str]]
+    regex: NotRequired[str]
+    multiline: NotRequired[bool]
+    syntax: NotRequired[str]
+    options: NotRequired[list[FormSelectOption]]
+    highlight: NotRequired[SimpleFormHighlightType]
+    min: NotRequired[int | float]
+    max: NotRequired[int | float]
 
 
 def normalize_options(
@@ -52,11 +69,6 @@ class SimpleForm(list[SimpleFormField]):
     def __init__(self):
         super().__init__()
 
-    def add_field(self, **kwargs) -> "SimpleForm":
-        """Add a field to the form."""
-        self.append({k: v for k, v in kwargs.items() if v is not None})  # type: ignore
-        return self
-
     def label(
         self,
         text: str,
@@ -68,12 +80,15 @@ class SimpleForm(list[SimpleFormField]):
         Label is non-interactive and is used to display information to the user.
         It can be used to group fields or to display information about the form.
         """
-        return self.add_field(
-            type="label",
-            name=f"label-{len(self)}",
-            text=text,
-            highlight=highlight,
-        )
+        field: SimpleFormField = {
+            "type": "label",
+            "name": f"label-{len(self)}",
+            "value": text,
+        }
+        if highlight:
+            field["highlight"] = highlight
+        self.append(field)
+        return self
 
     def text_input(
         self,
@@ -96,16 +111,21 @@ class SimpleForm(list[SimpleFormField]):
         The `syntax` parameter can be used to highlight the input.
         Syntax highlighting is available only for multiline text inputs.
         """
-        return self.add_field(
-            type="text",
-            name=name,
-            label=label,
-            placeholder=placeholder,
-            value=value,
-            regex=regex,
-            multiline=multiline,
-            syntax=syntax,
-        )
+        field: SimpleFormField = {"type": "text", "name": name}
+        if label is not None:
+            field["label"] = label
+        if placeholder is not None:
+            field["placeholder"] = placeholder
+        if value is not None:
+            field["value"] = value
+        if regex is not None:
+            field["regex"] = regex
+        if multiline:
+            field["multiline"] = multiline
+        if syntax is not None:
+            field["syntax"] = syntax
+        self.append(field)
+        return self
 
     def boolean(
         self,
@@ -114,12 +134,15 @@ class SimpleForm(list[SimpleFormField]):
         value: bool = False,
     ) -> "SimpleForm":
         """Add a checkbox or switch field to the form."""
-        return self.add_field(
-            type="boolean",
-            name=name,
-            label=label,
-            value=value,
-        )
+        field: SimpleFormField = {
+            "type": "boolean",
+            "name": name,
+            "value": value,
+        }
+        if label is not None:
+            field["label"] = label
+        self.append(field)
+        return self
 
     def select(
         self,
@@ -134,13 +157,17 @@ class SimpleForm(list[SimpleFormField]):
         Option must be provided either as a list of strings or as a
         list of {"value": "value", "label": "label"} dictionaries.
         """
-        return self.add_field(
-            type="select",
-            name=name,
-            label=label,
-            value=value,
-            options=normalize_options(options),
-        )
+        field: SimpleFormField = {
+            "type": "select",
+            "name": name,
+            "options": normalize_options(options),
+        }
+        if label is not None:
+            field["label"] = label
+        if value is not None:
+            field["value"] = value
+        self.append(field)
+        return self
 
     def multiselect(
         self,
@@ -157,13 +184,17 @@ class SimpleForm(list[SimpleFormField]):
 
         Value must be provided as a list of strings.
         """
-        return self.add_field(
-            type="multiselect",
-            name=name,
-            label=label,
-            value=value,
-            options=normalize_options(options),
-        )
+        field: SimpleFormField = {
+            "type": "multiselect",
+            "name": name,
+            "options": normalize_options(options),
+        }
+        if label is not None:
+            field["label"] = label
+        if value is not None:
+            field["value"] = value
+        self.append(field)
+        return self
 
     def hidden(
         self,
@@ -176,11 +207,14 @@ class SimpleForm(list[SimpleFormField]):
         of the form. They are not displayed to the user and are not
         interactive.
         """
-        return self.add_field(
-            type="hidden",
-            name=name,
-            value=value,
-        )
+        field: SimpleFormField = {
+            "type": "hidden",
+            "name": name,
+        }
+        if value is not None:
+            field["value"] = value
+        self.append(field)
+        return self
 
     def integer(
         self,
@@ -199,15 +233,22 @@ class SimpleForm(list[SimpleFormField]):
 
         The `placeholder` parameter can be used to display a hint to the user.
         """
-        return self.add_field(
-            type="integer",
-            name=name,
-            label=label,
-            placeholder=placeholder,
-            value=value,
-            min=min,
-            max=max,
-        )
+        field: SimpleFormField = {
+            "type": "integer",
+            "name": name,
+        }
+        if label is not None:
+            field["label"] = label
+        if placeholder is not None:
+            field["placeholder"] = placeholder
+        if value is not None:
+            field["value"] = value
+        if min is not None:
+            field["min"] = min
+        if max is not None:
+            field["max"] = max
+        self.append(field)
+        return self
 
     def float(
         self,
@@ -226,12 +267,19 @@ class SimpleForm(list[SimpleFormField]):
 
         The `placeholder` parameter can be used to display a hint to the user.
         """
-        return self.add_field(
-            type="float",
-            name=name,
-            label=label,
-            placeholder=placeholder,
-            value=value,
-            min=min,
-            max=max,
-        )
+        field: SimpleFormField = {
+            "type": "float",
+            "name": name,
+        }
+        if label is not None:
+            field["label"] = label
+        if placeholder is not None:
+            field["placeholder"] = placeholder
+        if value is not None:
+            field["value"] = value
+        if min is not None:
+            field["min"] = min
+        if max is not None:
+            field["max"] = max
+        self.append(field)
+        return self
