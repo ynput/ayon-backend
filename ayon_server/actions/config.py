@@ -82,6 +82,7 @@ async def set_action_config(
 
     if not data:
         await Postgres.execute("DELETE FROM action_config WHERE hash = $1", hash)
+        await Redis.delete("action-config", hash)
         return
     now = int(time.time())
 
