@@ -90,7 +90,7 @@ class SimpleForm(list[SimpleFormField]):
         self.append(field)
         return self
 
-    def text_input(
+    def text(
         self,
         name: str,
         label: str | None = None,
