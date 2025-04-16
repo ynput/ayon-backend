@@ -1,8 +1,9 @@
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 from fastapi import Path, Query, Request
 
+from ayon_server.actions.config import ActionConfig
 from ayon_server.actions.context import ActionContext
 from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
 from ayon_server.actions.manifest import BaseActionManifest
@@ -85,12 +86,43 @@ async def list_all_actions(user: CurrentUser) -> list[BaseActionManifest]:
     return actions
 
 
+@router.post("/config")
+async def configure_action(
+    user: CurrentUser,
+    config: ActionConfig,
+    addon_name: str = Query(..., title="Addon Name", alias="addonName"),
+    addon_version: str = Query(..., title="Addon Version", alias="addonVersion"),
+    variant: str = Query("production", title="Action Variant"),
+    identifier: str = Query(..., title="Action Identifier"),
+) -> dict[str, Any]:
+    addon = AddonLibrary.addon(addon_name, addon_version)
+    config_dict = config.dict()
+    config_value = config_dict.pop("value", None)
+    context = ActionContext(**config_dict)
+    if config.value is not None:
+        await addon.set_action_config(
+            identifier=identifier,
+            context=context,
+            user=user,
+            variant=variant,
+            config=config_value,
+        )
+        return config_value
+
+    return await addon.get_action_config(
+        identifier=identifier,
+        context=context,
+        user=user,
+        variant=variant,
+    )
+
+
 @router.post("/execute")
 async def execute_action(
     request: Request,
     user: CurrentUser,
     context: ActionContext,
-    adddon_name: str = Query(..., title="Addon Name", alias="addonName"),
+    addon_name: str = Query(..., title="Addon Name", alias="addonName"),
     addon_version: str = Query(..., title="Addon Version", alias="addonVersion"),
     variant: str = Query("production", title="Action Variant"),
     identifier: str = Query(..., title="Action Identifier"),
@@ -123,9 +155,8 @@ async def execute_action(
 
     # Get the addon
 
-    addon = AddonLibrary.addon(adddon_name, addon_version)
-    if addon is None:
-        raise NotFoundException(f"Addon {adddon_name} {addon_version} not found")
+    # if the addon is not installed, addonlibrary raises 404
+    addon = AddonLibrary.addon(addon_name, addon_version)
 
     # Create an action executor and run the action
 
@@ -133,7 +164,7 @@ async def execute_action(
     executor.user = user
     executor.access_token = access_token
     executor.server_url = server_url
-    executor.addon_name = adddon_name
+    executor.addon_name = addon_name
     executor.addon_version = addon_version
     executor.variant = variant
     executor.identifier = identifier
