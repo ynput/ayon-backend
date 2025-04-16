@@ -697,7 +697,6 @@ class BaseServerAddon:
             identifier,
             context.project_name,
         ]
-        logger.trace(f"Creating config hash from {hash_content}")
         return hash_data(hash_content)
 
     async def set_action_config(
