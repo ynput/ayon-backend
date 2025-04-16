@@ -122,6 +122,8 @@ class CloudUtils:
             res = await Postgres.fetchrow(query)
             if not res:
                 ckey = "none"
+            else:
+                ckey = res["value"]
             await Redis.set("global", "ynput_cloud_key", ckey)
 
         if ckey == "none":
