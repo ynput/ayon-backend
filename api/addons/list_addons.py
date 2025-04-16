@@ -109,8 +109,6 @@ async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
         if not versions:
             continue
 
-        assert addon is not None, "Addon not found"
-
         result.append(
             AddonListItem(
                 name=definition.name,
@@ -118,9 +116,9 @@ async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
                 versions=versions,
                 description=definition.__doc__ or "",
                 production_version=vers.get("production"),
-                system=bool(addon.system),
+                system=bool(addon.system) if addon is not None else False,
                 staging_version=vers.get("staging"),
-                addon_type=addon.addon_type,
+                addon_type=addon.addon_type if addon is not None else "server",
                 project_can_override_addon_version=definition.project_can_override_addon_version,
             )
         )
