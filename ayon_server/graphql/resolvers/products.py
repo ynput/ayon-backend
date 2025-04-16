@@ -55,6 +55,9 @@ async def get_products(
     product_types: Annotated[
         list[str] | None, argdesc("List of product types to filter by")
     ] = None,
+    product_base_types: Annotated[
+        list[str] | None, argdesc("List of base types")
+    ] = None,
     statuses: Annotated[
         list[str] | None, argdesc("List of statuses to filter by")
     ] = None,
@@ -71,20 +74,22 @@ async def get_products(
     # SQL
     #
 
-    sql_columns = [
-        "products.id AS id",
-        "products.name AS name",
-        "products.folder_id AS folder_id",
-        "products.product_type AS product_type",
-        "products.attrib AS attrib",
-        "products.data AS data",
-        "products.status AS status",
-        "products.tags AS tags",
-        "products.active AS active",
-        "products.created_at AS created_at",
-        "products.updated_at AS updated_at",
-        "products.creation_order AS creation_order",
-    ]
+    sql_columns = ["products.*"]
+
+    # sql_columns = [
+    #     "products.id AS id",
+    #     "products.name AS name",
+    #     "products.folder_id AS folder_id",
+    #     "products.product_type AS product_type",
+    #     "products.attrib AS attrib",
+    #     "products.data AS data",
+    #     "products.status AS status",
+    #     "products.tags AS tags",
+    #     "products.active AS active",
+    #     "products.created_at AS created_at",
+    #     "products.updated_at AS updated_at",
+    #     "products.creation_order AS creation_order",
+    # ]
     sql_conditions = []
     sql_joins = []
 
@@ -120,6 +125,14 @@ async def get_products(
         validate_name_list(product_types)
         sql_conditions.append(
             f"products.product_type IN {SQLTool.array(product_types)}"
+        )
+
+    if product_base_types is not None:
+        if not product_base_types:
+            return ProductsConnection()
+        validate_name_list(product_base_types)
+        sql_conditions.append(
+            f"products.product_base_type IN {SQLTool.array(product_base_types)}"
         )
 
     if statuses is not None:
