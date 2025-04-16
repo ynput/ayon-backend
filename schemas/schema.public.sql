@@ -191,6 +191,23 @@ CREATE TABLE IF NOT EXISTS public.secrets(
   value VARCHAR NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS action_config(
+  hash VARCHAR NOT NULL PRIMARY KEY,
+  data JSONB,
+  identifier VARCHAR NOT NULL,
+  addon_name VARCHAR,
+  addon_version VARCHAR,
+  project_name VARCHAR REFERENCES public.projects(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  user_name VARCHAR REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  last_used BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())
+);
+
+CREATE INDEX IF NOT EXISTS idx_action_config_addon_name ON action_config (addon_name);
+CREATE INDEX IF NOT EXISTS idx_action_config_addon_version ON action_config (addon_version);
+CREATE INDEX IF NOT EXISTS idx_action_config_project_name ON action_config (project_name);
+CREATE INDEX IF NOT EXISTS idx_action_config_user_name ON action_config (user_name);
+CREATE INDEX IF NOT EXISTS idx_action_config_last_used ON action_config (last_used);
+
 
 --------------
 -- SERVICES --
