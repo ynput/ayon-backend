@@ -6,6 +6,7 @@ from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 
 
@@ -22,33 +23,41 @@ class YnputCloudInfoModel(OPModel):
             description="Ynput cloud instance ID",
         ),
     ]
+
+    connected: Annotated[
+        bool,
+        Field(
+            description="Is the instance connected to Ynput Cloud?",
+        ),
+    ] = False
+
     instance_name: Annotated[
-        str,
+        str | None,
         Field(
             description="Name of the instance",
             example="ayon-staging",
         ),
-    ]
+    ] = None
     org_id: Annotated[
-        str,
+        str | None,
         Field(
             description="Organization ID",
         ),
-    ]
+    ] = None
     org_name: Annotated[
-        str,
+        str | None,
         Field(
             description="Name of the organization",
             example="Ynput",
         ),
-    ]
+    ] = None
     org_title: Annotated[
-        str,
+        str | None,
         Field(
             description="Name of the organization",
             example="Ynput",
         ),
-    ]
+    ] = None
 
     collect_saturated_metrics: Annotated[
         bool,
@@ -75,7 +84,6 @@ class YnputCloudInfoModel(OPModel):
 
 class CloudUtils:
     instance_id: str | None = None
-    cloud_key: str | None = None
     licenses_synced_at: float | None = None
     admin_exists: bool = False
 
@@ -95,28 +103,33 @@ class CloudUtils:
         if cls.instance_id:
             return cls.instance_id
 
-        res = await Postgres.fetch("SELECT value FROM config WHERE key = 'instanceId'")
-        if not res:
-            raise AyonException("instance id not set. This shouldn't happen.")
-        cls.instance_id = res[0]["value"]
-        assert cls.instance_id is not None
-        return cls.instance_id
+        query = "SELECT value FROM config WHERE key = 'instanceId'"
+        res = await Postgres.fetchrow(query)
+        if not res or (instance_id := res["value"]) is None:
+            raise AyonException(
+                "Instance id not set. This shouldn't happen. "
+                "Your database may be corrupted, please run the setup."
+            )
+        cls.instance_id = instance_id
+        return instance_id
 
     @classmethod
     async def get_ynput_cloud_key(cls) -> str:
         """Get the Ynput Cloud key"""
 
-        if cls.cloud_key:
-            return cls.cloud_key
+        if not (ckey := await Redis.get("global", "ynput_cloud_key")):
+            query = "SELECT value FROM secrets WHERE name = 'ynput_cloud_key'"
+            res = await Postgres.fetchrow(query)
+            if not res:
+                ckey = "none"
+            else:
+                ckey = res["value"]
+            await Redis.set("global", "ynput_cloud_key", ckey)
 
-        query = "SELECT value FROM secrets WHERE name = 'ynput_cloud_key'"
-        res = await Postgres.fetch(query)
-        if not res:
-            raise ForbiddenException("Ayon is not connected to Ynput Cloud [ERR 1]")
+        if ckey == "none":
+            raise ForbiddenException("Ayon is not connected to Ynput Cloud [ERR 2]")
 
-        cls.cloud_key = res[0]["value"]
-        assert cls.cloud_key is not None
-        return cls.cloud_key
+        return ckey
 
     @classmethod
     async def get_api_headers(cls) -> dict[str, str]:
@@ -139,7 +152,7 @@ class CloudUtils:
             key,
         )
         await cls.clear_cloud_info_cache()
-        cls.cloud_key = key
+        await Redis.set("global", "ynput_cloud_key", key)
 
     @classmethod
     async def remove_ynput_cloud_key(cls) -> None:
@@ -147,7 +160,7 @@ class CloudUtils:
         query = "DELETE FROM secrets WHERE name = 'ynput_cloud_key'"
         await Postgres.execute(query)
         await cls.clear_cloud_info_cache()
-        cls.cloud_key = None
+        await Redis.delete("global", "ynput_cloud_key")
 
     @classmethod
     async def get_licenses(cls, refresh: bool = False) -> list[dict[str, Any]]:
@@ -169,11 +182,11 @@ class CloudUtils:
     @classmethod
     async def get_cloud_info(cls, force: bool = False) -> YnputCloudInfoModel:
         """Get the instance id."""
+        instance_id = await cls.get_instance_id()
         try:
-            instance_id = await cls.get_instance_id()
             ynput_cloud_key = await cls.get_ynput_cloud_key()
         except Exception:
-            raise ForbiddenException("Not connected to ynput cloud")
+            return YnputCloudInfoModel(instance_id=instance_id, subscriptions=[])
         data = await Redis.get_json("global", "cloudinfo")
         if not data:
             return await cls.request_cloud_info(instance_id, ynput_cloud_key)
@@ -189,21 +202,27 @@ class CloudUtils:
             "x-ynput-cloud-instance": instance_id,
             "x-ynput-cloud-key": instance_key,
         }
-        async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
-            res = await client.get(
-                f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
-                headers=headers,
-            )
-            if res.status_code in [401, 403]:
-                await cls.remove_ynput_cloud_key()
-                raise ForbiddenException("Invalid Ynput connect key")
-
-            if res.status_code >= 400:
-                raise ForbiddenException(
-                    f"Unable to connect to Ynput Cloud. Server error {res.status_code}"
+        try:
+            async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+                res = await client.get(
+                    f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
+                    headers=headers,
                 )
-            data = res.json()
-            await Redis.set_json("global", "cloudinfo", data)
+                if res.status_code in [401, 403]:
+                    await cls.remove_ynput_cloud_key()
+                    raise ForbiddenException("Unable to connect to Ynput Cloud [ERR 0]")
+
+                if res.status_code >= 400:
+                    raise ForbiddenException(
+                        f"Unable to connect to Ynput Cloud [ERR {res.status_code}]"
+                    )
+                data = res.json()
+                data["connected"] = True
+        except Exception as e:
+            logger.warning(f"Unable to connect to Ynput Cloud. Error: {e}")
+            data = {"instance_id": instance_id, "connected": False}
+
+        await Redis.set_json("global", "cloudinfo", data)
         return YnputCloudInfoModel(**data)
 
 
