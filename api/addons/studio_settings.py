@@ -113,6 +113,7 @@ async def set_addon_studio_settings(
         addon_version,
         data,
         variant=variant,
+        user_name=user.name,
     )
 
     return EmptyResponse()
@@ -152,6 +153,7 @@ async def delete_addon_studio_overrides(
         addon_version,
         None,
         variant=variant,
+        user_name=user.name,
     )
     return EmptyResponse()
 
@@ -168,9 +170,21 @@ async def modify_studio_overrides(
         raise ForbiddenException
 
     if payload.action == "delete":
-        await remove_override(addon_name, addon_version, payload.path, variant=variant)
+        await remove_override(
+            addon_name,
+            addon_version,
+            payload.path,
+            variant=variant,
+            user_name=user.name,
+        )
     elif payload.action == "pin":
-        await pin_override(addon_name, addon_version, payload.path, variant=variant)
+        await pin_override(
+            addon_name,
+            addon_version,
+            payload.path,
+            variant=variant,
+            user_name=user.name,
+        )
 
     return EmptyResponse()
 

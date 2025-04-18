@@ -129,9 +129,10 @@ async def get_all_settings(
             try:
                 addon = AddonLibrary.addon(addon_name, addon_version)
             except NotFoundException:
+                bundle_title = bundle_name or f"{variant} bundle"
                 logger.warning(
                     f"Addon {addon_name} {addon_version} "
-                    f"declared in {bundle_name} not found"
+                    f"declared in {bundle_title} not found"
                 )
 
                 broken_reason = AddonLibrary.is_broken(addon_name, addon_version)
