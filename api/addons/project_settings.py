@@ -214,6 +214,7 @@ async def set_addon_project_settings(
             addon_name=addon_name,
             addon_version=version,
             project_name=project_name,
+            user_name=user.name,
             variant=variant,
             data=data,
         )
@@ -277,6 +278,7 @@ async def delete_addon_project_overrides(
             addon_name=addon_name,
             addon_version=version,
             project_name=project_name,
+            user_name=user.name,
             variant=variant,
             data=None,
         )
@@ -351,6 +353,7 @@ async def modify_project_overrides(
             payload.path,
             project_name=project_name,
             variant=variant,
+            user_name=user.name,
         )
     elif payload.action == "pin":
         await pin_override(
@@ -359,6 +362,7 @@ async def modify_project_overrides(
             payload.path,
             project_name=project_name,
             variant=variant,
+            user_name=user.name,
         )
 
     return EmptyResponse()

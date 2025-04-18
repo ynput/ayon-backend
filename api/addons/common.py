@@ -20,6 +20,7 @@ async def remove_override(
     path: list[str],
     variant: str = "production",
     project_name: str | None = None,
+    user_name: str | None = None,
 ):
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
@@ -43,6 +44,7 @@ async def remove_override(
         overrides,
         variant=variant,
         project_name=project_name,
+        user_name=user_name,
     )
 
 
@@ -52,6 +54,7 @@ async def pin_override(
     path: list[str],
     variant: str = "production",
     project_name: str | None = None,
+    user_name: str | None = None,
 ):
     if (addon := AddonLibrary.addon(addon_name, addon_version)) is None:
         raise NotFoundException(f"Addon {addon_name} {addon_version} not found")
@@ -106,6 +109,7 @@ async def pin_override(
         overrides,
         variant=variant,
         project_name=project_name,
+        user_name=user_name,
     )
 
 
