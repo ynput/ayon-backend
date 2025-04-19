@@ -158,12 +158,21 @@ async def resolve(
             cdata.append(record_dict.pop(f"cursor_{i}"))
         cursor = encode_cursor(cdata)
 
-        try:
-            node = node_type.from_record(project_name, record_dict, context=context)
-        except ForbiddenException:
-            continue
+        if node_type is not None:
+            try:
+                node = node_type.from_record(project_name, record_dict, context=context)
+            except ForbiddenException:
+                continue
+            edges.append(edge_type(node=node, cursor=cursor))
 
-        edges.append(edge_type(node=node, cursor=cursor))
+        else:
+            try:
+                payload = {**record_dict, "cursor": cursor}
+                edge = edge_type.from_record(project_name, payload, context=context)
+            except ForbiddenException:
+                continue
+            edges.append(edge)
+
         if count and count == len(edges):
             break
 
