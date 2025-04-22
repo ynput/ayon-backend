@@ -16,14 +16,14 @@ DROP TABLE IF EXISTS entity_lists;
 CREATE TABLE entity_lists(
   id UUID NOT NULL PRIMARY KEY,
   entity_list_type VARCHAR NOT NULL,
+  entity_type VARCHAR NOT NULL,
   label VARCHAR NOT NULL,
   owner VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+
   access JSONB NOT NULL DEFAULT '{}'::JSONB,
   template JSONB NOT NULL DEFAULT '{}'::JSONB,
-
   attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
-  config JSONB NOT NULL DEFAULT '{}'::JSONB,
   tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
 
   active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -39,7 +39,6 @@ CREATE UNIQUE INDEX entity_lists_name ON entity_lists (label);
 CREATE TABLE entity_list_items(
   id UUID NOT NULL PRIMARY KEY,
   entity_list_id UUID NOT NULL REFERENCES entity_lists(id) ON DELETE CASCADE,
-  entity_type VARCHAR NOT NULL,
   entity_id UUID NOT NULL,
 
   position INTEGER NOT NULL,

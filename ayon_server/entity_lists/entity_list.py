@@ -1,10 +1,13 @@
+"""This class is experimental. Not to be used yet"""
+
 from typing import Any
 
 from ayon_server.entities import UserEntity
 from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
-from .models import EntityListConfig, EntityListModel
+from .models import EntityListModel
 
 
 class EntityList:
@@ -34,37 +37,32 @@ class EntityList:
     async def create(
         cls,
         project_name: str,
+        entity_type: ProjectLevelEntityType,
         label: str,
         *,
         id: str | None = None,
+        entity_list_type: str | None = None,
         tags: list[str] | None = None,
         attrib: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         access: dict[str, Any] | None = None,
-        config: dict[str, Any] | EntityListConfig | None = None,
         template: dict[str, Any] | None = None,
         user: UserEntity | None = None,
         sender: str | None = None,
         sender_type: str | None = None,
         conn: Connection | None = None,
     ) -> "EntityList":
-        if config is None:
-            config_obj = EntityListConfig()
-        elif isinstance(config, EntityListConfig):
-            config_obj = config
-        else:
-            config_obj = EntityListConfig(**config)
-
         user_name = user.name if user else None
 
         payload = EntityListModel(
             id=id or create_uuid(),
+            entity_type=entity_type,
+            entity_list_type=entity_list_type or "generic",
             label=label,
             tags=tags or [],
             attrib=attrib or {},
             data=data or {},
             access=access or {},
-            config=config_obj,
             template=template or {},
             owner=user_name,
             created_by=user_name,

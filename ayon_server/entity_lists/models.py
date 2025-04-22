@@ -13,16 +13,6 @@ class ListAccessLevel(IntEnum):
     ADMIN = 40  # Can update/delete the list itself and add new users to the list
 
 
-class EntityListConfig(OPModel):
-    entity_types: Annotated[
-        list[ProjectLevelEntityType],
-        Field(
-            title="Entity Types",
-            description="Entity types that can be included in the list",
-        ),
-    ] = ["folder", "version", "task"]
-
-
 class BaseGetModel(OPModel):
     id: Annotated[
         str,
@@ -118,15 +108,6 @@ class EntityListItemPatchModel(OPModel):
 
 
 class EntityListItemModel(EntityListItemPatchModel, BaseGetModel):
-    entity_type: Annotated[
-        ProjectLevelEntityType,
-        Field(
-            title="Entity type",
-            description="Type of the list item entity",
-            example="version",
-        ),
-    ]
-
     entity_id: Annotated[
         str,
         Field(
@@ -138,15 +119,6 @@ class EntityListItemModel(EntityListItemPatchModel, BaseGetModel):
 
 
 class EntityListPatchModel(OPModel):
-    entity_list_type: Annotated[
-        str | None,
-        Field(
-            title="Entity list type",
-            description="Type of the entity list",
-            example="generic",
-        ),
-    ] = None
-
     label: Annotated[
         str | None,
         Field(
@@ -209,20 +181,29 @@ class EntityListPatchModel(OPModel):
 
 
 class EntityListModel(EntityListPatchModel, BaseGetModel):
+    entity_list_type: Annotated[
+        str,
+        Field(
+            title="Entity list type",
+            description="Type of the entity list",
+            example="generic",
+        ),
+    ] = "generic"
+
+    entity_type: Annotated[
+        ProjectLevelEntityType,
+        Field(
+            title="Entity Type",
+            description="Entity type that can be included in the list",
+        ),
+    ]
+
     items: Annotated[
         list[EntityListItemModel] | None,
         Field(
             title="List items",
         ),
     ] = None
-
-    config: Annotated[
-        EntityListConfig | None,
-        Field(
-            default_factory=EntityListConfig,
-            title="List configuration",
-        ),
-    ]
 
     created_by: Annotated[
         str | None,

@@ -4,7 +4,7 @@ from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Connection
-from ayon_server.types import Field, OPModel
+from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
 
@@ -16,6 +16,14 @@ class EntityListSummary(OPModel):
             title="Entity list type",
             description="Type of the entity list",
             example="generic",
+        ),
+    ]
+    entity_type: Annotated[
+        ProjectLevelEntityType,
+        Field(
+            title="Entity Type",
+            description="Entity type that can be included in the list",
+            example="task",
         ),
     ]
     label: Annotated[str, Field(..., title="Label", example="My List")]
@@ -40,7 +48,9 @@ class EntityListSummary(OPModel):
 
 
 async def get_entity_list_summary(
-    conn: Connection, project_name: str, entity_list_id: str
+    conn: Connection,
+    project_name: str,
+    entity_list_id: str,
 ) -> EntityListSummary:
     """
     Entity list summary is stored in entity_list.data
@@ -49,7 +59,8 @@ async def get_entity_list_summary(
 
     res = await conn.fetchrow(
         f"""
-        SELECT entity_list_type, label FROM project_{project_name}.entity_lists
+        SELECT entity_list_type, entity_type, label
+        FROM project_{project_name}.entity_lists
         WHERE id = $1
     """,
         entity_list_id,
@@ -60,6 +71,7 @@ async def get_entity_list_summary(
     result = EntityListSummary(
         id=entity_list_id,
         entity_list_type=res["entity_list_type"],
+        entity_type=res["entity_type"],
         label=res["label"],
     )
     query = f"""
