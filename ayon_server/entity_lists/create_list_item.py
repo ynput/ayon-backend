@@ -96,14 +96,13 @@ async def _create_list_item(
         """
         INSERT INTO entity_list_items
         (
-          id, entity_list_id, entity_type, entity_id,
+          id, entity_list_id, entity_id,
           position, attrib, data, tags, folder_path, created_by, updated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
         """,
         id,
         entity_list_id,
-        entity_type,
         entity_id,
         position,
         attrib,

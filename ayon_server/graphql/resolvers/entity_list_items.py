@@ -1,3 +1,4 @@
+from ayon_server.exceptions import NotFoundException
 from ayon_server.graphql.nodes.entity_list import (
     EntityListItemEdge,
     EntityListItemsConnection,
@@ -11,7 +12,29 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import SQLTool
+
+COLS_COMMON = [
+    "id",
+    "attrib",
+    "status",
+    "attrib",
+    "data",
+    "active",
+    "tags",
+    "created_at",
+    "updated_at",
+]
+
+COLS_VERSIONS = [
+    *COLS_COMMON,
+    "version",
+    "product_id",
+    "task_id",
+    "thumbnail_id",
+    "author",
+]
 
 
 async def get_entity_list_items(
@@ -22,11 +45,51 @@ async def get_entity_list_items(
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
+    sort_by: str | None = None,
 ) -> EntityListItemsConnection:
     project_name = root.project_name
+
+    # First, fetch the list information
+    q = f"SELECT entity_type FROM project_{project_name}.entity_lists WHERE id = $1"
+    res = await Postgres.fetchrow(q, entity_list_id)
+    if not res:
+        raise NotFoundException(f"Entity list with id {entity_list_id} not found")
+    entity_type = res["entity_type"]
+    info.context["entity_type"] = entity_type
+
+    sql_joins = []
+    sql_columns = [
+        "i.id id",
+        "i.entity_id entity_id",
+        "i.entity_list_id entity_list_id",
+        "i.position position",
+        "i.label label",
+        "i.attrib attrib",
+        "i.data data",
+        "i.tags tags",
+        "i.folder_path folder_path",
+        "i.created_at created_at",
+        "i.updated_at updated_at",
+        "i.created_by created_by",
+        "i.updated_by updated_by",
+    ]
     sql_conditions = [f"entity_list_id = '{entity_list_id}'"]
 
-    order_by = ["position"]
+    order_by = []
+    if entity_type == "version":
+        sql_joins.append(
+            f"""
+            INNER JOIN project_{project_name}.versions v
+            ON v.id = i.entity_id
+            """
+        )
+        for col in COLS_VERSIONS:
+            sql_columns.append(f"v.{col} as _entity_{col}")
+
+        if sort_by in COLS_VERSIONS:
+            order_by.append(f"v.{sort_by}")
+
+    order_by.append("position")
     ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
@@ -37,11 +100,16 @@ async def get_entity_list_items(
 
     sql_conditions.append(paging_conds)
     query = f"""
-        SELECT {cursor}, *
-        FROM project_{project_name}.entity_list_items
+        SELECT {cursor}, {', '.join(sql_columns)}
+        FROM project_{project_name}.entity_list_items i
+        {''.join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
-        ORDER BY position ASC
+        {ordering}
     """
+
+    from ayon_server.logging import logger
+
+    logger.info(f"QUERY {query}")
 
     return await resolve(
         EntityListItemsConnection,

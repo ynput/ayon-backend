@@ -35,6 +35,8 @@ CREATE TABLE entity_lists(
 );
 
 CREATE UNIQUE INDEX entity_lists_name ON entity_lists (label);
+CREATE INDEX entity_lists_type ON entity_lists (entity_list_type);
+
 
 CREATE TABLE entity_list_items(
   id UUID NOT NULL PRIMARY KEY,
@@ -58,9 +60,9 @@ CREATE TABLE entity_list_items(
 CREATE INDEX IF NOT EXISTS
     entity_list_items_entity_list_id ON entity_list_items (entity_list_id);
 CREATE INDEX IF NOT EXISTS
-    entity_list_items_entity_type ON entity_list_items (entity_type);
-CREATE INDEX IF NOT EXISTS
     entity_list_items_entity_id ON entity_list_items (entity_id);
+CREATE INDEX IF NOT EXISTS
+    entity_list_items_position ON entity_list_items (position);
 
 
 """

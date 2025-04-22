@@ -27,24 +27,10 @@ class EntityListSummary(OPModel):
         ),
     ]
     label: Annotated[str, Field(..., title="Label", example="My List")]
-
-    folders: Annotated[int, Field(title="Folder count", ge=0)] = 0
-    tasks: Annotated[int, Field(title="Task count", ge=0)] = 0
-    products: Annotated[int, Field(title="Product count", ge=0)] = 0
-    versions: Annotated[int, Field(title="Version count", ge=0)] = 0
-    representations: Annotated[int, Field(title="Representation count", ge=0)] = 0
-    workfiles: Annotated[int, Field(title="Workfile count", ge=0)] = 0
+    count: Annotated[int, Field(title="Item count", ge=0)] = 0
 
     def get_summary_data(self) -> dict[str, Any]:
-        data = {
-            "folders": self.folders,
-            "tasks": self.tasks,
-            "products": self.products,
-            "versions": self.versions,
-            "representations": self.representations,
-            "workfiles": self.workfiles,
-        }
-        return {k: v for k, v in data.items() if v > 0}
+        return {"count": self.count}
 
 
 async def get_entity_list_summary(
@@ -75,17 +61,13 @@ async def get_entity_list_summary(
         label=res["label"],
     )
     query = f"""
-        SELECT entity_type, count(*) as count
+        SELECT count(*) as count
         FROM project_{project_name}.entity_list_items
         WHERE entity_list_id = $1
-        GROUP BY entity_type;
     """
-    res = await conn.fetch(query, entity_list_id)
-    for row in res:
-        key = f"{row['entity_type']}s"
-        assert key in result.__fields__, f"Weird. {key} not in {result.__fields__}"
-        setattr(result, key, row["count"])
-
+    res = await conn.fetchrow(query, entity_list_id)
+    assert res is not None, f"Entity list with id {entity_list_id} not found"
+    setattr(result, "count", res["count"])
     return result
 
 

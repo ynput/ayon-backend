@@ -5,6 +5,7 @@ import strawberry
 
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
+from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
 from ayon_server.utils.json import json_loads
 
@@ -15,12 +16,7 @@ from ayon_server.utils.json import json_loads
 
 @strawberry.type
 class EntityListSummary:
-    folders: int = strawberry.field(default=0)
-    tasks: int = strawberry.field(default=0)
-    products: int = strawberry.field(default=0)
-    versions: int = strawberry.field(default=0)
-    representations: int = strawberry.field(default=0)
-    workfiles: int = strawberry.field(default=0)
+    count: int = strawberry.field(default=0)
 
 
 @strawberry.type
@@ -44,8 +40,12 @@ class EntityListItemEdge(BaseEdge):
 
     cursor: str | None = strawberry.field(default=None)
 
+    _entity: BaseNode | None = strawberry.field(default=None)
+
     @strawberry.field(description="Item node")
     async def node(self, info: Info) -> "BaseNode":
+        if self._entity:
+            return self._entity
         if self.entity_type == "folder":
             loader = info.context["folder_loader"]
             parser = info.context["folder_from_record"]
@@ -69,14 +69,7 @@ class EntityListItemEdge(BaseEdge):
     @strawberry.field(description="Summary")
     def summary(self) -> EntityListSummary:
         summary_data = json_loads(self.data).get("summary", {})
-        return EntityListSummary(
-            folders=summary_data.get("folders", 0),
-            tasks=summary_data.get("tasks", 0),
-            products=summary_data.get("products", 0),
-            versions=summary_data.get("versions", 0),
-            representations=summary_data.get("representations", 0),
-            workfiles=summary_data.get("workfiles", 0),
-        )
+        return EntityListSummary(count=summary_data.get("count", 0))
 
     @classmethod
     def from_record(
@@ -85,10 +78,23 @@ class EntityListItemEdge(BaseEdge):
         record: dict[str, Any],
         context: dict[str, Any],
     ) -> "EntityListItemEdge":
+        entity: BaseNode | None = None
+        vdict = {}
+        for k, v in record.items():
+            if k.startswith("_entity_"):
+                k = k.removeprefix("_entity_")
+                vdict[k] = v
+
+        if vdict:
+            getter_name = f"{context['entity_type']}_from_record"
+            if getter := context.get(getter_name):
+                logger.trace(f"Using {getter_name} to get entity")
+                entity = getter(project_name, vdict, context)
+
         return cls(
             project_name=project_name,
             id=record["id"],
-            entity_type=record["entity_type"],
+            entity_type=context["entity_type"],
             entity_id=record["entity_id"],
             position=record["position"],
             attrib=json_dumps(record["attrib"]),
@@ -99,6 +105,7 @@ class EntityListItemEdge(BaseEdge):
             created_at=record["created_at"],
             updated_at=record["updated_at"],
             cursor=record["cursor"],
+            _entity=entity,
         )
 
 
@@ -131,6 +138,7 @@ class EntityListNode:
         info: Info,
         first: int = 100,
         after: str | None = None,
+        sort_by: str | None = None,
     ) -> EntityListItemsConnection:
         resolver = info.context["entity_list_items_resolver"]
         return await resolver(
@@ -139,6 +147,7 @@ class EntityListNode:
             first=first,
             after=after,
             entity_list_id=self.id,
+            sort_by=sort_by,
         )
 
 
