@@ -80,16 +80,24 @@ async def get_entity_list_items(
         sql_joins.append(
             f"""
             INNER JOIN project_{project_name}.versions v
-            ON v.id = i.entity_id
+            ON e.id = i.entity_id
             """
         )
         for col in COLS_VERSIONS:
-            sql_columns.append(f"v.{col} as _entity_{col}")
+            sql_columns.append(f"e.{col} as _entity_{col}")
 
-        if sort_by in COLS_VERSIONS:
-            order_by.append(f"v.{sort_by}")
+        if f"entity.{sort_by}" in COLS_VERSIONS:
+            order_by.append(f"e.{sort_by}")
 
-    order_by.append("position")
+    if (not order_by) and sort_by:
+        if sort_by.startswith("entity.attrib."):
+            order_by.append(f"e.attrib ->> '{sort_by[14:]}'")
+        elif sort_by.startswith("attrib."):
+            order_by.append(f"i.attrib ->> '{sort_by[6:]}'")
+
+    if not order_by:
+        order_by.append("i.position")
+
     ordering, paging_conds, cursor = create_pagination(
         order_by,
         first,
