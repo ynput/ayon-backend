@@ -1,3 +1,4 @@
+import re
 from base64 import b64decode, b64encode
 from typing import Any
 
@@ -38,9 +39,15 @@ def decode_cursor(cursor: str | None) -> tuple[list[str], list[str]]:
         casts = []
         for c in cur_data:
             if isinstance(c, str):
-                val = c.replace("'", "''")
-                vals.append(f"'{val}'::text")
-                casts.append("::text")
+                # Check if the value is a timestamp in ISO format
+                if re.match(r"^\d{4}-\d{2}-\d{2}T.*", c):
+                    # Convert to timestamp
+                    vals.append(f"'{c}'::timestamptz")
+                    casts.append("::timestamptz")
+                else:
+                    val = c.replace("'", "''")
+                    vals.append(f"'{val}'::text")
+                    casts.append("::text")
             else:
                 vals.append(f"{c}::numeric")
                 casts.append("::numeric")
