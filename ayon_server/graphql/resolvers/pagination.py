@@ -40,7 +40,7 @@ def decode_cursor(cursor: str | None) -> tuple[list[str], list[str]]:
         for c in cur_data:
             if isinstance(c, str):
                 # Check if the value is a timestamp in ISO format
-                if re.match(r"^\d{4}-\d{2}-\d{2}T.*", c):
+                if re.match(r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", c):
                     # Convert to timestamp
                     vals.append(f"'{c}'::timestamptz")
                     casts.append("::timestamptz")
