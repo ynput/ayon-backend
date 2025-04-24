@@ -58,8 +58,8 @@ async def update_entity_list_item(
         payload_dict = payload.dict(exclude_unset=True)
         for key, value in payload_dict.items():
             if not hasattr(item, key):
-                continue  # meh
-
+                # Skip keys that are not attributes of the item
+                continue
             if isinstance(value, dict):
                 setattr(item, key, dict_patch(getattr(item, key), value))
             else:

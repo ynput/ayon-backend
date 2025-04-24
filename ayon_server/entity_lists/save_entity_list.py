@@ -59,7 +59,7 @@ async def _save_entity_list(
     RETURNING xmax = 0 AS inserted;
     """
 
-    # i hate couning this :-/
+    # Map SQL query placeholders to corresponding payload attributes
 
     res = await conn.fetchrow(
         query,
