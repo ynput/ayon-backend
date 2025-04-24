@@ -1,4 +1,4 @@
-from ayon_server.exceptions import NotFoundException
+from ayon_server.exceptions import NotFoundException, NotImplementedException
 from ayon_server.graphql.nodes.entity_list import (
     EntityListItemEdge,
     EntityListItemsConnection,
@@ -27,6 +27,7 @@ COLS_COMMON = [
     "updated_at",
 ]
 
+
 COLS_VERSIONS = [
     *COLS_COMMON,
     "version",
@@ -35,6 +36,8 @@ COLS_VERSIONS = [
     "thumbnail_id",
     "author",
 ]
+
+COL_MAP = {"version": COLS_VERSIONS}
 
 
 async def get_entity_list_items(
@@ -49,13 +52,29 @@ async def get_entity_list_items(
 ) -> EntityListItemsConnection:
     project_name = root.project_name
 
+    #
     # First, fetch the list information
-    q = f"SELECT entity_type FROM project_{project_name}.entity_lists WHERE id = $1"
+    #
+
+    q = f"""
+        SELECT entity_type, access
+        FROM project_{project_name}.entity_lists
+        WHERE id = $1
+    """
     res = await Postgres.fetchrow(q, entity_list_id)
     if not res:
         raise NotFoundException(f"Entity list with id {entity_list_id} not found")
     entity_type = res["entity_type"]
+    access = res["access"]
     info.context["entity_type"] = entity_type
+
+    if access:
+        # TODO: Implement list ACL check here
+        pass
+
+    #
+    # entity_list_items columns
+    #
 
     sql_joins = []
     sql_columns = [
@@ -74,20 +93,33 @@ async def get_entity_list_items(
         "i.updated_by updated_by",
     ]
     sql_conditions = [f"entity_list_id = '{entity_list_id}'"]
-
     order_by = []
-    if entity_type == "version":
-        sql_joins.append(
-            f"""
-            INNER JOIN project_{project_name}.versions e
-            ON e.id = i.entity_id
-            """
-        )
-        for col in COLS_VERSIONS:
-            sql_columns.append(f"e.{col} as _entity_{col}")
 
-        if f"entity.{sort_by}" in COLS_VERSIONS:
-            order_by.append(f"e.{sort_by}")
+    #
+    # Join with the actual entity
+    #
+
+    COLS = COL_MAP.get(entity_type)
+    if not COLS:
+        raise NotImplementedException(
+            f"Entity lists with {entity_type} are not supported"
+        )
+
+    sql_joins.append(
+        f"""
+        INNER JOIN project_{project_name}.{entity_type}s e
+        ON e.id = i.entity_id
+        """
+    )
+    for col in COLS:
+        sql_columns.append(f"e.{col} as _entity_{col}")
+
+    if f"entity.{sort_by}" in COLS:
+        order_by.append(f"e.{sort_by}")
+
+    #
+    # Sorting
+    #
 
     if (not order_by) and sort_by:
         if sort_by.startswith("entity.attrib."):
@@ -107,13 +139,20 @@ async def get_entity_list_items(
     )
 
     sql_conditions.append(paging_conds)
+
+    #
+    # Construct the query
+    #
+
     query = f"""
-        SELECT {cursor}, {', '.join(sql_columns)}
+        SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.entity_list_items i
-        {''.join(sql_joins)}
+        {"".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
+
+    # TODO: Remove before merging :)
 
     from ayon_server.logging import logger
 

@@ -3,6 +3,7 @@ from typing import Any
 
 import strawberry
 
+from ayon_server.exceptions import AyonException
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
 from ayon_server.logging import logger
@@ -62,7 +63,7 @@ class EntityListItemEdge(BaseEdge):
             loader = info.context["representation_loader"]
             parser = info.context["representation_from_record"]
         else:
-            raise ValueError
+            raise AyonException("Unknown entity type in entity list item.")
         record = await loader.load((self.project_name, self.entity_id))
         return parser(self.project_name, record, info.context)
 
