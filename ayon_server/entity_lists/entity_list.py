@@ -59,6 +59,14 @@ class EntityList:
             return
         if _user.name == self._payload.owner:
             return
+
+        if not self._payload.access:
+            return
+
+        uaccess = self._payload.access.get("__everyone__")
+        if uaccess and uaccess >= level:
+            return
+
         uaccess = self._payload.access.get(_user.name)
         if uaccess and uaccess >= level:
             return

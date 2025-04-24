@@ -178,7 +178,7 @@ class EntityListModel(OPModel):
 
 class EntityListPostModel(OPModel):
     id: Annotated[str, FListID]
-    entity_list_type: Annotated[str, FListType]
+    entity_list_type: Annotated[str, FListType] = "generic"
     entity_type: Annotated[ProjectLevelEntityType, FListEntityType]
     label: Annotated[str, FListLabel]
     access: Annotated[dict[str, ListAccessLevel], FListAccess]
