@@ -131,7 +131,7 @@ class EntityListItemModel(OPModel):
     attrib: Annotated[dict[str, Any], FListItemAttrib]
     data: Annotated[dict[str, Any], FListItemData]
     tags: Annotated[list[str], FListItemTags]
-    folder_path: Annotated[str | None, FListItemFolderPath]
+    folder_path: Annotated[str, FListItemFolderPath]
     created_by: Annotated[str | None, FCreatedBy]
     updated_by: Annotated[str | None, FUpdatedBy]
     created_at: Annotated[datetime, FCreatedAt]
