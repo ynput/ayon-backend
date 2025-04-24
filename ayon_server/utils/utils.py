@@ -3,11 +3,13 @@ __all__ = [
     "dict_remove_path",
     "batched",
     "run_blocking_coro",
+    "now",
 ]
 
 # TODO: Move these somewhere
 
 import asyncio
+import datetime
 import itertools
 import threading
 from collections.abc import Iterable
@@ -88,3 +90,8 @@ def run_blocking_coro(coro) -> Any:
     thread.start()
     thread.join()
     return result["output"]
+
+
+def now():
+    """Get the current time in UTC"""
+    return datetime.datetime.now(datetime.UTC)

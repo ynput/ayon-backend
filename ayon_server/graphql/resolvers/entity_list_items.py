@@ -79,7 +79,7 @@ async def get_entity_list_items(
     if entity_type == "version":
         sql_joins.append(
             f"""
-            INNER JOIN project_{project_name}.versions v
+            INNER JOIN project_{project_name}.versions e
             ON e.id = i.entity_id
             """
         )

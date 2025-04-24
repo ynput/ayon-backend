@@ -3,7 +3,7 @@ from enum import IntEnum
 from typing import Annotated, Any
 
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
-from ayon_server.utils import create_uuid
+from ayon_server.utils import create_uuid, now
 
 
 class ListAccessLevel(IntEnum):
@@ -13,212 +13,189 @@ class ListAccessLevel(IntEnum):
     ADMIN = 40  # Can update/delete the list itself and add new users to the list
 
 
-class BaseGetModel(OPModel):
-    id: Annotated[
-        str,
-        Field(
-            default_factory=create_uuid,
-            title="ID",
-            example="123e4567-e89b-12d3-a456-426614174000",
-        ),
-    ]
+# List attributes
+
+FListID = Field(
+    default_factory=create_uuid,
+    title="ID",
+    example=create_uuid(),
+)
+FListLabel = Field(
+    title="List label",
+    example="My list",
+)
+FListAttrib = Field(
+    default_factory=dict,
+    title="Attributes",
+    description="List attributes",
+)
+FListType = Field(
+    title="List type",
+    description="Type of the list",
+    example="generic",
+)
+FListOwner = Field(
+    title="Owner",
+    description="Name of the user who created the list",
+    example="john",
+)
+FListEntityType = Field(
+    title="Entity type",
+    description="Type of the entity that can be included in the list",
+    example="task",
+)
+FListAccess = Field(
+    title="Access",
+    description="Access control for the list. Can be specified for users or teams.",
+    example={"john": ListAccessLevel.READ, "!producers": ListAccessLevel.UPDATE},
+)
+FListTemplate = Field(
+    default_factory=dict,
+    title="Template",
+)
+FListTags = Field(
+    default_factory=list,
+    title="Tags",
+    description="List tags",
+    example=["tag1", "tag2"],
+)
+FListData = Field(
+    default_factory=dict,
+    title="Data",
+    description="Additional data associated with the list",
+)
+FListItems = Field(
+    title="List items",
+    default_factory=list,
+)
+FListActive = Field(
+    title="List active",
+    description="Whether the list is active or not",
+    example=True,
+)
+
+# List item attributes
+
+FListItemId = Field(
+    default_factory=create_uuid,
+    title="Item ID",
+    example=create_uuid(),
+)
+FListItemEntityId = Field(
+    title="Entity ID",
+    description="ID of the entity in the list",
+    example=create_uuid(),
+)
+FListItemLabel = Field(
+    title="Item label",
+    description="Label of the item",
+    example="Version 1",
+)
+FListItemPosition = Field(
+    title="Position",
+    description="Position of the item in the list",
+    example=69,
+)
+FListItemAttrib = Field(
+    default_factory=dict,
+    title="Item attributes",
+    description="Overrides of the listed entity attributes",
+)
+FListItemData = Field(
+    default_factory=dict,
+    title="Item data",
+    description="Additional data associated with the item",
+)
+FListItemTags = Field(
+    default_factory=list,
+    title="Item tags",
+    description="Tags associated with the item",
+)
+FListItemFolderPath = Field(
+    title="Folder path",
+    description="Path to the folder where the item is located",
+    example="/path/to/folder",
+)
+
+FCreatedBy = Field(title="Created by", example="admin")
+FUpdatedBy = Field(title="Updated by", example="editor")
+FCreatedAt = Field(default_factory=now, title="Created at")
+FUpdatedAt = Field(default_factory=now, title="Updated at")
+
+
+class EntityListItemModel(OPModel):
+    id: Annotated[str, FListItemId]
+    entity_id: Annotated[str, FListItemEntityId]
+    position: Annotated[int, FListItemPosition]
+    label: Annotated[str | None, FListItemLabel]
+    attrib: Annotated[dict[str, Any], FListItemAttrib]
+    data: Annotated[dict[str, Any], FListItemData]
+    tags: Annotated[list[str], FListItemTags]
+    folder_path: Annotated[str | None, FListItemFolderPath]
+    created_by: Annotated[str | None, FCreatedBy]
+    updated_by: Annotated[str | None, FUpdatedBy]
+    created_at: Annotated[datetime, FCreatedAt]
+    updated_at: Annotated[datetime, FUpdatedAt]
+
+
+class EntityListItemPostModel(OPModel):
+    id: Annotated[str, FListItemId]
+    entity_id: Annotated[str, FListItemEntityId]
+    position: Annotated[int, FListItemPosition]
+    label: Annotated[str | None, FListItemLabel]
+    attrib: Annotated[dict[str, Any], FListItemAttrib]
+    data: Annotated[dict[str, Any], FListItemData]
+    tags: Annotated[list[str], FListItemTags]
 
 
 class EntityListItemPatchModel(OPModel):
-    position: Annotated[
-        int,
-        Field(
-            title="Position",
-            description="Position of the item in the list",
-            example=42,
-        ),
-    ] = 0
-
-    label: Annotated[
-        str | None,
-        Field(
-            title="Label",
-            description="Label of the item",
-            example="Version 1",
-        ),
-    ] = None
-
-    attrib: Annotated[
-        dict[str, Any],
-        Field(
-            default_factory=dict,
-            title="Item attributes",
-            description="Overrides of the listed entity attributes",
-        ),
-    ]
-
-    data: Annotated[
-        dict[str, Any],
-        Field(
-            default_factory=dict,
-            title="Item data",
-            description="Additional data associated with the item",
-        ),
-    ]
-
-    tags: Annotated[
-        list[str],
-        Field(
-            default_factory=list,
-            title="Item tags",
-            description="Tags associated with the item",
-        ),
-    ]
-
-    created_by: Annotated[
-        str | None,
-        Field(
-            title="Created by",
-            description="Name of the user who created the item",
-            example="admin",
-        ),
-    ] = None
-
-    updated_by: Annotated[
-        str | None,
-        Field(
-            title="Updated by",
-            description="Name of the user who last updated the item",
-            example="editor",
-        ),
-    ] = None
-
-    created_at: Annotated[
-        datetime,
-        Field(
-            default_factory=datetime.utcnow,
-            title="Created at",
-            description="Timestamp of when the item was created",
-        ),
-    ]
-
-    updated_at: Annotated[
-        datetime,
-        Field(
-            default_factory=datetime.utcnow,
-            title="Updated at",
-            description="Timestamp of when the item was last updated",
-        ),
-    ]
+    entity_id: Annotated[str | None, FListItemEntityId] = None
+    position: Annotated[int | None, FListItemPosition] = None
+    label: Annotated[str | None, FListItemLabel] = None
+    attrib: Annotated[dict[str, Any], FListItemAttrib]
+    data: Annotated[dict[str, Any], FListItemData]
+    tags: Annotated[list[str], FListItemTags]
 
 
-class EntityListItemModel(EntityListItemPatchModel, BaseGetModel):
-    entity_id: Annotated[
-        str,
-        Field(
-            title="Entity ID",
-            description="ID of the list item entity",
-            example="123e4567-e89b-12d3-a456-426614174000",
-        ),
-    ]
+class EntityListModel(OPModel):
+    id: Annotated[str, FListID]
+    entity_list_type: Annotated[str, FListType]
+    entity_type: Annotated[ProjectLevelEntityType, FListEntityType]
+    label: Annotated[str, FListLabel]
+    access: Annotated[dict[str, ListAccessLevel], FListAccess]
+    attrib: Annotated[dict[str, Any], FListAttrib]
+    data: Annotated[dict[str, Any], FListData]
+    template: Annotated[dict[str, Any], FListTemplate]
+    tags: Annotated[list[str], FListTags]
+    items: Annotated[list[EntityListItemModel], FListItems]
+    owner: Annotated[str | None, FListOwner]
+    created_by: Annotated[str | None, FCreatedBy]
+    updated_by: Annotated[str | None, FUpdatedBy]
+    created_at: Annotated[datetime, FCreatedAt]
+    updated_at: Annotated[datetime, FUpdatedAt]
+    active: Annotated[bool, FListActive]
+
+
+class EntityListPostModel(OPModel):
+    id: Annotated[str, FListID]
+    entity_list_type: Annotated[str, FListType]
+    entity_type: Annotated[ProjectLevelEntityType, FListEntityType]
+    label: Annotated[str, FListLabel]
+    access: Annotated[dict[str, ListAccessLevel], FListAccess]
+    attrib: Annotated[dict[str, Any], FListAttrib]
+    data: Annotated[dict[str, Any], FListData]
+    template: Annotated[dict[str, Any], FListTemplate]
+    tags: Annotated[list[str], FListTags]
+    owner: Annotated[str | None, FListOwner] = None
+    active: Annotated[bool | None, FListActive] = True
+    items: Annotated[list[EntityListItemPostModel], FListItems]
 
 
 class EntityListPatchModel(OPModel):
-    label: Annotated[
-        str | None,
-        Field(
-            title="List label",
-            example="My list",
-        ),
-    ] = None
-
-    tags: Annotated[
-        list[str] | None,
-        Field(
-            title="Tags",
-        ),
-    ] = None
-
-    access: Annotated[
-        dict[str, ListAccessLevel] | None,
-        Field(
-            title="List access",
-            description=(
-                "Access control for the list. "
-                " be specified for individual users or teams."
-            ),
-            example={
-                "john": ListAccessLevel.READ,
-                "!producers": ListAccessLevel.UPDATE,
-            },
-        ),
-    ] = None
-
-    attrib: Annotated[
-        dict[str, Any] | None,
-        Field(
-            title="List attributes",
-        ),
-    ] = None
-
-    data: Annotated[
-        dict[str, Any] | None,
-        Field(
-            title="List data",
-        ),
-    ] = None
-
-    template: Annotated[
-        dict[str, Any] | None,
-        Field(
-            title="List template",
-        ),
-    ] = None
-
-    owner: Annotated[
-        str | None,
-        Field(
-            title="List owner",
-            description="Name of the user who created the list",
-            example="john",
-        ),
-    ] = None
-
-
-class EntityListModel(EntityListPatchModel, BaseGetModel):
-    entity_list_type: Annotated[
-        str,
-        Field(
-            title="Entity list type",
-            description="Type of the entity list",
-            example="generic",
-        ),
-    ] = "generic"
-
-    entity_type: Annotated[
-        ProjectLevelEntityType,
-        Field(
-            title="Entity Type",
-            description="Entity type that can be included in the list",
-        ),
-    ]
-
-    items: Annotated[
-        list[EntityListItemModel] | None,
-        Field(
-            title="List items",
-        ),
-    ] = None
-
-    created_by: Annotated[
-        str | None,
-        Field(
-            title="List creator",
-            description="Name of the user who created the list",
-            example="john",
-        ),
-    ] = None
-
-    updated_by: Annotated[
-        str | None,
-        Field(
-            title="List updater",
-            description="Name of the user who updated the list",
-            example="john",
-        ),
-    ] = None
+    label: Annotated[str | None, FListLabel] = None
+    access: Annotated[dict[str, ListAccessLevel], FListAccess]
+    attrib: Annotated[dict[str, Any], FListAttrib]
+    data: Annotated[dict[str, Any], FListData]
+    tags: Annotated[list[str], FListTags]
+    owner: Annotated[str | None, FListOwner] = None
+    active: Annotated[bool | None, FListActive] = None
