@@ -18,6 +18,7 @@ __all__ = [
     "slugify",
     "dict_exclude",
     "dict_remove_path",
+    "dict_patch",
     "batched",
     "run_blocking_coro",
     "now",
@@ -39,4 +40,11 @@ from .strings import (
     parse_api_key,
     slugify,
 )
-from .utils import batched, dict_exclude, dict_remove_path, now, run_blocking_coro
+from .utils import (
+    batched,
+    dict_exclude,
+    dict_patch,
+    dict_remove_path,
+    now,
+    run_blocking_coro,
+)

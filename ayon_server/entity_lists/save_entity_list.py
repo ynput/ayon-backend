@@ -1,13 +1,20 @@
+from ayon_server.entities import UserEntity
+from ayon_server.events import EventStream
+from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Connection, Postgres
 
-from .models import EntityListModel
+from .models import EntityListModel, EntityListSummary
 
 
 async def _save_entity_list(
     project_name: str,
     payload: EntityListModel,
+    *,
+    user: UserEntity | None = None,
+    sender: str | None = None,
+    sender_type: str | None = None,
     conn: Connection,
-) -> None:
+) -> EntityListSummary:
     """
     Save the entity list to the database.
 
@@ -15,6 +22,8 @@ async def _save_entity_list(
     """
 
     await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
+
+    payload.data["count"] = len(payload.items)
 
     query = """
     INSERT INTO entity_lists (
@@ -47,11 +56,12 @@ async def _save_entity_list(
         active = $11,
         updated_at = NOW(),
         updated_by = $14
+    RETURNING xmax = 0 AS inserted;
     """
 
     # i hate couning this :-/
 
-    await conn.execute(
+    res = await conn.fetchrow(
         query,
         payload.id,  # 1
         payload.entity_list_type,  # 2
@@ -68,6 +78,10 @@ async def _save_entity_list(
         payload.created_by,  # 13
         payload.updated_by,  # 14
     )
+    if not res:
+        raise AyonException("Failed to save entity list")
+
+    mode = "created" if res["inserted"] else "changed"
 
     item_ids = {item.id for item in payload.items}
     if item_ids:
@@ -124,12 +138,42 @@ async def _save_entity_list(
             payload.updated_by,
         )
 
+    summary = EntityListSummary(
+        id=payload.id,
+        entity_list_type=payload.entity_list_type,
+        entity_type=payload.entity_type,
+        label=payload.label,
+        count=len(payload.items),
+    )
+
+    description = f"Entity list {payload.label} {mode}"
+
+    await EventStream.dispatch(
+        f"entity_list.{mode}",
+        description=description,
+        summary=summary.dict(),
+        project=project_name,
+        user=user.name if user else None,
+        sender=sender,
+        sender_type=sender_type,
+    )
+    return summary
+
+
+#
+# Transaction wrapper
+#
+
 
 async def save_entity_list(
     project_name: str,
     payload: EntityListModel,
+    *,
+    user: UserEntity | None = None,
+    sender: str | None = None,
+    sender_type: str | None = None,
     conn: Connection | None = None,
-) -> None:
+) -> EntityListSummary:
     """
     Save the entity list to the database.
     If the list with the same ID already exists, it will be updated.
@@ -137,6 +181,20 @@ async def save_entity_list(
 
     if conn is None:
         async with Postgres.acquire() as conn, conn.transaction():
-            await _save_entity_list(project_name, payload, conn)
+            return await _save_entity_list(
+                project_name,
+                payload,
+                user=user,
+                sender=sender,
+                sender_type=sender_type,
+                conn=conn,
+            )
     else:
-        await _save_entity_list(project_name, payload, conn)
+        return await _save_entity_list(
+            project_name,
+            payload,
+            user=user,
+            sender=sender,
+            sender_type=sender_type,
+            conn=conn,
+        )

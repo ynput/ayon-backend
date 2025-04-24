@@ -199,3 +199,11 @@ class EntityListPatchModel(OPModel):
     tags: Annotated[list[str], FListTags]
     owner: Annotated[str | None, FListOwner] = None
     active: Annotated[bool | None, FListActive] = None
+
+
+class EntityListSummary(OPModel):
+    id: Annotated[str, FListID]
+    entity_list_type: Annotated[str, FListType]
+    entity_type: Annotated[ProjectLevelEntityType, FListEntityType]
+    label: Annotated[str, FListLabel]
+    count: Annotated[int, Field(title="Item count", ge=0)] = 0

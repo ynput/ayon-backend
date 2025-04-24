@@ -3,10 +3,11 @@ from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.types import ProjectLevelEntityType
 
 
-async def get_scoped_entity_folder_path(
-    conn: Connection,
+async def _get_entity_folder_path(
+    project_name: str,
     entity_type: ProjectLevelEntityType,
     entity_id: str,
+    conn: Connection,
 ) -> str:
     """Get the parent folder path of an entity
 
@@ -14,6 +15,7 @@ async def get_scoped_entity_folder_path(
     access control.
     """
     joins = []
+    await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
 
     if entity_type in ("product", "version", "representation"):
         joins.append(
@@ -69,11 +71,21 @@ async def get_entity_folder_path(
     project_name: str,
     entity_type: ProjectLevelEntityType,
     entity_id: str,
+    *,
+    conn: Connection | None = None,
 ) -> str:
-    async with Postgres.acquire() as conn, conn.transaction():
-        await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
-        return await get_scoped_entity_folder_path(
-            conn,
-            entity_type,
-            entity_id,
-        )
+    if conn is None:
+        async with Postgres.acquire() as conn, conn.transaction():
+            return await _get_entity_folder_path(
+                project_name,
+                entity_type,
+                entity_id,
+                conn,
+            )
+
+    return await _get_entity_folder_path(
+        project_name,
+        entity_type,
+        entity_id,
+        conn,
+    )

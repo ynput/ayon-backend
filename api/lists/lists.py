@@ -7,17 +7,14 @@ from ayon_server.api.dependencies import (
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entity_lists.entity_list import EntityList
 from ayon_server.entity_lists.models import (
-    EntityListItemModel,
     EntityListModel,
     EntityListPatchModel,
     EntityListPostModel,
-)
-from ayon_server.entity_lists.summary import (
     EntityListSummary,
 )
-from ayon_server.exceptions import BadRequestException, NotFoundException
+from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.utils import create_uuid
+from ayon_server.utils import create_uuid, dict_patch
 
 from .router import router
 
@@ -44,63 +41,36 @@ async def create_entity_list(
     if not payload.entity_list_type:
         raise BadRequestException("Entity list type is required")
 
-    entity_list = await EntityList.construct(
-        project_name,
-        payload.entity_type,
-        payload.label,
-        id=list_id,
-        entity_list_type=payload.entity_list_type,
-        template=payload.template,
-        access=payload.access,
-        attrib=payload.attrib,
-        data=payload.data,
-        tags=payload.tags,
-    )
-
-    for item in payload.items:
-        await entity_list.add(
-            item.entity_id,
-            id=item.id,
-            position=item.position,
-            label=item.label,
-            attrib=item.attrib,
-            data=item.data,
-            tags=item.tags,
+    async with Postgres.acquire() as conn, conn.transaction():
+        entity_list = await EntityList.construct(
+            project_name,
+            payload.entity_type,
+            payload.label,
+            id=list_id,
+            entity_list_type=payload.entity_list_type,
+            template=payload.template,
+            access=payload.access,
+            attrib=payload.attrib,
+            active=payload.active if payload.active is not None else True,
+            owner=payload.owner,
+            data=payload.data,
+            tags=payload.tags,
+            user=user,
+            conn=conn,
         )
 
-    await entity_list.save()
+        for item in payload.items:
+            await entity_list.add(
+                item.entity_id,
+                id=item.id,
+                position=item.position,
+                label=item.label,
+                attrib=item.attrib,
+                data=item.data,
+                tags=item.tags,
+            )
 
-    # summary = await on_list_items_changed(
-    #     conn,
-    #     project_name,
-    #     list_id,
-    #     user=user,
-    #     sender=sender,
-    #     sender_type=sender_type,
-    # )
-
-    return None
-    # return summary
-
-
-#
-# @router.post("/{list_id}/materialize")
-# async def materialize_entity_list(
-#     user: CurrentUser,
-#     project_name: ProjectName,
-#     list_id: str,
-#     sender: Sender,
-#     sender_type: SenderType,
-# ) -> EntityListSummary:
-#     """Materialize an entity list."""
-#
-#     return await _materialize_entity_list(
-#         project_name,
-#         list_id,
-#         user=user,
-#         sender=sender,
-#         sender_type=sender_type,
-#     )
+        return await entity_list.save(sender=sender, sender_type=sender_type)
 
 
 @router.patch("/{list_id}")
@@ -114,7 +84,21 @@ async def update_entity_list(
 ) -> EmptyResponse:
     """Update entity list metadata"""
 
-    # TODO
+    async with Postgres.acquire() as conn, conn.transaction():
+        entity_list = await EntityList.load(project_name, list_id, user=user, conn=conn)
+        await entity_list.ensure_can_update()
+
+        payload_dict = payload.dict(exclude_unset=True)
+        for key, value in payload_dict.items():
+            if not hasattr(entity_list.payload, key):
+                continue
+            if isinstance(value, dict):
+                nval = dict_patch(getattr(entity_list.payload, key), value)
+                setattr(entity_list.payload, key, nval)
+            else:
+                setattr(entity_list.payload, key, value)
+
+        await entity_list.save(sender=sender, sender_type=sender_type)
 
     return EmptyResponse()
 
@@ -133,25 +117,9 @@ async def get_entity_list(
     Use GraphQL API to get the list items instead.
     """
 
-    async with Postgres.acquire() as conn, conn.transaction():
-        await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
-        q = "SELECT * FROM entity_lists WHERE id = $1"
-        list_data = await conn.fetchrow(q, list_id)
-        if list_data is None:
-            raise NotFoundException(status_code=404, detail="List not found")
-
-        result = EntityListModel(**dict(list_data), items=[])
-        q = """
-        SELECT * FROM entity_list_items
-        WHERE entity_list_id = $1
-        ORDER BY position ASC
-        """
-        statement = await conn.prepare(q)
-        assert isinstance(result.items, list), "Items should be a list"
-        async for row in statement.cursor(list_id):
-            result.items.append(EntityListItemModel(**dict(row)))
-
-    return result
+    entity_list = await EntityList.load(project_name, list_id, user=user)
+    await entity_list.ensure_can_read()
+    return entity_list.payload
 
 
 @router.delete("/{list_id}")
@@ -160,7 +128,27 @@ async def delete_entity_list(
     project_name: ProjectName,
     list_id: str,
 ) -> EmptyResponse:
-    """Delete entity list"""
+    """Delete entity list from the database"""
 
-    # await _delete_entity_list(project_name, list_id, user=user)
+    entity_list = await EntityList.load(project_name, list_id, user=user)
+    await entity_list.ensure_can_admin()
+    await entity_list.delete()
+
     return EmptyResponse()
+
+
+@router.post("/{list_id}/materialize")
+async def materialize_entity_list(
+    user: CurrentUser,
+    project_name: ProjectName,
+    list_id: str,
+    sender: Sender,
+    sender_type: SenderType,
+) -> EntityListSummary:
+    """Materialize an entity list."""
+
+    async with Postgres.acquire() as conn, conn.transaction():
+        entity_list = await EntityList.load(project_name, list_id, user=user, conn=conn)
+        await entity_list.ensure_can_admin()
+        await entity_list.materialize()
+        return await entity_list.save(sender=sender, sender_type=sender_type)
