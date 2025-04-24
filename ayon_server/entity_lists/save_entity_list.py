@@ -49,6 +49,8 @@ async def _save_entity_list(
         updated_by = $14
     """
 
+    # i hate couning this :-/
+
     await conn.execute(
         query,
         payload.id,  # 1
@@ -66,6 +68,61 @@ async def _save_entity_list(
         payload.created_by,  # 13
         payload.updated_by,  # 14
     )
+
+    item_ids = {item.id for item in payload.items}
+    if item_ids:
+        await conn.execute(
+            """
+            DELETE FROM entity_list_items
+            WHERE entity_list_id = $1
+            AND NOT (id = ANY($2))
+            """,
+            payload.id,
+            item_ids,
+        )
+
+    for item in payload.items:
+        await conn.execute(
+            """
+            INSERT INTO entity_list_items (
+                id,
+                entity_list_id,
+                entity_id,
+                position,
+                label,
+                attrib,
+                data,
+                tags,
+                folder_path,
+                created_at,
+                created_by,
+                updated_at,
+                updated_by
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10, NOW(), $11)
+            ON CONFLICT (id) DO UPDATE SET
+                entity_list_id = $2,
+                entity_id = $3,
+                position = $4,
+                label = $5,
+                attrib = $6,
+                data = $7,
+                tags = $8,
+                folder_path = $9,
+                updated_at = NOW(),
+                updated_by = $11
+            """,
+            item.id,
+            payload.id,
+            item.entity_id,
+            item.position,
+            item.label,
+            item.attrib,
+            item.data,
+            item.tags,
+            item.folder_path,
+            payload.created_by,
+            payload.updated_by,
+        )
 
 
 async def save_entity_list(
