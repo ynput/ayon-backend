@@ -154,6 +154,7 @@ async def resolve(
         # Create cursor:
         # We need to do that first, because we need to get rid of
         # the cursor data from the record
+
         cdata = []
         for i, _ in enumerate(order_by or []):
             cdata.append(record_dict.pop(f"cursor_{i}"))
@@ -167,6 +168,8 @@ async def resolve(
             edges.append(edge_type(node=node, cursor=cursor))
 
         else:
+            # This is for entity list items. They need to be resolved,
+            # But the actual node is created on the edge, not here
             try:
                 payload = {**record_dict, "cursor": cursor}
                 edge = edge_type.from_record(project_name, payload, context=context)
