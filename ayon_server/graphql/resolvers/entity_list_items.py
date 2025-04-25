@@ -1,7 +1,21 @@
-from ayon_server.exceptions import NotFoundException, NotImplementedException
+import functools
+
+from ayon_server.entities.models.fields import (
+    folder_fields,
+    product_fields,
+    representation_fields,
+    task_fields,
+    version_fields,
+    workfile_fields,
+)
+from ayon_server.exceptions import (
+    BadRequestException,
+    NotImplementedException,
+)
 from ayon_server.graphql.nodes.entity_list import (
     EntityListItemEdge,
     EntityListItemsConnection,
+    EntityListNode,
 )
 from ayon_server.graphql.resolvers.common import (
     ARGAfter,
@@ -10,40 +24,103 @@ from ayon_server.graphql.resolvers.common import (
     ARGLast,
     resolve,
 )
-from ayon_server.graphql.resolvers.pagination import create_pagination
+from ayon_server.graphql.resolvers.pagination import (
+    create_pagination,
+    get_attrib_sort_case,
+)
 from ayon_server.graphql.types import Info
-from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import SQLTool
+
+COLS_ITEMS = [
+    "id",
+    "entity_id",
+    "entity_list_id",
+    "position",
+    "label",
+    "attrib",
+    "data",
+    "tags",
+    "folder_path",
+    "created_at",
+    "updated_at",
+    "created_by",
+    "updated_by",
+]
+
 
 COLS_COMMON = [
     "id",
     "attrib",
-    "status",
-    "attrib",
     "data",
     "active",
+    "status",
     "tags",
     "created_at",
     "updated_at",
 ]
 
 
-COLS_VERSIONS = [
-    *COLS_COMMON,
-    "version",
-    "product_id",
-    "task_id",
-    "thumbnail_id",
-    "author",
-]
+ITEM_SORT_OPTIONS = {
+    "position": "i.position",
+    "label": "i.label",
+    "createdAt": "i.created_at",
+    "updatedAt": "i.updated_at",
+    "createdBy": "i.created_by",
+    "updatedBy": "i.updated_by",
+    "folderPath": "i.folder_path",
+}
 
-COL_MAP = {"version": COLS_VERSIONS}
+
+@functools.cache
+def cols_for_entity(entity_type: str) -> list[str]:
+    if entity_type == "folder":
+        fields = folder_fields
+    elif entity_type == "task":
+        fields = task_fields
+    elif entity_type == "product":
+        fields = product_fields
+    elif entity_type == "version":
+        fields = version_fields
+    elif entity_type == "representation":
+        fields = representation_fields
+    elif entity_type == "workfile":
+        fields = workfile_fields
+    else:
+        # this cannot happen, but let's be safe
+        raise NotImplementedException(
+            f"Entity lists with {entity_type} are not supported"
+        )
+    return COLS_COMMON + [
+        field["name"]
+        for field in fields
+        if field["name"] not in COLS_COMMON and not field.get("dynamic")
+    ]
+
+
+async def build_entity_sorting(sort_by: str, entity_type: str) -> str:
+    if sort_by in ["data"]:
+        # This won't be supported, because it doesn't make sense
+        raise NotImplementedException(f"Unable to sort by entity.{sort_by}")
+
+    if sort_by.startswith("attrib."):
+        attr_name = sort_by[7:]
+        exp = "e.attrib"
+        if entity_type == "folder":
+            exp = "(pr.attrib || pf.attrib || e.attrib)"
+        elif entity_type == "task":
+            exp = "(pf.attrib || e.attrib)"
+        attr_case = await get_attrib_sort_case(attr_name, exp)
+        return f"({attr_case})"
+
+    cols = cols_for_entity(entity_type)
+    if sort_by not in cols:
+        raise BadRequestException(f"Invalid sort key entity.{sort_by}")
+    return f"e.{sort_by}"
 
 
 async def get_entity_list_items(
-    root,
+    root: EntityListNode,
     info: Info,
-    entity_list_id: str,
     first: ARGFirst = None,
     after: ARGAfter = None,
     last: ARGLast = None,
@@ -51,59 +128,34 @@ async def get_entity_list_items(
     sort_by: str | None = None,
 ) -> EntityListItemsConnection:
     project_name = root.project_name
+    entity_type = root.entity_type
 
     #
     # First, fetch the list information
     #
 
-    q = f"""
-        SELECT entity_type, access
-        FROM project_{project_name}.entity_lists
-        WHERE id = $1
-    """
-    res = await Postgres.fetchrow(q, entity_list_id)
-    if not res:
-        raise NotFoundException(f"Entity list with id {entity_list_id} not found")
-    entity_type = res["entity_type"]
-    access = res["access"]
-    info.context["entity_type"] = entity_type
-
-    if access:
-        # TODO: Implement list ACL check here
-        pass
+    if orig_et := info.context.get("entity_type"):
+        if orig_et != entity_type:
+            raise BadRequestException(
+                "Queried multiple entity types in the same query. "
+                "This is not supported (and will not be)."
+            )
+    else:
+        info.context["entity_type"] = entity_type
 
     #
     # entity_list_items columns
     #
 
     sql_joins = []
-    sql_columns = [
-        "i.id id",
-        "i.entity_id entity_id",
-        "i.entity_list_id entity_list_id",
-        "i.position position",
-        "i.label label",
-        "i.attrib attrib",
-        "i.data data",
-        "i.tags tags",
-        "i.folder_path folder_path",
-        "i.created_at created_at",
-        "i.updated_at updated_at",
-        "i.created_by created_by",
-        "i.updated_by updated_by",
-    ]
-    sql_conditions = [f"entity_list_id = '{entity_list_id}'"]
-    order_by = []
+    sql_columns = [f"i.{col} {col}" for col in COLS_ITEMS]
+    sql_conditions = [f"entity_list_id = '{root.id}'"]
 
     #
     # Join with the actual entity
     #
 
-    COLS = COL_MAP.get(entity_type)
-    if not COLS:
-        raise NotImplementedException(
-            f"Entity lists with {entity_type} are not supported"
-        )
+    cols = cols_for_entity(entity_type)
 
     sql_joins.append(
         f"""
@@ -111,23 +163,65 @@ async def get_entity_list_items(
         ON e.id = i.entity_id
         """
     )
-    for col in COLS:
+    for col in cols:
         sql_columns.append(f"e.{col} as _entity_{col}")
 
-    if f"entity.{sort_by}" in COLS:
-        order_by.append(f"e.{sort_by}")
+    # Special cases:
+
+    if entity_type == "task":
+        # when querying tasks, we need the parent folder attributes
+        # as well because of the inheritance
+        sql_columns.append("pf.attrib as _entity_parent_folder_attrib")
+        sql_joins.append(
+            f"INNER JOIN project_{project_name}.exported_attributes AS pf "
+            "ON e.folder_id = pf.folder_id\n"
+        )
+
+    elif entity_type == "folder":
+        # when querying folders, we need the parent folder attributes
+        # and also the project attribute in the case of root folders
+        # ... yeah. and also the hierarchy path
+        sql_columns.extend(
+            [
+                "pf.attrib as _entity_inherited_attributes",
+                "pr.attrib as _entity_project_attributes",
+                "hierarchy.path AS _entity_path",
+            ]
+        )
+        sql_joins.extend(
+            [
+                f"""
+                INNER JOIN project_{project_name}.exported_attributes AS pf
+                ON e.parent_id = pf.folder_id
+                """,
+                f"""
+                INNER JOIN public.projects AS pr
+                ON pr.name ILIKE '{project_name}'
+                """,
+                f"""
+                INNER JOIN project_{project_name}.hierarchy AS hierarchy
+                ON e.id = hierarchy.id
+                """,
+            ]
+        )
+
+    # The rest of the entity types should work out of the box
 
     #
     # Sorting
     #
 
-    if (not order_by) and sort_by:
-        if sort_by.startswith("entity.attrib."):
-            order_by.append(f"e.attrib ->> '{sort_by[14:]}'")
-        elif sort_by.startswith("attrib."):
-            order_by.append(f"i.attrib ->> '{sort_by[6:]}'")
+    order_by = []
 
-    if not order_by:
+    if sort_by:
+        if item_sort_by := ITEM_SORT_OPTIONS.get(sort_by):
+            order_by.append(item_sort_by)
+
+        if sort_by.startswith("entity."):
+            order_by.append(await build_entity_sorting(sort_by[7:], entity_type))
+
+    # secondary sorting for same values (unless we're already sorting by position)
+    if sort_by != "position":
         order_by.append("i.position")
 
     ordering, paging_conds, cursor = create_pagination(
@@ -145,7 +239,8 @@ async def get_entity_list_items(
     #
 
     query = f"""
-        SELECT {cursor}, {", ".join(sql_columns)}
+        SELECT {cursor},
+        {", ".join(sql_columns)}
         FROM project_{project_name}.entity_list_items i
         {"".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}

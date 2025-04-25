@@ -149,7 +149,6 @@ class EntityListNode:
             info=info,
             first=first,
             after=after,
-            entity_list_id=self.id,
             sort_by=sort_by,
         )
 

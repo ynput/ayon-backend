@@ -67,11 +67,7 @@ async def get_entity_lists(
     # Access control
     #
 
-    # TODO: Access control to the list records
-    # Allow access to managers, owners and explicitly shared lists
-    # user = info.context["user"]
-    # if not user.is_manager:
-    #     sql_conditions.append(f"(created_by='{user.name}' OR access ? '{user.name}'")
+    # TODO: Access control to the lists
 
     #
     # Filtering
@@ -115,6 +111,10 @@ async def get_entity_lists(
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
+
+    from ayon_server.logging import logger
+
+    logger.trace(f"QUERY ENTITY LISTS {query}")
 
     return await resolve(
         EntityListsConnection,
