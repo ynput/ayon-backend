@@ -46,6 +46,7 @@ FListEntityType = Field(
 )
 FListAccess = Field(
     title="Access",
+    default_factory=dict,
     description="Access control for the list. Can be specified for users or teams.",
     example={"john": ListAccessLevel.READ, "!producers": ListAccessLevel.UPDATE},
 )
