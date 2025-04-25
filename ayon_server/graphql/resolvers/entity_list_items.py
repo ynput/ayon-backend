@@ -156,7 +156,7 @@ async def get_entity_list_items(
 
     from ayon_server.logging import logger
 
-    logger.info(f"QUERY {query}")
+    logger.trace(f"QUERY {query}")
 
     return await resolve(
         EntityListItemsConnection,

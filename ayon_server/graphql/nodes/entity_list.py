@@ -6,18 +6,11 @@ import strawberry
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
-from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
-from ayon_server.utils.json import json_loads
 
 #
 # Entity list item
 #
-
-
-@strawberry.type
-class EntityListSummary:
-    count: int = strawberry.field(default=0)
 
 
 @strawberry.type
@@ -67,11 +60,6 @@ class EntityListItemEdge(BaseEdge):
         record = await loader.load((self.project_name, self.entity_id))
         return parser(self.project_name, record, info.context)
 
-    @strawberry.field(description="Summary")
-    def summary(self) -> EntityListSummary:
-        summary_data = json_loads(self.data).get("summary", {})
-        return EntityListSummary(count=summary_data.get("count", 0))
-
     @classmethod
     def from_record(
         cls,
@@ -89,7 +77,7 @@ class EntityListItemEdge(BaseEdge):
         if vdict:
             getter_name = f"{context['entity_type']}_from_record"
             if getter := context.get(getter_name):
-                logger.trace(f"Using {getter_name} to get entity")
+                # logger.trace(f"Using {getter_name} to get entity")
                 entity = getter(project_name, vdict, context)
 
         return cls(
@@ -100,7 +88,7 @@ class EntityListItemEdge(BaseEdge):
             position=record["position"],
             attrib=json_dumps(record["attrib"]),
             data=json_dumps(record["data"]),
-            tags=record["tags"],
+            tags=record["tags"] or [],
             created_by=record["created_by"],
             updated_by=record["updated_by"],
             created_at=record["created_at"],
@@ -129,9 +117,22 @@ class EntityListNode:
     entity_type: str = strawberry.field()
     label: str = strawberry.field()
 
+    # access
+    # attrib
+    # data
+
+    tags: list[str] = strawberry.field(default_factory=list)
+
+    owner: str | None = strawberry.field(default=None)
     active: bool = strawberry.field()
+
     created_at: datetime = strawberry.field()
     updated_at: datetime = strawberry.field()
+
+    created_by: str | None = strawberry.field(default=None)
+    updated_by: str | None = strawberry.field(default=None)
+
+    count: int = strawberry.field(default=0)
 
     @strawberry.field
     async def items(
@@ -157,15 +158,25 @@ def entity_list_from_record(
     record: dict[str, Any],
     context: dict[str, Any],
 ) -> EntityListNode:
+    data = record.get("data")
+    count = data.get("count", 0)
     return EntityListNode(
         project_name=project_name,
         id=record["id"],
         entity_list_type=record["entity_list_type"],
         entity_type=record["entity_type"],
         label=record["label"],
+        # access
+        # attrib
+        # data
+        tags=record["tags"] or [],
+        owner=record["owner"],
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        created_by=record["created_by"],
+        updated_by=record["updated_by"],
+        count=count,
     )
 
 
