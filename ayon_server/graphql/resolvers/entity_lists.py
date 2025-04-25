@@ -32,7 +32,7 @@ SORT_OPTIONS = {
 FILTER_OPTIONS = [
     "label",
     "owner",
-    "entity_type" "entity_list_type",
+    "entity_typeentity_list_type",
     "created_at",
     "updated_at",
     "count",
@@ -67,7 +67,7 @@ async def get_entity_lists(
     # Access control
     #
 
-    # TODO: Access control to the lists
+    # TODO: Access control to the lists    # TODO: Access control to the list records
 
     #
     # Filtering

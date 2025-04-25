@@ -1,5 +1,6 @@
 import functools
 
+from ayon_server.access.utils import AccessChecker
 from ayon_server.entities.models.fields import (
     folder_fields,
     product_fields,
@@ -22,6 +23,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
+    create_folder_access_list,
     resolve,
 )
 from ayon_server.graphql.resolvers.pagination import (
@@ -29,6 +31,7 @@ from ayon_server.graphql.resolvers.pagination import (
     get_attrib_sort_case,
 )
 from ayon_server.graphql.types import Info
+from ayon_server.logging import logger
 from ayon_server.utils import SQLTool
 
 COLS_ITEMS = [
@@ -126,13 +129,14 @@ async def get_entity_list_items(
     last: ARGLast = None,
     before: ARGBefore = None,
     sort_by: str | None = None,
+    accessible_only: bool = False,
 ) -> EntityListItemsConnection:
     project_name = root.project_name
     entity_type = root.entity_type
 
-    #
-    # First, fetch the list information
-    #
+    # Ensure we're not querying multiple entity types
+    # and store the entity type in the context;
+    # We need it in the edge to create the node
 
     if orig_et := info.context.get("entity_type"):
         if orig_et != entity_type:
@@ -150,6 +154,37 @@ async def get_entity_list_items(
     sql_joins = []
     sql_columns = [f"i.{col} {col}" for col in COLS_ITEMS]
     sql_conditions = [f"entity_list_id = '{root.id}'"]
+
+    # Entity access control
+    #
+    # There are two options for preventing users to access underlying entities,
+    # if they don't have access to them:
+    #
+    #  - When `accessible_only` is set to True, we will only return items that
+    #    are accessible to the user. This is done by filtering the items on the
+    #    SQL level. For this method, we need folder_access_list
+    #
+    #  - When `accessible_only` is set to False, we will return all items,
+    #    including the item metadata, but node will be set to null.
+    #    This is implemented on EntityListItemEdge level and we need access_checker
+    #    to do that.
+
+    if accessible_only:
+        access_list = await create_folder_access_list(root, info)
+        logger.trace(f"Access list: {access_list}")
+        if access_list is not None:
+            # if access list is None, user has access to everything within the project
+            # so we don't need to filter anything
+
+            sql_conditions.append(
+                f"i.folder_path ILIKE ANY  ('{{ {','.join(access_list)} }}')"
+            )
+
+    elif "access_checker" not in info.context:
+        # Push access checker to the context, so it is available for all item edges
+        access_checker = AccessChecker()
+        await access_checker.load(info.context["user"], project_name, "read")
+        info.context["access_checker"] = access_checker
 
     #
     # Join with the actual entity
@@ -217,10 +252,18 @@ async def get_entity_list_items(
         if item_sort_by := ITEM_SORT_OPTIONS.get(sort_by):
             order_by.append(item_sort_by)
 
+        if sort_by.startswith("attrib."):
+            # TODO
+            raise NotImplementedException(
+                "Sorting by item attributes is not supported. Yet."
+            )
+
         if sort_by.startswith("entity."):
             order_by.append(await build_entity_sorting(sort_by[7:], entity_type))
 
-    # secondary sorting for same values (unless we're already sorting by position)
+    # secondary sorting for duplicate values
+    # unless we're already sorting by position
+
     if sort_by != "position":
         order_by.append("i.position")
 
@@ -247,11 +290,7 @@ async def get_entity_list_items(
         {ordering}
     """
 
-    # TODO: Remove before merging :)
-
-    from ayon_server.logging import logger
-
-    logger.trace(f"QUERY {query}")
+    # logger.trace(f"QUERY {query}")
 
     return await resolve(
         EntityListItemsConnection,

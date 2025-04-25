@@ -6,6 +6,7 @@ import strawberry
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
+from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
 
 #
@@ -35,9 +36,12 @@ class EntityListItemEdge(BaseEdge):
     cursor: str | None = strawberry.field(default=None)
 
     _entity: BaseNode | None = strawberry.field(default=None)
+    _forbidden: bool = strawberry.field(default=False)
 
     @strawberry.field(description="Item node")
-    async def node(self, info: Info) -> "BaseNode":
+    async def node(self, info: Info) -> "BaseNode | None":
+        if self._forbidden:
+            return None
         if self._entity:
             return self._entity
         if self.entity_type == "folder":
@@ -80,6 +84,13 @@ class EntityListItemEdge(BaseEdge):
                 # logger.trace(f"Using {getter_name} to get entity")
                 entity = getter(project_name, vdict, context)
 
+        node_access_forbidden = False
+        if access_checker := (context or {}).get("access_checker"):
+            folder_path = record.get("folder_path")
+            if folder_path and not access_checker[folder_path]:
+                logger.trace(f"Access denied for {folder_path}")
+                node_access_forbidden = True
+
         return cls(
             project_name=project_name,
             id=record["id"],
@@ -95,6 +106,7 @@ class EntityListItemEdge(BaseEdge):
             updated_at=record["updated_at"],
             cursor=record["cursor"],
             _entity=entity,
+            _forbidden=node_access_forbidden,
         )
 
 
@@ -142,6 +154,7 @@ class EntityListNode:
         first: int = 100,
         after: str | None = None,
         sort_by: str | None = None,
+        accessible_only: bool = False,
     ) -> EntityListItemsConnection:
         resolver = info.context["entity_list_items_resolver"]
         return await resolver(
@@ -150,6 +163,7 @@ class EntityListNode:
             first=first,
             after=after,
             sort_by=sort_by,
+            accessible_only=accessible_only,
         )
 
 

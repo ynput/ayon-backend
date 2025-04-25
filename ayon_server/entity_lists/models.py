@@ -142,7 +142,7 @@ class EntityListItemModel(OPModel):
 class EntityListItemPostModel(OPModel):
     id: Annotated[str, FListItemId]
     entity_id: Annotated[str, FListItemEntityId]
-    position: Annotated[int, FListItemPosition]
+    position: Annotated[int | None, FListItemPosition]
     label: Annotated[str | None, FListItemLabel]
     attrib: Annotated[dict[str, Any], FListItemAttrib]
     data: Annotated[dict[str, Any], FListItemData]
