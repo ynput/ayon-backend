@@ -117,6 +117,7 @@ class EntityListNode:
     entity_type: str = strawberry.field()
     label: str = strawberry.field()
 
+    # TODO
     # access
     # attrib
     # data
@@ -158,7 +159,7 @@ def entity_list_from_record(
     record: dict[str, Any],
     context: dict[str, Any],
 ) -> EntityListNode:
-    data = record.get("data")
+    data = record.get("data", {})
     count = data.get("count", 0)
     return EntityListNode(
         project_name=project_name,
