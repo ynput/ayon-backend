@@ -23,8 +23,8 @@ async def get_list_entities(
 
     query = f"""
         SELECT
-            l.entity_type entity_type,
-            i.entity_id
+            DISTINCT (i.entity_id),
+            l.entity_type entity_type
         FROM project_{project_name}.entity_lists l
         JOIN
             project_{project_name}.entity_list_items i
@@ -33,11 +33,11 @@ async def get_list_entities(
     """
 
     entity_type: ProjectLevelEntityType | None = None
-    entity_ids: list[str] = []
+    entity_ids: set[str] = set()
 
     async for row in Postgres.iterate(query, list_id):
         entity_type = row["entity_type"]
-        entity_ids.append(row["entity_id"])
+        entity_ids.add(row["entity_id"])
 
     if entity_type is None:
         raise NotFoundException(
@@ -46,5 +46,5 @@ async def get_list_entities(
 
     return EntityListEnities(
         entity_type=entity_type,
-        entity_ids=entity_ids,
+        entity_ids=list(entity_ids),
     )
