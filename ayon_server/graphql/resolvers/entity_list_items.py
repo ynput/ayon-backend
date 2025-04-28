@@ -1,4 +1,5 @@
 import functools
+from typing import Any
 
 from ayon_server.access.utils import AccessChecker
 from ayon_server.entities.models.fields import (
@@ -76,6 +77,7 @@ ITEM_SORT_OPTIONS = {
 
 @functools.cache
 def cols_for_entity(entity_type: str) -> list[str]:
+    fields: list[Any]
     if entity_type == "folder":
         fields = folder_fields
     elif entity_type == "task":
