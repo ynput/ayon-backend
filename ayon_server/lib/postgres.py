@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import asyncpg
 import asyncpg.pool
-import asyncpg.transaction
+from asyncpg.exceptions import TooManyConnectionsError
 from asyncpg.pool import PoolConnectionProxy
 
 from ayon_server.config import ayonconfig
@@ -77,6 +77,8 @@ class Postgres:
             connection_proxy = await cls.pool.acquire(timeout=timeout)
         except TimeoutError:
             raise ServiceUnavailableException("Database pool timeout")
+        except TooManyConnectionsError:
+            raise ServiceUnavailableException("Database pool is full")
 
         try:
             yield connection_proxy
