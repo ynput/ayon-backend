@@ -10,6 +10,7 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid, now
+from ayon_server.utils.utils import dict_patch
 
 from .entity_folder_path import get_entity_folder_path
 from .load_entity_list import load_entity_list
@@ -184,6 +185,11 @@ class EntityList:
                 return item
         raise NotFoundException(f"Item ID {id} not found in {self._payload.label}")
 
+    def _normalize_positions(self) -> None:
+        """Normalize the positions of all items in the list"""
+        for i, item in enumerate(self._payload.items):
+            item.position = i
+
     async def add(
         self,
         entity_id: str,
@@ -224,15 +230,61 @@ class EntityList:
         else:
             self._payload.items.append(item)
 
-        # normalize positions of all items
-        for i, item in enumerate(self._payload.items):
-            item.position = i
+        self._normalize_positions()
+
+    async def update(
+        self,
+        id: str,
+        *,
+        entity_id: str | None = None,
+        position: int | None = None,
+        label: str | None = None,
+        attrib: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+        merge_fields: bool = False,
+    ) -> None:
+        """Update an item in the list"""
+
+        item = self.item_by_id(id)
+        if entity_id is not None:
+            if entity_id != item.entity_id:
+                item.entity_id = entity_id
+                item.folder_path = await get_entity_folder_path(
+                    self._project_name,
+                    self._payload.entity_type,
+                    entity_id,
+                    conn=self._connection,
+                )
+        if position is not None:
+            if position != item.position:
+                item.position = position
+                self._normalize_positions()
+
+        if label is not None:
+            item.label = label
+        if attrib is not None:
+            if merge_fields:
+                item.attrib = dict_patch(item.attrib, attrib)
+            else:
+                item.attrib = attrib
+        if data is not None:
+            if merge_fields:
+                item.data = dict_patch(item.data, data)
+            else:
+                item.data = data
+        if tags is not None:
+            if merge_fields:
+                item.tags = list(set(item.tags) | set(tags))
+            else:
+                item.tags = tags
 
     async def remove(self, id: str) -> None:
         """Remove an item from the list"""
         for i, item in enumerate(self._payload.items):
             if item.id == id:
                 del self._payload.items[i]
+                self._normalize_positions()
                 return
         raise NotFoundException(f"Item ID {id} not found in {self._payload.label}")
 

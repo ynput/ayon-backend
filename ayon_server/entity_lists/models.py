@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import IntEnum
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid, now
@@ -208,3 +208,43 @@ class EntityListSummary(OPModel):
     entity_type: Annotated[ProjectLevelEntityType, FListEntityType]
     label: Annotated[str, FListLabel]
     count: Annotated[int, Field(title="Item count", ge=0)] = 0
+
+
+#
+# Multi-update
+#
+
+EntityListMultiPatchMode = Literal["replace", "merge", "delete"]
+
+
+class EntityListMultiPatchItemModel(OPModel):
+    id: Annotated[str | None, FListItemId]
+    entity_id: Annotated[str | None, FListItemEntityId] = None
+    position: Annotated[int | None, FListItemPosition] = None
+    label: Annotated[str | None, FListItemLabel] = None
+    attrib: Annotated[dict[str, Any], FListItemAttrib]
+    data: Annotated[dict[str, Any], FListItemData]
+    tags: Annotated[list[str], FListItemTags]
+
+
+class EntityListMultiPatchModel(OPModel):
+    items: Annotated[
+        list[EntityListMultiPatchItemModel],
+        Field(
+            title="Patched items",
+            default_factory=list,
+            min_items=1,
+        ),
+    ]
+    mode: Annotated[
+        EntityListMultiPatchMode,
+        Field(
+            title="Patch mode",
+            description=(
+                "The mode of the operation. "
+                "`replace` will replace all items with the provided ones. "
+                "`merge` will merge the provided items with the existing ones."
+                "`delete` will delete items with matching ids from the list."
+            ),
+        ),
+    ] = "replace"
