@@ -136,7 +136,7 @@ async def _multi_merge(
 
         else:
             if not item.entity_id:
-                raise BadRequestException("Entity ID is required in merge mode")
+                raise BadRequestException("Entity ID is required in for new items")
             await entity_list.add(
                 item.entity_id,
                 id=item.id,
