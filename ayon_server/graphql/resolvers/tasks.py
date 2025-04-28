@@ -293,7 +293,8 @@ async def get_tasks(
             "created_at",
             "folder_id",
             "id",
-            "label" "name",
+            "label",
+            "name",
             "status",
             "tags",
             "task_type",
@@ -424,7 +425,7 @@ async def get_tasks(
             attr_case = await get_attrib_sort_case(attr_name, exp)
             order_by.insert(0, attr_case)
         else:
-            raise ValueError(f"Invalid sort_by value: {sort_by}")
+            raise BadRequestException(f"Invalid sort_by value: {sort_by}")
 
     ordering, paging_conds, cursor = create_pagination(
         order_by,

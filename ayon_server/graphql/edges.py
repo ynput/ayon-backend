@@ -7,6 +7,7 @@ from ayon_server.graphql.types import BaseEdge
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.activity import ActivityNode
+    from ayon_server.graphql.nodes.entity_list import EntityListNode
     from ayon_server.graphql.nodes.event import EventNode
     from ayon_server.graphql.nodes.folder import FolderNode
     from ayon_server.graphql.nodes.kanban import KanbanNode
@@ -19,17 +20,18 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.workfile import WorkfileNode
 else:
     ActivityNode = LazyType["ActivityNode", ".nodes.activity"]
-    ProjectNode = LazyType["ProjectNode", ".nodes.project"]
-    UserNode = LazyType["UserNode", ".nodes.user"]
+    BaseNode = LazyType["BaseNode", ".nodes.common"]
+    EntityListNode = LazyType["EntityListNode", ".nodes.entity_list"]
+    EventNode = LazyType["EventNode", ".nodes.event"]
     FolderNode = LazyType["FolderNode", ".nodes.folder"]
     KanbanNode = LazyType["KanbanNode", ".nodes.kanban"]
-    TaskNode = LazyType["TaskNode", ".nodes.task"]
     ProductNode = LazyType["ProductNode", ".nodes.product"]
-    VersionNode = LazyType["VersionNode", ".nodes.version"]
+    ProjectNode = LazyType["ProjectNode", ".nodes.project"]
     RepresentationNode = LazyType["RepresentationNode", ".nodes.representation"]
-    EventNode = LazyType["EventNode", ".nodes.event"]
+    TaskNode = LazyType["TaskNode", ".nodes.task"]
+    UserNode = LazyType["UserNode", ".nodes.user"]
+    VersionNode = LazyType["VersionNode", ".nodes.version"]
     WorkfileNode = LazyType["WorkfileNode", ".nodes.workfile"]
-    BaseNode = LazyType["BaseNode", ".nodes.common"]
 
 
 @strawberry.type
@@ -93,12 +95,12 @@ class ActivityEdge(BaseEdge):
 
 
 @strawberry.type
-class InboxEdge(BaseEdge):
-    node: ActivityNode = strawberry.field(description="The inbox node")
+class KanbanEdge(BaseEdge):
+    node: KanbanNode = strawberry.field(description="The kanban node")
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
-class KanbanEdge(BaseEdge):
-    node: KanbanNode = strawberry.field(description="The kanban node")
+class EntityListEdge(BaseEdge):
+    node: EntityListNode = strawberry.field(description="The entity list node")
     cursor: str | None = strawberry.field(default=None)

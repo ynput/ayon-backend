@@ -51,11 +51,7 @@ class HeartbeatResponseModel(OPModel):
     )
 
 
-@router.get(
-    "/hosts",
-    response_model=HostListResponseModel,
-    tags=["Services"],
-)
+@router.get("/hosts", response_model=HostListResponseModel)
 async def list_hosts(user: CurrentUser):
     """Return a list of all hosts.
 
@@ -73,7 +69,6 @@ async def list_hosts(user: CurrentUser):
 @router.post(
     "/hosts/heartbeat",
     response_model=HeartbeatResponseModel,
-    tags=["Services"],
     dependencies=[NoTraces],
 )
 async def host_heartbeat(payload: HeartbeatRequestModel, user: CurrentUser):

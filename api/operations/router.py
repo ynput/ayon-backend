@@ -1,3 +1,3 @@
 from fastapi import APIRouter
 
-router = APIRouter(tags=["Projects"])
+router = APIRouter(tags=["Operations"])

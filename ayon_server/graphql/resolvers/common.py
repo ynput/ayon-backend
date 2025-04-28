@@ -112,8 +112,9 @@ class FieldInfo:
 async def create_folder_access_list(root, info) -> list[str] | None:
     user = info.context["user"]
     project_name = root.project_name
-    if root.__class__.__name__ != "ProjectNode":
-        return None
+    # Why this was here? It doesn't make sense.
+    # if root.__class__.__name__ != "ProjectNode":
+    #     return None
     return await folder_access_list(user, project_name)
 
 
@@ -153,17 +154,29 @@ async def resolve(
         # Create cursor:
         # We need to do that first, because we need to get rid of
         # the cursor data from the record
+
         cdata = []
-        for i, c in enumerate(order_by or []):
+        for i, _ in enumerate(order_by or []):
             cdata.append(record_dict.pop(f"cursor_{i}"))
         cursor = encode_cursor(cdata)
 
-        try:
-            node = node_type.from_record(project_name, record_dict, context=context)
-        except ForbiddenException:
-            continue
+        if node_type is not None:
+            try:
+                node = node_type.from_record(project_name, record_dict, context=context)
+            except ForbiddenException:
+                continue
+            edges.append(edge_type(node=node, cursor=cursor))
 
-        edges.append(edge_type(node=node, cursor=cursor))
+        else:
+            # This is for entity list items. They need to be resolved,
+            # But the actual node is created on the edge, not here
+            try:
+                payload = {**record_dict, "cursor": cursor}
+                edge = edge_type.from_record(project_name, payload, context=context)
+            except ForbiddenException:
+                continue
+            edges.append(edge)
+
         if count and count == len(edges):
             break
 
