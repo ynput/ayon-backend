@@ -14,8 +14,8 @@ app_meta: dict[str, Any] = {
         "url": "https://ynput.io",
     },
     "license_info": {
-        "name": "Apache License 2.0",
-        "url": "http://www.apache.org/licenses/",
+        "name": "Functional Source License, Version 1.1",
+        "url": "https://github.com/ynput/ayon-backend?tab=License-1-ov-file#readme",
     },
     "terms_of_service": "https://ynput.io/terms-of-service",
 }
