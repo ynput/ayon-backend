@@ -200,8 +200,8 @@ class EntityList:
         attrib: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         tags: list[str] | None = None,
-    ) -> None:
-        """Add an item to the list"""
+    ) -> str:
+        """Add an item to the list, returning the item ID"""
 
         folder_path = await get_entity_folder_path(
             self._project_name,
@@ -231,6 +231,7 @@ class EntityList:
             self._payload.items.append(item)
 
         self._normalize_positions()
+        return item.id
 
     async def update(
         self,

@@ -111,10 +111,10 @@ async def get_entity_lists(
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
-
-    from ayon_server.logging import logger
-
-    logger.trace(f"QUERY ENTITY LISTS {query}")
+    #
+    # from ayon_server.logging import logger
+    #
+    # logger.trace(f"QUERY ENTITY LISTS {query}")
 
     return await resolve(
         EntityListsConnection,
