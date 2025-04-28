@@ -48,6 +48,10 @@ class EntityList:
     def payload(self) -> EntityListModel:
         return self._payload
 
+    @property
+    def items(self) -> list[EntityListItemModel]:
+        return self._payload.items
+
     async def ensure_access_level(
         self, user: UserEntity | None = None, level: int = 0
     ) -> None:
