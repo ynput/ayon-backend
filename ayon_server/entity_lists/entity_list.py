@@ -178,12 +178,12 @@ class EntityList:
         payload = await load_entity_list(project_name, id, conn)
         return cls(project_name, payload, user=user, conn=conn)
 
-    def item_by_id(self, id: str) -> EntityListItemModel:
+    def item_by_id(self, item_id: str) -> EntityListItemModel:
         """Get an item by ID"""
         for item in self._payload.items:
-            if item.id == id:
+            if item.id == item_id:
                 return item
-        raise NotFoundException(f"Item ID {id} not found in {self._payload.label}")
+        raise NotFoundException(f"Item ID {item_id} not found in {self._payload.label}")
 
     def _normalize_positions(self) -> None:
         """Normalize the positions of all items in the list"""
@@ -234,7 +234,7 @@ class EntityList:
 
     async def update(
         self,
-        id: str,
+        item_id: str,
         *,
         entity_id: str | None = None,
         position: int | None = None,
@@ -246,7 +246,7 @@ class EntityList:
     ) -> None:
         """Update an item in the list"""
 
-        item = self.item_by_id(id)
+        item = self.item_by_id(item_id)
         if entity_id is not None:
             if entity_id != item.entity_id:
                 item.entity_id = entity_id
@@ -279,14 +279,14 @@ class EntityList:
             else:
                 item.tags = tags
 
-    async def remove(self, id: str) -> None:
+    async def remove(self, item_id: str) -> None:
         """Remove an item from the list"""
         for i, item in enumerate(self._payload.items):
-            if item.id == id:
+            if item.id == item_id:
                 del self._payload.items[i]
                 self._normalize_positions()
                 return
-        raise NotFoundException(f"Item ID {id} not found in {self._payload.label}")
+        raise NotFoundException(f"Item ID {item_id} not found in {self._payload.label}")
 
     async def save(
         self,
