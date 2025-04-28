@@ -1,4 +1,4 @@
-__all__ = ["router", "lists", "list_items"]
+__all__ = ["router", "lists", "list_items", "entities"]
 
-from . import list_items, lists
+from . import entities, list_items, lists
 from .router import router
