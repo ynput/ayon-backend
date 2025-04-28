@@ -219,7 +219,7 @@ class EntityList:
             updated_by=self._user.name if self._user else None,
         )
 
-        if position:
+        if position is not None:
             self._payload.items.insert(position, item)
         else:
             self._payload.items.append(item)
