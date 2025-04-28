@@ -32,7 +32,6 @@ from ayon_server.graphql.resolvers.pagination import (
     get_attrib_sort_case,
 )
 from ayon_server.graphql.types import Info
-from ayon_server.logging import logger
 from ayon_server.utils import SQLTool
 
 COLS_ITEMS = [
@@ -173,7 +172,6 @@ async def get_entity_list_items(
 
     if accessible_only:
         access_list = await create_folder_access_list(root, info)
-        logger.trace(f"Access list: {access_list}")
         if access_list is not None:
             # if access list is None, user has access to everything within the project
             # so we don't need to filter anything
@@ -291,8 +289,6 @@ async def get_entity_list_items(
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
-
-    # logger.trace(f"QUERY {query}")
 
     return await resolve(
         EntityListItemsConnection,

@@ -8,7 +8,6 @@ from typing import Any, NewType
 
 from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logger
 from ayon_server.utils import SQLTool
 
 KeyType = NewType("KeyType", tuple[str, str])
@@ -28,7 +27,7 @@ async def folder_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     values must be the same!
     """
 
-    result_dict: dict[KeyType, Any] = {k: None for k in keys}
+    result_dict: dict[KeyType, Any] = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
     query = f"""
@@ -80,7 +79,7 @@ async def product_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     values must be the same!
     """
 
-    result_dict = {k: None for k in keys}
+    result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
     query = f"""
@@ -100,7 +99,7 @@ async def task_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     values must be the same!
     """
 
-    result_dict = {k: None for k in keys}
+    result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
     query = f"""
@@ -142,7 +141,7 @@ async def workfile_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
 
     # TODO: query parent tasks?
 
-    result_dict = {k: None for k in keys}
+    result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
     query = f"""
@@ -162,9 +161,7 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     values must be the same!
     """
 
-    logger.trace(f"[DATALOADER] Loading {len(keys)} versions")
-
-    result_dict = {k: None for k in keys}
+    result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
     query = f"""
@@ -204,7 +201,7 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
 async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     """Load a list of latest versions of given products"""
 
-    result_dict = {k: None for k in keys}
+    result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
     query = f"""
@@ -249,7 +246,7 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
 async def user_loader(keys: list[str]) -> list[dict[str, Any] | None]:
     """Load a list of user records by their names."""
 
-    result_dict = {k: None for k in keys}
+    result_dict = dict.fromkeys(keys)
     query = f"SELECT * FROM public.users WHERE name IN {SQLTool.array(keys)}"
     async for record in Postgres.iterate(query):
         result_dict[record["name"]] = record

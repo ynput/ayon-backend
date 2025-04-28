@@ -9,7 +9,6 @@ from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.logging import logger
 from ayon_server.utils import get_nickname, json_dumps
 
 if TYPE_CHECKING:
@@ -101,12 +100,7 @@ def task_from_record(
             else:
                 assignees.append(get_nickname(assignee))
     else:
-        try:
-            assignees = record["assignees"]
-        except KeyError:
-            assignees = []
-            logger.debug(f"Assignees not found in record {record}")
-            raise KeyError("aaa")
+        assignees = record["assignees"]
 
     own_attrib = list(record["attrib"].keys())
     data = record.get("data") or {}
