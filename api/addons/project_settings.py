@@ -29,10 +29,10 @@ from .common import (
     remove_override,
     remove_site_override,
 )
-from .router import route_meta, router
+from .router import router
 
 
-@router.get("/{addon_name}/{version}/schema/{project_name}", **route_meta)
+@router.get("/{addon_name}/{version}/schema/{project_name}")
 async def get_addon_project_settings_schema(
     addon_name: str,
     version: str,
@@ -69,7 +69,6 @@ async def get_addon_project_settings_schema(
 @router.get(
     "/{addon_name}/{version}/settings/{project_name}",
     response_model=dict[str, Any],
-    **route_meta,
 )
 async def get_addon_project_settings(
     addon_name: str,
@@ -97,7 +96,7 @@ async def get_addon_project_settings(
     return settings
 
 
-@router.get("/{addon_name}/{version}/overrides/{project_name}", **route_meta)
+@router.get("/{addon_name}/{version}/overrides/{project_name}")
 async def get_addon_project_overrides(
     addon_name: str,
     version: str,
@@ -165,7 +164,6 @@ async def get_addon_project_overrides(
 @router.post(
     "/{addon_name}/{version}/settings/{project_name}",
     status_code=204,
-    **route_meta,
 )
 async def set_addon_project_settings(
     payload: dict[str, Any],
@@ -252,11 +250,7 @@ async def set_addon_project_settings(
     return EmptyResponse()
 
 
-@router.delete(
-    "/{addon_name}/{version}/overrides/{project_name}",
-    status_code=204,
-    **route_meta,
-)
+@router.delete("/{addon_name}/{version}/overrides/{project_name}", status_code=204)
 async def delete_addon_project_overrides(
     addon_name: str,
     version: str,
@@ -299,11 +293,7 @@ async def delete_addon_project_overrides(
     return EmptyResponse()
 
 
-@router.post(
-    "/{addon_name}/{version}/overrides/{project_name}",
-    status_code=204,
-    **route_meta,
-)
+@router.post("/{addon_name}/{version}/overrides/{project_name}", status_code=204)
 async def modify_project_overrides(
     payload: ModifyOverridesRequestModel,
     addon_name: str,
@@ -373,7 +363,7 @@ async def modify_project_overrides(
 #
 
 
-@router.get("/{addon_name}/{addon_version}/rawOverrides/{project_name}", **route_meta)
+@router.get("/{addon_name}/{addon_version}/rawOverrides/{project_name}")
 async def get_raw_addon_project_overrides(
     addon_name: str,
     addon_version: str,
@@ -419,9 +409,7 @@ async def get_raw_addon_project_overrides(
 
 
 @router.put(
-    "/{addon_name}/{addon_version}/rawOverrides/{project_name}",
-    status_code=204,
-    **route_meta,
+    "/{addon_name}/{addon_version}/rawOverrides/{project_name}", status_code=204
 )
 async def set_raw_addon_project_overrides(
     addon_name: str,

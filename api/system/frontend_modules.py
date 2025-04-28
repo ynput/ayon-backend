@@ -11,7 +11,7 @@ class FrontendModuleListItem(OPModel):
     modules: dict[str, list[str]]
 
 
-@router.get("/frontendModules", tags=["System"])
+@router.get("/frontendModules")
 async def list_frontend_modules(user: CurrentUser) -> list[FrontendModuleListItem]:
     addon_library = AddonLibrary.getinstance()
 

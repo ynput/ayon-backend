@@ -15,7 +15,7 @@ class SiteInfo(OPModel):
     users: set[str] = Field(..., title="List of users")
 
 
-@router.get("/system/sites", tags=["System"])
+@router.get("/system/sites")
 async def get_sites(
     user: CurrentUser,
     platform: Platform | None = Query(None),

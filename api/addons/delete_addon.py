@@ -48,7 +48,7 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
     await require_server_restart(None, "Restart the server to apply the addon changes.")
 
 
-@router.delete("/{addon_name}", tags=["Addons"])
+@router.delete("/{addon_name}")
 async def delete_addon(
     user: CurrentUser,
     addon_name: str,
@@ -68,7 +68,7 @@ async def delete_addon(
     return EmptyResponse()
 
 
-@router.delete("/{addon_name}/{addon_version}", tags=["Addons"])
+@router.delete("/{addon_name}/{addon_version}")
 async def delete_addon_version(
     user: CurrentUser,
     addon_name: str,

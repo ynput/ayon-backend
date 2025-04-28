@@ -18,7 +18,7 @@ assert sites
 assert frontend_modules
 
 
-@router.post("/system/restart", response_class=Response, tags=["System"])
+@router.post("/system/restart", response_class=Response)
 async def request_server_restart(user: CurrentUser):
     if not user.is_manager:
         raise ForbiddenException(
@@ -38,7 +38,7 @@ class RestartRequiredModel(OPModel):
     reason: str | None = Field(None, description="The reason for the restart")
 
 
-@router.get("/system/restartRequired", tags=["System"])
+@router.get("/system/restartRequired")
 async def get_restart_required() -> RestartRequiredModel:
     """Get the server restart required flag.
 
@@ -61,9 +61,7 @@ async def get_restart_required() -> RestartRequiredModel:
     return RestartRequiredModel(required=True, reason=res[0]["description"])
 
 
-@router.post(
-    "/system/restartRequired", tags=["System"], response_model_exclude_none=True
-)
+@router.post("/system/restartRequired", response_model_exclude_none=True)
 async def set_restart_required(
     request: RestartRequiredModel,
     user: CurrentUser,

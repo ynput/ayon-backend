@@ -14,7 +14,7 @@ from starlette.requests import ClientDisconnect
 from ayon_server.api.authmw import AuthMiddleware
 from ayon_server.api.lifespan import lifespan
 from ayon_server.api.messaging import messaging
-from ayon_server.api.metadata import app_meta, tags_meta
+from ayon_server.api.metadata import app_meta
 from ayon_server.api.postgres_exceptions import (
     IntegrityConstraintViolationError,
     parse_postgres_exception,
@@ -41,7 +41,6 @@ app = fastapi.FastAPI(
     lifespan=lifespan,
     docs_url=None,
     redoc_url="/docs" if not ayonconfig.disable_rest_docs else None,
-    openapi_tags=tags_meta,
     **app_meta,
 )
 

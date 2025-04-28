@@ -14,7 +14,7 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
-from .router import route_meta, router
+from .router import router
 
 #
 # Addons configuration
@@ -105,7 +105,7 @@ class AddonConfigRequest(OPModel):
     copy_variant: VariantCopyRequest | None = Field(None)
 
 
-@router.post("", deprecated=True, **route_meta)
+@router.post("", deprecated=True)
 async def configure_addons(
     payload: AddonConfigRequest,
     user: CurrentUser,

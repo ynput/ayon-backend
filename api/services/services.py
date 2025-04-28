@@ -44,7 +44,7 @@ class ServiceListModel(OPModel):
     services: list[ServiceModel] = Field(default_factory=list)
 
 
-@router.get("/services", tags=["Services"], dependencies=[NoTraces])
+@router.get("/services", dependencies=[NoTraces])
 async def list_services(user: CurrentUser) -> ServiceListModel:
     query = """
         SELECT *, extract(epoch from (now() - last_seen)) as last_seen_delta
@@ -70,7 +70,7 @@ class SpawnServiceRequestModel(OPModel):
     config: ServiceConfigModel = Field(default_factory=ServiceConfigModel)
 
 
-@router.put("/services/{name}", status_code=204, tags=["Services"])
+@router.put("/services/{name}", status_code=204)
 async def spawn_service(
     payload: SpawnServiceRequestModel,
     user: CurrentUser,
@@ -115,7 +115,7 @@ async def spawn_service(
     return EmptyResponse()
 
 
-@router.delete("/services/{name}", status_code=204, tags=["Services"])
+@router.delete("/services/{name}", status_code=204)
 async def delete_service(user: CurrentUser, name: str = Path(...)) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can delete services")
@@ -137,7 +137,7 @@ class PatchServiceRequestModel(ServiceConfigModel):
     )
 
 
-@router.patch("/services/{service_name}", status_code=204, tags=["Services"])
+@router.patch("/services/{service_name}", status_code=204)
 async def patch_service(
     payload: PatchServiceRequestModel,
     user: CurrentUser,
