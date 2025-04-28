@@ -61,7 +61,7 @@ async def get_entity_lists(
     if ids:
         if not ids:
             return EntityListsConnection()
-        sql_conditions.append(f"id it {SQLTool.id_array(ids)}")
+        sql_conditions.append(f"id in {SQLTool.id_array(ids)}")
 
     #
     # Access control
