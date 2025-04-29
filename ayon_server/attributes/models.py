@@ -56,7 +56,7 @@ class AttributeData(OPModel):
     ] = None
 
     gt: Annotated[int | float | None, Field(title="Greater than")] = None
-    ge: Annotated[int | float | None, Field(title="Geater or equal")] = None
+    ge: Annotated[int | float | None, Field(title="Greater or equal")] = None
     lt: Annotated[int | float | None, Field(title="Less")] = None
     le: Annotated[int | float | None, Field(title="Less or equal")] = None
 
