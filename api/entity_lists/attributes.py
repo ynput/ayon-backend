@@ -1,7 +1,7 @@
 from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.attributes.models import AttributeData, AttributeNameModel
 from ayon_server.attributes.validate_attribute_data import validate_attribute_data
-from ayon_server.exceptions import NotFoundException
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
@@ -12,7 +12,7 @@ class EntityListAttributeDefinition(AttributeNameModel):
     data: AttributeData
 
 
-@router.get("/{list_id}/attributes")
+@router.get("/{list_id}/attributes", response_model_exclude_unset=True)
 async def get_entity_list_attributes_definition(
     user: CurrentUser,
     project_name: ProjectName,
@@ -49,10 +49,23 @@ async def set_entity_list_attributes_definition(
     list_id: str,
     payload: list[EntityListAttributeDefinition],
 ) -> None:
+    """Set the custom attributes for the entity list."""
+
+    query = "SELECT name FROM attributes"
+    res = await Postgres.fetch(query)
+    builtin_names = {row["name"] for row in res}
+
     payload_list = []
     for attr_definition in payload:
+        if attr_definition.name in builtin_names:
+            raise BadRequestException(
+                f"Entity list attribute {attr_definition.name} cannot shadow "
+                "an existing studio attribute"
+            )
         validate_attribute_data(attr_definition.name, attr_definition.data)
         payload_list.append(attr_definition.dict(exclude_unset=True, exclude_none=True))
+
+    logger.debug(f"Setting attributes for entity list {list_id}: {payload_list}")
 
     query = f"""
         UPDATE project_{project_name}.entity_lists
