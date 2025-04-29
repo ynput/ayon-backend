@@ -5,7 +5,6 @@ from ayon_server.config import ayonconfig
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import (
     AyonException,
-    BadRequestException,
     ForbiddenException,
     ServiceUnavailableException,
 )
@@ -33,7 +32,7 @@ class CompanyInfo(OPModel):
 class UserVerificationResponse(OPModel):
     organization: str = "ayon"
     name: str
-    email: str
+    email: str | None
     user_id: str
     user_hash: str
     profile_picture: str | None = None
@@ -114,9 +113,6 @@ async def get_feedback_verification(user: CurrentUser) -> UserVerificationRespon
         level = "admin"
     elif user.is_manager:
         level = "manager"
-
-    if not user.attrib.email:
-        raise BadRequestException("User email is not set")
 
     # Get headers here to abort if not connected to the cloud
     headers = await CloudUtils.get_api_headers()
