@@ -6,15 +6,12 @@ from pydantic import Field, ValidationError
 from ayon_server.api.dependencies import AttributeName, CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.api.system import require_server_restart
+from ayon_server.attributes.models import AttributeModel, AttributePutModel
+from ayon_server.attributes.validate_attribute_data import validate_attribute_data
 from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import (
-    OPModel,
-)
-
-from .models import AttributeModel, AttributePutModel
-from .validator import validate_attribute_data
+from ayon_server.types import OPModel
 
 router = APIRouter(prefix="/attributes", tags=["Attributes"])
 

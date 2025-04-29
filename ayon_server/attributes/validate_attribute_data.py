@@ -1,10 +1,9 @@
 from pydantic import Field, create_model
 
+from ayon_server.attributes.models import AttributeData
 from ayon_server.entities.models.generator import FIELD_TYPES
 from ayon_server.exceptions import BadRequestException
 from ayon_server.logging import log_traceback
-
-from .models import AttributeData
 
 
 def validate_attribute_data(name: str, fdef: AttributeData) -> None:
@@ -46,6 +45,5 @@ def validate_attribute_data(name: str, fdef: AttributeData) -> None:
     except ValueError as e:
         log_traceback(f"Unable to construct attribute '{name}'")
         raise BadRequestException(
-            f"Unable to construct attribute '{name}' "
-            "Check the logs for more details."
+            f"Unable to construct attribute '{name}' Check the logs for more details."
         ) from e
