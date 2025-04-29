@@ -99,7 +99,10 @@ async def handle_request_validation_error(
         loc = ".".join(str(x) for x in loc)
         traceback_msg += f"{loc}: {error['msg']}\n"
 
-    detail = "Request validation error"
+    detail = (
+        f"Request validation error in " f"[{request.method.upper()}] {request.url.path}"
+    )
+
     extras["traceback"] = traceback_msg.strip()
     logger.error(detail, **extras)
     return JSONResponse(

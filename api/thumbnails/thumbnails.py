@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query, Request, Response
 from ayon_server.api.dependencies import (
     CurrentUser,
     FolderID,
+    NoTraces,
     ProjectName,
     TaskID,
     ThumbnailContentType,
@@ -35,9 +36,7 @@ from ayon_server.utils import EntityID
 # Router
 #
 
-router = APIRouter(
-    tags=["Thumbnails"],
-)
+router = APIRouter(tags=["Thumbnails"])
 
 #
 # Common
@@ -176,6 +175,7 @@ async def update_thumbnail(
 @router.get(
     "/projects/{project_name}/thumbnails/{thumbnail_id}",
     response_class=Response,
+    dependencies=[NoTraces],
 )
 async def get_thumbnail(
     user: CurrentUser,
@@ -233,7 +233,9 @@ async def create_folder_thumbnail(
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
-@router.get("/projects/{project_name}/folders/{folder_id}/thumbnail")
+@router.get(
+    "/projects/{project_name}/folders/{folder_id}/thumbnail", dependencies=[NoTraces]
+)
 async def get_folder_thumbnail(
     user: CurrentUser,
     project_name: ProjectName,
@@ -286,7 +288,9 @@ async def create_version_thumbnail(
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
-@router.get("/projects/{project_name}/versions/{version_id}/thumbnail")
+@router.get(
+    "/projects/{project_name}/versions/{version_id}/thumbnail", dependencies=[NoTraces]
+)
 async def get_version_thumbnail(
     user: CurrentUser,
     project_name: ProjectName,
@@ -338,7 +342,10 @@ async def create_workfile_thumbnail(
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
-@router.get("/projects/{project_name}/workfiles/{workfile_id}/thumbnail")
+@router.get(
+    "/projects/{project_name}/workfiles/{workfile_id}/thumbnail",
+    dependencies=[NoTraces],
+)
 async def get_workfile_thumbnail(
     user: CurrentUser,
     project_name: ProjectName,
@@ -409,7 +416,9 @@ async def create_task_thumbnail(
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
-@router.get("/projects/{project_name}/tasks/{task_id}/thumbnail")
+@router.get(
+    "/projects/{project_name}/tasks/{task_id}/thumbnail", dependencies=[NoTraces]
+)
 async def get_task_thumbnail(
     user: CurrentUser,
     project_name: ProjectName,
