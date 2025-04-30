@@ -42,15 +42,16 @@ class EntityListItemEdge(BaseEdge):
     @strawberry.field()
     def all_attrib(self) -> str:
         """All attributes field is a JSON string."""
-        full_attrib = self._attrib or {}
+        all_attrib = {}
         if self._entity:
             if hasattr(self._entity, "_project_attrib"):
-                full_attrib.update(self._entity._project_attrib or {})
+                all_attrib.update(self._entity._project_attrib or {})
             if hasattr(self._entity, "_inherited_attrib"):
-                full_attrib.update(self._entity._inherited_attrib or {})
+                all_attrib.update(self._entity._inherited_attrib or {})
             if hasattr(self._entity, "_attrib"):
-                full_attrib.update(self._entity._attrib or {})
-        return json_dumps(full_attrib)
+                all_attrib.update(self._entity._attrib or {})
+        all_attrib.update(self._attrib or {})
+        return json_dumps(all_attrib)
 
     @strawberry.field()
     def own_attrib(self) -> list[str]:
@@ -156,7 +157,6 @@ class EntityListNode:
     # TODO
     # access
     # attrib
-    # data
 
     tags: list[str] = strawberry.field(default_factory=list)
 
@@ -182,7 +182,7 @@ class EntityListNode:
         return json_dumps(self._data or {})
 
     @strawberry.field()
-    def custom_attributes(self) -> str:
+    def attributes(self) -> str:
         attrs = self._data.get("attributes", [])
         return json_dumps(attrs)
 
