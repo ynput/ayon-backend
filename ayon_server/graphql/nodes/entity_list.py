@@ -43,8 +43,13 @@ class EntityListItemEdge(BaseEdge):
     def all_attrib(self) -> str:
         """All attributes field is a JSON string."""
         full_attrib = self._attrib or {}
-        if self._entity and hasattr(self._entity, "_attrib"):
-            full_attrib.update(self._entity._attrib or {})
+        if self._entity:
+            if hasattr(self._entity, "_project_attrib"):
+                full_attrib.update(self._entity._project_attrib or {})
+            if hasattr(self._entity, "_inherited_attrib"):
+                full_attrib.update(self._entity._inherited_attrib or {})
+            if hasattr(self._entity, "_attrib"):
+                full_attrib.update(self._entity._attrib or {})
         return json_dumps(full_attrib)
 
     @strawberry.field()
