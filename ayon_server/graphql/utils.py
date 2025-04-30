@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 from ayon_server.entities.core import attribute_library
 from ayon_server.entities.user import UserEntity
@@ -20,15 +20,17 @@ ATTRIB_WHITELIST = [
     "avatarUrl",
 ]
 
+T = TypeVar("T")
+
 
 def parse_attrib_data(
-    target_type: Any,
+    target_type: type[T],
     own_attrib: dict[str, Any],
     user: UserEntity,
     project_name: str | None = None,
     inherited_attrib: dict[str, Any] | None = None,
     project_attrib: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> T:
     """ACL agnostic attribute list parser"""
 
     attr_limit: list[str] | Literal["all"] = []
@@ -74,9 +76,9 @@ def parse_attrib_data(
                 data[key] = project_attrib[key]
 
     if not data:
-        return {}
+        return target_type()
     result = {}
-    expected_keys = target_type.__dataclass_fields__.keys()
+    expected_keys = target_type.__dataclass_fields__.keys()  # type: ignore
     for key in expected_keys:
         if key in data:
             if attr_limit == "all" or key in attr_limit:
@@ -84,4 +86,4 @@ def parse_attrib_data(
                 if attribute_library.by_name(key)["type"] == "datetime":
                     value = datetime.fromisoformat(value)
                 result[key] = value
-    return result
+    return target_type(**result)

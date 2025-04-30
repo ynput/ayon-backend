@@ -51,12 +51,11 @@ class UserNode:
 
     @strawberry.field
     def attrib(self) -> UserAttribType:
-        res = parse_attrib_data(
+        return parse_attrib_data(
             UserAttribType,
             self._attrib,
             user=self._user,
         )
-        return UserAttribType(**res)
 
     @strawberry.field
     def all_attrib(self) -> str:

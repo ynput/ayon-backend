@@ -68,13 +68,12 @@ class RepresentationNode(BaseNode):
 
     @strawberry.field
     def attrib(self) -> RepresentationAttribType:
-        res = parse_attrib_data(
+        return parse_attrib_data(
             RepresentationAttribType,
             self._attrib,
             user=self._user,
             project_name=self.project_name,
         )
-        return RepresentationAttribType(**res)
 
     @strawberry.field
     def all_attrib(self) -> str:

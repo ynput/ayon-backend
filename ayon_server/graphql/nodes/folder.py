@@ -97,7 +97,7 @@ class FolderNode(BaseNode):
 
     @strawberry.field
     def attrib(self) -> FolderAttribType:
-        res = parse_attrib_data(
+        return parse_attrib_data(
             FolderAttribType,
             self._attrib,
             user=self._user,
@@ -105,7 +105,6 @@ class FolderNode(BaseNode):
             project_attrib=self._project_attrib,
             inherited_attrib=self._inherited_attrib,
         )
-        return FolderAttribType(**res)
 
     @strawberry.field
     def all_attrib(self) -> str:

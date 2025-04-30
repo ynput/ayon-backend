@@ -46,13 +46,12 @@ class WorkfileNode(BaseNode):
 
     @strawberry.field
     def attrib(self) -> WorkfileAttribType:
-        res = parse_attrib_data(
+        return parse_attrib_data(
             WorkfileAttribType,
             self._attrib,
             user=self._user,
             project_name=self.project_name,
         )
-        return WorkfileAttribType(**res)
 
     @strawberry.field
     def all_attrib(self) -> str:

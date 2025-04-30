@@ -95,13 +95,12 @@ class ProductNode(BaseNode):
 
     @strawberry.field
     def attrib(self) -> ProductAttribType:
-        res = parse_attrib_data(
+        return parse_attrib_data(
             ProductAttribType,
             self._attrib,
             user=self._user,
             project_name=self.project_name,
         )
-        return ProductAttribType(**res)
 
     @strawberry.field
     def all_attrib(self) -> str:

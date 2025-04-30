@@ -75,14 +75,13 @@ class TaskNode(BaseNode):
 
     @strawberry.field
     def attrib(self) -> TaskAttribType:
-        res = parse_attrib_data(
+        return parse_attrib_data(
             TaskAttribType,
             self._attrib,
             user=self._user,
             project_name=self.project_name,
             inherited_attrib=self._inherited_attrib,
         )
-        return TaskAttribType(**res)
 
     @strawberry.field
     def all_attrib(self) -> str:

@@ -42,7 +42,7 @@ class EntityListItemEdge(BaseEdge):
     @strawberry.field()
     def all_attrib(self) -> str:
         """All attributes field is a JSON string."""
-        all_attrib = {}
+        all_attrib: dict[str, Any] = {}
         if self._entity:
             if hasattr(self._entity, "_project_attrib"):
                 all_attrib.update(self._entity._project_attrib or {})
@@ -220,7 +220,6 @@ def entity_list_from_record(
         label=record["label"],
         # access
         # attrib
-        # data
         tags=record["tags"] or [],
         owner=record["owner"],
         active=record["active"],
