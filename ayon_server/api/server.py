@@ -2,36 +2,30 @@ import importlib
 import os
 import pathlib
 import sys
-import traceback
 
 import fastapi
+from fastapi import Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
-from starlette.requests import ClientDisconnect
 
 # okay. now the rest
-from ayon_server.api.authmw import AuthMiddleware
+from ayon_server.api.auth import AuthMiddleware
 from ayon_server.api.lifespan import lifespan
+from ayon_server.api.logging import LoggingMiddleware
 from ayon_server.api.messaging import messaging
 from ayon_server.api.metadata import app_meta
-from ayon_server.api.postgres_exceptions import (
-    IntegrityConstraintViolationError,
-    parse_postgres_exception,
-)
-from ayon_server.api.responses import ErrorResponse
-from ayon_server.auth.session import Session
 from ayon_server.background.log_collector import log_collector
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import AyonException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.logging import log_traceback, logger
-from ayon_server.utils import parse_access_token
 
+#
 # We just need the log collector to be initialized.
+#
+
 _ = log_collector
-# But we need this. but depending on the AYON_RUN_MAINTENANCE
-# environment variable, we might not run the maintenance tasks.
 
 #
 # Let's create the app
@@ -44,43 +38,19 @@ app = fastapi.FastAPI(
     **app_meta,
 )
 
+app.add_middleware(LoggingMiddleware)
 app.add_middleware(AuthMiddleware)
 
-
 #
-# Error handling
+# Handle request errors (not covered by the logging middleware)
 #
-
-
-@app.exception_handler(ClientDisconnect)
-async def client_disconnect_handler(request: fastapi.Request, exc: ClientDisconnect):
-    logger.warning("Client disconnected", nodb=True)
-    return fastapi.Response(status_code=499)
-
-
-async def user_name_from_request(request: fastapi.Request) -> str:
-    """Get user from request"""
-
-    access_token = parse_access_token(request.headers.get("Authorization", ""))
-    if not access_token:
-        return "anonymous"
-    try:
-        session_data = await Session.check(access_token, None)
-    except AyonException:
-        return "anonymous"
-    if not session_data:
-        return "anonymous"
-    user_name = session_data.user.name
-    assert isinstance(user_name, str)
-    return user_name
 
 
 @app.exception_handler(404)
-async def custom_404_handler(request: fastapi.Request, _):
-    """Redirect 404s to frontend."""
-
+def not_found_handler(request: Request, _):
+    """Handle 404 errors"""
     if request.url.path.startswith("/api"):
-        return fastapi.responses.JSONResponse(
+        return JSONResponse(
             status_code=404,
             content={
                 "code": 404,
@@ -90,7 +60,7 @@ async def custom_404_handler(request: fastapi.Request, _):
         )
 
     elif request.url.path.startswith("/addons"):
-        return fastapi.responses.JSONResponse(
+        return JSONResponse(
             status_code=404,
             content={
                 "code": 404,
@@ -99,7 +69,7 @@ async def custom_404_handler(request: fastapi.Request, _):
             },
         )
 
-    return fastapi.responses.JSONResponse(
+    return JSONResponse(
         status_code=404,
         content={
             "code": 404,
@@ -109,129 +79,40 @@ async def custom_404_handler(request: fastapi.Request, _):
     )
 
 
-@app.exception_handler(AyonException)
-async def ayon_exception_handler(
-    request: fastapi.Request,
-    exc: AyonException,
-) -> fastapi.responses.JSONResponse:
-    if exc.status in [401, 403, 503]:
-        # unauthorized, forbidden, service unavailable
-        # we don't need any additional details for these
-        return fastapi.responses.JSONResponse(
-            status_code=exc.status,
-            content={
-                "code": exc.status,
-                "detail": exc.detail,
-            },
-        )
-
-    user_name = await user_name_from_request(request)
-    path = f"[{request.method.upper()}]"
-    path += f" {request.url.path.removeprefix('/api')}"
-
-    if exc.status == 500:
-        logger.error(f"{path}: {exc}", user=user_name)
-    else:
-        logger.debug(f"{path}: {exc}", user=user_name)
-
-    return fastapi.responses.JSONResponse(
-        status_code=exc.status,
-        content={
-            "code": exc.status,
-            "detail": exc.detail,
-            "path": request.url.path,
-            **exc.extra,
-        },
-    )
-
-
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(
-    request: fastapi.Request,
-    exc: RequestValidationError,
-) -> fastapi.responses.JSONResponse:
-    logger.error(f"Validation error\n{exc}")
-    detail = "Validation error"  # TODO: Be descriptive, but not too much
-    return fastapi.responses.JSONResponse(
-        status_code=400,
-        content=ErrorResponse(code=400, detail=detail).dict(),
+async def handle_request_validation_error(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    extras = {}
+    if request.state.user:
+        extras["user"] = request.state.user.name
+
+    # use traceback field to pass the details
+    # event tho it is not a traceback - but it
+    # will be formatted nicely in the log
+
+    traceback_msg = ""
+    for error in exc.errors():
+        loc = error["loc"]
+        if len(loc) > 1:
+            loc = loc[1:]
+        loc = ".".join(str(x) for x in loc)
+        traceback_msg += f"{loc}: {error['msg']}\n"
+
+    detail = (
+        f"Request validation error in " f"[{request.method.upper()}] {request.url.path}"
     )
 
-
-@app.exception_handler(IntegrityConstraintViolationError)
-async def integrity_constraint_violation_error_handler(
-    request: fastapi.Request,
-    exc: IntegrityConstraintViolationError,
-) -> fastapi.responses.JSONResponse:
-    path = f"[{request.method.upper()}]"
-    path += f" {request.url.path.removeprefix('/api')}"
-
-    tb = traceback.extract_tb(exc.__traceback__)
-    fname, line_no, func, _ = tb[-1]
-
-    payload = {
-        "path": path,
-        "file": fname,
-        "function": func,
-        "line": line_no,
-        **parse_postgres_exception(exc),
-    }
-
-    return fastapi.responses.JSONResponse(status_code=500, content=payload)
-
-
-@app.exception_handler(AssertionError)
-async def assertion_exception_handler(request: fastapi.Request, exc: AssertionError):
-    user_name = await user_name_from_request(request)
-    path = f"[{request.method.upper()}]"
-    path += f" {request.url.path.removeprefix('/api')}"
-
-    tb = traceback.extract_tb(exc.__traceback__)
-    fname, line_no, func, _ = tb[-1]
-
-    detail = str(exc)
-    payload = {
-        "code": 500,
-        "path": path,
-        "file": fname,
-        "function": func,
-        "line": line_no,
-    }
-
-    logger.error(detail, user=user_name, **payload)
-    return fastapi.responses.JSONResponse(status_code=500, content=payload)
-
-
-@app.exception_handler(Exception)
-async def unhandled_exception_handler(
-    request: fastapi.Request,
-    exc: Exception,
-) -> fastapi.responses.JSONResponse:
-    user_name = await user_name_from_request(request)
-    path = f"[{request.method.upper()}]"
-    path += f" {request.url.path.removeprefix('/api')}"
-
-    tb = traceback.extract_tb(exc.__traceback__)
-    root_cause = tb[-1] if tb else None
-    textual = "".join(traceback.format_exception_only(type(exc), exc)).strip()
-
-    if root_cause:
-        fname, line_no, func, _ = root_cause
-    else:
-        fname, line_no, func = "unknown", "unknown", "unknown"
-
-    logger.error("UNHANDLED EXCEPTION", user=user_name, path=path)
-    logger.error(textual, user=user_name, path=path)
-    return fastapi.responses.JSONResponse(
-        status_code=500,
+    extras["traceback"] = traceback_msg.strip()
+    logger.error(detail, **extras)
+    return JSONResponse(
+        status_code=400,
         content={
-            "code": 500,
-            "detail": "Internal server error",
-            "traceback": f"{textual}",
-            "path": path,
-            "file": fname,
-            "function": func,
-            "line": line_no,
+            "code": 400,
+            "detail": detail,
+            "path": request.url.path,
+            "traceback": traceback_msg.strip(),
+            "errors": exc.errors(),
         },
     )
 
@@ -329,5 +210,6 @@ def init_global_staic(target_app: fastapi.FastAPI) -> None:
 # API must be initialized here
 # Because addons, which are initialized later
 # may need access to classes initialized from the API (such as Attributes)
+
 init_global_staic(app)
 init_api(app, ayonconfig.api_modules_dir)
