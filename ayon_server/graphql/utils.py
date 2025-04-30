@@ -4,17 +4,6 @@ from typing import Any, Literal, TypeVar
 from ayon_server.entities.core import attribute_library
 from ayon_server.entities.user import UserEntity
 
-
-def parse_json_data(target_type, data):
-    if not data:
-        return target_type()
-    result = {}
-    for key in target_type.__dataclass_fields__.keys():
-        if key in data:
-            result[key] = data[key]
-    return target_type(**result)
-
-
 ATTRIB_WHITELIST = [
     "fullName",
     "avatarUrl",
