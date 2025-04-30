@@ -4,6 +4,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import RepresentationEntity
+from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
@@ -35,10 +36,11 @@ class RepresentationNode(BaseNode):
     version_id: str
     status: str
     tags: list[str]
-    attrib: RepresentationAttribType
-    all_attrib: str
     data: str | None
     traits: str | None
+
+    _attrib: strawberry.Private[dict[str, Any]]
+    _user: strawberry.Private[UserEntity]
 
     # GraphQL specifics
 
@@ -64,6 +66,20 @@ class RepresentationNode(BaseNode):
         description="JSON serialized context data",
     )
 
+    @strawberry.field
+    def attrib(self) -> RepresentationAttribType:
+        return parse_attrib_data(
+            RepresentationAttribType,
+            self._attrib,
+            user=self._user,
+            project_name=self.project_name,
+        )
+
+    @strawberry.field
+    def all_attrib(self) -> str:
+        """Alias for `allAttrib`"""
+        return json_dumps(self._attrib)
+
 
 def parse_files(
     files: list[dict[str, Any]],
@@ -86,12 +102,6 @@ def representation_from_record(
     """Construct a representation node from a DB row."""
 
     data = record.get("data") or {}
-    attrib = parse_attrib_data(
-        RepresentationAttribType,
-        record["attrib"],
-        user=context["user"],
-        project_name=project_name,
-    )
 
     return RepresentationNode(
         project_name=project_name,
@@ -100,8 +110,6 @@ def representation_from_record(
         version_id=record["version_id"],
         status=record["status"],
         tags=record["tags"],
-        attrib=RepresentationAttribType(**attrib),
-        all_attrib=json_dumps(attrib),
         data=json_dumps(data) if data else None,
         active=record["active"],
         created_at=record["created_at"],
@@ -109,6 +117,8 @@ def representation_from_record(
         context=json_dumps(data.get("context", {})),
         files=parse_files(record.get("files", [])),
         traits=json_dumps(record["traits"]) if record["traits"] else None,
+        _attrib=record["attrib"] or {},
+        _user=context["user"],
     )
 
 

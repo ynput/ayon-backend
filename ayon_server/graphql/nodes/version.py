@@ -4,6 +4,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import VersionEntity
+from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.representations import get_representations
 from ayon_server.graphql.types import Info
@@ -30,8 +31,6 @@ class VersionNode(BaseNode):
     version: int
     product_id: str
     status: str
-    attrib: VersionAttribType
-    all_attrib: str
     tags: list[str]
     task_id: str | None = None
     thumbnail_id: str | None = None
@@ -39,6 +38,9 @@ class VersionNode(BaseNode):
     has_reviewables: bool = False
     author: str | None = None
     data: str | None = None
+
+    _attrib: strawberry.Private[dict[str, Any]]
+    _user: strawberry.Private[UserEntity]
 
     # GraphQL specifics
 
@@ -64,6 +66,19 @@ class VersionNode(BaseNode):
             (self.project_name, self.task_id)
         )
         return info.context["task_from_record"](self.project_name, record, info.context)
+
+    @strawberry.field
+    def attrib(self) -> VersionAttribType:
+        return parse_attrib_data(
+            VersionAttribType,
+            self._attrib,
+            user=self._user,
+            project_name=self.project_name,
+        )
+
+    @strawberry.field
+    def all_attrib(self) -> str:
+        return json_dumps(self._attrib)
 
 
 #
@@ -103,13 +118,6 @@ def version_from_record(
             relation=thumb_data.get("relation"),
         )
 
-    attrib = parse_attrib_data(
-        VersionAttribType,
-        record["attrib"],
-        user=context["user"],
-        project_name=project_name,
-    )
-
     return VersionNode(
         project_name=project_name,
         id=record["id"],
@@ -124,11 +132,11 @@ def version_from_record(
         author=author,
         status=record["status"],
         tags=record["tags"],
-        attrib=VersionAttribType(**attrib),
-        all_attrib=json_dumps(attrib),
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        _attrib=record["attrib"] or {},
+        _user=current_user,
     )
 
 

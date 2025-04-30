@@ -34,8 +34,6 @@ class UserNode:
     active: bool
     created_at: datetime
     updated_at: datetime
-    attrib: UserAttribType
-    all_attrib: str
     access_groups: str
     default_access_groups: list[str]
     is_admin: bool
@@ -47,6 +45,21 @@ class UserNode:
     user_pool: str | None = None
     apiKeyPreview: str | None = None
     deleted: bool = False
+
+    _attrib: strawberry.Private[dict[str, Any]]
+    _user: strawberry.Private[UserEntity]
+
+    @strawberry.field
+    def attrib(self) -> UserAttribType:
+        return parse_attrib_data(
+            UserAttribType,
+            self._attrib,
+            user=self._user,
+        )
+
+    @strawberry.field
+    def all_attrib(self) -> str:
+        return json_dumps(self._attrib)
 
     @strawberry.field
     async def tasks(self, info: Info, project_name: str) -> "TasksConnection":
@@ -67,7 +80,7 @@ def user_from_record(
     user_pool = data.get("userPool")
 
     name = record["name"]
-    attrib = parse_attrib_data(UserAttribType, record["attrib"], user=context["user"])
+    attrib = record.get("attrib", {})
 
     current_user = context["user"]
     if (
@@ -85,8 +98,6 @@ def user_from_record(
     return UserNode(
         name=name,
         active=record["active"],
-        attrib=UserAttribType(**attrib),
-        all_attrib=json_dumps(attrib),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         access_groups=json_dumps(access_groups),
@@ -100,6 +111,8 @@ def user_from_record(
         default_access_groups=data.get("defaultAccessGroups", []),
         apiKeyPreview=data.get("apiKeyPreview"),
         deleted=record.get("deleted", False),
+        _attrib=attrib,
+        _user=current_user,
     )
 
 

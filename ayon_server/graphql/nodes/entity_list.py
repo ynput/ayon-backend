@@ -24,7 +24,6 @@ class EntityListItemEdge(BaseEdge):
     position: int = strawberry.field(default=0)
 
     attrib: str = strawberry.field(default="{}")
-    data: str = strawberry.field(default="{}")
 
     tags: list[str] = strawberry.field(default_factory=list)
 
@@ -37,6 +36,32 @@ class EntityListItemEdge(BaseEdge):
 
     _entity: BaseNode | None = strawberry.field(default=None)
     _forbidden: bool = strawberry.field(default=False)
+    _data: strawberry.Private[dict[str, Any]]
+    _attrib: strawberry.Private[dict[str, Any]]  # actual attrib data
+
+    @strawberry.field()
+    def all_attrib(self) -> str:
+        """All attributes field is a JSON string."""
+        all_attrib: dict[str, Any] = {}
+        if self._entity:
+            if hasattr(self._entity, "_project_attrib"):
+                all_attrib.update(self._entity._project_attrib or {})
+            if hasattr(self._entity, "_inherited_attrib"):
+                all_attrib.update(self._entity._inherited_attrib or {})
+            if hasattr(self._entity, "_attrib"):
+                all_attrib.update(self._entity._attrib or {})
+        all_attrib.update(self._attrib or {})
+        return json_dumps(all_attrib)
+
+    @strawberry.field()
+    def own_attrib(self) -> list[str]:
+        """Own attributes field is a JSON string."""
+        return list(self._attrib.keys())
+
+    @strawberry.field()
+    def data(self) -> str:
+        """Data field is a JSON string."""
+        return json_dumps(self._data or {})
 
     @strawberry.field(description="Item node")
     async def node(self, info: Info) -> "BaseNode | None":
@@ -97,14 +122,14 @@ class EntityListItemEdge(BaseEdge):
             entity_type=context["entity_type"],
             entity_id=record["entity_id"],
             position=record["position"],
-            attrib=json_dumps(record["attrib"]),
-            data=json_dumps(record["data"]),
             tags=record["tags"] or [],
             created_by=record["created_by"],
             updated_by=record["updated_by"],
             created_at=record["created_at"],
             updated_at=record["updated_at"],
             cursor=record["cursor"],
+            _data=record["data"],
+            _attrib=record["attrib"],
             _entity=entity,
             _forbidden=node_access_forbidden,
         )
@@ -132,7 +157,6 @@ class EntityListNode:
     # TODO
     # access
     # attrib
-    # data
 
     tags: list[str] = strawberry.field(default_factory=list)
 
@@ -145,7 +169,22 @@ class EntityListNode:
     created_by: str | None = strawberry.field(default=None)
     updated_by: str | None = strawberry.field(default=None)
 
-    count: int = strawberry.field(default=0)
+    _data: strawberry.Private[dict[str, Any]]
+
+    @strawberry.field()
+    def count(self) -> int:
+        """Count of items in the list."""
+        return self._data.get("count", 0)
+
+    @strawberry.field()
+    def data(self) -> str:
+        """Data field is a JSON string."""
+        return json_dumps(self._data or {})
+
+    @strawberry.field()
+    def attributes(self) -> str:
+        attrs = self._data.get("attributes", [])
+        return json_dumps(attrs)
 
     @strawberry.field
     async def items(
@@ -173,7 +212,6 @@ def entity_list_from_record(
     context: dict[str, Any],
 ) -> EntityListNode:
     data = record.get("data", {})
-    count = data.get("count", 0)
     return EntityListNode(
         project_name=project_name,
         id=record["id"],
@@ -182,7 +220,6 @@ def entity_list_from_record(
         label=record["label"],
         # access
         # attrib
-        # data
         tags=record["tags"] or [],
         owner=record["owner"],
         active=record["active"],
@@ -190,7 +227,7 @@ def entity_list_from_record(
         updated_at=record["updated_at"],
         created_by=record["created_by"],
         updated_by=record["updated_by"],
-        count=count,
+        _data=data,
     )
 
 

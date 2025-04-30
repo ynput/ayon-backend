@@ -5,6 +5,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import ProjectEntity
+from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.connections import ActivitiesConnection, EntityListsConnection
 from ayon_server.graphql.nodes.common import ProductType, ThumbnailInfo
 from ayon_server.graphql.resolvers.activities import get_activities
@@ -88,8 +89,6 @@ class ProjectNode:
     name: str = strawberry.field()
     project_name: str = strawberry.field()
     code: str = strawberry.field()
-    attrib: ProjectAttribType
-    all_attrib: str
     data: str | None
     active: bool
     library: bool
@@ -97,6 +96,22 @@ class ProjectNode:
     bundle: ProjectBundleType
     created_at: datetime
     updated_at: datetime
+
+    _attrib: strawberry.Private[dict[str, Any]]
+    _user: strawberry.Private[UserEntity]
+
+    @strawberry.field
+    def attrib(self) -> ProjectAttribType:
+        return parse_attrib_data(
+            ProjectAttribType,
+            self._attrib,
+            user=self._user,
+            project_name=self.project_name,
+        )
+
+    @strawberry.field
+    def all_attrib(self) -> str:
+        return json_dumps(self._attrib)
 
     entity_list: EntityListNode = strawberry.field(
         resolver=get_entity_list,
@@ -249,26 +264,19 @@ def project_from_record(
     else:
         bundle = ProjectBundleType()
 
-    attrib = parse_attrib_data(
-        ProjectAttribType,
-        record["attrib"],
-        user=context["user"],
-        project_name=record["name"],
-    )
-
     return ProjectNode(
         name=record["name"],
         code=record["code"],
         project_name=record["name"],
         active=record["active"],
         library=record["library"],
-        attrib=ProjectAttribType(**attrib),
-        all_attrib=json_dumps(attrib),
         thumbnail=thumbnail,
         data=json_dumps(data) if data else None,
         bundle=bundle,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        _user=context["user"],
+        _attrib=record["attrib"],
     )
 
 
