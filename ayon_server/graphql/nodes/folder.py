@@ -4,6 +4,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import FolderEntity
+from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.products import get_products
 from ayon_server.graphql.resolvers.tasks import get_tasks
@@ -33,10 +34,12 @@ class FolderNode(BaseNode):
     path: str | None
     status: str
     tags: list[str]
-    attrib: FolderAttribType
-    own_attrib: list[str]
-    all_attrib: str
     data: str | None
+
+    _attrib: strawberry.Private[dict[str, Any]]
+    _project_attrib: strawberry.Private[dict[str, Any]]
+    _inherited_attrib: strawberry.Private[dict[str, Any]]
+    _user: strawberry.Private[UserEntity]
 
     # GraphQL specifics
 
@@ -92,6 +95,33 @@ class FolderNode(BaseNode):
             else None
         )
 
+    @strawberry.field
+    def attrib(self) -> FolderAttribType:
+        res = parse_attrib_data(
+            FolderAttribType,
+            self._attrib,
+            user=self._user,
+            project_name=self.project_name,
+            project_attrib=self._project_attrib,
+            inherited_attrib=self._inherited_attrib,
+        )
+        return FolderAttribType(**res)
+
+    @strawberry.field
+    def all_attrib(self) -> str:
+        """Return all attributes (inherited and own) as JSON string."""
+        all_attrib = {
+            **self._project_attrib,
+            **self._inherited_attrib,
+            **self._attrib,
+        }
+        return json_dumps(all_attrib)
+
+    @strawberry.field
+    def own_attrib(self) -> list[str]:
+        """Return a list of attributes that are defined on the task."""
+        return list(self._attrib.keys())
+
 
 #
 # Entity loader
@@ -103,7 +133,6 @@ def folder_from_record(
 ) -> FolderNode:
     """Construct a folder node from a DB row."""
 
-    own_attrib = list(record["attrib"].keys())
     data = record.get("data") or {}
 
     if "has_reviewables" in record:
@@ -121,15 +150,6 @@ def folder_from_record(
             relation=thumb_data.get("relation"),
         )
 
-    attrib = parse_attrib_data(
-        FolderAttribType,
-        record["attrib"],
-        user=context["user"],
-        project_name=project_name,
-        project_attrib=record["project_attributes"],
-        inherited_attrib=record["inherited_attributes"],
-    )
-
     return FolderNode(
         project_name=project_name,
         id=record["id"],
@@ -142,7 +162,6 @@ def folder_from_record(
         thumbnail=thumbnail,
         status=record["status"],
         tags=record["tags"],
-        attrib=FolderAttribType(**attrib),
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
@@ -151,8 +170,10 @@ def folder_from_record(
         task_count=record.get("task_count", 0),
         has_reviewables=has_reviewables,
         path="/" + record.get("path", "").strip("/"),
-        own_attrib=own_attrib,
-        all_attrib=json_dumps(attrib),
+        _attrib=record["attrib"] or {},
+        _project_attrib=record["project_attributes"] or {},
+        _inherited_attrib=record["inherited_attributes"] or {},
+        _user=context["user"],
     )
 
 

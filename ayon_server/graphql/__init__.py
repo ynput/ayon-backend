@@ -34,7 +34,7 @@ from ayon_server.graphql.nodes.product import product_from_record
 from ayon_server.graphql.nodes.project import ProjectNode, project_from_record
 from ayon_server.graphql.nodes.representation import representation_from_record
 from ayon_server.graphql.nodes.task import task_from_record
-from ayon_server.graphql.nodes.user import UserAttribType, UserNode, user_from_record
+from ayon_server.graphql.nodes.user import UserNode, user_from_record
 from ayon_server.graphql.nodes.version import version_from_record
 from ayon_server.graphql.nodes.workfile import workfile_from_record
 from ayon_server.graphql.resolvers.activities import get_activities
@@ -48,7 +48,6 @@ from ayon_server.graphql.resolvers.users import get_user, get_users
 from ayon_server.graphql.types import Info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
-from ayon_server.utils import json_dumps
 
 
 async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
@@ -133,8 +132,7 @@ class Query:
             active=user.active,
             updated_at=user.updated_at,
             created_at=user.created_at,
-            attrib=UserAttribType(**user.attrib.dict()),
-            all_attrib=json_dumps(user.attrib.dict()),
+            _attrib=user.attrib.dict(),
             access_groups=user.data.get("accessGroups", {}),
             is_admin=user.is_admin,
             is_manager=user.is_manager,
@@ -145,6 +143,7 @@ class Query:
             default_access_groups=user.data.get("defaultAccessGroups", []),
             has_password=bool(user.data.get("password")),
             apiKeyPreview=user.data.get("apiKeyPreview"),
+            _user=user,
         )
 
     @strawberry.field(description="Studio-wide product type configuration")

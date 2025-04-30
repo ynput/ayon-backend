@@ -5,6 +5,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import WorkfileEntity
+from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data
@@ -30,10 +31,11 @@ class WorkfileNode(BaseNode):
     created_by: str | None
     updated_by: str | None
     status: str
-    attrib: WorkfileAttribType
-    all_attrib: str
     data: str | None
     tags: list[str]
+
+    _attrib: strawberry.Private[dict[str, Any]]
+    _user: strawberry.Private[UserEntity]
 
     @strawberry.field(description="Parent task of the workfile")
     async def task(self, info: Info) -> TaskNode:
@@ -41,6 +43,20 @@ class WorkfileNode(BaseNode):
             (self.project_name, self.task_id)
         )
         return info.context["task_from_record"](self.project_name, record, info.context)
+
+    @strawberry.field
+    def attrib(self) -> WorkfileAttribType:
+        res = parse_attrib_data(
+            WorkfileAttribType,
+            self._attrib,
+            user=self._user,
+            project_name=self.project_name,
+        )
+        return WorkfileAttribType(**res)
+
+    @strawberry.field
+    def all_attrib(self) -> str:
+        return json_dumps(self._attrib)
 
 
 #
@@ -65,12 +81,6 @@ def workfile_from_record(
             source_entity_id=thumb_data.get("sourceEntityId"),
             relation=thumb_data.get("relation"),
         )
-    attrib = parse_attrib_data(
-        WorkfileAttribType,
-        record["attrib"],
-        user=context["user"],
-        project_name=project_name,
-    )
 
     return WorkfileNode(
         project_name=project_name,
@@ -85,11 +95,11 @@ def workfile_from_record(
         active=record["active"],
         status=record["status"],
         tags=record["tags"],
-        attrib=WorkfileAttribType(**attrib),
-        all_attrib=json_dumps(attrib),
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        _attrib=record["attrib"] or {},
+        _user=context["user"],
     )
 
 

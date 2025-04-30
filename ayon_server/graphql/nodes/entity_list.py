@@ -37,6 +37,20 @@ class EntityListItemEdge(BaseEdge):
     _entity: BaseNode | None = strawberry.field(default=None)
     _forbidden: bool = strawberry.field(default=False)
     _data: strawberry.Private[dict[str, Any]]
+    _attrib: strawberry.Private[dict[str, Any]]  # actual attrib data
+
+    @strawberry.field()
+    def all_attrib(self) -> str:
+        """All attributes field is a JSON string."""
+        full_attrib = self._attrib or {}
+        if self._entity and hasattr(self._entity, "_attrib"):
+            full_attrib.update(self._entity._attrib or {})
+        return json_dumps(full_attrib)
+
+    @strawberry.field()
+    def own_attrib(self) -> list[str]:
+        """Own attributes field is a JSON string."""
+        return list(self._attrib.keys())
 
     @strawberry.field()
     def data(self) -> str:
@@ -102,7 +116,6 @@ class EntityListItemEdge(BaseEdge):
             entity_type=context["entity_type"],
             entity_id=record["entity_id"],
             position=record["position"],
-            attrib=json_dumps(record["attrib"]),
             tags=record["tags"] or [],
             created_by=record["created_by"],
             updated_by=record["updated_by"],
@@ -110,6 +123,7 @@ class EntityListItemEdge(BaseEdge):
             updated_at=record["updated_at"],
             cursor=record["cursor"],
             _data=record["data"],
+            _attrib=record["attrib"],
             _entity=entity,
             _forbidden=node_access_forbidden,
         )
