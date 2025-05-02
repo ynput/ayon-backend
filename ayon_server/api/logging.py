@@ -112,7 +112,7 @@ def handle_undhandled_exception(request: Request, exc: Exception) -> JSONRespons
     formatted = "".join(traceback.format_exception_only(type(exc), exc)).strip()
     tb = traceback.extract_tb(exc.__traceback__)
     traceback_msg = ""
-    for frame in tb:
+    for frame in tb[-20:]:
         fpath = frame.filename.split("/")
         for p in ("starlette", "fastapi", "python3.11", "pydantic"):
             # Too noisy. ignore
