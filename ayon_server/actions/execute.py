@@ -384,7 +384,7 @@ class ActionExecutor:
         args: list[str],
         message: str | None = None,
     ) -> ExecuteResponseModel:
-        """Deprecated alisas for get_launcher_response"""
+        """Deprecated alias for get_launcher_response"""
         return await self.get_launcher_response(
             args=args,
             message=message,
