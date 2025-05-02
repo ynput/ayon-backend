@@ -9,11 +9,12 @@ from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_hash
 
 ResponseType = Literal[
-    "simple",  # Just display a message
-    "launcher",  # Open the Ayon Launcher
-    "form",  # Display a form
-    "redirect",  # Redirect to a different URL or open a browser tab
-    "query",  # Modify the URL query parameters (web only)
+    "form",
+    "launcher",
+    "navigate",
+    "query",
+    "redirect",
+    "simple",
 ]
 
 #
@@ -21,7 +22,7 @@ ResponseType = Literal[
 #
 
 
-class BaseResponsePayload(TypedDict):
+class SimpleResponsePayload(TypedDict):
     """
     BaseResponsePayload defines `extra_*` fields
     that are used to pass sub-actions to the client
@@ -35,16 +36,51 @@ class BaseResponsePayload(TypedDict):
     extra_download: NotRequired[str]
 
 
-class LauncherResponsePayload(BaseResponsePayload):
+class FormResponsePayload(SimpleResponsePayload):
+    """
+    FormResponsePayload is used to display a form
+    and get the input from the user.
+
+    When the form is submitted, the input is sent back to the server.
+    """
+
+    title: Required[str]  # Form title (header)
+    fields: Required[SimpleForm]
+    submit_label: NotRequired[str | None]
+    submit_icon: NotRequired[str]
+    cancel_label: NotRequired[str | None]
+    cancel_icon: NotRequired[str]
+
+
+class LauncherResponsePayload(SimpleResponsePayload):
     """
     LauncherResponsePayload is used to open the Ayon Launcher
     with the given URI.
+
+    Example:
+    ```
+    uri="ayon-launcher://action?server_url=https%3A%2F%2Fexample.com&token=hash"
+    ```
     """
 
     uri: Required[str]
 
 
-class QueryResponsePayload(BaseResponsePayload):
+class NavigateResponsePayload(SimpleResponsePayload):
+    """
+    NavigateResponsePayload is used to soft-navigate the user
+    to a relative URL within the Ayon web interface.
+
+    Example:
+    ```
+    uri="/projects/AY_CG_demo/overview"
+    ```
+    """
+
+    uri: Required[str]
+
+
+class QueryResponsePayload(SimpleResponsePayload):
     """
     QueryResponsePayload is used to modify the URL query parameters
     of the current page. This only works in the web interface.
@@ -53,23 +89,20 @@ class QueryResponsePayload(BaseResponsePayload):
     query: Required[dict[str, str | int | float | bool]]
 
 
-class RedirectResponsePayload(BaseResponsePayload):
+class RedirectResponsePayload(SimpleResponsePayload):
     """
     RedirectResponsePayload is used to redirect the user
-    to a different URL or open a browser tab.
+    to a different URL or open a new browser tab.
+
+    Example:
+    ```
+    uri="https://example.com"
+    new_tab=true
+    ```
     """
 
     uri: Required[str]
     new_tab: NotRequired[bool]
-
-
-class FormResponsePayload(BaseResponsePayload):
-    schema: Required[SimpleForm]
-    title: Required[str]
-    submit_label: NotRequired[str]
-    submit_icon: NotRequired[str]
-    cancel_label: NotRequired[str]
-    cancel_icon: NotRequired[str]
 
 
 #
@@ -155,7 +188,14 @@ class ActionExecutor:
             variant=self.variant,
         )
 
-    async def get_launcher_action_response(
+    #
+    # Response getters
+    #
+    # TODO: After upgrading to Python 3.12, use unpacked kwargs for the payload
+    # Then we'l be also able to get rid of checking for `extra_*` fields
+    #
+
+    async def get_launcher_response(
         self,
         args: list[str],
         message: str | None = None,
@@ -209,6 +249,147 @@ class ActionExecutor:
             },
         )
 
+    async def get_simple_response(
+        self,
+        message: str | None = "Action executed successfully",
+        success: bool = True,
+        extra_copy: str | None = None,
+        extra_download: str | None = None,
+    ) -> ExecuteResponseModel:
+        """Return a simple response with a message"""
+        payload: dict[str, Any] = {}
+        if extra_copy:
+            payload["extra_copy"] = extra_copy
+        if extra_download:
+            payload["extra_download"] = extra_download
+        return ExecuteResponseModel(
+            success=success,
+            type="simple",
+            message=message,
+            payload=payload,
+        )
+
+    async def get_navigate_response(
+        self,
+        uri: str,
+        message: str | None = None,
+        success: bool = True,
+        extra_copy: str | None = None,
+        extra_download: str | None = None,
+    ) -> ExecuteResponseModel:
+        """Return a response for a redirect action"""
+        payload: dict[str, Any] = {"uri": uri}
+        if extra_copy:
+            payload["extra_copy"] = extra_copy
+        if extra_download:
+            payload["extra_download"] = extra_download
+
+        return ExecuteResponseModel(
+            success=success,
+            type="navigate",
+            message=message,
+            payload=payload,
+        )
+
+    async def get_redirect_response(
+        self,
+        uri: str,
+        new_tab: bool = False,
+        message: str | None = None,
+        success: bool = True,
+        extra_copy: str | None = None,
+        extra_download: str | None = None,
+    ) -> ExecuteResponseModel:
+        """Return a response for a redirect action"""
+        payload: dict[str, Any] = {
+            "uri": uri,
+            "new_tab": new_tab,
+        }
+        if extra_copy:
+            payload["extra_copy"] = extra_copy
+        if extra_download:
+            payload["extra_download"] = extra_download
+
+        return ExecuteResponseModel(
+            success=success,
+            type="redirect",
+            message=message,
+            payload=payload,
+        )
+
+    async def get_query_response(
+        self,
+        query: dict[str, str | int | float | bool],
+        message: str | None = None,
+        success: bool = True,
+        extra_copy: str | None = None,
+        extra_download: str | None = None,
+    ) -> ExecuteResponseModel:
+        """Return a response for a query action"""
+        payload: dict[str, Any] = {
+            "query": query,
+        }
+        if extra_copy:
+            payload["extra_copy"] = extra_copy
+        if extra_download:
+            payload["extra_download"] = extra_download
+        return ExecuteResponseModel(
+            success=success,
+            type="query",
+            message=message,
+            payload={
+                "query": query,
+            },
+        )
+
+    async def get_form_response(
+        self,
+        title: str,
+        fields: SimpleForm,
+        submit_label: str | None = "Submit",
+        submit_icon: str = "check",
+        cancel_label: str | None = "Cancel",
+        cancel_icon: str = "close",
+        message: str | None = None,
+        success: bool = True,
+        extra_copy: str | None = None,
+        extra_download: str | None = None,
+    ) -> ExecuteResponseModel:
+        """Return a response for a form action"""
+        payload = {
+            "title": title,
+            "fields": list(fields),
+            "submit_label": submit_label,
+            "submit_icon": submit_icon,
+            "cancel_label": cancel_label,
+            "cancel_icon": cancel_icon,
+        }
+        if extra_copy:
+            payload["extra_copy"] = extra_copy
+        if extra_download:
+            payload["extra_download"] = extra_download
+        return ExecuteResponseModel(
+            success=success,
+            type="form",
+            message=message,
+            payload=payload,
+        )
+
+    #
+    # Deprecated methods
+    #
+
+    async def get_launcher_action_response(
+        self,
+        args: list[str],
+        message: str | None = None,
+    ) -> ExecuteResponseModel:
+        """Deprecated alisas for get_launcher_response"""
+        return await self.get_launcher_response(
+            args=args,
+            message=message,
+        )
+
     async def get_server_action_response(
         self,
         success: bool = True,
@@ -221,7 +402,7 @@ class ActionExecutor:
         form: SimpleForm | None = None,
         **kwargs: Any,
     ) -> ExecuteResponseModel:
-        """Return a response for a server actions
+        """Deprecated: Return a response for a server actions
 
         This is a deprecated method. Use specific methods for each action type instead.
         This is provided for backward compatibility, will be removed in the future
@@ -241,11 +422,15 @@ class ActionExecutor:
             payload["query"] = query_params
         elif navigate:
             response_type = "redirect"
-            payload["url"] = navigate
+            payload["uri"] = navigate
         elif form:
             response_type = "form"
-            payload["form_schema"] = list(form)
-            payload["form_title"] = message
+            payload["fields"] = list(form)
+            payload["title"] = message
+            payload["submit_label"] = "Submit"
+            payload["submit_icon"] = "check"
+            payload["cancel_label"] = "Cancel"
+            payload["cancel_icon"] = "close"
 
         # Sub-actions (additional behavior of the response)
         # Such as "copy somethig to clipboard"
