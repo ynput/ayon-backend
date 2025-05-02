@@ -1,8 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from contextvars import ContextVar
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import asyncpg
@@ -12,39 +10,13 @@ from asyncpg.pool import PoolConnectionProxy
 
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException, ServiceUnavailableException
-from ayon_server.utils import EntityID, json_dumps, json_loads
 
-query_count: ContextVar[int] = ContextVar("query_count", default=0)
+from .postgres_setup import postgres_setup
 
 if TYPE_CHECKING:
     Connection = PoolConnectionProxy[Any]
 else:
     Connection = PoolConnectionProxy
-
-
-def timestamptz_endocder(v):
-    if isinstance(v, int | float):
-        return datetime.fromtimestamp(v).isoformat()
-    if isinstance(v, datetime):
-        return v.isoformat()
-    if isinstance(v, str):
-        return datetime.fromisoformat(v).isoformat()
-    raise ValueError
-
-
-def timestamptz_decoder(v):
-    if isinstance(v, int | float):
-        return datetime.fromtimestamp(v)
-    if isinstance(v, datetime):
-        return v
-    if isinstance(v, str):
-        return datetime.fromisoformat(v)
-    raise ValueError
-
-
-def query_log(query: str, *args):
-    # TODO: implement statistics
-    pass
 
 
 class Postgres:
@@ -86,29 +58,6 @@ class Postgres:
             await cls.pool.release(connection_proxy)
 
     @classmethod
-    async def init_connection(cls, conn) -> None:
-        """Set up the connection pool"""
-        await conn.set_type_codec(
-            "jsonb",
-            encoder=json_dumps,
-            decoder=json_loads,
-            schema="pg_catalog",
-        )
-        await conn.set_type_codec(
-            "uuid",
-            encoder=lambda x: EntityID.parse(x, True),
-            decoder=lambda x: EntityID.parse(x, True),
-            schema="pg_catalog",
-        )
-
-        await conn.set_type_codec(
-            "timestamptz",
-            encoder=timestamptz_endocder,
-            decoder=timestamptz_decoder,
-            schema="pg_catalog",
-        )
-
-    @classmethod
     def get_available_connections(cls) -> int:
         """Return a number of connections available for use"""
         if not cls.pool:
@@ -130,7 +79,7 @@ class Postgres:
             min_size=10,
             max_size=ayonconfig.postgres_pool_size,
             max_inactive_connection_lifetime=20,
-            init=cls.init_connection,
+            init=postgres_setup,
         )
 
     @classmethod
@@ -151,7 +100,6 @@ class Postgres:
         """Execute a SQL query and return a status (e.g. 'INSERT 0 2')"""
         if cls.pool is None:
             raise ConnectionError
-        query_log(query, *args)
         async with cls.acquire() as connection:
             return await connection.execute(query, *args, timeout=timeout)
 
@@ -160,7 +108,6 @@ class Postgres:
         """Run a query and return the results as a list of Record."""
         if cls.pool is None:
             raise ConnectionError
-        query_log(query, *args)
         async with cls.acquire() as connection:
             return await connection.fetch(query, *args, timeout=timeout)
 
@@ -169,7 +116,6 @@ class Postgres:
         """Run a query and return the first row as a Record."""
         if cls.pool is None:
             raise ConnectionError
-        query_log(query, *args)
         async with cls.acquire() as connection:
             return await connection.fetchrow(query, *args, timeout=timeout)
 
@@ -181,7 +127,6 @@ class Postgres:
         transaction: Connection | None = None,
     ):
         """Run a query and return a generator yielding resulting rows records."""
-        query_log(query, *args)
         if transaction:  # temporary. will be fixed
             if not transaction.is_in_transaction():
                 raise AyonException(
