@@ -415,7 +415,7 @@ class ActionExecutor:
         payload: dict[str, Any] = {**kwargs}
         response_type = "simple"
 
-        # Mutualy exclusive action types
+        # Mutually exclusive action types
 
         if query_params:
             response_type = "query"
