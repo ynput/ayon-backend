@@ -18,7 +18,7 @@ async def ayon_init(extensions: bool = True):
     """
     retry_interval = 2
 
-    while Postgres._pool is None:
+    while Postgres.pool is None:
         try:
             await Postgres.connect()
         except ConnectionRefusedError:

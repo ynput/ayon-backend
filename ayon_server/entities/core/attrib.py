@@ -38,7 +38,7 @@ class AttributeLibrary:
         _thread.join()
 
     def initial_load_thread(self) -> None:
-        if Postgres._pool is not None:
+        if Postgres.pool is not None:
             logger.error(
                 "Postgres pool exist during attribute load. " "This should not happen.",
                 nodb=True,
@@ -105,7 +105,7 @@ class AttributeLibrary:
 
         if initial:
             await Postgres.shutdown()
-            Postgres._pool = None
+            Postgres.pool = None
             Postgres.shutting_down = False
 
     def __getitem__(self, key) -> list[dict[str, Any]]:
