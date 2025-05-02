@@ -3,7 +3,7 @@ from datetime import datetime
 from ayon_server.utils import EntityID, json_dumps, json_loads
 
 
-def timestamptz_endocder(v):
+def timestamptz_encoder(v):
     if isinstance(v, int | float):
         return datetime.fromtimestamp(v).isoformat()
     if isinstance(v, datetime):
@@ -23,7 +23,7 @@ def timestamptz_decoder(v):
     raise ValueError
 
 
-async def postgres_setup(cls, conn) -> None:
+async def postgres_setup(conn) -> None:
     """Set up the connection pool"""
     await conn.set_type_codec(
         "jsonb",
@@ -40,7 +40,7 @@ async def postgres_setup(cls, conn) -> None:
 
     await conn.set_type_codec(
         "timestamptz",
-        encoder=timestamptz_endocder,
+        encoder=timestamptz_encoder,
         decoder=timestamptz_decoder,
         schema="pg_catalog",
     )
