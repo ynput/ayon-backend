@@ -10,7 +10,7 @@ def timestamptz_encoder(v):
         return v.isoformat()
     if isinstance(v, str):
         return datetime.fromisoformat(v).isoformat()
-    raise ValueError
+    raise ValueError(f"Unsupported type for timestamptz_encoder: {type(v).__name__}")
 
 
 def timestamptz_decoder(v):
