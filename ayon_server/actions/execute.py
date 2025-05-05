@@ -1,4 +1,5 @@
 import urllib.parse
+import warnings
 from typing import Annotated, Any, Literal, NotRequired, Required, TypedDict
 
 from ayon_server.actions.context import ActionContext
@@ -385,6 +386,11 @@ class ActionExecutor:
         message: str | None = None,
     ) -> ExecuteResponseModel:
         """Deprecated alias for get_launcher_response"""
+        warnings.warn(
+            "get_launcher_action_response is deprecated. "
+            "please use get_launcher_response instead",
+            DeprecationWarning,
+        )
         return await self.get_launcher_response(
             args=args,
             message=message,
@@ -408,6 +414,13 @@ class ActionExecutor:
         This is provided for backward compatibility, will be removed in the future
         and it does not support all action types or features.
         """
+
+        warnings.warn(
+            "get_server_action_response is deprecated. "
+            "please use get_simple_response, get_navigate_response, "
+            "get_redirect_response, get_query_response or get_form_response instead",
+            DeprecationWarning,
+        )
 
         if message is None:
             message = f"Action {self.identifier} executed successfully"
