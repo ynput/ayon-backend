@@ -1,11 +1,11 @@
 import urllib.parse
-import warnings
 from typing import Annotated, Any, Literal, NotRequired, Required, TypedDict
 
 from ayon_server.actions.context import ActionContext
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
 from ayon_server.forms import SimpleForm
+from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_hash
 
@@ -386,10 +386,9 @@ class ActionExecutor:
         message: str | None = None,
     ) -> ExecuteResponseModel:
         """Deprecated alias for get_launcher_response"""
-        warnings.warn(
+        logger.debug(
             "get_launcher_action_response is deprecated. "
-            "please use get_launcher_response instead",
-            DeprecationWarning,
+            "Use get_launcher_response instead"
         )
         return await self.get_launcher_response(
             args=args,
@@ -415,11 +414,9 @@ class ActionExecutor:
         and it does not support all action types or features.
         """
 
-        warnings.warn(
-            "get_server_action_response is deprecated. "
-            "please use get_simple_response, get_navigate_response, "
-            "get_redirect_response, get_query_response or get_form_response instead",
-            DeprecationWarning,
+        logger.debug(
+            "get_launcher_action_response is deprecated. "
+            "Use explicit get_*_response method instead"
         )
 
         if message is None:
