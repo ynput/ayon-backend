@@ -88,7 +88,8 @@ def user_from_record(
         and current_user.name != name
         and current_user.name != data.get("createdBy")
     ):
-        name = get_nickname(name)
+        if name != "admin":
+            name = get_nickname(name)
         if email := attrib.get("email"):
             attrib["email"] = obscure(email)
         if attrib.get("fullName"):
