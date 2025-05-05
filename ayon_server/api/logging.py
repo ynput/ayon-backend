@@ -114,7 +114,7 @@ def handle_undhandled_exception(request: Request, exc: Exception) -> JSONRespons
     traceback_msg = ""
     for frame in tb[-20:]:
         fpath = frame.filename.split("/")
-        for p in ("starlette", "fastapi", "python3.11"):
+        for p in ("starlette", "fastapi", "python3.11", "pydantic"):
             # Too noisy. ignore
             if p in fpath:
                 break
