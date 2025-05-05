@@ -76,7 +76,8 @@ async def get_user(
         and user.name != result.name
         and result.data.get("createdBy") != user.name
     ):
-        result.name = get_nickname(result.name)
+        if result.name != "admin":
+            result.name = get_nickname(result.name)
         if result.attrib.email:
             result.attrib.email = obscure(result.attrib.email)
         if result.attrib.fullName:
