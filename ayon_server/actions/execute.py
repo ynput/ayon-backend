@@ -33,7 +33,7 @@ class SimpleResponsePayload(TypedDict):
     always used
     """
 
-    extra_copy: NotRequired[str]
+    extra_clipboard: NotRequired[str]
     extra_download: NotRequired[str]
 
 
@@ -254,13 +254,13 @@ class ActionExecutor:
         self,
         message: str | None = "Action executed successfully",
         success: bool = True,
-        extra_copy: str | None = None,
+        extra_clipboard: str | None = None,
         extra_download: str | None = None,
     ) -> ExecuteResponseModel:
         """Return a simple response with a message"""
         payload: dict[str, Any] = {}
-        if extra_copy:
-            payload["extra_copy"] = extra_copy
+        if extra_clipboard:
+            payload["extra_clipboard"] = extra_clipboard
         if extra_download:
             payload["extra_download"] = extra_download
         return ExecuteResponseModel(
@@ -275,13 +275,13 @@ class ActionExecutor:
         uri: str,
         message: str | None = None,
         success: bool = True,
-        extra_copy: str | None = None,
+        extra_clipboard: str | None = None,
         extra_download: str | None = None,
     ) -> ExecuteResponseModel:
         """Return a response for a redirect action"""
         payload: dict[str, Any] = {"uri": uri}
-        if extra_copy:
-            payload["extra_copy"] = extra_copy
+        if extra_clipboard:
+            payload["extra_clipboard"] = extra_clipboard
         if extra_download:
             payload["extra_download"] = extra_download
 
@@ -298,7 +298,7 @@ class ActionExecutor:
         new_tab: bool = False,
         message: str | None = None,
         success: bool = True,
-        extra_copy: str | None = None,
+        extra_clipboard: str | None = None,
         extra_download: str | None = None,
     ) -> ExecuteResponseModel:
         """Return a response for a redirect action"""
@@ -306,8 +306,8 @@ class ActionExecutor:
             "uri": uri,
             "new_tab": new_tab,
         }
-        if extra_copy:
-            payload["extra_copy"] = extra_copy
+        if extra_clipboard:
+            payload["extra_clipboard"] = extra_clipboard
         if extra_download:
             payload["extra_download"] = extra_download
 
@@ -323,15 +323,15 @@ class ActionExecutor:
         query: dict[str, str | int | float | bool],
         message: str | None = None,
         success: bool = True,
-        extra_copy: str | None = None,
+        extra_clipboard: str | None = None,
         extra_download: str | None = None,
     ) -> ExecuteResponseModel:
         """Return a response for a query action"""
         payload: dict[str, Any] = {
             "query": query,
         }
-        if extra_copy:
-            payload["extra_copy"] = extra_copy
+        if extra_clipboard:
+            payload["extra_clipboard"] = extra_clipboard
         if extra_download:
             payload["extra_download"] = extra_download
         return ExecuteResponseModel(
@@ -353,7 +353,7 @@ class ActionExecutor:
         cancel_icon: str = "close",
         message: str | None = None,
         success: bool = True,
-        extra_copy: str | None = None,
+        extra_clipboard: str | None = None,
         extra_download: str | None = None,
     ) -> ExecuteResponseModel:
         """Return a response for a form action"""
@@ -365,8 +365,8 @@ class ActionExecutor:
             "cancel_label": cancel_label,
             "cancel_icon": cancel_icon,
         }
-        if extra_copy:
-            payload["extra_copy"] = extra_copy
+        if extra_clipboard:
+            payload["extra_clipboard"] = extra_clipboard
         if extra_download:
             payload["extra_download"] = extra_download
         return ExecuteResponseModel(
@@ -449,7 +449,7 @@ class ActionExecutor:
         # Such as "copy somethig to clipboard"
 
         if copy:
-            payload["extra_copy"] = copy
+            payload["extra_clipboard"] = copy
         if download:
             payload["extra_download"] = download
 
