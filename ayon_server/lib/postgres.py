@@ -108,6 +108,7 @@ class Postgres:
     @asynccontextmanager
     async def acquire(
         cls,
+        *,
         timeout: int | None = None,
         force_new: bool = False,
     ) -> AsyncGenerator[Connection, None]:
@@ -140,11 +141,22 @@ class Postgres:
 
     @classmethod
     @asynccontextmanager
-    async def transaction(cls) -> AsyncGenerator[Connection, None]:
+    async def transaction(
+        cls,
+        *,
+        timeout: int | None = None,
+        force_new: bool = False,
+    ) -> AsyncGenerator[Connection, None]:
         """Acquire a connection from the pool and start a transaction."""
-        async with cls.acquire() as connection:
-            async with connection.transaction():
+        async with cls.acquire(timeout=timeout, force_new=force_new) as connection:
+            if connection.is_in_transaction():
+                # If we are already in a transaction, just yield the connection
+                # force_new would use a new connection, so it would not be
+                # in a transaction
                 yield connection
+            else:
+                async with connection.transaction():
+                    yield connection
 
     @classmethod
     async def is_in_transaction(cls) -> bool:
@@ -193,6 +205,14 @@ class Postgres:
             return await connection.prepare(query, *args, timeout=timeout)
 
     @classmethod
+    async def set_project_schema(cls, project_name: str) -> None:
+        """Set the search path to the project schema."""
+        async with cls.acquire() as conn:
+            if not conn.is_in_transaction():
+                raise RuntimeError("Cannot set project schema outside of a transaction")
+            await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
+
+    @classmethod
     async def iterate(
         cls,
         query: str,
@@ -200,7 +220,7 @@ class Postgres:
         **kwargs: Any,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Run a query and return a generator yielding rows as dictionaries."""
-        _ = kwargs
+        _ = kwargs  # collect unused kwargs (such as legacy "conn" argument)
         if cls.pool is None:
             raise ConnectionError("Connection pool is not initialized.")
 
