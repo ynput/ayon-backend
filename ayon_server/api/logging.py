@@ -11,11 +11,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import ClientDisconnect
 
 from ayon_server.api.dependencies import NoTraces
-from ayon_server.api.postgres_exceptions import (
+from ayon_server.exceptions import AyonException
+from ayon_server.lib.postgres_exceptions import (
     IntegrityConstraintViolationError,
     parse_postgres_exception,
 )
-from ayon_server.exceptions import AyonException
 from ayon_server.logging import logger
 
 
