@@ -319,9 +319,7 @@ class BaseServerAddon:
                 SELECT data FROM settings
                 WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
                 """
-            res = await Postgres.fetch(
-                query, self.definition.name, self.version, variant
-            )
+            res = await Postgres.fetch(query, self.name, self.version, variant)
             if res:
                 data = res[0]["data"]
 
