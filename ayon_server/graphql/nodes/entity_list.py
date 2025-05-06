@@ -190,17 +190,24 @@ class EntityListNode:
     async def items(
         self,
         info: Info,
-        first: int = 100,
+        first: int | None = None,
         after: str | None = None,
+        last: int | None = None,
+        before: str | None = None,
         sort_by: str | None = None,
         accessible_only: bool = False,
     ) -> EntityListItemsConnection:
+        if first is None and last is None:
+            first = 200
+
         resolver = info.context["entity_list_items_resolver"]
         return await resolver(
             root=self,
             info=info,
             first=first,
             after=after,
+            last=last,
+            before=before,
             sort_by=sort_by,
             accessible_only=accessible_only,
         )
