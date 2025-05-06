@@ -83,7 +83,7 @@ async def _migrate_settings_by_bundle(
     addons_to_migrate = set(source_addons.keys()) & set(target_addons.keys())
 
     logger.debug(
-        f"Migratig settings from {source_bundle} ({source_variant}) "
+        f"Migrating settings from {source_bundle} ({source_variant}) "
         f"to {target_bundle} ({target_variant})"
     )
 
