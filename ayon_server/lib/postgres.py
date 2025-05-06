@@ -107,11 +107,13 @@ class Postgres:
     @classmethod
     @asynccontextmanager
     async def acquire(
-        cls, timeout: int | None = None
+        cls,
+        timeout: int | None = None,
+        force_new: bool = False,
     ) -> AsyncGenerator[Connection, None]:
         """Acquire a connection from the pool."""
         conn = _current_connection.get()
-        if conn is not None:
+        if conn is not None and not force_new:
             yield conn
             return
 
