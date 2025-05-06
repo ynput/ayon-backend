@@ -27,7 +27,7 @@ class InstallAddonResponseModel(OPModel):
     event_id: str = Field(..., title="Event ID")
 
 
-@router.post("/install", tags=["Addons"])
+@router.post("/install")
 async def upload_addon_zip_file(
     background_tasks: BackgroundTasks,
     user: CurrentUser,
@@ -107,7 +107,7 @@ class AddonInstallListResponseModel(OPModel):
     restart_required: bool = Field(...)
 
 
-@router.get("/install", tags=["Addons"])
+@router.get("/install")
 async def get_installed_addons_list(
     user: CurrentUser,
 ) -> AddonInstallListResponseModel:

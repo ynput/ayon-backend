@@ -9,10 +9,10 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.settings.postprocess import postprocess_settings_schema
 
-from .router import route_meta, router
+from .router import router
 
 
-@router.get("/{addon_name}/{version}/siteSettings/schema", **route_meta)
+@router.get("/{addon_name}/{version}/siteSettings/schema")
 async def get_addon_site_settings_schema(
     addon_name: str,
     version: str,
@@ -44,7 +44,7 @@ async def get_addon_site_settings_schema(
 # allow managers and admins to retrieve site_overrides of other users
 
 
-@router.get("/{addon_name}/{version}/siteSettings", **route_meta)
+@router.get("/{addon_name}/{version}/siteSettings")
 async def get_addon_site_settings(
     addon_name: str,
     version: str,
@@ -75,7 +75,7 @@ async def get_addon_site_settings(
     return model(**data)  # type: ignore
 
 
-@router.put("/{addon_name}/{version}/siteSettings", status_code=204, **route_meta)
+@router.put("/{addon_name}/{version}/siteSettings", status_code=204)
 async def set_addon_site_settings(
     payload: dict[str, Any],
     addon_name: str,

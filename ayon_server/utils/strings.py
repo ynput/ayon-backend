@@ -12,6 +12,7 @@ __all__ = [
 import functools
 import os
 import string
+import textwrap
 from typing import Literal, overload
 
 import codenamize
@@ -36,13 +37,9 @@ def get_nickname(text: str, length: int = 1):
     return codenamize.codenamize(text, length)
 
 
-def indent(text: str, length: int = 4) -> str:
+def indent(text: str, amount: int = 4) -> str:
     """Indent a multi-line text."""
-    return (
-        "\n".join([f"{length*' '}{s.rstrip()}" for s in text.split("\n")])
-        if text.endswith("\n")
-        else ""
-    )
+    return textwrap.indent(text, " " * amount)
 
 
 @functools.lru_cache(maxsize=128)

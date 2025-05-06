@@ -15,9 +15,6 @@ class ActionContext(OPModel):
     backend asks addons for actions based on this model.
     """
 
-    _project_entity: ProjectEntity | None = None
-    _entities: list[ProjectLevelEntity] | None = None
-
     project_name: Annotated[
         str | None,
         Field(
@@ -102,8 +99,8 @@ class ActionContext(OPModel):
     #
 
     async def get_entities(self) -> list[ProjectLevelEntity]:
-        """Cached entities DURING THE REQUEST"""
-
+        # TODO : Cache this during the request lifecycle
+        # Note: we cannot store it as the class variable tho :-/
         if (
             self.project_name is None
             or self.entity_type is None
@@ -111,29 +108,23 @@ class ActionContext(OPModel):
         ):
             return []
 
-        if self._entities is None:
-            result = []
-            entity_class = get_entity_class(self.entity_type)
-            for entity_id in self.entity_ids:
-                try:
-                    entity = await entity_class.load(self.project_name, entity_id)
-                except NotFoundException:
-                    continue
+        result = []
+        entity_class = get_entity_class(self.entity_type)
+        for entity_id in self.entity_ids:
+            try:
+                entity = await entity_class.load(self.project_name, entity_id)
+            except NotFoundException:
+                continue
 
-                result.append(entity)
-
-            self._entities = result
-        return self._entities
+            result.append(entity)
+        return result
 
     async def get_project_entity(self) -> ProjectEntity | None:
+        # TODO : Cache this during the request lifecycle
         """Cached project entity DURING THE REQUEST"""
-
         if not self.project_name:
             return None
-
-        if self._project_entity is None:
-            self._project_entity = await ProjectEntity.load(self.project_name)
-        return self._project_entity
+        return await ProjectEntity.load(self.project_name)
 
     #
     # Context comparison

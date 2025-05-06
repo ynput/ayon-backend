@@ -168,7 +168,7 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
         WITH reviewables AS (
             SELECT entity_id FROM project_{project_name}.activity_feed
             WHERE entity_type = 'version'
-            AND   activity_type = 'reviewable'
+            AND activity_type = 'reviewable'
         )
 
         SELECT
@@ -208,7 +208,7 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
         WITH reviewables AS (
             SELECT entity_id FROM project_{project_name}.activity_feed
             WHERE entity_type = 'version'
-            AND   activity_type = 'reviewable'
+            AND activity_type = 'reviewable'
         )
 
         SELECT

@@ -14,7 +14,7 @@ def restart_server():
     """
     logger.warning("Server is restarting")
 
-    # Send a SIGHUP to the parent process (gunicorn/granian) to request a reload
+    # Send a SIGHUP to the parent process (gunicorn) to request a reload
     # Gunicorn will restart the server when it receives this signal,
     # but it won't quit itself, so the container will keep running.
 

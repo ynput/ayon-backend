@@ -1,6 +1,3 @@
 from fastapi import APIRouter
 
-router = APIRouter(
-    prefix="/market",
-    tags=["Market"],
-)
+router = APIRouter(prefix="/market", tags=["Market"])

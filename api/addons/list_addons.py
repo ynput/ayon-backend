@@ -11,7 +11,7 @@ from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 from ayon_server.utils.hashing import hash_data
 
-from .router import route_meta, router
+from .router import router
 
 
 class VersionInfo(OPModel):
@@ -129,7 +129,7 @@ async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
     return result
 
 
-@router.get("", response_model_exclude_none=True, **route_meta)
+@router.get("", response_model_exclude_none=True)
 async def list_addons(
     request: Request,
     user: CurrentUser,

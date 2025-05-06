@@ -9,7 +9,7 @@ from loguru import logger
 from ayon_server.config import ayonconfig
 from ayon_server.utils import indent, json_dumps
 
-CONTEXT_KEY_BLACKLIST = {"nodb"}
+CONTEXT_KEY_BLACKLIST = {"nodb", "traceback"}
 
 
 def _write_stderr(message: str) -> None:
@@ -47,19 +47,29 @@ def _serializer(message) -> None:
         _write_stderr(formatted)
 
         # Format the message according to the log context setting
-        if ayonconfig.log_context:
-            # Put the module name and extra context info in a separate block
-            contextual_info = ""
-            for k, v in record["extra"].items():
-                if k in CONTEXT_KEY_BLACKLIST:
-                    continue
-                contextual_info += f"{k}: {v}\n"
-            if contextual_info:
-                _write_stderr(indent(contextual_info))
+        traceback: str | None = None
 
-        # Print traceback if available
-        if tb := record.get("traceback"):
-            _write_stderr(indent(str(tb)))
+        # Put the module name and extra context info in a separate block
+        contextual_info = ""
+        for k, v in record["extra"].items():
+            if k == "traceback":
+                traceback = v
+                continue
+            if k in CONTEXT_KEY_BLACKLIST:
+                continue
+            contextual_info += f"{k}: {v}\n"
+
+        if ayonconfig.log_context and contextual_info:
+            _write_stderr(indent(contextual_info.rstrip()))
+
+        if traceback:
+            # We always print the traceback if it exists
+            _write_stderr(indent("traceback:", 4))
+            _write_stderr(indent(traceback, 6))
+
+        if traceback or (ayonconfig.log_context and contextual_info):
+            # Empty line after contextual info / traceback
+            _write_stderr("")
 
 
 logger.remove(0)

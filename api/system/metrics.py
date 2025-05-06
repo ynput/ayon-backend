@@ -17,7 +17,7 @@ from ayon_server.metrics.system import system_metrics
 from .router import router
 
 
-@router.get("/metrics", tags=["System"], response_model_exclude_none=True)
+@router.get("/metrics", response_model_exclude_none=True)
 async def get_production_metrics(
     user: CurrentUser,
     system: bool = Query(
@@ -38,7 +38,7 @@ async def get_production_metrics(
     return metrics
 
 
-@router.get("/metrics/system", tags=["System"], dependencies=[NoTraces])
+@router.get("/metrics/system", dependencies=[NoTraces])
 async def get_system_metrics(
     user: CurrentUserOptional,
     api_key: ApiKey,

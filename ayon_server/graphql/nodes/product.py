@@ -4,6 +4,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import ProductEntity
+from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.types import Info
@@ -46,9 +47,10 @@ class ProductNode(BaseNode):
     product_base_type: str | None
     status: str
     tags: list[str]
-    attrib: ProductAttribType
-    all_attrib: str
     data: str | None
+
+    _attrib: strawberry.Private[dict[str, Any]]
+    _user: strawberry.Private[UserEntity]
 
     # GraphQL specifics
 
@@ -92,6 +94,19 @@ class ProductNode(BaseNode):
             else None
         )
 
+    @strawberry.field
+    def attrib(self) -> ProductAttribType:
+        return parse_attrib_data(
+            ProductAttribType,
+            self._attrib,
+            user=self._user,
+            project_name=self.project_name,
+        )
+
+    @strawberry.field
+    def all_attrib(self) -> str:
+        return json_dumps(self._attrib)
+
 
 def product_from_record(
     project_name: str,
@@ -123,12 +138,6 @@ def product_from_record(
             vlist.append(VersionListItem(id=id, version=vers))
 
     data = record.get("data", {})
-    attrib = parse_attrib_data(
-        ProductAttribType,
-        record["attrib"],
-        user=context["user"],
-        project_name=project_name,
-    )
 
     return ProductNode(
         project_name=project_name,
@@ -139,14 +148,14 @@ def product_from_record(
         product_base_type=record.get("product_base_type"),
         status=record["status"],
         tags=record["tags"],
-        attrib=ProductAttribType(**attrib),
         data=json_dumps(data) if data else None,
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         version_list=vlist,
-        all_attrib=json_dumps(attrib),
         _folder=folder,
+        _attrib=record["attrib"] or {},
+        _user=context["user"],
     )
 
 

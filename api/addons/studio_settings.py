@@ -20,10 +20,10 @@ from ayon_server.settings.postprocess import postprocess_settings_schema
 from ayon_server.settings.set_addon_settings import set_addon_settings
 
 from .common import ModifyOverridesRequestModel, pin_override, remove_override
-from .router import route_meta, router
+from .router import router
 
 
-@router.get("/{addon_name}/{addon_version}/schema", **route_meta)
+@router.get("/{addon_name}/{addon_version}/schema")
 async def get_addon_settings_schema(
     addon_name: str,
     addon_version: str,
@@ -52,11 +52,7 @@ async def get_addon_settings_schema(
     return schema
 
 
-@router.get(
-    "/{addon_name}/{addon_version}/settings",
-    response_model=dict[str, Any],
-    **route_meta,
-)
+@router.get("/{addon_name}/{addon_version}/settings", response_model=dict[str, Any])
 async def get_addon_studio_settings(
     addon_name: str,
     addon_version: str,
@@ -75,7 +71,7 @@ async def get_addon_studio_settings(
     return settings  # type: ignore
 
 
-@router.post("/{addon_name}/{addon_version}/settings", status_code=204, **route_meta)
+@router.post("/{addon_name}/{addon_version}/settings", status_code=204)
 async def set_addon_studio_settings(
     payload: dict[str, Any],
     addon_name: str,
@@ -119,7 +115,7 @@ async def set_addon_studio_settings(
     return EmptyResponse()
 
 
-@router.get("/{addon_name}/{addon_version}/overrides", **route_meta)
+@router.get("/{addon_name}/{addon_version}/overrides")
 async def get_addon_studio_overrides(
     addon_name: str,
     addon_version: str,
@@ -138,7 +134,7 @@ async def get_addon_studio_overrides(
     return list_overrides(settings, overrides)
 
 
-@router.delete("/{addon_name}/{addon_version}/overrides", status_code=204, **route_meta)
+@router.delete("/{addon_name}/{addon_version}/overrides", status_code=204)
 async def delete_addon_studio_overrides(
     addon_name: str,
     addon_version: str,
@@ -158,7 +154,7 @@ async def delete_addon_studio_overrides(
     return EmptyResponse()
 
 
-@router.post("/{addon_name}/{addon_version}/overrides", status_code=204, **route_meta)
+@router.post("/{addon_name}/{addon_version}/overrides", status_code=204)
 async def modify_studio_overrides(
     payload: ModifyOverridesRequestModel,
     addon_name: str,
@@ -194,7 +190,7 @@ async def modify_studio_overrides(
 #
 
 
-@router.get("/{addon_name}/{addon_version}/rawOverrides", **route_meta)
+@router.get("/{addon_name}/{addon_version}/rawOverrides")
 async def get_raw_addon_studio_overrides(
     addon_name: str,
     addon_version: str,
@@ -222,7 +218,7 @@ async def get_raw_addon_studio_overrides(
     return result[0]["data"]
 
 
-@router.put("/{addon_name}/{addon_version}/rawOverrides", status_code=204, **route_meta)
+@router.put("/{addon_name}/{addon_version}/rawOverrides", status_code=204)
 async def set_raw_addon_studio_overrides(
     addon_name: str,
     addon_version: str,

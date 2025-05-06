@@ -1,12 +1,8 @@
-import sys
 import time
 
-from fastapi.routing import APIRoute
-from shortuuid import ShortUUID
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
-from ayon_server.api.dependencies import NoTraces
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
@@ -15,10 +11,6 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.utils.strings import parse_access_token, parse_api_key
-
-
-def sprint(*args):
-    print(*args, flush=True, file=sys.stderr)
 
 
 def access_token_from_request(request: Request) -> str | None:
@@ -142,71 +134,20 @@ async def user_from_request(request: Request) -> UserEntity:
     return user
 
 
-def req_id():
-    return ShortUUID().random(length=16)
-
-
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        request_id = req_id()
-        path = request.url.path
-        context = {"request_id": request_id}
+        context = {}
+
+        try:
+            user = await user_from_request(request)
+            context["user"] = user.name
+            request.state.user = user
+            request.state.unauthorized_reason = None
+        except UnauthorizedException as e:
+            request.state.user = None
+            request.state.unauthorized_reason = str(e)
 
         with logger.contextualize(**context):
-            # At this point, we don't have access to the user
-            # But we want to be able to pair log messages
-            # from the authentication process using request_id
-            try:
-                user = await user_from_request(request)
-                context["user"] = user.name
-                request.state.user = user
-                request.state.unauthorized_reason = None
-            except UnauthorizedException as e:
-                request.state.user = None
-                request.state.unauthorized_reason = str(e)
-
-        with logger.contextualize(**context):
-            start_time = time.perf_counter()
             response = await call_next(request)
-            process_time = round(time.perf_counter() - start_time, 4)
-            status_code = response.status_code
-
-            # we don't track statics
-
-            # TODO
-            # do not trace graphql queries yet, until we can make
-            # sense of them - we need to at least identify the query
-
-            # Before processing the request, we don't have access to
-            # the route information, so we need to check it here
-            # (that's also why we don't track the beginning of the request)
-            should_trace = path.startswith("/api")  # or path.startswith("/graphql")
-
-            if should_trace and (route := request.scope.get("route")):
-                # We don't need to log successful requests to routes,
-                # that have "NoTraces" dependencies.
-                # They are usually heartbeats that pollute the logs.
-                if isinstance(route, APIRoute):
-                    for dependency in route.dependencies:
-                        if dependency == NoTraces:
-                            should_trace = False
-
-            # We're adding 'nodb' flag here, that instructs the
-            # log collect to Not store the message in the event stream.
-
-            if should_trace:
-                extras = {
-                    **context,
-                    "nodb": True,  # don't store in the event stream
-                    # TODO: Remove?
-                    # Already formated in the log message
-                    # "process_time": process_time,
-                    # "status_code": status_code,
-                    # "method": request.method,
-                    # "path": path,
-                }
-                f_result = f"| {status_code} in {process_time}s"
-                msg = f"[{request.method}] {path} {f_result}"
-                logger.trace(msg, **extras)
 
         return response

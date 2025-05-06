@@ -11,8 +11,9 @@ from strawberry.types import ExecutionContext
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import (
+    ActivitiesConnection,
     EventsConnection,
-    InboxConnection,
+    # InboxConnection,
     KanbanConnection,
     ProjectsConnection,
     UsersConnection,
@@ -27,15 +28,17 @@ from ayon_server.graphql.dataloaders import (
     workfile_loader,
 )
 from ayon_server.graphql.nodes.common import ProductType
+from ayon_server.graphql.nodes.entity_list import entity_list_from_record
 from ayon_server.graphql.nodes.folder import folder_from_record
 from ayon_server.graphql.nodes.product import product_from_record
 from ayon_server.graphql.nodes.project import ProjectNode, project_from_record
 from ayon_server.graphql.nodes.representation import representation_from_record
 from ayon_server.graphql.nodes.task import task_from_record
-from ayon_server.graphql.nodes.user import UserAttribType, UserNode, user_from_record
+from ayon_server.graphql.nodes.user import UserNode, user_from_record
 from ayon_server.graphql.nodes.version import version_from_record
 from ayon_server.graphql.nodes.workfile import workfile_from_record
 from ayon_server.graphql.resolvers.activities import get_activities
+from ayon_server.graphql.resolvers.entity_list_items import get_entity_list_items
 from ayon_server.graphql.resolvers.events import get_events
 from ayon_server.graphql.resolvers.inbox import get_inbox
 from ayon_server.graphql.resolvers.kanban import get_kanban
@@ -45,7 +48,6 @@ from ayon_server.graphql.resolvers.users import get_user, get_users
 from ayon_server.graphql.types import Info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
-from ayon_server.utils import json_dumps
 
 
 async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
@@ -54,6 +56,7 @@ async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
         # Auth
         "user": user,
         # Record parsing
+        "entity_list_from_record": entity_list_from_record,
         "folder_from_record": folder_from_record,
         "product_from_record": product_from_record,
         "version_from_record": version_from_record,
@@ -73,6 +76,7 @@ async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
         # Other
         "activities_resolver": get_activities,
         "links_resolver": get_links,
+        "entity_list_items_resolver": get_entity_list_items,
     }
 
 
@@ -110,7 +114,7 @@ class Query:
         resolver=get_events,
     )
 
-    inbox: InboxConnection = strawberry.field(
+    inbox: ActivitiesConnection = strawberry.field(
         description="Get user inbox",
         resolver=get_inbox,
     )
@@ -128,8 +132,7 @@ class Query:
             active=user.active,
             updated_at=user.updated_at,
             created_at=user.created_at,
-            attrib=UserAttribType(**user.attrib.dict()),
-            all_attrib=json_dumps(user.attrib.dict()),
+            _attrib=user.attrib.dict(),
             access_groups=user.data.get("accessGroups", {}),
             is_admin=user.is_admin,
             is_manager=user.is_manager,
@@ -140,6 +143,7 @@ class Query:
             default_access_groups=user.data.get("defaultAccessGroups", []),
             has_password=bool(user.data.get("password")),
             apiKeyPreview=user.data.get("apiKeyPreview"),
+            _user=user,
         )
 
     @strawberry.field(description="Studio-wide product type configuration")

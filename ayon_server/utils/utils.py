@@ -1,13 +1,16 @@
 __all__ = [
     "dict_exclude",
+    "dict_patch",
     "dict_remove_path",
     "batched",
     "run_blocking_coro",
+    "now",
 ]
 
 # TODO: Move these somewhere
 
 import asyncio
+import datetime
 import itertools
 import threading
 from collections.abc import Iterable
@@ -27,6 +30,19 @@ def dict_exclude(
             k: v for k, v in data.items() if not any(k.startswith(key) for key in keys)
         }
     return data
+
+
+def dict_patch(
+    old_data: dict[str, Any],
+    new_data: dict[str, Any],
+) -> dict[str, Any]:
+    merged_data = old_data.copy()
+    for key, value in new_data.items():
+        if value is None:
+            merged_data.pop(key, None)
+        else:
+            merged_data[key] = value
+    return merged_data
 
 
 def dict_remove_path(
@@ -88,3 +104,8 @@ def run_blocking_coro(coro) -> Any:
     thread.start()
     thread.join()
     return result["output"]
+
+
+def now():
+    """Get the current time in UTC"""
+    return datetime.datetime.now(datetime.UTC)

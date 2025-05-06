@@ -252,7 +252,6 @@ async def is_onboarding_finished() -> bool:
 @router.get(
     "/info",
     response_model_exclude_none=True,
-    tags=["System"],
     dependencies=[NoTraces],
 )
 async def get_site_info(
