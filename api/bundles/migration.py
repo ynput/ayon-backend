@@ -2,7 +2,7 @@ __all__ = ["migrate_settings"]
 
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.events import EventStream
-from ayon_server.exceptions import NotFoundException
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
 from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.logging import logger
@@ -59,6 +59,21 @@ async def _migrate_settings_by_bundle(
     Perform migration of settings from source to
     target bundle in a given transaction.
     """
+
+    if source_variant not in ("production", "staging"):
+        if source_bundle != source_variant:
+            raise BadRequestException(
+                "When source_variant is not production or staging, "
+                "source_bundle must be the same as source_variant"
+            )
+
+    if target_variant not in ("production", "staging"):
+        if target_bundle != target_variant:
+            raise BadRequestException(
+                "When target_variant is not production or staging, "
+                "target_bundle must be the same as target_variant"
+            )
+
     source_addons, target_addons = await _get_bundles_addons(
         source_bundle, target_bundle, conn
     )
@@ -66,6 +81,11 @@ async def _migrate_settings_by_bundle(
     # get addons that are present in both source and target bundles
     # (i.e. addons that need to be migrated)
     addons_to_migrate = set(source_addons.keys()) & set(target_addons.keys())
+
+    logger.debug(
+        f"Migratig settings from {source_bundle} ({source_variant}) "
+        f"to {target_bundle} ({target_variant})"
+    )
 
     for addon_name in addons_to_migrate:
         source_version = source_addons[addon_name]
