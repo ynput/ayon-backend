@@ -1,3 +1,4 @@
+import inspect
 import os
 
 from ayon_server.entities.user import UserEntity
@@ -377,8 +378,18 @@ class BaseServerAddon:
                 )
 
             try:
+                kw = {}
+                additional_args = inspect.getfullargspec(
+                    target_addon.convert_settings_overrides
+                ).args
+
+                if "project_name" in additional_args:
+                    kw["project_name"] = project_name
+
                 return await target_addon.convert_settings_overrides(
-                    self.version, overrides=data
+                    self.version,
+                    overrides=data,
+                    **kw,
                 )
             except Exception:
                 log_traceback(f"Unable to migrate {self} settings to {as_version}")
