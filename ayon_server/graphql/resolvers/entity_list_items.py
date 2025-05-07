@@ -130,6 +130,7 @@ async def get_entity_list_items(
     last: ARGLast = None,
     before: ARGBefore = None,
     sort_by: str | None = None,
+    filter: str | None = None,
     accessible_only: bool = False,
 ) -> EntityListItemsConnection:
     project_name = root.project_name
@@ -200,6 +201,11 @@ async def get_entity_list_items(
     )
     for col in cols:
         sql_columns.append(f"e.{col} as _entity_{col}")
+
+    # Unified attributes
+    # Create additions column
+    # if entity_type == "folder":
+    #     s
 
     # Special cases:
 
@@ -289,6 +295,10 @@ async def get_entity_list_items(
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
+
+    from ayon_server.logging import logger
+
+    logger.debug(f"Entity list items query: {query}")
 
     return await resolve(
         EntityListItemsConnection,
