@@ -118,8 +118,7 @@ class Postgres:
             yield conn
             return
 
-        if cls.pool is None:
-            raise ConnectionError("Connection pool is not initialized.")
+        assert cls.pool is not None, "Connection pool is not initialized."
 
         if timeout is None:
             timeout = ayonconfig.postgres_pool_timeout
@@ -200,16 +199,18 @@ class Postgres:
     ) -> "PreparedStatement":  # type: ignore[type-arg]
         """Prepare a statement"""
         async with cls.acquire() as connection:
-            if not connection.is_in_transaction():
-                raise RuntimeError("Cannot prepare statement outside of a transaction")
+            assert (
+                connection.is_in_transaction()
+            ), "Cannot prepare statement outside of a transaction"
             return await connection.prepare(query, *args, timeout=timeout)
 
     @classmethod
     async def set_project_schema(cls, project_name: str) -> None:
         """Set the search path to the project schema."""
         async with cls.acquire() as conn:
-            if not conn.is_in_transaction():
-                raise RuntimeError("Cannot set project schema outside of a transaction")
+            assert (
+                conn.is_in_transaction()
+            ), "Cannot set project schema outside of a transaction"
             await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
 
     @classmethod
@@ -221,8 +222,7 @@ class Postgres:
     ) -> AsyncGenerator[dict[str, Any], None]:
         """Run a query and return a generator yielding rows as dictionaries."""
         _ = kwargs  # collect unused kwargs (such as legacy "conn" argument)
-        if cls.pool is None:
-            raise ConnectionError("Connection pool is not initialized.")
+        assert cls.pool is not None, "Connection pool is not initialized. "
 
         # Do not use context manager here:
         # Never set() a ContextVar in a context that may yield to caller
