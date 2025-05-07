@@ -106,13 +106,15 @@ def cols_for_entity(entity_type: str) -> list[str]:
 
 
 async def build_entity_sorting(sort_by: str, entity_type: str) -> str:
-    if sort_by in ["data"]:
+    if sort_by in ["data", "attrib"]:
         # This won't be supported, because it doesn't make sense
-        raise NotImplementedException(f"Unable to sort by entity.{sort_by}")
+        raise NotImplementedException(f"Unable to sort by entity_{sort_by}")
     sort_by = camel_to_snake(sort_by)
     cols = cols_for_entity(entity_type)
     if sort_by not in cols:
-        raise BadRequestException(f"Invalid sort key entity.{sort_by}")
+        raise BadRequestException(
+            f"Invalid entity sort key {sort_by}. " f"Available are: {', '.join(cols)}"
+        )
     return f"_entity_{sort_by}"
 
 
@@ -259,14 +261,20 @@ async def get_entity_list_items(
     if sort_by:
         if item_sort_by := ITEM_SORT_OPTIONS.get(sort_by):
             order_by.append(item_sort_by)
+        elif sort_by in ITEM_SORT_OPTIONS.values():
+            order_by.append(sort_by)
 
-        if sort_by.startswith("attrib."):
+        elif sort_by.startswith("attrib."):
             attr_name = sort_by[7:]
             attr_case = await get_attrib_sort_case(attr_name, "_all_attrib")
             order_by.append(f"({attr_case})")
 
-        if sort_by.startswith("entity_"):
+        elif sort_by.startswith("entity_"):
             order_by.append(await build_entity_sorting(sort_by[7:], entity_type))
+
+        else:
+            # This is not a valid sort key
+            raise BadRequestException(f"Invalid sort key {sort_by}")
 
     # secondary sorting for duplicate values
     # unless we're already sorting by position
@@ -323,10 +331,10 @@ async def get_entity_list_items(
         {ordering}
     """
 
-    from ayon_server.logging import logger
-
-    logger.debug(f"Entity list items query: {query}")
-
+    # from ayon_server.logging import logger
+    #
+    # logger.debug(f"Entity list items query: {query}")
+    #
     return await resolve(
         EntityListItemsConnection,
         EntityListItemEdge,
