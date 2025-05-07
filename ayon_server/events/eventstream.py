@@ -102,7 +102,7 @@ class EventStream:
         if store:
             query = """
                 INSERT INTO
-                events (
+                public.events (
                     id,
                     hash,
                     sender,
@@ -251,7 +251,9 @@ class EventStream:
             new_data["user_name"] = user
 
         if store:
-            query = SQLTool.update("events", f"WHERE id = '{event_id}'", **new_data)
+            query = SQLTool.update(
+                "public.events", f"WHERE id = '{event_id}'", **new_data
+            )
 
             query[0] = (
                 query[0]
@@ -311,7 +313,7 @@ class EventStream:
 
     @classmethod
     async def get(cls, event_id: str) -> EventModel:
-        query = "SELECT * FROM events WHERE id = $1", event_id
+        query = "SELECT * FROM public.events WHERE id = $1", event_id
         event: EventModel | None = None
         async for record in Postgres.iterate(*query):
             event = EventModel(
@@ -339,5 +341,5 @@ class EventStream:
 
     @classmethod
     async def delete(cls, event_id: str) -> None:
-        await Postgres.execute("DELETE FROM events WHERE id = $1", event_id)
+        await Postgres.execute("DELETE FROM public.events WHERE id = $1", event_id)
         return None
