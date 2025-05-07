@@ -196,6 +196,7 @@ class EntityListNode:
         before: str | None = None,
         sort_by: str | None = None,
         accessible_only: bool = False,
+        filter: str | None = None,
     ) -> EntityListItemsConnection:
         if first is None and last is None:
             first = 200
@@ -209,6 +210,7 @@ class EntityListNode:
             last=last,
             before=before,
             sort_by=sort_by,
+            filter=filter,
             accessible_only=accessible_only,
         )
 
