@@ -1,5 +1,7 @@
 from typing import Any, Literal, NotRequired, TypedDict
 
+from pydantic import StrictBool, StrictFloat, StrictInt, StrictStr
+
 SimpleFormFieldType = Literal[
     "text",
     "boolean",
@@ -25,12 +27,23 @@ class FormSelectOption(TypedDict):
     color: NotRequired[str]
 
 
+ValueType = (
+    StrictStr
+    | StrictInt
+    | StrictFloat
+    | StrictBool
+    | list[StrictStr]
+    | list[StrictInt]
+    | list[StrictFloat]
+)
+
+
 class SimpleFormField(TypedDict):
     type: SimpleFormFieldType
     name: str
     label: NotRequired[str]
     placeholder: NotRequired[Any]
-    value: NotRequired[str | int | float | bool | list[str]]
+    value: NotRequired[ValueType]
     regex: NotRequired[str]
     multiline: NotRequired[bool]
     syntax: NotRequired[str]
