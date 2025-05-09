@@ -1,5 +1,6 @@
 import os
 import time
+from collections.abc import Callable
 from typing import Any
 
 import aiocache
@@ -232,6 +233,8 @@ class ProjectStorage:
         request: Request,
         file_id: str,
         file_group: FileGroup = "uploads",
+        *,
+        content_validator: Callable[[bytes], None] | None = None,
     ) -> int:
         """Handle file upload request
 
@@ -241,7 +244,11 @@ class ProjectStorage:
         logger.debug(f"Uploading file {file_id} to {self} ({file_group})")
         path = await self.get_path(file_id, file_group=file_group)
         if self.storage_type == "local":
-            return await handle_upload(request, path)
+            return await handle_upload(
+                request,
+                path,
+                content_validator=content_validator,
+            )
         elif self.storage_type == "s3":
             return await handle_s3_upload(self, request, path)
         raise Exception("Unknown storage type")
