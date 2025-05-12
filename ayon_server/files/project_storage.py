@@ -16,6 +16,7 @@ from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundEx
 from ayon_server.files.s3 import (
     S3Config,
     delete_s3_file,
+    get_s3_file_info,
     get_signed_url,
     handle_s3_upload,
     list_s3_files,
@@ -392,6 +393,27 @@ class ProjectStorage:
     #
     # Media info extraction
     #
+
+    async def get_file_info(
+        self,
+        file_id: str,
+        file_group: FileGroup = "uploads",
+    ) -> FileInfo:
+        path = await self.get_path(file_id, file_group=file_group)
+        if self.storage_type == "local":
+            try:
+                size = os.path.getsize(path)
+            except FileNotFoundError:
+                raise NotFoundException(f"File {file_id} not found on {self}") from None
+            return FileInfo(
+                size=size,
+                filename=file_id,
+                content_type="application/octet-stream",
+            )
+        elif self.storage_type == "s3":
+            return await get_s3_file_info(self, path)
+
+        raise AyonException("Unknown storage type")
 
     async def extract_media_info(self, file_id: str) -> dict[str, Any]:
         """Extract media info from the file
