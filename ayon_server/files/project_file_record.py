@@ -35,8 +35,15 @@ async def create_project_file_record(
 
     await Postgres.execute(
         f"""
-        INSERT INTO project_{project_name}.files (id, size, author, activity_id, data)
+        INSERT INTO project_{project_name}.files
+        (id, size, author, activity_id, data)
         VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (id) DO UPDATE
+        SET
+            size = $2,
+            author = $3,
+            activity_id = $4,
+            data = EXCLUDED.data || $5
         """,
         file_id,
         size,
