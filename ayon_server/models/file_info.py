@@ -24,8 +24,8 @@ COMMON_FILE_TYPES = {
 
 class FileInfo(RestModel):
     size: int
-    filename: str
-    content_type: str
+    filename: str = "unknown"
+    content_type: str = "application/octet-stream"
 
     @root_validator(pre=True)
     def set_content_type(cls, values):
@@ -36,3 +36,6 @@ class FileInfo(RestModel):
                 "application/octet-stream",
             )
         return values
+
+    def __int__(self) -> int:
+        return self.size
