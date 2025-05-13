@@ -275,7 +275,7 @@ async def get_entity_list_items(
                 INNER JOIN project_{project_name}.folders AS pf
                 ON pd.folder_id = pf.id
                 """,
-                """
+                f"""
                 LEFT JOIN project_{project_name}.tasks AS pt
                 ON e.task_id = pt.id
                 """,
