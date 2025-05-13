@@ -110,6 +110,7 @@ def handle_undhandled_exception(request: Request, exc: Exception) -> JSONRespons
 
     path_prefix = f"{os.getcwd()}/"
     formatted = "".join(traceback.format_exception_only(type(exc), exc)).strip()
+    formatted = formatted.replace("{", "{{").replace("}", "}}")
     tb = traceback.extract_tb(exc.__traceback__)
     traceback_msg = ""
     for frame in tb[-20:]:
