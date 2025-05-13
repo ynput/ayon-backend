@@ -262,6 +262,7 @@ async def get_entity_list_items(
             [
                 "pf.folder_type as _parent_folder_type",
                 "pd.product_type as _parent_product_type",
+                "pt.task_type as _parent_task_type",
             ]
         )
         sql_joins.extend(
@@ -269,14 +270,18 @@ async def get_entity_list_items(
                 f"""
                 INNER JOIN project_{project_name}.products AS pd
                 ON e.product_id = pd.id
-            """,
+                """,
                 f"""
                 INNER JOIN project_{project_name}.folders AS pf
                 ON pd.folder_id = pf.id
-            """,
+                """,
+                """
+                LEFT JOIN project_{project_name}.tasks AS pt
+                ON e.task_id = pt.id
+                """,
             ]
         )
-        allowed_parent_keys = ["folder_type", "product_type"]
+        allowed_parent_keys = ["folder_type", "product_type", "task_type"]
 
     # The rest of the entity types should work out of the box
 
