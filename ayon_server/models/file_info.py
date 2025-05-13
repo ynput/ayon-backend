@@ -40,7 +40,7 @@ class FileInfo(RestModel):
     def __int__(self) -> int:
         """
         Return the file size as an integer.
-        
+
         The `size` attribute represents the file size in bytes.
         """
         return self.size

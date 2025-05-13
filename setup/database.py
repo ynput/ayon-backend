@@ -22,7 +22,8 @@ async def db_migration(has_schema: bool = True) -> int:
 
     migrations_dir = "schemas/migrations"
     available_migrations = sorted(
-        (f for f in Path(migrations_dir).glob("*.sql") if f.stem.isdigit()), key=lambda x: int(x.stem)
+        (f for f in Path(migrations_dir).glob("*.sql") if f.stem.isdigit()),
+        key=lambda x: int(x.stem),
     )
 
     # We evaluate has_schema here rather than in the main function,
