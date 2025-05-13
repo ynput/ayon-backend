@@ -3,14 +3,16 @@ import os
 from urllib.parse import urlparse
 
 import aiofiles
-from fastapi import BackgroundTasks, Query, Request, Response
+from fastapi import BackgroundTasks, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.responses import EntityIdResponse
 from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import (
     ForbiddenException,
 )
+from ayon_server.helpers.project_list import build_project_list
 from ayon_server.logging import logger
 from setup.database import db_migration
 
@@ -85,7 +87,11 @@ async def import_database_file(
             )
 
         if run_migration:
+            # You should always run migration after importing a project
             await db_migration()
+
+        # Rebuild project list. It's not costly and in most cases, it's useful
+        await build_project_list()
 
     finally:
         if os.path.exists(dump_path):
@@ -101,9 +107,10 @@ async def import_database(
     request: Request,
     background_tasks: BackgroundTasks,
     run_db_migration: bool = Query(
-        False, description="Run database migration after import"
+        False,
+        description="Run database migration after import",
     ),
-) -> Response:
+) -> EntityIdResponse:
     """Apply a database file to the database.
 
     This endpoint is used for initialization of the database
@@ -133,4 +140,4 @@ async def import_database(
         event_id=event_id,
         run_migration=run_db_migration,
     )
-    return Response(status_code=202)
+    return EntityIdResponse(id=event_id)
