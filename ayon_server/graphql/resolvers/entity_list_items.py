@@ -75,6 +75,7 @@ ITEM_SORT_OPTIONS = {
     "createdBy": "created_by",
     "updatedBy": "updated_by",
     "folderPath": "folder_path",
+    "path": "folder_path",
 }
 
 
@@ -200,14 +201,18 @@ async def get_entity_list_items(
 
     # Special cases:
 
+    allowed_parent_keys = []
+
     if entity_type == "task":
         # when querying tasks, we need the parent folder attributes
         # as well because of the inheritance
-        sql_columns.append("pf.attrib as _entity_parent_folder_attrib")
+        sql_columns.append("px.attrib as _entity_parent_folder_attrib")
+        sql_columns.append("pf.folder_type as _parent_folder_type")
         sql_joins.append(
-            f"INNER JOIN project_{project_name}.exported_attributes AS pf "
-            "ON e.folder_id = pf.folder_id\n"
+            f"INNER JOIN project_{project_name}.exported_attributes AS px "
+            "ON e.folder_id = px.folder_id\n"
         )
+        allowed_parent_keys = ["folder_type"]
 
     elif entity_type == "folder":
         # when querying folders, we need the parent folder attributes
@@ -215,16 +220,21 @@ async def get_entity_list_items(
         # ... yeah. and also the hierarchy path
         sql_columns.extend(
             [
-                "pf.attrib as _entity_inherited_attributes",
+                "px.attrib as _entity_inherited_attributes",
                 "pr.attrib as _entity_project_attributes",
+                "px.folder_type as _parent_folder_type",
                 "hierarchy.path AS _entity_path",
             ]
         )
         sql_joins.extend(
             [
                 f"""
-                INNER JOIN project_{project_name}.exported_attributes AS pf
-                ON e.parent_id = pf.folder_id
+                INNER JOIN project_{project_name}.exported_attributes AS px
+                ON e.parent_id = px.folder_id
+                """,
+                f"""
+                INNER JOIN project_{project_name}.folders AS pf
+                ON e.parent_id = pf.id
                 """,
                 f"""
                 INNER JOIN public.projects AS pr
@@ -236,6 +246,42 @@ async def get_entity_list_items(
                 """,
             ]
         )
+        allowed_parent_keys = ["folder_type"]
+
+    elif entity_type == "product":
+        sql_columns.extend(
+            [
+                "pf.folder_type as _parent_folder_type",
+            ]
+        )
+        sql_joins.append(
+            f"""
+            INNER JOIN project_{project_name}.folders AS pf
+            ON e.folder_id = pf.id
+            """
+        )
+        allowed_parent_keys = ["folder_type"]
+
+    elif entity_type == "version":
+        sql_columns.extend(
+            [
+                "pf.folder_type as _parent_folder_type",
+                "pd.product_type as _parent_product_type",
+            ]
+        )
+        sql_joins.extend(
+            [
+                f"""
+                INNER JOIN project_{project_name}.products AS pd
+                ON e.product_id = pd.id
+            """,
+                f"""
+                INNER JOIN project_{project_name}.folders AS pf
+                ON pd.folder_id = pf.id
+            """,
+            ]
+        )
+        allowed_parent_keys = ["folder_type", "product_type"]
 
     # The rest of the entity types should work out of the box
 
@@ -245,10 +291,10 @@ async def get_entity_list_items(
 
     if entity_type == "folder":
         sql_columns.append(
-            "(pr.attrib || pf.attrib || e.attrib || i.attrib) as _all_attrib"
+            "(pr.attrib || px.attrib || e.attrib || i.attrib) as _all_attrib"
         )
     elif entity_type == "task":
-        sql_columns.append("(pf.attrib || e.attrib || i.attrib) as _all_attrib")
+        sql_columns.append("(px.attrib || e.attrib || i.attrib) as _all_attrib")
     else:
         sql_columns.append("(e.attrib || i.attrib) as _all_attrib")
 
@@ -269,8 +315,18 @@ async def get_entity_list_items(
             attr_case = await get_attrib_sort_case(attr_name, "_all_attrib")
             order_by.append(f"({attr_case})")
 
-        elif sort_by.startswith("entity_"):
-            order_by.append(await build_entity_sorting(sort_by[7:], entity_type))
+        elif sort_by.startswith("entity"):
+            order_by.append(await build_entity_sorting(sort_by[6:], entity_type))
+
+        elif sort_by.startswith("parent"):
+            s = camel_to_snake(sort_by)
+            s = s.removeprefix("parent_")
+            if s not in allowed_parent_keys:
+                raise BadRequestException(
+                    f"Invalid parent sort key {s}. "
+                    f"Available are: {', '.join(allowed_parent_keys)}"
+                )
+            order_by.append(f"_parent_{s}")
 
         else:
             # This is not a valid sort key
@@ -297,7 +353,11 @@ async def get_entity_list_items(
     #
 
     if filter:
-        column_whitelist = [*COLS_ITEMS, *[f"entity_{col}" for col in cols]]
+        column_whitelist = [
+            *COLS_ITEMS,
+            *[f"entity_{col}" for col in cols],
+            *[f"parent_{col}" for col in allowed_parent_keys],
+        ]
 
         fdata = json.loads(filter)
         fq = QueryFilter(**fdata)
@@ -308,6 +368,9 @@ async def get_entity_list_items(
                 column_map={
                     "attrib": "_all_attrib",
                     **{f"entity_{col}": f"_entity_{col}" for col in cols},
+                    **{
+                        f"parent_{col}": f"_parent_{col}" for col in allowed_parent_keys
+                    },  # noqa: E501
                 },
             )
         except ValueError as e:
