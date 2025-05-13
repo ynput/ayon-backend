@@ -1,5 +1,6 @@
 from typing import Any
 
+from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid
 
@@ -18,7 +19,7 @@ async def create_project_file_record(
     if file_id:
         file_id = file_id.replace("-", "")
         if len(file_id) != 32:
-            raise ValueError("Invalid file ID")
+            raise BadRequestException("Invalid file ID")
     else:
         file_id = create_uuid()
 
@@ -41,7 +42,7 @@ async def create_project_file_record(
         ON CONFLICT (id) DO UPDATE
         SET
             size = $2,
-            author = $3,
+            author = COALESCE(EXCLUDED.author, $3),
             activity_id = $4,
             data = EXCLUDED.data || $5
         """,
