@@ -106,19 +106,6 @@ def cols_for_entity(entity_type: str) -> list[str]:
     ]
 
 
-async def build_entity_sorting(sort_by: str, entity_type: str) -> str:
-    if sort_by in ["data", "attrib"]:
-        # This won't be supported, because it doesn't make sense
-        raise NotImplementedException(f"Unable to sort by entity_{sort_by}")
-    sort_by = camel_to_snake(sort_by)
-    cols = cols_for_entity(entity_type)
-    if sort_by not in cols:
-        raise BadRequestException(
-            f"Invalid entity sort key {sort_by}. " f"Available are: {', '.join(cols)}"
-        )
-    return f"_entity_{sort_by}"
-
-
 async def get_entity_list_items(
     root: EntityListNode,
     info: Info,
@@ -208,9 +195,17 @@ async def get_entity_list_items(
         # as well because of the inheritance
         sql_columns.append("px.attrib as _entity_parent_folder_attrib")
         sql_columns.append("pf.folder_type as _parent_folder_type")
-        sql_joins.append(
-            f"INNER JOIN project_{project_name}.exported_attributes AS px "
-            "ON e.folder_id = px.folder_id\n"
+        sql_joins.extend(
+            [
+                f"""
+                INNER JOIN project_{project_name}.exported_attributes AS px
+                ON e.folder_id = px.folder_id
+                """,
+                f"""
+                INNER JOIN project_{project_name}.folders AS pf
+                ON e.folder_id = pf.id
+                """,
+            ]
         )
         allowed_parent_keys = ["folder_type"]
 
@@ -307,6 +302,7 @@ async def get_entity_list_items(
     if sort_by:
         if item_sort_by := ITEM_SORT_OPTIONS.get(sort_by):
             order_by.append(item_sort_by)
+
         elif sort_by in ITEM_SORT_OPTIONS.values():
             order_by.append(sort_by)
 
@@ -316,7 +312,14 @@ async def get_entity_list_items(
             order_by.append(f"({attr_case})")
 
         elif sort_by.startswith("entity"):
-            order_by.append(await build_entity_sorting(sort_by[6:], entity_type))
+            s = camel_to_snake(sort_by)
+            s = s.removeprefix("entity_")
+            if s not in cols:
+                raise BadRequestException(
+                    f"Invalid entity sort key {sort_by}. "
+                    f"Available are: {', '.join(cols)}"
+                )
+            order_by.append(f"_entity_{s}")
 
         elif sort_by.startswith("parent"):
             s = camel_to_snake(sort_by)
