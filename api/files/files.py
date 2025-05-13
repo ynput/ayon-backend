@@ -14,6 +14,7 @@ from ayon_server.exceptions import (
 from ayon_server.files import Storages, create_project_file_record
 from ayon_server.helpers.preview import create_video_thumbnail, get_file_preview
 from ayon_server.lib.postgres import Postgres
+from ayon_server.models.file_info import FileInfo
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
 
@@ -64,18 +65,29 @@ async def upload_project_file(
     else:
         file_id = create_uuid()
 
-    storage = await Storages.project(project_name)
-    file_size = await storage.handle_upload(request, file_id)
+    async with Postgres.transaction():
+        await create_project_file_record(
+            project_name,
+            x_file_name,
+            size=0,
+            content_type=content_type,
+            file_id=file_id,
+            user_name=user.name,
+            activity_id=x_activity_id,
+        )
 
-    await create_project_file_record(
-        project_name,
-        x_file_name,
-        size=file_size,
-        content_type=content_type,
-        file_id=file_id,
-        user_name=user.name,
-        activity_id=x_activity_id,
-    )
+        storage = await Storages.project(project_name)
+        file_size = await storage.handle_upload(request, file_id)
+
+        await Postgres.execute(
+            f"""
+            UPDATE project_{project_name}.files
+            SET size = $1
+            WHERE id = $2
+            """,
+            file_size,
+            file_id,
+        )
 
     return CreateFileResponseModel(id=file_id)
 
@@ -169,6 +181,24 @@ async def get_project_file(
 
     url = f"/api/projects/{project_name}/files/{file_id}/payload"
     return RedirectResponse(url=url, status_code=302)
+
+
+@router.get("/{file_id}/info", response_model=FileInfo)
+async def get_project_file_info(
+    project_name: ProjectName,
+    file_id: FileID,
+    user: CurrentUser,
+) -> FileInfo:
+    """Get a project file (comment attachment etc.)
+
+    The `preview` query parameter can be used to get
+    a preview of the file (if available).
+    """
+
+    check_user_access(project_name, user)
+
+    storage = await Storages.project(project_name)
+    return await storage.get_file_info(file_id)
 
 
 @router.get("/{file_id}/payload", response_model=None)

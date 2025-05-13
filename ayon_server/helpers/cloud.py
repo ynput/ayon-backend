@@ -91,7 +91,7 @@ class CloudUtils:
     async def get_admin_exists(cls) -> bool:
         if cls.admin_exists:
             return True
-        query = "SELECT name FROM users WHERE data->>'isAdmin' = 'true'"
+        query = "SELECT name FROM public.users WHERE data->>'isAdmin' = 'true'"
         if await Postgres.fetch(query):
             cls.admin_exists = True
             return True
@@ -103,7 +103,7 @@ class CloudUtils:
         if cls.instance_id:
             return cls.instance_id
 
-        query = "SELECT value FROM config WHERE key = 'instanceId'"
+        query = "SELECT value FROM public.config WHERE key = 'instanceId'"
         res = await Postgres.fetchrow(query)
         if not res or (instance_id := res["value"]) is None:
             raise AyonException(
@@ -118,7 +118,7 @@ class CloudUtils:
         """Get the Ynput Cloud key"""
 
         if not (ckey := await Redis.get("global", "ynput_cloud_key")):
-            query = "SELECT value FROM secrets WHERE name = 'ynput_cloud_key'"
+            query = "SELECT value FROM public.secrets WHERE name = 'ynput_cloud_key'"
             res = await Postgres.fetchrow(query)
             if not res:
                 ckey = "none"
@@ -145,7 +145,7 @@ class CloudUtils:
     async def add_ynput_cloud_key(cls, key: str) -> None:
         await Postgres.execute(
             """
-            INSERT INTO secrets (name, value)
+            INSERT INTO public.secrets (name, value)
             VALUES ('ynput_cloud_key', $1)
             ON CONFLICT (name) DO UPDATE SET value = $1
             """,
@@ -157,7 +157,7 @@ class CloudUtils:
     @classmethod
     async def remove_ynput_cloud_key(cls) -> None:
         """Remove the Ynput Cloud key from cache"""
-        query = "DELETE FROM secrets WHERE name = 'ynput_cloud_key'"
+        query = "DELETE FROM public.secrets WHERE name = 'ynput_cloud_key'"
         await Postgres.execute(query)
         await cls.clear_cloud_info_cache()
         await Redis.delete("global", "ynput_cloud_key")
@@ -166,7 +166,7 @@ class CloudUtils:
     async def get_licenses(cls, refresh: bool = False) -> list[dict[str, Any]]:
         _ = refresh  # TODO: use this to invalidate the cache
         result = []
-        async for row in Postgres.iterate("SELECT id, data FROM licenses;"):
+        async for row in Postgres.iterate("SELECT id, data FROM public.licenses;"):
             lic = {"id": row["id"], **row["data"]}
             result.append(lic)
         return result

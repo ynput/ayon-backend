@@ -1,3 +1,12 @@
+__all__ = [
+    "frontend_modules",
+    "info",
+    "metrics",
+    "secrets",
+    "sites",
+    "dbimport",
+]
+
 from fastapi import Response
 
 from ayon_server.api.dependencies import CurrentUser
@@ -8,14 +17,8 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
 
-from . import frontend_modules, info, metrics, secrets, sites
+from . import dbimport, frontend_modules, info, metrics, secrets, sites
 from .router import router
-
-assert info
-assert metrics
-assert secrets
-assert sites
-assert frontend_modules
 
 
 @router.post("/system/restart", response_class=Response)

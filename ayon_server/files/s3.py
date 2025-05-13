@@ -12,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from typing_extensions import AsyncGenerator
 
 from ayon_server.config import ayonconfig
+from ayon_server.exceptions import AyonException, NotFoundException
 from ayon_server.helpers.download import get_file_name_from_headers
 from ayon_server.helpers.statistics import update_traffic_stats
 from ayon_server.logging import logger
@@ -118,10 +119,38 @@ async def delete_s3_file(storage: "ProjectStorage", key: str):
     await run_in_threadpool(_delete_s3_file, storage, key)
 
 
+def _get_s3_file_info(storage: "ProjectStorage", key: str) -> FileInfo:
+    client = _get_s3_client(storage)
+    try:
+        response = client.head_object(Bucket=storage.bucket_name, Key=key)
+        size = response["ContentLength"]
+    except client.exceptions.NoSuchKey:
+        raise NotFoundException("File not found")
+    except Exception as e:
+        logger.error(f"Error getting file size: {e}")
+        raise AyonException("Error getting file size") from e
+
+    return FileInfo(
+        size=size,
+        filename=key.split("/")[-1],
+        content_type=response.get("ContentType", "application/octet-stream"),
+    )
+
+
+async def get_s3_file_info(storage: "ProjectStorage", key: str) -> FileInfo:
+    return await run_in_threadpool(_get_s3_file_info, storage, key)
+
+
 class FileIterator:
-    def __init__(self, storage: "ProjectStorage", file_group: FileGroup):
+    def __init__(
+        self,
+        storage: "ProjectStorage",
+        file_group: FileGroup,
+        prefix: str = "",
+    ):
         self.storage = storage
         self.file_group: FileGroup = file_group
+        self.prefix = prefix
 
     def _init_iterator(self, prefix: str) -> None:
         paginator = self.client.get_paginator("list_objects_v2")
@@ -135,6 +164,8 @@ class FileIterator:
     async def init_iterator(self):
         self.client = await get_s3_client(self.storage)
         prefix = await self.storage.get_filegroup_dir(self.file_group)
+        if self.prefix:
+            prefix = f"{prefix}/{self.prefix}"
         await run_in_threadpool(self._init_iterator, prefix)
 
     def _next(self):
