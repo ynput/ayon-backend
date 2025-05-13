@@ -217,7 +217,7 @@ async def get_entity_list_items(
             [
                 "px.attrib as _entity_inherited_attributes",
                 "pr.attrib as _entity_project_attributes",
-                "px.folder_type as _parent_folder_type",
+                "pf.folder_type as _parent_folder_type",
                 "hierarchy.path AS _entity_path",
             ]
         )
