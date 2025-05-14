@@ -2,7 +2,7 @@ import json
 import re
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import StrictFloat, StrictInt, StrictStr, validator
+from pydantic import StrictBool, StrictFloat, StrictInt, StrictStr, validator
 
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
@@ -11,6 +11,7 @@ ValueType = (
     StrictStr
     | StrictInt
     | StrictFloat
+    | StrictBool
     | list[StrictStr]
     | list[StrictInt]
     | list[StrictFloat]
@@ -331,6 +332,10 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         raise ValueError(f"Invalid value: {value}")
 
     if operator == "eq":
+        if type(value) is bool:
+            if value:
+                return f"coalesce({column}, 'false'::jsonb)::boolean"
+            return f"NOT coalesce({column}, 'false'::jsonb)::boolean"
         return f"{column} = {safe_value}"
     elif operator == "like":
         return f"{column} ILIKE {safe_value}"

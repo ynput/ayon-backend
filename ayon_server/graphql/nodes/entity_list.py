@@ -24,6 +24,7 @@ class EntityListItemEdge(BaseEdge):
     position: int = strawberry.field(default=0)
 
     attrib: str = strawberry.field(default="{}")
+    folder_path: str = strawberry.field(default="")
 
     tags: list[str] = strawberry.field(default_factory=list)
 
@@ -109,9 +110,9 @@ class EntityListItemEdge(BaseEdge):
                 # logger.trace(f"Using {getter_name} to get entity")
                 entity = getter(project_name, vdict, context)
 
+        folder_path = record.get("folder_path", "")
         node_access_forbidden = False
         if access_checker := (context or {}).get("access_checker"):
-            folder_path = record.get("folder_path")
             if folder_path and not access_checker[folder_path]:
                 logger.trace(f"Access denied for {folder_path}")
                 node_access_forbidden = True
@@ -122,6 +123,7 @@ class EntityListItemEdge(BaseEdge):
             entity_type=context["entity_type"],
             entity_id=record["entity_id"],
             position=record["position"],
+            folder_path=folder_path,
             tags=record["tags"] or [],
             created_by=record["created_by"],
             updated_by=record["updated_by"],
@@ -196,6 +198,7 @@ class EntityListNode:
         before: str | None = None,
         sort_by: str | None = None,
         accessible_only: bool = False,
+        filter: str | None = None,
     ) -> EntityListItemsConnection:
         if first is None and last is None:
             first = 200
@@ -209,6 +212,7 @@ class EntityListNode:
             last=last,
             before=before,
             sort_by=sort_by,
+            filter=filter,
             accessible_only=accessible_only,
         )
 
