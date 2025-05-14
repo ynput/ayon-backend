@@ -20,6 +20,8 @@ from ayon_server.exceptions import (
     ConflictException,
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
+from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
+from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.lib.postgres import Connection, Postgres
 from ayon_server.lib.postgres_exceptions import parse_postgres_exception
 from ayon_server.logging import log_traceback, logger
@@ -435,6 +437,11 @@ class ProjectLevelOperations:
                 sender_type=self.sender_type,
                 **event,
             )
+
+        if "folder" in [r.entity_type for r in self.operations]:
+            # Rebuild the hierarchy cache for folders
+            await rebuild_hierarchy_cache(self.project_name)
+            await rebuild_inherited_attributes(self.project_name)
 
         return response
 
