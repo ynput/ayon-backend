@@ -35,6 +35,7 @@ class SimpleResponsePayload(TypedDict):
 
     extra_clipboard: NotRequired[str]
     extra_download: NotRequired[str]
+    extra_reload: NotRequired[bool]
 
 
 class FormResponsePayload(SimpleResponsePayload):
