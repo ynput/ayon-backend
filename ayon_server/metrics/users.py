@@ -84,7 +84,7 @@ async def get_user_stats(
     query = "SELECT date, users FROM user_stats ORDER BY date DESC limit 65"
 
     async for row in Postgres.iterate(query):
-        date = row.get("date").strftime("%Y-%m-%d")
+        date = row["date"].strftime("%Y-%m-%d")
         users = row.get("users", {})
         if not users:
             continue

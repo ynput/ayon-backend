@@ -35,6 +35,7 @@ class SimpleResponsePayload(TypedDict):
 
     extra_clipboard: NotRequired[str]
     extra_download: NotRequired[str]
+    extra_reload: NotRequired[bool]
 
 
 class FormResponsePayload(SimpleResponsePayload):
@@ -256,9 +257,10 @@ class ActionExecutor:
         success: bool = True,
         extra_clipboard: str | None = None,
         extra_download: str | None = None,
+        **kwargs: Any,
     ) -> ExecuteResponseModel:
         """Return a simple response with a message"""
-        payload: dict[str, Any] = {}
+        payload: dict[str, Any] = {**kwargs}
         if extra_clipboard:
             payload["extra_clipboard"] = extra_clipboard
         if extra_download:
@@ -277,9 +279,10 @@ class ActionExecutor:
         success: bool = True,
         extra_clipboard: str | None = None,
         extra_download: str | None = None,
+        **kwargs: Any,
     ) -> ExecuteResponseModel:
         """Return a response for a redirect action"""
-        payload: dict[str, Any] = {"uri": uri}
+        payload: dict[str, Any] = {"uri": uri, **kwargs}
         if extra_clipboard:
             payload["extra_clipboard"] = extra_clipboard
         if extra_download:
@@ -300,11 +303,13 @@ class ActionExecutor:
         success: bool = True,
         extra_clipboard: str | None = None,
         extra_download: str | None = None,
+        **kwargs: Any,
     ) -> ExecuteResponseModel:
         """Return a response for a redirect action"""
         payload: dict[str, Any] = {
             "uri": uri,
             "new_tab": new_tab,
+            **kwargs,
         }
         if extra_clipboard:
             payload["extra_clipboard"] = extra_clipboard
@@ -325,11 +330,10 @@ class ActionExecutor:
         success: bool = True,
         extra_clipboard: str | None = None,
         extra_download: str | None = None,
+        **kwargs: Any,
     ) -> ExecuteResponseModel:
         """Return a response for a query action"""
-        payload: dict[str, Any] = {
-            "query": query,
-        }
+        payload: dict[str, Any] = {"query": query, **kwargs}
         if extra_clipboard:
             payload["extra_clipboard"] = extra_clipboard
         if extra_download:
@@ -338,9 +342,7 @@ class ActionExecutor:
             success=success,
             type="query",
             message=message,
-            payload={
-                "query": query,
-            },
+            payload=payload,
         )
 
     async def get_form_response(
@@ -355,6 +357,7 @@ class ActionExecutor:
         success: bool = True,
         extra_clipboard: str | None = None,
         extra_download: str | None = None,
+        **kwargs: Any,
     ) -> ExecuteResponseModel:
         """Return a response for a form action"""
         payload = {
@@ -364,6 +367,7 @@ class ActionExecutor:
             "submit_icon": submit_icon,
             "cancel_label": cancel_label,
             "cancel_icon": cancel_icon,
+            **kwargs,
         }
         if extra_clipboard:
             payload["extra_clipboard"] = extra_clipboard

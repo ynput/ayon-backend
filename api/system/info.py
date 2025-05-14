@@ -66,6 +66,12 @@ class InfoResponseModel(OPModel):
         None,
         title="Onboarding",
     )
+
+    disable_feedback: bool | None = Field(
+        None,
+        title="Disable feedback",
+    )
+
     password_recovery_available: bool | None = Field(None, title="Password recovery")
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
@@ -228,6 +234,7 @@ async def get_additional_info(user: UserEntity, request: Request):
         "attributes": attr_list,
         "sites": sites,
         "extras": extras,
+        "disable_feedback": ayonconfig.disable_feedback,
     }
 
 

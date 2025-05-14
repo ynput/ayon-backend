@@ -21,10 +21,10 @@ async def get_traffic_stats(
     result = []
     query = "SELECT * FROM traffic_stats ORDER BY date DESC limit 65"
     async for row in Postgres.iterate(query):
-        date = row.get("date").strftime("%Y-%m-%d")
-        service = row.get("service")
-        ingress = row.get("ingress")
-        egress = row.get("egress")
+        date = row["date"].strftime("%Y-%m-%d")
+        service = row["service"]
+        ingress = row["ingress"]
+        egress = row["egress"]
         result.append(
             TrafficStat(
                 date=date,

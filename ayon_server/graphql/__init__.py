@@ -207,7 +207,7 @@ class AyonSchema(strawberry.Schema):
                 else:
                     path = ""
 
-                message = error.message
+                message = error.message.replace("{", "{{").replace("}", "}}")
                 logger.error(
                     f"[GRAPHQL] Error resolving {path} (line {line_no}): {message}",
                     module=fname,

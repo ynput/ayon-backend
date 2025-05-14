@@ -198,15 +198,20 @@ class AyonConfig(BaseModel):
         example=90,
     )
 
+    http_timeout: int = Field(
+        default=120,
+        description="The default timeout for HTTP requests the server uses "
+        "to connect to external services",
+    )
+
     ynput_cloud_api_url: str | None = Field(
         "https://im.ynput.cloud",
         description="YnputConnect URL",
     )
 
-    http_timeout: int = Field(
-        default=120,
-        description="The default timeout for HTTP requests the server uses "
-        "to connect to external services",
+    disable_feedback: bool = Field(
+        default=False,
+        description="Disable feedback and changelog features",
     )
 
     # Logging settings

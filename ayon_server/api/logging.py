@@ -11,11 +11,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import ClientDisconnect
 
 from ayon_server.api.dependencies import NoTraces
-from ayon_server.api.postgres_exceptions import (
+from ayon_server.exceptions import AyonException
+from ayon_server.lib.postgres_exceptions import (
     IntegrityConstraintViolationError,
     parse_postgres_exception,
 )
-from ayon_server.exceptions import AyonException
 from ayon_server.logging import logger
 
 
@@ -110,6 +110,7 @@ def handle_undhandled_exception(request: Request, exc: Exception) -> JSONRespons
 
     path_prefix = f"{os.getcwd()}/"
     formatted = "".join(traceback.format_exception_only(type(exc), exc)).strip()
+    formatted = formatted.replace("{", "{{").replace("}", "}}")
     tb = traceback.extract_tb(exc.__traceback__)
     traceback_msg = ""
     for frame in tb[-20:]:

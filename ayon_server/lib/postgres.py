@@ -2,7 +2,6 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import asyncpg
@@ -11,40 +10,29 @@ from asyncpg.exceptions import TooManyConnectionsError
 from asyncpg.pool import PoolConnectionProxy
 
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import AyonException, ServiceUnavailableException
-from ayon_server.utils import EntityID, json_dumps, json_loads
+from ayon_server.exceptions import ServiceUnavailableException
+from ayon_server.logging import logger
 
-query_count: ContextVar[int] = ContextVar("query_count", default=0)
+from .postgres_setup import postgres_setup
 
 if TYPE_CHECKING:
     Connection = PoolConnectionProxy[Any]
+    from asyncpg.prepared_stmt import PreparedStatement
 else:
     Connection = PoolConnectionProxy
 
 
-def timestamptz_endocder(v):
-    if isinstance(v, int | float):
-        return datetime.fromtimestamp(v).isoformat()
-    if isinstance(v, datetime):
-        return v.isoformat()
-    if isinstance(v, str):
-        return datetime.fromisoformat(v).isoformat()
-    raise ValueError
+#
+# Context variable to store the current connection
+#
 
+_current_connection: ContextVar["PoolConnectionProxy | None"] = ContextVar(  # type: ignore[type-arg]
+    "_current_connection", default=None
+)
 
-def timestamptz_decoder(v):
-    if isinstance(v, int | float):
-        return datetime.fromtimestamp(v)
-    if isinstance(v, datetime):
-        return v
-    if isinstance(v, str):
-        return datetime.fromisoformat(v)
-    raise ValueError
-
-
-def query_log(query: str, *args):
-    # TODO: implement statistics
-    pass
+#
+# Postgres acccess
+#
 
 
 class Postgres:
@@ -54,59 +42,23 @@ class Postgres:
     """
 
     shutting_down: bool = False
-    pool: asyncpg.pool.Pool | None = None  # type: ignore
+    pool: asyncpg.pool.Pool | None = None  # type: ignore[type-arg]
+
+    # Shorthand for asyncpg exceptions
+    # so we when we need to catch them, we don't need to import them
+    # from asyncpg over and over again
 
     ForeignKeyViolationError = asyncpg.exceptions.ForeignKeyViolationError
+    IntegrityConstraintViolationError = (
+        asyncpg.exceptions.IntegrityConstraintViolationError
+    )  # noqa: E501
+    NotNullViolationError = asyncpg.exceptions.NotNullViolationError
     UniqueViolationError = asyncpg.exceptions.UniqueViolationError
     UndefinedTableError = asyncpg.exceptions.UndefinedTableError
 
-    @classmethod
-    @asynccontextmanager
-    async def acquire(
-        cls, timeout: int | None = None
-    ) -> AsyncGenerator[Connection, None]:
-        """Acquire a connection from the pool."""
-
-        if cls.pool is None:
-            raise ConnectionError("Connection pool is not initialized.")
-
-        if timeout is None:
-            timeout = ayonconfig.postgres_pool_timeout
-
-        try:
-            connection_proxy = await cls.pool.acquire(timeout=timeout)
-        except TimeoutError:
-            raise ServiceUnavailableException("Database pool timeout")
-        except TooManyConnectionsError:
-            raise ServiceUnavailableException("Database pool is full")
-
-        try:
-            yield connection_proxy
-        finally:
-            await cls.pool.release(connection_proxy)
-
-    @classmethod
-    async def init_connection(cls, conn) -> None:
-        """Set up the connection pool"""
-        await conn.set_type_codec(
-            "jsonb",
-            encoder=json_dumps,
-            decoder=json_loads,
-            schema="pg_catalog",
-        )
-        await conn.set_type_codec(
-            "uuid",
-            encoder=lambda x: EntityID.parse(x, True),
-            decoder=lambda x: EntityID.parse(x, True),
-            schema="pg_catalog",
-        )
-
-        await conn.set_type_codec(
-            "timestamptz",
-            encoder=timestamptz_endocder,
-            decoder=timestamptz_decoder,
-            schema="pg_catalog",
-        )
+    #
+    # Connection pool lifecycle
+    #
 
     @classmethod
     def get_available_connections(cls) -> int:
@@ -123,14 +75,16 @@ class Postgres:
         """Create a PostgreSQL connection pool."""
 
         if cls.shutting_down:
-            print("Unable to connect to Postgres while shutting down.")
+            logger.warning(
+                "Unable to connect to Postgres while shutting down.", nodb=True
+            )
             return
         cls.pool = await asyncpg.create_pool(
             ayonconfig.postgres_url,
             min_size=10,
             max_size=ayonconfig.postgres_pool_size,
             max_inactive_connection_lifetime=20,
-            init=cls.init_connection,
+            init=postgres_setup,
         )
 
     @classmethod
@@ -140,63 +94,151 @@ class Postgres:
             try:
                 await asyncio.wait_for(cls.pool.close(), timeout=5)
             except TimeoutError:
-                print("Timeout closing Postgres connection pool.")
+                logger.error("Timeout closing Postgres connection pool.", nodb=True)
                 cls.pool.terminate()
             finally:
                 cls.pool = None
                 cls.shutting_down = True
 
+    #
+    # Get connection / transaction
+    #
+
+    @classmethod
+    @asynccontextmanager
+    async def acquire(
+        cls,
+        *,
+        timeout: int | None = None,
+        force_new: bool = False,
+    ) -> AsyncGenerator[Connection, None]:
+        """Acquire a connection from the pool."""
+        conn = _current_connection.get()
+        if conn is not None and not force_new:
+            yield conn
+            return
+
+        assert cls.pool is not None, "Connection pool is not initialized."
+
+        if timeout is None:
+            timeout = ayonconfig.postgres_pool_timeout
+
+        try:
+            connection_proxy = await cls.pool.acquire(timeout=timeout)
+        except TimeoutError:
+            raise ServiceUnavailableException("Database pool timeout")
+        except TooManyConnectionsError:
+            raise ServiceUnavailableException("Database pool is full")
+
+        token = _current_connection.set(connection_proxy)
+
+        try:
+            yield connection_proxy
+        finally:
+            _current_connection.reset(token)
+            await cls.pool.release(connection_proxy)
+
+    @classmethod
+    @asynccontextmanager
+    async def transaction(
+        cls,
+        *,
+        timeout: int | None = None,
+        force_new: bool = False,
+    ) -> AsyncGenerator[Connection, None]:
+        """Acquire a connection from the pool and start a transaction."""
+        async with cls.acquire(timeout=timeout, force_new=force_new) as connection:
+            if connection.is_in_transaction():
+                # If we are already in a transaction, just yield the connection
+                # force_new would use a new connection, so it would not be
+                # in a transaction
+                yield connection
+            else:
+                async with connection.transaction():
+                    yield connection
+
+    @classmethod
+    async def is_in_transaction(cls) -> bool:
+        """Check if the current connection is in a transaction."""
+        conn = _current_connection.get()
+        if conn is None:
+            return False
+        return conn.is_in_transaction()
+
+    #
+    # Postgres query wrappers
+    #
+
     @classmethod
     async def execute(cls, query: str, *args: Any, timeout: float = 60) -> str:
         """Execute a SQL query and return a status (e.g. 'INSERT 0 2')"""
-        if cls.pool is None:
-            raise ConnectionError
-        query_log(query, *args)
         async with cls.acquire() as connection:
             return await connection.execute(query, *args, timeout=timeout)
 
     @classmethod
+    async def executemany(cls, query: str, *args: Any, timeout: float = 60) -> None:
+        """Execute a SQL query with multiple parameters."""
+        async with cls.acquire() as connection:
+            return await connection.executemany(query, *args, timeout=timeout)
+
+    @classmethod
     async def fetch(cls, query: str, *args: Any, timeout: float = 60):
         """Run a query and return the results as a list of Record."""
-        if cls.pool is None:
-            raise ConnectionError
-        query_log(query, *args)
         async with cls.acquire() as connection:
             return await connection.fetch(query, *args, timeout=timeout)
 
     @classmethod
     async def fetchrow(cls, query: str, *args: Any, timeout: float = 60):
         """Run a query and return the first row as a Record."""
-        if cls.pool is None:
-            raise ConnectionError
-        query_log(query, *args)
         async with cls.acquire() as connection:
             return await connection.fetchrow(query, *args, timeout=timeout)
+
+    @classmethod
+    async def prepare(
+        cls, query: str, *args: Any, timeout: float = 60
+    ) -> "PreparedStatement":  # type: ignore[type-arg]
+        """Prepare a statement"""
+        async with cls.acquire() as connection:
+            assert (
+                connection.is_in_transaction()
+            ), "Cannot prepare statement outside of a transaction"
+            return await connection.prepare(query, *args, timeout=timeout)
+
+    @classmethod
+    async def set_project_schema(cls, project_name: str) -> None:
+        """Set the search path to the project schema."""
+        async with cls.acquire() as conn:
+            assert (
+                conn.is_in_transaction()
+            ), "Cannot set project schema outside of a transaction"
+            await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
 
     @classmethod
     async def iterate(
         cls,
         query: str,
         *args: Any,
-        transaction: Connection | None = None,
-    ):
-        """Run a query and return a generator yielding resulting rows records."""
-        query_log(query, *args)
-        if transaction:  # temporary. will be fixed
-            if not transaction.is_in_transaction():
-                raise AyonException(
-                    "Iterate called with a connection which is not in transaction."
-                )
-            statement = await transaction.prepare(query)
-            async for record in statement.cursor(*args):
-                yield record
-            return
+        **kwargs: Any,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Run a query and return a generator yielding rows as dictionaries."""
+        _ = kwargs  # collect unused kwargs (such as legacy "conn" argument)
+        assert cls.pool is not None, "Connection pool is not initialized. "
 
-        if cls.pool is None:
-            raise ConnectionError
+        # Do not use context manager here:
+        # Never set() a ContextVar in a context that may yield to caller
+        # and then try to reset() it as async context may change
 
-        async with cls.acquire() as connection:
-            async with connection.transaction():
-                statement = await connection.prepare(query)
+        conn = await cls.pool.acquire()
+
+        try:
+            if not conn.is_in_transaction():
+                async with conn.transaction():
+                    statement = await conn.prepare(query)
+                    async for record in statement.cursor(*args):
+                        yield dict(record)
+            else:
+                statement = await conn.prepare(query)
                 async for record in statement.cursor(*args):
-                    yield record
+                    yield dict(record)
+        finally:
+            await cls.pool.release(conn)

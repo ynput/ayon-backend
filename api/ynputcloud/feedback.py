@@ -114,6 +114,9 @@ async def get_feedback_verification(user: CurrentUser) -> UserVerificationRespon
     elif user.is_manager:
         level = "manager"
 
+    if ayonconfig.disable_feedback:
+        raise ForbiddenException("Feedback feature is disabled")
+
     # Get headers here to abort if not connected to the cloud
     headers = await CloudUtils.get_api_headers()
 
