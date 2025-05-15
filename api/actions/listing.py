@@ -170,10 +170,9 @@ async def evaluate_simple_action(
                     context.entity_subtypes,
                 )
 
-            else:
-                # Normal project level entities. Just a simple subtype match
-                if not set(action.entity_subtypes) & set(context.entity_subtypes):
-                    return False
+            # Normal project level entities. Just a simple subtype match:
+            # if we have an overlapping subtype, we can run the action
+            return bool(set(action.entity_subtypes) & set(context.entity_subtypes))
 
     return True
 
