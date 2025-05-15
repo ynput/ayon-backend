@@ -15,6 +15,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.project_list import build_project_list, get_project_list
 from ayon_server.types import (
+    ATTRIBUTE_NAME_REGEX,
     NAME_REGEX,
     PROJECT_NAME_REGEX,
     USER_NAME_REGEX,
@@ -143,7 +144,7 @@ async def dep_attribute_name(
     attribute_name: str = Path(
         ...,
         title="Attribute name",
-        regex=NAME_REGEX,
+        regex=ATTRIBUTE_NAME_REGEX,
     ),
 ) -> str:
     return attribute_name

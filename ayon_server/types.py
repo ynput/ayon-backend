@@ -76,6 +76,7 @@ USER_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
 
 # project name cannot contain - / . (sql hard limit for schema names)
 PROJECT_NAME_REGEX = r"^[a-zA-Z0-9_]*$"
+ATTRIBUTE_NAME_REGEX = "^[a-zA-Z0-9]{2,64}$"
 
 # TODO: consider length limit for project code
 PROJECT_CODE_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_]*[a-zA-Z0-9_]$"
