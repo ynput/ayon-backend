@@ -93,6 +93,53 @@ async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAdd
     )
 
 
+def match_list_subtypes(
+    action_subtypes: list[str],
+    context_subtypes: list[str],
+) -> bool:
+    """List matching
+
+    ## action subtype (defined by manifest)
+
+    - always includes the contained entity type (version, folder, etc.)
+    - optionally includes the list type: "version:review-session"
+
+    ## context subtypes (provided by the client)
+
+    always includes both parts: "version:review-session"
+
+    ## Matching Rules
+
+    An action_subtype matches a context_subtype if:
+
+    - The contained type matches (version == version)
+
+    - And if action_subtype includes a list type,
+      it must also match (review-session)
+
+    - If action_subtype doesn't include a list type,
+      it's considered a wildcard (matches all list types
+      of that entity type)
+    """
+    for context_subtype in context_subtypes:
+        context_parts = context_subtype.split(":", 1)
+        context_entity = context_parts[0]
+        context_list_type = context_parts[1] if len(context_parts) > 1 else None
+
+        for action_subtype in action_subtypes:
+            action_parts = action_subtype.split(":", 1)
+            action_entity = action_parts[0]
+            action_list_type = action_parts[1] if len(action_parts) > 1 else None
+
+            if context_entity != action_entity:
+                continue
+
+            if action_list_type is None or action_list_type == context_list_type:
+                return True
+
+    return False
+
+
 async def evaluate_simple_action(
     action: SimpleActionManifest,
     context: ActionContext,
@@ -117,8 +164,16 @@ async def evaluate_simple_action(
             if not context.entity_subtypes:
                 return False
 
-            if not set(action.entity_subtypes) & set(context.entity_subtypes):
-                return False
+            if action.entity_type == "list":
+                return match_list_subtypes(
+                    action.entity_subtypes,
+                    context.entity_subtypes,
+                )
+
+            else:
+                # Normal project level entities. Just a simple subtype match
+                if not set(action.entity_subtypes) & set(context.entity_subtypes):
+                    return False
 
     return True
 
