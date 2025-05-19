@@ -230,6 +230,14 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "description": "Textual description of the entity",
         "inherit": False,
     },
+    "entityListCategory": {
+        "scope": "L",
+        "type": "string",
+        "example": "Stuff",
+        "title": "Category",
+        "description": "Category of the entity list",
+        "inherit": False,
+    },
     # "testEnum": {
     #     "scope": "P, F, V, R, T",
     #     "type": "string",
@@ -271,6 +279,7 @@ async def deploy_attributes() -> None:
                     "v": "version",
                     "r": "representation",
                     "w": "workfile",
+                    "l": "list",
                 }[k.strip().lower()]
                 for k in tdata["scope"].split(",")
             ]
@@ -309,13 +318,6 @@ async def deploy_attributes() -> None:
         ):
             if (value := tdata.get(key)) is not None:
                 data[key] = value
-
-        # Migration from 0.1.x to 0.2.x
-        await Postgres.execute(
-            """
-            DELETE FROM ATTRIBUTES WHERE 'subset' = ANY(scope);
-            """
-        )
 
         await Postgres.execute(
             """

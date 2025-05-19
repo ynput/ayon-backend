@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from ayon_server.types import (
     ATTRIBUTE_NAME_REGEX,
@@ -133,7 +133,7 @@ class AttributePutModel(OPModel):
         ),
     ]
     scope: Annotated[
-        list[ProjectLevelEntityType | TopLevelEntityType],
+        list[ProjectLevelEntityType | TopLevelEntityType | Literal["list"]],
         Field(
             default_factory=list,
             title="Scope",
