@@ -237,6 +237,7 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "title": "Category",
         "description": "Category of the entity list",
         "inherit": False,
+        "enum": [],
     },
     # "testEnum": {
     #     "scope": "P, F, V, R, T",
@@ -315,6 +316,7 @@ async def deploy_attributes() -> None:
             "gt",
             "lt",
             "inherit",
+            "enum",
         ):
             if (value := tdata.get(key)) is not None:
                 data[key] = value
@@ -330,7 +332,15 @@ async def deploy_attributes() -> None:
                 position = EXCLUDED.position,
                 scope = EXCLUDED.scope,
                 builtin = EXCLUDED.builtin,
-                data = EXCLUDED.data
+                data = case
+                when $4->'enum' IS NULL then
+                    EXCLUDED.data
+                else
+                    EXCLUDED.data || jsonb_build_object(
+                        'enum', public.attributes.data->'enum'
+                    )
+                end
+
             """,
             name,
             position,
