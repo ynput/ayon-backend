@@ -1,6 +1,7 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from ayon_server.types import (
+    ATTRIBUTE_NAME_REGEX,
     AttributeEnumItem,
     AttributeType,
     Field,
@@ -116,7 +117,7 @@ class AttributeNameModel(OPModel):
         str,
         Field(
             title="Attribute name",
-            regex="^[a-zA-Z0-9]{2,30}$",
+            regex=ATTRIBUTE_NAME_REGEX,
             example="my_attribute",
         ),
     ]
@@ -132,7 +133,7 @@ class AttributePutModel(OPModel):
         ),
     ]
     scope: Annotated[
-        list[ProjectLevelEntityType | TopLevelEntityType],
+        list[ProjectLevelEntityType | TopLevelEntityType | Literal["list"]],
         Field(
             default_factory=list,
             title="Scope",

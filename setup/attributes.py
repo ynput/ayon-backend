@@ -230,30 +230,15 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "description": "Textual description of the entity",
         "inherit": False,
     },
-    # "testEnum": {
-    #     "scope": "P, F, V, R, T",
-    #     "type": "string",
-    #     "title": "Test enum",
-    #     "default": "test1",
-    #     "example": "test1",
-    #     "enum": [
-    #         {"value": "test1", "label": "Test 1"},
-    #         {"value": "test2", "label": "Test 2"},
-    #         {"value": "test3", "label": "Test 3"},
-    #     ],
-    # },
-    # "testList": {
-    #     "scope": "P, F, V, R, T",
-    #     "type": "list_of_strings",
-    #     "title": "Test LoS",
-    #     "default": ["test1"],
-    #     "example": ["test1", "test2"],
-    #     "enum": [
-    #         {"value": "test1", "label": "Test 1"},
-    #         {"value": "test2", "label": "Test 2"},
-    #         {"value": "test3", "label": "Test 3"},
-    #     ],
-    # },
+    "entityListCategory": {
+        "scope": "L",
+        "type": "string",
+        "example": "To-do",
+        "title": "List category",
+        "description": "Category of the entity list",
+        "inherit": False,
+        "enum": [],
+    },
 }
 
 
@@ -271,6 +256,7 @@ async def deploy_attributes() -> None:
                     "v": "version",
                     "r": "representation",
                     "w": "workfile",
+                    "l": "list",
                 }[k.strip().lower()]
                 for k in tdata["scope"].split(",")
             ]
@@ -306,16 +292,10 @@ async def deploy_attributes() -> None:
             "gt",
             "lt",
             "inherit",
+            "enum",
         ):
             if (value := tdata.get(key)) is not None:
                 data[key] = value
-
-        # Migration from 0.1.x to 0.2.x
-        await Postgres.execute(
-            """
-            DELETE FROM ATTRIBUTES WHERE 'subset' = ANY(scope);
-            """
-        )
 
         await Postgres.execute(
             """
@@ -328,7 +308,15 @@ async def deploy_attributes() -> None:
                 position = EXCLUDED.position,
                 scope = EXCLUDED.scope,
                 builtin = EXCLUDED.builtin,
-                data = EXCLUDED.data
+                data = case
+                when $4->'enum' IS NULL then
+                    EXCLUDED.data
+                else
+                    EXCLUDED.data || jsonb_build_object(
+                        'enum', public.attributes.data->'enum'
+                    )
+                end
+
             """,
             name,
             position,

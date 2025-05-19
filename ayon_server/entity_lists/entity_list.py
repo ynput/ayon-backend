@@ -53,6 +53,14 @@ class EntityList:
     def items(self) -> list[EntityListItemModel]:
         return self._payload.items
 
+    @property
+    def entity_type(self) -> ProjectLevelEntityType:
+        return self._payload.entity_type
+
+    @property
+    def entity_list_type(self) -> str:
+        return self._payload.entity_list_type
+
     async def ensure_access_level(
         self, user: UserEntity | None = None, level: int = 0
     ) -> None:

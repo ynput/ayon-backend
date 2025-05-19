@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import validator
 
@@ -29,13 +29,12 @@ class ActionContext(OPModel):
     ] = None
 
     entity_type: Annotated[
-        ProjectLevelEntityType | None,
+        ProjectLevelEntityType | Literal["list"] | None,
         Field(
             title="Entity Type",
             description=(
-                "The type of the entity. "
-                "If not specified, project-lever "
-                "or global actions are used."
+                "The type of the entity. Either a project level entity, 'list' "
+                "or None for project-wide actions. "
             ),
             example="folder",
         ),
@@ -105,6 +104,7 @@ class ActionContext(OPModel):
             self.project_name is None
             or self.entity_type is None
             or self.entity_ids is None
+            or self.entity_type == "list"
         ):
             return []
 
