@@ -239,30 +239,6 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "inherit": False,
         "enum": [],
     },
-    # "testEnum": {
-    #     "scope": "P, F, V, R, T",
-    #     "type": "string",
-    #     "title": "Test enum",
-    #     "default": "test1",
-    #     "example": "test1",
-    #     "enum": [
-    #         {"value": "test1", "label": "Test 1"},
-    #         {"value": "test2", "label": "Test 2"},
-    #         {"value": "test3", "label": "Test 3"},
-    #     ],
-    # },
-    # "testList": {
-    #     "scope": "P, F, V, R, T",
-    #     "type": "list_of_strings",
-    #     "title": "Test LoS",
-    #     "default": ["test1"],
-    #     "example": ["test1", "test2"],
-    #     "enum": [
-    #         {"value": "test1", "label": "Test 1"},
-    #         {"value": "test2", "label": "Test 2"},
-    #         {"value": "test3", "label": "Test 3"},
-    #     ],
-    # },
 }
 
 
