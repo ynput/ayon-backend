@@ -233,8 +233,8 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
     "entityListCategory": {
         "scope": "L",
         "type": "string",
-        "example": "Stuff",
-        "title": "Category",
+        "example": "To-do",
+        "title": "List category",
         "description": "Category of the entity list",
         "inherit": False,
         "enum": [],
