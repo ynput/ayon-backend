@@ -1,7 +1,7 @@
 __all__ = ["OPModel", "Field", "camelize"]
 
 import re
-from typing import Any, Literal, NamedTuple
+from typing import Annotated, Any, Literal, NamedTuple
 
 from pydantic import BaseModel
 
@@ -222,14 +222,31 @@ class ColorRGBA_float(NamedTuple):
 class AttributeEnumItem(OPModel):
     """Attribute enum item."""
 
-    value: SimpleValue = Field(..., title="Enum value")
-    label: str = Field(..., title="Enum label")
-    icon: str | None = Field(None, title="Icon name")
-    color: ColorRGB_hex | None = Field(
-        None,
-        title="Color in RGBA hex format",
-        regex="^#[0-9a-fA-F]{6}$",
-    )
+    value: Annotated[SimpleValue, Field(title="Enum value")]
+    label: Annotated[str, Field(title="Enum label")]
+
+    icon: Annotated[
+        str | None,
+        Field(
+            title="Icon name",
+        ),
+    ] = None
+
+    color: Annotated[
+        ColorRGB_hex | None,
+        Field(
+            title="Color in RGBA hex format",
+            regex="^#[0-9a-fA-F]{6}$",
+        ),
+    ] = None
+
+    projects: Annotated[
+        list[str] | None,
+        Field(
+            title="Projects",
+            description="List of project this item is available on",
+        ),
+    ] = None
 
 
 def normalize_to_dict(s: dict[Any, Any] | BaseModel) -> dict[Any, Any]:
