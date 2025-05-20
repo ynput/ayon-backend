@@ -182,15 +182,14 @@ class CloudUtils:
         await Redis.delete("global", "cloudinfo")
 
     @classmethod
-    async def get_cloud_info(cls) -> YnputCloudInfoModel:
-        """Get the instance id."""
+    async def get_cloud_info(cls, force: bool = False) -> YnputCloudInfoModel:
         instance_id = await cls.get_instance_id()
         try:
             ynput_cloud_key = await cls.get_ynput_cloud_key()
         except Exception:
             return YnputCloudInfoModel(instance_id=instance_id, subscriptions=[])
         data = await Redis.get_json("global", "cloudinfo")
-        if (not data) or data.get("fetched_at", 0) < time.time() - 600:
+        if (not data) or data.get("fetched_at", 0) < time.time() - 600 or force:
             return await cls.request_cloud_info(instance_id, ynput_cloud_key)
         return YnputCloudInfoModel(**data)
 
