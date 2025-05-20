@@ -1,3 +1,4 @@
+import time
 from typing import Annotated, Any
 
 import httpx
@@ -177,10 +178,11 @@ class CloudUtils:
 
     @classmethod
     async def clear_cloud_info_cache(cls) -> None:
+        await Redis.delete("global", "ynput_cloud_key")
         await Redis.delete("global", "cloudinfo")
 
     @classmethod
-    async def get_cloud_info(cls, force: bool = False) -> YnputCloudInfoModel:
+    async def get_cloud_info(cls) -> YnputCloudInfoModel:
         """Get the instance id."""
         instance_id = await cls.get_instance_id()
         try:
@@ -188,7 +190,7 @@ class CloudUtils:
         except Exception:
             return YnputCloudInfoModel(instance_id=instance_id, subscriptions=[])
         data = await Redis.get_json("global", "cloudinfo")
-        if not data:
+        if (not data) or data.get("fetched_at", 0) < time.time() - 600:
             return await cls.request_cloud_info(instance_id, ynput_cloud_key)
         return YnputCloudInfoModel(**data)
 
@@ -220,8 +222,12 @@ class CloudUtils:
                 data["connected"] = True
         except Exception as e:
             logger.warning(f"Unable to connect to Ynput Cloud. Error: {e}")
-            data = {"instance_id": instance_id, "connected": False}
+            data = {
+                "instance_id": instance_id,
+                "connected": False,
+            }
 
+        data["fetched_at"] = time.time()
         await Redis.set_json("global", "cloudinfo", data)
         return YnputCloudInfoModel(**data)
 
