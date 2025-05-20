@@ -1,4 +1,3 @@
-import contextlib
 from typing import Any
 from urllib.parse import urlparse
 
@@ -20,6 +19,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import Field, OPModel
+from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .router import router
 from .sites import SiteInfo
@@ -121,13 +121,26 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
 
 
 async def get_user_sites(
-    user_name: str, current_site: SiteInfo | None
+    user_name: str,
+    site_id: str,
+    site_platform: str,
+    site_hostname: str,
+    site_version: str,
 ) -> list[SiteInfo]:
     """Return a list of sites the user is registered to
 
     If site information in the request headers, it will be added to the
     top of the listand updated in the database if necessary.
     """
+
+    current_site = SiteInfo(
+        id=site_id,
+        platform=site_platform,
+        hostname=site_hostname,
+        version=site_version,
+        users=[user_name],
+    )
+
     sites: list[SiteInfo] = []
     current_needs_update = False
     current_site_exists = False
@@ -207,25 +220,27 @@ async def get_attributes() -> list[AttributeModel]:
     return attr_list
 
 
-async def get_additional_info(user: UserEntity, request: Request):
+async def get_additional_info(
+    user_name: str,
+    site_id: str | None,
+    site_platform: str | None,
+    site_hostname: str | None,
+    site_version: str | None,
+) -> dict[str, Any]:
     """Return additional information for the user
 
     This is returned only if the user is logged in.
     """
 
-    # Handle site information
-
-    current_site: SiteInfo | None = None
-    with contextlib.suppress(ValidationError):
-        current_site = SiteInfo(
-            id=request.headers.get("x-ayon-site-id"),
-            platform=request.headers.get("x-ayon-platform"),
-            hostname=request.headers.get("x-ayon-hostname"),
-            version=request.headers.get("x-ayon-version"),
-            users=[user.name],
+    sites = []
+    if site_id and site_platform and site_hostname and site_version:
+        sites = await get_user_sites(
+            user_name,
+            site_id,
+            site_platform,
+            site_hostname,
+            site_version,
         )
-
-    sites = await get_user_sites(user.name, current_site)
 
     attr_list = await get_attributes()
     extras = await CloudUtils.get_extras()
@@ -275,9 +290,23 @@ async def get_site_info(
     API version are returned.
     """
 
+    coalesce = RequestCoalescer()
+
     additional_info = {}
     if current_user:
-        additional_info = await get_additional_info(current_user, request)
+        site_id = request.headers.get("x-ayon-site-id")
+        site_platform = request.headers.get("x-ayon-platform")
+        site_hostname = request.headers.get("x-ayon-hostname")
+        site_version = request.headers.get("x-ayon-version")
+
+        additional_info = await coalesce(
+            get_additional_info,
+            current_user.name,
+            site_id,
+            site_platform,
+            site_hostname,
+            site_version,
+        )
 
         if current_user.is_admin and not current_user.is_service:
             if not await is_onboarding_finished():
