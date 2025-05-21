@@ -123,15 +123,17 @@ async def _multi_merge(
     existing_ids = {item.id for item in entity_list.items}
 
     for i, item in enumerate(payload):
+        pos = i if item.position is None else item.position
         if item.id in existing_ids:
             await entity_list.update(
                 item.id,
                 entity_id=item.entity_id,
-                position=i,
+                position=pos,
                 label=item.label,
                 attrib=item.attrib,
                 data=item.data,
                 tags=item.tags,
+                normalize_positions=False,
             )
 
         else:
@@ -140,12 +142,15 @@ async def _multi_merge(
             await entity_list.add(
                 item.entity_id,
                 id=item.id,
-                position=i,
+                position=pos,
                 label=item.label,
                 attrib=item.attrib,
                 data=item.data,
                 tags=item.tags,
             )
+
+    entity_list.items.sort(key=lambda item: item.position)
+    entity_list.normalize_positions()
 
 
 @router.patch("/{list_id}/items")

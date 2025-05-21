@@ -193,7 +193,7 @@ class EntityList:
                 return item
         raise NotFoundException(f"Item ID {item_id} not found in {self._payload.label}")
 
-    def _normalize_positions(self) -> None:
+    def normalize_positions(self) -> None:
         """Normalize the positions of all items in the list"""
         for i, item in enumerate(self._payload.items):
             item.position = i
@@ -238,7 +238,7 @@ class EntityList:
         else:
             self._payload.items.append(item)
 
-        self._normalize_positions()
+        self.normalize_positions()
         return item.id
 
     async def update(
@@ -252,6 +252,7 @@ class EntityList:
         data: dict[str, Any] | None = None,
         tags: list[str] | None = None,
         merge_fields: bool = False,
+        normalize_positions: bool = True,
     ) -> None:
         """Update an item in the list"""
 
@@ -268,7 +269,8 @@ class EntityList:
         if position is not None:
             if position != item.position:
                 item.position = position
-                self._normalize_positions()
+                if normalize_positions:
+                    self.normalize_positions()
 
         if label is not None:
             item.label = label
@@ -293,7 +295,7 @@ class EntityList:
         for i, item in enumerate(self._payload.items):
             if item.id == item_id:
                 del self._payload.items[i]
-                self._normalize_positions()
+                self.normalize_positions()
                 return
         raise NotFoundException(f"Item ID {item_id} not found in {self._payload.label}")
 
