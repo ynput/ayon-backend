@@ -121,25 +121,13 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
 
 
 async def get_user_sites(
-    user_name: str,
-    site_id: str,
-    site_platform: str,
-    site_hostname: str,
-    site_version: str,
+    user_name: str, current_site: SiteInfo | None = None
 ) -> list[SiteInfo]:
     """Return a list of sites the user is registered to
 
     If site information in the request headers, it will be added to the
     top of the listand updated in the database if necessary.
     """
-
-    current_site = SiteInfo(
-        id=site_id,
-        platform=site_platform,
-        hostname=site_hostname,
-        version=site_version,
-        users=[user_name],
-    )
 
     sites: list[SiteInfo] = []
     current_needs_update = False
@@ -234,13 +222,17 @@ async def get_additional_info(
 
     sites = []
     if site_id and site_platform and site_hostname and site_version:
-        sites = await get_user_sites(
-            user_name,
-            site_id,
-            site_platform,
-            site_hostname,
-            site_version,
+        current_site = SiteInfo(
+            id=site_id,
+            platform=site_platform,
+            hostname=site_hostname,
+            version=site_version,
+            users=[user_name],
         )
+    else:
+        current_site = None
+
+    sites = await get_user_sites(user_name, current_site)
 
     attr_list = await get_attributes()
     extras = await CloudUtils.get_extras()
