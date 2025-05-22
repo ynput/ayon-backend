@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, NotRequired, TypedDict
 
 from ayon_server.types import Field, OPModel
 
@@ -47,3 +47,16 @@ class SSOOption(OPModel):
 
 SourceInfo = FilesystemSourceInfo | ServerSourceInfo | HttpSourceInfo
 SourceInfoTypes = (FilesystemSourceInfo, ServerSourceInfo, HttpSourceInfo)
+
+
+FrontendScope = Literal["settings", "project", "dashboard"]
+
+
+class FrontendScopeSettings(TypedDict):
+    admin: NotRequired[bool]  # Available for admin users only
+    manager: NotRequired[bool]  # Available for manager users only
+    sidebar: NotRequired[str]  # Sidebar name
+
+
+FrontendScopes = dict[FrontendScope, FrontendScopeSettings]
+FrontendModules = dict[str, list[str]]

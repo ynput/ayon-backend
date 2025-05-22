@@ -4,7 +4,7 @@ import semver
 from fastapi import Query, Request
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.addons.models import SourceInfo, SourceInfoTypes
+from ayon_server.addons.models import FrontendScopes, SourceInfo, SourceInfoTypes
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -17,7 +17,7 @@ from .router import router
 class VersionInfo(OPModel):
     has_settings: bool = Field(default=False)
     has_site_settings: bool = Field(default=False)
-    frontend_scopes: dict[str, Any] = Field(default_factory=dict)
+    frontend_scopes: FrontendScopes = Field(default_factory=dict)
     client_pyproject: dict[str, Any] | None = Field(None)
     client_source_info: list[SourceInfo] | None = Field(None)
     services: dict[str, Any] | None = Field(None)
