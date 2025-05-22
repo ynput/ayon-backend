@@ -58,7 +58,8 @@ class FrontendScopeSettings(TypedDict):
     sidebar: NotRequired[str]  # Sidebar name
 
 
-# FrontendScopes is a dictionary that maps frontend scope names (e.g., "settings", "project", "dashboard")
-# to their respective settings, which define access and display properties for different user roles.
+# FrontendScopes is a dictionary that maps frontend scope names
+# (e.g., "settings", "project", "dashboard") to their respective settings,
+# which define access and display properties for different user roles.
 FrontendScopes = dict[FrontendScope, FrontendScopeSettings]
 FrontendModules = dict[str, list[str]]

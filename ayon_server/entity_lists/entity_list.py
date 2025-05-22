@@ -285,10 +285,8 @@ class EntityList:
             else:
                 item.data = data
         if tags is not None:
-            if merge_fields:
-                item.tags = list(set(item.tags) | set(tags))
-            else:
-                item.tags = tags
+            # Tags are always replaced, not merged
+            item.tags = tags
 
     async def remove(self, item_id: str) -> None:
         """Remove an item from the list"""
