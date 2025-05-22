@@ -1,3 +1,5 @@
+from typing import Any
+
 from ayon_server.api.dependencies import (
     CurrentUser,
     FolderID,
@@ -31,6 +33,8 @@ class VersionReviewablesModel(OPModel):
     )
     product_name: str = Field(..., title="Product Name", example="Product Name")
     product_type: str = Field(..., title="Product Type", example="Product Type")
+
+    attrib: dict[str, Any] = Field(title="Version attributes", default_factory=dict)
 
     reviewables: list[ReviewableModel] = Field(
         default_factory=list,
@@ -76,6 +80,7 @@ async def get_reviewables(
             versions.id AS version_id,
             versions.version AS version,
             versions.status AS version_status,
+            versions.attrib AS version_attrib,
             products.name AS product_name,
             products.id AS product_id,
             products.product_type AS product_type,
@@ -137,6 +142,7 @@ async def get_reviewables(
                 product_id=row["product_id"],
                 product_name=row["product_name"],
                 product_type=row["product_type"],
+                attrib=row["version_attrib"] or {},
                 reviewables=[],
             )
 
