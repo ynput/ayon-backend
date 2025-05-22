@@ -123,9 +123,8 @@ async def _multi_merge(
     existing_ids = {item.id for item in entity_list.items}
 
     for i, item in enumerate(payload):
-        pos = i if item.position is None else item.position
-
         if item.id in existing_ids:
+            pos = i if item.position is None else item.position
             patched_fields = item.dict(exclude_unset=True).keys()
             await entity_list.update(
                 item.id,
@@ -142,6 +141,11 @@ async def _multi_merge(
         else:
             if not item.entity_id:
                 raise BadRequestException("Entity ID is required in for new items")
+            # Append new items to the end of the list
+            # until we figure out how to merge them with updates
+            # We need to be explicit, because after this iteration,
+            # the list will be sorted by position before pos normalization
+            pos = len(entity_list.items) if item.position is None else item.position
             await entity_list.add(
                 item.entity_id,
                 id=item.id,
@@ -150,6 +154,7 @@ async def _multi_merge(
                 attrib=item.attrib,
                 data=item.data,
                 tags=item.tags,
+                normalize_positions=False,
             )
 
     entity_list.items.sort(key=lambda item: item.position)

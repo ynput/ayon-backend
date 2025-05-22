@@ -208,6 +208,7 @@ class EntityList:
         attrib: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         tags: list[str] | None = None,
+        normalize_positions: bool = True,
     ) -> str:
         """Add an item to the list, returning the item ID"""
 
@@ -221,7 +222,7 @@ class EntityList:
         item = EntityListItemModel(
             id=id or create_uuid(),
             entity_id=entity_id,
-            position=position or 0,
+            position=position or 99999999,
             label=label,
             attrib=attrib or {},
             data=data or {},
@@ -238,7 +239,8 @@ class EntityList:
         else:
             self._payload.items.append(item)
 
-        self.normalize_positions()
+        if normalize_positions:
+            self.normalize_positions()
         return item.id
 
     async def update(
