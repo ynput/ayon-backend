@@ -27,6 +27,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
+    FieldInfo,
     create_folder_access_list,
     resolve,
 )
@@ -132,11 +133,13 @@ async def get_entity_list_items(
             )
     else:
         info.context["entity_type"] = entity_type
+    fields = FieldInfo(info, None)
 
     #
     # entity_list_items columns
     #
 
+    sql_cte = []
     sql_joins = []
     sql_columns = [f"i.{col} {col}" for col in COLS_ITEMS]
     sql_conditions = [f"entity_list_id = '{root.id}'"]
@@ -283,6 +286,26 @@ async def get_entity_list_items(
         )
         allowed_parent_keys = ["folder_type", "product_type", "task_type"]
 
+        # For versions, we also need hasReviewables
+        if fields.any_endswith("hasReviewables"):
+            sql_cte.append(
+                f"""
+                reviewables AS (
+                    SELECT entity_id FROM project_{project_name}.activity_feed
+                    WHERE entity_type = 'version'
+                    AND   activity_type = 'reviewable'
+                )
+                """
+            )
+
+            sql_columns.append(
+                """
+                EXISTS (
+                SELECT 1 FROM reviewables WHERE entity_id = e.id
+                ) AS _entity_has_reviewables
+                """
+            )
+
     # The rest of the entity types should work out of the box
 
     # Unified attributes
@@ -388,9 +411,15 @@ async def get_entity_list_items(
 
     #
     # Construct the query
-    #
+
+    if sql_cte:
+        cte = ", ".join(sql_cte)
+        cte = f"WITH {cte}"
+    else:
+        cte = ""
 
     query = f"""
+        {cte}
         SELECT {cursor}, * FROM (
             SELECT
             {", ".join(sql_columns)}

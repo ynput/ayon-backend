@@ -73,11 +73,13 @@ class FieldInfo:
             name: str | None = None,
         ) -> Generator[str, None, None]:
             for field in fields:
-                if not hasattr(field, "name"):
-                    continue
-                fname = name + "." + field.name if name else field.name
-                yield fname
-                yield from parse_fields(field.selections, fname)
+                if hasattr(field, "name"):
+                    fname = name + "." + field.name if name else field.name
+                    yield fname
+                    yield from parse_fields(field.selections, fname)
+
+                elif hasattr(field, "selections"):
+                    yield from parse_fields(field.selections, None)
 
         self.fields: list[str] = []
         for field in parse_fields(info.selected_fields):
