@@ -287,8 +287,6 @@ async def get_entity_list_items(
         allowed_parent_keys = ["folder_type", "product_type", "task_type"]
 
         # For versions, we also need hasReviewables
-        for field in fields:
-            print(field)
         if fields.any_endswith("hasReviewables"):
             sql_cte.append(
                 f"""
