@@ -27,12 +27,12 @@ async def clean_up_user_access_groups() -> None:
     """Remove deleted access groups from user records"""
 
     async with Postgres.acquire() as conn, conn.transaction():
-        res = await conn.fetch("SELECT name FROM access_groups")
+        res = await conn.fetch("SELECT name FROM public.access_groups")
         if not res:
             return
         existing_access_groups = [row["name"] for row in res]
 
-        query = "SELECT name, data FROM users FOR UPDATE OF users"
+        query = "SELECT name, data FROM public.users FOR UPDATE OF users"
         user_map = await Postgres.fetch(query)
         for row in user_map:
             user_name = row["name"]
@@ -56,7 +56,7 @@ async def clean_up_user_access_groups() -> None:
 
             if save:
                 await Postgres.execute(
-                    "UPDATE users SET data = $2 WHERE name = $1",
+                    "UPDATE public.users SET data = $2 WHERE name = $1",
                     user_name,
                     user_data,
                 )

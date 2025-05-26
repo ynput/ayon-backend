@@ -66,7 +66,7 @@ async def enroll_job(
     query = f"""
         WITH excluded_events AS (
             SELECT depends_on
-            FROM events
+            FROM public.events
             WHERE depends_on IS NOT NULL
             AND topic = $2
             {ignore_cond}
@@ -78,7 +78,7 @@ async def enroll_job(
 
         source_events AS (
             SELECT se.* {sloth_query}
-            FROM events se
+            FROM public.events se
             LEFT JOIN excluded_events ee
                 ON se.id = ee.depends_on
             WHERE {topic_cond}

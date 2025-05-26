@@ -32,7 +32,7 @@ async def get_version_suggestions(
 
     query = f"""
         WITH relevant_users AS (
-            SELECT name FROM users
+            SELECT name FROM public.users
             WHERE data->>'isAdmin' = 'true'
             OR data->>'isManager' = 'true'
             OR data->'accessGroups'->'{project_name}' IS NOT NULL
@@ -49,7 +49,7 @@ async def get_version_suggestions(
             as relevance
 
 
-        FROM users u
+        FROM public.users u
 
         -- author
         LEFT JOIN LATERAL (
