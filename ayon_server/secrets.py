@@ -7,7 +7,7 @@ class Secrets:
         """
         Get a secret. Return None if it doesn't exist.
         """
-        query = "SELECT value FROM secrets WHERE name = $1"
+        query = "SELECT value FROM public.secrets WHERE name = $1"
         res = await Postgres.fetch(query, key)
         if not res:
             return None
@@ -19,7 +19,7 @@ class Secrets:
         Set a secret. Create it if it doesn't exist.
         """
         query = """
-            INSERT INTO secrets (name, value) VALUES ($1, $2)
+            INSERT INTO public.secrets (name, value) VALUES ($1, $2)
             ON CONFLICT (name) DO UPDATE SET value = $2
         """
         await Postgres.execute(query, key, value)
@@ -29,7 +29,7 @@ class Secrets:
         """
         Delete a secret.
         """
-        query = "DELETE FROM secrets WHERE name = $1"
+        query = "DELETE FROM public.secrets WHERE name = $1"
         await Postgres.execute(query, key)
 
     @classmethod
@@ -37,6 +37,6 @@ class Secrets:
         """
         Return a dictionary of all secrets.
         """
-        query = "SELECT * FROM secrets"
+        query = "SELECT * FROM public.secrets"
         res = await Postgres.fetch(query)
         return {row["name"]: row["value"] for row in res}

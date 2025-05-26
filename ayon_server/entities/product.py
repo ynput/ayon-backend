@@ -16,7 +16,7 @@ class ProductEntity(ProjectLevelEntity):
         """Hook called before saving the entity to the database."""
         await transaction.execute(
             """
-            INSERT INTO product_types (name)
+            INSERT INTO public.product_types (name)
             VALUES ($1)
             ON CONFLICT DO NOTHING
             """,

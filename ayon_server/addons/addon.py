@@ -1,3 +1,4 @@
+import inspect
 import os
 
 from ayon_server.entities.user import UserEntity
@@ -17,7 +18,13 @@ from ayon_server.actions.manifest import (
     DynamicActionManifest,
     SimpleActionManifest,
 )
-from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
+from ayon_server.addons.models import (
+    FrontendModules,
+    FrontendScopes,
+    ServerSourceInfo,
+    SourceInfo,
+    SSOOption,
+)
 from ayon_server.addons.settings_caching import AddonSettingsCache
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -69,8 +76,8 @@ class BaseServerAddon:
     settings_model: type[BaseSettingsModel] | None = None
     site_settings_model: type[BaseSettingsModel] | None = None
     app_host_name: str | None = None
-    frontend_scopes: dict[str, Any] = {}
-    frontend_modules: dict[str, Any] = {}
+    frontend_scopes: FrontendScopes = {}
+    frontend_modules: FrontendModules = {}
 
     compatibility: AddonCompatibilityModel | None = None
 
@@ -214,10 +221,10 @@ class BaseServerAddon:
             }
         )
 
-    async def get_frontend_scopes(self) -> dict[str, Any]:
+    async def get_frontend_scopes(self) -> FrontendScopes:
         return self.frontend_scopes
 
-    async def get_frontend_modules(self) -> dict[str, Any]:
+    async def get_frontend_modules(self) -> FrontendModules:
         return self.frontend_modules
 
     #
@@ -377,8 +384,18 @@ class BaseServerAddon:
                 )
 
             try:
+                kw = {}
+                additional_args = inspect.getfullargspec(
+                    target_addon.convert_settings_overrides
+                ).args
+
+                if "project_name" in additional_args:
+                    kw["project_name"] = project_name
+
                 return await target_addon.convert_settings_overrides(
-                    self.version, overrides=data
+                    self.version,
+                    overrides=data,
+                    **kw,
                 )
             except Exception:
                 log_traceback(f"Unable to migrate {self} settings to {as_version}")

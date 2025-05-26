@@ -1,3 +1,5 @@
+from typing import Any
+
 from ayon_server.api.dependencies import (
     CurrentUser,
     FolderID,
@@ -6,7 +8,13 @@ from ayon_server.api.dependencies import (
     TaskID,
     VersionID,
 )
-from ayon_server.entities import FolderEntity, ProductEntity, TaskEntity, VersionEntity
+from ayon_server.entities import (
+    FolderEntity,
+    ProductEntity,
+    TaskEntity,
+    UserEntity,
+    VersionEntity,
+)
 from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.reviewables.models import (
@@ -32,6 +40,8 @@ class VersionReviewablesModel(OPModel):
     product_name: str = Field(..., title="Product Name", example="Product Name")
     product_type: str = Field(..., title="Product Type", example="Product Type")
 
+    attrib: dict[str, Any] = Field(title="Version attributes", default_factory=dict)
+
     reviewables: list[ReviewableModel] = Field(
         default_factory=list,
         title="Reviewables",
@@ -41,10 +51,12 @@ class VersionReviewablesModel(OPModel):
 
 async def get_reviewables(
     project_name: str,
+    *,
     version_id: str | None = None,
     product_id: str | None = None,
     task_id: str | None = None,
     folder_id: str | None = None,
+    user: UserEntity | None = None,
 ) -> list[VersionReviewablesModel]:
     if version_id:
         cond = "versions.id = $1"
@@ -76,6 +88,7 @@ async def get_reviewables(
             versions.id AS version_id,
             versions.version AS version,
             versions.status AS version_status,
+            versions.attrib AS version_attrib,
             products.name AS product_name,
             products.id AS product_id,
             products.product_type AS product_type,
@@ -129,6 +142,15 @@ async def get_reviewables(
             version_name = f"v{row['version']:03d}"
 
         if row["version_id"] not in versions:
+            attrib = row["version_attrib"] or {}
+            if user and not user.is_manager:
+                perms = user.permissions(project_name)
+                if perms.attrib_read.enabled:
+                    for k in list(attrib.keys()):
+                        if k in perms.attrib_read.attributes:
+                            continue
+                        attrib.pop(k, None)
+
             versions[row["version_id"]] = VersionReviewablesModel(
                 id=row["version_id"],
                 name=version_name,
@@ -137,6 +159,7 @@ async def get_reviewables(
                 product_id=row["product_id"],
                 product_name=row["product_name"],
                 product_type=row["product_type"],
+                attrib=attrib,
                 reviewables=[],
             )
 

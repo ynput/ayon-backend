@@ -30,7 +30,7 @@ async def get_folder_suggestions(
 
     query = f"""
         WITH relevant_users AS (
-            SELECT name FROM users
+            SELECT name FROM public.users
             WHERE data->>'isAdmin' = 'true'
             OR data->>'isManager' = 'true'
             OR data->'accessGroups'->'{project_name}' IS NOT NULL
@@ -40,7 +40,7 @@ async def get_folder_suggestions(
             u.name as name,
             u.attrib->>'fullName' as label,
             r.rel_count as has_task
-        FROM users u
+        FROM public.users u
         LEFT JOIN LATERAL (
             SELECT count(*) as rel_count
             FROM project_{project_name}.tasks t
