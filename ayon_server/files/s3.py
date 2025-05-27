@@ -337,7 +337,10 @@ class S3Uploader:
 
     def __del__(self):
         """Ensure clean-up if the object is destroyed prematurely."""
-        self._abort()
+        try:
+            self._abort()
+        except Exception:
+            pass  # pass silently, probably already aborted
 
 
 async def handle_s3_upload(
