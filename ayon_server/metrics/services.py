@@ -15,7 +15,7 @@ async def get_active_services(
 
     query = """
     SELECT addon_name, addon_version, service
-    FROM services WHERE should_run is true;
+    FROM public.services WHERE should_run is true;
     """
 
     result = []

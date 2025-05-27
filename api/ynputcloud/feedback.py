@@ -4,7 +4,6 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.config import ayonconfig
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import (
-    AyonException,
     ForbiddenException,
     ServiceUnavailableException,
 )
@@ -100,7 +99,9 @@ async def _get_feedback_verification(
             {"status": "error", "detail": detail},
             ttl=600,
         )
-        raise AyonException(f"Failed to generate feedback token: {detail}")
+        raise ServiceUnavailableException(
+            f"Failed to generate feedback token: {detail}"
+        )
 
 
 @router.get("/feedback")

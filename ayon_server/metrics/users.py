@@ -38,7 +38,7 @@ async def get_user_counts(
             data->'isManager' AS is_manager,
             data->'isService' AS is_service,
             data->'userPool' AS user_pool
-        FROM users
+        FROM public.users
     """
 
     counts = UserCounts()
@@ -81,7 +81,7 @@ async def get_user_stats(
         return None
 
     result = []
-    query = "SELECT date, users FROM user_stats ORDER BY date DESC limit 65"
+    query = "SELECT date, users FROM public.user_stats ORDER BY date DESC limit 65"
 
     async for row in Postgres.iterate(query):
         date = row["date"].strftime("%Y-%m-%d")

@@ -33,9 +33,9 @@ class SimpleResponsePayload(TypedDict):
     always used
     """
 
-    extra_clipboard: NotRequired[str]
-    extra_download: NotRequired[str]
-    extra_reload: NotRequired[bool]
+    extra_clipboard: NotRequired[str]  # Text to copy to clipboard
+    extra_download: NotRequired[str]  # URL to download
+    extra_reload: NotRequired[list[str]]  # List of tags to invalidate
 
 
 class FormResponsePayload(SimpleResponsePayload):
@@ -162,11 +162,16 @@ class ExecuteResponseModel(OPModel):
 
 class ActionExecutor:
     user: UserEntity
+    sender: str | None = None
+    sender_type: str | None = None
+
     server_url: str
     access_token: str | None
+
     addon_name: str
     addon_version: str
     variant: str
+
     identifier: str
     context: ActionContext
 

@@ -18,7 +18,7 @@ async def get_roots_for_projects(
 
     if site_id:
         site_res = await Postgres.fetch(
-            "SELECT data->>'platform' as platform FROM sites WHERE id = $1",
+            "SELECT data->>'platform' as platform FROM public.sites WHERE id = $1",
             site_id,
             timeout=5,
         )
@@ -30,7 +30,7 @@ async def get_roots_for_projects(
     # get roots from project anatomies
 
     result = await Postgres.fetch(
-        "SELECT name, config FROM projects WHERE name = ANY($1)",
+        "SELECT name, config FROM public.projects WHERE name = ANY($1)",
         projects,
         timeout=5,
     )

@@ -1,4 +1,5 @@
 from ayon_server.addons.library import AddonLibrary
+from ayon_server.addons.models import FrontendModules
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.types import OPModel
 
@@ -8,7 +9,7 @@ from .router import router
 class FrontendModuleListItem(OPModel):
     addon_name: str
     addon_version: str
-    modules: dict[str, list[str]]
+    modules: FrontendModules
 
 
 @router.get("/frontendModules")

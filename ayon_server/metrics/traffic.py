@@ -19,7 +19,7 @@ async def get_traffic_stats(
         return None
 
     result = []
-    query = "SELECT * FROM traffic_stats ORDER BY date DESC limit 65"
+    query = "SELECT * FROM public.traffic_stats ORDER BY date DESC limit 65"
     async for row in Postgres.iterate(query):
         date = row["date"].strftime("%Y-%m-%d")
         service = row["service"]

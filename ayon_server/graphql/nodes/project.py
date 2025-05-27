@@ -253,6 +253,8 @@ def project_from_record(
     """Construct a project node from a DB row."""
 
     thumbnail = None
+    user = context["user"]
+    user.check_project_access(record["name"])
 
     data = record.get("data", {})
     bundle_data = data.get("bundle", {})

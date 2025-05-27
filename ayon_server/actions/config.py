@@ -50,13 +50,15 @@ async def get_action_config(hash: str) -> dict[str, Any]:
     res = await Redis.get_json("action-config", hash)
     if res is None:
         res = await Postgres.fetchrow(
-            "SELECT data, last_used FROM action_config WHERE hash = $1", hash
+            "SELECT data, last_used FROM public.action_config WHERE hash = $1", hash
         )
         res = res or {"last_used": now, "data": {}}
         res = dict(res)
         if res["last_used"] < now - BUMP_TTL:
             await Postgres.execute(
-                "UPDATE action_config SET last_used = $1 WHERE hash = $2", now, hash
+                "UPDATE public.action_config SET last_used = $1 WHERE hash = $2",
+                now,
+                hash,
             )
         await Redis.set_json("action-config", hash, res, ttl=REDIS_TTL)
     return res["data"] or {}
@@ -81,14 +83,14 @@ async def set_action_config(
     """
 
     if not data:
-        await Postgres.execute("DELETE FROM action_config WHERE hash = $1", hash)
+        await Postgres.execute("DELETE FROM public.action_config WHERE hash = $1", hash)
         await Redis.delete("action-config", hash)
         return
     now = int(time.time())
 
     await Postgres.execute(
         """
-        INSERT INTO action_config (
+        INSERT INTO public.action_config (
             hash, data, identifier, addon_name,
             addon_version, project_name, user_name, last_used
         )

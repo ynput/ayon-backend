@@ -302,7 +302,7 @@ async def resolve_entities(
 async def get_platform_for_site_id(site_id: str) -> str:
     """Return the platform for the given site id."""
     res = await Postgres.fetch(
-        "SELECT data->>'platform' as platform FROM sites WHERE id = $1", site_id
+        "SELECT data->>'platform' as platform FROM public.sites WHERE id = $1", site_id
     )
     if not res:
         raise BadRequestException(status_code=404, detail="Site not found")

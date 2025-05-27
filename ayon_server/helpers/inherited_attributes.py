@@ -79,7 +79,7 @@ async def rebuild_inherited_attributes(
     if pattr is None:
         project_attrib = attribute_library.project_defaults
         res = await Postgres.fetch(
-            "SELECT attrib FROM projects WHERE name = $1", project_name
+            "SELECT attrib FROM public.projects WHERE name = $1", project_name
         )
         project_attrib.update(res[0]["attrib"])
     else:

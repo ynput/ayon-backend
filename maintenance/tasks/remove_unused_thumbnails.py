@@ -16,25 +16,6 @@ async def clear_thumbnails(project_name: str) -> None:
     older_cond = "created_at < 'yesterday'::timestamp AND"
     # older_cond = ""
 
-    # query = f"""
-    #     DELETE FROM project_{project_name}.thumbnails
-    #     WHERE {older_cond} id NOT IN (
-    #         SELECT thumbnail_id id FROM project_{project_name}.folders
-    #         WHERE thumbnail_id IS NOT NULL
-    #         UNION ALL
-    #         SELECT thumbnail_id id FROM project_{project_name}.tasks
-    #         WHERE thumbnail_id IS NOT NULL
-    #         UNION ALL
-    #         SELECT thumbnail_id id FROM project_{project_name}.versions
-    #         WHERE thumbnail_id IS NOT NULL
-    #         UNION ALL
-    #         SELECT thumbnail_id id FROM project_{project_name}.workfiles
-    #         WHERE thumbnail_id IS NOT NULL
-    #     )
-    #     RETURNING id
-    # """
-
-    # possibly faster
     query = f"""
         DELETE FROM project_{project_name}.thumbnails t
         WHERE {older_cond} NOT EXISTS (

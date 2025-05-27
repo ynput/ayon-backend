@@ -78,7 +78,6 @@ class QueryCondition(OPModel):
 
     @validator("value")
     def validate_value(cls, v: ValueType, values: dict[str, Any]):
-        logger.trace(f"Validating {type(v)} value {v} with {values}")
         if values.get("operator") in ("in", "notin", "any"):
             if not isinstance(v, list):
                 raise ValueError("Value must be a list")

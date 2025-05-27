@@ -23,13 +23,13 @@ async def clear_events() -> None:
         res = await Postgres.fetch(
             f"""
             WITH blocked_events AS (
-                SELECT DISTINCT(depends_on) as id FROM events
+                SELECT DISTINCT(depends_on) as id FROM public.events
                 WHERE depends_on IS NOT NULL
             ),
 
             deletable_events AS (
                 SELECT id
-                FROM events
+                FROM public.events
                 WHERE updated_at < now() - interval '{num_days} days'
                 AND id NOT IN (SELECT id FROM blocked_events)
                 ORDER BY updated_at ASC
@@ -37,7 +37,7 @@ async def clear_events() -> None:
             ),
 
             deleted_events AS(
-                DELETE FROM events
+                DELETE FROM public.events
                 WHERE id IN (SELECT id FROM deletable_events)
                 RETURNING id as deleted
             )
