@@ -20,7 +20,7 @@ async def _get_bundles_addons(
     source_addons: AddonVersionsDict | None = None
     target_addons: AddonVersionsDict | None = None
     res = await conn.fetch(
-        "SELECT name, data FROM bundles WHERE name = ANY($1)",
+        "SELECT name, data FROM public.bundles WHERE name = ANY($1)",
         [source_bundle, target_bundle],
     )
     for row in res:

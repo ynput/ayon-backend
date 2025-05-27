@@ -137,7 +137,7 @@ class UserEntity(TopLevelEntity):
             # We cannot use DB index here.
             res = await conn.fetch(
                 """
-                SELECT name FROM users
+                SELECT name FROM public.users
                 WHERE LOWER(attrib->>'email') = $1
                 AND name != $2
                 """,
@@ -156,7 +156,7 @@ class UserEntity(TopLevelEntity):
                 max_users = max_users or 1
                 res = await conn.fetch(
                     """
-                    SELECT count(*) as cnt FROM users
+                    SELECT count(*) as cnt FROM public.users
                     WHERE active is TRUE
                     AND coalesce(data->>'isService', 'false') != 'true'
                     """
@@ -208,7 +208,7 @@ class UserEntity(TopLevelEntity):
             res = await conn.fetch(
                 """
                 WITH deleted AS (
-                    DELETE FROM users
+                    DELETE FROM public.users
                     WHERE name=$1
                     RETURNING *
                 ) SELECT count(*) FROM deleted;
