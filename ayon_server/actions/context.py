@@ -29,12 +29,12 @@ class ActionContext(OPModel):
     ] = None
 
     entity_type: Annotated[
-        ProjectLevelEntityType | Literal["list"] | None,
+        ProjectLevelEntityType | Literal["list"] | Literal["project"] | None,
         Field(
             title="Entity Type",
             description=(
                 "The type of the entity. Either a project level entity, 'list' "
-                "or None for project-wide actions. "
+                "or 'project' for project-wide actions. or None for global actions."
             ),
             example="folder",
         ),
