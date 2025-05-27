@@ -26,7 +26,8 @@ class SettingsOverrides(OPModel):
 
 
 async def get_studio_settings_overrides(
-    saturated: bool = False, system: bool = False
+    saturated: bool = False,
+    system: bool = False,
 ) -> list[SettingsOverrides]:
     """Studio settings overrides
 
@@ -38,7 +39,7 @@ async def get_studio_settings_overrides(
 
     query = """
     SELECT addon_name, addon_version, data
-    FROM settings WHERE variant = 'production';
+    FROM public.settings WHERE variant = 'production';
     """
 
     results = []

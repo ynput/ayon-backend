@@ -94,9 +94,9 @@ async def get_events(
 
     if has_children is not None:
         if has_children:
-            sql_conditions.append("id IN (SELECT depends_on FROM events)")
+            sql_conditions.append("id IN (SELECT depends_on FROM public.events)")
         else:
-            sql_conditions.append("id NOT IN (SELECT depends_on FROM events)")
+            sql_conditions.append("id NOT IN (SELECT depends_on FROM public.events)")
 
     if filter:
         elms = slugify(filter, make_set=True)
@@ -130,7 +130,7 @@ async def get_events(
     # TODO: select data only when needed
 
     query = f"""
-        SELECT {cursor}, * FROM events
+        SELECT {cursor}, * FROM public.events
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """

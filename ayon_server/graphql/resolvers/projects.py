@@ -80,7 +80,7 @@ async def get_projects(
 
     query = f"""
         SELECT {', '.join(cols)}
-        FROM projects
+        FROM public.projects
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """

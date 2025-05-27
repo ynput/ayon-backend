@@ -42,7 +42,7 @@ async def _migrate_addon_settings(
         # fetch the original studio settings
         res = await conn.fetch(
             """
-            SELECT data FROM settings
+            SELECT data FROM public.settings
             WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
             """,
             target_addon.name,
@@ -71,7 +71,7 @@ async def _migrate_addon_settings(
 
             await conn.execute(
                 """
-                INSERT INTO settings (addon_name, addon_version, variant, data)
+                INSERT INTO public.settings (addon_name, addon_version, variant, data)
                 VALUES ($1, $2, $3, $4)
                 ON CONFLICT (addon_name, addon_version, variant)
                 DO UPDATE SET data = $4
@@ -84,7 +84,7 @@ async def _migrate_addon_settings(
     else:
         res = await conn.fetch(
             """
-            DELETE FROM settings
+            DELETE FROM public.settings
             WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
             RETURNING data
             """,

@@ -54,7 +54,7 @@ class DemoGen:
 
     async def get_random_user(self) -> str:
         if not self._users:
-            async for row in Postgres.iterate("SELECT name FROM users"):
+            async for row in Postgres.iterate("SELECT name FROM public.users"):
                 self._users.append(row["name"])
             if not self._users:
                 self.users = ["artist", "editor", "admin"]

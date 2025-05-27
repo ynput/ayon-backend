@@ -57,4 +57,5 @@ async def clear_server_restart_required():
     restarted.
     """
 
-    await Postgres.execute("DELETE FROM events WHERE hash = 'server.restart_required'")
+    q = "DELETE FROM public.events WHERE hash = 'server.restart_required'"
+    await Postgres.execute(q)

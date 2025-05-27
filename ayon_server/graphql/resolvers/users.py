@@ -124,7 +124,7 @@ async def get_users(
     #
 
     query = f"""
-        SELECT {cursor}, * FROM users
+        SELECT {cursor}, * FROM public.users
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
