@@ -6,7 +6,18 @@ from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.get_entity_class import get_entity_class
-from ayon_server.types import Field, OPModel, ProjectLevelEntityType
+from ayon_server.types import Field, OPModel
+
+ActionEntityType = Literal[
+    "project",
+    "list",
+    "folder",
+    "task",
+    "product",
+    "version",
+    "representation",
+    "workfile",
+]
 
 
 class ActionContext(OPModel):
@@ -29,7 +40,7 @@ class ActionContext(OPModel):
     ] = None
 
     entity_type: Annotated[
-        ProjectLevelEntityType | Literal["list"] | Literal["project"] | None,
+        ActionEntityType | None,
         Field(
             title="Entity Type",
             description=(
