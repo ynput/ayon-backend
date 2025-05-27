@@ -8,7 +8,7 @@ async def clear_action_configs_by_projects() -> None:
     project_names = set()
     async for row in Postgres.iterate(
         """
-        SELECT DISTINCT project_name FROM action_config
+        SELECT DISTINCT project_name FROM public.action_config
         WHERE project_name IS NOT NULL
         """
     ):
@@ -22,7 +22,7 @@ async def clear_action_configs_by_projects() -> None:
         return
 
     query = """
-        DELETE FROM action_config
+        DELETE FROM public.action_config
         WHERE project_name = ANY($1)
         AND last_used < EXTRACT(EPOCH FROM NOW()) - 60 * 60 * 24 * 30
     """
@@ -37,7 +37,7 @@ async def clear_action_configs_by_users() -> None:
     user_names = set()
     async for row in Postgres.iterate(
         """
-        SELECT DISTINCT user_name FROM action_config
+        SELECT DISTINCT user_name FROM public.action_config
         WHERE user_name IS NOT NULL
         """
     ):
@@ -45,7 +45,7 @@ async def clear_action_configs_by_users() -> None:
 
     # Get the list of all users
 
-    query = "SELECT name FROM users"
+    query = "SELECT name FROM public.users"
     async for row in Postgres.iterate(query):
         user_names.discard(row["name"])
 
@@ -53,7 +53,7 @@ async def clear_action_configs_by_users() -> None:
         return
 
     query = """
-        DELETE FROM action_config
+        DELETE FROM public.action_config
         WHERE user_name = ANY($1)
         AND last_used < EXTRACT(EPOCH FROM NOW()) - 60 * 60 * 24 * 30
     """

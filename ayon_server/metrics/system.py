@@ -127,7 +127,8 @@ class SystemMetrics:
     async def get_upload_sizes(self) -> list[Metric]:
         result: list[Metric] = []
 
-        projects = await Postgres.fetch("SELECT name FROM projects ORDER BY name")
+        q = "SELECT name FROM public.projects ORDER BY name"
+        projects = await Postgres.fetch(q)
         project_names = [row["name"] for row in projects]
         total_size = 0
 

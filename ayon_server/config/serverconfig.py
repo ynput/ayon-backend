@@ -66,7 +66,7 @@ def migrate_server_config(config_dict: dict[str, Any]) -> dict[str, Any]:
 
 
 async def build_server_config_cache() -> dict[str, Any]:
-    q = "SELECT value FROM config WHERE key = 'serverConfig'"
+    q = "SELECT value FROM public.config WHERE key = 'serverConfig'"
     res = await Postgres.fetchrow(q)
     if not res:
         data = {}
@@ -95,7 +95,7 @@ async def get_server_config() -> ServerConfigModel:
 async def save_server_config_data(data: dict[str, Any]) -> None:
     await Postgres.execute(
         """
-        INSERT INTO config (key, value)
+        INSERT INTO public.config (key, value)
         VALUES ('serverConfig', $1)
         ON CONFLICT (key) DO UPDATE SET value = $1
         """,

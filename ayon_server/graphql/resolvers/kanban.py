@@ -73,7 +73,7 @@ async def get_kanban(
     DEFAULT_PRIORITY = project_defaults.get("priority", "normal")
 
     if not projects:
-        q = "SELECT name, code FROM projects WHERE active IS TRUE"
+        q = "SELECT name, code FROM public.projects WHERE active IS TRUE"
     else:
         validate_name_list(projects)
         q = f"""
@@ -81,7 +81,7 @@ async def get_kanban(
                 name,
                 code,
                 attrib->>'priority' as priority
-            FROM projects
+            FROM public.projects
             WHERE name = ANY({SQLTool.array(projects, curly=True)})
         """
     async for row in Postgres.iterate(q):

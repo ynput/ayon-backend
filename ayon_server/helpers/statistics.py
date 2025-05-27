@@ -13,7 +13,7 @@ async def update_traffic_stats(
     if usage_type not in ["ingress", "egress"]:
         raise ValueError("Invalid usage type")
     query = f"""
-       INSERT INTO traffic_stats (date, service, {usage_type})
+       INSERT INTO public.traffic_stats (date, service, {usage_type})
        VALUES (current_date, $1, $2)
        ON CONFLICT (date, service)
        DO UPDATE SET {usage_type} = traffic_stats.{usage_type} + $2

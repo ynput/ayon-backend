@@ -26,7 +26,7 @@ async def download_addon(
     hash = hashlib.sha256(f"addon_install_{url}".encode()).hexdigest()
 
     query = """
-        SELECT id FROM events
+        SELECT id FROM public.events
         WHERE topic = 'addon.install_from_url'
         AND hash = $1
     """
