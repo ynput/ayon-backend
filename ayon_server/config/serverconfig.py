@@ -25,7 +25,6 @@ class CustomizationModel(BaseSettingsModel):
     motd: Annotated[
         str,
         SettingsField(
-            "",
             title="Login Page Message",
             description="The message that is displayed to users on the login "
             "page. Markdown syntax is supported.",
@@ -74,7 +73,7 @@ class ServerConfigModel(BaseSettingsModel):
         SettingsField(
             title="Customization",
             description="Customization options for the login page",
-            default=CustomizationModel,
+            default_factory=CustomizationModel,
         ),
     ]
 
