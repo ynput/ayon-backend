@@ -8,7 +8,7 @@ from ayon_server.actions.context import ActionContext
 from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
 from ayon_server.actions.manifest import BaseActionManifest
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUser, Sender, SenderType
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -122,6 +122,8 @@ async def execute_action(
     request: Request,
     user: CurrentUser,
     context: ActionContext,
+    sender: Sender,
+    sender_type: SenderType,
     addon_name: str = Query(..., title="Addon Name", alias="addonName"),
     addon_version: str = Query(..., title="Addon Version", alias="addonVersion"),
     variant: str = Query("production", title="Action Variant"),
@@ -162,6 +164,8 @@ async def execute_action(
 
     executor = ActionExecutor()
     executor.user = user
+    executor.sender = sender
+    executor.sender_type = sender_type
     executor.access_token = access_token
     executor.server_url = server_url
     executor.addon_name = addon_name
