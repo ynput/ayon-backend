@@ -73,12 +73,6 @@ class InfoResponseModel(OPModel):
         description="If set, the changelog will not be shown to the user",
     )
 
-    disable_feedback: bool | None = Field(
-        None,
-        title="Disable feedback",
-        description="If set, the feedback feature will be disabled",
-    )
-
     password_recovery_available: bool | None = Field(None, title="Password recovery")
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
@@ -250,7 +244,6 @@ async def get_additional_info(
         "attributes": attr_list,
         "sites": sites,
         "extras": extras,
-        "disable_feedback": ayonconfig.disable_feedback,
         "disable_changelog": not (
             is_admin or server_config.changelog.show_changelog_to_users
         ),
