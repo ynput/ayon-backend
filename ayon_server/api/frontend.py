@@ -8,6 +8,8 @@ from starlette.types import Scope
 
 from ayon_server.config import ayonconfig
 
+NO_CACHE = {"remoteEntry.js"}
+
 
 @cache
 def get_index() -> fastapi.responses.HTMLResponse:
@@ -35,6 +37,14 @@ class FrontendFiles(StaticFiles):
         # from the server cache (it shouldn't change during runtime)
         if path in [".", "", "/", "index.html"]:
             return get_index()
+
+        if path in NO_CACHE:
+            # for some files, we want to disable caching by explicitly
+            # setting the Cache-Control header to no-cache
+            response = await super().get_response(path, scope)
+            response.headers["Cache-Control"] = "no-cache"
+            return response
+
         try:
             # For other paths, return the file from the static files directory
             return await super().get_response(path, scope)
