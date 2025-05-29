@@ -1,7 +1,5 @@
 from typing import Any, Literal
 
-from fastapi import APIRouter
-
 from ayon_server.api.dependencies import (
     CurrentUser,
     ProjectName,
@@ -17,7 +15,7 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.types import Field, OPModel
 
-router = APIRouter(tags=["Tasks"])
+from .router import router
 
 #
 # [GET]
