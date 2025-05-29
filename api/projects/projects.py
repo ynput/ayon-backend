@@ -35,12 +35,12 @@ from .router import router
 
 FOLDER_TYPES_FIELD = Annotated[
     list[FolderType],
-    Field(default_factory=list, name="folder_types", title="Folder types"),
+    Field(default_factory=list, title="Folder types"),
 ]
 
 TASK_TYPES_FIELD = Annotated[
     list[TaskType],
-    Field(default_factory=list, name="task_types", title="Task types"),
+    Field(default_factory=list, title="Task types"),
 ]
 STATUSES_FIELD = Annotated[
     list[Status],

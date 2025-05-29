@@ -25,6 +25,7 @@ class FormSelectOption(TypedDict):
     label: str
     icon: NotRequired[str]
     color: NotRequired[str]
+    badges: NotRequired[list[str]]
 
 
 ValueType = (
@@ -72,6 +73,10 @@ def normalize_options(
                 result[-1]["icon"] = option["icon"]
             if "color" in option:
                 result[-1]["color"] = option["color"]
+            if "badges" in option:
+                if not isinstance(option["badges"], list):
+                    raise ValueError("Badges must be a list.")
+                result[-1]["badges"] = option["badges"]
         else:
             raise ValueError("Option must be a string or a dictionary.")
 
