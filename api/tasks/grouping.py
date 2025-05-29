@@ -35,7 +35,7 @@ def parse_grouping_key(key: str) -> str:
     raise BadRequestException(f"Invalid grouping key: {key}")
 
 
-class TaskGrouping(OPModel):
+class TaskGroup(OPModel):
     value: Annotated[
         Any,
         Field(
@@ -49,10 +49,28 @@ class TaskGrouping(OPModel):
     ]
 
 
+class TaskGrouping(OPModel):
+    groups: Annotated[
+        list[TaskGroup],
+        Field(
+            title="Task Groups",
+            description="List of task groups based on the specified grouping key.",
+        ),
+    ]
+
+    key: Annotated[
+        str,
+        Field(
+            title="Grouping Key",
+            description="The key used for grouping tasks.",
+        ),
+    ]
+
+
 @router.get("/projects/{project_name}/tasks/grouping/{grouping_key}")
 async def get_task_grouping(
     project_name: ProjectName,
     grouping_key: GroupingKey,
-) -> list[TaskGrouping]:
-    result = []
-    return result
+) -> TaskGrouping:
+    result: list[TaskGroup] = []
+    return TaskGrouping(groups=result, key=grouping_key)
