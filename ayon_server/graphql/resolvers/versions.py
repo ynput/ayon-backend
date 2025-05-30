@@ -20,7 +20,11 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
-from ayon_server.types import validate_name_list, validate_status_list
+from ayon_server.types import (
+    validate_name_list,
+    validate_status_list,
+    validate_user_name_list,
+)
 from ayon_server.utils import SQLTool
 
 SORT_OPTIONS = {
@@ -138,7 +142,7 @@ async def get_versions(
     if authors is not None:
         if not authors:
             return VersionsConnection()
-        validate_name_list(authors)
+        validate_user_name_list(authors)
         sql_conditions.append(f"versions.author IN {SQLTool.array(authors)}")
     if statuses is not None:
         if not statuses:

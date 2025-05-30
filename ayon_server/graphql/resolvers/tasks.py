@@ -31,6 +31,7 @@ from ayon_server.types import (
     sanitize_string_list,
     validate_name_list,
     validate_status_list,
+    validate_type_name_list,
     validate_user_name_list,
 )
 from ayon_server.utils import SQLTool, slugify
@@ -221,7 +222,7 @@ async def get_tasks(
     if task_types is not None:
         if not task_types:
             return TasksConnection()
-        validate_name_list(task_types)
+        validate_type_name_list(task_types)
         sql_conditions.append(f"tasks.task_type IN {SQLTool.array(task_types)}")
 
     if statuses is not None:

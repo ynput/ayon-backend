@@ -20,7 +20,11 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
-from ayon_server.types import validate_name_list, validate_status_list
+from ayon_server.types import (
+    validate_name_list,
+    validate_status_list,
+    validate_type_name_list,
+)
 from ayon_server.utils import SQLTool
 
 SORT_OPTIONS = {
@@ -117,7 +121,7 @@ async def get_products(
     if product_types is not None:
         if not product_types:
             return ProductsConnection()
-        validate_name_list(product_types)
+        validate_type_name_list(product_types)
         sql_conditions.append(
             f"products.product_type IN {SQLTool.array(product_types)}"
         )
