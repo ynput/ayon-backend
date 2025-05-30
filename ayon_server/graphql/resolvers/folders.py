@@ -26,6 +26,7 @@ from ayon_server.types import (
     validate_name,
     validate_name_list,
     validate_status_list,
+    validate_type_name_list,
 )
 from ayon_server.utils import EntityID, SQLTool
 
@@ -247,7 +248,7 @@ async def get_folders(
     if folder_types is not None:
         if not folder_types:
             return FoldersConnection()
-        validate_name_list(folder_types)
+        validate_type_name_list(folder_types)
         sql_conditions.append(f"folders.folder_type in {SQLTool.array(folder_types)}")
 
     if name is not None:
