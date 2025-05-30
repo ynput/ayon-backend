@@ -3,12 +3,12 @@ from typing import Annotated, Any
 from ayon_server.types import Field, OPModel
 
 
-class TaskGroup(OPModel):
+class EntityGroup(OPModel):
     value: Annotated[
         Any,
         Field(
-            title="Task Grouping Value",
-            description="The value used for grouping tasks.",
+            title="Entity grouping Value",
+            description="The value used for grouping entities.",
             example=["john.doe"],
         ),
     ]

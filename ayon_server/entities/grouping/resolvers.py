@@ -4,15 +4,16 @@ from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
+from ayon_server.types import ProjectLevelEntityType
 
-from .common import TaskGroup
+from .common import EntityGroup
 
 
 async def get_status_or_type_groups(
     project_name: str,
     entity_type: Literal["task", "folder"],
     key: Literal["status", "task_type", "folder_type"],
-) -> list[TaskGroup]:
+) -> list[EntityGroup]:
     """Get task groups based on status or entity subtype.
 
     This works with folder and task entities
@@ -31,7 +32,7 @@ async def get_status_or_type_groups(
     else:
         raise ValueError(f"Invalid key: {key}")
 
-    groups: list[TaskGroup] = []
+    groups: list[EntityGroup] = []
 
     query = f"""
         WITH counts AS (
@@ -51,7 +52,7 @@ async def get_status_or_type_groups(
     """
     result = await Postgres.fetch(query)
     for row in result:
-        group = TaskGroup(
+        group = EntityGroup(
             value=row["value"],
             label=row["value"],
             icon=row["icon"],
@@ -62,9 +63,9 @@ async def get_status_or_type_groups(
     return groups
 
 
-async def get_assignees_groups(project_name: str) -> list[TaskGroup]:
+async def get_assignees_groups(project_name: str) -> list[EntityGroup]:
     """Get task groups based on assignees."""
-    groups: list[TaskGroup] = []
+    groups: list[EntityGroup] = []
 
     query = f"""
         WITH all_assignees AS (
@@ -86,7 +87,7 @@ async def get_assignees_groups(project_name: str) -> list[TaskGroup]:
     """
     result = await Postgres.fetch(query)
     for row in result:
-        group = TaskGroup(
+        group = EntityGroup(
             value=row["name"],
             label=row["label"],
             count=row["count"],
@@ -97,11 +98,11 @@ async def get_assignees_groups(project_name: str) -> list[TaskGroup]:
 
 async def get_attrib_groups(
     project_name: str,
-    entity_type: Literal["task", "folder"],
+    entity_type: ProjectLevelEntityType,
     key: str,
-) -> list[TaskGroup]:
+) -> list[EntityGroup]:
     """Get task groups based on custom attributes."""
-    groups: list[TaskGroup] = []
+    groups: list[EntityGroup] = []
 
     if not attribute_library.is_valid(entity_type, key):
         raise BadRequestException(f"Invalid {entity_type} attribute {key}")
@@ -136,8 +137,28 @@ async def get_attrib_groups(
             WHERE t.attrib ? '{key}' OR ex.attrib ? '{key}'
         """
 
+    elif entity_type == "folder":
+        values_cte = f"""
+            SELECT
+                COALESCE(
+                    f.attrib->'{key}',
+                    ex.attrib->'{key}',
+                    pr.attrib->'key'
+                ) AS value
+            FROM project_{project_name}.folders f
+            JOIN project_{project_name}.exported_attributes ex
+            ON f.id = ex.folder_id
+            JOIN public.projects pr
+            ON pr.name = '{project_name}'
+            WHERE f.attrib ? '{key}' OR ex.attrib ? '{key}' OR pr.attrib ? '{key}'
+        """
     else:
-        raise NotImplementedError("Grouping by folder attributes is not supported.")
+        values_cte = f"""
+            SELECT
+                attrib->'{key}' AS value
+            FROM project_{project_name}.{entity_type}s
+            WHERE attrib ? '{key}'
+        """
 
     query = f"""
         WITH values AS ({values_cte})
@@ -155,11 +176,11 @@ async def get_attrib_groups(
 
         meta = enum_dict.pop(value, {})
 
-        group = TaskGroup(value=value, count=count, **meta)
+        group = EntityGroup(value=value, count=count, **meta)
         groups.append(group)
 
     for value, meta in enum_dict.items():
-        group = TaskGroup(value=value, **meta, count=0)
+        group = EntityGroup(value=value, **meta, count=0)
         groups.append(group)
 
     return groups

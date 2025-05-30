@@ -1,17 +1,20 @@
 from typing import Annotated
 
-from fastapi import Path
+from fastapi import Path, Query
 
-from ayon_server.api.dependencies import ProjectName
-from ayon_server.config import ayonconfig
-from ayon_server.entities.grouping.common import TaskGroup
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    PathProjectLevelEntityType,
+    ProjectName,
+)
+from ayon_server.entities.grouping.common import EntityGroup
 from ayon_server.entities.grouping.resolvers import (
     get_assignees_groups,
     get_attrib_groups,
     get_status_or_type_groups,
 )
 from ayon_server.exceptions import BadRequestException
-from ayon_server.types import Field, OPModel
+from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 
 from .router import router
 
@@ -38,9 +41,9 @@ def parse_grouping_key(key: str) -> str:
     raise BadRequestException(f"Invalid grouping key: {key}")
 
 
-class TaskGrouping(OPModel):
+class EntityGrouping(OPModel):
     groups: Annotated[
-        list[TaskGroup],
+        list[EntityGroup],
         Field(
             title="Task Groups",
             description="List of task groups based on the specified grouping key.",
@@ -66,35 +69,44 @@ class TaskGrouping(OPModel):
         ),
     ]
 
+    entity_type: Annotated[
+        ProjectLevelEntityType,
+        Field(
+            title="Entity Type",
+            description="The type of entity being grouped, e.g., 'task' or 'folder'.",
+            example="task",
+        ),
+    ]
 
-@router.get(
-    "/projects/{project_name}/taskGroups/{grouping_key}",
-    response_model_exclude_none=True,
-    include_in_schema=ayonconfig.openapi_include_internal_endpoints,
-)
-async def get_task_groups(
+
+@router.get("/{entity_type}/{grouping_key}", response_model_exclude_none=True)
+async def get_entity_groups(
+    user: CurrentUser,
     project_name: ProjectName,
+    entity_type: PathProjectLevelEntityType,
     grouping_key: GroupingKey,
-    empty: Annotated[bool, Field(title="Include empty groups")] = False,
-) -> TaskGrouping:
-    groups: list[TaskGroup] = []
+    empty: Annotated[bool, Query(title="Include empty groups")] = False,
+) -> EntityGrouping:
+    """Get groups of entities based on the specified key."""
+
+    groups: list[EntityGroup] = []
 
     key = parse_grouping_key(grouping_key)
 
     if key == "assignees":
         groups = await get_assignees_groups(project_name)
 
-    elif key in ("status", "task_type"):
+    elif key in ("status", "task_type", "folder_type"):
         groups = await get_status_or_type_groups(
             project_name,
-            entity_type="task",
+            entity_type=entity_type,
             key=key,
         )
     elif key.startswith("attrib."):
         fkey = key[7:]
         groups = await get_attrib_groups(
             project_name,
-            entity_type="task",
+            entity_type=entity_type,
             key=fkey,
         )
 
@@ -105,4 +117,8 @@ async def get_task_groups(
     if not empty:
         # Filter out groups with zero count if empty is not requested
         groups = [group for group in groups if group.count > 0]
-    return TaskGrouping(groups=groups, key=grouping_key)
+    return EntityGrouping(
+        groups=groups,
+        key=grouping_key,
+        entity_type=entity_type,
+    )
