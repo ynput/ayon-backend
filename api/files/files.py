@@ -279,6 +279,10 @@ async def get_project_file_still(
     elif storage.storage_type == "s3":
         path = await storage.get_signed_url(file_id)
 
+    else:
+        # Should not happen, but just in case
+        raise BadRequestException("File storage is not supported")
+
     b = await create_video_thumbnail(path, None, timestamp)
 
     if b == b"":
