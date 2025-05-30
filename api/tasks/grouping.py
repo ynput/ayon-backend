@@ -4,10 +4,10 @@ from fastapi import Path
 
 from ayon_server.api.dependencies import ProjectName
 from ayon_server.config import ayonconfig
-from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.entities.grouping.common import TaskGroup
 from ayon_server.entities.grouping.resolvers import (
     get_assignees_groups,
+    get_attrib_groups,
     get_status_or_type_groups,
 )
 from ayon_server.exceptions import BadRequestException
@@ -33,12 +33,8 @@ def parse_grouping_key(key: str) -> str:
     """Parse the grouping key from the path parameter."""
     if nkey := TOP_LEVEL_GROUPING_KEYS.get(key):
         return nkey
-
     if key.startswith("attrib."):
-        attrib_name = key[7:]
-        if attribute_library.is_valid("task", attrib_name):
-            return f"attrib->'{attrib_name}'"
-
+        return key
     raise BadRequestException(f"Invalid grouping key: {key}")
 
 
@@ -87,11 +83,19 @@ async def get_task_groups(
 
     if key == "assignees":
         groups = await get_assignees_groups(project_name)
-    elif key in ["status", "task_type"]:
+
+    elif key in ("status", "task_type"):
         groups = await get_status_or_type_groups(
             project_name,
             entity_type="task",
             key=key,
+        )
+    elif key.startswith("attrib."):
+        fkey = key[7:]
+        groups = await get_attrib_groups(
+            project_name,
+            entity_type="task",
+            key=fkey,
         )
 
     #

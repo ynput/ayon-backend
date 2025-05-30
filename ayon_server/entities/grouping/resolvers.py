@@ -1,6 +1,9 @@
 from typing import Literal
 
+from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 
 from .common import TaskGroup
 
@@ -89,4 +92,74 @@ async def get_assignees_groups(project_name: str) -> list[TaskGroup]:
             count=row["count"],
         )
         groups.append(group)
+    return groups
+
+
+async def get_attrib_groups(
+    project_name: str,
+    entity_type: Literal["task", "folder"],
+    key: str,
+) -> list[TaskGroup]:
+    """Get task groups based on custom attributes."""
+    groups: list[TaskGroup] = []
+
+    if not attribute_library.is_valid(entity_type, key):
+        raise BadRequestException(f"Invalid {entity_type} attribute {key}")
+
+    attr_config = attribute_library.by_name(key)
+
+    attr_type = attr_config.get("type", "string")
+    attr_enum = attr_config.get("enum")
+
+    if attr_type.startswith("list_of"):
+        raise NotImplementedError("Grouping by list attributes is not supported.")
+
+    enum_dict = {}
+    if attr_enum:
+        for item in attr_enum:
+            enum_dict[item["value"]] = {
+                "label": item.get("label"),
+                "icon": item.get("icon"),
+                "color": item.get("color"),
+            }
+
+    logger.debug(f"Attr config: {attr_config}")
+    logger.debug(f"enum_dict: {enum_dict}")
+
+    if entity_type == "task":
+        values_cte = f"""
+            SELECT
+                COALESCE(t.attrib->'{key}', ex.attrib->'{key}') AS value
+            FROM project_{project_name}.tasks t
+            JOIN project_{project_name}.exported_attributes ex
+            ON t.folder_id = ex.folder_id
+            WHERE t.attrib ? '{key}' OR ex.attrib ? '{key}'
+        """
+
+    else:
+        raise NotImplementedError("Grouping by folder attributes is not supported.")
+
+    query = f"""
+        WITH values AS ({values_cte})
+        SELECT
+            values.value AS value,
+            COUNT(*) AS count
+        FROM values
+        GROUP BY values.value
+    """
+    result = await Postgres.fetch(query)
+
+    for row in result:
+        value = row["value"]
+        count = row["count"]
+
+        meta = enum_dict.pop(value, {})
+
+        group = TaskGroup(value=value, count=count, **meta)
+        groups.append(group)
+
+    for value, meta in enum_dict.items():
+        group = TaskGroup(value=value, **meta, count=0)
+        groups.append(group)
+
     return groups
