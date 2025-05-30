@@ -259,7 +259,11 @@ class S3Uploader:
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
 
     def _init_file_upload(self, key: str):
-        logger.debug(f"Initiating upload for {key}", user="s3")
+        logger.debug(
+            f"Initiating upload for {key}. "
+            f"ContentType {self.content_type}, "
+            f"ContentDisposition: {self.content_disposition}"
+        )
         if self._multipart:
             raise Exception("Multipart upload already started")
 
@@ -397,30 +401,58 @@ async def handle_s3_upload(
     start_time = time.monotonic()
     client = await get_s3_client(storage)
     assert storage.bucket_name
-    uploader = S3Uploader(client, storage.bucket_name)
 
-    await uploader.init_file_upload(path)
+    context = {
+        "file_id": path.split("/")[-1],
+        "content_type": content_type,
+        "content_disposition": content_disposition,
+    }
+
     i = 0
-    buffer_size = 1024 * 1024 * 5
-    buff = b""
+    finished_ok = False
 
-    async for chunk in request.stream():
-        buff += chunk
-        if len(buff) >= buffer_size:
-            await uploader.push_chunk(buff)
-            i += len(buff)
+    with logger.contextualize(**context):
+        try:
+            uploader = S3Uploader(
+                client,
+                storage.bucket_name,
+                content_type=content_type,
+                content_disposition=content_disposition,
+            )
+
+            await uploader.init_file_upload(path)
+            buffer_size = 1024 * 1024 * 5
             buff = b""
 
-    if buff:
-        await uploader.push_chunk(buff)
-        i += len(buff)
+            async for chunk in request.stream():
+                buff += chunk
+                if len(buff) >= buffer_size:
+                    await uploader.push_chunk(buff)
+                    i += len(buff)
+                    buff = b""
 
-    await uploader.complete()
-    upload_time = time.monotonic() - start_time
+            if buff:
+                await uploader.push_chunk(buff)
+                i += len(buff)
 
-    await update_traffic_stats("ingress", i, service="s3")
-    logger.info(f"Uploaded {i} bytes to {path} in {upload_time:.2f} seconds")
-    return i
+            await uploader.complete()
+            upload_time = time.monotonic() - start_time
+            finished_ok = True
+
+            await update_traffic_stats("ingress", i, service="s3")
+            logger.info(f"Uploaded {i} bytes in {upload_time:.2f} seconds")
+            return i
+
+        finally:
+            if not finished_ok:
+                logger.warning("File upload failed")
+
+                try:
+                    await uploader.abort()
+                except Exception:
+                    pass
+                else:
+                    logger.trace("Aborted in finally block")
 
 
 async def remote_to_s3(
