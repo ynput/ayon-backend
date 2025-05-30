@@ -149,6 +149,8 @@ class ProjectStorage:
         file_id: str,
         file_group: FileGroup = "uploads",
         ttl: int = 3600,
+        *,
+        content_disposition: str | None = None,
     ) -> str:
         """Return a signed URL to access the file on the storage over HTTP
 
@@ -157,7 +159,12 @@ class ProjectStorage:
         if self.storage_type == "s3":
             path = await self.get_path(file_id, file_group=file_group)
             assert self.bucket_name  # mypy
-            return await get_signed_url(self, path, ttl)
+            return await get_signed_url(
+                self,
+                path,
+                ttl,
+                content_disposition=content_disposition,
+            )
         raise Exception("Signed URLs are only supported for S3 storage")
 
     async def get_cdn_link(self, file_id: str) -> RedirectResponse:

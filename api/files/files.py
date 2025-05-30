@@ -171,12 +171,17 @@ async def get_project_file(
     check_user_access(project_name, user)
 
     storage = await Storages.project(project_name)
+    headers = await get_file_headers(project_name, file_id)
 
     if storage.cdn_resolver is not None:
         return await storage.get_cdn_link(file_id)
 
     if storage.storage_type == "s3":
-        url = await storage.get_signed_url(file_id, ttl=3600)
+        url = await storage.get_signed_url(
+            file_id,
+            ttl=3600,
+            content_disposition=headers.get("Content-Disposition"),
+        )
         return RedirectResponse(url=url, status_code=302)
 
     url = f"/api/projects/{project_name}/files/{file_id}/payload"

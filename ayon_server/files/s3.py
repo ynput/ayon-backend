@@ -60,17 +60,36 @@ async def get_s3_client(storage: "ProjectStorage"):
 # Presigned URLs
 
 
-def _get_signed_url(storage: "ProjectStorage", key: str, ttl: int = 3600) -> str:
+def _get_signed_url(
+    storage: "ProjectStorage",
+    key: str,
+    ttl: int = 3600,
+    content_disposition: str | None = None,
+) -> str:
     client = _get_s3_client(storage)
+    params = {"Bucket": storage.bucket_name, "Key": key}
+    if content_disposition:
+        params["ResponseContentDisposition"] = content_disposition
     return client.generate_presigned_url(
         "get_object",
-        Params={"Bucket": storage.bucket_name, "Key": key},
+        Params=params,
         ExpiresIn=ttl,
     )
 
 
-async def get_signed_url(storage: "ProjectStorage", key: str, ttl: int = 3600) -> str:
-    return await run_in_threadpool(_get_signed_url, storage, key, ttl)
+async def get_signed_url(
+    storage: "ProjectStorage",
+    key: str,
+    ttl: int = 3600,
+    content_disposition: str | None = None,
+) -> str:
+    return await run_in_threadpool(
+        _get_signed_url,
+        storage,
+        key,
+        ttl=ttl,
+        content_disposition=content_disposition,
+    )
 
 
 # Simple file store / retrieve
