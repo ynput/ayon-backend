@@ -64,10 +64,14 @@ def _get_signed_url(
     storage: "ProjectStorage",
     key: str,
     ttl: int = 3600,
+    *,
+    content_type: str | None = None,
     content_disposition: str | None = None,
 ) -> str:
     client = _get_s3_client(storage)
     params = {"Bucket": storage.bucket_name, "Key": key}
+    if content_type:
+        params["ResponseContentType"] = content_type
     if content_disposition:
         params["ResponseContentDisposition"] = content_disposition
     return client.generate_presigned_url(
@@ -81,6 +85,8 @@ async def get_signed_url(
     storage: "ProjectStorage",
     key: str,
     ttl: int = 3600,
+    *,
+    content_type: str | None = None,
     content_disposition: str | None = None,
 ) -> str:
     return await run_in_threadpool(
@@ -88,6 +94,7 @@ async def get_signed_url(
         storage,
         key,
         ttl=ttl,
+        content_type=content_type,
         content_disposition=content_disposition,
     )
 
@@ -228,12 +235,23 @@ class S3Uploader:
     _worker_task: asyncio.Task[Any] | None
     _queue: asyncio.Queue[bytes | None]
 
-    def __init__(self, client, bucket_name: str, max_queue_size=5, max_workers=4):
+    def __init__(
+        self,
+        client,
+        bucket_name: str,
+        *,
+        max_queue_size=5,
+        max_workers=4,
+        content_type: str | None = None,
+        content_disposition: str | None = None,
+    ):
         self._client = client
         self._multipart = None
         self._parts: list[tuple[int, str]] = []
         self._key: str | None = None
         self.bucket_name = bucket_name
+        self.content_type = content_type
+        self.content_disposition = content_disposition
 
         # Limited-size async queue for chunk uploads to prevent over-filling
         self._queue = asyncio.Queue(maxsize=max_queue_size)
@@ -245,10 +263,16 @@ class S3Uploader:
         if self._multipart:
             raise Exception("Multipart upload already started")
 
-        self._multipart = self._client.create_multipart_upload(
-            Bucket=self.bucket_name,
-            Key=key,
-        )
+        params = {
+            "Bucket": self.bucket_name,
+            "Key": key,
+        }
+        if self.content_type:
+            params["ContentType"] = self.content_type
+        if self.content_disposition:
+            params["ContentDisposition"] = self.content_disposition
+
+        self._multipart = self._client.create_multipart_upload(**params)
 
         self._parts = []
         self._key = key
@@ -366,6 +390,9 @@ async def handle_s3_upload(
     storage: "ProjectStorage",
     request: Request,
     path: str,
+    *,
+    content_type: str | None = None,
+    content_disposition: str | None = None,
 ) -> int:
     start_time = time.monotonic()
     client = await get_s3_client(storage)

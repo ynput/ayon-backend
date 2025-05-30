@@ -75,9 +75,15 @@ async def upload_project_file(
             user_name=user.name,
             activity_id=x_activity_id,
         )
+        content_disposition = f'inline; filename="{x_file_name}"'
 
         storage = await Storages.project(project_name)
-        file_size = await storage.handle_upload(request, file_id)
+        file_size = await storage.handle_upload(
+            request,
+            file_id,
+            content_type=content_type,
+            content_disposition=content_disposition,
+        )
 
         await Postgres.execute(
             f"""
@@ -180,6 +186,7 @@ async def get_project_file(
         url = await storage.get_signed_url(
             file_id,
             ttl=3600,
+            content_type=headers.get("Content-Type"),
             content_disposition=headers.get("Content-Disposition"),
         )
         return RedirectResponse(url=url, status_code=302)

@@ -150,6 +150,7 @@ class ProjectStorage:
         file_group: FileGroup = "uploads",
         ttl: int = 3600,
         *,
+        content_type: str | None = None,
         content_disposition: str | None = None,
     ) -> str:
         """Return a signed URL to access the file on the storage over HTTP
@@ -163,6 +164,7 @@ class ProjectStorage:
                 self,
                 path,
                 ttl,
+                content_type=content_type,
                 content_disposition=content_disposition,
             )
         raise Exception("Signed URLs are only supported for S3 storage")
@@ -240,6 +242,9 @@ class ProjectStorage:
         request: Request,
         file_id: str,
         file_group: FileGroup = "uploads",
+        *,
+        content_type: str | None = None,
+        content_disposition: str | None = None,
     ) -> int:
         """Handle file upload request
 
@@ -251,7 +256,13 @@ class ProjectStorage:
         if self.storage_type == "local":
             return await handle_upload(request, path)
         elif self.storage_type == "s3":
-            return await handle_s3_upload(self, request, path)
+            return await handle_s3_upload(
+                self,
+                request,
+                path,
+                content_type=content_type,
+                content_disposition=content_disposition,
+            )
         raise Exception("Unknown storage type")
 
     async def upload_from_remote(
