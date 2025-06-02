@@ -4,7 +4,7 @@ import sys
 import time
 import traceback
 
-from loguru import logger
+from loguru import logger as loguru_logger
 
 from ayon_server.config import ayonconfig
 from ayon_server.utils import indent, json_dumps
@@ -72,6 +72,7 @@ def _serializer(message) -> None:
             _write_stderr("")
 
 
+logger = loguru_logger.bind()
 logger.remove(0)
 logger.add(_serializer, level=ayonconfig.log_level)
 

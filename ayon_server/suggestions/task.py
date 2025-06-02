@@ -11,10 +11,12 @@ from .models import (
     VersionSuggestionItem,
 )
 
-STYPE = UserSuggestionItem | VersionSuggestionItem | TaskSuggestionItem
+SUGGESTION_TYPE = UserSuggestionItem | VersionSuggestionItem | TaskSuggestionItem
 
 
-async def get_task_suggestions(user: str, task: TaskEntity) -> dict[str, list[STYPE]]:
+async def get_task_suggestions(
+    user: str, task: TaskEntity
+) -> dict[str, list[SUGGESTION_TYPE]]:
     """
     Assignees: Every assignee in the project, sorted by assignees first.
     Versions: Every version linked to the task.
@@ -22,8 +24,8 @@ async def get_task_suggestions(user: str, task: TaskEntity) -> dict[str, list[ST
     """
 
     project_name = task.project_name
-    result: defaultdict[str, list[STYPE]] = defaultdict(list)
-    item: STYPE
+    result: defaultdict[str, list[SUGGESTION_TYPE]] = defaultdict(list)
+    item: SUGGESTION_TYPE
     parent: FolderSuggestionItem | ProductSuggestionItem
 
     # get users:
