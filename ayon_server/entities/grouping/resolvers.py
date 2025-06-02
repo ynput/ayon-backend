@@ -11,7 +11,7 @@ from .common import EntityGroup
 
 async def get_status_or_type_groups(
     project_name: str,
-    entity_type: Literal["task", "folder"],
+    entity_type: ProjectLevelEntityType,
     key: Literal["status", "task_type", "folder_type"],
 ) -> list[EntityGroup]:
     """Get task groups based on status or entity subtype.
@@ -183,4 +183,43 @@ async def get_attrib_groups(
         group = EntityGroup(value=value, **meta, count=0)
         groups.append(group)
 
+    return groups
+
+
+async def get_tags_groups(
+    project_name: str,
+    entity_type: ProjectLevelEntityType,
+) -> list[EntityGroup]:
+    """Get task groups based on tags."""
+    groups: list[EntityGroup] = []
+
+    query = f"""
+        WITH all_tags AS (
+            SELECT unnest(tags) AS tag
+            FROM project_{project_name}.{entity_type}s
+        ),
+        tag_counts AS (
+            SELECT count(*) AS count, tag
+            FROM all_tags
+            GROUP BY tag
+        )
+        SELECT
+            t.name AS value,
+            t.data->>'icon' AS icon,
+            t.data->>'color' AS color,
+            COALESCE(tag_counts.count, 0) AS count
+        FROM project_{project_name}.tags t
+        LEFT JOIN tag_counts
+        ON t.name = tag_counts.tag
+    """
+    result = await Postgres.fetch(query)
+    for row in result:
+        group = EntityGroup(
+            value=row["value"],
+            label=row["value"],
+            icon=row["icon"],
+            color=row["color"],
+            count=row["count"],
+        )
+        groups.append(group)
     return groups

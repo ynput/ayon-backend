@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import Path, Query
 
@@ -12,6 +12,7 @@ from ayon_server.entities.grouping.resolvers import (
     get_assignees_groups,
     get_attrib_groups,
     get_status_or_type_groups,
+    get_tags_groups,
 )
 from ayon_server.exceptions import BadRequestException
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
@@ -22,12 +23,10 @@ GroupingKey = Annotated[str, Path(title="Grouping Key")]
 
 
 TOP_LEVEL_GROUPING_KEYS = {
-    "name": "name",
-    "label": "label",
-    "status": "status",
     "taskType": "task_type",
+    "folderType": "folder_type",
     "assignees": "assignees",
-    "active": "active",
+    "status": "status",
     "tags": "tags",
 }
 
@@ -99,9 +98,15 @@ async def get_entity_groups(
     elif key in ("status", "task_type", "folder_type"):
         groups = await get_status_or_type_groups(
             project_name,
-            entity_type=entity_type,
+            entity_type=cast(ProjectLevelEntityType, entity_type),
             key=key,
         )
+    elif key == "tags":
+        groups = await get_tags_groups(
+            project_name,
+            entity_type=cast(ProjectLevelEntityType, entity_type),
+        )
+
     elif key.startswith("attrib."):
         fkey = key[7:]
         groups = await get_attrib_groups(
