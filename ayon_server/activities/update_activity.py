@@ -1,7 +1,10 @@
 import re
 from typing import Any
 
-from ayon_server.activities.models import ActivityReferenceModel
+from ayon_server.activities.models import (
+    DO_NOT_TRACK_ACTIVITIES,
+    ActivityReferenceModel,
+)
 from ayon_server.activities.utils import (
     MAX_BODY_LENGTH,
     extract_mentions,
@@ -236,14 +239,18 @@ async def update_activity(
         "activity_type": activity_type,
         "references": summary_references,
     }
+    event_payload = {
+        "body": body,
+    }
 
     await EventStream.dispatch(
         "activity.updated",
         project=project_name,
-        description="",
+        description=f"Updated {activity_type} activity",
         summary=summary,
-        store=False,
+        store=activity_type not in DO_NOT_TRACK_ACTIVITIES,
         user=user_name,
         sender=sender,
         sender_type=sender_type,
+        payload=event_payload,
     )

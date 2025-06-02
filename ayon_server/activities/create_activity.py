@@ -11,6 +11,7 @@ import datetime
 from typing import Any
 
 from ayon_server.activities.models import (
+    DO_NOT_TRACK_ACTIVITIES,
     ActivityReferenceModel,
     ActivityType,
 )
@@ -252,6 +253,9 @@ async def create_activity(
         "activity_type": activity_type,
         "references": summary_references,
     }
+    event_payload = {
+        "body": body,
+    }
 
     with logger.contextualize(activity_id=activity_id, activity_type=activity_type):
         await EventStream.dispatch(
@@ -259,10 +263,11 @@ async def create_activity(
             project=project_name,
             description=f"Created {activity_type} activity",
             summary=summary,
-            store=False,
+            store=activity_type not in DO_NOT_TRACK_ACTIVITIES,
             user=user_name,
             sender=sender,
             sender_type=sender_type,
+            payload=event_payload,
         )
 
         # Send inbox notifications
