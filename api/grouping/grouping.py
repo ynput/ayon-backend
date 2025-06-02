@@ -93,6 +93,10 @@ async def get_entity_groups(
     key = parse_grouping_key(grouping_key)
 
     if key == "assignees":
+        if entity_type != "task":
+            raise BadRequestException(
+                "Grouping by assignees is only supported for tasks."
+            )
         groups = await get_assignees_groups(project_name)
 
     elif key in ("status", "task_type", "folder_type"):
