@@ -262,12 +262,17 @@ async def get_simple_actions(
     for addon in addons:
         simple_actions = await SimpleActionCache.get(addon, project_name, variant)
         for action in simple_actions:
+            if action.admin_only and not user.is_admin:
+                continue
+
+            if action.manager_only and not user.is_manager:
+                continue
+
             if await evaluate_simple_action(action, context):
                 action.addon_name = addon.name
                 action.addon_version = addon.version
                 action.variant = variant
                 actions.append(action)
-    # TODO: use caching for the entire list as well
     return AvailableActionsListModel(actions=actions)
 
 

@@ -105,6 +105,24 @@ class BaseActionManifest(OPModel):
         ),
     ] = None
 
+    admin_only: Annotated[
+        bool,
+        Field(
+            title="Admin Only",
+            description="If true, the action is only available to admin users",
+            example=True,
+        ),
+    ] = False
+
+    manager_only: Annotated[
+        bool,
+        Field(
+            title="Manager Only",
+            description="If true, the action is only available to manager users",
+            example=False,
+        ),
+    ] = False
+
     config_fields: Annotated[
         list[SimpleFormField] | None,
         Field(
@@ -115,7 +133,7 @@ class BaseActionManifest(OPModel):
                 {"type": "text", "name": "port", "label": "Port"},
             ],
         ),
-    ]
+    ] = None
 
     @validator("config_fields", pre=True)
     def validate_config_fields(cls, v: Any) -> list[dict[str, Any]] | None:
