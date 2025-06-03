@@ -235,6 +235,18 @@ async def create_activity(
                 f"Project {project_name} no longer exists"
             ) from e
 
+        # bump entity updated_at timestamp
+
+        await conn.execute(
+            f"""
+            UPDATE project_{project_name}.{entity_type}s
+            SET updated_at = $1
+            WHERE id = $2
+            """,
+            timestamp,
+            entity_id,
+        )
+
     # Notify the front-end about the new activity
 
     summary_references: list[dict[str, str]] = []
