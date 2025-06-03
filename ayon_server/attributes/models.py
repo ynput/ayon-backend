@@ -117,7 +117,7 @@ class AttributeData(OPModel):
     def validate_enum(
         cls, value: list[AttributeEnumItem] | None
     ) -> list[AttributeEnumItem] | None:
-        if not value and isinstance(value, list):
+        if value == []:
             return None
         return value
 
