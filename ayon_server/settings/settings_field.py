@@ -1,3 +1,4 @@
+import traceback
 from typing import Any
 
 from pydantic.fields import FieldInfo, Undefined
@@ -61,9 +62,18 @@ def SettingsField(
     # conditionalEnum (camelCase) is deprecated, but used heavily.
     # We will need to support it for a long time, but it won't hurt.
     conditional_enum = conditional_enum or conditionalEnum
+    if conditionalEnum:
+        stack = traceback.extract_stack()[-2]
+        logger.debug(
+            f"Deprecated argument: conditionalEnum at {stack.filename}:{stack.lineno}"
+        )
 
     if kwargs:
-        logger.debug(f"SettingsField: unsupported argument: {kwargs}")
+        stack = traceback.extract_stack()[-2]
+        logger.debug(
+            f"Unsupported argument: {', '.join(kwargs.keys())} "
+            f"at {stack.filename}:{stack.lineno}"
+        )
 
     # Pydantic 1 uses `example` while Pydantic 2 uses `examples`
     # We will support both, but before Pydantic 2 is used, `examples` will
