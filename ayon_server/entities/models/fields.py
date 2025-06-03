@@ -18,6 +18,7 @@ from ayon_server.types import (
     LABEL_REGEX,
     NAME_REGEX,
     PROJECT_NAME_REGEX,
+    USER_NAME_REGEX,
 )
 
 project_fields = [
@@ -276,7 +277,7 @@ version_fields = [
     {
         "name": "author",
         "type": "string",
-        "regex": NAME_REGEX,
+        "regex": USER_NAME_REGEX,
         "example": "john_doe",
     },
 ]

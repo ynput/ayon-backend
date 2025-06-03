@@ -43,6 +43,7 @@ def SettingsField(
     required_items: list[str] | None = None,
     section: str | None = None,
     widget: str | None = None,
+    syntax: str | None = None,
     layout: str | None = None,
     tags: list[str] | None = None,
     scope: list[str] | None = None,
@@ -102,6 +103,11 @@ def SettingsField(
         extra["scope"] = scope
     if disabled is not None:
         extra["disabled"] = disabled
+    if syntax is not None:
+        if widget != "textarea":
+            m = "SettingsField: syntax is only supported for textarea widget"
+            logger.debug(m)
+        extra["syntax"] = syntax.lower()
 
     # construct FieldInfo
 

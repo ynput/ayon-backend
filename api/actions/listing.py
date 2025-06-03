@@ -154,6 +154,10 @@ async def evaluate_simple_action(
         return False
 
     if context.entity_type:
+        if context.entity_type == "project" and context.project_name:
+            # Project level actions are always available for the project context
+            return True
+
         if not context.entity_ids:
             return False
 

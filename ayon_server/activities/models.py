@@ -35,6 +35,17 @@ ReferencedEntityType = Literal[
 
 EntityLinkTuple = tuple[ReferencedEntityType, str]
 
+# For the following activities activity.* events are not created
+# since they already originate from events. We only send the event
+# over websocket, but do not store them in the database.
+
+DO_NOT_TRACK_ACTIVITIES: set[ActivityType] = {
+    "status.change",
+    "assignee.add",
+    "assignee.remove",
+    "version.publish",
+}
+
 
 class ActivityReferenceModel(OPModel):
     id: str = Field(default_factory=create_uuid)
