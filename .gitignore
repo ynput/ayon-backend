@@ -14,3 +14,4 @@ transcoder
 BUILD_DATE
 venv/
 cspell*
+mise.toml

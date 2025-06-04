@@ -18,6 +18,8 @@ from setup.database import db_migration
 
 from .router import router
 
+_lock = asyncio.Lock()
+
 
 def get_pg_connection() -> tuple[str, str, str, int, str]:
     conn_string = ayonconfig.postgres_url
@@ -59,15 +61,27 @@ async def import_database_file(
 
         pg_user, pg_password, pg_host, pg_port, pg_database = get_pg_connection()
 
-        env = os.environ.copy()
-        env["PGPASSWORD"] = pg_password
-        cmd = f"psql -h {pg_host} -U {pg_user} {pg_database} < {dump_path}"
+        cmd = [
+            "psql",
+            "-h",
+            pg_host,
+            "-U",
+            pg_user,
+            "-d",
+            pg_database,
+            "-f",
+            dump_path,
+            "--single-transaction",
+        ]
 
-        process = await asyncio.create_subprocess_shell(
-            cmd,
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
             stdout=None,
             stderr=None,
-            env=env,
+            env={
+                "PGPASSWORD": pg_password,
+                **os.environ,
+            },
         )
 
         await process.communicate()
@@ -75,7 +89,7 @@ async def import_database_file(
         if process.returncode == 0:
             await update_event(
                 event_id=event_id,
-                description="Project imported",
+                description="Database import completed successfully",
                 status="finished",
             )
 
@@ -83,7 +97,7 @@ async def import_database_file(
             await update_event(
                 event_id=event_id,
                 status="failed",
-                description="Failed to import project",
+                description="Failed to import database file",
             )
 
         if run_migration:
@@ -120,24 +134,33 @@ async def import_database(
     if not user.is_service:
         raise ForbiddenException()
 
-    temp_file = "/storage/dbimport.sql"
+    async with _lock:
+        temp_file = "/storage/dbimport.sql"
+        upload_ok = False
 
-    # Store file
+        try:
+            async with aiofiles.open(temp_file, "wb") as f:
+                async for chunk in request.stream():
+                    await f.write(chunk)
+            upload_ok = True
+        finally:
+            if not upload_ok:
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except Exception as e:
+                        logger.error(f"Failed to remove temp file: {e}")
 
-    async with aiofiles.open(temp_file, "wb") as f:
-        async for chunk in request.stream():
-            await f.write(chunk)
+        event_id = await dispatch_event(
+            "database_import",
+            user=user.name,
+            description="Importing database file...",
+        )
 
-    event_id = await dispatch_event(
-        "project_import",
-        user=user.name,
-        description="Importing project...",
-    )
-
-    background_tasks.add_task(
-        import_database_file,
-        temp_file,
-        event_id=event_id,
-        run_migration=run_db_migration,
-    )
-    return EntityIdResponse(id=event_id)
+        background_tasks.add_task(
+            import_database_file,
+            temp_file,
+            event_id=event_id,
+            run_migration=run_db_migration,
+        )
+        return EntityIdResponse(id=event_id)
