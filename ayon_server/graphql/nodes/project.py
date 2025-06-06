@@ -7,7 +7,7 @@ from strawberry import LazyType
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.connections import ActivitiesConnection, EntityListsConnection
-from ayon_server.graphql.nodes.common import ProductType, ThumbnailInfo
+from ayon_server.graphql.nodes.common import ProductType, ProductBaseType, ThumbnailInfo
 from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.entity_lists import get_entity_list, get_entity_lists
 from ayon_server.graphql.resolvers.folders import get_folder, get_folders
@@ -241,6 +241,27 @@ class ProjectNode:
             """
             )
         ]
+
+    @strawberry.field(description="List of project's product base types")
+    async def product_base_types(self) -> list[ProductBaseType]:
+        return [
+            ProductBaseType(
+                name=row["name"],
+                icon=row["data"].get("icon"),
+                color=row["data"].get("color"),
+            )
+            async for row in Postgres.iterate(
+                f"""
+                SELECT name, data FROM product_base_types
+                WHERE name IN (
+                    SELECT DISTINCT(product_base_type)
+                    FROM project_{self.project_name}.products
+                )
+                ORDER BY name ASC
+            """
+            )
+        ]
+
 
     @strawberry.field(description="List of tags used in the project")
     async def used_tags(self) -> list[str]:
