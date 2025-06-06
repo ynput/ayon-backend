@@ -67,9 +67,10 @@ class InfoResponseModel(OPModel):
         title="Onboarding",
     )
 
-    disable_feedback: bool | None = Field(
+    disable_changelog: bool | None = Field(
         None,
-        title="Disable feedback",
+        title="Disable changelog",
+        description="If set, the changelog will not be shown to the user",
     )
 
     password_recovery_available: bool | None = Field(None, title="Password recovery")
@@ -210,6 +211,7 @@ async def get_attributes() -> list[AttributeModel]:
 
 async def get_additional_info(
     user_name: str,
+    is_admin: bool,
     site_id: str | None,
     site_platform: str | None,
     site_hostname: str | None,
@@ -219,6 +221,7 @@ async def get_additional_info(
 
     This is returned only if the user is logged in.
     """
+    server_config = await get_server_config()
 
     sites = []
     if site_id and site_platform and site_hostname and site_version:
@@ -227,7 +230,7 @@ async def get_additional_info(
             platform=site_platform,
             hostname=site_hostname,
             version=site_version,
-            users=[user_name],
+            users={user_name},
         )
     else:
         current_site = None
@@ -241,7 +244,9 @@ async def get_additional_info(
         "attributes": attr_list,
         "sites": sites,
         "extras": extras,
-        "disable_feedback": ayonconfig.disable_feedback,
+        "disable_changelog": not (
+            is_admin or server_config.changelog.show_changelog_to_users
+        ),
     }
 
 
@@ -294,6 +299,7 @@ async def get_site_info(
         additional_info = await coalesce(
             get_additional_info,
             current_user.name,
+            current_user.is_admin,
             site_id,
             site_platform,
             site_hostname,

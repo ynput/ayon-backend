@@ -117,13 +117,13 @@ async def run_auto_update() -> None:
 
     # Get the current production bundle
 
-    q = "SELECT name, data FROM bundles WHERE is_production = TRUE"
+    q = "SELECT name, data FROM public.bundles WHERE is_production = TRUE"
     production_bundle = await Postgres.fetchrow(q)
     if production_bundle:
         data = production_bundle["data"]
         data["addons"].update(bundle_addons_patch)
 
-        q = "UPDATE bundles SET data = $1 WHERE name = $2"
+        q = "UPDATE public.bundles SET data = $1 WHERE name = $2"
         await Postgres.execute(q, data, production_bundle["name"])
 
         for addon_name, addon_version in bundle_addons_patch.items():
@@ -137,7 +137,10 @@ async def run_auto_update() -> None:
             "dependency_packages": {},
             "installer_version": None,
         }
-        q = "INSERT INTO bundles (name, data, is_production) VALUES ($1, $2, TRUE)"
+        q = """
+            INSERT INTO public.bundles (name, data, is_production)
+            VALUES ($1, $2, TRUE)
+        """
         await Postgres.execute(q, bundle_name, bundle_data)
 
         for addon_name, addon_version in bundle_addons_patch.items():

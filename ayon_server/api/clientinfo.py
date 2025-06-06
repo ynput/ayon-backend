@@ -107,12 +107,12 @@ def get_ua_data(request) -> AgentInfo | None:
     return None
 
 
-def get_prefed_languages(request: Request) -> list[str]:
+def get_preferred_languages(request: Request) -> list[str]:
     languages = []
     if accept_language := request.headers.get("Accept-Language"):
         try:
-            for lngk in accept_language.split(";"):
-                lang = lngk.split(",")[-1]
+            for lang_token in accept_language.split(";"):
+                lang = lang_token.split(",")[-1]
                 if len(lang) == 2:
                     languages.append(lang)
         except Exception:
@@ -132,5 +132,5 @@ def get_client_info(request: Request) -> ClientInfo:
         ip=ip,
         agent=get_ua_data(request),
         location=location,
-        languages=get_prefed_languages(request),
+        languages=get_preferred_languages(request),
     )

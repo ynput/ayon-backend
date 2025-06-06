@@ -101,7 +101,7 @@ class AddonLibrary:
         bundles = await Postgres.fetch(
             """
             SELECT name, is_production, is_staging, is_dev, data->'addons' as addons
-            FROM bundles
+            FROM public.bundles
             """
         )
         bundles_by_variant: dict[str, dict[str, Any] | None] = {

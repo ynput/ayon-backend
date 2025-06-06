@@ -162,11 +162,16 @@ class ExecuteResponseModel(OPModel):
 
 class ActionExecutor:
     user: UserEntity
+    sender: str | None = None
+    sender_type: str | None = None
+
     server_url: str
     access_token: str | None
+
     addon_name: str
     addon_version: str
     variant: str
+
     identifier: str
     context: ActionContext
 

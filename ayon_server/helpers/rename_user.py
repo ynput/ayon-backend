@@ -21,7 +21,7 @@ async def rename_user(
     async with Postgres.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
-                "UPDATE users SET name = $1 WHERE name = $2",
+                "UPDATE public.users SET name = $1 WHERE name = $2",
                 new_name,
                 old_name,
             )

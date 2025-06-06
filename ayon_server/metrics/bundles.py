@@ -32,7 +32,7 @@ async def get_production_bundle(
     security issues or other important changes.
     """
 
-    query = "SELECT data FROM bundles WHERE is_production IS TRUE"
+    query = "SELECT data FROM public.bundles WHERE is_production IS TRUE"
     res = await Postgres.fetch(query)
     if not res:
         return None

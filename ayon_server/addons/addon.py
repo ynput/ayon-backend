@@ -137,7 +137,7 @@ class BaseServerAddon:
     async def is_production(self) -> bool:
         """Return True if the addon is in production bundle."""
         res = await Postgres.fetch(
-            "SELECT data FROM bundles WHERE is_production IS true"
+            "SELECT data FROM public.bundles WHERE is_production IS true"
         )
         if not res:
             return False
@@ -323,7 +323,7 @@ class BaseServerAddon:
             data = self.settings_cache.studio or {}
         else:
             query = """
-                SELECT data FROM settings
+                SELECT data FROM public.settings
                 WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
                 """
             res = await Postgres.fetch(query, self.name, self.version, variant)
@@ -550,7 +550,7 @@ class BaseServerAddon:
         else:
             data = {}
             query = """
-                SELECT data FROM site_settings
+                SELECT data FROM public.site_settings
                 WHERE site_id = $1 AND addon_name = $2
                 AND addon_version = $3 AND user_name = $4
             """

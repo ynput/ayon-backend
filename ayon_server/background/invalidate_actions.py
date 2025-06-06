@@ -26,7 +26,7 @@ class InvalidateActions(BackgroundWorker):
 
     async def invalidate(self) -> None:
         query = """
-            DELETE FROM events WHERE topic = 'action.launcher'
+            DELETE FROM public.events WHERE topic = 'action.launcher'
             AND status = 'pending'
             AND created_at < now() - interval '5 minutes'
         """

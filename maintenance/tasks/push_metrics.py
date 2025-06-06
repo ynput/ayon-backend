@@ -9,7 +9,7 @@ async def stats_cleanup():
     now = datetime.datetime.now()
     begin = now - datetime.timedelta(days=60)
 
-    for table in ["user_stats", "traffic_stats"]:
+    for table in ["public.user_stats", "public.traffic_stats"]:
         query = f"DELETE FROM {table} WHERE date < $1"
         await Postgres().execute(query, begin)
 

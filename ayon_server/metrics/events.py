@@ -10,7 +10,7 @@ async def get_event_count_per_topic(
     and other maintenance tasks.
     """
     result = {}
-    query = "SELECT topic, COUNT(*) as count FROM events GROUP BY topic"
+    query = "SELECT topic, COUNT(*) as count FROM public.events GROUP BY topic"
     async for row in Postgres.iterate(query):
         result[row["topic"]] = row["count"]
     return result

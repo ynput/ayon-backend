@@ -22,7 +22,7 @@ async def clear_activities(project_name: str) -> None:
 
             WITH recently_deleted_entities AS (
                 SELECT (summary->>'entityId')::UUID as entity_id
-                FROM events
+                FROM public.events
                 WHERE topic = 'entity.{entity_type}.deleted'
                 AND project_name = '{project_name}'
                 AND updated_at > now() - interval '{GRACE_PERIOD} days'

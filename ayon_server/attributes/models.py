@@ -1,5 +1,7 @@
 from typing import Annotated, Any, Literal
 
+from pydantic import validator
+
 from ayon_server.types import (
     ATTRIBUTE_NAME_REGEX,
     AttributeEnumItem,
@@ -110,6 +112,14 @@ class AttributeData(OPModel):
             description="Inherit the attribute value from the parent entity.",
         ),
     ] = True
+
+    @validator("enum")
+    def validate_enum(
+        cls, value: list[AttributeEnumItem] | None
+    ) -> list[AttributeEnumItem] | None:
+        if value == []:
+            return None
+        return value
 
 
 class AttributeNameModel(OPModel):

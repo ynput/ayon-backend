@@ -26,6 +26,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages
+from ayon_server.helpers.preview import get_file_preview
 from ayon_server.helpers.thumbnails import get_fake_thumbnail, store_thumbnail
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -289,7 +290,8 @@ async def create_version_thumbnail(
 
 
 @router.get(
-    "/projects/{project_name}/versions/{version_id}/thumbnail", dependencies=[NoTraces]
+    "/projects/{project_name}/versions/{version_id}/thumbnail",
+    dependencies=[NoTraces],
 )
 async def get_version_thumbnail(
     user: CurrentUser,
@@ -298,16 +300,57 @@ async def get_version_thumbnail(
     placeholder: PlaceholderOption = Query("empty"),
     original: bool = Query(False),
 ) -> Response:
-    try:
-        version = await VersionEntity.load(project_name, version_id)
-        await version.ensure_read_access(user)
-    except AyonException as e:
+    query = f"""
+        WITH reviewables AS (
+            SELECT DISTINCT ON (a.entity_id)
+            a.entity_id AS version_id,
+            f.id AS reviewable_id
+            FROM project_{project_name}.files f
+            JOIN project_{project_name}.activity_feed a
+            ON a.activity_id = f.activity_id
+            AND a.entity_type = 'version'
+            AND a.activity_type = 'reviewable'
+            AND a.reference_type = 'origin'
+            ORDER BY a.entity_id, a.created_at DESC
+        )
+        SELECT v.*, r.reviewable_id AS reviewable_id
+        FROM project_{project_name}.versions v
+        LEFT JOIN reviewables r
+        ON r.version_id = v.id
+        WHERE v.id = $1
+    """
+
+    res = await Postgres.fetchrow(query, version_id)
+    if res is None:
         if placeholder == "empty":
             return get_fake_thumbnail_response()
-        raise e
-    return await retrieve_thumbnail(
-        project_name, version.thumbnail_id, placeholder=placeholder, original=original
-    )
+        raise NotFoundException("Version not found")
+
+    if not user.is_manager:
+        version = VersionEntity.from_record(project_name, res)
+        try:
+            await version.ensure_read_access(user)
+        except ForbiddenException as e:
+            if placeholder == "empty":
+                return get_fake_thumbnail_response()
+            raise e
+
+    if res["thumbnail_id"]:
+        return await retrieve_thumbnail(
+            project_name,
+            res["thumbnail_id"],
+            placeholder=placeholder,
+            original=original,
+        )
+
+    if res["reviewable_id"]:
+        # If the version does not have a thumbnail, but it has a reviewable,
+        # we can return file preview of the reviewable instead.
+        return await get_file_preview(project_name, res["reviewable_id"])
+
+    if placeholder == "empty":
+        return get_fake_thumbnail_response()
+    raise NotFoundException("Version thumbnail not found")
 
 
 #

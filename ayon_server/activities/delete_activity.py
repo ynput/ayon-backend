@@ -4,6 +4,8 @@ from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 
+from .models import DO_NOT_TRACK_ACTIVITIES
+
 __all__ = ["delete_activity"]
 
 
@@ -92,9 +94,9 @@ async def delete_activity(
     await EventStream.dispatch(
         "activity.deleted",
         project=project_name,
-        description="",
+        description=f"Deleted {activity_type} activity",
         summary=summary,
-        store=False,
+        store=activity_type not in DO_NOT_TRACK_ACTIVITIES,
         user=user_name,
         sender=sender,
     )

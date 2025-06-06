@@ -13,3 +13,4 @@ transcoder
 .python-version
 BUILD_DATE
 venv/
+cspell*

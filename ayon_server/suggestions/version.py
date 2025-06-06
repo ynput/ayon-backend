@@ -11,12 +11,12 @@ from .models import (
     VersionSuggestionItem,
 )
 
-STYPE = UserSuggestionItem | VersionSuggestionItem | TaskSuggestionItem
+SUGGESTION_TYPE = UserSuggestionItem | VersionSuggestionItem | TaskSuggestionItem
 
 
 async def get_version_suggestions(
     user: str, version: VersionEntity
-) -> dict[str, list[STYPE]]:
+) -> dict[str, list[SUGGESTION_TYPE]]:
     """
     Assignees: Every assignee in the project, sorted by author first.
     Versions: Direct sibling versions to the version.
@@ -24,8 +24,8 @@ async def get_version_suggestions(
     """
 
     project_name = version.project_name
-    result: defaultdict[str, list[STYPE]] = defaultdict(list)
-    item: STYPE
+    result: defaultdict[str, list[SUGGESTION_TYPE]] = defaultdict(list)
+    item: SUGGESTION_TYPE
     parent: ProductSuggestionItem | FolderSuggestionItem
 
     # get users:
