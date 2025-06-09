@@ -519,7 +519,7 @@ async def get_task_thumbnail(
         )
         SELECT
             t.*,
-            r.reviewable_id AS reviewable_id.
+            r.reviewable_id AS reviewable_id,
             r.version_thumbnail_id AS version_thumbnail_id
         FROM project_{project_name}.tasks t
         LEFT JOIN reviewables r
