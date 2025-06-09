@@ -119,7 +119,7 @@ async def ensure_not_running() -> None:
     """Ensure that another import is not already running."""
 
     query = """
-        SELECT id FROM events WHERE type = 'database_import'
+        SELECT id FROM events WHERE topic = 'database_import'
         AND status = 'in_progress'
         AND created_at > NOW() - INTERVAL '1 hour'
         LIMIT 1;
