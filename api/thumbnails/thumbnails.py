@@ -1,7 +1,6 @@
 import functools
-from typing import Any, Literal
+from typing import Literal
 
-import aiocache
 from fastapi import APIRouter, Query, Request, Response
 
 from ayon_server.api.dependencies import (
@@ -217,6 +216,7 @@ async def create_folder_thumbnail(
     Returns a thumbnail ID, which is also saved into the entity
     database record.
     """
+
     payload = await body_from_request(request)
     folder = await FolderEntity.load(project_name, folder_id)
     await folder.ensure_update_access(user, thumbnail_only=True)
@@ -244,17 +244,69 @@ async def get_folder_thumbnail(
     placeholder: PlaceholderOption = Query("empty"),
     original: bool = Query(False),
 ) -> Response:
-    try:
-        folder = await FolderEntity.load(project_name, folder_id)
-        await folder.ensure_read_access(user)
-    except AyonException as e:
-        if placeholder == "empty":
-            return get_fake_thumbnail_response()
-        raise e
+    query = f"""
+        WITH reviewables AS (
+            SELECT DISTINCT ON (f.id)
+            p.folder_id AS folder_id,
+            f.id AS reviewable_id,
+            v.thumbnail_id AS version_thumbnail_id
+            FROM project_{project_name}.files f
+            JOIN project_{project_name}.activity_feed a
+            ON a.activity_id = f.activity_id
+            AND a.entity_type = 'version'
+            AND a.activity_type = 'reviewable'
+            AND a.reference_type = 'origin'
+            JOIN project_{project_name}.versions v
+            ON v.id = a.entity_id
+            JOIN project_{project_name}.products p
+            ON p.id = v.product_id
+            ORDER BY f.id, a.created_at DESC
+        )
+        SELECT
+            fo.*,
+            r.reviewable_id AS reviewable_id,
+            r.version_thumbnail_id AS version_thumbnail_id
+        FROM project_{project_name}.folders fo
+        LEFT JOIN reviewables r
+        ON r.folder_id = fo.id
+        WHERE fo.id = $1
+    """
 
-    return await retrieve_thumbnail(
-        project_name, folder.thumbnail_id, placeholder=placeholder, original=original
-    )
+    res = await Postgres.fetchrow(query, folder_id)
+    if not user.is_manager:
+        folder = FolderEntity.from_record(project_name, res)
+        try:
+            await folder.ensure_read_access(user)
+        except ForbiddenException as e:
+            if placeholder == "empty":
+                return get_fake_thumbnail_response()
+            raise e
+
+    if res["thumbnail_id"]:
+        return await retrieve_thumbnail(
+            project_name,
+            res["thumbnail_id"],
+            placeholder=placeholder,
+            original=original,
+        )
+
+    if res["version_thumbnail_id"]:
+        # If the folder does not have a thumbnail, but it has a version
+        # with a thumbnail, we can return that instead.
+        # Keep in mind that it has to be a version with a reviewable.
+        return await retrieve_thumbnail(
+            project_name,
+            res["version_thumbnail_id"],
+            placeholder=placeholder,
+            original=original,
+        )
+
+    if res["reviewable_id"]:
+        return await get_file_preview(project_name, res["reviewable_id"])
+
+    if placeholder == "empty":
+        return get_fake_thumbnail_response()
+    raise NotFoundException("Folder thumbnail not found")
 
 
 #
@@ -414,26 +466,6 @@ async def get_workfile_thumbnail(
 #
 
 
-@aiocache.cached(ttl=240)
-async def get_version_thumbnail_id_for_task(
-    project_name: str,
-    task_id: str,
-    task_updated_at: Any,
-) -> str | None:
-    _ = task_updated_at
-    query = f"""
-        SELECT v.thumbnail_id
-        FROM project_{project_name}.versions v
-        WHERE v.task_id = $1
-        AND v.thumbnail_id IS NOT NULL
-        ORDER BY v.updated_at DESC
-        LIMIT 1
-    """
-    async for row in Postgres.iterate(query, task_id):
-        return row["thumbnail_id"]
-    return None
-
-
 @router.post("/projects/{project_name}/tasks/{task_id}/thumbnail", status_code=201)
 async def create_task_thumbnail(
     request: Request,
@@ -469,24 +501,65 @@ async def get_task_thumbnail(
     placeholder: PlaceholderOption = Query("empty"),
     original: bool = Query(False),
 ) -> Response:
-    try:
-        task = await TaskEntity.load(project_name, task_id)
-        await task.ensure_read_access(user)
-    except AyonException:
-        if placeholder == "empty":
-            return get_fake_thumbnail_response()
-        else:
-            raise NotFoundException("Task not found")
-
-    if task.thumbnail_id is None:
-        thumbnail_id = await get_version_thumbnail_id_for_task(
-            project_name,
-            task_id,
-            task.updated_at,
+    query = f"""
+        WITH reviewables AS (
+            SELECT DISTINCT ON (v.id)
+            v.task_id AS task_id,
+            v.thumbnail_id AS version_thumbnail_id,
+            f.id AS reviewable_id
+            FROM project_{project_name}.files f
+            JOIN project_{project_name}.activity_feed a
+            ON a.activity_id = f.activity_id
+            AND a.entity_type = 'version'
+            AND a.activity_type = 'reviewable'
+            AND a.reference_type = 'origin'
+            JOIN project_{project_name}.versions v
+            ON v.id = a.entity_id
+            ORDER BY v.id, a.created_at DESC
         )
-    else:
-        thumbnail_id = task.thumbnail_id
+        SELECT
+            t.*,
+            r.reviewable_id AS reviewable_id,
+            r.version_thumbnail_id AS version_thumbnail_id
+        FROM project_{project_name}.tasks t
+        LEFT JOIN reviewables r
+        ON r.task_id = t.id
+        WHERE t.id = $1
+    """
 
-    return await retrieve_thumbnail(
-        project_name, thumbnail_id, placeholder=placeholder, original=original
-    )
+    res = await Postgres.fetchrow(query, task_id)
+    if not user.is_manager:
+        task = TaskEntity.from_record(project_name, res)
+        try:
+            await task.ensure_read_access(user)
+        except ForbiddenException as e:
+            if placeholder == "empty":
+                return get_fake_thumbnail_response()
+            raise e
+
+    if res["thumbnail_id"]:
+        return await retrieve_thumbnail(
+            project_name,
+            res["thumbnail_id"],
+            placeholder=placeholder,
+            original=original,
+        )
+
+    if res["version_thumbnail_id"]:
+        # If the task does not have a thumbnail, but it has a version thumbnail,
+        # we can return that instead.
+        return await retrieve_thumbnail(
+            project_name,
+            res["version_thumbnail_id"],
+            placeholder=placeholder,
+            original=original,
+        )
+
+    if res["reviewable_id"]:
+        # If the task does not have a thumbnail, but it has a version with a reviewable,
+        # we can return file preview of the reviewable instead.
+        return await get_file_preview(project_name, res["reviewable_id"])
+
+    if placeholder == "empty":
+        return get_fake_thumbnail_response()
+    raise NotFoundException("Task thumbnail not found")
