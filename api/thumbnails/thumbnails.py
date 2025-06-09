@@ -1,7 +1,6 @@
 import functools
-from typing import Any, Literal
+from typing import Literal
 
-import aiocache
 from fastapi import APIRouter, Query, Request, Response
 
 from ayon_server.api.dependencies import (
@@ -295,27 +294,6 @@ async def get_folder_thumbnail(
         return get_fake_thumbnail_response()
     raise NotFoundException("Folder thumbnail not found")
 
-    # res = await Postgres.fetchrow(query, folder_id)
-    # if res is None:
-    #     if placeholder == "empty":
-    #         return get_fake_thumbnail_response()
-    #     raise NotFoundException("Folder not found")
-    #
-    #
-    #
-    # try:
-    #     folder = await FolderEntity.load(project_name, folder_id)
-    #     await folder.ensure_read_access(user)
-    # except AyonException as e:
-    #     if placeholder == "empty":
-    #         return get_fake_thumbnail_response()
-    #     raise e
-    #
-    # return await retrieve_thumbnail(
-    #     project_name, folder.thumbnail_id, placeholder=placeholder, original=original
-    # )
-    #
-
 
 #
 # Versions endpoints
@@ -473,25 +451,25 @@ async def get_workfile_thumbnail(
 # Task endpoints
 #
 
-
-@aiocache.cached(ttl=240)
-async def get_version_thumbnail_id_for_task(
-    project_name: str,
-    task_id: str,
-    task_updated_at: Any,
-) -> str | None:
-    _ = task_updated_at
-    query = f"""
-        SELECT v.thumbnail_id
-        FROM project_{project_name}.versions v
-        WHERE v.task_id = $1
-        AND v.thumbnail_id IS NOT NULL
-        ORDER BY v.updated_at DESC
-        LIMIT 1
-    """
-    async for row in Postgres.iterate(query, task_id):
-        return row["thumbnail_id"]
-    return None
+#
+# @aiocache.cached(ttl=240)
+# async def get_version_thumbnail_id_for_task(
+#     project_name: str,
+#     task_id: str,
+#     task_updated_at: Any,
+# ) -> str | None:
+#     _ = task_updated_at
+#     query = f"""
+#         SELECT v.thumbnail_id
+#         FROM project_{project_name}.versions v
+#         WHERE v.task_id = $1
+#         AND v.thumbnail_id IS NOT NULL
+#         ORDER BY v.updated_at DESC
+#         LIMIT 1
+#     """
+#     async for row in Postgres.iterate(query, task_id):
+#         return row["thumbnail_id"]
+#     return None
 
 
 @router.post("/projects/{project_name}/tasks/{task_id}/thumbnail", status_code=201)
@@ -575,25 +553,3 @@ async def get_task_thumbnail(
     if placeholder == "empty":
         return get_fake_thumbnail_response()
     raise NotFoundException("Task thumbnail not found")
-
-    # try:
-    #     task = await TaskEntity.load(project_name, task_id)
-    #     await task.ensure_read_access(user)
-    # except AyonException:
-    #     if placeholder == "empty":
-    #         return get_fake_thumbnail_response()
-    #     else:
-    #         raise NotFoundException("Task not found")
-    #
-    # if task.thumbnail_id is None:
-    #     thumbnail_id = await get_version_thumbnail_id_for_task(
-    #         project_name,
-    #         task_id,
-    #         task.updated_at,
-    #     )
-    # else:
-    #     thumbnail_id = task.thumbnail_id
-    #
-    # return await retrieve_thumbnail(
-    #     project_name, thumbnail_id, placeholder=placeholder, original=original
-    # )
