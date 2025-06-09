@@ -1,18 +1,19 @@
 import asyncio
 import os
-from urllib.parse import urlparse
+from typing import Annotated
 
 import aiofiles
 from fastapi import BackgroundTasks, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EntityIdResponse
-from ayon_server.config import ayonconfig
 from ayon_server.events import dispatch_event, update_event
 from ayon_server.exceptions import (
     ForbiddenException,
+    ServiceUnavailableException,
 )
 from ayon_server.helpers.project_list import build_project_list
+from ayon_server.lib.postgres import Postgres, get_pg_connection_info
 from ayon_server.logging import logger
 from setup.database import db_migration
 
@@ -21,28 +22,23 @@ from .router import router
 _lock = asyncio.Lock()
 
 
-def get_pg_connection() -> tuple[str, str, str, int, str]:
-    conn_string = ayonconfig.postgres_url
-    result = urlparse(conn_string)
-    # Extract the relevant components
-    user = result.username
-    password = result.password
-    host = result.hostname
-    port = result.port or 5432
-    database = result.path[1:]  # Remove the leading '/'
-    assert (
-        user and password and host and database and port
-    ), "Postgres connection string is not valid"
-
-    return user, password, host, port, database
-
-
 async def import_database_file(
     dump_path: str,
     *,
     event_id: str,
     run_migration: bool = False,
-):
+    single_transaction: bool = True,
+) -> None:
+    """Import a database file into the PostgreSQL database.
+
+    This function is intended to be run in the background after
+    receiving a database dump file. It will execute the SQL commands
+    in the dump file against the PostgreSQL database specified in
+    the configuration.
+    """
+
+    all_ok = False
+
     try:
         await update_event(
             event_id=event_id,
@@ -59,27 +55,29 @@ async def import_database_file(
             )
             return
 
-        pg_user, pg_password, pg_host, pg_port, pg_database = get_pg_connection()
+        conn_info = get_pg_connection_info()
 
         cmd = [
             "psql",
             "-h",
-            pg_host,
+            conn_info["host"],
             "-U",
-            pg_user,
+            conn_info["user"],
             "-d",
-            pg_database,
+            conn_info["database"],
             "-f",
             dump_path,
-            "--single-transaction",
         ]
+
+        if single_transaction:
+            cmd.append("--single-transaction")
 
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=None,
             stderr=None,
             env={
-                "PGPASSWORD": pg_password,
+                "PGPASSWORD": conn_info["password"],
                 **os.environ,
             },
         )
@@ -93,19 +91,14 @@ async def import_database_file(
                 status="finished",
             )
 
-        else:
-            await update_event(
-                event_id=event_id,
-                status="failed",
-                description="Failed to import database file",
-            )
-
         if run_migration:
             # You should always run migration after importing a project
             await db_migration()
 
         # Rebuild project list. It's not costly and in most cases, it's useful
         await build_project_list()
+
+        all_ok = True
 
     finally:
         if os.path.exists(dump_path):
@@ -114,16 +107,47 @@ async def import_database_file(
             except Exception as e:
                 logger.error(f"Failed to remove dump file: {e}")
 
+        if not all_ok:
+            await update_event(
+                event_id=event_id,
+                status="failed",
+                description="Failed to import database file",
+            )
+
+
+async def ensure_not_running() -> None:
+    """Ensure that another import is not already running."""
+
+    query = """
+        SELECT id FROM events WHERE type = 'database_import'
+        AND status = 'in_progress'
+        AND created_at > NOW() - INTERVAL '1 hour'
+        LIMIT 1;
+    """
+    res = await Postgres.fetchrow(query)
+    if res:
+        raise ServiceUnavailableException(
+            "Database import is already in progress. Please wait until it finishes."
+        )
+
 
 @router.post("/dbimport", include_in_schema=False)
 async def import_database(
     user: CurrentUser,
     request: Request,
     background_tasks: BackgroundTasks,
-    run_db_migration: bool = Query(
-        False,
-        description="Run database migration after import",
-    ),
+    run_db_migration: Annotated[
+        bool,
+        Query(
+            description="Run database migration after import",
+        ),
+    ] = False,
+    single_transaction: Annotated[
+        bool,
+        Query(
+            description="Run import in a single transaction",
+        ),
+    ] = True,
 ) -> EntityIdResponse:
     """Apply a database file to the database.
 
@@ -135,6 +159,8 @@ async def import_database(
         raise ForbiddenException()
 
     async with _lock:
+        await ensure_not_running()
+
         temp_file = "/storage/dbimport.sql"
         upload_ok = False
 
@@ -162,5 +188,6 @@ async def import_database(
             temp_file,
             event_id=event_id,
             run_migration=run_db_migration,
+            single_transaction=single_transaction,
         )
         return EntityIdResponse(id=event_id)
