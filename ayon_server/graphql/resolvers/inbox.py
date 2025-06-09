@@ -1,3 +1,5 @@
+from base64 import b64decode
+
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.edges import ActivityEdge
 from ayon_server.graphql.nodes.activity import ActivityNode
@@ -6,8 +8,9 @@ from ayon_server.graphql.resolvers.common import (
     ARGLast,
     resolve,
 )
+from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
-from ayon_server.utils import SQLTool
+from ayon_server.utils import SQLTool, json_loads
 
 
 def bool2sql(value: bool | None) -> str:
@@ -31,13 +34,6 @@ async def get_inbox(
     sql_conditions = []
     subquery_conds = []
 
-    cursor = (
-        "extract(epoch from updated_at) || '.' || lpad(creation_order::text, 8, '0')"  # noqa
-    )
-
-    if before:
-        sql_conditions.append(f"{cursor} < '{before}'")
-
     if show_important_messages is not None:
         # double escape the quotes, because we are in a string
         # that is passed as an argument to funcition, which uses
@@ -59,15 +55,34 @@ async def get_inbox(
     # Build the query
     #
 
+    order_by = [
+        "updated_at",
+        "creation_order",
+    ]
+
+    ordering, paging_conds, cursor = create_pagination(
+        order_by,
+        first=None,
+        after=None,
+        last=last,
+        before=before,
+    )
+
+    sql_conditions.append(paging_conds)
+
     if before:
-        ts = ".".join(before.split(".")[:-1])
-        bf = f"to_timestamp({ts})::timestamptz"
+        try:
+            cur_data = json_loads(b64decode(before).decode())
+            bf = f"'{cur_data[0]}'::timestamptz"
+        except Exception:
+            bf = "NULL"
     else:
         bf = "NULL"
+
     buffer_size = 1000  # last
 
     query = f"""
-        SELECT {cursor} AS cursor, *
+        SELECT {cursor}, *
         FROM get_user_inbox(
             '{user.name}',
             {bool2sql(show_active_projects)},
@@ -78,7 +93,7 @@ async def get_inbox(
             '{subquery_add_arg}'
         )
         {SQLTool.conditions(sql_conditions)}
-        ORDER BY cursor DESC
+        {ordering}
     """
 
     #
@@ -93,6 +108,7 @@ async def get_inbox(
         ActivityNode,
         query,
         last=last,
+        order_by=order_by,
         context=info.context,
     )
     # end_time = time.monotonic()

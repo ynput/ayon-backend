@@ -103,7 +103,7 @@ async def get_entity_groups(
         groups = await get_status_or_type_groups(
             project_name,
             entity_type=cast(ProjectLevelEntityType, entity_type),
-            key=key,
+            key=key,  # type: ignore[arg-type]
         )
     elif key == "tags":
         groups = await get_tags_groups(

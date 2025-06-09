@@ -2,7 +2,8 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
+from urllib.parse import urlparse
 
 import asyncpg
 import asyncpg.pool
@@ -20,6 +21,36 @@ if TYPE_CHECKING:
     from asyncpg.prepared_stmt import PreparedStatement
 else:
     Connection = PoolConnectionProxy
+
+
+class DBConnectionInfo(TypedDict):
+    user: str
+    password: str
+    host: str
+    port: int
+    database: str
+
+
+def get_pg_connection_info() -> DBConnectionInfo:
+    conn_string = ayonconfig.postgres_url
+    result = urlparse(conn_string)
+    # Extract the relevant components
+    user = result.username
+    password = result.password
+    host = result.hostname
+    port = result.port or 5432
+    database = result.path[1:]  # Remove the leading '/'
+    assert (
+        user and password and host and database and port
+    ), "Postgres connection string is not valid"
+
+    return DBConnectionInfo(
+        user=user,
+        password=password,
+        host=host,
+        port=port,
+        database=database,
+    )
 
 
 #
