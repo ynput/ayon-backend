@@ -273,6 +273,11 @@ async def get_folder_thumbnail(
     """
 
     res = await Postgres.fetchrow(query, folder_id)
+    if res is None:
+        if placeholder == "empty":
+            return get_fake_thumbnail_response()
+        raise NotFoundException("Version not found")
+
     if not user.is_manager:
         folder = FolderEntity.from_record(project_name, res)
         try:
@@ -528,6 +533,11 @@ async def get_task_thumbnail(
     """
 
     res = await Postgres.fetchrow(query, task_id)
+    if res is None:
+        if placeholder == "empty":
+            return get_fake_thumbnail_response()
+        raise NotFoundException("Version not found")
+
     if not user.is_manager:
         task = TaskEntity.from_record(project_name, res)
         try:
