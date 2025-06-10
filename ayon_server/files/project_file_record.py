@@ -29,7 +29,6 @@ async def create_project_file_record(
     data = {
         "filename": file_name,
         "mime": content_type,
-        "size": size,  # TODO: why do we put the size in the data as well??
     }
     if additional_data:
         data.update(additional_data)
@@ -44,7 +43,7 @@ async def create_project_file_record(
             size = $2,
             author = COALESCE(EXCLUDED.author, $3),
             activity_id = $4,
-            data = EXCLUDED.data || $5
+            data = project_{project_name}.files.data || EXCLUDED.data
         """,
         file_id,
         size,
