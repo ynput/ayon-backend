@@ -33,7 +33,7 @@ FOR rec IN
     AND tc.table_name IN (
       'workfiles', 
       'entity_lists', 
-      'entity_list_items', 
+      'entity_list_items'
     )
     AND tc.constraint_type = 'FOREIGN KEY';
 LOOP
