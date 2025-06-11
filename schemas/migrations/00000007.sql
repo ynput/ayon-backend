@@ -23,7 +23,7 @@ FOR rec IN
     AND kcu.column_name IN (
       'created_by', 
       'updated_by',  
-      'owner',
+      'owner'
   )
   JOIN pg_constraint AS pc
     ON tc.constraint_name = pc.conname
