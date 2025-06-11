@@ -3,6 +3,48 @@ from ayon_server.events import EventStream
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 
+PROJECT_QUERIES = [
+    # Activities and files
+    """
+    UPDATE project_{project_name}.files SET
+    author = $1 WHERE author = $2
+    """,
+    """
+    UPDATE project_{project_name}.activity_references SET
+    entity_name = $1 WHERE entity_name = $2 AND entity_type = 'user'
+    """,
+    # Workfiles
+    """
+    UPDATE project_{project_name}.workfiles
+    SET created_by = $1 WHERE created_by = $2
+    """,
+    """
+    UPDATE project_{project_name}.workfiles
+    SET updated_by = $1 WHERE updated_by = $2
+    """,
+    # Entity lists
+    """
+    UPDATE project_{project_name}.entity_lists
+    SET owner = $1 WHERE owner = $2
+    """,
+    """
+    UPDATE project_{project_name}.entity_lists
+    SET created_by = $1 WHERE created_by = $2
+    """,
+    """
+    UPDATE project_{project_name}.entity_lists
+    SET updated_by = $1 WHERE updated_by = $2
+    """,
+    """
+    UPDATE project_{project_name}.entity_list_items
+    SET created_by = $1 WHERE created_by = $2
+    """,
+    """
+    UPDATE project_{project_name}.entity_list_items
+    SET updated_by = $1 WHERE updated_by = $2
+    """,
+]
+
 
 async def rename_user(
     old_name: str,
@@ -42,13 +84,6 @@ async def rename_user(
                 """
                 await conn.execute(query)
 
-                query = f"""
-                    UPDATE project_{project_name}.files SET
-                    author = $1 WHERE author = $2
-                """
-
-                await conn.execute(query, new_name, old_name)
-
                 # activities.data->>'author'
 
                 query = f"""
@@ -60,34 +95,18 @@ async def rename_user(
                     )
                     WHERE data->>'author' = $2
                 """
+                await conn.execute(query, new_name, old_name)
 
                 # TODO: there is also an author record in:
                 # activities->data->files[]->author
                 # but it is probably not important to update it
 
-                await conn.execute(query, new_name, old_name)
-
-                # references
-
-                query = f"""
-                    UPDATE project_{project_name}.activity_references SET
-                    entity_name = $1 WHERE entity_name = $2 AND entity_type = 'user'
-                """
-                await conn.execute(query, new_name, old_name)
-
-                # workfiles
-
-                query = f"""
-                    UPDATE project_{project_name}.workfiles SET
-                    created_by = $1 WHERE created_by = $2
-                """
-                await conn.execute(query, new_name, old_name)
-
-                query = f"""
-                    UPDATE project_{project_name}.workfiles SET
-                    updated_by = $1 WHERE updated_by = $2
-                """
-                await conn.execute(query, new_name, old_name)
+                for query in PROJECT_QUERIES:
+                    await conn.execute(
+                        query.format(project_name=project_name),
+                        new_name,
+                        old_name,
+                    )
 
     # Renaming user has many side effects, so we need to log out all Sessions
     # and let the user log in again
