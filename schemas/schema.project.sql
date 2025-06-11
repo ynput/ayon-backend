@@ -277,7 +277,7 @@ CREATE TABLE versions(
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
-    author VARCHAR, -- REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    author VARCHAR,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -346,8 +346,8 @@ CREATE TABLE workfiles(
 
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
 
-    created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-    updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    created_by VARCHAR,
+    updated_by VARCHAR,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -362,12 +362,6 @@ CREATE TABLE workfiles(
 CREATE INDEX workfile_parent_idx ON workfiles(task_id);
 CREATE INDEX workfile_thumbnail_idx ON workfiles(thumbnail_id);
 
------------
--- Lists --
------------
-
--- TODO: when the final DB structure is ready,
--- the queries from /api/lists/init.py will be moved here (and to the migration scripts)
 
 -----------
 -- LINKS --
