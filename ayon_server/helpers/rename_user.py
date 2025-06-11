@@ -73,7 +73,20 @@ async def rename_user(
                     UPDATE project_{project_name}.activity_references SET
                     entity_name = $1 WHERE entity_name = $2 AND entity_type = 'user'
                 """
+                await conn.execute(query, new_name, old_name)
 
+                # workfiles
+
+                query = f"""
+                    UPDATE project_{project_name}.workfiles SET
+                    created_by = $1 WHERE created_by = $2
+                """
+                await conn.execute(query, new_name, old_name)
+
+                query = f"""
+                    UPDATE project_{project_name}.workfiles SET
+                    updated_by = $1 WHERE updated_by = $2
+                """
                 await conn.execute(query, new_name, old_name)
 
     # Renaming user has many side effects, so we need to log out all Sessions
