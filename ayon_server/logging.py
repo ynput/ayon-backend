@@ -13,6 +13,11 @@ CONTEXT_KEY_BLACKLIST = {"nodb", "traceback"}
 
 
 def _write_stderr(message: str) -> None:
+    """Write a message to standard error with immediate flushing.
+
+    Args:
+        message (str): The message to be printed to stderr.
+    """
     print(message, file=sys.stderr, flush=True)
 
 
