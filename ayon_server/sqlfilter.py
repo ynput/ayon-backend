@@ -209,7 +209,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 else:
                     raise ValueError("Invalid value type in list")
 
-        if operator in ("like"):
+        if operator == "like":
             # JSON Field is a string, so we need to cast it to text
             if isinstance(value, str):
                 safe_value = value.replace("'", "''")
