@@ -209,8 +209,17 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 else:
                     raise ValueError("Invalid value type in list")
 
-        safe_value = json.dumps(value).replace("'", "''")
-        safe_value = f"'{safe_value}'::jsonb"
+        if operator in ("like"):
+            # JSON Field is a string, so we need to cast it to text
+            if isinstance(value, str):
+                safe_value = value.replace("'", "''")
+                safe_value = f"'{safe_value}'"
+            else:
+                raise ValueError("Value must be a string for 'like' operator")
+
+        else:
+            safe_value = json.dumps(value).replace("'", "''")
+            safe_value = f"'{safe_value}'::jsonb"
         logger.trace(f"Safe value of {type(value)} {value}: {safe_value}")
 
     else:
@@ -337,7 +346,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             return f"NOT coalesce({column}, 'false'::jsonb)::boolean"
         return f"{column} = {safe_value}"
     elif operator == "like":
-        return f"{column} ILIKE {safe_value}"
+        return f"({column})::text ILIKE {safe_value}"
     elif operator == "lt":
         return f"{column} < {safe_value}"
     elif operator == "gt":
