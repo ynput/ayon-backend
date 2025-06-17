@@ -42,6 +42,7 @@ class UserNode:
     is_guest: bool
     is_developer: bool
     has_password: bool
+    disable_password_login: bool = False
     user_pool: str | None = None
     apiKeyPreview: str | None = None
     deleted: bool = False
@@ -78,6 +79,7 @@ def user_from_record(
     is_manager = data.get("isManager", False)
     is_guest = data.get("isGuest", False)
     user_pool = data.get("userPool")
+    disable_password_login = data.get("disablePasswordLogin", False)
 
     name = record["name"]
     attrib = record.get("attrib", {})
@@ -110,6 +112,7 @@ def user_from_record(
         user_pool=user_pool,
         has_password=bool(data.get("password")),
         default_access_groups=data.get("defaultAccessGroups", []),
+        disable_password_login=disable_password_login,
         apiKeyPreview=data.get("apiKeyPreview"),
         deleted=record.get("deleted", False),
         _attrib=attrib,
