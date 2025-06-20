@@ -29,7 +29,6 @@ async def remove_entity_links(
             SELECT COUNT(*) as count FROM deleted
         """
         res = await conn.fetch(query, entity_id)
-        print(query, res)
         if res and res[0]["count"] > 0:
             logger.debug(
                 f"Removed {res[0]['count']} links of {entity_type} {entity_id}"

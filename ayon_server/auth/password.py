@@ -93,6 +93,9 @@ class PasswordAuth:
         if "password" not in user.data:
             raise ForbiddenException("Password login is not enabled for this user")
 
+        if user.data.get("disablePasswordLogin", False):
+            raise ForbiddenException("Password login is disabled")
+
         pass_hash, pass_salt = user.data["password"].split(":")
 
         if pass_hash != hash_password(password, pass_salt):

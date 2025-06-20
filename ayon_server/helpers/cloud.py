@@ -117,8 +117,9 @@ class CloudUtils:
     @classmethod
     async def get_ynput_cloud_key(cls) -> str:
         """Get the Ynput Cloud key"""
+        ckey = await Redis.get("global", "ynput_cloud_key")
 
-        if not (ckey := await Redis.get("global", "ynput_cloud_key")):
+        if not ckey:
             query = "SELECT value FROM public.secrets WHERE name = 'ynput_cloud_key'"
             res = await Postgres.fetchrow(query)
             if not res:
@@ -127,7 +128,7 @@ class CloudUtils:
                 ckey = res["value"]
             await Redis.set("global", "ynput_cloud_key", ckey)
 
-        if ckey == "none":
+        if str(ckey).lower() == "none":
             raise ForbiddenException("Ayon is not connected to Ynput Cloud [ERR 2]")
 
         return ckey

@@ -12,6 +12,8 @@ from ayon_server.exceptions import (
     ForbiddenException,
     ServiceUnavailableException,
 )
+from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
+from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres, get_pg_connection_info
 from ayon_server.logging import logger
@@ -28,6 +30,7 @@ async def import_database_file(
     event_id: str,
     run_migration: bool = False,
     single_transaction: bool = True,
+    reload_projects: list[str] | None = None,
 ) -> None:
     """Import a database file into the PostgreSQL database.
 
@@ -97,6 +100,11 @@ async def import_database_file(
 
         # Rebuild project list. It's not costly and in most cases, it's useful
         await build_project_list()
+        if reload_projects:
+            # Reload specific projects
+            for project_name in reload_projects:
+                await rebuild_inherited_attributes(project_name)
+                await rebuild_hierarchy_cache(project_name)
 
         all_ok = True
 
@@ -148,6 +156,12 @@ async def import_database(
             description="Run import in a single transaction",
         ),
     ] = True,
+    reload_projects: Annotated[
+        str | None,
+        Query(
+            description="Comma-separated list of projects to reload after import",
+        ),
+    ] = None,
 ) -> EntityIdResponse:
     """Apply a database file to the database.
 
@@ -183,11 +197,18 @@ async def import_database(
             description="Importing database file...",
         )
 
+        reload_projects_list = []
+        if reload_projects:
+            reload_projects_list = [
+                p.strip() for p in reload_projects.split(",") if p.strip()
+            ]
+
         background_tasks.add_task(
             import_database_file,
             temp_file,
             event_id=event_id,
             run_migration=run_db_migration,
             single_transaction=single_transaction,
+            reload_projects=reload_projects_list,
         )
         return EntityIdResponse(id=event_id)
