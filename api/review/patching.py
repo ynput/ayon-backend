@@ -42,34 +42,33 @@ async def sort_version_reviewables(
     In the payload, provide a list of activity ids (reviewables)
     in the order you want them to appear in the UI.
     """
+    async with Postgres.transaction():
+        version = await VersionEntity.load(project_name, version_id)
+        await version.ensure_update_access(user)
 
-    version = await VersionEntity.load(project_name, version_id)
-    await version.ensure_update_access(user)
+        res = await Postgres.fetch(
+            f"""
+            SELECT activity_id FROM project_{project_name}.activity_feed
+            WHERE reference_type = 'origin'
+            AND activity_type = 'reviewable'
+            AND entity_type = 'version'
+            AND entity_id = $1
+            """,
+            version_id,
+        )
 
-    res = await Postgres.fetch(
-        f"""
-        SELECT activity_id FROM project_{project_name}.activity_feed
-        WHERE reference_type = 'origin'
-        AND activity_type = 'reviewable'
-        AND entity_type = 'version'
-        AND entity_id = $1
-        """,
-        version_id,
-    )
+        if not res:
+            raise NotFoundException(detail="Version not found")
 
-    if not res:
-        raise NotFoundException(detail="Version not found")
+        if request.sort is not None:
+            valid_ids = {row["activity_id"] for row in res}
+            requested_ids = set(request.sort)
 
-    if request.sort is not None:
-        valid_ids = {row["activity_id"] for row in res}
-        requested_ids = set(request.sort)
+            if requested_ids != valid_ids:
+                logger.trace("Saved:", valid_ids)
+                logger.trace("Requested:", requested_ids)
+                raise BadRequestException(detail="Invalid reviewable ids")
 
-        if requested_ids != valid_ids:
-            logger.debug("Saved:", valid_ids)
-            logger.debug("Requested:", requested_ids)
-            raise BadRequestException(detail="Invalid reviewable ids")
-
-        async with Postgres.acquire() as conn, conn.transaction():
             for i, activity_id in enumerate(request.sort):
                 await Postgres.execute(
                     f"""
@@ -82,7 +81,6 @@ async def sort_version_reviewables(
                     i,
                     activity_id,
                 )
-
     return None
 
 

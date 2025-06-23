@@ -177,12 +177,13 @@ def get_representation_conditions(representation_name: str | None) -> list[str]:
 
 
 async def resolve_entities(
-    conn,
     req: ParsedURIModel,
     roots: dict[str, str],
     site_id: str | None = None,
     path_only: bool = False,
 ) -> list[ResolvedEntityModel]:
+    assert await Postgres.is_in_transaction(), "Must be called in a transaction"
+
     result = []
     cols = ["h.id as folder_id"]
     joins = []
@@ -269,7 +270,7 @@ async def resolve_entities(
 
     query += " LIMIT 1000"
 
-    statement = await conn.prepare(query)
+    statement = await Postgres.prepare(query)
     async for row in statement.cursor():
         file_path = None
         if ("file_template" in row) and ("context" in row):
@@ -358,9 +359,8 @@ async def resolve_uris(
     """
 
     if Postgres.get_available_connections() < 3:
-        raise ServiceUnavailableException(
-            f"Postgres remaining pool size: {Postgres.get_available_connections()}"
-        )
+        msg = f"Postgres remaining pool size: {Postgres.get_available_connections()}"
+        raise ServiceUnavailableException(msg)
 
     roots = {}
     if request.resolve_roots and site_id:
@@ -369,31 +369,27 @@ async def resolve_uris(
 
     result: list[ResolvedURIModel] = []
     current_project = ""
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            for uri in request.uris:
-                try:
-                    parsed_uri = parse_uri(uri)
-                except ValueError as e:
-                    result.append(ResolvedURIModel(uri=uri, error=str(e)))
-                    continue
+    async with Postgres.transaction():
+        for uri in request.uris:
+            try:
+                parsed_uri = parse_uri(uri)
+            except ValueError as e:
+                result.append(ResolvedURIModel(uri=uri, error=str(e)))
+                continue
 
-                if parsed_uri.project_name != current_project:
-                    await conn.execute(
-                        f"SET LOCAL search_path TO project_{parsed_uri.project_name}"
-                    )
-                    current_project = parsed_uri.project_name
+            if parsed_uri.project_name != current_project:
+                await Postgres.set_project_schema(parsed_uri.project_name)
+                current_project = parsed_uri.project_name
 
-                try:
-                    entities = await resolve_entities(
-                        conn,
-                        parsed_uri,
-                        roots.get(current_project, {}),
-                        site_id,
-                        path_only=path_only,
-                    )
-                except ValueError as e:
-                    result.append(ResolvedURIModel(uri=uri, entities=[], error=str(e)))
-                    continue
-                result.append(ResolvedURIModel(uri=uri, entities=entities))
+            try:
+                entities = await resolve_entities(
+                    parsed_uri,
+                    roots.get(current_project, {}),
+                    site_id,
+                    path_only=path_only,
+                )
+            except ValueError as e:
+                result.append(ResolvedURIModel(uri=uri, entities=[], error=str(e)))
+                continue
+            result.append(ResolvedURIModel(uri=uri, entities=entities))
     return result
