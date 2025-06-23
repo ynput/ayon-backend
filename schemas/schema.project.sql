@@ -277,7 +277,7 @@ CREATE TABLE versions(
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
-    author VARCHAR, -- REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    author VARCHAR,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -346,8 +346,8 @@ CREATE TABLE workfiles(
 
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
 
-    created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-    updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    created_by VARCHAR,
+    updated_by VARCHAR,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -361,6 +361,7 @@ CREATE TABLE workfiles(
 
 CREATE INDEX workfile_parent_idx ON workfiles(task_id);
 CREATE INDEX workfile_thumbnail_idx ON workfiles(thumbnail_id);
+
 
 -----------
 -- LINKS --
@@ -382,7 +383,7 @@ CREATE TABLE links (
     link_type VARCHAR NOT NULL REFERENCES link_types(name) ON DELETE CASCADE,
     input_id UUID NOT NULL,
     output_id UUID NOT NULL,
-    author VARCHAR, -- REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    author VARCHAR,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -447,7 +448,7 @@ CREATE TABLE entity_lists(
   entity_list_type VARCHAR NOT NULL,
   entity_type VARCHAR NOT NULL,
   label VARCHAR NOT NULL,
-  owner VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+  owner VARCHAR,
 
   access JSONB NOT NULL DEFAULT '{}'::JSONB,
   template JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -458,8 +459,8 @@ CREATE TABLE entity_lists(
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-  updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+  created_by VARCHAR,
+  updated_by VARCHAR,
   creation_order SERIAL NOT NULL
 );
 
@@ -483,8 +484,8 @@ CREATE TABLE entity_list_items(
 
   folder_path VARCHAR NOT NULL DEFAULT '',
 
-  created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-  updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+  created_by VARCHAR,
+  updated_by VARCHAR,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

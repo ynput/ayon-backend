@@ -226,6 +226,8 @@ class UserEntity(TopLevelEntity):
                 """
                 await conn.execute(query)
 
+                # TODO: clear created_by and updated_by fields on workfiles??
+
             return res[0]["count"]
 
         if transaction:
