@@ -168,10 +168,10 @@ async def create_activity(
         ($1, $2, $3, $4, $5, $6, $6)
     """
 
-    async with Postgres.acquire() as conn, conn.transaction():
+    async with Postgres.transaction():
         tags = tags or []
         try:
-            await conn.execute(
+            await Postgres.execute(
                 query,
                 activity_id,
                 activity_type,
@@ -187,7 +187,7 @@ async def create_activity(
 
         if files is not None:
             try:
-                await conn.execute(
+                await Postgres.execute(
                     f"""
                     UPDATE project_{project_name}.files
                     SET
@@ -204,7 +204,7 @@ async def create_activity(
                     f"Project {project_name} no longer exists"
                 ) from e
 
-        st_ref = await conn.prepare(
+        st_ref = await Postgres.prepare(
             f"""
             INSERT INTO project_{project_name}.activity_references
             (
@@ -237,7 +237,7 @@ async def create_activity(
 
         # bump entity updated_at timestamp
 
-        await conn.execute(
+        await Postgres.execute(
             f"""
             UPDATE project_{project_name}.{entity_type}s
             SET updated_at = $1
