@@ -184,7 +184,7 @@ class FolderEntity(ProjectLevelEntity):
                 """
             )
             await rebuild_inherited_attributes(self.project_name, transaction=conn)
-            await rebuild_hierarchy_cache(self.project_name, transaction=conn)
+            await rebuild_hierarchy_cache(self.project_name)
 
         if transaction is not None:
             await _commit(transaction)
@@ -217,7 +217,7 @@ class FolderEntity(ProjectLevelEntity):
 
         res = await super().delete(transaction=transaction, **kwargs)
         if res:
-            await rebuild_hierarchy_cache(self.project_name, transaction=transaction)
+            await rebuild_hierarchy_cache(self.project_name)
         return res
 
     async def get_versions(self, transaction: Connection | None = None) -> list[str]:

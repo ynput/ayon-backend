@@ -27,6 +27,7 @@ from ayon_server.activities.watchers.watcher_list import get_watcher_list
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import BadRequestException, NotFoundException
+from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.utils import create_uuid
@@ -246,6 +247,11 @@ async def create_activity(
             timestamp,
             entity_id,
         )
+
+        # Publishing reviewables must invalidate the hierarchy cache
+
+        if activity_type == "reviewable":
+            await rebuild_hierarchy_cache(project_name)
 
     # Notify the front-end about the new activity
 
