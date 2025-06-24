@@ -1,4 +1,4 @@
-from typing import Any, NoReturn
+from typing import NoReturn
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
@@ -12,7 +12,7 @@ class VersionEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "version"
     model = ModelSet("version", attribute_library["version"])
 
-    async def save(self, transaction: Any = None) -> None:
+    async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         """Save entity to database."""
 
         async with Postgres.transaction():
@@ -44,7 +44,7 @@ class VersionEntity(ProjectLevelEntity):
                     self.task_id,
                 )
 
-    async def commit(self, transaction=None) -> None:
+    async def commit(self) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
         async with Postgres.transaction():

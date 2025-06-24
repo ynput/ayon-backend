@@ -245,8 +245,8 @@ async def _process_operations(
     # Create overall success value
     success = all(op.success for op in result)
     if success or can_fail:
-        for entity in to_commit:
-            await entity.commit()
+        logger.debug(f"Committing {entity.entity_type} {entity.id}")
+        await entity.commit()
 
     return events, OperationsResponseModel(operations=result, success=success)
 
@@ -461,6 +461,8 @@ class ProjectLevelOperations:
                 **event,
             )
 
+        # TODO: remove this?
+        # This is duplicate! It is handled by calling commit() on the entity
         if "folder" in [r.entity_type for r in self.operations]:
             # Rebuild the hierarchy cache for folders
             await rebuild_hierarchy_cache(self.project_name)

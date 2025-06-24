@@ -115,8 +115,7 @@ class FolderEntity(ProjectLevelEntity):
             own_attrib=own_attrib,
         )
 
-    async def save(self, *args, **kwargs) -> None:
-        should_commit = not await Postgres.is_in_transaction()
+    async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         async with Postgres.transaction():
             if self.status is None:
                 self.status = await self.get_default_status()
@@ -169,10 +168,10 @@ class FolderEntity(ProjectLevelEntity):
                     )
                 )
 
-            if should_commit:
+            if auto_commit:
                 await self.commit()
 
-    async def commit(self, *args, **kwargs) -> None:
+    async def commit(self) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
         async with Postgres.transaction():
@@ -185,8 +184,7 @@ class FolderEntity(ProjectLevelEntity):
             await rebuild_inherited_attributes(self.project_name)
             await rebuild_hierarchy_cache(self.project_name)
 
-    async def delete(self, *args, **kwargs) -> bool:
-        should_commit = not await Postgres.is_in_transaction()
+    async def delete(self, *args, auto_commit: bool = True, **kwargs) -> bool:
         async with Postgres.transaction():
             if kwargs.get("force", False):
                 logger.info(f"Force deleting folder and all its children. {self.path}")
@@ -205,7 +203,7 @@ class FolderEntity(ProjectLevelEntity):
             res = await super().delete()
             if not res:
                 return False
-            elif should_commit:
+            elif auto_commit:
                 await self.commit()
         return res
 

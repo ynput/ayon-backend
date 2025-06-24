@@ -151,7 +151,7 @@ class DemoGen:
             project_name=self.project_name,
             payload=payload,
         )
-        await folder.save(conn)
+        await folder.save()
         folder.parents = parents  # type: ignore
 
         tasks = {}
@@ -217,7 +217,7 @@ class DemoGen:
             project_name=self.project_name,
             payload=payload,
         )
-        await product.save(conn)
+        await product.save()
 
         for i in range(1, VERSIONS_PER_PRODUCT):
             self.version_count += 1
@@ -242,7 +242,7 @@ class DemoGen:
                     "status": self.get_entity_status(),
                 },
             )
-            await version.save(conn)
+            await version.save()
 
             for representation in kwargs.get("_representations", []):
                 await self.create_representation(
@@ -301,7 +301,7 @@ class DemoGen:
                     "status": self.get_entity_status(),
                 },
             )
-            await workfile.save(conn)
+            await workfile.save()
             self.workfile_count += 1
 
         return task

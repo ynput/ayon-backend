@@ -59,5 +59,5 @@ async def update_project_level_entity(
         for event in events:
             event["user"] = user.name
     entity.patch(payload, user=user)
-    await entity.save()
+    await entity.save(auto_commit=False)
     return entity, events, 204

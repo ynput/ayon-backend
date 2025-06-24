@@ -148,7 +148,7 @@ class ProjectEntity(TopLevelEntity):
     # Save
     #
 
-    async def save(self, transaction=None) -> bool:
+    async def save(self, *args, **kwargs) -> bool:
         """Save the project to the database."""
         async with Postgres.transaction():
             try:
@@ -230,7 +230,7 @@ class ProjectEntity(TopLevelEntity):
     # Delete
     #
 
-    async def delete(self, transaction=None) -> bool:
+    async def delete(self, *args, **kwargs) -> bool:
         """Delete existing project."""
         if not self.name:
             raise KeyError("Unable to delete project. Not loaded")

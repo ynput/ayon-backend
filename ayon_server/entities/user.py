@@ -78,8 +78,9 @@ class UserEntity(TopLevelEntity):
     async def load(
         cls,
         name: str,
-        transaction: Any = None,
         for_update: bool = False,
+        *args,
+        **kwargs: Any,
     ) -> "UserEntity":
         """Load a user from the database."""
 
@@ -108,8 +109,9 @@ class UserEntity(TopLevelEntity):
 
     async def save(
         self,
-        transaction: Any = None,
+        *args,
         run_hooks: bool = True,
+        **kwargs,
     ) -> bool:
         """Save the user to the database."""
 
@@ -200,15 +202,11 @@ class UserEntity(TopLevelEntity):
     # Delete
     #
 
-    async def delete(
-        self,
-        transaction: Any = None,
-    ) -> bool:
+    async def delete(self, *args, **kwargs) -> bool:
         """Delete existing user."""
         if not self.name:
             raise NotFoundException(f"Unable to delete user {self.name}. Not loaded.")
 
-        should_commit = not await Postgres.is_in_transaction()
         async with Postgres.transaction():
             res = await Postgres.fetch(
                 """
@@ -225,14 +223,18 @@ class UserEntity(TopLevelEntity):
             projects = await get_project_list()
             for project in projects:
                 query = f"""
-                    UPDATE project_{project.name}.tasks Set
+                    UPDATE project_{project.name}.tasks SET
                     assignees = array_remove(assignees, '{self.name}')
                     WHERE '{self.name}' = any(assignees)
                 """
-                await Postgres.execute(query)
-
-            if should_commit:
-                await self.commit()
+                try:
+                    await Postgres.execute(query)
+                except Postgres.UndefinedTableError:
+                    # Project does not exist, skip
+                    # this can happen when user is deleted
+                    # at the same time as the project (in tests)
+                    # It is harmless...
+                    continue
 
             return res[0]["count"]
 

@@ -1,5 +1,3 @@
-from typing import Any
-
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
@@ -15,7 +13,7 @@ class ProductEntity(ProjectLevelEntity):
     # Properties
     #
 
-    async def pre_save(self, insert: bool = False, transaction: Any = None) -> None:
+    async def pre_save(self, insert: bool) -> None:
         """Hook called before saving the entity to the database."""
         await Postgres.execute(
             """

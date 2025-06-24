@@ -53,5 +53,5 @@ async def create_project_level_entity(
             "user": user.name if user else None,
         }
     ]
-    await entity.save()
+    await entity.save(auto_commit=False)
     return entity, events, 201

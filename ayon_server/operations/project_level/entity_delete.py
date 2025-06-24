@@ -43,5 +43,5 @@ async def delete_project_level_entity(
     ]
     if ayonconfig.audit_trail:
         events[0]["payload"] = {"entityData": entity.dict_simple()}
-    await entity.delete(force=operation.force)
+    await entity.delete(force=operation.force, auto_commit=False)
     return entity, events, 204

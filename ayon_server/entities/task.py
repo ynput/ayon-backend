@@ -92,7 +92,7 @@ class TaskEntity(ProjectLevelEntity):
             own_attrib=own_attrib,
         )
 
-    async def save(self, *args, **kwargs) -> None:
+    async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         async with Postgres.transaction():
             if self.task_type is None:
                 res = await Postgres.fetch(
@@ -106,7 +106,7 @@ class TaskEntity(ProjectLevelEntity):
                 self.task_type = res[0]["name"]
             await super().save()
 
-    async def commit(self, *args, **kwargs) -> None:
+    async def commit(self) -> None:
         await rebuild_hierarchy_cache(self.project_name)
 
     async def ensure_create_access(self, user, **kwargs) -> None:

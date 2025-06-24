@@ -7,7 +7,6 @@ from strawberry.experimental.pydantic import type as pydantic_type
 from ayon_server.entities.core.patch import apply_patch
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import ForbiddenException
-from ayon_server.lib.postgres import Connection
 
 if TYPE_CHECKING:
     from ayon_server.entities.user import UserEntity
@@ -17,6 +16,7 @@ class BaseEntity:
     entity_type: str
     model: ModelSet
     exists: bool = False
+    project_name: str | None = None
     own_attrib: list[str] = []
     _payload: BaseModel
 
@@ -105,7 +105,7 @@ class BaseEntity:
     # DB
     #
 
-    async def commit(self, transaction: Connection | None = None):
+    async def commit(self):
         """Post-update commit."""
         pass
 

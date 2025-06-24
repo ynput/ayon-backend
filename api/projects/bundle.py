@@ -28,8 +28,8 @@ async def set_project_bundle(
     if not user.is_manager:
         raise ForbiddenException("Only managers can set project bundle")
 
-    async with Postgres.acquire() as conn, conn.transaction():
-        project = await ProjectEntity.load(project_name, conn, for_update=True)
+    async with Postgres.transaction():
+        project = await ProjectEntity.load(project_name, for_update=True)
 
         bundle_data = project.data.get("bundle", {})
         bundle_data.update(payload.dict(exclude_unset=True))
@@ -37,6 +37,6 @@ async def set_project_bundle(
             project.data.pop("bundle", None)
         else:
             project.data["bundle"] = bundle_data
-        await project.save(conn)
+        await project.save()
 
     return EmptyResponse()

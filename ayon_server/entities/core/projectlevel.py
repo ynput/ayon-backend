@@ -192,11 +192,11 @@ class ProjectLevelEntity(BaseEntity):
     # Save
     #
 
-    async def pre_save(self, insert: bool, *args, **kwargs) -> None:
+    async def pre_save(self, insert: bool) -> None:
         """Hook called before saving the entity to the database."""
         pass
 
-    async def save(self, *args, **kwargs) -> None:
+    async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         """Save the entity to the database.
 
         Supports both creating and updating. Entity must be loaded from the
@@ -212,7 +212,6 @@ class ProjectLevelEntity(BaseEntity):
         if self.status is None:
             self.status = await self.get_default_status()
 
-        should_commit = not await Postgres.is_in_transaction()
         async with Postgres.transaction():
             attrib = {}
             for key in self.own_attrib:
@@ -254,19 +253,17 @@ class ProjectLevelEntity(BaseEntity):
                     )
                 )
 
-            if should_commit:
+            if auto_commit:
                 await self.commit()
 
     #
     # Delete
     #
 
-    async def delete(self, *args, **kwargs) -> bool:
+    async def delete(self, *args, auto_commit: bool = True, **kwargs) -> bool:
         """Delete an existing entity."""
         if not self.id:
             raise NotFoundException(f"Unable to delete unloaded {self.entity_type}.")
-
-        should_commit = not await Postgres.is_in_transaction()
 
         async with Postgres.transaction():
             try:
@@ -283,7 +280,7 @@ class ProjectLevelEntity(BaseEntity):
                     self.entity_type,
                     self.id,
                 )
-                if should_commit:
+                if auto_commit:
                     await self.commit()
                 return bool(res[0]["count"])
 
