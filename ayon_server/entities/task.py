@@ -105,6 +105,9 @@ class TaskEntity(ProjectLevelEntity):
                 self.task_type = res[0]["name"]
             await super().save()
 
+    async def commit(self, transaction: Connection | None = None) -> None:
+        await rebuild_hierarchy_cache(self.project_name)
+
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
             return

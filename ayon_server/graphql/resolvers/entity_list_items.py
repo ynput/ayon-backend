@@ -194,6 +194,28 @@ async def get_entity_list_items(
     allowed_parent_keys = []
 
     if entity_type == "task":
+        if fields.any_endswith("hasReviewables"):
+            sql_cte.append(
+                f"""
+                reviewables AS (
+                    SELECT v.task_id AS entity_id
+                    FROM project_{project_name}.activity_feed af
+                    INNER JOIN project_{project_name}.versions v
+                    ON af.entity_id = v.id
+                    AND af.entity_type = 'version'
+                    AND af.activity_type = 'reviewable'
+                )
+                """
+            )
+
+            sql_columns.append(
+                """
+                EXISTS (
+                SELECT 1 FROM reviewables WHERE entity_id = e.id
+                ) AS _entity_has_reviewables
+                """
+            )
+
         # when querying tasks, we need the parent folder attributes
         # as well because of the inheritance
         sql_columns.append("px.attrib as _entity_parent_folder_attrib")
@@ -213,6 +235,30 @@ async def get_entity_list_items(
         allowed_parent_keys = ["folder_type"]
 
     elif entity_type == "folder":
+        if fields.any_endswith("hasReviewables"):
+            sql_cte.append(
+                f"""
+                reviewables AS (
+                    SELECT p.folder_id AS entity_id
+                    FROM project_{project_name}.activity_feed af
+                    INNER JOIN project_{project_name}.versions v
+                    ON af.entity_id = v.id
+                    AND af.entity_type = 'version'
+                    AND  af.activity_type = 'reviewable'
+                    INNER JOIN project_{project_name}.products p
+                    ON p.id = v.product_id
+                )
+                """
+            )
+
+            sql_columns.append(
+                """
+                EXISTS (
+                SELECT 1 FROM reviewables WHERE entity_id = e.id
+                ) AS _entity_has_reviewables
+                """
+            )
+
         # when querying folders, we need the parent folder attributes
         # and also the project attribute in the case of root folders
         # ... yeah. and also the hierarchy path
