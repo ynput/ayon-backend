@@ -4,7 +4,6 @@ from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import ForbiddenException
-from ayon_server.lib.postgres import Connection
 
 from .models import OperationModel
 
@@ -14,7 +13,6 @@ async def delete_project_level_entity(
     project_name: str,
     operation: OperationModel,
     user: UserEntity | None,
-    transaction: Connection | None = None,
 ) -> tuple[ProjectLevelEntity, list[dict[str, Any]], int]:
     assert operation.entity_id is not None, "entity_id is required for delete"
     entity = await entity_class.load(project_name, operation.entity_id)
@@ -45,5 +43,5 @@ async def delete_project_level_entity(
     ]
     if ayonconfig.audit_trail:
         events[0]["payload"] = {"entityData": entity.dict_simple()}
-    await entity.delete(transaction=transaction, force=operation.force)
+    await entity.delete(force=operation.force)
     return entity, events, 204

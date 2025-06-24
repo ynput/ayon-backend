@@ -10,11 +10,11 @@ from ayon_server.exceptions import (
     AyonException,
     ConstraintViolationException,
     NotFoundException,
+    ServiceUnavailableException,
 )
 from ayon_server.helpers.entity_links import remove_entity_links
 from ayon_server.helpers.statuses import get_default_status_for_entity
-from ayon_server.lib.postgres import Connection, Postgres
-from ayon_server.logging import logger
+from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import SQLTool, dict_exclude
 
@@ -155,8 +155,8 @@ class ProjectLevelEntity(BaseEntity):
         cls,
         project_name: str,
         entity_id: str,
-        transaction: Connection | None = None,
         for_update: bool = False,
+        **kwargs,
     ):
         """Return an entity instance based on its ID and a project name.
 
@@ -171,22 +171,32 @@ class ProjectLevelEntity(BaseEntity):
             SELECT  *
             FROM project_{project_name}.{cls.entity_type}s
             WHERE id=$1
-            {'FOR UPDATE' if transaction and for_update else ''}
+            {'FOR UPDATE NOWAIT' if for_update else ''}
             """
 
-        async for record in Postgres.iterate(query, entity_id):
-            return cls.from_record(project_name, record)
-        raise NotFoundException("Entity not found")
+        try:
+            record = await Postgres.fetchrow(query, entity_id)
+        except Postgres.UndefinedTableError as e:
+            raise NotFoundException(
+                f"Project '{project_name}' does not exist or is not initialized."
+            ) from e
+        except Postgres.LockNotAvailableError as e:
+            raise ServiceUnavailableException(
+                f"Entity {cls.entity_type} {entity_id} is locked for update."
+            ) from e
+        if record is None:
+            raise NotFoundException("Entity not found")
+        return cls.from_record(project_name, record)
 
     #
     # Save
     #
 
-    async def pre_save(self, insert: bool, transaction: Connection) -> None:
+    async def pre_save(self, insert: bool, *args, **kwargs) -> None:
         """Hook called before saving the entity to the database."""
         pass
 
-    async def save(self, transaction: Connection | None = None) -> None:
+    async def save(self, *args, **kwargs) -> None:
         """Save the entity to the database.
 
         Supports both creating and updating. Entity must be loaded from the
@@ -202,7 +212,8 @@ class ProjectLevelEntity(BaseEntity):
         if self.status is None:
             self.status = await self.get_default_status()
 
-        async def _save(conn: Connection) -> None:
+        should_commit = not await Postgres.is_in_transaction()
+        async with Postgres.transaction():
             attrib = {}
             for key in self.own_attrib:
                 with suppress(AttributeError):
@@ -218,8 +229,8 @@ class ProjectLevelEntity(BaseEntity):
                 fields["attrib"] = attrib
                 fields["updated_at"] = datetime.now()
 
-                await self.pre_save(False, conn)
-                await conn.execute(
+                await self.pre_save(False)
+                await Postgres.execute(
                     *SQLTool.update(
                         f"project_{self.project_name}.{self.entity_type}s",
                         f"WHERE id = '{self.id}'",
@@ -235,31 +246,29 @@ class ProjectLevelEntity(BaseEntity):
                 )
                 fields["attrib"] = attrib
 
-                await self.pre_save(True, conn)
-                await conn.execute(
+                await self.pre_save(True)
+                await Postgres.execute(
                     *SQLTool.insert(
                         f"project_{self.project_name}.{self.entity_type}s",
                         **fields,
                     )
                 )
 
-        if transaction:
-            await _save(transaction)
-        else:
-            async with Postgres.acquire() as conn, conn.transaction():
-                await _save(conn)
-                await self.commit(conn)
+            if should_commit:
+                await self.commit()
 
     #
     # Delete
     #
 
-    async def delete(self, transaction: Connection | None = None, **kwargs) -> bool:
+    async def delete(self, *args, **kwargs) -> bool:
         """Delete an existing entity."""
         if not self.id:
             raise NotFoundException(f"Unable to delete unloaded {self.entity_type}.")
 
-        async def _delete(conn: Connection, **kwargs) -> bool:
+        should_commit = not await Postgres.is_in_transaction()
+
+        async with Postgres.transaction():
             try:
                 query = f"""
                     WITH deleted AS (
@@ -268,14 +277,16 @@ class ProjectLevelEntity(BaseEntity):
                         RETURNING *
                     ) SELECT count(*) FROM deleted;
                 """
-                res = await conn.fetch(query, self.id)
+                res = await Postgres.fetch(query, self.id)
                 await remove_entity_links(
                     self.project_name,
                     self.entity_type,
                     self.id,
-                    conn=conn,
                 )
+                if should_commit:
+                    await self.commit()
                 return bool(res[0]["count"])
+
             except Postgres.ForeignKeyViolationError as e:
                 detail = f"Unable to delete {self.entity_type} {self.id}"
                 code: str | None = None
@@ -284,16 +295,6 @@ class ProjectLevelEntity(BaseEntity):
                     detail = "Unable to delete a folder with products or tasks."
                     code = "delete-folder-with-children"
                 raise ConstraintViolationException(detail, code=code)
-
-        if transaction is None:
-            async with Postgres.acquire() as conn, conn.transaction():
-                deleted = await _delete(conn, **kwargs)
-                await self.commit(conn)
-        else:
-            deleted = await _delete(transaction, **kwargs)
-
-        logger.debug(f"Deleted {self.entity_type} {self.id} from {self.project_name}")
-        return deleted
 
     async def get_default_status(self) -> str:
         return await get_default_status_for_entity(

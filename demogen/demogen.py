@@ -110,7 +110,7 @@ class DemoGen:
         async with Postgres.acquire() as conn:
             async with conn.transaction():
                 folder = await self.create_folder(conn, **kwargs)
-                await folder.commit(conn)
+                await folder.commit()
 
     async def create_folder(
         self,

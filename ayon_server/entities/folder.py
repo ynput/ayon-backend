@@ -8,10 +8,11 @@ from ayon_server.exceptions import (
     AyonException,
     ForbiddenException,
     NotFoundException,
+    ServiceUnavailableException,
 )
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
-from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import EntityID, SQLTool, dict_exclude
@@ -26,8 +27,8 @@ class FolderEntity(ProjectLevelEntity):
         cls,
         project_name: str,
         entity_id: str,
-        transaction: Connection | None = None,
         for_update: bool = False,
+        **kwargs: Any,
     ) -> "FolderEntity":
         """Load a folder from the database by its project name and IDself.
 
@@ -67,160 +68,148 @@ class FolderEntity(ProjectLevelEntity):
             INNER JOIN public.projects as p
                 ON p.name ILIKE $2
             WHERE f.id=$1
-            {'FOR UPDATE OF f'
-                if transaction and for_update else ''
+            {'FOR UPDATE OF f NOWAIT'
+                if for_update else ''
             }
             """
 
         try:
-            async for record in Postgres.iterate(query, entity_id, project_name):
-                record = dict(record)
-                path = record.pop("path")
-                if path is not None:
-                    # ensure path starts with / but does not end with /
-                    record["path"] = f"/{path.strip('/')}"
-                attrib: dict[str, Any] = {}
-
-                for key, value in record.get("project_attrib", {}).items():
-                    if key in attribute_library.inheritable_attributes():
-                        attrib[key] = value
-
-                if (ia := record["inherited_attrib"]) is not None:
-                    for key, value in ia.items():
-                        if key in attribute_library.inheritable_attributes():
-                            attrib[key] = value
-
-                elif record["parent_id"] is not None:
-                    logger.warning(
-                        f"Folder {record['path']} does not have inherited attributes."
-                        "this shouldn't happen"
-                    )
-                attrib.update(record["attrib"])
-                own_attrib = list(record["attrib"].keys())
-                payload = {**record, "attrib": attrib}
-                return cls.from_record(
-                    project_name=project_name,
-                    payload=payload,
-                    own_attrib=own_attrib,
-                )
+            record = await Postgres.fetchrow(query, entity_id, project_name)
         except Postgres.UndefinedTableError:
             raise NotFoundException(f"Project {project_name} not found")
-        raise NotFoundException("Entity not found")
-
-    async def save(self, transaction: Connection | None = None) -> None:
-        if not transaction:
-            async with Postgres.acquire() as conn, conn.transaction():
-                await self._save(conn)
-                await self.commit(conn)
-        else:
-            await self._save(transaction)
-
-    async def _save(self, transaction: Connection) -> None:
-        """Save the folder to the database.
-
-        This overriden method also clears exported_attributes,
-        which is then repopulated during commit.
-        """
-
-        if self.status is None:
-            self.status = await self.get_default_status()
-
-        if self.folder_type is None:
-            res = await transaction.fetch(
-                f"""
-                SELECT name from project_{self.project_name}.folder_types
-                ORDER BY position ASC LIMIT 1
-                """
+        except Postgres.LockNotAvailableError:
+            raise ServiceUnavailableException(
+                f"Folder {entity_id} is locked for update, try again later"
             )
-            if not res:
-                raise AyonException("No folder types defined")
-            self.folder_type = res[0]["name"]
 
-        attrib = {}
-        for key in self.own_attrib:
-            if not hasattr(self.attrib, key):
-                continue
-            if (value := getattr(self.attrib, key)) is not None:
+        if record is None:
+            raise NotFoundException("Entity not found")
+
+        record = dict(record)
+        path = record.pop("path")
+        if path is not None:
+            # ensure path starts with / but does not end with /
+            record["path"] = f"/{path.strip('/')}"
+        attrib: dict[str, Any] = {}
+
+        for key, value in record.get("project_attrib", {}).items():
+            if key in attribute_library.inheritable_attributes():
                 attrib[key] = value
 
-        if self.exists:
-            # Update existing entity
+        if (ia := record["inherited_attrib"]) is not None:
+            for key, value in ia.items():
+                if key in attribute_library.inheritable_attributes():
+                    attrib[key] = value
 
-            await transaction.execute(
-                *SQLTool.update(
-                    f"project_{self.project_name}.{self.entity_type}s",
-                    f"WHERE id = '{self.id}'",
-                    name=self.name,
-                    label=self.label,
-                    folder_type=self.folder_type,
-                    parent_id=self.parent_id,
-                    thumbnail_id=self.thumbnail_id,
-                    status=self.status,
-                    tags=self.tags,
-                    attrib=attrib,
-                    data=self.data,
-                    active=self.active,
-                    updated_at=datetime.now(),
-                )
+        elif record["parent_id"] is not None:
+            logger.warning(
+                f"Folder {record['path']} does not have inherited attributes."
+                "this shouldn't happen"
             )
+        attrib.update(record["attrib"])
+        own_attrib = list(record["attrib"].keys())
+        payload = {**record, "attrib": attrib}
+        return cls.from_record(
+            project_name=project_name,
+            payload=payload,
+            own_attrib=own_attrib,
+        )
 
-        else:
-            # Create a new entity
-            await transaction.execute(
-                *SQLTool.insert(
-                    f"project_{self.project_name}.{self.entity_type}s",
-                    **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
+    async def save(self, *args, **kwargs) -> None:
+        should_commit = not await Postgres.is_in_transaction()
+        async with Postgres.transaction():
+            if self.status is None:
+                self.status = await self.get_default_status()
+
+            if self.folder_type is None:
+                res = await Postgres.fetch(
+                    f"""
+                    SELECT name from project_{self.project_name}.folder_types
+                    ORDER BY position ASC LIMIT 1
+                    """
                 )
-            )
+                if not res:
+                    raise AyonException("No folder types defined")
+                self.folder_type = res[0]["name"]
 
-    async def commit(self, transaction: Connection | None = None) -> None:
+            attrib = {}
+            for key in self.own_attrib:
+                if not hasattr(self.attrib, key):
+                    continue
+                if (value := getattr(self.attrib, key)) is not None:
+                    attrib[key] = value
+
+            if self.exists:
+                # Update existing entity
+
+                await Postgres.execute(
+                    *SQLTool.update(
+                        f"project_{self.project_name}.{self.entity_type}s",
+                        f"WHERE id = '{self.id}'",
+                        name=self.name,
+                        label=self.label,
+                        folder_type=self.folder_type,
+                        parent_id=self.parent_id,
+                        thumbnail_id=self.thumbnail_id,
+                        status=self.status,
+                        tags=self.tags,
+                        attrib=attrib,
+                        data=self.data,
+                        active=self.active,
+                        updated_at=datetime.now(),
+                    )
+                )
+
+            else:
+                # Create a new entity
+                await Postgres.execute(
+                    *SQLTool.insert(
+                        f"project_{self.project_name}.{self.entity_type}s",
+                        **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
+                    )
+                )
+
+            if should_commit:
+                await self.commit()
+
+    async def commit(self, *args, **kwargs) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
-        async def _commit(conn):
-            await conn.execute(
+        async with Postgres.transaction():
+            await Postgres.execute(
                 f"""
                 REFRESH MATERIALIZED VIEW CONCURRENTLY
                 project_{self.project_name}.hierarchy
                 """
             )
-            await rebuild_inherited_attributes(self.project_name, transaction=conn)
-            await rebuild_hierarchy_cache(self.project_name, transaction=conn)
+            await rebuild_inherited_attributes(self.project_name)
+            await rebuild_hierarchy_cache(self.project_name)
 
-        if transaction is not None:
-            await _commit(transaction)
-            return
-        else:
-            async with Postgres.acquire() as conn, conn.transaction():
-                await _commit(conn)
+    async def delete(self, *args, **kwargs) -> bool:
+        should_commit = not await Postgres.is_in_transaction()
+        async with Postgres.transaction():
+            if kwargs.get("force", False):
+                logger.info(f"Force deleting folder and all its children. {self.path}")
+                await Postgres.execute(
+                    f"""
+                    DELETE FROM project_{self.project_name}.products
+                    WHERE folder_id IN (
+                        SELECT id FROM project_{self.project_name}.hierarchy
+                        WHERE path = $1
+                        OR path LIKE $1 || '/%'
+                    ) RETURNING name
+                    """,
+                    self.path.lstrip("/"),
+                )
 
-    async def delete(self, transaction: Connection | None = None, **kwargs) -> bool:
-        if not transaction:
-            async with Postgres.acquire() as conn, conn.transaction():
-                return await self._delete(conn, **kwargs)
-        else:
-            return await self._delete(transaction, **kwargs)
-
-    async def _delete(self, transaction: Connection, **kwargs) -> bool:
-        if kwargs.get("force", False):
-            logger.info(f"Force deleting folder and all its children. {self.path}")
-            await transaction.execute(
-                f"""
-                DELETE FROM project_{self.project_name}.products
-                WHERE folder_id IN (
-                    SELECT id FROM project_{self.project_name}.hierarchy
-                    WHERE path = $1
-                    OR path LIKE $1 || '/%'
-                ) RETURNING name
-                """,
-                self.path.lstrip("/"),
-            )
-
-        res = await super().delete(transaction=transaction, **kwargs)
-        if res:
-            await rebuild_hierarchy_cache(self.project_name, transaction=transaction)
+            res = await super().delete()
+            if not res:
+                return False
+            elif should_commit:
+                await self.commit()
         return res
 
-    async def get_versions(self, transaction: Connection | None = None) -> list[str]:
+    async def get_versions(self) -> list[str]:
         """Return of version ids associated with this folder."""
         query = f"""
             SELECT v.id as version_id

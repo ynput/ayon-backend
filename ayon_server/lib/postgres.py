@@ -86,6 +86,7 @@ class Postgres:
     NotNullViolationError = asyncpg.exceptions.NotNullViolationError
     UniqueViolationError = asyncpg.exceptions.UniqueViolationError
     UndefinedTableError = asyncpg.exceptions.UndefinedTableError
+    LockNotAvailableError = asyncpg.exceptions.LockNotAvailableError
 
     #
     # Connection pool lifecycle

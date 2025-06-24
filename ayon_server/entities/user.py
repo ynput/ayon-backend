@@ -19,10 +19,11 @@ from ayon_server.exceptions import (
     ForbiddenException,
     LowPasswordComplexityException,
     NotFoundException,
+    ServiceUnavailableException,
 )
 from ayon_server.helpers.email import send_mail
 from ayon_server.helpers.project_list import get_project_list
-from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import AccessType
@@ -56,7 +57,7 @@ class UserEntity(TopLevelEntity):
     # the structure is as follows:
     # project_name[access_type]: [path1, path2, ...]
     path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
-    save_hooks: list[Callable[["UserEntity", Connection], Awaitable[None]]] = []
+    save_hooks: list[Callable[["UserEntity"], Awaitable[None]]] = []
 
     #
     # Load
@@ -77,22 +78,26 @@ class UserEntity(TopLevelEntity):
     async def load(
         cls,
         name: str,
-        transaction: Connection | None = None,
+        transaction: Any = None,
         for_update: bool = False,
     ) -> "UserEntity":
         """Load a user from the database."""
 
-        if not (
-            user_data := await Postgres.fetch(
-                f"""
-                SELECT * FROM public.users WHERE name = $1
-                {'FOR UPDATE' if transaction and for_update else ''}
-                """,
-                name,
+        query = f"""
+            SELECT * FROM public.users WHERE name = $1
+            {'FOR UPDATE' if for_update else ''}
+            """
+
+        try:
+            user_data = await Postgres.fetchrow(query, name)
+        except Postgres.LockNotAvailableError:
+            raise ServiceUnavailableException(
+                f"User {name} is locked by another operation"
             )
-        ):
+
+        if not user_data:
             raise NotFoundException(f"Unable to load user {name}")
-        return cls.from_record(user_data[0])
+        return cls.from_record(user_data)
 
     def add_session(self, session: "SessionModel") -> None:
         self.session = SessionInfo(session)
@@ -103,94 +108,93 @@ class UserEntity(TopLevelEntity):
 
     async def save(
         self,
-        transaction: Connection | None = None,
+        transaction: Any = None,
         run_hooks: bool = True,
     ) -> bool:
         """Save the user to the database."""
 
-        conn = transaction or Postgres
+        async with Postgres.transaction():
+            if self.is_service:
+                do_con_check = False
+                self.data.pop("password", None)  # Service accounts can't have passwords
+                self.attrib.email = None  # Nor emails
 
-        if self.is_service:
-            do_con_check = False
-            self.data.pop("password", None)  # Service accounts can't have passwords
-            self.attrib.email = None  # Nor emails
+            elif self.active and not self.was_active:
+                # activating previously inactive user
+                do_con_check = True
 
-        elif self.active and not self.was_active:
-            # activating previously inactive user
-            do_con_check = True
+            elif not self.is_service and self.was_service:
+                # turning service account into regular user
+                # this is still possible via API, but not via UI
+                # so we need to check constraints
+                do_con_check = True
 
-        elif not self.is_service and self.was_service:
-            # turning service account into regular user
-            # this is still possible via API, but not via UI
-            # so we need to check constraints
-            do_con_check = True
+            else:
+                do_con_check = False
 
-        else:
-            do_con_check = False
+            if not self.active:
+                self.data.pop("userPool", None)
 
-        if not self.active:
-            self.data.pop("userPool", None)
-
-        if self.attrib.email and (self.attrib.email != self.original_email):
-            logger.info(f"Email changed for user {self.name}")
-            # Email changed, we need to check if it's unique
-            # We cannot use DB index here.
-            res = await conn.fetch(
-                """
-                SELECT name FROM public.users
-                WHERE LOWER(attrib->>'email') = $1
-                AND name != $2
-                """,
-                self.attrib.email.lower(),
-                self.name,
-            )
-
-            if res:
-                msg = "This email is already used by another user"
-                raise ConstraintViolationException(msg)
-
-        if do_con_check:
-            logger.info(f"Activating user {self.name}")
-
-            if (max_users := await Constraints.check("maxActiveUsers")) is not None:
-                max_users = max_users or 1
-                res = await conn.fetch(
+            if self.attrib.email and (self.attrib.email != self.original_email):
+                logger.info(f"Email changed for user {self.name}")
+                # Email changed, we need to check if it's unique
+                # We cannot use DB index here.
+                res = await Postgres.fetch(
                     """
-                    SELECT count(*) as cnt FROM public.users
-                    WHERE active is TRUE
-                    AND coalesce(data->>'isService', 'false') != 'true'
-                    """
+                    SELECT name FROM public.users
+                    WHERE LOWER(attrib->>'email') = $1
+                    AND name != $2
+                    """,
+                    self.attrib.email.lower(),
+                    self.name,
                 )
-                if res and res[0]["cnt"] >= max_users:
-                    raise ForbiddenException(
-                        f"Maximum number of users ({max_users}) reached"
+
+                if res:
+                    msg = "This email is already used by another user"
+                    raise ConstraintViolationException(msg)
+
+            if do_con_check:
+                logger.info(f"Activating user {self.name}")
+
+                if (max_users := await Constraints.check("maxActiveUsers")) is not None:
+                    max_users = max_users or 1
+                    res = await Postgres.fetch(
+                        """
+                        SELECT count(*) as cnt FROM public.users
+                        WHERE active is TRUE
+                        AND coalesce(data->>'isService', 'false') != 'true'
+                        """
                     )
+                    if res and res[0]["cnt"] >= max_users:
+                        raise ForbiddenException(
+                            f"Maximum number of users ({max_users}) reached"
+                        )
 
-        if self.exists:
-            data = dict_exclude(
-                self.dict(exclude_none=True), ["ctime", "name", "own_attrib"]
-            )
-            await conn.execute(
-                *SQLTool.update(
-                    "public.users",
-                    f"WHERE name='{self.name}'",
-                    **data,
+            if self.exists:
+                data = dict_exclude(
+                    self.dict(exclude_none=True), ["ctime", "name", "own_attrib"]
                 )
-            )
-        else:
-            await conn.execute(
-                *SQLTool.insert(
-                    "users",
-                    **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
+                await Postgres.execute(
+                    *SQLTool.update(
+                        "public.users",
+                        f"WHERE name='{self.name}'",
+                        **data,
+                    )
                 )
-            )
-            await Redis.delete("user.avatar", self.name)
-            self.exists = True
+            else:
+                await Postgres.execute(
+                    *SQLTool.insert(
+                        "users",
+                        **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
+                    )
+                )
+                await Redis.delete("user.avatar", self.name)
+                self.exists = True
 
-        if run_hooks:
-            for hook in self.save_hooks:
-                await hook(self, conn)  # type: ignore
-        return True
+            if run_hooks:
+                for hook in self.save_hooks:
+                    await hook(self)
+            return True
 
     #
     # Delete
@@ -198,14 +202,15 @@ class UserEntity(TopLevelEntity):
 
     async def delete(
         self,
-        transaction: Connection | None = None,
+        transaction: Any = None,
     ) -> bool:
         """Delete existing user."""
         if not self.name:
             raise NotFoundException(f"Unable to delete user {self.name}. Not loaded.")
 
-        async def post_delete(conn) -> int:
-            res = await conn.fetch(
+        should_commit = not await Postgres.is_in_transaction()
+        async with Postgres.transaction():
+            res = await Postgres.fetch(
                 """
                 WITH deleted AS (
                     DELETE FROM public.users
@@ -224,18 +229,12 @@ class UserEntity(TopLevelEntity):
                     assignees = array_remove(assignees, '{self.name}')
                     WHERE '{self.name}' = any(assignees)
                 """
-                await conn.execute(query)
+                await Postgres.execute(query)
+
+            if should_commit:
+                await self.commit()
 
             return res[0]["count"]
-
-        if transaction:
-            deleted = await post_delete(transaction)
-        else:
-            async with Postgres.acquire() as conn, conn.transaction():
-                deleted = await post_delete(conn)
-                await self.commit(conn)
-
-        return bool(deleted)
 
     #
     # Authorization helpers

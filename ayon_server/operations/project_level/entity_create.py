@@ -3,7 +3,6 @@ from typing import Any
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import ForbiddenException
-from ayon_server.lib.postgres import Connection
 
 from .models import OperationModel
 
@@ -13,7 +12,6 @@ async def create_project_level_entity(
     project_name: str,
     operation: OperationModel,
     user: UserEntity | None,
-    transaction: Connection | None = None,
 ) -> tuple[ProjectLevelEntity, list[dict[str, Any]], int]:
     assert operation.data is not None, "data is required for create"
 
@@ -55,5 +53,5 @@ async def create_project_level_entity(
             "user": user.name if user else None,
         }
     ]
-    await entity.save(transaction=transaction)
+    await entity.save()
     return entity, events, 201
