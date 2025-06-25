@@ -6,10 +6,8 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
 
-async def _rebuild_in_transaction(
-    project_name: str, project_attrib: dict[str, Any], conn
-):
-    st_crawl = await conn.prepare(
+async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> None:
+    st_crawl = await Postgres.prepare(
         f"""
         SELECT h.id, h.path, f.attrib as own, e.attrib as exported
         FROM project_{project_name}.hierarchy h
@@ -21,7 +19,7 @@ async def _rebuild_in_transaction(
         """
     )
 
-    st_upsert = await conn.prepare(
+    st_upsert = await Postgres.prepare(
         f"""
          INSERT INTO project_{project_name}.exported_attributes
              (folder_id, path, attrib)
@@ -71,7 +69,9 @@ async def _rebuild_in_transaction(
 
 
 async def rebuild_inherited_attributes(
-    project_name: str, pattr: dict[str, Any] | None = None, transaction=None
+    project_name: str,
+    pattr: dict[str, Any] | None = None,
+    **kwargs,  # TODO: catch kwargs and log deprecation warning
 ):
     """Rebuild inherited attributes for all objects in the project."""
     start = time.monotonic()
@@ -92,11 +92,7 @@ async def rebuild_inherited_attributes(
         if not attr_type.get("inherit", True):
             del project_attrib[attr_type["name"]]
 
-    if (transaction is None) or transaction == Postgres:
-        async with Postgres.acquire() as conn, conn.transaction():
-            await _rebuild_in_transaction(project_name, project_attrib, conn)
-    else:
-        await _rebuild_in_transaction(project_name, project_attrib, transaction)
+    await _rebuild_from(project_name, project_attrib)
 
     elapsed = time.monotonic() - start
     logger.trace(f"Rebuilt inherited attributes for {project_name} in {elapsed:.2f}s")
