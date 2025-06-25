@@ -104,10 +104,11 @@ class TaskEntity(ProjectLevelEntity):
                 if not res:
                     raise AyonException("No task types defined")
                 self.task_type = res[0]["name"]
-            await super().save()
+            await super().save(auto_commit=auto_commit)
 
-    async def commit(self) -> None:
-        await rebuild_hierarchy_cache(self.project_name)
+    @classmethod
+    async def refresh_views(cls, project_name: str) -> None:
+        await rebuild_hierarchy_cache(project_name)
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
@@ -131,7 +132,7 @@ class TaskEntity(ProjectLevelEntity):
         return self._payload.label  # type: ignore
 
     @label.setter
-    def label(self, value) -> None:
+    def label(self, value: str) -> None:
         """Set the label of the task."""
         self._payload.label = value  # type: ignore
 

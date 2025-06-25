@@ -171,18 +171,18 @@ class FolderEntity(ProjectLevelEntity):
             if auto_commit:
                 await self.commit()
 
-    async def commit(self) -> None:
+    @classmethod
+    async def refresh_views(cls, project_name: str) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
-        async with Postgres.transaction():
-            await Postgres.execute(
-                f"""
-                REFRESH MATERIALIZED VIEW CONCURRENTLY
-                project_{self.project_name}.hierarchy
-                """
-            )
-            await rebuild_inherited_attributes(self.project_name)
-            await rebuild_hierarchy_cache(self.project_name)
+        await Postgres.execute(
+            f"""
+            REFRESH MATERIALIZED VIEW CONCURRENTLY
+            project_{project_name}.hierarchy
+            """
+        )
+        await rebuild_inherited_attributes(project_name)
+        await rebuild_hierarchy_cache(project_name)
 
     async def delete(self, *args, auto_commit: bool = True, **kwargs) -> bool:
         async with Postgres.transaction():

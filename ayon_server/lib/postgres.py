@@ -187,7 +187,8 @@ class Postgres:
                 yield connection
             else:
                 async with connection.transaction():
-                    yield connection
+                    with logger.contextualize(transaction_id=id(connection)):
+                        yield connection
 
     @classmethod
     async def is_in_transaction(cls) -> bool:

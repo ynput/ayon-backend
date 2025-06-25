@@ -44,16 +44,16 @@ class VersionEntity(ProjectLevelEntity):
                     self.task_id,
                 )
 
-    async def commit(self) -> None:
+    @classmethod
+    async def refresh_views(cls, project_name: str) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
-        async with Postgres.transaction():
-            await Postgres.execute(
-                f"""
-                REFRESH MATERIALIZED VIEW CONCURRENTLY
-                project_{self.project_name}.version_list
-                """
-            )
+        await Postgres.execute(
+            f"""
+            REFRESH MATERIALIZED VIEW CONCURRENTLY
+            project_{project_name}.version_list
+            """
+        )
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
@@ -90,7 +90,8 @@ class VersionEntity(ProjectLevelEntity):
         return f"v{self.version:03d}"
 
     @name.setter
-    def name(self, value) -> NoReturn:
+    def name(self, value: str) -> NoReturn:
+        _ = value
         raise AttributeError("Cannot set name of version.")
 
     @property

@@ -256,6 +256,18 @@ class ProjectLevelEntity(BaseEntity):
             if auto_commit:
                 await self.commit()
 
+    async def commit(self) -> None:
+        await self.refresh_views(self.project_name)
+
+    @classmethod
+    async def refresh_views(cls, project_name: str) -> None:
+        """Refresh the views for the entity type in the given project.
+
+        This method should be overridden in subclasses to refresh.
+        and should be called from commit() method after the entity is saved.
+        """
+        pass
+
     #
     # Delete
     #

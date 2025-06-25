@@ -245,7 +245,6 @@ async def _process_operations(
     # Create overall success value
     success = all(op.success for op in result)
     if success or can_fail:
-        logger.debug(f"Committing {entity.entity_type} {entity.id}")
         await entity.commit()
 
     return events, OperationsResponseModel(operations=result, success=success)

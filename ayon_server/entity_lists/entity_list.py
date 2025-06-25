@@ -7,7 +7,7 @@ from ayon_server.exceptions import (
     NotFoundException,
     NotImplementedException,
 )
-from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid, now
 from ayon_server.utils.utils import dict_patch
@@ -28,7 +28,7 @@ class EntityList:
         payload: EntityListModel,
         *,
         user: UserEntity | None = None,
-        conn: Connection | None = None,  # deprecated
+        conn: Any = None,  # deprecated
     ):
         self._project_name = project_name
         self._payload = payload
@@ -141,8 +141,8 @@ class EntityList:
         owner: str | None = None,
         created_by: str | None = None,
         updated_by: str | None = None,
-        conn: Connection | None = None,
         user: UserEntity | None = None,
+        conn: Any = None,  # deprecated
     ) -> "EntityList":
         if user:
             owner = owner or user.name
@@ -168,7 +168,7 @@ class EntityList:
             updated_at=now(),
         )
 
-        res = cls(project_name, payload, user=user, conn=conn)
+        res = cls(project_name, payload, user=user)
         return res
 
     @classmethod
@@ -177,7 +177,7 @@ class EntityList:
         project_name: str,
         id: str,
         user: UserEntity | None = None,
-        conn: Connection | None = None,  # deprecated
+        conn: Any = None,  # deprecated
     ) -> "EntityList":
         """Load the entity list from the database."""
 

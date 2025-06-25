@@ -106,7 +106,17 @@ class BaseEntity:
     #
 
     async def commit(self):
-        """Post-update commit."""
+        """Post-update commit.
+
+        This method is called after the entity is saved to the database.
+        It contains caches cleanup, hierarchy rebuilds, etc.
+
+        This method should be overridden in subclasses and it is separated
+        from the actual save logic in order to allow calling it only
+        once after multiple operations. The logic of this method should
+        not depend on the entity being saved, but the entity type (and
+        project name if applicable) should be known.
+        """
         pass
 
     #
