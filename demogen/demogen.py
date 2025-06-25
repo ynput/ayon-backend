@@ -108,7 +108,6 @@ class DemoGen:
 
     async def create_branch(self, **kwargs: Any) -> None:
         await self.create_folder(**kwargs)
-        # await folder.commit()
 
     async def create_folder(
         self,
