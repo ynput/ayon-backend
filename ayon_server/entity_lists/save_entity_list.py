@@ -1,7 +1,7 @@
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import AyonException
-from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.lib.postgres import Postgres
 
 from .models import EntityListModel, EntityListSummary
 
@@ -13,7 +13,6 @@ async def _save_entity_list(
     user: UserEntity | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
-    conn: Connection,
 ) -> EntityListSummary:
     """
     Save the entity list to the database.
@@ -21,8 +20,7 @@ async def _save_entity_list(
     If the list with the same ID already exists, it will be updated.
     """
 
-    await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
-
+    await Postgres.set_project_schema(project_name)
     payload.data["count"] = len(payload.items)
 
     query = """
@@ -61,7 +59,7 @@ async def _save_entity_list(
 
     # Map SQL query placeholders to corresponding payload attributes
 
-    res = await conn.fetchrow(
+    res = await Postgres.fetchrow(
         query,
         payload.id,  # 1
         payload.entity_list_type,  # 2
@@ -85,7 +83,7 @@ async def _save_entity_list(
 
     item_ids = {item.id for item in payload.items}
     if item_ids:
-        await conn.execute(
+        await Postgres.execute(
             """
             DELETE FROM entity_list_items
             WHERE entity_list_id = $1
@@ -96,7 +94,7 @@ async def _save_entity_list(
         )
 
         for item in payload.items:
-            await conn.execute(
+            await Postgres.execute(
                 """
                 INSERT INTO entity_list_items (
                     id,
@@ -138,7 +136,7 @@ async def _save_entity_list(
                 payload.updated_by,
             )
     else:
-        await conn.execute(
+        await Postgres.execute(
             """
             DELETE FROM entity_list_items
             WHERE entity_list_id = $1
@@ -180,29 +178,17 @@ async def save_entity_list(
     user: UserEntity | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
-    conn: Connection | None = None,
 ) -> EntityListSummary:
     """
     Save the entity list to the database.
     If the list with the same ID already exists, it will be updated.
     """
 
-    if conn is None:
-        async with Postgres.acquire() as conn, conn.transaction():
-            return await _save_entity_list(
-                project_name,
-                payload,
-                user=user,
-                sender=sender,
-                sender_type=sender_type,
-                conn=conn,
-            )
-    else:
+    async with Postgres.transaction():
         return await _save_entity_list(
             project_name,
             payload,
             user=user,
             sender=sender,
             sender_type=sender_type,
-            conn=conn,
         )
