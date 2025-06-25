@@ -187,7 +187,7 @@ class FolderEntity(ProjectLevelEntity):
     async def delete(self, *args, auto_commit: bool = True, **kwargs) -> bool:
         async with Postgres.transaction():
             if kwargs.get("force", False):
-                logger.info(f"Force deleting folder and all its children. {self.path}")
+                logger.info(f"Force deleting folder and all its children: {self.path}")
                 await Postgres.execute(
                     f"""
                     DELETE FROM project_{self.project_name}.products
