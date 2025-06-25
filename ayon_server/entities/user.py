@@ -219,8 +219,12 @@ class UserEntity(TopLevelEntity):
                 self.name,
             )
 
-            # Unassign user from all tasks
-            projects = await get_project_list()
+        # Unassign user from all tasks
+        # This may fail if project is deleted (edge case, but happens in tests)
+        # so we don't want to run it in the same transaction
+
+        projects = await get_project_list()
+        async with Postgres.acquire(force_new=True):
             for project in projects:
                 query = f"""
                     UPDATE project_{project.name}.tasks SET
@@ -230,13 +234,9 @@ class UserEntity(TopLevelEntity):
                 try:
                     await Postgres.execute(query)
                 except Postgres.UndefinedTableError:
-                    # Project does not exist, skip
-                    # this can happen when user is deleted
-                    # at the same time as the project (in tests)
-                    # It is harmless...
                     continue
 
-            return res[0]["count"]
+        return res[0]["count"]
 
     #
     # Authorization helpers
