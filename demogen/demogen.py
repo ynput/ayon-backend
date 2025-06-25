@@ -14,7 +14,8 @@ from ayon_server.entities import (
     VersionEntity,
     WorkfileEntity,
 )
-from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.entities.core.projectlevel import ProjectLevelEntity
+from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.utils import create_uuid, dict_exclude
 from demogen.generators import generators
@@ -52,6 +53,8 @@ class DemoGen:
         self.workfile_count = 0
         self._users = []
 
+        self.entity_samples: dict[str, ProjectLevelEntity] = {}
+
     async def get_random_user(self) -> str:
         if not self._users:
             async for row in Postgres.iterate("SELECT name FROM public.users"):
@@ -77,12 +80,9 @@ class DemoGen:
 
         await asyncio.gather(*tasks)
         logger.info("Refreshing views")
-        await Postgres.execute(
-            f"""
-            REFRESH MATERIALIZED VIEW project_{self.project.name}.hierarchy;
-            REFRESH MATERIALIZED VIEW project_{self.project.name}.version_list;
-            """
-        )
+
+        for entity in self.entity_samples.values():
+            await entity.commit()
 
         elapsed_time = time.monotonic() - start_time
         logger.info(f"{self.folder_count} folders created")
@@ -107,14 +107,11 @@ class DemoGen:
         return status["name"]
 
     async def create_branch(self, **kwargs: Any) -> None:
-        async with Postgres.acquire() as conn:
-            async with conn.transaction():
-                folder = await self.create_folder(conn, **kwargs)
-                await folder.commit()
+        await self.create_folder(**kwargs)
+        # await folder.commit()
 
     async def create_folder(
         self,
-        conn: Connection,
         parent_id: str | None = None,
         parents: list[str] = [],
         **kwargs: Any,
@@ -151,51 +148,54 @@ class DemoGen:
             project_name=self.project_name,
             payload=payload,
         )
-        await folder.save()
+        logger.trace(f"Creating folder {folder.name} ")
+        await folder.save(auto_commit=False)
         folder.parents = parents  # type: ignore
+        if "folder" not in self.entity_samples:
+            self.entity_samples["folder"] = folder
 
         tasks = {}
 
-        for task in kwargs.get("_tasks", []):
-            assignees = []
-            # reduce the chance assignees are populated:
-            if random.random() < 0.4:
-                _ = await self.get_random_user()
-                for _ in range(len(self._users)):
-                    user = await self.get_random_user()
-                    if user not in assignees:
-                        assignees.append(user)
-                    if len(assignees) == 2:
-                        break
+        async with Postgres.transaction(force_new=True):
+            task_entity = None
+            for task in kwargs.get("_tasks", []):
+                assignees = []
+                # reduce the chance assignees are populated:
+                if random.random() < 0.4:
+                    _ = await self.get_random_user()
+                    for _ in range(len(self._users)):
+                        user = await self.get_random_user()
+                        if user not in assignees:
+                            assignees.append(user)
+                        if len(assignees) == 2:
+                            break
 
-            task["assignees"] = assignees
-            task_entity = await self.create_task(
-                conn,
-                folder=folder,
-                parents=parents + [folder.name],
-                **task,
-            )
-            tasks[task_entity.name] = task_entity.id
+                task["assignees"] = assignees
+                task_entity = await self.create_task(
+                    folder=folder,
+                    parents=parents + [folder.name],
+                    **task,
+                )
+                tasks[task_entity.name] = task_entity.id
 
         for product in kwargs.get("_products", []):
-            await self.create_product(conn, folder, tasks=tasks, **product)
+            await self.create_product(folder, tasks=tasks, **product)
 
         if "_children" in kwargs:
             if isinstance(kwargs["_children"], str):
                 async for child in generators[kwargs["_children"]](kwargs):
                     await self.create_folder(
-                        conn, folder.id, parents=parents + [folder.name], **child
+                        folder.id, parents=parents + [folder.name], **child
                     )
             elif isinstance(kwargs["_children"], list):
                 for child in kwargs["_children"]:
                     await self.create_folder(
-                        conn, folder.id, parents=parents + [folder.name], **child
+                        folder.id, parents=parents + [folder.name], **child
                     )
         return folder
 
     async def create_product(
         self,
-        conn: Connection,
         folder: FolderEntity,
         tasks,
         **kwargs,
@@ -217,7 +217,9 @@ class DemoGen:
             project_name=self.project_name,
             payload=payload,
         )
-        await product.save()
+        await product.save(auto_commit=False)
+        if "product" not in self.entity_samples:
+            self.entity_samples["product"] = product
 
         for i in range(1, VERSIONS_PER_PRODUCT):
             self.version_count += 1
@@ -242,17 +244,19 @@ class DemoGen:
                     "status": self.get_entity_status(),
                 },
             )
-            await version.save()
+            logger.trace(
+                f"Creating version {version.version} for product {product.name}"
+            )
+            await version.save(auto_commit=False)
 
             for representation in kwargs.get("_representations", []):
                 await self.create_representation(
-                    conn, folder, product, version, **representation
+                    folder, product, version, **representation
                 )
         return product
 
     async def create_task(
         self,
-        conn: Connection,
         folder: FolderEntity,
         parents: list[str],
         **kwargs: Any,
@@ -282,7 +286,10 @@ class DemoGen:
             project_name=self.project_name,
             payload=payload,
         )
-        await task.save(conn)
+        logger.trace(f"Creating task {task.name} in folder {folder.name}")
+        await task.save(auto_commit=False)
+        if "task" not in self.entity_samples:
+            self.entity_samples["task"] = task
 
         num_workfiles = random.randint(0, 5)
         for i in range(1, num_workfiles):
@@ -301,14 +308,13 @@ class DemoGen:
                     "status": self.get_entity_status(),
                 },
             )
-            await workfile.save()
+            await workfile.save(auto_commit=False)
             self.workfile_count += 1
 
         return task
 
     async def create_representation(
         self,
-        conn: Connection,
         folder: FolderEntity,
         product: ProductEntity,
         version: VersionEntity,
@@ -381,6 +387,8 @@ class DemoGen:
                 **kwargs,
             },
         )
-        await representation.save(conn)
+        await representation.save(auto_commit=False)
+        if "representation" not in self.entity_samples:
+            self.entity_samples["representation"] = representation
 
         return representation
