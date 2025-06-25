@@ -76,23 +76,24 @@ async def rebuild_inherited_attributes(
     """Rebuild inherited attributes for all objects in the project."""
     start = time.monotonic()
 
-    if pattr is None:
-        project_attrib = attribute_library.project_defaults
-        res = await Postgres.fetch(
-            "SELECT attrib FROM public.projects WHERE name = $1", project_name
-        )
-        project_attrib.update(res[0]["attrib"])
-    else:
-        project_attrib = pattr.copy()
+    async with Postgres.transaction():
+        if pattr is None:
+            project_attrib = attribute_library.project_defaults
+            res = await Postgres.fetch(
+                "SELECT attrib FROM public.projects WHERE name = $1", project_name
+            )
+            project_attrib.update(res[0]["attrib"])
+        else:
+            project_attrib = pattr.copy()
 
-    # Filter out non-inheritable and non-folder attributes
-    for attr_type in attribute_library["folder"]:
-        if attr_type["name"] not in project_attrib:
-            continue
-        if not attr_type.get("inherit", True):
-            del project_attrib[attr_type["name"]]
+        # Filter out non-inheritable and non-folder attributes
+        for attr_type in attribute_library["folder"]:
+            if attr_type["name"] not in project_attrib:
+                continue
+            if not attr_type.get("inherit", True):
+                del project_attrib[attr_type["name"]]
 
-    await _rebuild_from(project_name, project_attrib)
+        await _rebuild_from(project_name, project_attrib)
 
     elapsed = time.monotonic() - start
     logger.trace(f"Rebuilt inherited attributes for {project_name} in {elapsed:.2f}s")
