@@ -85,6 +85,16 @@ class LinkType:
 
 
 @strawberry.type
+class Status:
+    name: str
+    short_name: str | None = None
+    icon: str | None = None
+    color: str | None = None
+    state: str | None = None
+    scope: list[str] | None = None
+
+
+@strawberry.type
 class ProjectBundleType:
     production: str | None = None
     staging: str | None = None
@@ -297,6 +307,26 @@ class ProjectNode:
                 ORDER BY name ASC
             """
             )
+        ]
+
+    @strawberry.field(description="List of project's statuses")
+    async def statuses(self) -> list[Status]:
+        query = f"""
+            SELECT name, data
+            FROM project_{self.project_name}.statuses
+            ORDER BY position
+        """
+        res = await Postgres.fetch(query)
+        return [
+            Status(
+                name=row["name"],
+                short_name=row["data"].get("shortName"),
+                icon=row["data"].get("icon"),
+                color=row["data"].get("color"),
+                state=row["data"].get("state"),
+                scope=row["data"].get("scope", []),
+            )
+            for row in res
         ]
 
     @strawberry.field(description="List of tags used in the project")
