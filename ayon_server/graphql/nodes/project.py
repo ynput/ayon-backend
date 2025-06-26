@@ -90,6 +90,7 @@ class ProjectNode:
     project_name: str = strawberry.field()
     code: str = strawberry.field()
     data: str | None
+    config: str | None
     active: bool
     library: bool
     thumbnail: ThumbnailInfo | None = None
@@ -257,6 +258,7 @@ def project_from_record(
     user.check_project_access(record["name"])
 
     data = record.get("data", {})
+    config = record.get("config", None)
     bundle_data = data.get("bundle", {})
     if bundle_data:
         bundle = ProjectBundleType(
@@ -269,6 +271,7 @@ def project_from_record(
     return ProjectNode(
         name=record["name"],
         code=record["code"],
+        config=config,
         project_name=record["name"],
         active=record["active"],
         library=record["library"],
