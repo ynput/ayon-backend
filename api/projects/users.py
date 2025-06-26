@@ -62,10 +62,8 @@ async def update_project_user(
 
     user.check_permissions("project.access", project_name, write=True)
 
-    async with Postgres.acquire() as conn, conn.transaction():
-        target_user = await UserEntity.load(
-            user_name, transaction=conn, for_update=True
-        )
+    async with Postgres.transaction():
+        target_user = await UserEntity.load(user_name, for_update=True)
         target_user_ag = copy.deepcopy(target_user.data.get("accessGroups", {}))
         if not access_groups:
             target_user_ag.pop(project_name, None)

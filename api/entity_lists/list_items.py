@@ -26,8 +26,8 @@ async def create_entity_list_item(
     sender_type: SenderType,
     payload: EntityListItemPostModel,
 ) -> None:
-    async with Postgres.acquire() as conn, conn.transaction():
-        entity_list = await EntityList.load(project_name, list_id, user=user, conn=conn)
+    async with Postgres.transaction():
+        entity_list = await EntityList.load(project_name, list_id, user=user)
         await entity_list.ensure_can_construct()
 
         await entity_list.add(
@@ -52,8 +52,8 @@ async def update_entity_list_item(
     sender_type: SenderType,
     payload: EntityListItemPatchModel,
 ) -> None:
-    async with Postgres.acquire() as conn, conn.transaction():
-        entity_list = await EntityList.load(project_name, list_id, user=user, conn=conn)
+    async with Postgres.transaction():
+        entity_list = await EntityList.load(project_name, list_id, user=user)
         await entity_list.ensure_can_construct()
         item = entity_list.item_by_id(list_item_id)
 
@@ -75,8 +75,8 @@ async def delete_entity_list_item(
     sender: Sender,
     sender_type: SenderType,
 ) -> None:
-    async with Postgres.acquire() as conn, conn.transaction():
-        entity_list = await EntityList.load(project_name, list_id, user=user, conn=conn)
+    async with Postgres.transaction():
+        entity_list = await EntityList.load(project_name, list_id, user=user)
         await entity_list.ensure_can_construct()
         await entity_list.remove(list_item_id)
         await entity_list.save(sender=sender, sender_type=sender_type)
@@ -170,8 +170,8 @@ async def update_entity_list_items(
     sender_type: SenderType,
     payload: EntityListMultiPatchModel,
 ) -> None:
-    async with Postgres.acquire() as conn, conn.transaction():
-        entity_list = await EntityList.load(project_name, list_id, user=user, conn=conn)
+    async with Postgres.transaction():
+        entity_list = await EntityList.load(project_name, list_id, user=user)
         await entity_list.ensure_can_construct()
 
         if payload.mode == "delete":

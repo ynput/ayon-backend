@@ -4,7 +4,7 @@ from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import ConstraintViolationException
-from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 
 
@@ -12,54 +12,48 @@ class VersionEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "version"
     model = ModelSet("version", attribute_library["version"])
 
-    async def save(self, transaction: Connection | None = None) -> None:
+    async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         """Save entity to database."""
 
-        if self.version < 0:
-            # Ensure there is no previous hero version
-            res = await Postgres.fetch(
-                f"""
-                SELECT id FROM project_{self.project_name}.versions
-                WHERE
-                    version < 0
-                AND id != $1
-                AND product_id = $2
-                """,
-                self.id,
-                self.product_id,
-            )
-            if res:
-                raise ConstraintViolationException("Hero version already exists.")
+        async with Postgres.transaction():
+            if self.version < 0:
+                # Ensure there is no previous hero version
+                res = await Postgres.fetch(
+                    f"""
+                    SELECT id FROM project_{self.project_name}.versions
+                    WHERE
+                        version < 0
+                    AND id != $1
+                    AND product_id = $2
+                    """,
+                    self.id,
+                    self.product_id,
+                )
+                if res:
+                    raise ConstraintViolationException("Hero version already exists.")
 
-        await super().save(transaction=transaction)
+            await super().save()
 
-        if self.task_id:
-            conn = transaction or Postgres
-            await conn.execute(
-                f"""
-                UPDATE project_{self.project_name}.tasks
-                SET updated_at = NOW()
-                WHERE id = $1
-                """,
-                self.task_id,
-            )
+            if self.task_id:
+                await Postgres.execute(
+                    f"""
+                    UPDATE project_{self.project_name}.tasks
+                    SET updated_at = NOW()
+                    WHERE id = $1
+                    """,
+                    self.task_id,
+                )
 
-    async def commit(self, transaction=None) -> None:
+    @classmethod
+    async def refresh_views(cls, project_name: str) -> None:
         """Refresh hierarchy materialized view on folder save."""
 
-        async def _commit(conn):
-            await conn.execute(
-                f"""
-                REFRESH MATERIALIZED VIEW CONCURRENTLY
-                project_{self.project_name}.version_list
-                """
-            )
-
-        if transaction:
-            await _commit(transaction)
-        else:
-            async with Postgres.acquire() as conn, conn.transaction():
-                await _commit(conn)
+        await Postgres.execute(
+            f"""
+            REFRESH MATERIALIZED VIEW CONCURRENTLY
+            project_{project_name}.version_list
+            """
+        )
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
@@ -96,7 +90,8 @@ class VersionEntity(ProjectLevelEntity):
         return f"v{self.version:03d}"
 
     @name.setter
-    def name(self, value) -> NoReturn:
+    def name(self, value: str) -> NoReturn:
+        _ = value
         raise AttributeError("Cannot set name of version.")
 
     @property

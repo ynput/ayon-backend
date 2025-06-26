@@ -70,8 +70,9 @@ async def get_addon_site_settings(
         WHERE site_id = $1 AND addon_name = $2
         AND addon_version = $3 AND user_name = $4
     """
-    async for row in Postgres.iterate(query, site_id, addon_name, version, user.name):
-        data = row["data"]
+    res = await Postgres.fetchrow(query, site_id, addon_name, version, user.name)
+    if res:
+        data = res["data"]
 
     # use model to include defaults
     return model(**data)  # type: ignore
