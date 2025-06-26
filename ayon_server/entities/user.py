@@ -97,7 +97,7 @@ class UserEntity(TopLevelEntity):
             )
 
         if not user_data:
-            raise NotFoundException(f"Unable to load user {name}")
+            raise NotFoundException(f"User {name} not found")
         return cls.from_record(user_data)
 
     def add_session(self, session: "SessionModel") -> None:

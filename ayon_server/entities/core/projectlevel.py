@@ -185,7 +185,10 @@ class ProjectLevelEntity(BaseEntity):
                 f"Entity {cls.entity_type} {entity_id} is locked for update."
             ) from e
         if record is None:
-            raise NotFoundException("Entity not found")
+            raise NotFoundException(
+                f"{cls.entity_type.capitalize()} {entity_id} "
+                f"not found in project {project_name}"
+            )
         return cls.from_record(project_name, record)
 
     #

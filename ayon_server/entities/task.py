@@ -71,7 +71,9 @@ class TaskEntity(ProjectLevelEntity):
             )
 
         if record is None:
-            raise NotFoundException("Entity not found")
+            raise NotFoundException(
+                f"Task {entity_id} not found in project {project_name}"
+            )
 
         attrib: dict[str, Any] = {}
         if (ia := record["inherited_attrib"]) is not None:

@@ -64,7 +64,7 @@ class ProjectEntity(TopLevelEntity):
             )
 
             if project_data is None:
-                raise NotFoundException
+                raise NotFoundException(f"Project '{project_name}' not found")
 
             # Load folder types
             folder_types = []
