@@ -95,6 +95,12 @@ class Status:
 
 
 @strawberry.type
+class Tag:
+    name: str
+    color: str | None = None
+
+
+@strawberry.type
 class ProjectBundleType:
     production: str | None = None
     staging: str | None = None
@@ -325,6 +331,22 @@ class ProjectNode:
                 color=row["data"].get("color"),
                 state=row["data"].get("state"),
                 scope=row["data"].get("scope", []),
+            )
+            for row in res
+        ]
+
+    @strawberry.field(description="List of tags in the project")
+    async def tags(self) -> list[Tag]:
+        query = f"""
+            SELECT name, data
+            FROM project_{self.project_name}.tags
+            ORDER BY position
+        """
+        res = await Postgres.fetch(query)
+        return [
+            Tag(
+                name=row["name"],
+                color=row["data"].get("color"),
             )
             for row in res
         ]
