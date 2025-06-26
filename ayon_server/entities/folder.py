@@ -83,7 +83,9 @@ class FolderEntity(ProjectLevelEntity):
             )
 
         if record is None:
-            raise NotFoundException("Entity not found")
+            raise NotFoundException(
+                f"Folder {entity_id} not found in project {project_name}"
+            )
 
         record = dict(record)
         path = record.pop("path")
@@ -168,19 +170,23 @@ class FolderEntity(ProjectLevelEntity):
                     )
                 )
 
+            # This needs to run in save, not in refresh_views, because
+            # we may need the hierarchy record in the same transaction
+            await Postgres.execute(
+                f"""
+                REFRESH MATERIALIZED VIEW
+                project_{self.project_name}.hierarchy
+                """
+            )
+
             if auto_commit:
                 await self.commit()
 
     @classmethod
     async def refresh_views(cls, project_name: str) -> None:
         """Refresh hierarchy materialized view on folder save."""
+        logger.trace(f"Refreshing folder views for project {project_name}")
 
-        await Postgres.execute(
-            f"""
-            REFRESH MATERIALIZED VIEW CONCURRENTLY
-            project_{project_name}.hierarchy
-            """
-        )
         await rebuild_inherited_attributes(project_name)
         await rebuild_hierarchy_cache(project_name)
 
