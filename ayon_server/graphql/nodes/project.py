@@ -271,12 +271,12 @@ def project_from_record(
     return ProjectNode(
         name=record["name"],
         code=record["code"],
-        config=config,
         project_name=record["name"],
         active=record["active"],
         library=record["library"],
         thumbnail=thumbnail,
         data=json_dumps(data) if data else None,
+        config=json_dumps(config) if config else None,
         bundle=bundle,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
