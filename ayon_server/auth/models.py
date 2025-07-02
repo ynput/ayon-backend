@@ -36,7 +36,7 @@ class LoginResponseModel(OPModel):
         Field(title="User data"),
     ] = None
 
-    redirect_to: Annotated[
+    redirect_url: Annotated[
         str | None,
         Field(
             title="Redirect URL",
