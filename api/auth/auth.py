@@ -10,6 +10,7 @@ from ayon_server.api.dependencies import AccessToken
 from ayon_server.auth.models import LoginResponseModel, LogoutResponseModel
 from ayon_server.auth.password import PasswordAuth
 from ayon_server.auth.session import Session
+from ayon_server.exceptions import BadRequestException
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -58,3 +59,16 @@ async def logout(access_token: AccessToken) -> LogoutResponseModel:
     """Log out the current user."""
     await Session.delete(access_token)
     return LogoutResponseModel()
+
+
+@router.get("/tokenauth")
+async def token_auth_callback(request: Request) -> None:
+    """Callback for token authentication.
+
+    This endpoint is used to handle the callback from the token
+    authentication flow. It is not intended to be called directly.
+    """
+    data = dict(request.query_params)
+    token = data.get("q")
+    if not token:
+        raise BadRequestException("Missing 'q' query parameter with token")
