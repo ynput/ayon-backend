@@ -1,11 +1,15 @@
 import json
+import time
 import zlib
+from typing import Any
 from urllib.parse import quote, unquote
 
 from cryptography.fernet import Fernet
+from pydantic import BaseModel
 
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.utils import hash_data
 
 FERNET_KEY_SECRET_NAME = "_fernet_key"
 
@@ -30,19 +34,45 @@ async def get_fernet_key() -> bytes:
     return key
 
 
-async def encrypt_json_urlsafe(data: dict) -> str:
+class EncryptedData(BaseModel):
+    token: str
+    data: dict[str, Any]
+    timestamp: int
+
+    async def set_nonce(self, ttl: int = 3600 * 24) -> None:
+        """Set the nonce to disallow replay attacks."""
+        nonce = hash_data(self.token)
+        await Redis.set("fernet-nonce", nonce, str(self.timestamp), ttl=ttl)
+
+    async def validate_nonce(self) -> bool:
+        """Validate the nonce to prevent replay attacks."""
+        nonce = hash_data(self.token)
+        stored_timestamp = await Redis.get("fernet-nonce", nonce)
+        await Redis.delete("fernet-nonce", nonce)  # Clean up after validation
+        if stored_timestamp is None:
+            return False
+        try:
+            return int(stored_timestamp) == self.timestamp
+        except ValueError:
+            return False
+
+
+async def encrypt_json_urlsafe(data: dict[str, Any]) -> EncryptedData:
     key = await get_fernet_key()
     fernet = Fernet(key)
     json_bytes = json.dumps(data).encode("utf-8")
     compressed = zlib.compress(json_bytes)
-    encrypted = fernet.encrypt(compressed)
-    return quote(encrypted.decode())
+    now = int(time.time())
+    encrypted = fernet.encrypt_at_time(compressed, now)
+    return EncryptedData(token=quote(encrypted.decode()), data=data, timestamp=now)
 
 
-async def decrypt_json_urlsafe(token: str) -> dict:
+async def decrypt_json_urlsafe(token: str) -> EncryptedData:
     key = await get_fernet_key()
     fernet = Fernet(key)
     encrypted = unquote(token).encode("utf-8")
     compressed = fernet.decrypt(encrypted)
     json_bytes = zlib.decompress(compressed)
-    return json.loads(json_bytes.decode("utf-8"))
+    data = json.loads(json_bytes.decode("utf-8"))
+    timestamp = fernet.extract_timestamp(encrypted)
+    return EncryptedData(token=token, data=data, timestamp=timestamp)
