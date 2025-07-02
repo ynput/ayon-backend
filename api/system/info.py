@@ -98,7 +98,7 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
     library = AddonLibrary.getinstance()
     active_versions = await library.get_active_versions()
 
-    for _name, definition in library.data.items():
+    for definition in library.data.values():
         try:
             vers = active_versions.get(definition.name, {})
         except ValueError:
@@ -112,7 +112,12 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
         except KeyError:
             continue
 
-        options = await addon.get_sso_options(base_url)
+        try:
+            options = await addon.get_sso_options(base_url)
+        except Exception:
+            log_traceback(f"Failed to get SSO options for addon {addon.name}")
+            continue
+
         if not options:
             continue
 
