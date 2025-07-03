@@ -40,7 +40,7 @@ class WorkfileEntity(ProjectLevelEntity):
         return self._payload.path  # type: ignore
 
     @path.setter
-    def path(self, value) -> None:
+    def path(self, value: str) -> None:
         self._payload.path = value  # type: ignore
 
     @property

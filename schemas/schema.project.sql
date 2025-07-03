@@ -365,13 +365,6 @@ CREATE INDEX workfile_parent_idx ON workfiles(task_id);
 CREATE INDEX workfile_thumbnail_idx ON workfiles(thumbnail_id);
 
 -----------
--- Lists --
------------
-
--- TODO: when the final DB structure is ready,
--- the queries from /api/lists/init.py will be moved here (and to the migration scripts)
-
------------
 -- LINKS --
 -----------
 

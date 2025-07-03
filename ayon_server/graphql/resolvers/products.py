@@ -1,3 +1,4 @@
+import json
 from typing import Annotated
 
 from ayon_server.access.utils import folder_access_list
@@ -20,6 +21,7 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     validate_name_list,
     validate_status_list,
@@ -67,6 +69,7 @@ async def get_products(
     ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
+    filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> ProductsConnection:
     """Return a list of products."""
@@ -258,6 +261,33 @@ async def get_products(
                 ON products.id = version_list.product_id
             """
         )
+
+    #
+    # Filter
+    #
+
+    if filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "folder_id",
+            "product_type",
+            "attrib",
+            "data",
+            "active",
+            "status",
+            "tags",
+            "created_at",
+            "updated_at",
+        ]
+        fdata = json.loads(filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="products",
+        ):
+            sql_conditions.append(fcond)
 
     #
     # Pagination

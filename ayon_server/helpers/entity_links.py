@@ -1,4 +1,4 @@
-from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
 
@@ -7,7 +7,7 @@ async def remove_entity_links(
     project_name: str,
     entity_type: ProjectLevelEntityType,
     entity_id: str,
-    conn: Connection | None = None,
+    **kwargs,
 ) -> None:
     """Remove all links of the given entity
 
@@ -19,27 +19,17 @@ async def remove_entity_links(
     # But we use it in the log message
     _ = entity_type
 
-    async def _delete_links(conn: Connection) -> None:
-        query = f"""
-            WITH deleted AS (
-                DELETE FROM project_{project_name}.links
-                WHERE input_id = $1 OR output_id = $1
-                RETURNING *
-            )
-            SELECT COUNT(*) as count FROM deleted
-        """
-        res = await conn.fetch(query, entity_id)
-        print(query, res)
-        if res and res[0]["count"] > 0:
-            logger.debug(
-                f"Removed {res[0]['count']} links of {entity_type} {entity_id}"
-            )
-
-    if conn is not None:
-        return await _delete_links(conn)
-
-    async with Postgres.acquire() as conn, conn.transaction():
-        await _delete_links(conn)
+    query = f"""
+        WITH deleted AS (
+            DELETE FROM project_{project_name}.links
+            WHERE input_id = $1 OR output_id = $1
+            RETURNING *
+        )
+        SELECT COUNT(*) as count FROM deleted
+    """
+    res = await Postgres.fetch(query, entity_id)
+    if res and res[0]["count"] > 0:
+        logger.debug(f"Removed {res[0]['count']} links of {entity_type} {entity_id}")
 
 
 async def remove_dead_links(project_name: str) -> None:

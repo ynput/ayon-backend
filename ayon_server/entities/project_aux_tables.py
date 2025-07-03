@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from typing import Literal, NotRequired, Required, TypedDict, overload
 
 from ayon_server.entities.models.submodels import LinkTypeModel
+from ayon_server.lib.postgres import Postgres
 
 FolderTypesLiteral = Literal["folder_types"]
 TaskTypesLiteral = Literal["task_types"]
@@ -44,7 +45,6 @@ AuxTableType = FolderTypeDict | TaskTypeDict | TagTypeDict | StatusTypeDict
 
 @overload
 async def aux_table_update(
-    conn,
     project_name: str,
     table: FolderTypesLiteral,
     update_data: Sequence[FolderTypeDict],
@@ -53,7 +53,6 @@ async def aux_table_update(
 
 @overload
 async def aux_table_update(
-    conn,
     project_name: str,
     table: TaskTypesLiteral,
     update_data: Sequence[TaskTypeDict],
@@ -62,7 +61,6 @@ async def aux_table_update(
 
 @overload
 async def aux_table_update(
-    conn,
     project_name: str,
     table: StatusesLiteral,
     update_data: Sequence[StatusTypeDict],
@@ -71,18 +69,18 @@ async def aux_table_update(
 
 @overload
 async def aux_table_update(
-    conn, project_name: str, table: TagsLiteral, update_data: Sequence[TagTypeDict]
+    project_name: str, table: TagsLiteral, update_data: Sequence[TagTypeDict]
 ) -> None: ...
 
 
 async def aux_table_update(
-    conn, project_name: str, table: str, update_data: Sequence[AuxTableType]
+    project_name: str, table: str, update_data: Sequence[AuxTableType]
 ) -> None:
     """Update auxiliary table."""
 
     # Fetch the current data first
     old_data = {}
-    for row in await conn.fetch(
+    for row in await Postgres.fetch(
         f"SELECT name, data FROM project_{project_name}.{table} ORDER BY position"
     ):
         old_data[row["name"]] = row["data"]
@@ -95,7 +93,7 @@ async def aux_table_update(
         # Rename
         original_name = data.pop("original_name", None)
         if original_name and (original_name in old_data) and name != original_name:
-            await conn.execute(
+            await Postgres.execute(
                 f"""
                 UPDATE project_{project_name}.{table}
                 SET name = $1, position = $2, data = $3
@@ -111,7 +109,7 @@ async def aux_table_update(
             continue
 
         # Upsert
-        await conn.execute(
+        await Postgres.execute(
             f"""
             INSERT INTO project_{project_name}.{table}
                 (name, position, data)
@@ -132,17 +130,16 @@ async def aux_table_update(
     if old_data:
         old_keys = list(old_data.keys())
         query = f"DELETE FROM project_{project_name}.{table} WHERE name = ANY($1)"
-        await conn.execute(query, old_keys)
+        await Postgres.execute(query, old_keys)
 
 
 async def link_types_update(
-    conn,
     project_name: str,
     table: str,
     update_data: Sequence[LinkTypeModel],
 ):
     existing_names: list[str] = []
-    for row in await conn.fetch(f"SELECT name FROM project_{project_name}.{table}"):
+    for row in await Postgres.fetch(f"SELECT name FROM project_{project_name}.{table}"):
         existing_names.append(row["name"])
 
     new_names: list[str] = []
@@ -157,7 +154,7 @@ async def link_types_update(
         new_names.append(name)
 
         # Upsert
-        await conn.execute(
+        await Postgres.execute(
             f"""
             INSERT INTO project_{project_name}.{table}
                 (name, link_type, input_type, output_type, data)
@@ -175,6 +172,6 @@ async def link_types_update(
 
     for name in existing_names:
         if name not in new_names:
-            await conn.execute(
+            await Postgres.execute(
                 f"DELETE FROM project_{project_name}.{table} WHERE name = $1", name
             )

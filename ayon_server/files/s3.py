@@ -152,9 +152,10 @@ def _get_s3_file_info(storage: "ProjectStorage", key: str) -> FileInfo:
         size = response["ContentLength"]
     except client.exceptions.NoSuchKey:
         raise NotFoundException("File not found")
+    except client.exceptions.ClientError as e:
+        raise NotFoundException(f"Error getting file size: {e}")
     except Exception as e:
-        logger.error(f"Error getting file size: {e}")
-        raise AyonException("Error getting file size") from e
+        raise AyonException(f"Error getting file info: {e}")
 
     return FileInfo(
         size=size,

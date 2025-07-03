@@ -5,10 +5,11 @@ __all__ = [
     "OperationsResponseModel",
 ]
 
-from contextlib import suppress
+import asyncio
+import random
 from typing import Any
 
-from asyncpg.exceptions import IntegrityConstraintViolationError
+from asyncpg.exceptions import IntegrityConstraintViolationError, LockNotAvailableError
 from pydantic.error_wrappers import ValidationError
 
 from ayon_server.entities import UserEntity
@@ -18,11 +19,12 @@ from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
     ConflictException,
+    ServiceUnavailableException,
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
-from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.postgres_exceptions import parse_postgres_exception
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import ProjectLevelEntityType
@@ -39,7 +41,6 @@ async def _process_operation(
     project_name: str,
     user: UserEntity | None,
     operation: OperationModel,
-    transaction: Connection | None = None,
 ) -> tuple[ProjectLevelEntity, list[dict[str, Any]] | None, OperationResponseModel]:
     """Process a single operation. Raise an exception on error."""
 
@@ -55,7 +56,6 @@ async def _process_operation(
             project_name,
             operation,
             user,
-            transaction,
         )
 
     elif operation.type == "update":
@@ -64,7 +64,6 @@ async def _process_operation(
             project_name,
             operation,
             user,
-            transaction,
         )
 
     elif operation.type == "delete":
@@ -73,7 +72,6 @@ async def _process_operation(
             project_name,
             operation,
             user,
-            transaction,
         )
 
     else:
@@ -101,7 +99,6 @@ async def _process_operations(
     *,
     can_fail: bool = False,
     raise_on_error: bool = True,
-    transaction: Connection | None = None,
 ) -> tuple[list[dict[str, Any]], OperationsResponseModel]:
     """Process a list of operations.
 
@@ -133,17 +130,26 @@ async def _process_operations(
         )
 
         try:
-            entity, evt, response = await _process_operation(
-                project_name,
-                user,
-                operation,
-                transaction=transaction,
-            )
-            if evt is not None:
-                events.extend(evt)
-            result.append(response)
-            if entity.entity_type not in [e.entity_type for e in to_commit]:
-                to_commit.append(entity)
+            # This is a neat trick. transaction() will try
+            # to reuse the current transaction if it exists,
+            # but create a new one if it doesn't.
+
+            # This way, every operation is ensured to run in a transaction,
+            # but main process may wrap everything in a single one
+            # to commit all operations at once.
+
+            async with Postgres.transaction():
+                entity, evt, response = await _process_operation(
+                    project_name,
+                    user,
+                    operation,
+                )
+                if evt is not None:
+                    events.extend(evt)
+                result.append(response)
+                if entity.entity_type not in [e.entity_type for e in to_commit]:
+                    to_commit.append(entity)
+
         except AyonException as e:
             logger.debug(
                 f"{op_tag} failed: {e.detail}",
@@ -188,6 +194,10 @@ async def _process_operations(
                 if raise_on_error:
                     raise e
                 break
+        except LockNotAvailableError as e:
+            logger.trace("Lock not available, retrying operation")
+            raise e
+
         except IntegrityConstraintViolationError as e:
             parsed = parse_postgres_exception(e)
             logger.debug(
@@ -235,8 +245,7 @@ async def _process_operations(
     # Create overall success value
     success = all(op.success for op in result)
     if success or can_fail:
-        for entity in to_commit:
-            await entity.commit(transaction=transaction)
+        await entity.commit()
 
     return events, OperationsResponseModel(operations=result, success=success)
 
@@ -415,21 +424,34 @@ class ProjectLevelOperations:
             )
 
         else:
-            with suppress(RollbackException):
-                async with Postgres.acquire() as conn, conn.transaction():
-                    events, response = await _process_operations(
-                        self.project_name,
-                        self.operations,
-                        user_map=self.user_entities_map,
-                        transaction=conn,
-                        raise_on_error=raise_on_error,
-                    )
-
+            for _ in range(3):
+                try:
+                    async with Postgres.transaction():
+                        events, response = await _process_operations(
+                            self.project_name,
+                            self.operations,
+                            user_map=self.user_entities_map,
+                            raise_on_error=raise_on_error,
+                        )
                     if not response.success:
                         events = []
                         # Raise rollback exception to roll back the transaction
                         # but silence it so the response is returned
                         raise RollbackException()
+
+                except RollbackException:
+                    logger.trace("Operations rolled back")
+                    break
+
+                except ServiceUnavailableException:
+                    # entity is locked by another operation,
+                    # we will retry a few times
+                    await asyncio.sleep(random.uniform(0.1, 0.3))
+                    continue
+
+                break
+            else:
+                raise ConflictException("Entity is locked by another operation")
 
         for event in events:
             await EventStream.dispatch(
@@ -438,6 +460,8 @@ class ProjectLevelOperations:
                 **event,
             )
 
+        # TODO: remove this?
+        # This is duplicate! It is handled by calling commit() on the entity
         if "folder" in [r.entity_type for r in self.operations]:
             # Rebuild the hierarchy cache for folders
             await rebuild_hierarchy_cache(self.project_name)

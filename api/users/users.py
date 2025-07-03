@@ -253,6 +253,7 @@ async def patch_user(
     if not user.is_manager:
         # Non-managers cannot change any user's manager status
         payload.data.pop("isManager", None)
+        payload.data.pop("disablePasswordLogin", None)
     elif target_user.name == user.name:
         # Managers cannot demote themselves
         payload.data.pop("isManager", None)

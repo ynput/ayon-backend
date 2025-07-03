@@ -380,21 +380,11 @@ async def get_tasks(
             "ON folders.id = tasks.folder_id\n"
         )
 
-        if (
-            (access_list is not None)
-            or use_folder_query
-            or search
-            or sort_by == "path"
-            or any(
-                field.endswith("folder.path") or field.endswith("folder.parents")
-                for field in fields
-            )
-        ):
-            sql_columns.append("hierarchy.path AS _folder_path")
-            sql_joins.append(
-                f"INNER JOIN project_{project_name}.hierarchy AS hierarchy "
-                "ON folders.id = hierarchy.id\n"
-            )
+        sql_columns.append("hierarchy.path AS _folder_path")
+        sql_joins.append(
+            f"INNER JOIN project_{project_name}.hierarchy AS hierarchy "
+            "ON folders.id = hierarchy.id\n"
+        )
 
         if any(field.endswith("folder.attrib") for field in fields):
             sql_columns.append("pr.attrib as _folder_project_attributes")
