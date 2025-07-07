@@ -24,24 +24,42 @@ class RequestCoalescer(Generic[T]):
     _instance: "RequestCoalescer[Any] | None" = None
     lock: asyncio.Lock
     current_futures: dict[str, asyncio.Task[T]]
+    current_waiters: dict[str, int]
+    max_waiters: int = 20
 
     def __new__(cls) -> "RequestCoalescer[Any]":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.current_futures = {}
+            cls._instance.current_waiters = {}
             cls._instance.lock = asyncio.Lock()
         return cls._instance
 
     async def __call__(
         self, func: Callable[..., Coroutine[Any, Any, T]], *args: Any, **kwargs: Any
     ) -> T:
-        key = _hash_args(func, args, kwargs)
+        base_key = _hash_args(func, args, kwargs)
         async with self.lock:
-            if key not in self.current_futures:
-                self.current_futures[key] = asyncio.create_task(func(*args, **kwargs))
+            waiters = self.current_waiters.get(base_key, 0)
+
+            if waiters >= self.max_waiters or base_key not in self.current_futures:
+                # Create a new key to bypass coalescing
+                unique_key = f"{base_key}:{waiters}"
+                task = asyncio.create_task(func(*args, **kwargs))
+                self.current_futures[unique_key] = task
+                self.current_waiters[unique_key] = 1
+                selected_key = unique_key
+            else:
+                # Use existing task
+                self.current_waiters[base_key] += 1
+                selected_key = base_key
 
         try:
-            return await self.current_futures[key]
+            return await self.current_futures[selected_key]
         finally:
             async with self.lock:
-                self.current_futures.pop(key, None)
+                if selected_key in self.current_futures:
+                    self.current_waiters[selected_key] -= 1
+                    if self.current_waiters[selected_key] == 0:
+                        self.current_futures.pop(selected_key, None)
+                        self.current_waiters.pop(selected_key, None)

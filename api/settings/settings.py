@@ -19,88 +19,7 @@ from .models import AddonSettingsItemModel, AllSettingsResponseModel
 from .router import router
 from .settings_addons_list import get_addon_list_for_settings
 
-# lock = asyncio.Lock()
-
 semaphore = asyncio.Semaphore(10)  # Limit concurrent settings loading
-
-
-@router.get("/settings", response_model_exclude_none=True)
-async def get_all_settings(
-    user: CurrentUser,
-    site_id: SiteID,
-    bundle_name: str | None = Query(
-        None,
-        title="Bundle name",
-        description=(
-            "Use explicit bundle name to get the addon list. "
-            "Current production (or staging) will be used if not set"
-        ),
-        regex=NAME_REGEX,
-    ),
-    project_name: str | None = Query(
-        None,
-        title="Project name",
-        description=(
-            "Return project settings for the given project name. "
-            "Studio settings will be returned if not set"
-        ),
-        regex=NAME_REGEX,
-    ),
-    project_bundle_name: str | None = Query(
-        None,
-        title="Project bundle name",
-        description=(
-            "Use explicit project bundle instead of the default one "
-            "to resolve the project addons."
-        ),
-    ),
-    variant: str = Query(
-        "production",
-        title="Variant",
-        description=(
-            "Variant of the settings to return. "
-            "This field is also used to determine which bundle to use"
-            "if bundle_name or project_bundle_name is not set"
-        ),
-    ),
-    summary: bool = Query(
-        False,
-        title="Summary",
-        description=(
-            "Summary mode. When selected, do not return actual settings "
-            "instead only return the basic information about the addons "
-            "in the specified bundles"
-        ),
-    ),
-) -> AllSettingsResponseModel:
-    """Return all addon settings
-
-    ## Studio settings
-
-    When project name is not specified, studio settings are returned
-
-    ## Project settings
-
-    When project_name is specified, endpoint returns project settings
-    and if the project has a bundle override, it will return settings
-    of the addons specified in the override.
-
-    It is also possible to specify project_bundle_name to set the project
-    bundle explicitly (for renderfarms)
-
-    """
-
-    coalesce = RequestCoalescer()
-    return await coalesce(
-        _get_all_settings,
-        user_name=user.name,
-        site_id=site_id,
-        bundle_name=bundle_name,
-        project_name=project_name,
-        project_bundle_name=project_bundle_name,
-        variant=variant,
-        summary=summary,
-    )
 
 
 async def _get_all_settings(
@@ -129,7 +48,9 @@ async def _get_all_settings(
         try:
             return AllSettingsResponseModel(**cached)
         except Exception:
+            logger.trace("Invalid cached settings data, reloading from DB")
             pass
+
     addon_list = await get_addon_list_for_settings(
         bundle_name=bundle_name,
         project_name=project_name,
@@ -329,3 +250,82 @@ async def _get_all_settings(
         )
 
         return result
+
+
+@router.get("/settings", response_model_exclude_none=True)
+async def get_all_settings(
+    user: CurrentUser,
+    site_id: SiteID,
+    bundle_name: str | None = Query(
+        None,
+        title="Bundle name",
+        description=(
+            "Use explicit bundle name to get the addon list. "
+            "Current production (or staging) will be used if not set"
+        ),
+        regex=NAME_REGEX,
+    ),
+    project_name: str | None = Query(
+        None,
+        title="Project name",
+        description=(
+            "Return project settings for the given project name. "
+            "Studio settings will be returned if not set"
+        ),
+        regex=NAME_REGEX,
+    ),
+    project_bundle_name: str | None = Query(
+        None,
+        title="Project bundle name",
+        description=(
+            "Use explicit project bundle instead of the default one "
+            "to resolve the project addons."
+        ),
+    ),
+    variant: str = Query(
+        "production",
+        title="Variant",
+        description=(
+            "Variant of the settings to return. "
+            "This field is also used to determine which bundle to use"
+            "if bundle_name or project_bundle_name is not set"
+        ),
+    ),
+    summary: bool = Query(
+        False,
+        title="Summary",
+        description=(
+            "Summary mode. When selected, do not return actual settings "
+            "instead only return the basic information about the addons "
+            "in the specified bundles"
+        ),
+    ),
+) -> AllSettingsResponseModel:
+    """Return all addon settings
+
+    ## Studio settings
+
+    When project name is not specified, studio settings are returned
+
+    ## Project settings
+
+    When project_name is specified, endpoint returns project settings
+    and if the project has a bundle override, it will return settings
+    of the addons specified in the override.
+
+    It is also possible to specify project_bundle_name to set the project
+    bundle explicitly (for renderfarms)
+
+    """
+
+    coalesce = RequestCoalescer()
+    return await coalesce(
+        _get_all_settings,
+        user_name=user.name,
+        site_id=site_id,
+        bundle_name=bundle_name,
+        project_name=project_name,
+        project_bundle_name=project_bundle_name,
+        variant=variant,
+        summary=summary,
+    )
