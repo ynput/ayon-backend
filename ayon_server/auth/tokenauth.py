@@ -12,6 +12,24 @@ from ayon_server.utils import slugify
 
 from .models import LoginResponseModel
 
+LINK_RENEWAL_TEMPLATE = """
+<p>
+Hello {full_name},
+</p>
+
+<p>
+the invite link you used to log in to Ayon has expired or was used before.
+Please use the following link to log in again:
+</p>
+
+<p>
+<a clicktracking=off href="{invite_link}">Accept Invitation</a>
+</p>
+
+Thank you
+
+"""
+
 
 async def send_invite_email(
     email: str,
@@ -97,11 +115,19 @@ async def handle_token_auth_callback(
         raise BadRequestException(msg)
 
     payload = enc_data.data
+    email = payload.get("email")
+    if not email:
+        msg = "Token does not contain email"
+        raise BadRequestException(msg)
+
     print(f"Token payload: {payload}")
 
     if not await enc_data.validate_nonce():
-        logger.debug("Token expired or replay attack detected")
+        logger.debug(
+            f"Token for external user {email} expired or replay attack detected"
+        )
 
+        # TODO
         # If the token is expired or used before, we can send a new one
 
         raise BadRequestException(
