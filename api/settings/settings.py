@@ -17,7 +17,9 @@ from .models import AddonSettingsItemModel, AllSettingsResponseModel
 from .router import router
 from .settings_addons_list import get_addon_list_for_settings
 
-lock = asyncio.Lock()
+# lock = asyncio.Lock()
+
+semaphore = asyncio.Semaphore(20)  # Limit concurrent settings loading
 
 
 @router.get("/settings", response_model_exclude_none=True)
@@ -114,12 +116,7 @@ async def get_all_settings(
     # Iterate over all addons and load the settings
     #
 
-    # we need to lock this part as pushing cache to addon
-    # could lead to race conditions. It is mostly cpu-bound anyways,
-    # so it shouldn't have a performance impact as the event loop
-    # is already blocked.
-
-    async with lock:
+    async with semaphore:
         start_time = time.monotonic()
         addon_result = []
         for addon_name, addon_version in addon_list["addons"].items():
@@ -185,16 +182,22 @@ async def get_all_settings(
 
             try:
                 key = addon.name, addon_version
-                scache = all_settings.get(key, AddonSettingsCache())
-                addon.settings_cache = scache
+                settings_cache = all_settings.get(key, AddonSettingsCache())
 
                 if site_id:
-                    site_settings = await addon.get_site_settings(user.name, site_id)
+                    site_settings = await addon.get_site_settings(
+                        user.name,
+                        site_id,
+                        settings_cache=settings_cache,
+                    )
 
                     if project_name is None:
                         # Studio level settings (studio level does not have)
                         # site overrides per se but it can have site settings
-                        settings = await addon.get_studio_settings(variant)
+                        settings = await addon.get_studio_settings(
+                            variant,
+                            settings_cache=settings_cache,
+                        )
                     else:
                         # Project and site is requested, so we are returning
                         # project level settings WITH site overrides
@@ -203,13 +206,21 @@ async def get_all_settings(
                             user.name,
                             site_id,
                             variant,
+                            settings_cache=settings_cache,
                         )
                 elif project_name:
                     # Project level settings (no site overrides)
-                    settings = await addon.get_project_settings(project_name, variant)
+                    settings = await addon.get_project_settings(
+                        project_name,
+                        variant,
+                        settings_cache=settings_cache,
+                    )
                 else:
                     # Just studio level settings (no project, no site)
-                    settings = await addon.get_studio_settings(variant)
+                    settings = await addon.get_studio_settings(
+                        variant,
+                        settings_cache=settings_cache,
+                    )
 
             except Exception:
                 log_traceback(f"Unable to load {addon_name} {addon_version} settings")
@@ -257,7 +268,8 @@ async def get_all_settings(
                     site_settings=site_settings,
                 )
             )
-            addon.settings_cache = None
+
+        # sort the result and
 
         addon_result.sort(key=lambda x: x.title.lower())
 
