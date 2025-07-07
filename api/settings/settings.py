@@ -2,7 +2,7 @@ import asyncio
 import time
 import traceback
 
-from fastapi import Query
+from fastapi import Depends, Query
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.settings_caching import AddonSettingsCache, load_all_settings
@@ -19,7 +19,14 @@ from .models import AddonSettingsItemModel, AllSettingsResponseModel
 from .router import router
 from .settings_addons_list import get_addon_list_for_settings
 
-semaphore = asyncio.Semaphore(30)  # Limit concurrent settings loading
+_semaphores: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
+
+
+async def get_semaphore(limit: int = 30) -> asyncio.Semaphore:
+    loop = asyncio.get_running_loop()
+    if loop not in _semaphores:
+        _semaphores[loop] = asyncio.Semaphore(limit)
+    return _semaphores[loop]
 
 
 async def _get_all_settings(
@@ -30,6 +37,7 @@ async def _get_all_settings(
     project_bundle_name: str | None,
     variant: str,
     summary: bool,
+    semaphore: asyncio.Semaphore,
 ) -> AllSettingsResponseModel:
     start_time = time.monotonic()
     cache_key = hash_data(
@@ -301,6 +309,7 @@ async def get_all_settings(
             "in the specified bundles"
         ),
     ),
+    semaphore: asyncio.Semaphore = Depends(get_semaphore),
 ) -> AllSettingsResponseModel:
     """Return all addon settings
 
@@ -329,4 +338,5 @@ async def get_all_settings(
         project_bundle_name=project_bundle_name,
         variant=variant,
         summary=summary,
+        semaphore=semaphore,
     )
