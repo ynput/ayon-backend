@@ -29,7 +29,7 @@ async def _handle_subscribers_task(event_id: str, handlers: list[HandlerType]) -
         try:
             await handler(event)
         except Exception:
-            logger.debug(f"Error in global event handler: {handler}")
+            log_traceback(f"Error in global event handler '{handler.__name__}'")
 
 
 async def handle_subscribers(message: dict[str, Any]) -> None:

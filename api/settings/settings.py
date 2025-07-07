@@ -8,9 +8,11 @@ from ayon_server.addons import AddonLibrary
 from ayon_server.addons.settings_caching import AddonSettingsCache, load_all_settings
 from ayon_server.api.dependencies import CurrentUser, SiteID
 from ayon_server.exceptions import NotFoundException
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 from ayon_server.settings import BaseSettingsModel
 from ayon_server.types import NAME_REGEX
+from ayon_server.utils import hash_data
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .models import AddonSettingsItemModel, AllSettingsResponseModel
@@ -19,7 +21,7 @@ from .settings_addons_list import get_addon_list_for_settings
 
 # lock = asyncio.Lock()
 
-semaphore = asyncio.Semaphore(20)  # Limit concurrent settings loading
+semaphore = asyncio.Semaphore(10)  # Limit concurrent settings loading
 
 
 @router.get("/settings", response_model_exclude_none=True)
@@ -88,24 +90,58 @@ async def get_all_settings(
 
     """
 
-    start_time = time.monotonic()
-
     coalesce = RequestCoalescer()
+    return await coalesce(
+        _get_all_settings,
+        user_name=user.name,
+        site_id=site_id,
+        bundle_name=bundle_name,
+        project_name=project_name,
+        project_bundle_name=project_bundle_name,
+        variant=variant,
+        summary=summary,
+    )
 
-    addon_list = await coalesce(
-        get_addon_list_for_settings,
+
+async def _get_all_settings(
+    user_name: str,
+    site_id: str | None,
+    bundle_name: str | None,
+    project_name: str | None,
+    project_bundle_name: str | None,
+    variant: str,
+    summary: bool,
+) -> AllSettingsResponseModel:
+    start_time = time.monotonic()
+    cache_key = hash_data(
+        (
+            bundle_name,
+            project_name,
+            project_bundle_name,
+            variant,
+            user_name,
+            site_id,
+        )
+    )
+
+    cached = await Redis.get_json("all-settings", cache_key)
+    if cached:
+        try:
+            return AllSettingsResponseModel(**cached)
+        except Exception:
+            pass
+    addon_list = await get_addon_list_for_settings(
         bundle_name=bundle_name,
         project_name=project_name,
         project_bundle_name=project_bundle_name,
         variant=variant,
     )
 
-    all_settings = await coalesce(
-        load_all_settings,
+    all_settings = await load_all_settings(
         addons=addon_list["addons"],
         variant=variant,
         project_name=project_name,
-        user_name=user.name,
+        user_name=user_name,
         site_id=site_id,
     )
 
@@ -186,7 +222,7 @@ async def get_all_settings(
 
                 if site_id:
                     site_settings = await addon.get_site_settings(
-                        user.name,
+                        user_name,
                         site_id,
                         settings_cache=settings_cache,
                     )
@@ -203,7 +239,7 @@ async def get_all_settings(
                         # project level settings WITH site overrides
                         settings = await addon.get_project_site_settings(
                             project_name,
-                            user.name,
+                            user_name,
                             site_id,
                             variant,
                             settings_cache=settings_cache,
@@ -276,10 +312,20 @@ async def get_all_settings(
         elapsed_time = time.monotonic() - start_time
         logger.trace(f"Settings object generated in {elapsed_time:.02f} seconds")
 
-        return AllSettingsResponseModel(
+        result = AllSettingsResponseModel(
             bundle_name=addon_list["bundle_name"],
             addons=addon_result,
             inherited_addons=list(addon_list["inherited_addons"])
             if project_bundle_name
             else [],
         )
+
+        # Cache the result
+        await Redis.set(
+            "all-settings",
+            cache_key,
+            result.json(),
+            ttl=60 * 60,  # Cache for 1 hour
+        )
+
+        return result
