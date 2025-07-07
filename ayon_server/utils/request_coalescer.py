@@ -42,15 +42,25 @@ class RequestCoalescer(Generic[T]):
         async with self.lock:
             waiters = self.current_waiters.get(base_key, 0)
 
-            if waiters >= self.max_waiters or base_key not in self.current_futures:
-                # Create a new key to bypass coalescing
+            if base_key not in self.current_futures:
+                # First request: store under base_key
+                self.current_futures[base_key] = asyncio.create_task(
+                    func(*args, **kwargs)
+                )
+                self.current_waiters[base_key] = 1
+                selected_key = base_key
+
+            elif waiters >= self.max_waiters:
+                # Too many waiters: create a unique task
                 unique_key = f"{base_key}:{waiters}"
-                task = asyncio.create_task(func(*args, **kwargs))
-                self.current_futures[unique_key] = task
+                self.current_futures[unique_key] = asyncio.create_task(
+                    func(*args, **kwargs)
+                )
                 self.current_waiters[unique_key] = 1
                 selected_key = unique_key
+
             else:
-                # Use existing task
+                # Join existing task under base_key
                 self.current_waiters[base_key] += 1
                 selected_key = base_key
 
@@ -58,7 +68,7 @@ class RequestCoalescer(Generic[T]):
             return await self.current_futures[selected_key]
         finally:
             async with self.lock:
-                if selected_key in self.current_futures:
+                if selected_key in self.current_waiters:
                     self.current_waiters[selected_key] -= 1
                     if self.current_waiters[selected_key] == 0:
                         self.current_futures.pop(selected_key, None)

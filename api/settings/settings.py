@@ -19,7 +19,7 @@ from .models import AddonSettingsItemModel, AllSettingsResponseModel
 from .router import router
 from .settings_addons_list import get_addon_list_for_settings
 
-semaphore = asyncio.Semaphore(10)  # Limit concurrent settings loading
+semaphore = asyncio.Semaphore(30)  # Limit concurrent settings loading
 
 
 async def _get_all_settings(
@@ -40,6 +40,7 @@ async def _get_all_settings(
             variant,
             user_name,
             site_id,
+            summary,
         )
     )
 
@@ -123,7 +124,7 @@ async def _get_all_settings(
             has_site_settings = bool(addon.site_settings_model)
             if model:
                 has_project_settings = False
-                for field_name, field in model.__fields__.items():
+                for field in model.__fields__.values():
                     scope = field.field_info.extra.get("scope", ["studio", "project"])
                     if "project" in scope:
                         has_project_settings = True
