@@ -235,7 +235,7 @@ async def _get_all_settings(
                 )
             )
 
-        # sort the result and
+        # sort the result, save to cache and return
 
         addon_result.sort(key=lambda x: x.title.lower())
 
