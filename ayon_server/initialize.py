@@ -3,6 +3,7 @@ import asyncio
 import asyncpg
 
 from ayon_server.activities import ActivityFeedEventHook
+from ayon_server.events.default_hooks import DEFAULT_HOOKS
 from ayon_server.events.eventstream import EventStream
 from ayon_server.extensions import init_extensions
 from ayon_server.helpers.project_list import build_project_list
@@ -51,5 +52,14 @@ async def ayon_init(extensions: bool = True):
 
     if extensions:
         await init_extensions()
+
+    # Install default event hooks
+    for topic, hook, all_nodes in DEFAULT_HOOKS:
+        EventStream.subscribe(
+            topic,
+            hook,
+            all_nodes=all_nodes,
+        )
+
     ActivityFeedEventHook.install(EventStream)
     await build_project_list()
