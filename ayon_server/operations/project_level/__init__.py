@@ -113,6 +113,7 @@ async def _process_operations(
     to_commit: list[ProjectLevelEntity] = []
     events: list[dict[str, Any]] = []
 
+    logger.debug(f"Processing {len(operations)} project {project_name} operations")
     for operation in operations:
         if operation.as_user:
             user = user_map.get(operation.as_user)
