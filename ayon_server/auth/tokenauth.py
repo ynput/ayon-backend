@@ -1,14 +1,18 @@
-from typing import Any
-
 from fastapi import Request
 
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
-from ayon_server.exceptions import BadRequestException, InvalidSettingsException
+from ayon_server.exceptions import (
+    BadRequestException,
+    InvalidSettingsException,
+    UnauthorizedException,
+)
 from ayon_server.helpers.crypto import decrypt_json_urlsafe, encrypt_json_urlsafe
 from ayon_server.helpers.email import is_mailing_enabled, send_mail
+from ayon_server.helpers.external_users import external_user_exists
 from ayon_server.logging import log_traceback, logger
-from ayon_server.utils import slugify
+from ayon_server.types import OPModel
+from ayon_server.utils import server_url_from_request, slugify
 
 from .models import LoginResponseModel
 
@@ -25,10 +29,15 @@ Please use the following link to log in again:
 <p>
 <a clicktracking=off href="{invite_link}">Accept Invitation</a>
 </p>
-
-Thank you
-
 """
+
+
+class TokenPayload(OPModel):
+    email: str
+    external: bool = True
+    project_name: str | None = None
+    full_name: str | None = None
+    redirect_url: str | None = None
 
 
 async def send_invite_email(
@@ -38,7 +47,7 @@ async def send_invite_email(
     *,
     full_name: str | None = None,
     subject: str | None = None,
-    external: bool = False,
+    external: bool = True,
     project_name: str | None = None,
     redirect_url: str | None = None,
 ) -> None:
@@ -47,17 +56,15 @@ async def send_invite_email(
             "Mailing is not enabled. Please check the server settings."
         )
 
-    payload: dict[str, Any] = {"email": email}
-    if full_name:
-        payload["fullName"] = full_name
-    if external:
-        payload["external"] = True
-    if project_name:
-        payload["projectName"] = project_name
-    if redirect_url:
-        payload["redirectUrl"] = redirect_url
+    payload = TokenPayload(
+        email=email,
+        full_name=full_name,
+        external=external,
+        project_name=project_name,
+        redirect_url=redirect_url,
+    )
 
-    enc_data = await encrypt_json_urlsafe(payload)
+    enc_data = await encrypt_json_urlsafe(payload.dict(exclude_none=True))
     token = enc_data.token
     await enc_data.set_nonce(ttl=3600 * 24)
 
@@ -72,12 +79,33 @@ async def send_invite_email(
     await send_mail([email], subject, html=body)
 
 
+async def send_extend_email(original_payload: TokenPayload, base_url: str) -> None:
+    """Send an email to the user to extend their invite link.
+
+    When a link is used for the first time to log in, it is invalidated.
+    It still contain the original payload, so it "knows" where to take the user
+    but in order to get the users session, user must get a new link.
+
+    This is done automatically, when an expired link is used.
+    """
+
+    await send_invite_email(
+        email=original_payload.email,
+        base_url=base_url,
+        body_template=LINK_RENEWAL_TEMPLATE,
+        subject="Ayon access link renewal",
+        full_name=original_payload.full_name,
+        external=original_payload.external,
+        redirect_url=original_payload.redirect_url,
+    )
+
+
 async def create_external_user_session(
     email: str,
+    request: Request,
     *,
     full_name: str | None = None,
     redirect_url: str | None = None,
-    request: Request | None = None,
 ) -> LoginResponseModel:
     name = slugify(f"external.{email}", separator=".")
 
@@ -105,7 +133,7 @@ async def create_external_user_session(
 
 async def handle_token_auth_callback(
     token: str,
-    request: Request | None = None,
+    request: Request,
 ) -> LoginResponseModel:
     try:
         enc_data = await decrypt_json_urlsafe(token)
@@ -114,34 +142,46 @@ async def handle_token_auth_callback(
         log_traceback()
         raise BadRequestException(msg)
 
-    payload = enc_data.data
-    email = payload.get("email")
-    if not email:
-        msg = "Token does not contain email"
-        raise BadRequestException(msg)
+    try:
+        payload = TokenPayload(**enc_data.data)
+    except Exception:
+        raise BadRequestException("Invalid token payload format")
 
-    print(f"Token payload: {payload}")
+    if payload.external:
+        if not payload.project_name:
+            msg = "External user token must contain project name"
+            raise BadRequestException(msg)
+        exists = await external_user_exists(
+            project_name=payload.project_name,
+            email=payload.email,
+        )
+        if not exists:
+            msg = (
+                f"External user {payload.email} "
+                f"does not exist in project {payload.project_name}"
+            )
+            raise UnauthorizedException(msg)
 
     if not await enc_data.validate_nonce():
-        logger.debug(
-            f"Token for external user {email} expired or replay attack detected"
+        logger.debug(f"Token for external user {payload.email} expired")
+
+        await send_extend_email(
+            original_payload=payload,
+            base_url=server_url_from_request(request),
         )
 
-        # TODO
-        # If the token is expired or used before, we can send a new one
-
-        raise BadRequestException(
+        raise UnauthorizedException(
             "Your email link already expired or was used before. "
             "We're sending you a new one."
         )
 
-    if not payload.get("external"):
+    if not payload.external:
         msg = "Token is not for external use"
         raise BadRequestException(msg)
 
     return await create_external_user_session(
-        email=payload["email"],
-        full_name=payload.get("fullName"),
-        redirect_url=payload.get("redirectUrl"),
+        email=payload.email,
         request=request,
+        full_name=payload.full_name,
+        redirect_url=payload.redirect_url,
     )

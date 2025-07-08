@@ -63,7 +63,7 @@ async def logout(access_token: AccessToken) -> LogoutResponseModel:
 
 
 @router.get("/tokenauth")
-async def token_auth_callback(request: Request) -> None:
+async def token_auth_callback(request: Request) -> LoginResponseModel:
     """Callback for token authentication.
 
     This endpoint is used to handle the callback from the token
