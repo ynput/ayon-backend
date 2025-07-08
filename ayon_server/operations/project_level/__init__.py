@@ -9,7 +9,7 @@ import asyncio
 import random
 from typing import Any
 
-from asyncpg.exceptions import IntegrityConstraintViolationError, LockNotAvailableError
+from asyncpg.exceptions import IntegrityConstraintViolationError
 from pydantic.error_wrappers import ValidationError
 
 from ayon_server.entities import UserEntity
@@ -22,8 +22,6 @@ from ayon_server.exceptions import (
     ServiceUnavailableException,
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
-from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
-from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.postgres_exceptions import parse_postgres_exception
 from ayon_server.logging import log_traceback, logger
@@ -150,6 +148,10 @@ async def _process_operations(
                 if entity.entity_type not in [e.entity_type for e in to_commit]:
                     to_commit.append(entity)
 
+        except ServiceUnavailableException as e:
+            logger.debug(f"{e}, retrying operation")
+            raise e
+
         except AyonException as e:
             logger.debug(
                 f"{op_tag} failed: {e.detail}",
@@ -172,6 +174,7 @@ async def _process_operations(
                 if raise_on_error:
                     raise e
                 break
+
         except ValidationError as e:
             logger.debug(
                 f"{op_tag} failed: {e}",
@@ -194,9 +197,6 @@ async def _process_operations(
                 if raise_on_error:
                     raise e
                 break
-        except LockNotAvailableError as e:
-            logger.trace("Lock not available, retrying operation")
-            raise e
 
         except IntegrityConstraintViolationError as e:
             parsed = parse_postgres_exception(e)
@@ -245,7 +245,8 @@ async def _process_operations(
     # Create overall success value
     success = all(op.success for op in result)
     if success or can_fail:
-        await entity.commit()
+        for e in to_commit:
+            await e.commit()
 
     return events, OperationsResponseModel(operations=result, success=success)
 
@@ -462,10 +463,10 @@ class ProjectLevelOperations:
 
         # TODO: remove this?
         # This is duplicate! It is handled by calling commit() on the entity
-        if "folder" in [r.entity_type for r in self.operations]:
-            # Rebuild the hierarchy cache for folders
-            await rebuild_hierarchy_cache(self.project_name)
-            await rebuild_inherited_attributes(self.project_name)
+        # if "folder" in [r.entity_type for r in self.operations]:
+        #     # Rebuild the hierarchy cache for folders
+        #     await rebuild_hierarchy_cache(self.project_name)
+        #     await rebuild_inherited_attributes(self.project_name)
 
         return response
 
