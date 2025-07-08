@@ -462,13 +462,6 @@ class ProjectLevelOperations:
                 **event,
             )
 
-        # TODO: remove this?
-        # This is duplicate! It is handled by calling commit() on the entity
-        # if "folder" in [r.entity_type for r in self.operations]:
-        #     # Rebuild the hierarchy cache for folders
-        #     await rebuild_hierarchy_cache(self.project_name)
-        #     await rebuild_inherited_attributes(self.project_name)
-
         return response
 
     async def process(

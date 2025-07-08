@@ -90,6 +90,7 @@ async def post_project_activity(
         sender=sender,
         sender_type=sender_type,
         data=activity.data,
+        bump_entity_updated_at=True,
     )
 
     if not user.is_service:

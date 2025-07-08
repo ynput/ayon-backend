@@ -47,6 +47,7 @@ async def create_activity(
     timestamp: datetime.datetime | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
+    bump_entity_updated_at: bool = False,
 ) -> str:
     """Create an activity.
 
@@ -237,16 +238,27 @@ async def create_activity(
             ) from e
 
         # bump entity updated_at timestamp
+        #
+        # by default, this is not called - this is to avoid updates
+        # of entities that just have been updated by operations etc.
+        # we bump the updated_at timestamp only when the activity was
+        # explicitly created by the user using [POST] /activities or
+        # by uploading a file / reviewable
+        #
+        # If we try to bump the timestamp inside a transaction,
+        # (e.g. during the operations list execution, we may still
+        # be in a transaction where the row is locked for update.
 
-        await Postgres.execute(
-            f"""
-            UPDATE project_{project_name}.{entity_type}s
-            SET updated_at = $1
-            WHERE id = $2
-            """,
-            timestamp,
-            entity_id,
-        )
+        if bump_entity_updated_at:
+            await Postgres.execute(
+                f"""
+                UPDATE project_{project_name}.{entity_type}s
+                SET updated_at = $1
+                WHERE id = $2
+                """,
+                timestamp,
+                entity_id,
+            )
 
         # Publishing reviewables must invalidate the hierarchy cache
 
