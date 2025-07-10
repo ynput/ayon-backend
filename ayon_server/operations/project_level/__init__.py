@@ -35,6 +35,21 @@ from .entity_update import update_project_level_entity
 from .models import OperationModel, OperationResponseModel, OperationsResponseModel
 
 
+async def _process_events(
+    events: list[dict[str, Any]],
+    *,
+    sender: str | None = None,
+    sender_type: str | None = None,
+) -> None:
+    """Process a list of events and dispatch them to the event stream."""
+    for event in events:
+        await EventStream.dispatch(
+            sender=sender,
+            sender_type=sender_type,
+            **event,
+        )
+
+
 async def _process_operation(
     project_name: str,
     user: UserEntity | None,
@@ -113,7 +128,7 @@ async def _process_operations(
     to_commit: list[ProjectLevelEntity] = []
     events: list[dict[str, Any]] = []
 
-    logger.debug(f"Processing {len(operations)} project {project_name} operations")
+    logger.debug(f"[OPS] {len(operations)} project {project_name} operations")
     for operation in operations:
         if operation.as_user:
             user = user_map.get(operation.as_user)
@@ -150,7 +165,7 @@ async def _process_operations(
                     to_commit.append(entity)
 
         except ServiceUnavailableException as e:
-            logger.debug(f"{e}, retrying operation")
+            logger.debug(f"[OPS] {e}, retrying operation")
             raise e
 
         except AyonException as e:
@@ -246,8 +261,8 @@ async def _process_operations(
     # Create overall success value
     success = all(op.success for op in result)
     if success or can_fail:
-        for e in to_commit:
-            await e.commit()
+        for entity in to_commit:
+            await entity.commit()
 
     return events, OperationsResponseModel(operations=result, success=success)
 
@@ -385,7 +400,6 @@ class ProjectLevelOperations:
 
             if not operation.entity_id:
                 raise BadRequestException("entity_id is required for update/delete")
-
             key = (operation.entity_type, operation.entity_id)
             if key in affected_entities:
                 raise BadRequestException(
@@ -400,6 +414,7 @@ class ProjectLevelOperations:
         self,
         can_fail: bool = False,
         raise_on_error: bool = True,
+        wait_for_events: bool = False,
     ) -> OperationsResponseModel:
         self._validate()
 
@@ -442,7 +457,7 @@ class ProjectLevelOperations:
                         raise RollbackException()
 
                 except RollbackException:
-                    logger.trace("Operations rolled back")
+                    logger.trace("[OPS] Operations rolled back")
                     break
 
                 except ServiceUnavailableException:
@@ -455,12 +470,30 @@ class ProjectLevelOperations:
             else:
                 raise ConflictException("Entity is locked by another operation")
 
-        for event in events:
-            await EventStream.dispatch(
-                sender=self.sender,
-                sender_type=self.sender_type,
-                **event,
-            )
+        if events:
+            msg = f"[OPS] {len(events)} events dispatched"
+
+            if wait_for_events:
+                # If we are waiting for events, we wait for them to be dispatched
+                # before returning the response.
+                await _process_events(
+                    events,
+                    sender=self.sender,
+                    sender_type=self.sender_type,
+                )
+                logger.trace(msg, project=self.project_name)
+
+            else:
+                # Otherwise, we create a task to process the events
+                # in the background and return the response immediately.
+                task = asyncio.create_task(
+                    _process_events(
+                        events,
+                        sender=self.sender,
+                        sender_type=self.sender_type,
+                    )
+                )
+                task.add_done_callback(lambda _: logger.trace(msg))
 
         return response
 
@@ -468,6 +501,7 @@ class ProjectLevelOperations:
         self,
         can_fail: bool = False,
         raise_on_error: bool = True,
+        wait_for_events: bool = False,
     ) -> OperationsResponseModel:
         """
         Process the enqueued operations.
@@ -483,6 +517,10 @@ class ProjectLevelOperations:
         """
 
         try:
-            return await self._process(can_fail=can_fail, raise_on_error=raise_on_error)
+            return await self._process(
+                can_fail=can_fail,
+                raise_on_error=raise_on_error,
+                wait_for_events=wait_for_events,
+            )
         finally:
             self.operations = []

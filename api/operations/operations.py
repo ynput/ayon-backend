@@ -13,6 +13,7 @@ from .router import router
 class OperationsRequestModel(OPModel):
     operations: list[OperationModel] = Field(default_factory=list)
     can_fail: bool = False
+    wait_for_events: bool = False
 
 
 @router.post(
@@ -59,4 +60,8 @@ async def operations(
                 raise ForbiddenException(msg)
         ops.append(operation)
 
-    return await ops.process(can_fail=payload.can_fail, raise_on_error=False)
+    return await ops.process(
+        can_fail=payload.can_fail,
+        raise_on_error=False,
+        wait_for_events=payload.wait_for_events,
+    )
