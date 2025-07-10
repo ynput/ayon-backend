@@ -240,7 +240,7 @@ def init_api(target_app: FastAPI, plugin_dir: str = "api") -> None:
                 route.operation_id = route.name
 
 
-def init_global_staic(target_app: FastAPI) -> None:
+def init_global_static(target_app: FastAPI) -> None:
     STATIC_DIR = "/storage/static"
     try:
         os.makedirs(STATIC_DIR, exist_ok=True)
@@ -254,5 +254,5 @@ def init_global_staic(target_app: FastAPI) -> None:
 # Because addons, which are initialized later
 # may need access to classes initialized from the API (such as Attributes)
 
-init_global_staic(app)
+init_global_static(app)
 init_api(app, ayonconfig.api_modules_dir)
