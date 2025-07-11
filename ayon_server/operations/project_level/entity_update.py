@@ -31,15 +31,17 @@ def build_update_query(
 
             # First handle all jsonb_set calls
             for subkey, subval in value.items():
+                _subkey = subkey.replace("'", "''")
                 if subval is not None:
-                    json_expr = f"jsonb_set({json_expr}, '{{{subkey}}}', ${param_index}::jsonb, true)"  # noqa
+                    json_expr = f"jsonb_set({json_expr}, '{{{_subkey}}}', ${param_index}::jsonb, true)"  # noqa
                     params.append(subval)
                     param_index += 1
 
             # Then handle removals (value = None removes the key)
             for subkey, subval in value.items():
                 if subval is None:
-                    json_expr = f"{json_expr} - '{subkey}'"
+                    _subkey = subkey.replace("'", "''")
+                    json_expr = f"{json_expr} - '{_subkey}'"
 
             sets.append(f"{key} = {json_expr}")
 
