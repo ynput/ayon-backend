@@ -165,7 +165,7 @@ async def _process_operations(
             logger.debug(f"[OPS] {e}, retrying operation")
 
             # If the entity is locked, we need to retry the entire transaction
-            # by re-raising the exception. Otherwise, the thransaction will
+            # by re-raising the exception. Otherwise, the transaction will
             # hang in an error state and we won't be able to continue
             # anyways.
             raise e
