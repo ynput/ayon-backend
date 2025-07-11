@@ -125,8 +125,8 @@ async def _process_operations(
     """
 
     result: list[OperationResponseModel] = []
-    to_commit: list[ProjectLevelEntity] = []
     events: list[dict[str, Any]] = []
+    entity_types: set[ProjectLevelEntityType] = set()
 
     logger.debug(f"[OPS] {len(operations)} project {project_name} operations")
     for operation in operations:
@@ -161,11 +161,15 @@ async def _process_operations(
                 if evt is not None:
                     events.extend(evt)
                 result.append(response)
-                if entity.entity_type not in [e.entity_type for e in to_commit]:
-                    to_commit.append(entity)
+                entity_types.add(entity.entity_type)
 
         except ServiceUnavailableException as e:
             logger.debug(f"[OPS] {e}, retrying operation")
+
+            # If the entity is locked, we need to retry the entire transaction
+            # by re-raising the exception. Otherwise, the thransaction will
+            # hang in an error state and we won't be able to continue
+            # anyways.
             raise e
 
         except AyonException as e:
@@ -261,8 +265,9 @@ async def _process_operations(
     # Create overall success value
     success = all(op.success for op in result)
     if success or can_fail:
-        for entity in to_commit:
-            await entity.commit()
+        for entity_type in entity_types:
+            entity_class = get_entity_class(entity_type)
+            await entity_class.refresh_views(project_name)
 
     return events, OperationsResponseModel(operations=result, success=success)
 
@@ -425,6 +430,7 @@ class ProjectLevelOperations:
 
         # Load user entities that we will use for operaratins to
         # check access permissions and to dispatch events
+
         if self.user:
             self.user_entities_map[self.user.name] = self.user
         for uname in self.user_entities_map:
@@ -443,7 +449,7 @@ class ProjectLevelOperations:
         else:
             for _ in range(3):
                 try:
-                    async with Postgres.transaction():
+                    async with Postgres.transaction(force_new=True):
                         events, response = await _process_operations(
                             self.project_name,
                             self.operations,
@@ -462,7 +468,7 @@ class ProjectLevelOperations:
 
                 except ServiceUnavailableException:
                     # entity is locked by another operation,
-                    # we will retry a few times
+                    # we will retry the entire transaction
                     await asyncio.sleep(random.uniform(0.1, 0.3))
                     continue
 
