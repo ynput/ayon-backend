@@ -69,7 +69,7 @@ async def update_project_level_entity(
     payload = entity_class.model.patch_model(**operation.data)
 
     # update_payload_dict is a normalized version of the payload
-    # that exculdes unset fields and contains snake_case variants of the
+    # that excludes unset fields and contains snake_case variants of the
     # top-level fields. This is the format, that is going to be used
     # in the database update query.
     update_payload_dict = payload.dict(exclude_unset=True, by_alias=False)
