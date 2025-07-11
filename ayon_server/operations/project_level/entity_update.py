@@ -101,7 +101,7 @@ async def update_project_level_entity(
     entity.patch(payload)
 
     # Add the following fields directly to update_payload_dict
-    # They don't affect the events created, so they doesn't need to be
+    # They don't affect the events created, so they don't need to be
     # in the payload pydantic model.
 
     if operation.entity_type == "workfile":
