@@ -417,9 +417,9 @@ class ProjectLevelOperations:
 
     async def _process(
         self,
-        can_fail: bool = False,
-        raise_on_error: bool = True,
-        wait_for_events: bool = False,
+        can_fail: bool,
+        raise_on_error: bool,
+        wait_for_events: bool,
     ) -> OperationsResponseModel:
         self._validate()
 
@@ -507,7 +507,7 @@ class ProjectLevelOperations:
         self,
         can_fail: bool = False,
         raise_on_error: bool = True,
-        wait_for_events: bool = False,
+        wait_for_events: bool = True,
     ) -> OperationsResponseModel:
         """
         Process the enqueued operations.
