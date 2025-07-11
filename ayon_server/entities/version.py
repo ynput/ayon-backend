@@ -12,37 +12,32 @@ class VersionEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "version"
     model = ModelSet("version", attribute_library["version"])
 
-    async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
-        """Save entity to database."""
+    async def pre_save(self, insert: bool) -> None:
+        if self.version < 0:
+            # Ensure there is no previous hero version
+            res = await Postgres.fetch(
+                f"""
+                SELECT id FROM project_{self.project_name}.versions
+                WHERE
+                    version < 0
+                AND id != $1
+                AND product_id = $2
+                """,
+                self.id,
+                self.product_id,
+            )
+            if res:
+                raise ConstraintViolationException("Hero version already exists.")
 
-        async with Postgres.transaction():
-            if self.version < 0:
-                # Ensure there is no previous hero version
-                res = await Postgres.fetch(
-                    f"""
-                    SELECT id FROM project_{self.project_name}.versions
-                    WHERE
-                        version < 0
-                    AND id != $1
-                    AND product_id = $2
-                    """,
-                    self.id,
-                    self.product_id,
-                )
-                if res:
-                    raise ConstraintViolationException("Hero version already exists.")
-
-            await super().save()
-
-            if self.task_id:
-                await Postgres.execute(
-                    f"""
-                    UPDATE project_{self.project_name}.tasks
-                    SET updated_at = NOW()
-                    WHERE id = $1
-                    """,
-                    self.task_id,
-                )
+        if self.task_id:
+            await Postgres.execute(
+                f"""
+                UPDATE project_{self.project_name}.tasks
+                SET updated_at = NOW()
+                WHERE id = $1
+                """,
+                self.task_id,
+            )
 
     @classmethod
     async def refresh_views(cls, project_name: str) -> None:

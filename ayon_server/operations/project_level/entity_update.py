@@ -63,14 +63,7 @@ async def update_project_level_entity(
     assert operation.data is not None, "data is required for update"
     assert operation.entity_id is not None, "entity_id is required for update"
 
-    # Do not lock for update - we use partial updates and the last update
-    # will always win.
-
     entity = await entity_class.load(project_name, operation.entity_id)
-
-    #
-    # Sanity checks
-    #
 
     # Casting the payload to the model class is used to validate the data
     payload = entity_class.model.patch_model(**operation.data)
@@ -100,6 +93,12 @@ async def update_project_level_entity(
                 raise ForbiddenException(
                     f"Cannot change {key} of a folder with published versions"
                 )
+
+    # Apply the patch to the entity, because later, we need to trigger
+    # pre_save method of the entity, that expects the payload to be
+    # updated (that covers various entity-specific logic, validtion, etc.).
+
+    entity.patch(payload)
 
     # Add the following fields directly to update_payload_dict
     # They don't affect the events created, so they doesn't need to be
