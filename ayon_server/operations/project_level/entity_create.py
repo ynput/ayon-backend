@@ -12,7 +12,7 @@ async def create_project_level_entity(
     project_name: str,
     operation: OperationModel,
     user: UserEntity | None,
-) -> tuple[ProjectLevelEntity, list[dict[str, Any]], int]:
+) -> tuple[str, list[dict[str, Any]], int]:
     assert operation.data is not None, "data is required for create"
 
     payload = entity_class.model.post_model(**operation.data)
@@ -54,4 +54,4 @@ async def create_project_level_entity(
         }
     ]
     await entity.save(auto_commit=False)
-    return entity, events, 201
+    return entity.id, events, 201

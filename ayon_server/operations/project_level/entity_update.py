@@ -59,7 +59,7 @@ async def update_project_level_entity(
     project_name: str,
     operation: OperationModel,
     user: UserEntity | None,
-) -> tuple[ProjectLevelEntity, list[dict[str, Any]], int]:
+) -> tuple[str, list[dict[str, Any]], int]:
     assert operation.data is not None, "data is required for update"
     assert operation.entity_id is not None, "entity_id is required for update"
 
@@ -138,4 +138,4 @@ async def update_project_level_entity(
         for event in events:
             event["user"] = user.name
 
-    return entity, events, 204
+    return entity.id, events, 204

@@ -13,7 +13,6 @@ from asyncpg.exceptions import IntegrityConstraintViolationError
 from pydantic.error_wrappers import ValidationError
 
 from ayon_server.entities import UserEntity
-from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     AyonException,
@@ -54,7 +53,7 @@ async def _process_operation(
     project_name: str,
     user: UserEntity | None,
     operation: OperationModel,
-) -> tuple[ProjectLevelEntity, list[dict[str, Any]] | None, OperationResponseModel]:
+) -> tuple[list[dict[str, Any]] | None, OperationResponseModel]:
     """Process a single operation. Raise an exception on error."""
 
     entity_class = get_entity_class(operation.entity_type)
@@ -64,7 +63,7 @@ async def _process_operation(
     status = 200
 
     if operation.type == "create":
-        entity, events, status = await create_project_level_entity(
+        entity_id, events, status = await create_project_level_entity(
             entity_class,
             project_name,
             operation,
@@ -72,7 +71,7 @@ async def _process_operation(
         )
 
     elif operation.type == "update":
-        entity, events, status = await update_project_level_entity(
+        entity_id, events, status = await update_project_level_entity(
             entity_class,
             project_name,
             operation,
@@ -80,7 +79,7 @@ async def _process_operation(
         )
 
     elif operation.type == "delete":
-        entity, events, status = await delete_project_level_entity(
+        entity_id, events, status = await delete_project_level_entity(
             entity_class,
             project_name,
             operation,
@@ -92,12 +91,11 @@ async def _process_operation(
         raise BadRequestException(f"Unknown operation type {operation.type}")
 
     return (
-        entity,
         events,
         OperationResponseModel(
             id=operation.id,
             type=operation.type,
-            entity_id=entity.id,
+            entity_id=entity_id,
             entity_type=operation.entity_type,
             success=True,
             status=status,
@@ -153,7 +151,7 @@ async def _process_operations(
             # to commit all operations at once.
 
             async with Postgres.transaction():
-                entity, evt, response = await _process_operation(
+                evt, response = await _process_operation(
                     project_name,
                     user,
                     operation,
@@ -161,7 +159,7 @@ async def _process_operations(
                 if evt is not None:
                     events.extend(evt)
                 result.append(response)
-                entity_types.add(entity.entity_type)
+                entity_types.add(operation.entity_type)
 
         except ServiceUnavailableException as e:
             logger.debug(f"[OPS] {e}, retrying operation")
