@@ -15,7 +15,7 @@ class VersionEntity(ProjectLevelEntity):
     async def pre_save(self, insert: bool) -> None:
         if self.version < 0:
             # Ensure there is no previous hero version
-            res = await Postgres.fetch(
+            res = await Postgres.fetchrow(
                 f"""
                 SELECT id FROM project_{self.project_name}.versions
                 WHERE
@@ -26,10 +26,12 @@ class VersionEntity(ProjectLevelEntity):
                 self.id,
                 self.product_id,
             )
-            if res:
+            if res is not None:
                 raise ConstraintViolationException("Hero version already exists.")
 
         if self.task_id:
+            # Bump the updated_at timestamp of the task
+            # in order to re-fetch a new thumbnail
             await Postgres.execute(
                 f"""
                 UPDATE project_{self.project_name}.tasks
