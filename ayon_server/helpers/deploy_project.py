@@ -36,6 +36,12 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         }
     }
 
+    config["product_types"] = anatomy.product_types.dict(
+        exclude_defaults=True,
+        exclude_unset=True,
+        exclude_none=True,
+    )
+
     templates = anatomy.templates.dict()
     for template_type in (
         "work",

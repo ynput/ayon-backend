@@ -6,6 +6,7 @@ __all__ = [
     "Status",
     "Tag",
     "TaskType",
+    "ProductTypes",
 ]
 
 from typing import Annotated
