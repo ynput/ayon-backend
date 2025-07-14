@@ -431,6 +431,7 @@ class ProjectLevelOperations:
 
         if self.user:
             self.user_entities_map[self.user.name] = self.user
+
         for uname in self.user_entities_map:
             if not self.user_entities_map[uname]:
                 self.user_entities_map[uname] = await UserEntity.load(uname)

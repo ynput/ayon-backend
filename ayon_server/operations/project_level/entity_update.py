@@ -74,9 +74,11 @@ async def update_project_level_entity(
     # that excludes unset fields and contains snake_case variants of the
     # top-level fields. This is the format, that is going to be used
     # in the database update query.
+
     update_payload_dict = payload.dict(exclude_unset=True, by_alias=False)
 
     # We use slightly different ACL logic if only the thumbnail_id is being updated.
+
     thumbnail_only = len(operation.data) == 1 and "thumbnail_id" in update_payload_dict
 
     if user:
@@ -96,6 +98,14 @@ async def update_project_level_entity(
                     f"Cannot change {key} of a folder with published versions"
                 )
 
+    # Build events for every change
+    # Do this before applying the patch, to the entity to detect the changes
+
+    events = build_pl_entity_change_events(entity, payload)
+    if user:
+        for event in events:
+            event["user"] = user.name
+
     # Apply the patch to the entity, because later, we need to trigger
     # pre_save method of the entity, that expects the payload to be
     # updated (that covers various entity-specific logic, validtion, etc.).
@@ -114,11 +124,9 @@ async def update_project_level_entity(
     if "updated_at" not in update_payload_dict:
         update_payload_dict["updated_at"] = datetime.now()
 
-    #
     # Update the entity
     # We do not use standard patch/save method of the entity here,
     # because we want a partial update.
-    #
 
     query, params = build_update_query(
         entity.id,
@@ -129,14 +137,5 @@ async def update_project_level_entity(
 
     await entity.pre_save(False)
     await Postgres.execute(query, *params)
-
-    #
-    # Build events for every change
-    #
-
-    events = build_pl_entity_change_events(entity, payload)
-    if user:
-        for event in events:
-            event["user"] = user.name
 
     return entity.id, events, 204
