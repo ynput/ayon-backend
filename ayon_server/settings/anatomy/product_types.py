@@ -8,7 +8,8 @@ class ProductType(BaseSettingsModel):
     """Product type customization settings."""
 
     _layout = "compact"
-    product_type: Annotated[str, SettingsField(title="Product Type")] = ""
+
+    name: Annotated[str, SettingsField(title="Name")] = ""
     color: Annotated[str, SettingsField(title="Color", widget="color")] = "#cccccc"
     icon: Annotated[str, SettingsField(title="Icon", widget="icon")] = "deployed_code"
 
@@ -23,15 +24,44 @@ class ProductBaseType(BaseSettingsModel):
     ]
 
 
+default_product_types = [
+    ProductType(name="image", icon="imagesmode"),
+    ProductType(name="render", icon="photo_library"),
+    ProductType(name="review", icon="photo_library"),
+    ProductType(name="plate", icon="camera_roll"),
+    ProductType(name="camera", icon="videocam"),
+    ProductType(name="model", icon="language"),
+    ProductType(name="texture", icon="texture"),
+    ProductType(name="look", icon="ev_shadow"),
+    ProductType(name="rig", icon="accessibility"),
+    ProductType(name="animation", icon="directions_run"),
+    ProductType(name="cache", icon="animation"),
+    ProductType(name="layout", icon="nature_people"),
+    ProductType(name="setdress", icon="forest"),
+    ProductType(name="groom", icon="content_cut"),
+    ProductType(name="matchmove", icon="switch_video"),
+    ProductType(name="vdbcache", icon="local_fire_department"),
+    ProductType(name="lightrig", icon="wb_incandescent"),
+    ProductType(name="lut", icon="opacity"),
+    ProductType(name="workfile", icon="home_repair_service"),
+]
+
+
 class ProductTypes(BaseSettingsModel):
     """Product types customization settings."""
 
-    defaults: Annotated[
+    default: Annotated[
         list[ProductType],
-        SettingsField(default_factory=list, title="Defaults"),
+        SettingsField(
+            title="Default product types",
+            default_factory=lambda: default_product_types,
+        ),
     ]
 
-    product_base_types: Annotated[
+    base: Annotated[
         list[ProductBaseType],
-        SettingsField(default_factory=list, title="Base Types"),
+        SettingsField(
+            default_factory=list,
+            title="Base product types",
+        ),
     ]
