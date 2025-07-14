@@ -34,6 +34,26 @@ class CustomizationModel(BaseSettingsModel):
     ] = ""
 
 
+class AuthenticationModel(BaseSettingsModel):
+    hide_password_auth: Annotated[
+        bool,
+        SettingsField(
+            title="Hide Password Authentication",
+            description="If enabled, password authentication will be hidden "
+            "from the login page.",
+        ),
+    ] = False
+
+    users_can_change_email: Annotated[
+        bool,
+        SettingsField(
+            title="Users Can Change Email",
+            description="If enabled, users can change their email address "
+            "in their profile settings.",
+        ),
+    ] = True
+
+
 class ProjectOptionsModel(BaseSettingsModel):
     project_code_regex: Annotated[
         str,
@@ -74,6 +94,15 @@ class ServerConfigModel(BaseSettingsModel):
             title="Customization",
             description="Customization options for the login page",
             default_factory=CustomizationModel,
+        ),
+    ]
+
+    authentication: Annotated[
+        AuthenticationModel,
+        SettingsField(
+            title="Authentication",
+            description="Settings related to user authentication",
+            default_factory=AuthenticationModel,
         ),
     ]
 
