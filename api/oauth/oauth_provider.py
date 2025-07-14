@@ -39,7 +39,6 @@ async def list_oauth_clients(current_user: CurrentUser) -> list[OAuthClient]:
         raise ForbiddenException("Admin access required")
 
     return await OAuthStorage.get_clients(active=True)
-    return []
 
 
 @router.post("/clients")

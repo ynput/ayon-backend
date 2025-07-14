@@ -399,7 +399,6 @@ CREATE TABLE IF NOT EXISTS oauth_clients (
 );
 
 -- Create indexes for OAuth clients
-CREATE INDEX IF NOT EXISTS idx_oauth_clients_client_id ON oauth_clients(client_id);
 CREATE INDEX IF NOT EXISTS idx_oauth_clients_active ON oauth_clients(is_active);
 CREATE INDEX IF NOT EXISTS idx_oauth_clients_name ON oauth_clients(client_name);
 

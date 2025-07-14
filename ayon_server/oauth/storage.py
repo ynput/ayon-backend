@@ -1,6 +1,7 @@
 """OAuth storage implementation using PostgreSQL and Redis."""
 
 import time
+from datetime import datetime
 from typing import Any
 
 from ayon_server.auth.utils import hash_password
@@ -66,7 +67,7 @@ class OAuthStorage:
         client_id = create_uuid()
         client_secret = create_hash()
         hashed_secret = hash_password(client_secret)
-        now = time.time()
+        now = datetime.now()
 
         client = OAuthClient(
             client_id=client_id,
