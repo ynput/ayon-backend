@@ -73,6 +73,12 @@ class InfoResponseModel(OPModel):
         description="If set, the changelog will not be shown to the user",
     )
 
+    hide_password_auth: bool | None = Field(
+        None,
+        title="Hide password authentication",
+        description="Password authentication will not be shown on the login page",
+    )
+
     password_recovery_available: bool | None = Field(None, title="Password recovery")
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
@@ -341,6 +347,9 @@ async def get_site_info(
             additional_info["login_page_brand"] = url
         elif ayonconfig.login_page_brand:  # Deprecated
             additional_info["login_page_brand"] = ayonconfig.login_page_brand
+
+        if server_config.authentication.hide_password_auth:
+            additional_info["hide_password_auth"] = True
 
     user_payload = current_user.payload if (current_user is not None) else None
     return InfoResponseModel(user=user_payload, **additional_info)
