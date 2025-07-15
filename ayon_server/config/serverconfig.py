@@ -44,14 +44,15 @@ class AuthenticationModel(BaseSettingsModel):
         ),
     ] = False
 
-    users_can_change_email: Annotated[
-        bool,
-        SettingsField(
-            title="Users Can Change Email",
-            description="If enabled, users can change their email address "
-            "in their profile settings.",
-        ),
-    ] = True
+    # TODO: For future use
+    # users_can_change_email: Annotated[
+    #     bool,
+    #     SettingsField(
+    #         title="Users Can Change Email",
+    #         description="If enabled, users can change their email address "
+    #         "in their profile settings.",
+    #     ),
+    # ] = True
 
 
 class ProjectOptionsModel(BaseSettingsModel):
