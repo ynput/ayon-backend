@@ -13,6 +13,8 @@ from .router import router
 class OperationsRequestModel(OPModel):
     operations: list[OperationModel] = Field(default_factory=list)
     can_fail: bool = False
+    wait_for_events: bool = False
+    raise_on_error: bool = False
 
 
 @router.post(
@@ -59,4 +61,20 @@ async def operations(
                 raise ForbiddenException(msg)
         ops.append(operation)
 
-    return await ops.process(can_fail=payload.can_fail, raise_on_error=False)
+    # Return an error response ONLY if:
+    #  - can_fail is set to False
+    #  - raise_on_error is set to True
+    #
+    #  Otherwise, the endpoint will return a success response
+    #  regardless of the operations' success and the errors
+    #  are included in the response (default behavior).
+
+    raise_on_error = False
+    if not payload.can_fail:
+        raise_on_error = payload.raise_on_error
+
+    return await ops.process(
+        can_fail=payload.can_fail,
+        raise_on_error=raise_on_error,
+        wait_for_events=payload.wait_for_events,
+    )
