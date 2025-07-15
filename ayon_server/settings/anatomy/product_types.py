@@ -58,10 +58,11 @@ class ProductTypes(BaseSettingsModel):
         ),
     ]
 
-    base: Annotated[
-        list[ProductBaseType],
-        SettingsField(
-            default_factory=list,
-            title="Base product types",
-        ),
-    ]
+    # TODO: For furture use, once base product types are implemented
+    # base: Annotated[
+    #     list[ProductBaseType],
+    #     SettingsField(
+    #         default_factory=list,
+    #         title="Base product types",
+    #     ),
+    # ]

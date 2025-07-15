@@ -9,8 +9,6 @@ __all__ = [
     "ProductTypes",
 ]
 
-from typing import Annotated
-
 from pydantic import validator
 
 from ayon_server.entities import ProjectEntity
@@ -91,13 +89,10 @@ class Anatomy(BaseSettingsModel):
         example=[default_tags[0].dict()],
     )
 
-    product_types: Annotated[
-        ProductTypes,
-        SettingsField(
-            title="Product Types",
-            default_factory=lambda: ProductTypes(),
-        ),
-    ]
+    product_types: ProductTypes = SettingsField(
+        title="Product Types",
+        default_factory=lambda: ProductTypes(),  # type: ignore
+    )
 
     @validator("roots", "folder_types", "task_types", "statuses", "tags")
     def ensure_unique_names(cls, value, field):
