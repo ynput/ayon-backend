@@ -20,6 +20,9 @@ from ayon_server.files import Storages
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy.folder_types import FolderType
+from ayon_server.settings.anatomy.product_types import (
+    default_product_types,
+)
 from ayon_server.settings.anatomy.statuses import Status
 from ayon_server.settings.anatomy.tags import Tag
 from ayon_server.settings.anatomy.task_types import TaskType
@@ -73,6 +76,11 @@ class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
     tags: TAGS_FIELD
 
 
+default_product_types_value = [
+    p.dict(exclude_unset=True) for p in default_product_types
+]
+
+
 @router.get(
     "/projects/{project_name}",
     response_model_exclude_none=True,
@@ -87,6 +95,13 @@ async def get_project(
     user.check_project_access(project_name)
     coalesce = RequestCoalescer()
     project = await coalesce(ProjectEntity.load, project_name)
+
+    if "productTypes" not in project.config:
+        project.config["productTypes"] = {}
+
+    if "default" not in project.config["productTypes"]:
+        project.config["productTypes"]["default"] = default_product_types_value
+
     return cast(ProjectModel, project.as_user(user))
 
 
