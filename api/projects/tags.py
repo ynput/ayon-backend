@@ -54,9 +54,11 @@ async def get_project_tags(
 ) -> ProjectTagsModel:
     """List tags used in the project."""
 
-    async with Postgres.acquire() as conn, conn.transaction():
-        await conn.execute(f"set local search_path to project_{project_name}")
-        result = await conn.fetch(QUERY)
+    _ = user
+
+    async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
+        result = await Postgres.fetch(QUERY)
         data = {}
         for row in result:
             table_name = row["table_name"]

@@ -26,8 +26,8 @@ from .router import router
 async def clean_up_user_access_groups() -> None:
     """Remove deleted access groups from user records"""
 
-    async with Postgres.acquire() as conn, conn.transaction():
-        res = await conn.fetch("SELECT name FROM public.access_groups")
+    async with Postgres.transaction():
+        res = await Postgres.fetch("SELECT name FROM public.access_groups")
         if not res:
             return
         existing_access_groups = [row["name"] for row in res]

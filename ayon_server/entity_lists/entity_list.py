@@ -7,13 +7,12 @@ from ayon_server.exceptions import (
     NotFoundException,
     NotImplementedException,
 )
-from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid, now
 from ayon_server.utils.utils import dict_patch
 
 from .entity_folder_path import get_entity_folder_path
-from .load_entity_list import load_entity_list
 from .models import EntityListItemModel, EntityListModel, EntityListSummary
 from .save_entity_list import save_entity_list
 
@@ -22,7 +21,6 @@ class EntityList:
     _project_name: str
     _payload: EntityListModel
     _user: UserEntity | None
-    _conn: Connection | None
 
     def __init__(
         self,
@@ -30,12 +28,11 @@ class EntityList:
         payload: EntityListModel,
         *,
         user: UserEntity | None = None,
-        conn: Connection | None = None,
+        conn: Any = None,  # deprecated
     ):
         self._project_name = project_name
         self._payload = payload
         self._user = user
-        self._connection = conn
 
     @property
     def id(self) -> str:
@@ -144,8 +141,8 @@ class EntityList:
         owner: str | None = None,
         created_by: str | None = None,
         updated_by: str | None = None,
-        conn: Connection | None = None,
         user: UserEntity | None = None,
+        conn: Any = None,  # deprecated
     ) -> "EntityList":
         if user:
             owner = owner or user.name
@@ -171,7 +168,7 @@ class EntityList:
             updated_at=now(),
         )
 
-        res = cls(project_name, payload, user=user, conn=conn)
+        res = cls(project_name, payload, user=user)
         return res
 
     @classmethod
@@ -180,11 +177,29 @@ class EntityList:
         project_name: str,
         id: str,
         user: UserEntity | None = None,
-        conn: Connection | None = None,
+        conn: Any = None,  # deprecated
     ) -> "EntityList":
         """Load the entity list from the database."""
-        payload = await load_entity_list(project_name, id, conn)
-        return cls(project_name, payload, user=user, conn=conn)
+
+        async with Postgres.transaction():
+            await Postgres.execute(f"SET LOCAL search_path TO project_{project_name}")
+            query = "SELECT * FROM entity_lists WHERE id = $1"
+            res = await Postgres.fetchrow(query, id)
+            if not res:
+                raise NotFoundException(f"Entity list {id} not found")
+
+            item_query = """
+                SELECT * FROM entity_list_items
+                WHERE entity_list_id = $1 ORDER BY position
+            """
+
+            items = []
+            stmt = await Postgres.prepare(item_query)
+            async for row in stmt.cursor(res["id"]):
+                item = EntityListItemModel(**row)
+                items.append(item)
+
+        return cls(project_name, EntityListModel(**res, items=items), user=user)
 
     def item_by_id(self, item_id: str) -> EntityListItemModel:
         """Get an item by ID"""
@@ -216,7 +231,6 @@ class EntityList:
             self._project_name,
             self._payload.entity_type,
             entity_id,
-            conn=self._connection,
         )
 
         item = EntityListItemModel(
@@ -266,7 +280,6 @@ class EntityList:
                     self._project_name,
                     self._payload.entity_type,
                     entity_id,
-                    conn=self._connection,
                 )
         if position is not None:
             if position != item.position:
@@ -314,7 +327,6 @@ class EntityList:
             user=_user,
             sender=sender,
             sender_type=sender_type,
-            conn=self._connection,
         )
 
     async def delete(
@@ -339,11 +351,7 @@ class EntityList:
             WHERE id = $1
         """
 
-        if self._connection:
-            await self._connection.execute(query, self._payload.id)
-        else:
-            async with Postgres.acquire() as conn:
-                await conn.execute(query, self._payload.id)
+        await Postgres.execute(query, self._payload.id)
 
         await EventStream.dispatch(
             "entity_list.deleted",

@@ -13,3 +13,5 @@ transcoder
 .python-version
 BUILD_DATE
 venv/
+cspell*
+mise.toml

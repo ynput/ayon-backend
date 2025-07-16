@@ -2,22 +2,27 @@ import importlib
 import os
 import pathlib
 import sys
+from typing import Any
 
-import fastapi
-from fastapi import Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.openapi.docs import get_redoc_html
+from fastapi.openapi.utils import get_openapi
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 
 # okay. now the rest
 from ayon_server.api.auth import AuthMiddleware
+from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.lifespan import lifespan
 from ayon_server.api.logging import LoggingMiddleware
 from ayon_server.api.messaging import messaging
 from ayon_server.api.metadata import app_meta
 from ayon_server.background.log_collector import log_collector
 from ayon_server.config import ayonconfig
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.logging import log_traceback, logger
 
@@ -31,15 +36,53 @@ _ = log_collector
 # Let's create the app
 #
 
-app = fastapi.FastAPI(
+app = FastAPI(
     lifespan=lifespan,
     docs_url=None,
-    redoc_url="/docs" if not ayonconfig.disable_rest_docs else None,
+    redoc_url=None,
+    openapi_url=None,
     **app_meta,
 )
 
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(AuthMiddleware)
+
+
+#
+# Documentation and OpenAPI endpoints
+#
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def openapi(user: CurrentUser) -> dict[str, Any]:
+    """Return OpenAPI schema"""
+    if not user.is_manager:
+        raise ForbiddenException("You are not allowed to access OpenAPI schema")
+
+    if ayonconfig.disable_rest_docs:
+        raise ForbiddenException("OpenAPI documentation is disabled")
+
+    return get_openapi(
+        title=app_meta["title"],
+        version=app_meta["version"],
+        routes=app.routes,
+        description=app_meta["description"],
+    )
+
+
+@app.get("/docs", include_in_schema=False)
+async def docs(user: CurrentUser) -> HTMLResponse:
+    """Return the OpenAPI documentation page"""
+    if not user.is_manager:
+        raise ForbiddenException("You are not allowed to access the API documentation")
+
+    if ayonconfig.disable_rest_docs:
+        raise ForbiddenException("OpenAPI documentation is disabled")
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title=app_meta["title"],
+    )
+
 
 #
 # Handle request errors (not covered by the logging middleware)
@@ -130,10 +173,10 @@ app.include_router(
 
 
 @app.get("/graphiql", include_in_schema=False)
-def explorer() -> fastapi.responses.HTMLResponse:
+def explorer() -> HTMLResponse:
     page = pathlib.Path("static/graphiql.html").read_text()
     page = page.replace("{{ SUBSCRIPTION_ENABLED }}", "false")  # TODO
-    return fastapi.responses.HTMLResponse(page, 200)
+    return HTMLResponse(page, 200)
 
 
 #
@@ -173,7 +216,7 @@ async def ws_endpoint(websocket: WebSocket) -> None:
 #
 
 
-def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
+def init_api(target_app: FastAPI, plugin_dir: str = "api") -> None:
     """Register API modules to the server"""
 
     sys.path.insert(0, plugin_dir)
@@ -192,12 +235,12 @@ def init_api(target_app: fastapi.FastAPI, plugin_dir: str = "api") -> None:
 
     # Use endpoints function names as operation_ids
     for route in app.routes:
-        if isinstance(route, fastapi.routing.APIRoute):
+        if isinstance(route, APIRoute):
             if route.operation_id is None:
                 route.operation_id = route.name
 
 
-def init_global_staic(target_app: fastapi.FastAPI) -> None:
+def init_global_static(target_app: FastAPI) -> None:
     STATIC_DIR = "/storage/static"
     try:
         os.makedirs(STATIC_DIR, exist_ok=True)
@@ -211,5 +254,5 @@ def init_global_staic(target_app: fastapi.FastAPI) -> None:
 # Because addons, which are initialized later
 # may need access to classes initialized from the API (such as Attributes)
 
-init_global_staic(app)
+init_global_static(app)
 init_api(app, ayonconfig.api_modules_dir)

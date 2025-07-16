@@ -1,6 +1,6 @@
 [project]
 name = "ayon-server"
-version = "1.9.2"
+version = "1.10.3"
 description = ""
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
@@ -93,7 +93,7 @@ plugins = [
 
 check_untyped_defs = true
 disallow_any_generics = true
-exclude = "tests/|venv/"
+exclude = "tests/|venv/|tool/"
 explicit_package_bases = true
 no_implicit_reexport = true
 strict_optional = true

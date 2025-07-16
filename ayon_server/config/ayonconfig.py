@@ -178,6 +178,11 @@ class AyonConfig(BaseModel):
         description="Enable audit trail",
     )
 
+    openapi_include_internal_endpoints: bool = Field(
+        default=False,
+        description="Include internal endpoints in the OpenAPI schema",
+    )
+
     openapi_include_addon_endpoints: bool = Field(
         default=False,
         description="Include addon endpoints in the OpenAPI schema",

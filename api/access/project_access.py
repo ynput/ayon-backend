@@ -71,7 +71,7 @@ async def set_projects_access(
         if user_name in payload:
             sessions[user_name].append(session.token)
 
-    async with Postgres.acquire() as conn, conn.transaction():
+    async with Postgres.transaction():
         for user_name, project_access in payload.items():
             user = await UserEntity.load(user_name, for_update=True)
             access_groups = copy.deepcopy(user.data.get("accessGroups", {}))

@@ -1,3 +1,4 @@
+import json
 from typing import Annotated
 
 from ayon_server.exceptions import BadRequestException, NotFoundException
@@ -20,6 +21,7 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     validate_name_list,
     validate_status_list,
@@ -74,6 +76,7 @@ async def get_versions(
         argdesc("List hero versions. If hero does not exist, list latest"),
     ] = False,
     has_links: ARGHasLinks = None,
+    filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> VersionsConnection:
     """Return a list of versions."""
@@ -214,6 +217,33 @@ async def get_versions(
                 """,
             ]
         )
+
+    #
+    # Filter
+    #
+
+    if filter:
+        column_whitelist = [
+            "id",
+            "version",
+            "product_id",
+            "task_id",
+            "author",
+            "data",
+            "active",
+            "status",
+            "tags",
+            "created_at",
+            "updated_at",
+        ]
+        fdata = json.loads(filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="versions",
+        ):
+            sql_conditions.append(fcond)
 
     #
     # Pagination

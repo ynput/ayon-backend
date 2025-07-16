@@ -41,7 +41,7 @@ async def create_entity_list(
     if not payload.entity_list_type:
         raise BadRequestException("Entity list type is required")
 
-    async with Postgres.acquire() as conn, conn.transaction():
+    async with Postgres.transaction():
         entity_list = await EntityList.construct(
             project_name,
             payload.entity_type,
@@ -56,7 +56,6 @@ async def create_entity_list(
             data=payload.data,
             tags=payload.tags,
             user=user,
-            conn=conn,
         )
 
         for item in payload.items:
@@ -84,8 +83,8 @@ async def update_entity_list(
 ) -> EmptyResponse:
     """Update entity list metadata"""
 
-    async with Postgres.acquire() as conn, conn.transaction():
-        entity_list = await EntityList.load(project_name, list_id, user=user, conn=conn)
+    async with Postgres.transaction():
+        entity_list = await EntityList.load(project_name, list_id, user=user)
         await entity_list.ensure_can_update()
 
         payload_dict = payload.dict(exclude_unset=True)
@@ -130,9 +129,10 @@ async def delete_entity_list(
 ) -> EmptyResponse:
     """Delete entity list from the database"""
 
-    entity_list = await EntityList.load(project_name, list_id, user=user)
-    await entity_list.ensure_can_admin()
-    await entity_list.delete()
+    async with Postgres.transaction():
+        entity_list = await EntityList.load(project_name, list_id, user=user)
+        await entity_list.ensure_can_admin()
+        await entity_list.delete()
 
     return EmptyResponse()
 
@@ -147,8 +147,8 @@ async def materialize_entity_list(
 ) -> EntityListSummary:
     """Materialize an entity list."""
 
-    async with Postgres.acquire() as conn, conn.transaction():
-        entity_list = await EntityList.load(project_name, list_id, user=user, conn=conn)
+    async with Postgres.transaction():
+        entity_list = await EntityList.load(project_name, list_id, user=user)
         await entity_list.ensure_can_admin()
         await entity_list.materialize()
         return await entity_list.save(sender=sender, sender_type=sender_type)

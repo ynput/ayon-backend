@@ -1,16 +1,13 @@
-from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
 
 from ayon_server.exceptions import ConstraintViolationException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
 from ayon_server.utils import SQLTool, json_dumps
 
-from .base import EventModel, EventStatus, create_id
-
-HandlerType = Callable[[EventModel], Awaitable[None]]
+from .base import EventModel, EventStatus, HandlerType, create_id
 
 
 class EventStream:
@@ -206,8 +203,8 @@ class EventStream:
         for handler in handlers:
             try:
                 await handler(event)
-            except Exception as e:
-                logger.warning(f"Error in event handler: {e}")
+            except Exception:
+                log_traceback(f"Error in event handler '{handler.__name__}'")
 
         return event.id
 

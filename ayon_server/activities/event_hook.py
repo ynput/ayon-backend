@@ -203,7 +203,8 @@ class ActivityFeedEventHook:
         # add watchers from tasks
 
         query = f"""
-            SELECT activity_data->>'watcher' FROM project_{event.project}.activity_feed
+            SELECT activity_data->>'watcher' as watcher
+            FROM project_{event.project}.activity_feed
             WHERE activity_type = 'watch'
             AND reference_type = 'origin'
             AND entity_type = 'task'

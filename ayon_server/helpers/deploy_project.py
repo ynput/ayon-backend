@@ -87,7 +87,7 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
     return result
 
 
-async def assign_default_users_to_project(project_name: str, conn) -> None:
+async def assign_default_users_to_project(project_name: str) -> None:
     """Assign a project to all users with default access groups"""
 
     # NOTE: we need to use explicit public here, because the
@@ -101,7 +101,7 @@ async def assign_default_users_to_project(project_name: str, conn) -> None:
         FOR UPDATE OF u
     """
 
-    users = await conn.fetch(query)
+    users = await Postgres.fetch(query)
     if not users:
         return
 
@@ -123,7 +123,8 @@ async def assign_default_users_to_project(project_name: str, conn) -> None:
         access_groups = user.data.get("accessGroups", {})
         access_groups[project_name] = user.data["defaultAccessGroups"]
         user.data["accessGroups"] = access_groups
-        await user.save(transaction=conn, run_hooks=False)
+        # do not run hooks as we're updating all sessions in the next step
+        await user.save(run_hooks=False)
 
         for token in sessions[user.name]:
             await Session.update(token, user)
@@ -172,10 +173,10 @@ async def create_project_from_anatomy(
     )
 
     start_time = time.monotonic()
-    async with Postgres.acquire() as conn, conn.transaction():
-        await project.save(transaction=conn)
+    async with Postgres.transaction():
+        await project.save()
         if assign_users:
-            await assign_default_users_to_project(project.name, conn)
+            await assign_default_users_to_project(project.name)
 
     end_time = time.monotonic()
     logger.debug(f"Deployed project {project.name} in {end_time - start_time:.2f}s")

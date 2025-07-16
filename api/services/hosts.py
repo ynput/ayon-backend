@@ -84,33 +84,32 @@ async def host_heartbeat(payload: HeartbeatRequestModel, user: CurrentUser):
 
     now = datetime.now()
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                """
-                INSERT INTO hosts (name, last_seen, health)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (name)
-                DO UPDATE SET
-                    last_seen = $2,
-                    health = $3
-                """,
-                payload.hostname,
-                now,
-                payload.health.dict(),
-            )
+    async with Postgres.transaction():
+        await Postgres.execute(
+            """
+            INSERT INTO hosts (name, last_seen, health)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (name)
+            DO UPDATE SET
+                last_seen = $2,
+                health = $3
+            """,
+            payload.hostname,
+            now,
+            payload.health.dict(),
+        )
 
-            await conn.execute(
-                """
-                UPDATE services SET
-                is_running = (name = ANY($1::VARCHAR[]))::BOOL,
-                last_seen = $2
-                WHERE hostname = $3
-                """,
-                payload.services,
-                now,
-                payload.hostname,
-            )
+        await Postgres.execute(
+            """
+            UPDATE services SET
+            is_running = (name = ANY($1::VARCHAR[]))::BOOL,
+            last_seen = $2
+            WHERE hostname = $3
+            """,
+            payload.services,
+            now,
+            payload.hostname,
+        )
 
     all_services = (await list_services(user=user)).services
     services = [

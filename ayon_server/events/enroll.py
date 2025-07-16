@@ -109,8 +109,8 @@ async def enroll_job(
         LIMIT 1000  -- Pool of 1000 events should be enough
     """
 
-    async with Postgres.acquire() as con, con.transaction():
-        statement = await con.prepare(query)
+    async with Postgres.transaction():
+        statement = await Postgres.prepare(query)
         async for row in statement.cursor(source_topic, target_topic, max_retries):
             # Check if target event already exists
             if row["target_status"] is not None:

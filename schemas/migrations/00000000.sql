@@ -133,9 +133,6 @@ BEGIN
 END $$;
 
 
-DROP TABLE IF EXISTS public.addon_versions; -- replaced by bundles
-DROP TABLE IF EXISTS public.dependency_packages; -- stored as json files
-
 ---------------
 -- AYON 0.6 --
 ---------------
