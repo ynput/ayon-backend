@@ -58,7 +58,7 @@ class ProductTypes(BaseSettingsModel):
         ),
     ]
 
-    # TODO: For furture use, once base product types are implemented
+    # TODO: For future use, once base product types are implemented
     # base: Annotated[
     #     list[ProductBaseType],
     #     SettingsField(
