@@ -223,22 +223,15 @@ async def create_entity_link(
         raise BadRequestException("Cannot link an entity to itself.")
 
     async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
         # Ensure input_id is in the project
-        query = f"""
-            SELECT id
-            FROM project_{project_name}.{input_type}s
-            WHERE id = $1
-            """
+        query = f"SELECT id FROM {input_type}s WHERE id = $1"
         res = await Postgres.fetchrow(query, post_data.input)
         if not res:
             raise NotFoundException(f"Input entity {post_data.input} not found.")
 
         # Ensure output_id is in the project
-        query = f"""
-            SELECT id
-            FROM project_{project_name}.{output_type}s
-            WHERE id = $1
-            """
+        query = f"SELECT id {output_type}s WHERE id = $1"
         res = await Postgres.fetchrow(query, post_data.output)
         if not res:
             raise NotFoundException(f"Output entity {post_data.output} not found.")
@@ -246,8 +239,8 @@ async def create_entity_link(
         # Create a link
         try:
             await Postgres.execute(
-                f"""
-                INSERT INTO project_{project_name}.links
+                """
+                INSERT INTO links
                     (id, name, input_id, output_id, link_type, author, data)
                 VALUES
                     ($1, $2, $3, $4, $5, $6, $7)
