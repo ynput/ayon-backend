@@ -22,6 +22,7 @@ from ayon_server.graphql.types import Info
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import validate_name_list, validate_status_list
 from ayon_server.utils import SQLTool
+from ayon_server.utils.strings import slugify
 
 
 async def get_representations(
@@ -42,6 +43,7 @@ async def get_representations(
     ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
 ) -> RepresentationsConnection:
     """Return a list of representations."""
@@ -116,11 +118,7 @@ async def get_representations(
     #
 
     access_list = await create_folder_access_list(root, info)
-    if access_list is not None:
-        sql_conditions.append(
-            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
-        )
-
+    if access_list is not None or search:
         sql_joins.extend(
             [
                 f"""
@@ -137,6 +135,28 @@ async def get_representations(
                 """,
             ]
         )
+        if access_list is not None:
+            sql_conditions.append(
+                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+            )
+
+    if search:
+        terms = slugify(search, make_set=True, min_length=2)
+        for term in terms:
+            sub_conditions = []
+            if term.isdigit():
+                sub_conditions.append(f"versions.version = {int(term)}")
+            elif term.startswith("v") and term[1:].isdigit():
+                sub_conditions.append(f"versions.version = {int(term[1:])}")
+
+            term = term.replace("'", "''")  # Escape single quotes
+            sub_conditions.append(f"products.name ILIKE '%{term}%'")
+            sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
+            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
+            sub_conditions.append(f"representations.name ILIKE '%{term}%'")
+
+            condition = " OR ".join(sub_conditions)
+            sql_conditions.append(f"({condition})")
 
     #
     # Filter
