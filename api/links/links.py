@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter
 
@@ -19,38 +19,52 @@ from ayon_server.utils import EntityID
 router = APIRouter(tags=["Links"])
 
 
+LINK_TYPE_LIST_EXAMPLE = [
+    {
+        "name": "reference|version|version",
+        "link_type": "reference",
+        "input_type": "version",
+        "output_type": "version",
+        "data": {},
+    },
+    {
+        "name": "breakdown|folder|folder",
+        "link_type": "breakdown",
+        "input_type": "folder",
+        "output_type": "folder",
+        "data": {},
+    },
+]
+
+
 class LinkTypeListResponse(OPModel):
-    types: list[LinkTypeModel] = Field(
-        ...,
-        description="List of link types",
-        example=[
-            {
-                "name": "reference|version|version",
-                "link_type": "reference",
-                "input_type": "version",
-                "output_type": "version",
-                "data": {},
-            },
-            {
-                "name": "breakdown|folder|folder",
-                "link_type": "breakdown",
-                "input_type": "folder",
-                "output_type": "folder",
-                "data": {},
-            },
-        ],
-    )
+    types: Annotated[
+        list[LinkTypeModel],
+        Field(
+            description="List of link types defined in the project.",
+            example=LINK_TYPE_LIST_EXAMPLE,
+        ),
+    ]
 
 
 class CreateLinkTypeRequestModel(OPModel):
-    data: dict[str, Any] = Field(default_factory=dict, description="Link data")
+    data: Annotated[
+        dict[str, Any],
+        Field(
+            default_factory=dict,
+            description="Additional link type data (appearance, description, etc.).",
+        ),
+    ]
 
 
 @router.get("/projects/{project_name}/links/types")
 async def list_link_types(
-    project_name: ProjectName, current_user: CurrentUser
+    project_name: ProjectName,
+    user: CurrentUser,
 ) -> LinkTypeListResponse:
     """List all link types"""
+
+    user.check_project_access(project_name)
 
     types: list[LinkTypeModel] = []
     query = f"""
@@ -123,25 +137,70 @@ async def delete_link_type(
 class CreateLinkRequestModel(OPModel):
     """Request model for creating a link."""
 
-    input: str = Field(..., description="The ID of the input entity.")
-    output: str = Field(..., description="The ID of the output entity.")
-    name: str | None = Field(None, description="The name of the link.")
+    id: Annotated[
+        str | None,
+        Field(
+            title="Link ID",
+            description="ID of the link to create. If not provided, will be generated.",
+            **EntityID.META,
+        ),
+    ] = None
+
+    input: Annotated[
+        str,
+        Field(
+            title="Input ID", description="The ID of the input entity.", **EntityID.META
+        ),
+    ]
+
+    output: Annotated[
+        str,
+        Field(
+            title="Output ID",
+            description="The ID of the output entity.",
+            **EntityID.META,
+        ),
+    ]
+
+    name: Annotated[
+        str | None,
+        Field(
+            title="Link Name",
+            description="The name of the link.",
+        ),
+    ] = None
+
+    link_type: Annotated[
+        str | None,
+        Field(
+            title="Link Type",
+            description="Link type to create.",
+            example="reference|folder|version",
+        ),
+    ] = None
+
+    data: Annotated[
+        dict[str, Any],
+        Field(
+            title="Link Data",
+            default_factory=dict,
+            description="Additional data for the link.",
+        ),
+    ]
+
+    # Deprecated field, kept for backward compatibility
     link: str | None = Field(
         None,
         description="Link type to create. This is deprecated. Use linkType instead.",
         example="reference|folder|version",
     )
-    link_type: str | None = Field(
-        None,
-        description="Link type to create.",
-        example="reference|folder|version",
-    )
-    data: dict[str, Any] = Field(default_factory=dict, description="Link data")
 
 
 @router.post("/projects/{project_name}/links")
 async def create_entity_link(
-    post_data: CreateLinkRequestModel, user: CurrentUser, project_name: ProjectName
+    user: CurrentUser,
+    project_name: ProjectName,
+    post_data: CreateLinkRequestModel,
 ) -> EntityIdResponse:
     """Create a new entity link."""
 
@@ -149,61 +208,62 @@ async def create_entity_link(
     # we could get rid of the following check and use Entity.load instead
 
     link_type = post_data.link_type or post_data.link
-    assert link_type is not None, "Link type is not specified"
-    assert len(link_type.split("|")) == 3, "Invalid link type format"
+
+    if link_type is None:
+        raise BadRequestException("Link type is not specified")
+
+    if len(link_type.split("|")) != 3:
+        msg = "Link type must be in the format 'name|input_type|output_type'"
+        raise BadRequestException(msg)
 
     link_type_name, input_type, output_type = link_type.split("|")
-    link_id = EntityID.create()
+    link_id = post_data.id or EntityID.create()
 
     if input_type == output_type and post_data.input == post_data.output:
         raise BadRequestException("Cannot link an entity to itself.")
 
-    # Ensure input_id is in the project
+    async with Postgres.transaction():
+        # Ensure input_id is in the project
+        query = f"""
+            SELECT id
+            FROM project_{project_name}.{input_type}s
+            WHERE id = $1
+            """
+        res = await Postgres.fetchrow(query, post_data.input)
+        if not res:
+            raise NotFoundException(f"Input entity {post_data.input} not found.")
 
-    query = f"""
-        SELECT id
-        FROM project_{project_name}.{input_type}s
-        WHERE id = $1
-        """
-    for _row in await Postgres.fetch(query, post_data.input):
-        break
-    else:
-        raise NotFoundException(f"Input entity {post_data.input} not found.")
+        # Ensure output_id is in the project
+        query = f"""
+            SELECT id
+            FROM project_{project_name}.{output_type}s
+            WHERE id = $1
+            """
+        res = await Postgres.fetchrow(query, post_data.output)
+        if not res:
+            raise NotFoundException(f"Output entity {post_data.output} not found.")
 
-    # Ensure output_id is in the project
-
-    query = f"""
-        SELECT id
-        FROM project_{project_name}.{output_type}s
-        WHERE id = $1
-        """
-    for _row in await Postgres.fetch(query, post_data.output):
-        break
-    else:
-        raise NotFoundException(f"Output entity {post_data.output} not found.")
-
-    # Create a link
-
-    try:
-        await Postgres.execute(
-            f"""
-            INSERT INTO project_{project_name}.links
-                (id, name, input_id, output_id, link_type, author, data)
-            VALUES
-                ($1, $2, $3, $4, $5, $6, $7)
-            """,
-            link_id,
-            post_data.name,
-            post_data.input,
-            post_data.output,
-            link_type,
-            user.name,
-            post_data.data,
-        )
-    except Postgres.ForeignKeyViolationError:
-        raise BadRequestException("Unsupported link type.") from None
-    except Postgres.UniqueViolationError:
-        raise ConstraintViolationException("Link already exists.") from None
+        # Create a link
+        try:
+            await Postgres.execute(
+                f"""
+                INSERT INTO project_{project_name}.links
+                    (id, name, input_id, output_id, link_type, author, data)
+                VALUES
+                    ($1, $2, $3, $4, $5, $6, $7)
+                """,
+                link_id,
+                post_data.name,
+                post_data.input,
+                post_data.output,
+                link_type,
+                user.name,
+                post_data.data,
+            )
+        except Postgres.ForeignKeyViolationError:
+            raise BadRequestException("Unsupported link type.") from None
+        except Postgres.UniqueViolationError:
+            raise ConstraintViolationException("Link already exists.") from None
 
     logger.debug(
         f"Created {link_type_name} link between "
@@ -230,21 +290,18 @@ async def delete_entity_link(
     Managers can delete any link.
     """
 
-    query = f"""
-        SELECT author
-        FROM project_{project_name}.links
-        WHERE id = $1
-    """
-    for row in await Postgres.fetch(query, link_id):
-        if (row["author"] != user.name) and (not user.is_manager):  # TBD
-            raise ForbiddenException
-        break
-    else:
-        raise NotFoundException(f"Link {link_id} not found.")
+    async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
 
-    await Postgres.execute(
-        f"DELETE FROM project_{project_name}.links WHERE id = $1",
-        link_id,
-    )
+        query = "SELECT author FROM links WHERE id = $1"
+        res = await Postgres.fetchrow(query, link_id)
+        if not res:
+            raise NotFoundException(f"Link {link_id} not found.")
+
+        if res["author"] != user.name and not user.is_manager:
+            raise ForbiddenException("You do not have permission to delete this link.")
+
+        query = "DELETE FROM links WHERE id = $1"
+        await Postgres.execute(query, link_id)
 
     return EmptyResponse()
