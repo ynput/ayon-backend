@@ -188,8 +188,14 @@ class AyonConfig(BaseModel):
         description="Include addon endpoints in the OpenAPI schema",
     )
 
+    openapi_require_authentication: bool = Field(
+        default=True,
+        description="Require authentication for OpenAPI schema access",
+    )
+
     use_git_suffix_for_addons: bool = Field(
-        default=True, description="Use git suffix for addon versions. "
+        default=True,
+        description="Use git suffix for addon versions. ",
     )
 
     log_retention_days: int = Field(
