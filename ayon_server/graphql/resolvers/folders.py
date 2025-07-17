@@ -30,7 +30,7 @@ from ayon_server.types import (
     validate_status_list,
     validate_type_name_list,
 )
-from ayon_server.utils import EntityID, SQLTool
+from ayon_server.utils import EntityID, SQLTool, slugify
 
 SORT_OPTIONS = {
     "name": "folders.name",
@@ -121,7 +121,8 @@ async def get_folders(
         "folders.updated_at AS updated_at",
         "folders.creation_order AS creation_order",
         "folders.data AS data",
-        "hierarchy.path AS path" "pr.attrib AS project_attributes",
+        "hierarchy.path AS path",
+        "pr.attrib AS project_attributes",
         "ex.attrib AS inherited_attributes",
     ]
 
@@ -310,6 +311,16 @@ async def get_folders(
             )
         """
         sql_conditions.append(cond)
+
+    if search:
+        terms = slugify(search, make_set=True)
+        for term in terms:
+            term = term.replace("'", "''")
+            sql_conditions.append(
+                f"(folders.name ILIKE '%{term}%' OR "
+                f"folders.label ILIKE '%{term}%' OR "
+                f"hierarchy.path ILIKE '%{term}%')"
+            )
 
     #
     # Filter
