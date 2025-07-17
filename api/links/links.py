@@ -231,7 +231,7 @@ async def create_entity_link(
             raise NotFoundException(f"Input entity {post_data.input} not found.")
 
         # Ensure output_id is in the project
-        query = f"SELECT id {output_type}s WHERE id = $1"
+        query = f"SELECT id FROM {output_type}s WHERE id = $1"
         res = await Postgres.fetchrow(query, post_data.output)
         if not res:
             raise NotFoundException(f"Output entity {post_data.output} not found.")
