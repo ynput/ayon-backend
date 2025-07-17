@@ -87,7 +87,7 @@ async def docs(user: CurrentUserOptional) -> HTMLResponse:
             raise ForbiddenException("You must be logged in to access API documentation")
 
         if not user.is_manager:
-            raise ForbiddenException("You are not allowed to access OpenAPI schema")
+            raise ForbiddenException("You are not allowed to access API documentation")
 
     return get_redoc_html(
         openapi_url="/openapi.json",
