@@ -215,7 +215,7 @@ async def get_versions(
 
     if search:
         needs_hierarchy = True
-        terms = slugify(search, make_set=True, min_length=1)
+        terms = slugify(search, make_set=True, min_length=2)
 
         for term in terms:
             sub_conditions = []
