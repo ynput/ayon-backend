@@ -84,7 +84,7 @@ async def docs(user: CurrentUserOptional) -> HTMLResponse:
 
     if ayonconfig.openapi_require_authentication:
         if user is None:
-            raise ForbiddenException("You must be logged in to access OpenAPI schema")
+            raise ForbiddenException("You must be logged in to access API documentation")
 
         if not user.is_manager:
             raise ForbiddenException("You are not allowed to access OpenAPI schema")
