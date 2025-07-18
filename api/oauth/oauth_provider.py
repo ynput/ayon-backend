@@ -112,7 +112,7 @@ async def authorize_endpoint(
 
     # Validate redirect_uri
     if redirect_uri and redirect_uri not in client.redirect_uris:
-        raise BadRequestException("Invalid redirect_uri")
+        raise BadRequestException(f"Invalid redirect_uri {redirect_uri}")
 
     if not redirect_uri:
         redirect_uri = client.redirect_uris[0] if client.redirect_uris else None
@@ -407,10 +407,10 @@ async def userinfo_endpoint(current_user: CurrentUser) -> OAuthUserInfoResponse:
 
     return OAuthUserInfoResponse(
         sub=current_user.name,
-        name=current_user.attrib.get("fullName"),
+        name=current_user.attrib.fullName,
         preferred_username=current_user.name,
-        email=current_user.attrib.get("email"),
-        email_verified=bool(current_user.attrib.get("email")),
+        email=current_user.attrib.email,
+        email_verified=bool(current_user.attrib.email),
     )
 
 @router.get("/validate")

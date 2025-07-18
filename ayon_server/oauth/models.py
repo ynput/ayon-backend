@@ -1,4 +1,5 @@
 """OAuth models for AYON Server OAuth provider implementation."""
+from datetime import datetime
 
 from pydantic import Field
 
@@ -26,8 +27,8 @@ class OAuthClient(OPModel):
         default="confidential", description="Client type (public/confidential)"
     )
     is_active: bool = Field(default=True, description="Whether client is active")
-    created_at: float = Field(..., description="Creation timestamp")
-    updated_at: float = Field(..., description="Last update timestamp")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
 
 
 class OAuthClientCreate(OPModel):

@@ -15,13 +15,13 @@ class JWTTokenManager:
     @staticmethod
     def _get_jwt_secret() -> str:
         """Get JWT signing secret."""
-        # Use the same secret as AYON's JWT implementation
-        return ayonconfig.secret
+        return ayonconfig.auth_pass_pepper
 
     @staticmethod
     def _get_issuer() -> str:
         """Get JWT issuer."""
-        return ayonconfig.site_id or "ayon-server"
+        # Use the server URL as the issuer
+        return "ayon-server"
 
     @classmethod
     def create_jwt_access_token(
@@ -51,8 +51,8 @@ class JWTTokenManager:
 
             # User-specific claims
             "username": user.name,
-            "email": user.attrib.get("email"),
-            "full_name": user.attrib.get("fullName"),
+            "email": user.attrib.email,
+            "full_name": user.attrib.fullName,
             "is_admin": user.is_admin,
             "is_manager": user.is_manager,
             "is_service": user.is_service,
@@ -85,10 +85,10 @@ class JWTTokenManager:
             "auth_time": int(now),  # Time when user was authenticated
 
             # User profile claims
-            "name": user.attrib.get("fullName"),
+            "name": user.attrib.fullName,
             "preferred_username": user.name,
-            "email": user.attrib.get("email"),
-            "email_verified": bool(user.attrib.get("email")),
+            "email": user.attrib.email,
+            "email_verified": bool(user.attrib.email),
             "updated_at": int(
                 user.updated_at.timestamp()) if user.updated_at else int(now),
 
