@@ -50,28 +50,32 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
 
     result = []
     ids_with_children = set()
-    async for row in Postgres.iterate(query):
-        result.append(
-            {
-                "id": row["id"],
-                "path": row["path"],
-                "parent_id": row["parent_id"],
-                "parents": row["path"].strip("/").split("/")[:-1],
-                "name": row["name"],
-                "label": row["label"],
-                "folder_type": row["folder_type"],
-                "has_tasks": row["task_count"] > 0,
-                "task_names": row["task_names"] if row["task_names"] != [None] else [],
-                "status": row["status"],
-                "attrib": row["all_attrib"],
-                "tags": row["tags"],
-                "own_attrib": list(row["attrib"].keys()),
-                "has_reviewables": row["has_reviewables"],
-                "updated_at": row["updated_at"],
-            }
-        )
-        if row["parent_id"] is not None:
-            ids_with_children.add(row["parent_id"])
+    async with Postgres.transaction():
+        stmt = await Postgres.prepare(query)
+        async for row in stmt.cursor():
+            result.append(
+                {
+                    "id": row["id"],
+                    "path": row["path"],
+                    "parent_id": row["parent_id"],
+                    "parents": row["path"].strip("/").split("/")[:-1],
+                    "name": row["name"],
+                    "label": row["label"],
+                    "folder_type": row["folder_type"],
+                    "has_tasks": row["task_count"] > 0,
+                    "task_names": row["task_names"]
+                    if row["task_names"] != [None]
+                    else [],
+                    "status": row["status"],
+                    "attrib": row["all_attrib"],
+                    "tags": row["tags"],
+                    "own_attrib": list(row["attrib"].keys()),
+                    "has_reviewables": row["has_reviewables"],
+                    "updated_at": row["updated_at"],
+                }
+            )
+            if row["parent_id"] is not None:
+                ids_with_children.add(row["parent_id"])
 
     for folder in result:
         folder["has_children"] = folder["id"] in ids_with_children
