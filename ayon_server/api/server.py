@@ -15,7 +15,7 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 
 # okay. now the rest
 from ayon_server.api.auth import AuthMiddleware
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import CurrentUserOptional
 from ayon_server.api.lifespan import lifespan
 from ayon_server.api.logging import LoggingMiddleware
 from ayon_server.api.messaging import messaging
@@ -54,13 +54,18 @@ app.add_middleware(AuthMiddleware)
 
 
 @app.get("/openapi.json", include_in_schema=False)
-async def openapi(user: CurrentUser) -> dict[str, Any]:
+async def openapi(user: CurrentUserOptional) -> dict[str, Any]:
     """Return OpenAPI schema"""
-    if not user.is_manager:
-        raise ForbiddenException("You are not allowed to access OpenAPI schema")
 
     if ayonconfig.disable_rest_docs:
         raise ForbiddenException("OpenAPI documentation is disabled")
+
+    if ayonconfig.openapi_require_authentication:
+        if user is None:
+            raise ForbiddenException("You must be logged in to access OpenAPI schema")
+
+        if not user.is_manager:
+            raise ForbiddenException("You are not allowed to access OpenAPI schema")
 
     return get_openapi(
         title=app_meta["title"],
@@ -71,13 +76,21 @@ async def openapi(user: CurrentUser) -> dict[str, Any]:
 
 
 @app.get("/docs", include_in_schema=False)
-async def docs(user: CurrentUser) -> HTMLResponse:
+async def docs(user: CurrentUserOptional) -> HTMLResponse:
     """Return the OpenAPI documentation page"""
-    if not user.is_manager:
-        raise ForbiddenException("You are not allowed to access the API documentation")
 
     if ayonconfig.disable_rest_docs:
         raise ForbiddenException("OpenAPI documentation is disabled")
+
+    if ayonconfig.openapi_require_authentication:
+        if user is None:
+            raise ForbiddenException(
+                "You must be logged in to access API documentation"
+            )
+
+        if not user.is_manager:
+            raise ForbiddenException("You are not allowed to access API documentation")
+
     return get_redoc_html(
         openapi_url="/openapi.json",
         title=app_meta["title"],
