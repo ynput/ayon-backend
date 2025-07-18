@@ -27,7 +27,7 @@ from ayon_server.types import (
     validate_status_list,
     validate_type_name_list,
 )
-from ayon_server.utils import SQLTool
+from ayon_server.utils import SQLTool, slugify
 
 SORT_OPTIONS = {
     "name": "products.name",
@@ -66,6 +66,7 @@ async def get_products(
     ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> ProductsConnection:
@@ -167,7 +168,12 @@ async def get_products(
     # Join with folders if parent folder is requested
     #
 
-    if "folder" in fields or (access_list is not None) or (path_ex is not None):
+    if (
+        "folder" in fields
+        or (access_list is not None)
+        or (path_ex is not None)
+        or search
+    ):
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
@@ -219,19 +225,13 @@ async def get_products(
                 ]
             )
 
-        if any(
-            field.endswith("folder.path")
-            or field.endswith("folder.parents")
-            or (path_ex is not None)
-            for field in fields
-        ) or (access_list is not None):
-            sql_columns.append("hierarchy.path AS _folder_path")
-            sql_joins.append(
-                f"""
-                INNER JOIN project_{project_name}.hierarchy AS hierarchy
-                ON folders.id = hierarchy.id
-                """
-            )
+        sql_columns.append("hierarchy.path AS _folder_path")
+        sql_joins.append(
+            f"""
+            INNER JOIN project_{project_name}.hierarchy AS hierarchy
+            ON folders.id = hierarchy.id
+            """
+        )
 
     #
     # Verison_list
@@ -248,6 +248,18 @@ async def get_products(
                 ON products.id = version_list.product_id
             """
         )
+
+    if search:
+        terms = slugify(search, make_set=True)
+        for term in terms:
+            sub_conditions = []
+            term = term.replace("'", "''")
+            sub_conditions.append(f"products.name ILIKE '%{term}%'")
+            sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
+            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
+
+            condition = " OR ".join(sub_conditions)
+            sql_conditions.append(f"({condition})")
 
     #
     # Filter
