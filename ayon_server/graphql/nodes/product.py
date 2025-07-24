@@ -122,6 +122,7 @@ def product_from_record(
 ) -> ProductNode:
     """Construct a product node from a DB row."""
 
+    folder = None
     if context:
         folder_data = {}
         for key, value in record.items():
@@ -138,12 +139,7 @@ def product_from_record(
                     else None
                 )
             except KeyError:
-                # If the folder loader is not available,
-                # we can still create the node without it
-                # (dataloaders will handle it later)
-                folder = None
-    else:
-        folder = None
+                pass
 
     vlist = []
     version_ids = record.get("version_ids", [])

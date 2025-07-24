@@ -110,6 +110,8 @@ def task_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> TaskNode:
     """Construct a task node from a DB row."""
+
+    folder = None
     if context:
         folder_data = {}
         for key, value in record.items():
@@ -126,9 +128,7 @@ def task_from_record(
                     else None
                 )
             except KeyError:
-                folder = None
-    else:
-        folder = None
+                pass
 
     current_user = context["user"]
     assignees: list[str] = []
