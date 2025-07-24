@@ -47,6 +47,7 @@ class ProductNode(BaseNode):
     status: str
     tags: list[str]
     data: str | None
+    path: str | None = None
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
@@ -106,6 +107,13 @@ class ProductNode(BaseNode):
     def all_attrib(self) -> str:
         return json_dumps(self._attrib)
 
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
+
 
 def product_from_record(
     project_name: str,
@@ -138,6 +146,11 @@ def product_from_record(
 
     data = record.get("data", {})
 
+    path = None
+    if record.get("_folder_path"):
+        folder_path = record["_folder_path"].strip("/")
+        path = f"/{folder_path}/{record['name']}"
+
     return ProductNode(
         project_name=project_name,
         id=record["id"],
@@ -151,6 +164,7 @@ def product_from_record(
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         version_list=vlist,
+        path=path,
         _folder=folder,
         _attrib=record["attrib"] or {},
         _user=context["user"],

@@ -38,6 +38,7 @@ class RepresentationNode(BaseNode):
     tags: list[str]
     data: str | None
     traits: str | None
+    path: str | None = None
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
@@ -80,6 +81,13 @@ class RepresentationNode(BaseNode):
         """Alias for `allAttrib`"""
         return json_dumps(self._attrib)
 
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
+
 
 def parse_files(
     files: list[dict[str, Any]],
@@ -103,6 +111,14 @@ def representation_from_record(
 
     data = record.get("data") or {}
 
+    path = None
+    if record.get("_folder_path"):
+        folder_path = record["_folder_path"].strip("/")
+        product_name = record["_product_name"]
+        version_number = record["_version_number"]
+        version_name = f"v{version_number:03d}"
+        path = f"/{folder_path}/{product_name}/{version_name}/{record['name']}"
+
     return RepresentationNode(
         project_name=project_name,
         id=record["id"],
@@ -117,6 +133,7 @@ def representation_from_record(
         context=json_dumps(data.get("context", {})),
         files=parse_files(record.get("files", [])),
         traits=json_dumps(record["traits"]) if record["traits"] else None,
+        path=path,
         _attrib=record["attrib"] or {},
         _user=context["user"],
     )
