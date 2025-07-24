@@ -38,6 +38,7 @@ class TaskNode(BaseNode):
     has_reviewables: bool
     tags: list[str]
     data: str | None
+    path: str | None = None
 
     _attrib: strawberry.Private[dict[str, Any]]
     _inherited_attrib: strawberry.Private[dict[str, Any]]
@@ -97,6 +98,13 @@ class TaskNode(BaseNode):
         """Return a list of attributes that are defined on the task."""
         return list(self._attrib.keys())
 
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
+
 
 def task_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
@@ -145,6 +153,11 @@ def task_from_record(
             relation=thumb_data.get("relation"),
         )
 
+    path = None
+    if record.get("_folder_path"):
+        folder_path = record["_folder_path"].strip("/")
+        path = f"/{folder_path}/{record['name']}"
+
     return TaskNode(
         project_name=project_name,
         id=record["id"],
@@ -160,6 +173,7 @@ def task_from_record(
         tags=record["tags"],
         data=json_dumps(data) if data else None,
         active=record["active"],
+        path=path,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         _folder=folder,
