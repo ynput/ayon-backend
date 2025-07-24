@@ -173,6 +173,8 @@ async def get_products(
         or (access_list is not None)
         or (path_ex is not None)
         or search
+        or fields.any_endswith("parents")
+        or fields.any_endswith("path")
     ):
         sql_columns.extend(
             [

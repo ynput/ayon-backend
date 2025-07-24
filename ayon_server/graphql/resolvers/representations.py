@@ -12,6 +12,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
+    FieldInfo,
     argdesc,
     create_folder_access_list,
     get_has_links_conds,
@@ -49,6 +50,7 @@ async def get_representations(
     """Return a list of representations."""
 
     project_name = root.project_name
+    fields = FieldInfo(info, ["representations.edges.node", "representation"])
 
     #
     # Conditions
@@ -118,7 +120,12 @@ async def get_representations(
     #
 
     access_list = await create_folder_access_list(root, info)
-    if access_list is not None or search:
+    if (
+        access_list is not None
+        or search
+        or fields.any_endswith("path")
+        or fields.any_endswith("parents")
+    ):
         sql_joins.extend(
             [
                 f"""
@@ -135,6 +142,15 @@ async def get_representations(
                 """,
             ]
         )
+
+        sql_columns.extend(
+            [
+                "hierarchy.path AS _folder_path",
+                "products.name AS _product_name",
+                "versions.version AS _version_number",
+            ]
+        )
+
         if access_list is not None:
             sql_conditions.append(
                 f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"

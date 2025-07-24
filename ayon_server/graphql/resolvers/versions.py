@@ -232,7 +232,13 @@ async def get_versions(
             condition = " OR ".join(sub_conditions)
             sql_conditions.append(f"({condition})")
 
+    if fields.any_endswith("path") or fields.any_endswith("parents"):
+        needs_hierarchy = True
+
     if needs_hierarchy:
+        sql_columns.append("hierarchy.path AS _folder_path")
+        sql_columns.append("products.name AS _product_name")
+
         sql_joins.append(
             f"""
             INNER JOIN project_{project_name}.products AS products

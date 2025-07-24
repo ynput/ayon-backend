@@ -11,6 +11,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
+    FieldInfo,
     argdesc,
     create_folder_access_list,
     get_has_links_conds,
@@ -55,6 +56,7 @@ async def get_workfiles(
     """Return a list of workfiles."""
 
     project_name = root.project_name
+    fields = FieldInfo(info, ["workfiles.edges.node", "workfile"])
 
     #
     # SQL
@@ -84,25 +86,25 @@ async def get_workfiles(
     if ids is not None:
         if not ids:
             return WorkfilesConnection()
-        sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
+        sql_conditions.append(f"workfiles.id IN {SQLTool.id_array(ids)}")
 
     if task_ids is not None:
         if not task_ids:
             return WorkfilesConnection()
         sql_conditions.append(f"task_id IN {SQLTool.id_array(task_ids)}")
     elif root.__class__.__name__ == "TaskNode":
-        sql_conditions.append(f"task_id = '{root.id}'")
+        sql_conditions.append(f"workfiles.task_id = '{root.id}'")
 
     if paths is not None:
         if not paths:
             return WorkfilesConnection()
         paths = [r.replace("'", "''") for r in paths]
-        sql_conditions.append(f"path IN {SQLTool.array(paths)}")
+        sql_conditions.append(f"workfiles.path IN {SQLTool.array(paths)}")
 
     if path_ex:
         # TODO: is this safe?
         path_ex = path_ex.replace("'", "''").replace("\\", "\\\\")
-        sql_conditions.append(f"path ~ '{path_ex}'")
+        sql_conditions.append(f"workfiles.path ~ '{path_ex}'")
 
     if has_links is not None:
         sql_conditions.extend(
@@ -113,15 +115,22 @@ async def get_workfiles(
         if not statuses:
             return WorkfilesConnection()
         validate_status_list(statuses)
-        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
+        sql_conditions.append(f"workfiles.status IN {SQLTool.array(statuses)}")
     if tags is not None:
         if not tags:
             return WorkfilesConnection()
         validate_name_list(tags)
-        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
+        sql_conditions.append(f"workfiles.tags @> {SQLTool.array(tags, curly=True)}")
 
     access_list = await create_folder_access_list(root, info)
-    if access_list is not None or search:
+    if access_list is not None or search or fields.any_endswith("parents"):
+        sql_columns.extend(
+            [
+                "tasks.name AS _task_name",
+                "hierarchy.path AS _folder_path",
+            ]
+        )
+
         sql_joins.extend(
             [
                 f"""
