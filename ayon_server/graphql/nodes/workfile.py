@@ -82,7 +82,7 @@ def workfile_from_record(
             relation=thumb_data.get("relation"),
         )
 
-    parents = []
+    parents: list[str] = []
     if record["_folder_path"]:
         path = record["_folder_path"].strip("/")
         parents = path.split("/")[:-1] if path else []

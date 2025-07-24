@@ -83,8 +83,13 @@ async def product_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     project_name = get_project_name(keys)
 
     query = f"""
-        SELECT * FROM project_{project_name}.products
-        WHERE id IN {SQLTool.id_array([k[1] for k in keys])}
+        SELECT
+            products.*,
+            hierarchy.path AS _folder_path
+        FROM project_{project_name}.products AS products
+        JOIN project_{project_name}.hierarchy AS hierarchy
+        ON hierarchy.id = products.folder_id
+        WHERE products.id IN {SQLTool.id_array([k[1] for k in keys])}
         """
 
     async for record in Postgres.iterate(query):
@@ -119,10 +124,15 @@ async def task_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
             tasks.created_at AS created_at,
             tasks.updated_at AS updated_at,
             tasks.creation_order AS creation_order,
-            pf.attrib AS parent_folder_attrib
-        FROM project_{project_name}.tasks
-        LEFT JOIN project_{project_name}.exported_attributes AS pf
+            pf.attrib AS parent_folder_attrib,
+            hierarchy.path AS _folder_path
+        FROM project_{project_name}.tasks as tasks
+
+        JOIN project_{project_name}.exported_attributes AS pf
         ON tasks.folder_id = pf.folder_id
+
+        JOIN project_{project_name}.hierarchy AS hierarchy
+        ON hierarchy.id = tasks.folder_id
 
         WHERE tasks.id IN {SQLTool.id_array([k[1] for k in keys])}
         """
@@ -145,8 +155,19 @@ async def workfile_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     project_name = get_project_name(keys)
 
     query = f"""
-        SELECT * FROM project_{project_name}.workfiles
-        WHERE id IN {SQLTool.id_array([k[1] for k in keys])}
+        SELECT
+            workfiles.*,
+            tasks.name AS _task_name,
+            hierarchy.path AS _folder_path
+        FROM
+            project_{project_name}.workfiles
+        JOIN project_{project_name}.tasks AS tasks
+        ON tasks.id = workfiles.task_id
+
+        JOIN project_{project_name}.hierarchy AS hierarchy
+        ON hierarchy.id = tasks.folder_id
+
+        WHERE workfiles.id IN {SQLTool.id_array([k[1] for k in keys])}
         """
 
     async for record in Postgres.iterate(query):
@@ -185,10 +206,22 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
             v.tags AS tags,
             v.created_at AS created_at,
             v.updated_at AS updated_at,
+
+            hierarchy.path AS _folder_path,
+            p.name AS _product_name,
+
             EXISTS (
                 SELECT 1 FROM reviewables WHERE entity_id = v.id
             ) AS has_reviewables
-        FROM project_{project_name}.versions AS v
+        FROM
+            project_{project_name}.versions AS v
+
+        JOIN project_{project_name}.products AS p
+        ON p.id = v.product_id
+
+        JOIN project_{project_name}.hierarchy AS hierarchy
+        ON hierarchy.id = p.folder_id
+
         WHERE v.id IN {SQLTool.id_array([k[1] for k in keys])}
         """
 
@@ -225,11 +258,20 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
             v.tags AS tags,
             v.created_at AS created_at,
             v.updated_at AS updated_at,
+            hierarchy.path AS _folder_path,
+            p.name AS _product_name,
             EXISTS (
                 SELECT 1 FROM reviewables WHERE entity_id = v.id
             ) AS has_reviewables
         FROM
             project_{project_name}.versions AS v
+
+        JOIN project_{project_name}.products AS p
+        ON p.id = v.product_id
+
+        JOIN project_{project_name}.hierarchy AS hierarchy
+        ON hierarchy.id = p.folder_id
+
         WHERE v.id IN (
             SELECT l.ids[array_upper(l.ids, 1)]
             FROM project_{project_name}.version_list as l

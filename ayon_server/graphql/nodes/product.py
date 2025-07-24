@@ -129,11 +129,18 @@ def product_from_record(
                 key = key.removeprefix("_folder_")
                 folder_data[key] = value
 
-        folder = (
-            context["folder_from_record"](project_name, folder_data, context=context)
-            if folder_data
-            else None
-        )
+        try:
+            cfun = context["folder_from_record"]
+            folder = (
+                cfun(project_name, folder_data, context=context)
+                if folder_data
+                else None
+            )
+        except KeyError:
+            # If the folder loader is not available,
+            # we can still create the node without it
+            # (dataloaders will handle it later)
+            folder = None
     else:
         folder = None
 
