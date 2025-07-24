@@ -32,10 +32,10 @@ class WorkfileNode(BaseNode):
     status: str
     data: str | None
     tags: list[str]
-    parents: list[str] | None = None
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
+    _parents: list[str] | None = None
 
     @strawberry.field(description="Parent task of the workfile")
     async def task(self, info: Info) -> TaskNode:
@@ -56,6 +56,10 @@ class WorkfileNode(BaseNode):
     @strawberry.field
     def all_attrib(self) -> str:
         return json_dumps(self._attrib)
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        return self._parents or []
 
 
 #
@@ -101,12 +105,12 @@ def workfile_from_record(
         active=record["active"],
         status=record["status"],
         tags=record["tags"],
-        parents=parents,
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         _attrib=record["attrib"] or {},
         _user=context["user"],
+        _parents=parents,
     )
 
 

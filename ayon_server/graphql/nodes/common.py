@@ -118,3 +118,7 @@ class BaseNode:
             activity_types=activity_types,
             reference_types=reference_types,
         )
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        return []
