@@ -74,7 +74,6 @@ async def get_references_from_task(task: TaskEntity) -> set[ActivityReferenceMod
         )
 
     # Load a list of versions that belong to the task.
-
     query = f"SELECT id FROM project_{project_name}.versions WHERE task_id = $1"
     res = await Postgres.fetch(query, task.id)
     for row in res:
