@@ -43,6 +43,9 @@ class LinkEdge(BaseEdge):
         elif self.entity_type == "representation":
             loader = info.context["representation_loader"]
             parser = info.context["representation_from_record"]
+        elif self.entity_type == "workfile":
+            loader = info.context["workfile_loader"]
+            parser = info.context["workfile_from_record"]
         else:
             raise ValueError
         record = await loader.load((self.project_name, self.entity_id))
