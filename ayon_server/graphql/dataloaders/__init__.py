@@ -285,6 +285,43 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
     return [result_dict[k] for k in keys]
 
 
+async def representation_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
+    """Load a list of representations by their ids (used as a dataloader).
+    keys must be a list of tuples (project_name, representation_id) and project_name
+    values must be the same!
+    """
+
+    result_dict = dict.fromkeys(keys)
+    project_name = get_project_name(keys)
+
+    query = f"""
+        SELECT
+            r.*,
+            hierarchy.path AS _folder_path,
+            p.name AS _product_name,
+            v.version AS _version_number
+
+        FROM
+            project_{project_name}.representations AS r
+
+        JOIN project_{project_name}.versions AS v
+        ON v.id = r.version_id
+
+        JOIN project_{project_name}.products AS p
+        ON p.id = v.product_id
+
+        JOIN project_{project_name}.hierarchy AS hierarchy
+        ON hierarchy.id = p.folder_id
+
+        WHERE r.id IN {SQLTool.id_array([k[1] for k in keys])}
+        """
+
+    async for record in Postgres.iterate(query):
+        key: KeyType = KeyType((project_name, str(record["id"])))
+        result_dict[key] = record
+    return [result_dict[k] for k in keys]
+
+
 async def user_loader(keys: list[str]) -> list[dict[str, Any] | None]:
     """Load a list of user records by their names."""
 

@@ -21,6 +21,7 @@ from ayon_server.graphql.dataloaders import (
     folder_loader,
     latest_version_loader,
     product_loader,
+    representation_loader,
     task_loader,
     user_loader,
     version_loader,
@@ -72,6 +73,7 @@ async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
         "latest_version_loader": DataLoader(load_fn=latest_version_loader),
         "user_loader": DataLoader(load_fn=user_loader),
         "workfile_loader": DataLoader(load_fn=workfile_loader),
+        "representation_loader": DataLoader(load_fn=representation_loader),
         # Other
         "activities_resolver": get_activities,
         "links_resolver": get_links,
