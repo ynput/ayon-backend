@@ -91,7 +91,7 @@ async def get_workfiles(
     if task_ids is not None:
         if not task_ids:
             return WorkfilesConnection()
-        sql_conditions.append(f"task_id IN {SQLTool.id_array(task_ids)}")
+        sql_conditions.append(f"workfiles.task_id IN {SQLTool.id_array(task_ids)}")
     elif root.__class__.__name__ == "TaskNode":
         sql_conditions.append(f"workfiles.task_id = '{root.id}'")
 
