@@ -81,7 +81,7 @@ async def delete_activity(
         )
 
         # Delete the activity
-        await Postgres().execute(
+        await Postgres.execute(
             f"""
             DELETE FROM project_{project_name}.activities
             WHERE id = $1

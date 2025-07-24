@@ -222,7 +222,10 @@ class FolderEntity(ProjectLevelEntity):
                 ON s.id = v.product_id
             WHERE s.folder_id = $1
             """
-        return [row["version_id"] async for row in Postgres.iterate(query, self.id)]
+        res = await Postgres.fetch(query, self.id)
+        if not res:
+            return []
+        return [row["version_id"] for row in res]
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         """Check if the user has access to create a new entity.

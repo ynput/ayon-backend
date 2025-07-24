@@ -41,9 +41,7 @@ async def _load_relevant_addons(
             "SELECT name, data->'addons' as addons FROM bundles WHERE is_production",
         )
     elif variant == "staging":
-        query = (
-            "SELECT name, data->'addons' as addons FROM bundles WHERE is_staging",
-        )
+        query = ("SELECT name, data->'addons' as addons FROM bundles WHERE is_staging",)
     elif variant:
         query = (
             "SELECT name, data->'addons' as addons FROM bundles WHERE name = $1",
@@ -87,7 +85,9 @@ async def _load_relevant_addons(
     return variant, result
 
 
-async def get_relevant_addons(variant: str | None, user: UserEntity) -> tuple[str, list[BaseServerAddon]]:
+async def get_relevant_addons(
+    variant: str | None, user: UserEntity
+) -> tuple[str, list[BaseServerAddon]]:
     """Get the list of addons that are relevant for the user.
 
     Normally it means addons in the production bundle,
