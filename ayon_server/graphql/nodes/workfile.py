@@ -1,4 +1,3 @@
-import os
 from typing import TYPE_CHECKING, Any
 
 import strawberry
@@ -33,6 +32,7 @@ class WorkfileNode(BaseNode):
     status: str
     data: str | None
     tags: list[str]
+    parents: list[str] | None = None
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
@@ -69,7 +69,8 @@ def workfile_from_record(
     """Construct a version node from a DB row."""
 
     data = record.get("data") or {}
-    name = os.path.basename(record["path"])
+    npath = record["path"].replace("\\", "/")
+    name = npath.split("/")[-1] if npath else ""
 
     thumbnail = None
     if record["thumbnail_id"]:
@@ -80,6 +81,12 @@ def workfile_from_record(
             source_entity_id=thumb_data.get("sourceEntityId"),
             relation=thumb_data.get("relation"),
         )
+
+    parents = []
+    if record["_folder_path"]:
+        path = record["_folder_path"].strip("/")
+        parents = path.split("/")[:-1] if path else []
+        parents.append(record["_task_name"])
 
     return WorkfileNode(
         project_name=project_name,
@@ -94,6 +101,7 @@ def workfile_from_record(
         active=record["active"],
         status=record["status"],
         tags=record["tags"],
+        parents=parents,
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],

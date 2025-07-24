@@ -11,6 +11,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
+    FieldInfo,
     argdesc,
     create_folder_access_list,
     get_has_links_conds,
@@ -55,6 +56,7 @@ async def get_workfiles(
     """Return a list of workfiles."""
 
     project_name = root.project_name
+    fields = FieldInfo(info, ["workfiles.edges.node", "workfile"])
 
     #
     # SQL
@@ -121,7 +123,14 @@ async def get_workfiles(
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     access_list = await create_folder_access_list(root, info)
-    if access_list is not None or search:
+    if access_list is not None or search or fields.any_endswith("parents"):
+        sql_columns.extend(
+            [
+                "tasks.name AS _task_name",
+                "hierarchy.path AS _folder_path",
+            ]
+        )
+
         sql_joins.extend(
             [
                 f"""
