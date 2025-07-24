@@ -117,11 +117,16 @@ def task_from_record(
                 key = key.removeprefix("_folder_")
                 folder_data[key] = value
 
-        folder = (
-            context["folder_from_record"](project_name, folder_data, context=context)
-            if folder_data
-            else None
-        )
+        if folder_data.get("id"):
+            cfun = context["folder_from_record"]
+            try:
+                folder = (
+                    cfun(project_name, folder_data, context=context)
+                    if folder_data
+                    else None
+                )
+            except KeyError:
+                folder = None
     else:
         folder = None
 
