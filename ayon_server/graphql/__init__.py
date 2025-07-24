@@ -13,7 +13,6 @@ from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import (
     ActivitiesConnection,
     EventsConnection,
-    # InboxConnection,
     KanbanConnection,
     ProjectsConnection,
     UsersConnection,

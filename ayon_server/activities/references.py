@@ -33,13 +33,11 @@ async def get_references_from_folder(
     """
 
     references: set[ActivityReferenceModel] = set()
+    project_name = folder.project_name
+    query = f"SELECT assignees FROM project_{project_name}.tasks WHERE folder_id = $1"
 
-    async for row in Postgres.iterate(
-        f"""
-        SELECT assignees FROM project_{folder.project_name}.tasks WHERE folder_id = $1
-        """,
-        folder.id,
-    ):
+    res = await Postgres.fetch(query, folder.id)
+    for row in res:
         for assignee in row["assignees"]:
             references.add(
                 ActivityReferenceModel(
@@ -62,6 +60,7 @@ async def get_references_from_task(task: TaskEntity) -> set[ActivityReferenceMod
     - versions
     """
     references: set[ActivityReferenceModel] = set()
+    project_name = task.project_name
 
     for assignee in task.assignees:
         references.add(
@@ -75,12 +74,10 @@ async def get_references_from_task(task: TaskEntity) -> set[ActivityReferenceMod
         )
 
     # Load a list of versions that belong to the task.
-    async for row in Postgres.iterate(
-        f"""
-        SELECT id FROM project_{task.project_name}.versions WHERE task_id = $1
-        """,
-        task.id,
-    ):
+
+    query = f"SELECT id FROM project_{project_name}.versions WHERE task_id = $1"
+    res = await Postgres.fetch(query, task.id)
+    for row in res:
         references.add(
             ActivityReferenceModel(
                 entity_type="version",

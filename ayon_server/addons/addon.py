@@ -573,23 +573,19 @@ class BaseServerAddon:
             data = settings_cache.site or {}
 
         else:
-            data = {}
             query = """
                 SELECT data FROM public.site_settings
                 WHERE site_id = $1 AND addon_name = $2
                 AND addon_version = $3 AND user_name = $4
             """
-            async for row in Postgres.iterate(
-                query,
-                site_id,
-                self.name,
-                self.version,
-                user_name,
-            ):
-                data = row["data"]
-                break
-            else:
+            row = await Postgres.fetchrow(
+                query, site_id, self.name, self.version, user_name
+            )
+
+            # No site settings found, return None
+            if row is None:
                 return None
+            data = row["data"]
 
         return site_settings_model(**data).dict()
 

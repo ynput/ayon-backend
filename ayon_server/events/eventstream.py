@@ -311,30 +311,26 @@ class EventStream:
     @classmethod
     async def get(cls, event_id: str) -> EventModel:
         query = "SELECT * FROM public.events WHERE id = $1", event_id
-        event: EventModel | None = None
-        async for record in Postgres.iterate(*query):
-            event = EventModel(
-                id=record["id"],
-                hash=record["hash"],
-                topic=record["topic"],
-                project=record["project_name"],
-                user=record["user_name"],
-                sender=record["sender"],
-                sender_type=record["sender_type"],
-                depends_on=record["depends_on"],
-                status=record["status"],
-                retries=record["retries"],
-                description=record["description"],
-                payload=record["payload"],
-                summary=record["summary"],
-                created_at=record["created_at"],
-                updated_at=record["updated_at"],
-            )
-            break
-
-        if event is None:
+        record = await Postgres.fetchrow(*query)
+        if record is None:
             raise NotFoundException("Event not found")
-        return event
+        return EventModel(
+            id=record["id"],
+            hash=record["hash"],
+            topic=record["topic"],
+            project=record["project_name"],
+            user=record["user_name"],
+            sender=record["sender"],
+            sender_type=record["sender_type"],
+            depends_on=record["depends_on"],
+            status=record["status"],
+            retries=record["retries"],
+            description=record["description"],
+            payload=record["payload"],
+            summary=record["summary"],
+            created_at=record["created_at"],
+            updated_at=record["updated_at"],
+        )
 
     @classmethod
     async def delete(cls, event_id: str) -> None:
