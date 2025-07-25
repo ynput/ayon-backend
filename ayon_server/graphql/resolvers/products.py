@@ -134,12 +134,12 @@ async def get_products(
         if not statuses:
             return ProductsConnection()
         validate_status_list(statuses)
-        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
+        sql_conditions.append(f"products.status IN {SQLTool.array(statuses)}")
     if tags is not None:
         if not tags:
             return ProductsConnection()
         validate_name_list(tags)
-        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
+        sql_conditions.append(f"products.tags @> {SQLTool.array(tags, curly=True)}")
 
     if has_links is not None:
         sql_conditions.extend(
