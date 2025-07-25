@@ -307,13 +307,13 @@ async def get_entity_list_items(
         sql_joins.extend(
             [
                 f"""
-            INNER JOIN project_{project_name}.folders AS pf
-            ON e.folder_id = pf.id
-            """,
+                INNER JOIN project_{project_name}.folders AS pf
+                ON e.folder_id = pf.id
+                """,
                 f"""
-            INNER JOIN project_{project_name}.hierarchy AS hierarchy
-            ON e.folder_id = hierarchy.id
-            """,
+                INNER JOIN project_{project_name}.hierarchy AS hierarchy
+                ON e.folder_id = hierarchy.id
+                """,
             ]
         )
         allowed_parent_keys = ["folder_type"]
