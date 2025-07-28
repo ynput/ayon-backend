@@ -87,8 +87,8 @@ def workfile_from_record(
         )
 
     parents: list[str] = []
-    if record["_folder_path"]:
-        path = record["_folder_path"].strip("/")
+    if path := record.get("_folder_path"):
+        path = path.strip("/")
         parents = path.split("/")[:-1] if path else []
         parents.append(record["_task_name"])
 
