@@ -57,6 +57,30 @@ CREATE TABLE IF NOT EXISTS public.product_types(
   data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
+-----------
+-- VIEWS --
+-----------
+
+--
+-- CREATE TABLE IF NOT EXISTS public.views(
+--   id UUID NOT NULL PRIMARY KEY,
+--   view_type VARCHAR NOT NULL,
+--   label VARCHAR NOT NULL,
+--   position INTEGER NOT NULL DEFAULT 0,
+--
+--   owner VARCHAR,
+--   visibility VARCHAR NOT NULL CHECK (visibility IN ('public', 'private')),
+--   personal BOOLEAN NOT NULL DEFAULT FALSE,
+--
+--   access JSONB NOT NULL DEFAULT '{}'::JSONB, -- Only used for 'public' views
+--   data JSONB NOT NULL DEFAULT '{}'::JSONB,
+-- );
+--
+-- -- User can have only one personal view per type
+-- CREATE UNIQUE INDEX IF NOT EXISTS unique_personal_view ON public.views(view_type, owner) WHERE personal;
+-- CREATE INDEX IF NOT EXISTS view_type_idx ON public.views(view_type);
+-- CREATE INDEX IF NOT EXISTS view_owner_idx ON public.views(owner);
+--
 
 ------------
 -- Events --
