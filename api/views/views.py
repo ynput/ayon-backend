@@ -5,13 +5,17 @@ from fastapi import Path, Query
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EntityIdResponse
 from ayon_server.lib.postgres import Postgres
+from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX
 
 from .development import recreate_views_tables
 from .models import ViewListItemModel, ViewListModel, ViewModel, construct_view_model
 from .router import router
 
-QProjectName = Annotated[str | None, Query(alias="project", title="Project name")]
-PViewType = Annotated[str, Path()]
+QProjectName = Annotated[
+    str | None,
+    Query(title="Project name", regex=PROJECT_NAME_REGEX),
+]
+PViewType = Annotated[str, Path(regex=NAME_REGEX)]
 PViewId = Annotated[str, Path(title="View ID", regex=r"^[0-9a-f]{32}$")]
 
 
@@ -43,7 +47,7 @@ def row_to_list_item(row: dict[str, Any]) -> ViewListItemModel:
 
 
 @router.get("/{view_type}")
-async def get_view_list(
+async def list_views(
     current_user: CurrentUser,
     view_type: PViewType,
     project_name: QProjectName = None,
@@ -121,9 +125,6 @@ async def create_view(
     project_name: QProjectName = None,
 ) -> EntityIdResponse:
     """Create a new view for the user."""
-
-    print("Creating a new view for project:", project_name)
-    print(f"Creating view: {payload}")
 
     # TODO: allow owner override
 
