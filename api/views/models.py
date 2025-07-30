@@ -58,6 +58,8 @@ class ColumnItemModel(OPModel):
 
 
 class OverviewSettings(OPModel):
+    show_hierarchy: bool = True
+    group_by: str | None = None
     filter: QueryFilter | None = None
     columns: Annotated[
         list[ColumnItemModel],
@@ -75,7 +77,6 @@ class OverviewSettings(OPModel):
 
 
 class TaskProgressSettings(OPModel):
-    expanded: bool = False
     filter: QueryFilter | None = None
 
 
