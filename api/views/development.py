@@ -13,8 +13,9 @@ queries = [
     position INTEGER NOT NULL DEFAULT 0,
 
     owner VARCHAR,
-    visibility VARCHAR NOT NULL CHECK (visibility IN ('public', 'private')),
-    personal BOOLEAN NOT NULL DEFAULT FALSE,
+    visibility VARCHAR NOT NULL DEFAULT 'private'
+        CHECK (visibility IN ('public', 'private')),
+    personal BOOLEAN NOT NULL DEFAULT TRUE,
 
     access JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB);""",

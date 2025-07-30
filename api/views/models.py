@@ -36,7 +36,7 @@ class ViewListItemModel(OPModel):
     position: int = 0
     owner: FViewOwner | None = None
     visibility: FViewVisibilty = "private"
-    personal: bool = False
+    personal: bool = True
 
 
 class ViewListModel(OPModel):

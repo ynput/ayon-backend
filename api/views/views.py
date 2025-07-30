@@ -12,16 +12,24 @@ from .development import recreate_views_tables
 from .models import ViewListItemModel, ViewListModel, ViewModel, construct_view_model
 from .router import router
 
+PViewType = Annotated[str, Path(regex=NAME_REGEX)]
+PViewId = Annotated[str, Path(title="View ID", regex=r"^[0-9a-f]{32}$")]
 QProjectName = Annotated[
     str | None,
     Query(title="Project name", regex=PROJECT_NAME_REGEX),
 ]
-PViewType = Annotated[str, Path(regex=NAME_REGEX)]
-PViewId = Annotated[str, Path(title="View ID", regex=r"^[0-9a-f]{32}$")]
+QPersonal = Annotated[
+    bool,
+    Query(
+        title="Personal views only",
+        description="If true, only personal view will be returned. "
+        "If false, only shared views will be returned. (for administration)",
+    ),
+]
 
 
 # TODO: Remove before merging and move DB initialization to migrations
-@router.post("/__init__")
+@router.post("/__init__", exclude_from_schema=True)
 async def init_views(current_user: CurrentUser) -> None:
     """Reinitialize the views table. This is for development purposes only."""
 
@@ -52,6 +60,7 @@ async def list_views(
     current_user: CurrentUser,
     view_type: PViewType,
     project_name: QProjectName = None,
+    personal: QPersonal = True,
 ) -> ViewListModel:
     """Get the list of views available to the user."""
 
@@ -61,20 +70,22 @@ async def list_views(
         SELECT
             id, label, position, owner, visibility, personal, access
         FROM views
-        WHERE view_type = $1 AND (owner = $2 OR visibility = 'public')
+        WHERE view_type = $1
+        AND (owner = $2 OR visibility = 'public')
+        AND CASE WHEN $3 THEN personal ELSE TRUE END
         ORDER BY position ASC
     """
 
     views: list[ViewListItemModel] = []
 
     async with Postgres.transaction():
-        res = await Postgres.fetch(query, view_type, current_user.name)
+        res = await Postgres.fetch(query, view_type, current_user.name, personal)
         for row in res:
             views.append(row_to_list_item(row))
 
         if project_name:
             await Postgres.set_project_schema(project_name)
-            res = await Postgres.fetch(query, view_type, current_user.name)
+            res = await Postgres.fetch(query, view_type, current_user.name, personal)
             for row in res:
                 views.append(row_to_list_item(row))
 
@@ -113,7 +124,7 @@ async def get_view(
             position=row.get("position", 0),
             owner=row["owner"],
             visibility=row.get("visibility", "private"),
-            personal=row.get("personal", False),
+            personal=row.get("personal", True),
             settings=row.get("data", {}),
         )
 
@@ -127,27 +138,24 @@ async def create_view(
 ) -> EntityIdResponse:
     """Create a new view for the user."""
 
-    # TODO: allow owner override
-
     async with Postgres.transaction():
         if project_name:
-            print(f"Setting project schema to: {project_name}")
             await Postgres.set_project_schema(project_name)
 
         query = """
-            INSERT INTO views (
-                id,
-                view_type,
-                label,
-                position,
-                owner,
-                visibility,
-                personal,
-                access,
-                data
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        WITH ex AS (
+            UPDATE views
+            SET label = $3, position = $4, data = $7
+            WHERE view_type = $2
+            AND owner = $5
+            AND personal IS TRUE
+            AND $6 IS TRUE
             RETURNING id
+        )
+        INSERT INTO views (id, view_type, label, position, owner, personal, data)
+        SELECT $1, $2, $3, $4, $5, $6, $7
+        WHERE NOT EXISTS (SELECT 1 FROM ex)
+        RETURNING id;
         """
 
         await Postgres.execute(
@@ -157,9 +165,7 @@ async def create_view(
             payload.label,
             payload.position,
             current_user.name,
-            payload.visibility,
             payload.personal,
-            {},  # Access control is not implemented yet
             payload.settings.dict(),
         )
 
