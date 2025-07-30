@@ -4,6 +4,7 @@ from fastapi import Path, Query
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EntityIdResponse
+from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX
 
@@ -163,3 +164,37 @@ async def create_view(
         )
 
     return EntityIdResponse(id=payload.id)
+
+
+@router.delete("/{view_type}/{view_id}")
+async def delete_view(
+    current_user: CurrentUser,
+    view_type: PViewType,
+    view_id: PViewId,
+    project_name: QProjectName = None,
+) -> None:
+    """Delete a view by its ID."""
+
+    async with Postgres.transaction():
+        if project_name:
+            await Postgres.set_project_schema(project_name)
+
+        query = """
+            DELETE FROM views
+            WHERE id = $1
+            AND view_type = $2
+            AND (owner = $3 OR $4)
+        """
+
+        result = await Postgres.execute(
+            query,
+            view_id,
+            view_type,
+            current_user.name,
+            current_user.is_admin,
+        )
+
+        if result == "DELETE 0":
+            raise NotFoundException(
+                "View not found or you do not have permission to delete it."
+            )
