@@ -80,7 +80,7 @@ class TaskProgressSettings(OPModel):
 
 
 #
-# Actual REST API models
+# GET REST API models
 #
 
 
@@ -102,7 +102,35 @@ class TaskProgressViewModel(BaseViewModel):
     settings: TaskProgressSettings
 
 
+#
+# POST REST API models
+#
+
+
+class BaseViewPostModel(OPModel):
+    id: FViewId
+    label: FViewLabel
+    personal: bool = True
+    settings: OverviewSettings | TaskProgressSettings
+
+
+class OverviewViewPostModel(BaseViewPostModel):
+    """Overview view post model."""
+
+    _view_type: Literal["overview"] = "overview"
+    settings: OverviewSettings
+
+
+class TaskProgressViewPostModel(BaseViewPostModel):
+    """Task progress view post model."""
+
+    _view_type: Literal["taskProgress"] = "taskProgress"
+    settings: TaskProgressSettings
+
+
+#
 # Compound models
+#
 
 
 ViewModel = Annotated[
@@ -110,6 +138,14 @@ ViewModel = Annotated[
     Field(
         discriminator="view_type",
         title="View model",
+    ),
+]
+
+ViewPostModel = Annotated[
+    OverviewViewPostModel | TaskProgressViewPostModel,
+    Field(
+        discriminator="_view_type",
+        title="View post model",
     ),
 ]
 
