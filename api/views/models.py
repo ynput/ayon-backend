@@ -65,10 +65,10 @@ class OverviewSettings(OPModel):
             title="List of columns",
             default_factory=list,
             example=[
-                "name",
-                "status",
-                "assignees",
-                "attrib.priority",
+                {"name": "name", "pinned": True, "width": 120},
+                {"name": "status", "pinned": True, "width": 120},
+                {"name": "assignees", "width": 120},
+                {"name": "attrib.priority", "width": 120},
             ],
         ),
     ]
