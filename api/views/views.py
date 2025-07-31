@@ -6,7 +6,8 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EntityIdResponse
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX
+from ayon_server.lib.redis import Redis
+from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX, OPModel
 
 from .development import recreate_views_tables
 from .models import (
@@ -58,6 +59,21 @@ def row_to_list_item(row: dict[str, Any]) -> ViewListItemModel:
     )
 
 
+def row_to_model(row: dict[str, Any]) -> ViewModel:
+    """Convert a database row to a ViewModel."""
+    return construct_view_model(
+        id=row["id"],
+        view_type=row["view_type"],
+        scope="studio",
+        label=row["label"],
+        position=row.get("position", 0),
+        owner=row["owner"],
+        visibility=row.get("visibility", "private"),
+        personal=row.get("personal", False),
+        settings=row.get("data", {}),
+    )
+
+
 @router.get("/{view_type}")
 async def list_views(
     current_user: CurrentUser,
@@ -105,21 +121,63 @@ async def get_personal_view(
         """
 
         row = await Postgres.fetchrow(query, view_type, current_user.name)
-
         if not row:
             raise NotFoundException(f"Personal {view_type} view not found")
+        return row_to_model(row)
 
-        return construct_view_model(
-            id=row["id"],
-            view_type=row["view_type"],
-            scope="studio" if project_name is None else "project",
-            label=row["label"],
-            position=row.get("position", 0),
-            owner=row["owner"],
-            visibility=row.get("visibility", "private"),
-            personal=row.get("personal", True),
-            settings=row.get("data", {}),
-        )
+
+DEFAULT_VIEW_NS = "default-view"
+
+
+@router.get("/{view_type}/default")
+async def get_default_view(
+    user: CurrentUser,
+    view_type: PViewType,
+    project_name: QProjectName = None,
+) -> ViewModel:
+    """Return the view set by the user as default for the given type.
+
+    If no default view is set, it will return the personal view of the user.
+    If no personal view is set, raise 404
+    """
+
+    key = f"{user.name}:{view_type}:{project_name or '_'}"
+    view_id = await Redis.get(DEFAULT_VIEW_NS, key)
+    if not view_id:
+        view_id = "000000000000000000000000000000000"  # Just make it fail
+
+    query = """
+        SELECT * FROM views
+        WHERE id = $1
+        OR (view_type = $2 AND owner = $3 AND personal)
+        ORDER BY personal DESC
+        LIMIT 1
+    """
+
+    async with Postgres.transaction():
+        if project_name:
+            await Postgres.set_project_schema(project_name)
+        row = await Postgres.fetchrow(query, view_id, view_type, user.name)
+        if not row:
+            raise NotFoundException(f"Default {view_type} view not found")
+        return row_to_model(row)
+
+
+class SetDefaultViewRequestModel(OPModel):
+    view_id: PViewId
+
+
+@router.post("/{view_type}/default")
+async def set_default_view(
+    user: CurrentUser,
+    view_type: PViewType,
+    payload: SetDefaultViewRequestModel,
+    project_name: QProjectName = None,
+) -> None:
+    """Set the default view for the user and view type."""
+
+    key = f"{user.name}:{view_type}:{project_name or '_'}"
+    await Redis.set(DEFAULT_VIEW_NS, key, payload.view_id)
 
 
 @router.get("/{view_type}/{view_id}")
@@ -146,18 +204,7 @@ async def get_view(
 
         if not row:
             raise NotFoundException("View not found")
-
-        return construct_view_model(
-            id=row["id"],
-            view_type=row["view_type"],
-            scope="studio" if project_name is None else "project",
-            label=row["label"],
-            position=row.get("position", 0),
-            owner=row["owner"],
-            visibility=row.get("visibility", "private"),
-            personal=row.get("personal", True),
-            settings=row.get("data", {}),
-        )
+        return row_to_model(row)
 
 
 @router.post("/{view_type}")
