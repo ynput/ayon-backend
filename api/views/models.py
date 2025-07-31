@@ -9,7 +9,7 @@ from ayon_server.views.models import (
     FViewOwner,
     FViewPersonal,
     FViewScope,
-    FViewVisibilty,
+    FViewVisibility,
     ListsSettings,
     OverviewSettings,
     TaskProgressSettings,
@@ -29,7 +29,7 @@ class ViewListItemModel(OPModel):
     scope: FViewScope
     position: int
     owner: FViewOwner
-    visibility: FViewVisibilty
+    visibility: FViewVisibility
     personal: FViewPersonal
 
 

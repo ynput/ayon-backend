@@ -80,7 +80,7 @@ FViewPersonal = Annotated[
     ),
 ]
 
-FViewVisibilty = Annotated[
+FViewVisibility = Annotated[
     Literal["public", "private"],
     Field(
         title="View visibility",
@@ -110,6 +110,8 @@ class ColumnItemModel(OPModel):
 class OverviewSettings(OPModel):
     show_hierarchy: bool = True
     group_by: str | None = None
+    sort_by: str | None = None
+    sort_desc: bool = False
     filter: QueryFilter | None = None
     columns: Annotated[
         list[ColumnItemModel],
@@ -131,6 +133,8 @@ class TaskProgressSettings(OPModel):
 
 
 class ListsSettings(OPModel):
+    sort_by: str | None = None
+    sort_desc: bool = False
     filter: QueryFilter | None = None
     columns: Annotated[
         list[ColumnItemModel],
