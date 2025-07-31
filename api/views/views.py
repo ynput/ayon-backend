@@ -4,7 +4,8 @@ from fastapi import Path, Query
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EntityIdResponse
-from ayon_server.exceptions import NotFoundException
+from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX, OPModel
@@ -49,13 +50,6 @@ async def init_views(current_user: CurrentUser) -> None:
 
 def row_to_list_item(row: dict[str, Any]) -> ViewListItemModel:
     """Convert a database row to a ViewListItemModel."""
-
-    access = row.get("access") or {}
-    if access and row["visibility"] == "public":
-        # we check the access control only if the view is public
-        # and there ARE some access control rules defined
-        _ = access  # This is for future use. Not checked in this version.
-
     return ViewListItemModel(
         id=row["id"],
         scope="studio",
@@ -72,7 +66,7 @@ def row_to_model(row: dict[str, Any]) -> ViewModel:
     return construct_view_model(
         id=row["id"],
         view_type=row["view_type"],
-        scope="studio",
+        scope=row["scope"],
         label=row["label"],
         position=row.get("position", 0),
         owner=row["owner"],
@@ -84,14 +78,14 @@ def row_to_model(row: dict[str, Any]) -> ViewModel:
 
 @router.get("/{view_type}")
 async def list_views(
-    current_user: CurrentUser,
+    user: CurrentUser,
     view_type: PViewType,
     project_name: QProjectName = None,
 ) -> ViewListModel:
     """Get the list of views available to the user."""
 
     query = """
-        SELECT id, label, position, owner, visibility, personal, access
+        SELECT id, label, position, owner, visibility, personal, access, $3 AS scope
         FROM views WHERE view_type = $1 AND (owner = $2 OR visibility = 'public')
         ORDER BY position ASC
     """
@@ -99,16 +93,22 @@ async def list_views(
     views: list[ViewListItemModel] = []
 
     async with Postgres.transaction():
-        res = await Postgres.fetch(query, view_type, current_user.name)
-        for row in res:
-            views.append(row_to_list_item(row))
-
+        res = await Postgres.fetch(query, view_type, user.name, "studio")
         if project_name:
             await Postgres.set_project_schema(project_name)
-            res = await Postgres.fetch(query, view_type, current_user.name)
-            for row in res:
-                views.append(row_to_list_item(row))
-
+            res.extend(await Postgres.fetch(query, view_type, user.name, "project"))
+        for row in res:
+            if row["visibility"] == "public":
+                try:
+                    await EntityAccessHelper.check(
+                        row.get("access") or {},
+                        user,
+                        level=10,
+                        owner=row["owner"],
+                    )
+                except ForbiddenException:
+                    continue
+            views.append(row_to_list_item(row))
     return ViewListModel(views=views)
 
 

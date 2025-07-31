@@ -98,6 +98,7 @@ FViewVisibility = Annotated[
 
 class ColumnItemModel(OPModel):
     name: Annotated[str, Field(title="Column name")]
+    visible: Annotated[bool, Field(title="Is column visible")] = True
     pinned: Annotated[bool, Field(title="Is column pinned")] = False
     width: Annotated[int | None, Field(title="Column width")] = None
 
