@@ -52,7 +52,7 @@ def row_to_list_item(row: dict[str, Any]) -> ViewListItemModel:
     """Convert a database row to a ViewListItemModel."""
     return ViewListItemModel(
         id=row["id"],
-        scope="studio",
+        scope=row["scope"],
         label=row["label"],
         position=row.get("position", 0),
         owner=row["owner"],
@@ -124,11 +124,16 @@ async def get_personal_view(
             await Postgres.set_project_schema(project_name)
 
         query = """
-            SELECT * FROM views
+            SELECT *, $3 as scope FROM views
             WHERE view_type = $1 AND owner = $2 AND personal
         """
 
-        row = await Postgres.fetchrow(query, view_type, current_user.name)
+        row = await Postgres.fetchrow(
+            query,
+            view_type,
+            current_user.name,
+            "project" if project_name else "studio",
+        )
         if not row:
             raise NotFoundException(f"Personal {view_type} view not found")
         return row_to_model(row)
@@ -155,7 +160,7 @@ async def get_default_view(
         view_id = "000000000000000000000000000000000"  # Just make it fail
 
     query = """
-        SELECT * FROM views
+        SELECT * FROM views, $4 AS scope
         WHERE id = $1
         OR (view_type = $2 AND owner = $3 AND personal)
         ORDER BY personal DESC
@@ -165,7 +170,13 @@ async def get_default_view(
     async with Postgres.transaction():
         if project_name:
             await Postgres.set_project_schema(project_name)
-        row = await Postgres.fetchrow(query, view_id, view_type, user.name)
+        row = await Postgres.fetchrow(
+            query,
+            view_id,
+            view_type,
+            user.name,
+            "project" if project_name else "studio",
+        )
         if not row:
             raise NotFoundException(f"Default {view_type} view not found")
         return row_to_model(row)
@@ -202,13 +213,19 @@ async def get_view(
 
         # Redundant conditions added for security and clarity
         query = """
-            SELECT * FROM views
+            SELECT * FROM views, $4 AS scope
             WHERE id = $1
             AND view_type = $2
             AND (owner = $3 OR visibility = 'public')
         """
 
-        row = await Postgres.fetchrow(query, view_id, view_type, current_user.name)
+        row = await Postgres.fetchrow(
+            query,
+            view_id,
+            view_type,
+            current_user.name,
+            "project" if project_name else "studio",
+        )
 
         if not row:
             raise NotFoundException("View not found")
