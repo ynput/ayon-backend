@@ -42,7 +42,9 @@ def row_to_list_item(row: dict[str, Any]) -> ViewListItemModel:
     """Convert a database row to a ViewListItemModel."""
 
     access = row.get("access") or {}
-    if row["visibility"] == "public":
+    if access and row["visibility"] == "public":
+        # we check the access control only if the view is public
+        # and there ARE some access control rules defined
         _ = access  # This is for future use. Not checked in this version.
 
     return ViewListItemModel(

@@ -2,25 +2,19 @@ from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
-from ayon_server.sqlfilter import QueryFilter
 from ayon_server.types import OPModel
-from ayon_server.utils import create_uuid
-
-#
-# Shared types and fields
-#
-
-ViewScopes = Literal["project", "studio"]
-ViewType = Literal["overview", "tasks"]
-
-FViewScope = Annotated[ViewScopes, Field(title="View scope", example="project")]
-FViewType = Annotated[ViewType, Field(title="View type", example="overview")]
-
-FViewId = Annotated[str, Field(title="View ID", default_factory=create_uuid)]
-FViewLabel = Annotated[str, Field(title="View label", example="To review")]
-FViewOwner = Annotated[str, Field(title="View owner", example="steve")]
-FViewPrivate = Annotated[bool, Field(title="Is view private")]
-FViewVisibilty = Annotated[Literal["public", "private"], Field(title="View visibility")]
+from ayon_server.views.models import (
+    FViewId,
+    FViewLabel,
+    FViewOwner,
+    FViewPersonal,
+    FViewScope,
+    FViewVisibilty,
+    ListsSettings,
+    OverviewSettings,
+    TaskProgressSettings,
+    ViewSettingsModel,
+)
 
 #
 # View list models
@@ -32,52 +26,15 @@ class ViewListItemModel(OPModel):
 
     id: FViewId
     label: FViewLabel
-    scope: FViewScope = "studio"
-    position: int = 0
-    owner: FViewOwner | None = None
-    visibility: FViewVisibilty = "private"
-    personal: bool = True
+    scope: FViewScope
+    position: int
+    owner: FViewOwner
+    visibility: FViewVisibilty
+    personal: FViewPersonal
 
 
 class ViewListModel(OPModel):
     views: Annotated[list[ViewListItemModel], Field(title="List of views")]
-
-
-# Shared submodels
-
-
-class ColumnItemModel(OPModel):
-    name: Annotated[str, Field(title="Column name")]
-    pinned: Annotated[bool, Field(title="Is column pinned")] = False
-    width: Annotated[int | None, Field(title="Column width")] = None
-
-
-#
-# Per-page models
-#
-
-
-class OverviewSettings(OPModel):
-    show_hierarchy: bool = True
-    group_by: str | None = None
-    filter: QueryFilter | None = None
-    columns: Annotated[
-        list[ColumnItemModel],
-        Field(
-            title="List of columns",
-            default_factory=list,
-            example=[
-                {"name": "name", "pinned": True, "width": 120},
-                {"name": "status", "pinned": True, "width": 120},
-                {"name": "assignees", "width": 120},
-                {"name": "attrib.priority", "width": 120},
-            ],
-        ),
-    ]
-
-
-class TaskProgressSettings(OPModel):
-    filter: QueryFilter | None = None
 
 
 #
@@ -86,7 +43,7 @@ class TaskProgressSettings(OPModel):
 
 
 class BaseViewModel(ViewListItemModel):
-    settings: OverviewSettings | TaskProgressSettings
+    settings: ViewSettingsModel
 
 
 class OverviewViewModel(BaseViewModel):
@@ -103,6 +60,13 @@ class TaskProgressViewModel(BaseViewModel):
     settings: TaskProgressSettings
 
 
+class ListsViewModel(BaseViewModel):
+    """Lists view model."""
+
+    view_type: Literal["lists"] = "lists"
+    settings: ListsSettings
+
+
 #
 # POST REST API models
 #
@@ -111,8 +75,8 @@ class TaskProgressViewModel(BaseViewModel):
 class BaseViewPostModel(OPModel):
     id: FViewId
     label: FViewLabel
-    personal: bool = True
-    settings: OverviewSettings | TaskProgressSettings
+    personal: FViewPersonal = True
+    settings: ViewSettingsModel
 
 
 class OverviewViewPostModel(BaseViewPostModel):
@@ -129,13 +93,20 @@ class TaskProgressViewPostModel(BaseViewPostModel):
     settings: TaskProgressSettings
 
 
+class ListsViewPostModel(BaseViewPostModel):
+    """Lists view post model."""
+
+    _view_type: Literal["lists"] = "lists"
+    settings: ListsSettings
+
+
 #
 # Compound models
 #
 
 
 ViewModel = Annotated[
-    OverviewViewModel | TaskProgressViewModel,
+    OverviewViewModel | TaskProgressViewModel | ListsViewModel,
     Field(
         discriminator="view_type",
         title="View model",
@@ -143,7 +114,7 @@ ViewModel = Annotated[
 ]
 
 ViewPostModel = Annotated[
-    OverviewViewPostModel | TaskProgressViewPostModel,
+    OverviewViewPostModel | TaskProgressViewPostModel | ListsViewPostModel,
     Field(
         discriminator="_view_type",
         title="View post model",
@@ -156,4 +127,6 @@ def construct_view_model(**data: Any) -> ViewModel:
         return OverviewViewModel(**data)
     elif data.get("view_type") == "taskProgress":
         return TaskProgressViewModel(**data)
+    elif data.get("view_type") == "lists":
+        return ListsViewModel(**data)
     raise ValueError("Invalid view type provided")
