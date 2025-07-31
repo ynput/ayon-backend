@@ -8,6 +8,7 @@ from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX, OPModel
+from ayon_server.utils import create_uuid
 
 from .development import recreate_views_tables
 from .models import (
@@ -19,8 +20,15 @@ from .models import (
 )
 from .router import router
 
-PViewType = Annotated[str, Path(regex=NAME_REGEX)]
-PViewId = Annotated[str, Path(title="View ID", regex=r"^[0-9a-f]{32}$")]
+PViewType = Annotated[str, Path(regex=NAME_REGEX, example="overview")]
+PViewId = Annotated[
+    str,
+    Path(
+        title="View ID",
+        regex=r"^[0-9a-f]{32}$",
+        example=create_uuid(),
+    ),
+]
 QProjectName = Annotated[
     str | None,
     Query(title="Project name", regex=PROJECT_NAME_REGEX),
