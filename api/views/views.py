@@ -24,14 +24,6 @@ QProjectName = Annotated[
     str | None,
     Query(title="Project name", regex=PROJECT_NAME_REGEX),
 ]
-QPersonal = Annotated[
-    bool,
-    Query(
-        title="Personal views only",
-        description="If true, only personal view will be returned. "
-        "If false, only shared views will be returned. (for administration)",
-    ),
-]
 
 
 @router.post("/__init__", include_in_schema=False)
