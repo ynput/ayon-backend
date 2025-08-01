@@ -87,16 +87,17 @@ async def list_views(
     query = """
         SELECT id, label, position, owner, visibility, personal, access, $3 AS scope
         FROM views WHERE view_type = $1 AND (owner = $2 OR visibility = 'public')
-        ORDER BY position ASC
+        ORDER BY position ASC, label ASC
     """
 
     views: list[ViewListItemModel] = []
 
     async with Postgres.transaction():
-        res = await Postgres.fetch(query, view_type, user.name, "studio")
+        res = []
         if project_name:
             await Postgres.set_project_schema(project_name)
             res.extend(await Postgres.fetch(query, view_type, user.name, "project"))
+        res.extend(await Postgres.fetch(query, view_type, user.name, "studio"))
         for row in res:
             if row["visibility"] == "public":
                 try:
