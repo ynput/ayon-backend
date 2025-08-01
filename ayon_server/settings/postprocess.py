@@ -16,7 +16,7 @@ async def get_attrib_enum(
     enum_values = []
     enum_labels = {}
 
-    res = await Postgres.fetch("SELECT data FROM attributes WHERE name=$1", name)
+    res = await Postgres.fetch("SELECT data FROM public.attributes WHERE name=$1", name)
     if res:
         for item in res[0]["data"].get("enum", []):
             enum_values.append(item["value"])

@@ -12,7 +12,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
-from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel, Platform
 from ayon_server.utils import RequestCoalescer
@@ -97,20 +97,23 @@ async def list_bundles(
 
 
 async def _create_new_bundle(
-    conn: Connection,
     bundle: BundleModel,
     *,
     user: UserEntity | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
 ):
+    assert (
+        await Postgres.is_in_transaction()
+    ), "_create_new_bundle must be called in a transaction"
+
     # Clear constrained values if they are being updated
     if bundle.is_production:
-        await conn.execute("UPDATE bundles SET is_production = FALSE")
+        await Postgres.execute("UPDATE bundles SET is_production = FALSE")
     if bundle.is_staging:
-        await conn.execute("UPDATE bundles SET is_staging = FALSE")
+        await Postgres.execute("UPDATE bundles SET is_staging = FALSE")
     if bundle.active_user:
-        await conn.execute(
+        await Postgres.execute(
             "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
             bundle.active_user,
         )
@@ -137,7 +140,7 @@ async def _create_new_bundle(
     # we ignore is_archived. it does not make sense to create
     # an archived bundle
 
-    await conn.execute(
+    await Postgres.execute(
         query,
         bundle.name,
         data,
@@ -213,9 +216,8 @@ async def create_new_bundle(
             if not adef.project_can_override_addon_version:
                 bundle.addons.pop(addon_name)
 
-    async with Postgres.acquire() as conn, conn.transaction():
+    async with Postgres.transaction():
         await _create_new_bundle(
-            conn,
             bundle,
             user=user,
             sender=sender,
@@ -251,8 +253,8 @@ async def update_bundle(
 
     status_changed_to: str | None = None
 
-    async with Postgres.acquire() as conn, conn.transaction():
-        res = await conn.fetch(
+    async with Postgres.transaction():
+        res = await Postgres.fetch(
             "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
         )
         if not res:
@@ -302,7 +304,7 @@ async def update_bundle(
             if patch.active_user is not None:
                 # remove user from previously assigned bundles
                 # to avoid constraint violation
-                await conn.execute(
+                await Postgres.execute(
                     "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
                     patch.active_user,
                 )
@@ -375,17 +377,17 @@ async def update_bundle(
 
         if patch.is_production is not None:
             if patch.is_production:
-                await conn.execute("UPDATE bundles SET is_production = FALSE")
+                await Postgres.execute("UPDATE bundles SET is_production = FALSE")
             bundle.is_production = patch.is_production
 
         if patch.is_staging is not None:
             if patch.is_staging:
-                await conn.execute("UPDATE bundles SET is_staging = FALSE")
+                await Postgres.execute("UPDATE bundles SET is_staging = FALSE")
             bundle.is_staging = patch.is_staging
 
         # Update the bundle
 
-        await conn.execute(
+        await Postgres.execute(
             """
             UPDATE bundles
             SET
@@ -484,30 +486,29 @@ async def bundle_actions(
 ) -> EmptyResponse:
     """Perform actions on bundles."""
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            res = await conn.fetch(
-                "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
-            )
-            if not res:
-                raise NotFoundException("Bundle not found")
-            row = res[0]
-            bundle = BundleModel(
-                **row["data"],
-                name=row["name"],
-                created_at=row["created_at"],
-                is_production=row["is_production"],
-                is_staging=row["is_staging"],
-                is_archived=row["is_archived"],
-                is_dev=row["is_dev"],
-            )
+    async with Postgres.transaction():
+        res = await Postgres.fetch(
+            "SELECT * FROM bundles WHERE name = $1 FOR UPDATE", bundle_name
+        )
+        if not res:
+            raise NotFoundException("Bundle not found")
+        row = res[0]
+        bundle = BundleModel(
+            **row["data"],
+            name=row["name"],
+            created_at=row["created_at"],
+            is_production=row["is_production"],
+            is_staging=row["is_staging"],
+            is_archived=row["is_archived"],
+            is_dev=row["is_dev"],
+        )
 
-            if bundle.is_archived:
-                raise BadRequestException("Archived bundles cannot be modified")
+        if bundle.is_archived:
+            raise BadRequestException("Archived bundles cannot be modified")
 
-            if action.action == "promote":
-                await promote_bundle(bundle, user, conn)
-                await AddonLibrary.clear_addon_list_cache()
+        if action.action == "promote":
+            await promote_bundle(bundle, user)
+            await AddonLibrary.clear_addon_list_cache()
 
     return EmptyResponse(status_code=204)
 

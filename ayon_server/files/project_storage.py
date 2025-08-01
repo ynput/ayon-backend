@@ -17,6 +17,7 @@ from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundEx
 from ayon_server.files.s3 import (
     S3Config,
     delete_s3_file,
+    get_s3_file_info,
     get_signed_url,
     handle_s3_upload,
     list_s3_files,
@@ -149,6 +150,9 @@ class ProjectStorage:
         file_id: str,
         file_group: FileGroup = "uploads",
         ttl: int = 3600,
+        *,
+        content_type: str | None = None,
+        content_disposition: str | None = None,
     ) -> str:
         """Return a signed URL to access the file on the storage over HTTP
 
@@ -157,7 +161,13 @@ class ProjectStorage:
         if self.storage_type == "s3":
             path = await self.get_path(file_id, file_group=file_group)
             assert self.bucket_name  # mypy
-            return await get_signed_url(self, path, ttl)
+            return await get_signed_url(
+                self,
+                path,
+                ttl,
+                content_type=content_type,
+                content_disposition=content_disposition,
+            )
         raise Exception("Signed URLs are only supported for S3 storage")
 
     async def get_cdn_link(self, file_id: str) -> RedirectResponse:
@@ -235,6 +245,8 @@ class ProjectStorage:
         file_group: FileGroup = "uploads",
         *,
         content_validator: Callable[[bytes], None] | None = None,
+        content_type: str | None = None,
+        content_disposition: str | None = None,
     ) -> int:
         """Handle file upload request
 
@@ -250,7 +262,13 @@ class ProjectStorage:
                 content_validator=content_validator,
             )
         elif self.storage_type == "s3":
-            return await handle_s3_upload(self, request, path)
+            return await handle_s3_upload(
+                self,
+                request,
+                path,
+                content_type=content_type,
+                content_disposition=content_disposition,
+            )
         raise Exception("Unknown storage type")
 
     async def upload_from_remote(
@@ -399,6 +417,41 @@ class ProjectStorage:
     #
     # Media info extraction
     #
+
+    async def get_file_info(
+        self,
+        file_id: str,
+        file_group: FileGroup = "uploads",
+    ) -> FileInfo:
+        finfo = {}
+        res = await Postgres.fetchrow(
+            f"""
+            SELECT size,
+            data->>'mime' as content_type,
+            data->>'filename' as filename
+            FROM project_{self.project_name}.files
+            WHERE id = $1
+            """,
+            file_id,
+        )
+        if res:
+            finfo.update(dict(res))
+
+        path = await self.get_path(file_id, file_group=file_group)
+        if self.storage_type == "local":
+            try:
+                finfo["size"] = os.path.getsize(path)
+            except FileNotFoundError:
+                raise NotFoundException(f"File {file_id} not found on {self}") from None
+            return FileInfo(**finfo)
+        elif self.storage_type == "s3":
+            result = await get_s3_file_info(self, path)
+            if finfo:
+                result.filename = finfo["filename"]
+                result.content_type = finfo["content_type"]
+                return result
+
+        raise AyonException("Unknown storage type")
 
     async def extract_media_info(self, file_id: str) -> dict[str, Any]:
         """Extract media info from the file

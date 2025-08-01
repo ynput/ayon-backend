@@ -43,8 +43,8 @@ async def modify_reactions(
 
 
     """
-    async with Postgres.acquire() as conn, conn.transaction():
-        res = await conn.fetch(
+    async with Postgres.transaction():
+        res = await Postgres.fetch(
             f"""
             SELECT activity_type, data
             FROM project_{project_name}.activities
@@ -85,7 +85,7 @@ async def modify_reactions(
 
         activity_data["reactions"] = reactions
 
-        await conn.execute(
+        await Postgres.execute(
             f"""
             UPDATE project_{project_name}.activities
             SET data = $1
@@ -97,7 +97,7 @@ async def modify_reactions(
 
         # load activity references (used to generate the event summary)
 
-        references = await conn.fetch(
+        references = await Postgres.fetch(
             f"""
             SELECT entity_id, entity_type, reference_type
             FROM project_{project_name}.activity_references

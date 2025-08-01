@@ -1,7 +1,7 @@
 __all__ = ["OPModel", "Field", "camelize"]
 
 import re
-from typing import Any, Literal, NamedTuple
+from typing import Annotated, Any, Literal, NamedTuple
 
 from pydantic import BaseModel
 
@@ -62,7 +62,6 @@ AttributeType = Literal[
 
 ENTITY_ID_REGEX = r"^[0-f]{32}$"
 ENTITY_ID_EXAMPLE = "c10d5bc73dcab7da4cba0f3e0b3c0aea"
-STATUS_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{1,64}[a-zA-Z0-9_]$"
 TOPIC_REGEX = r"^[a-zA-Z][a-zA-Z0-9_\.\*]{2,64}$"
 
 # labels should not contain single quotes or semicolons (sql injection prevention)
@@ -70,12 +69,16 @@ LABEL_REGEX = r"^[^';]*$"
 
 # entity names
 NAME_REGEX = r"^[a-zA-Z0-9_]([a-zA-Z0-9_\.\-]*[a-zA-Z0-9_])?$"
+# statuses and type names (folder type, task type) can also contain spaces
+STATUS_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{1,64}[a-zA-Z0-9_]$"
+TYPE_NAME_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_ \-]{1,64}[a-zA-Z0-9_]$"
 
 # user names shouldn't start or end with underscores
 USER_NAME_REGEX = r"^[a-zA-Z0-9][a-zA-Z0-9_\.\-]*[a-zA-Z0-9]$"
 
 # project name cannot contain - / . (sql hard limit for schema names)
 PROJECT_NAME_REGEX = r"^[a-zA-Z0-9_]*$"
+ATTRIBUTE_NAME_REGEX = "^[a-zA-Z0-9]{2,64}$"
 
 # TODO: consider length limit for project code
 PROJECT_CODE_REGEX = r"^[a-zA-Z0-9_][a-zA-Z0-9_]*[a-zA-Z0-9_]$"
@@ -123,6 +126,12 @@ def validate_status_list(statuses: list[str]) -> list[str]:
     """Validate list of statuses."""
     regex = STATUS_REGEX
     return [validate_name(status, regex) for status in statuses]
+
+
+def validate_type_name_list(type_names: list[str]) -> list[str]:
+    """Validate list of type names."""
+    regex = TYPE_NAME_REGEX
+    return [validate_name(type_name, regex) for type_name in type_names]
 
 
 def validate_user_name_list(names: list[str]) -> list[str]:
@@ -221,14 +230,31 @@ class ColorRGBA_float(NamedTuple):
 class AttributeEnumItem(OPModel):
     """Attribute enum item."""
 
-    value: SimpleValue = Field(..., title="Enum value")
-    label: str = Field(..., title="Enum label")
-    icon: str | None = Field(None, title="Icon name")
-    color: ColorRGB_hex | None = Field(
-        None,
-        title="Color in RGBA hex format",
-        regex="^#[0-9a-fA-F]{6}$",
-    )
+    value: Annotated[SimpleValue, Field(title="Enum value")]
+    label: Annotated[str, Field(title="Enum label")]
+
+    icon: Annotated[
+        str | None,
+        Field(
+            title="Icon name",
+        ),
+    ] = None
+
+    color: Annotated[
+        ColorRGB_hex | None,
+        Field(
+            title="Color in RGBA hex format",
+            regex="^#[0-9a-fA-F]{6}$",
+        ),
+    ] = None
+
+    projects: Annotated[
+        list[str] | None,
+        Field(
+            title="Projects",
+            description="List of project this item is available on",
+        ),
+    ] = None
 
 
 def normalize_to_dict(s: dict[Any, Any] | BaseModel) -> dict[Any, Any]:

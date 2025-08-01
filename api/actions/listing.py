@@ -29,14 +29,26 @@ class AvailableActionsListModel(OPModel):
 @aiocache.cached(ttl=60)
 async def _load_relevant_addons(
     user_name: str,
+    variant: str | None,
     is_developer: bool,
     user_last_modified: str,
 ) -> tuple[str, list[BaseServerAddon]]:
-    variant = None
     query: tuple[str] | tuple[str, str]
     _ = user_last_modified  # this is used just to invalidate the cache
 
-    if is_developer:
+    if variant == "production":
+        query = (
+            "SELECT name, data->'addons' as addons FROM bundles WHERE is_production",
+        )
+    elif variant == "staging":
+        query = ("SELECT name, data->'addons' as addons FROM bundles WHERE is_staging",)
+    elif variant:
+        query = (
+            "SELECT name, data->'addons' as addons FROM bundles WHERE name = $1",
+            variant,
+        )
+
+    elif is_developer:
         # get the list of addons from the development environment
         query = (
             """
@@ -49,7 +61,6 @@ async def _load_relevant_addons(
         query = (
             "SELECT name, data->'addons' as addons FROM bundles WHERE is_production",
         )
-        # we're in production mode
         variant = "production"
 
     res = await Postgres.fetch(*query)
@@ -74,7 +85,9 @@ async def _load_relevant_addons(
     return variant, result
 
 
-async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAddon]]:
+async def get_relevant_addons(
+    variant: str | None, user: UserEntity
+) -> tuple[str, list[BaseServerAddon]]:
     """Get the list of addons that are relevant for the user.
 
     Normally it means addons in the production bundle,
@@ -88,9 +101,57 @@ async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAdd
 
     return await _load_relevant_addons(
         user.name,
+        variant,
         is_developer,
         user_last_modified,
     )
+
+
+def match_list_subtypes(
+    action_subtypes: list[str],
+    context_subtypes: list[str],
+) -> bool:
+    """List matching
+
+    ## action subtype (defined by manifest)
+
+    - always includes the contained entity type (version, folder, etc.)
+    - optionally includes the list type: "version:review-session"
+
+    ## context subtypes (provided by the client)
+
+    always includes both parts: "version:review-session"
+
+    ## Matching Rules
+
+    An action_subtype matches a context_subtype if:
+
+    - The contained type matches (version == version)
+
+    - And if action_subtype includes a list type,
+      it must also match (review-session)
+
+    - If action_subtype doesn't include a list type,
+      it's considered a wildcard (matches all list types
+      of that entity type)
+    """
+    for context_subtype in context_subtypes:
+        context_parts = context_subtype.split(":", 1)
+        context_entity = context_parts[0]
+        context_list_type = context_parts[1] if len(context_parts) > 1 else None
+
+        for action_subtype in action_subtypes:
+            action_parts = action_subtype.split(":", 1)
+            action_entity = action_parts[0]
+            action_list_type = action_parts[1] if len(action_parts) > 1 else None
+
+            if context_entity != action_entity:
+                continue
+
+            if action_list_type is None or action_list_type == context_list_type:
+                return True
+
+    return False
 
 
 async def evaluate_simple_action(
@@ -107,6 +168,10 @@ async def evaluate_simple_action(
         return False
 
     if context.entity_type:
+        if context.entity_type == "project" and context.project_name:
+            # Project level actions are always available for the project context
+            return True
+
         if not context.entity_ids:
             return False
 
@@ -117,8 +182,15 @@ async def evaluate_simple_action(
             if not context.entity_subtypes:
                 return False
 
-            if not set(action.entity_subtypes) & set(context.entity_subtypes):
-                return False
+            if action.entity_type == "list":
+                return match_list_subtypes(
+                    action.entity_subtypes,
+                    context.entity_subtypes,
+                )
+
+            # Normal project level entities. Just a simple subtype match:
+            # if we have an overlapping subtype, we can run the action
+            return bool(set(action.entity_subtypes) & set(context.entity_subtypes))
 
     return True
 
@@ -197,25 +269,32 @@ class SimpleActionCache:
 async def get_simple_actions(
     user: UserEntity,
     context: ActionContext,
+    variant: str | None,
 ) -> AvailableActionsListModel:
     actions = []
-    variant, addons = await get_relevant_addons(user)
+    variant, addons = await get_relevant_addons(variant, user)
     project_name = context.project_name
     for addon in addons:
         simple_actions = await SimpleActionCache.get(addon, project_name, variant)
         for action in simple_actions:
+            if action.admin_only and not user.is_admin:
+                continue
+
+            if action.manager_only and not user.is_manager:
+                continue
+
             if await evaluate_simple_action(action, context):
                 action.addon_name = addon.name
                 action.addon_version = addon.version
                 action.variant = variant
                 actions.append(action)
-    # TODO: use caching for the entire list as well
     return AvailableActionsListModel(actions=actions)
 
 
 async def get_dynamic_actions(
     user: UserEntity,
     context: ActionContext,
+    variant: str | None,
 ) -> AvailableActionsListModel:
     """Get a list of dynamic actions for a given context.
 
@@ -228,7 +307,7 @@ async def get_dynamic_actions(
     """
 
     actions = []
-    variant, addons = await get_relevant_addons(user)
+    variant, addons = await get_relevant_addons(variant, user)
     for addon in addons:
         actions.extend(await addon.get_dynamic_actions(context, variant))
     return AvailableActionsListModel(actions=actions)

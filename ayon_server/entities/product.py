@@ -1,6 +1,7 @@
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
+from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 
 
@@ -12,11 +13,11 @@ class ProductEntity(ProjectLevelEntity):
     # Properties
     #
 
-    async def pre_save(self, insert, transaction) -> None:
+    async def pre_save(self, insert: bool) -> None:
         """Hook called before saving the entity to the database."""
-        await transaction.execute(
+        await Postgres.execute(
             """
-            INSERT INTO product_types (name)
+            INSERT INTO public.product_types (name)
             VALUES ($1)
             ON CONFLICT DO NOTHING
             """,

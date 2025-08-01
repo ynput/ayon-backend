@@ -25,7 +25,7 @@ async def build_project_list() -> list[ProjectListItem]:
             active,
             created_at,
             data->>'projectRole' as role
-        FROM projects ORDER BY name ASC
+        FROM public.projects ORDER BY name ASC
     """
     result: list[dict[str, Any]] = []
     try:

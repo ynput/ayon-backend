@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from ayon_server.config import ayonconfig
 from ayon_server.helpers.project_list import get_project_list
@@ -6,7 +6,6 @@ from ayon_server.lib.postgres import Postgres
 
 if TYPE_CHECKING:
     from ayon_server.addons.addon import BaseServerAddon
-    from ayon_server.lib.postgres import Connection
 
 
 async def _migrate_addon_settings(
@@ -15,7 +14,6 @@ async def _migrate_addon_settings(
     source_variant: str,
     target_variant: str,
     with_projects: bool,
-    conn: "Connection",
 ) -> list[dict[str, Any]]:
     """Migrate settings from source to target addon.
 
@@ -40,9 +38,9 @@ async def _migrate_addon_settings(
 
     if new_studio_overrides:
         # fetch the original studio settings
-        res = await conn.fetch(
+        res = await Postgres.fetch(
             """
-            SELECT data FROM settings
+            SELECT data FROM public.settings
             WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
             """,
             target_addon.name,
@@ -69,9 +67,9 @@ async def _migrate_addon_settings(
             event_created = True
             event_description = "studio overrides changed during migration"
 
-            await conn.execute(
+            await Postgres.execute(
                 """
-                INSERT INTO settings (addon_name, addon_version, variant, data)
+                INSERT INTO public.settings (addon_name, addon_version, variant, data)
                 VALUES ($1, $2, $3, $4)
                 ON CONFLICT (addon_name, addon_version, variant)
                 DO UPDATE SET data = $4
@@ -82,9 +80,9 @@ async def _migrate_addon_settings(
                 new_studio_overrides,
             )
     else:
-        res = await conn.fetch(
+        res = await Postgres.fetch(
             """
-            DELETE FROM settings
+            DELETE FROM public.settings
             WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
             RETURNING data
             """,
@@ -132,7 +130,7 @@ async def _migrate_addon_settings(
 
         if new_project_overrides:
             # fetch the original project settings
-            res = await conn.fetch(
+            res = await Postgres.fetch(
                 f"""
                 SELECT data
                 FROM project_{project_name}.settings
@@ -162,7 +160,7 @@ async def _migrate_addon_settings(
                 event_created = True
                 event_description = "project overrides changed during migration"
 
-                await conn.execute(
+                await Postgres.execute(
                     f"""
                     INSERT INTO project_{project_name}.settings
                     (addon_name, addon_version, variant, data)
@@ -176,7 +174,7 @@ async def _migrate_addon_settings(
                     new_project_overrides,
                 )
         else:
-            res = await conn.fetch(
+            res = await Postgres.fetch(
                 f"""
                 DELETE FROM project_{project_name}.settings
                 WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
@@ -209,7 +207,7 @@ async def _migrate_addon_settings(
 
         # Project site settings
 
-        site_info = await conn.fetch(
+        site_info = await Postgres.fetch(
             f"""
             SELECT site_id, user_name, data
             FROM project_{project_name}.project_site_settings
@@ -235,7 +233,7 @@ async def _migrate_addon_settings(
             )
 
             if new_site_overrides:
-                await conn.execute(
+                await Postgres.execute(
                     f"""
                     INSERT INTO project_{project_name}.project_site_settings
                     (addon_name, addon_version, site_id, user_name, data)
@@ -250,7 +248,7 @@ async def _migrate_addon_settings(
                     new_site_overrides,
                 )
             else:
-                await conn.execute(
+                await Postgres.execute(
                     f"""
                     DELETE FROM project_{project_name}.project_site_settings
                     WHERE addon_name = $1
@@ -273,29 +271,17 @@ async def migrate_addon_settings(
     source_variant: str = "production",
     target_variant: str = "production",
     with_projects: bool = True,
-    conn: Optional["Connection"] = None,
 ) -> list[dict[str, Any]]:
     """Migrate settings from source to target addon.
 
     Returns a list of events that were created during migration.
     """
 
-    if conn is None:
-        async with Postgres.acquire() as conn:
-            return await _migrate_addon_settings(
-                source_addon,
-                target_addon,
-                source_variant,
-                target_variant,
-                with_projects,
-                conn,
-            )
-
-    return await _migrate_addon_settings(
-        source_addon,
-        target_addon,
-        source_variant,
-        target_variant,
-        with_projects,
-        conn,
-    )
+    async with Postgres.transaction():
+        return await _migrate_addon_settings(
+            source_addon,
+            target_addon,
+            source_variant,
+            target_variant,
+            with_projects,
+        )

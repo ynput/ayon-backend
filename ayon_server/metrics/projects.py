@@ -69,7 +69,7 @@ async def get_project_counts(
     SELECT
     COUNT(*) AS total,
     COUNT(*) FILTER (WHERE active) AS active
-    FROM projects;
+    FROM public.projects;
     """
 
     async for row in Postgres.iterate(query):
@@ -188,7 +188,7 @@ async def get_average_project_event_count(
         SELECT AVG(event_count) AS average_event_count_per_project
         FROM (
             SELECT project_name, COUNT(*) AS event_count
-            FROM events
+            FROM public.events
             GROUP BY project_name
             HAVING COUNT(*) >= 300 and project_name is not null
         ) AS subquery;

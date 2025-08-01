@@ -62,15 +62,42 @@ else:
 @strawberry.type
 class TaskType:
     name: str
+    icon: str | None = None
+    short_name: str | None = None
+    color: str | None = None
 
 
 @strawberry.type
 class FolderType:
     name: str
+    icon: str | None = None
+    short_name: str | None = None
 
-    @strawberry.field
-    def icon(self) -> str:
-        return self.name.lower()
+
+@strawberry.type
+class LinkType:
+    name: str
+    link_type: str
+    input_type: str
+    output_type: str
+    color: str | None = None
+    style: str = "solid"
+
+
+@strawberry.type
+class Status:
+    name: str
+    short_name: str | None = None
+    icon: str | None = None
+    color: str | None = None
+    state: str | None = None
+    scope: list[str] | None = None
+
+
+@strawberry.type
+class Tag:
+    name: str
+    color: str | None = None
 
 
 @strawberry.type
@@ -90,6 +117,7 @@ class ProjectNode:
     project_name: str = strawberry.field()
     code: str = strawberry.field()
     data: str | None
+    config: str | None
     active: bool
     library: bool
     thumbnail: ThumbnailInfo | None = None
@@ -190,36 +218,81 @@ class ProjectNode:
 
     @strawberry.field(description="List of project's task types")
     async def task_types(self, active_only: bool = False) -> list[TaskType]:
+        cond = ""
         if active_only:
-            query = f"""
-                SELECT DISTINCT(task_type) AS task_type
-                FROM project_{self.project_name}.tasks
+            cond = f"""
+                WHERE name IN (SELECT DISTINCT(task_type)
+                FROM project_{self.project_name}.tasks)
             """
-        else:
-            query = f"""
-                SELECT name AS task_type
-                FROM project_{self.project_name}.task_types
-                ORDER BY position
-            """
+        query = f"""
+            SELECT name, data
+            FROM project_{self.project_name}.task_types
+            {cond}
+            ORDER BY position
+        """
+        res = await Postgres.fetch(query)
         return [
-            TaskType(name=row["task_type"]) async for row in Postgres.iterate(query)
+            TaskType(
+                name=row["name"],
+                short_name=row["data"].get("shortName"),
+                icon=row["data"].get("icon"),
+                color=row["data"].get("color"),
+            )
+            for row in res
         ]
 
     @strawberry.field(description="List of project's folder types")
     async def folder_types(self, active_only: bool = False) -> list[FolderType]:
+        cond = ""
         if active_only:
-            query = f"""
-                SELECT DISTINCT(folder_type) AS folder_type
-                FROM project_{self.project_name}.folders
+            cond = f"""
+                WHERE name IN (SELECT DISTINCT(folder_type)
+                FROM project_{self.project_name}.folders)
             """
-        else:
-            query = f"""
-                SELECT name AS folder_type
-                FROM project_{self.project_name}.folder_types
-                ORDER BY position
-            """
+
+        query = f"""
+            SELECT name, data
+            FROM project_{self.project_name}.folder_types
+            {cond}
+            ORDER BY position
+        """
+        res = await Postgres.fetch(query)
         return [
-            FolderType(name=row["folder_type"]) async for row in Postgres.iterate(query)
+            FolderType(
+                name=row["name"],
+                short_name=row["data"].get("shortName"),
+                icon=row["data"].get("icon"),
+            )
+            for row in res
+        ]
+
+    @strawberry.field(description="List of project's link types")
+    async def link_types(self, active_only: bool = False) -> list[LinkType]:
+        cond = ""
+        if active_only:
+            cond = f"""
+                WHERE name IN (SELECT DISTINCT(link_type)
+                FROM project_{self.project_name}.links)
+            """
+
+        query = f"""
+            SELECT name, link_type, input_type, output_type, data
+            FROM project_{self.project_name}.link_types
+            {cond}
+            ORDER BY name
+        """
+
+        res = await Postgres.fetch(query)
+        return [
+            LinkType(
+                name=row["name"],
+                link_type=row["link_type"],
+                input_type=row["input_type"],
+                output_type=row["output_type"],
+                color=row["data"].get("color"),
+                style=row["data"].get("style", "solid"),
+            )
+            for row in res
         ]
 
     @strawberry.field(description="List of project's product types")
@@ -242,6 +315,42 @@ class ProjectNode:
             )
         ]
 
+    @strawberry.field(description="List of project's statuses")
+    async def statuses(self) -> list[Status]:
+        query = f"""
+            SELECT name, data
+            FROM project_{self.project_name}.statuses
+            ORDER BY position
+        """
+        res = await Postgres.fetch(query)
+        return [
+            Status(
+                name=row["name"],
+                short_name=row["data"].get("shortName"),
+                icon=row["data"].get("icon"),
+                color=row["data"].get("color"),
+                state=row["data"].get("state"),
+                scope=row["data"].get("scope", []),
+            )
+            for row in res
+        ]
+
+    @strawberry.field(description="List of tags in the project")
+    async def tags(self) -> list[Tag]:
+        query = f"""
+            SELECT name, data
+            FROM project_{self.project_name}.tags
+            ORDER BY position
+        """
+        res = await Postgres.fetch(query)
+        return [
+            Tag(
+                name=row["name"],
+                color=row["data"].get("color"),
+            )
+            for row in res
+        ]
+
     @strawberry.field(description="List of tags used in the project")
     async def used_tags(self) -> list[str]:
         return await get_used_project_tags(self.project_name)
@@ -253,8 +362,11 @@ def project_from_record(
     """Construct a project node from a DB row."""
 
     thumbnail = None
+    user = context["user"]
+    user.check_project_access(record["name"])
 
     data = record.get("data", {})
+    config = record.get("config", None)
     bundle_data = data.get("bundle", {})
     if bundle_data:
         bundle = ProjectBundleType(
@@ -272,6 +384,7 @@ def project_from_record(
         library=record["library"],
         thumbnail=thumbnail,
         data=json_dumps(data) if data else None,
+        config=json_dumps(config) if config else None,
         bundle=bundle,
         created_at=record["created_at"],
         updated_at=record["updated_at"],

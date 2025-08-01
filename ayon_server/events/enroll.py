@@ -66,7 +66,7 @@ async def enroll_job(
     query = f"""
         WITH excluded_events AS (
             SELECT depends_on
-            FROM events
+            FROM public.events
             WHERE depends_on IS NOT NULL
             AND topic = $2
             {ignore_cond}
@@ -78,7 +78,7 @@ async def enroll_job(
 
         source_events AS (
             SELECT se.* {sloth_query}
-            FROM events se
+            FROM public.events se
             LEFT JOIN excluded_events ee
                 ON se.id = ee.depends_on
             WHERE {topic_cond}
@@ -109,8 +109,8 @@ async def enroll_job(
         LIMIT 1000  -- Pool of 1000 events should be enough
     """
 
-    async with Postgres.acquire() as con, con.transaction():
-        statement = await con.prepare(query)
+    async with Postgres.transaction():
+        statement = await Postgres.prepare(query)
         async for row in statement.cursor(source_topic, target_topic, max_retries):
             # Check if target event already exists
             if row["target_status"] is not None:

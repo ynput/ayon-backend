@@ -89,8 +89,9 @@ async def get_anatomy_preset(preset_name: str, user: CurrentUser) -> Anatomy:
             VERSION,
         )
 
-    async for row in Postgres.iterate(*query):
-        tpl = Anatomy(**row["data"])
+    res = await Postgres.fetchrow(*query)
+    if res:
+        tpl = Anatomy(**res["data"])
         return tpl
 
     if preset_name == "__primary__":
@@ -136,43 +137,70 @@ async def set_primary_preset(preset_name: str, user: CurrentUser) -> EmptyRespon
     if not user.is_manager:
         raise ForbiddenException("Only managers can set primary preset.")
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
+    async with Postgres.transaction():
+        await Postgres.execute(
+            """
+            UPDATE anatomy_presets
+            SET is_primary = FALSE
+            WHERE is_primary = TRUE
+            """
+        )
+        if preset_name != "_":
+            await Postgres.execute(
                 """
                 UPDATE anatomy_presets
-                SET is_primary = FALSE
-                WHERE is_primary = TRUE
-                """
+                SET is_primary = TRUE
+                WHERE name = $1
+                """,
+                preset_name,
             )
-            if preset_name != "_":
-                await conn.execute(
-                    """
-                    UPDATE anatomy_presets
-                    SET is_primary = TRUE
-                    WHERE name = $1
-                    """,
-                    preset_name,
-                )
     return EmptyResponse()
 
 
+@router.delete("/presets/{preset_name}/primary", status_code=204)
 async def unset_primary_preset(preset_name: str, user: CurrentUser) -> EmptyResponse:
     """Unset the primary preset."""
 
     if not user.is_manager:
         raise ForbiddenException("Only managers can unset primary preset.")
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                """
-                UPDATE anatomy_presets
-                SET is_primary = FALSE
-                WHERE name = $1
-                """,
-                preset_name,
-            )
+    async with Postgres.transaction():
+        query = "UPDATE anatomy_presets SET is_primary = FALSE WHERE name = $1"
+        await Postgres.execute(query, preset_name)
+    return EmptyResponse()
+
+
+class RenamePresetModel(OPModel):
+    name: str = Field(
+        ...,
+        title="New name of the anatomy preset",
+        description="The new name of the anatomy preset.",
+    )
+
+
+@router.post("/presets/{preset_name}/rename", status_code=204)
+async def rename_anatomy_preset(
+    preset_name: str,
+    user: CurrentUser,
+    payload: RenamePresetModel,
+) -> EmptyResponse:
+    """Set the given preset as the primary preset."""
+
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can set primary preset.")
+
+    query = """
+        UPDATE anatomy_presets
+        SET name = $1
+        WHERE name = $2
+        RETURNING *
+    """
+
+    res = await Postgres.fetch(query, payload.name, preset_name)
+
+    if not res:
+        raise NotFoundException(f"Anatomy preset {preset_name} not found.")
+
     return EmptyResponse()
 
 
@@ -183,14 +211,8 @@ async def delete_anatomy_preset(preset_name: str, user: CurrentUser) -> EmptyRes
     if not user.is_manager:
         raise ForbiddenException("Only managers can set primary preset.")
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                """
-                DELETE FROM anatomy_presets
-                WHERE name = $1
-                """,
-                preset_name,
-            )
+    async with Postgres.transaction():
+        query = "DELETE FROM anatomy_presets WHERE name = $1"
+        await Postgres.execute(query, preset_name)
 
     return EmptyResponse()

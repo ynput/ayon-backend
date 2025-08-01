@@ -178,13 +178,24 @@ class AyonConfig(BaseModel):
         description="Enable audit trail",
     )
 
+    openapi_include_internal_endpoints: bool = Field(
+        default=False,
+        description="Include internal endpoints in the OpenAPI schema",
+    )
+
     openapi_include_addon_endpoints: bool = Field(
         default=False,
         description="Include addon endpoints in the OpenAPI schema",
     )
 
+    openapi_require_authentication: bool = Field(
+        default=True,
+        description="Require authentication for OpenAPI schema access",
+    )
+
     use_git_suffix_for_addons: bool = Field(
-        default=True, description="Use git suffix for addon versions. "
+        default=True,
+        description="Use git suffix for addon versions. ",
     )
 
     log_retention_days: int = Field(
@@ -198,15 +209,20 @@ class AyonConfig(BaseModel):
         example=90,
     )
 
+    http_timeout: int = Field(
+        default=120,
+        description="The default timeout for HTTP requests the server uses "
+        "to connect to external services",
+    )
+
     ynput_cloud_api_url: str | None = Field(
         "https://im.ynput.cloud",
         description="YnputConnect URL",
     )
 
-    http_timeout: int = Field(
-        default=120,
-        description="The default timeout for HTTP requests the server uses "
-        "to connect to external services",
+    disable_feedback: bool = Field(
+        default=False,
+        description="Disable feedback and changelog features",
     )
 
     # Logging settings

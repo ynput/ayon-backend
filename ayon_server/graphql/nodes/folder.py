@@ -140,7 +140,7 @@ def folder_from_record(
         has_reviewables = False
 
     thumbnail = None
-    if record["thumbnail_id"]:
+    if record.get("thumbnail_id"):
         thumb_data = data.get("thumbnailInfo", {})
         thumbnail = ThumbnailInfo(
             id=record["thumbnail_id"],

@@ -1,5 +1,7 @@
 from typing import Any, Literal, NotRequired, TypedDict
 
+from pydantic import StrictBool, StrictFloat, StrictInt, StrictStr
+
 SimpleFormFieldType = Literal[
     "text",
     "boolean",
@@ -23,6 +25,18 @@ class FormSelectOption(TypedDict):
     label: str
     icon: NotRequired[str]
     color: NotRequired[str]
+    badges: NotRequired[list[str]]
+
+
+ValueType = (
+    StrictStr
+    | StrictInt
+    | StrictFloat
+    | StrictBool
+    | list[StrictStr]
+    | list[StrictInt]
+    | list[StrictFloat]
+)
 
 
 class SimpleFormField(TypedDict):
@@ -30,7 +44,7 @@ class SimpleFormField(TypedDict):
     name: str
     label: NotRequired[str]
     placeholder: NotRequired[Any]
-    value: NotRequired[str | int | float | bool | list[str]]
+    value: NotRequired[ValueType]
     regex: NotRequired[str]
     multiline: NotRequired[bool]
     syntax: NotRequired[str]
@@ -59,6 +73,10 @@ def normalize_options(
                 result[-1]["icon"] = option["icon"]
             if "color" in option:
                 result[-1]["color"] = option["color"]
+            if "badges" in option:
+                if not isinstance(option["badges"], list):
+                    raise ValueError("Badges must be a list.")
+                result[-1]["badges"] = option["badges"]
         else:
             raise ValueError("Option must be a string or a dictionary.")
 

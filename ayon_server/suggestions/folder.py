@@ -9,13 +9,13 @@ from .models import (
     UserSuggestionItem,
 )
 
-STYPE = UserSuggestionItem | TaskSuggestionItem
+SUGGESTION_TYPE = UserSuggestionItem | TaskSuggestionItem
 
 
 async def get_folder_suggestions(
     user: str,
     folder: FolderEntity,
-) -> dict[str, list[STYPE]]:
+) -> dict[str, list[SUGGESTION_TYPE]]:
     """
     Assignees: Every assignee in the project
     Versions: Disabled - what versions would you want to see on a folder?
@@ -23,14 +23,14 @@ async def get_folder_suggestions(
     """
 
     project_name = folder.project_name
-    result: defaultdict[str, list[STYPE]] = defaultdict(list)
-    item: STYPE
+    result: defaultdict[str, list[SUGGESTION_TYPE]] = defaultdict(list)
+    item: SUGGESTION_TYPE
 
     # get users:
 
     query = f"""
         WITH relevant_users AS (
-            SELECT name FROM users
+            SELECT name FROM public.users
             WHERE data->>'isAdmin' = 'true'
             OR data->>'isManager' = 'true'
             OR data->'accessGroups'->'{project_name}' IS NOT NULL
@@ -40,7 +40,7 @@ async def get_folder_suggestions(
             u.name as name,
             u.attrib->>'fullName' as label,
             r.rel_count as has_task
-        FROM users u
+        FROM public.users u
         LEFT JOIN LATERAL (
             SELECT count(*) as rel_count
             FROM project_{project_name}.tasks t

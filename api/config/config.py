@@ -54,7 +54,7 @@ async def set_server_config(
         msg = "Only administrators can change the server configuration"
         raise ForbiddenException(msg)
 
-    original = ServerConfigModel()
+    original = ServerConfigModel()  # type: ignore[call-arg]
     data = extract_overrides(original, payload)
 
     await save_server_config_data(data)

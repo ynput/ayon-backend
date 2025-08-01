@@ -1,3 +1,4 @@
+import inspect
 import os
 
 from ayon_server.entities.user import UserEntity
@@ -17,7 +18,13 @@ from ayon_server.actions.manifest import (
     DynamicActionManifest,
     SimpleActionManifest,
 )
-from ayon_server.addons.models import ServerSourceInfo, SourceInfo, SSOOption
+from ayon_server.addons.models import (
+    FrontendModules,
+    FrontendScopes,
+    ServerSourceInfo,
+    SourceInfo,
+    SSOOption,
+)
 from ayon_server.addons.settings_caching import AddonSettingsCache
 from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -69,8 +76,8 @@ class BaseServerAddon:
     settings_model: type[BaseSettingsModel] | None = None
     site_settings_model: type[BaseSettingsModel] | None = None
     app_host_name: str | None = None
-    frontend_scopes: dict[str, Any] = {}
-    frontend_modules: dict[str, Any] = {}
+    frontend_scopes: FrontendScopes = {}
+    frontend_modules: FrontendModules = {}
 
     compatibility: AddonCompatibilityModel | None = None
 
@@ -107,7 +114,6 @@ class BaseServerAddon:
         self.addon_dir = addon_dir
         self.endpoints = []
         self.routers = []
-        self.settings_cache = None
         self.restart_requested = False
         logger.debug(f"Initializing addon {self.name} v{self.version}")
         self.initialize()
@@ -130,7 +136,7 @@ class BaseServerAddon:
     async def is_production(self) -> bool:
         """Return True if the addon is in production bundle."""
         res = await Postgres.fetch(
-            "SELECT data FROM bundles WHERE is_production IS true"
+            "SELECT data FROM public.bundles WHERE is_production IS true"
         )
         if not res:
             return False
@@ -214,10 +220,10 @@ class BaseServerAddon:
             }
         )
 
-    async def get_frontend_scopes(self) -> dict[str, Any]:
+    async def get_frontend_scopes(self) -> FrontendScopes:
         return self.frontend_scopes
 
-    async def get_frontend_modules(self) -> dict[str, Any]:
+    async def get_frontend_modules(self) -> FrontendModules:
         return self.frontend_modules
 
     #
@@ -308,15 +314,17 @@ class BaseServerAddon:
         self,
         variant: str = "production",
         as_version: str | None = None,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> dict[str, Any]:
         """Load the studio overrides from the database."""
 
         data = {}
-        if self.settings_cache and self.settings_cache.studio is not None:
-            data = self.settings_cache.studio or {}
+        if settings_cache and settings_cache.studio is not None:
+            data = settings_cache.studio or {}
         else:
             query = """
-                SELECT data FROM settings
+                SELECT data FROM public.settings
                 WHERE addon_name = $1 AND addon_version = $2 AND variant = $3
                 """
             res = await Postgres.fetch(query, self.name, self.version, variant)
@@ -346,12 +354,14 @@ class BaseServerAddon:
         project_name: str,
         variant: str = "production",
         as_version: str | None = None,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> dict[str, Any]:
         """Load the project overrides from the database."""
 
         data = {}
-        if self.settings_cache and self.settings_cache.project is not None:
-            data = self.settings_cache.project or {}
+        if settings_cache and settings_cache.project is not None:
+            data = settings_cache.project or {}
         else:
             query = f"""
                 SELECT data FROM project_{project_name}.settings
@@ -377,8 +387,18 @@ class BaseServerAddon:
                 )
 
             try:
+                kw = {}
+                additional_args = inspect.getfullargspec(
+                    target_addon.convert_settings_overrides
+                ).args
+
+                if "project_name" in additional_args:
+                    kw["project_name"] = project_name
+
                 return await target_addon.convert_settings_overrides(
-                    self.version, overrides=data
+                    self.version,
+                    overrides=data,
+                    **kw,
                 )
             except Exception:
                 log_traceback(f"Unable to migrate {self} settings to {as_version}")
@@ -392,11 +412,12 @@ class BaseServerAddon:
         user_name: str,
         site_id: str,
         as_version: str | None = None,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> dict[str, Any]:
         """Load the site overrides from the database."""
         data = {}
-        if self.settings_cache and self.settings_cache.project_site is not None:
-            data = self.settings_cache.project_site or {}
+        if settings_cache and settings_cache.project_site is not None:
+            data = settings_cache.project_site or {}
         else:
             res = await Postgres.fetch(
                 f"""
@@ -435,6 +456,8 @@ class BaseServerAddon:
         self,
         variant: str = "production",
         as_version: str | None = None,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio overrides.
 
@@ -453,7 +476,9 @@ class BaseServerAddon:
         if settings is None:
             return None  # this addon has no settings at all
         overrides = await self.get_studio_overrides(
-            variant=variant, as_version=as_version
+            variant=variant,
+            as_version=as_version,
+            settings_cache=settings_cache,
         )
         if overrides:
             settings = apply_overrides(settings, overrides)
@@ -466,6 +491,8 @@ class BaseServerAddon:
         project_name: str,
         variant: str = "production",
         as_version: str | None = None,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio and project overrides.
 
@@ -475,13 +502,17 @@ class BaseServerAddon:
         settings = await self.get_studio_settings(
             variant=variant,
             as_version=as_version,
+            settings_cache=settings_cache,
         )
         if settings is None:
             return None  # this addon has no settings at all
         has_studio_overrides = settings._has_studio_overrides
 
         project_overrides = await self.get_project_overrides(
-            project_name, variant=variant, as_version=as_version
+            project_name,
+            variant=variant,
+            as_version=as_version,
+            settings_cache=settings_cache,
         )
         if project_overrides:
             settings = apply_overrides(settings, project_overrides)
@@ -496,20 +527,29 @@ class BaseServerAddon:
         site_id: str,
         variant: str = "production",
         as_version: str | None = None,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> BaseSettingsModel | None:
         """Return the addon settings with the studio, project and site overrides.
 
         You shouldn't override this method, unless absolutely necessary.
         """
         settings = await self.get_project_settings(
-            project_name, variant=variant, as_version=as_version
+            project_name,
+            variant=variant,
+            as_version=as_version,
+            settings_cache=settings_cache,
         )
         if settings is None:
             return None
         has_project_overrides = settings._has_project_overrides
         has_studio_overrides = settings._has_studio_overrides
         site_overrides = await self.get_project_site_overrides(
-            project_name, user_name, site_id, as_version=as_version
+            project_name,
+            user_name,
+            site_id,
+            as_version=as_version,
+            settings_cache=settings_cache,
         )
         if site_overrides:
             settings = apply_overrides(settings, site_overrides)
@@ -522,32 +562,30 @@ class BaseServerAddon:
         self,
         user_name: str,
         site_id: str,
+        *,
+        settings_cache: AddonSettingsCache | None = None,
     ) -> dict[str, Any] | None:
         site_settings_model = self.get_site_settings_model()
         if site_settings_model is None:
             return None
 
-        if self.settings_cache and self.settings_cache.site is not None:
-            data = self.settings_cache.site or {}
+        if settings_cache and settings_cache.site is not None:
+            data = settings_cache.site or {}
 
         else:
-            data = {}
             query = """
-                SELECT data FROM site_settings
+                SELECT data FROM public.site_settings
                 WHERE site_id = $1 AND addon_name = $2
                 AND addon_version = $3 AND user_name = $4
             """
-            async for row in Postgres.iterate(
-                query,
-                site_id,
-                self.name,
-                self.version,
-                user_name,
-            ):
-                data = row["data"]
-                break
-            else:
+            row = await Postgres.fetchrow(
+                query, site_id, self.name, self.version, user_name
+            )
+
+            # No site settings found, return None
+            if row is None:
                 return None
+            data = row["data"]
 
         return site_settings_model(**data).dict()
 

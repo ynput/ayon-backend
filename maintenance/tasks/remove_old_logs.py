@@ -21,7 +21,7 @@ async def clear_logs() -> None:
         res = await Postgres.fetch(
             """
             WITH deleted AS (
-                DELETE FROM events WHERE
+                DELETE FROM public.events WHERE
                 topic IN ('log.info', 'log.error', 'log.warning')
                 AND created_at > $1
                 AND created_at < $2

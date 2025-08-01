@@ -60,7 +60,10 @@ async def get_projects(
         "updated_at",
     ]
 
-    if fields.has_any("data", "projectBundle"):
+    if fields.has_any("config"):
+        cols.append("config")
+
+    if fields.has_any("data", "bundle"):
         cols.append("data")
 
     #
@@ -80,7 +83,7 @@ async def get_projects(
 
     query = f"""
         SELECT {', '.join(cols)}
-        FROM projects
+        FROM public.projects
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """

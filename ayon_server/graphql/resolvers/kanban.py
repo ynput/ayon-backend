@@ -12,7 +12,7 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.types import Info
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import validate_name_list
+from ayon_server.types import validate_name_list, validate_user_name_list
 from ayon_server.utils import SQLTool
 
 
@@ -73,7 +73,7 @@ async def get_kanban(
     DEFAULT_PRIORITY = project_defaults.get("priority", "normal")
 
     if not projects:
-        q = "SELECT name, code FROM projects WHERE active IS TRUE"
+        q = "SELECT name, code FROM public.projects WHERE active IS TRUE"
     else:
         validate_name_list(projects)
         q = f"""
@@ -81,7 +81,7 @@ async def get_kanban(
                 name,
                 code,
                 attrib->>'priority' as priority
-            FROM projects
+            FROM public.projects
             WHERE name = ANY({SQLTool.array(projects, curly=True)})
         """
     async for row in Postgres.iterate(q):
@@ -91,7 +91,7 @@ async def get_kanban(
         assignees_any = [user.name]
         project_data = [p for p in project_data if user_has_access(user, p["name"])]
     elif assignees_any:
-        validate_name_list(assignees_any)
+        validate_user_name_list(assignees_any)
 
     if not project_data:
         return KanbanConnection(edges=[])

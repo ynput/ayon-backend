@@ -11,10 +11,12 @@ from .models import (
     VersionSuggestionItem,
 )
 
-STYPE = UserSuggestionItem | VersionSuggestionItem | TaskSuggestionItem
+SUGGESTION_TYPE = UserSuggestionItem | VersionSuggestionItem | TaskSuggestionItem
 
 
-async def get_task_suggestions(user: str, task: TaskEntity) -> dict[str, list[STYPE]]:
+async def get_task_suggestions(
+    user: str, task: TaskEntity
+) -> dict[str, list[SUGGESTION_TYPE]]:
     """
     Assignees: Every assignee in the project, sorted by assignees first.
     Versions: Every version linked to the task.
@@ -22,15 +24,15 @@ async def get_task_suggestions(user: str, task: TaskEntity) -> dict[str, list[ST
     """
 
     project_name = task.project_name
-    result: defaultdict[str, list[STYPE]] = defaultdict(list)
-    item: STYPE
+    result: defaultdict[str, list[SUGGESTION_TYPE]] = defaultdict(list)
+    item: SUGGESTION_TYPE
     parent: FolderSuggestionItem | ProductSuggestionItem
 
     # get users:
 
     query = f"""
         WITH relevant_users AS (
-            SELECT name FROM users
+            SELECT name FROM public.users
             WHERE data->>'isAdmin' = 'true'
             OR data->>'isManager' = 'true'
             OR data->'accessGroups'->'{project_name}' IS NOT NULL
@@ -40,7 +42,7 @@ async def get_task_suggestions(user: str, task: TaskEntity) -> dict[str, list[ST
             u.name as name,
             u.attrib->>'fullName' as label,
             r.rel_count as has_task
-        FROM users u
+        FROM public.users u
 
         LEFT JOIN LATERAL (
             SELECT count(*) as rel_count

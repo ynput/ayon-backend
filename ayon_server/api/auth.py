@@ -29,7 +29,7 @@ async def get_logout_reason(token: str) -> str:
     if not reason:
         res = await Postgres.fetch(
             """
-            SELECT description FROM events
+            SELECT description FROM public.events
             WHERE topic = 'auth.logout'
             AND summary->>'token' = $1
             AND created_at > NOW() - interval '5 minutes'
@@ -68,7 +68,7 @@ async def user_from_api_key(api_key: str) -> UserEntity:
     """
     hashed_key = hash_password(api_key)
     query = """
-        SELECT * FROM users
+        SELECT * FROM public.users
         WHERE data->>'apiKey' = $1
         OR EXISTS (
             SELECT 1 FROM jsonb_array_elements(data->'apiKeys') AS ak

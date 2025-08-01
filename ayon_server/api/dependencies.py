@@ -15,6 +15,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.project_list import build_project_list, get_project_list
 from ayon_server.types import (
+    ATTRIBUTE_NAME_REGEX,
     NAME_REGEX,
     PROJECT_NAME_REGEX,
     USER_NAME_REGEX,
@@ -143,7 +144,7 @@ async def dep_attribute_name(
     attribute_name: str = Path(
         ...,
         title="Attribute name",
-        regex=NAME_REGEX,
+        regex=ATTRIBUTE_NAME_REGEX,
     ),
 ) -> str:
     return attribute_name
@@ -259,12 +260,23 @@ SecretName = Annotated[str, Depends(dep_secret_name)]
 
 
 async def dep_path_project_level_entity_type(
-    entity_type: str = Path(...),
+    entity_type: Annotated[
+        str,
+        Path(
+            title="Project level entity type",
+            description=(
+                "Project level entity type is used in the endpoint path to specify "
+                "the type of entity to operate on. It is usually one of "
+                "'folders', 'products', 'versions', 'representations', "
+                "'tasks', 'workfiles'. (trailing 's' is optional)."
+            ),
+        ),
+    ],
 ) -> ProjectLevelEntityType:
     """Validate and return a project level entity type specified in an endpoint path."""
     entity_type = entity_type.rstrip("s")
     if entity_type not in get_args(ProjectLevelEntityType):
-        raise ValueError(f"Invalid entity type: {entity_type}")
+        raise BadRequestException(f"Invalid entity type: {entity_type}")
     return entity_type  # type: ignore
 
 

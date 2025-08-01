@@ -4,7 +4,7 @@ from ayon_server.addons.library import AddonLibrary
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
-from ayon_server.lib.postgres import Connection, Postgres
+from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
 AddonVersionsDict = dict[str, str]
@@ -13,14 +13,13 @@ AddonVersionsDict = dict[str, str]
 async def _get_bundles_addons(
     source_bundle: str,
     target_bundle: str,
-    conn: Connection,
 ) -> tuple[AddonVersionsDict, AddonVersionsDict]:
     """Get addons for source and target bundles."""
 
     source_addons: AddonVersionsDict | None = None
     target_addons: AddonVersionsDict | None = None
-    res = await conn.fetch(
-        "SELECT name, data FROM bundles WHERE name = ANY($1)",
+    res = await Postgres.fetch(
+        "SELECT name, data FROM public.bundles WHERE name = ANY($1)",
         [source_bundle, target_bundle],
     )
     for row in res:
@@ -46,118 +45,79 @@ async def _get_bundles_addons(
     return source_addons, target_addons
 
 
-async def _migrate_settings_by_bundle(
+async def migrate_settings(
     source_bundle: str,
     target_bundle: str,
     source_variant: str,
     target_variant: str,
     with_projects: bool,
     user_name: str | None,
-    conn: Connection,
 ) -> None:
     """
     Perform migration of settings from source to
     target bundle in a given transaction.
     """
 
-    if source_variant not in ("production", "staging"):
-        if source_bundle != source_variant:
-            raise BadRequestException(
-                "When source_variant is not production or staging, "
-                "source_bundle must be the same as source_variant"
-            )
+    async with Postgres.transaction():
+        if source_variant not in ("production", "staging"):
+            if source_bundle != source_variant:
+                raise BadRequestException(
+                    "When source_variant is not production or staging, "
+                    "source_bundle must be the same as source_variant"
+                )
 
-    if target_variant not in ("production", "staging"):
-        if target_bundle != target_variant:
-            raise BadRequestException(
-                "When target_variant is not production or staging, "
-                "target_bundle must be the same as target_variant"
-            )
+        if target_variant not in ("production", "staging"):
+            if target_bundle != target_variant:
+                raise BadRequestException(
+                    "When target_variant is not production or staging, "
+                    "target_bundle must be the same as target_variant"
+                )
 
-    source_addons, target_addons = await _get_bundles_addons(
-        source_bundle, target_bundle, conn
-    )
-
-    # get addons that are present in both source and target bundles
-    # (i.e. addons that need to be migrated)
-    addons_to_migrate = set(source_addons.keys()) & set(target_addons.keys())
-
-    logger.debug(
-        f"Migrating settings from {source_bundle} ({source_variant}) "
-        f"to {target_bundle} ({target_variant})"
-    )
-
-    for addon_name in addons_to_migrate:
-        source_version = source_addons[addon_name]
-        target_version = target_addons[addon_name]
-
-        # get addon instances
-
-        try:
-            source_addon = AddonLibrary.addon(addon_name, source_version)
-        except NotFoundException:
-            logger.warning(
-                f"Source addon {addon_name} version {source_version} is not installed"
-            )
-            continue
-
-        try:
-            target_addon = AddonLibrary.addon(addon_name, target_version)
-        except NotFoundException:
-            logger.warning(
-                f"Target addon {addon_name} version {target_version} is not installed"
-            )
-            continue
-
-        # perform migration of addon settings
-
-        events = await migrate_addon_settings(
-            source_addon,
-            target_addon,
-            source_variant,
-            target_variant,
-            with_projects,
-            conn,
+        source_addons, target_addons = await _get_bundles_addons(
+            source_bundle, target_bundle
         )
 
-        for event in events:
-            event["user"] = user_name
-            await EventStream.dispatch("settings.changed", **event)
+        # get addons that are present in both source and target bundles
+        # (i.e. addons that need to be migrated)
+        addons_to_migrate = set(source_addons.keys()) & set(target_addons.keys())
 
-
-#
-# The main function that is called from the API
-#
-
-
-async def migrate_settings(
-    source_bundle: str,
-    target_bundle: str,
-    source_variant: str,
-    target_variant: str,
-    with_projects: bool = True,
-    user_name: str | None = None,
-    conn: Connection | None = None,
-) -> None:
-    if conn:
-        await _migrate_settings_by_bundle(
-            source_bundle,
-            target_bundle,
-            source_variant,
-            target_variant,
-            with_projects,
-            user_name,
-            conn,
+        logger.debug(
+            f"Migrating settings from {source_bundle} ({source_variant}) "
+            f"to {target_bundle} ({target_variant})"
         )
 
-    else:
-        async with Postgres.acquire() as _conn, _conn.transaction():
-            await _migrate_settings_by_bundle(
-                source_bundle,
-                target_bundle,
+        for addon_name in addons_to_migrate:
+            source_version = source_addons[addon_name]
+            target_version = target_addons[addon_name]
+
+            # get addon instances
+
+            try:
+                source_addon = AddonLibrary.addon(addon_name, source_version)
+            except NotFoundException:
+                logger.warning(
+                    f"Source addon {addon_name} {source_version} is not installed"
+                )
+                continue
+
+            try:
+                target_addon = AddonLibrary.addon(addon_name, target_version)
+            except NotFoundException:
+                logger.warning(
+                    f"Target addon {addon_name} {target_version} is not installed"
+                )
+                continue
+
+            # perform migration of addon settings
+
+            events = await migrate_addon_settings(
+                source_addon,
+                target_addon,
                 source_variant,
                 target_variant,
                 with_projects,
-                user_name,
-                _conn,
             )
+
+            for event in events:
+                event["user"] = user_name
+                await EventStream.dispatch("settings.changed", **event)

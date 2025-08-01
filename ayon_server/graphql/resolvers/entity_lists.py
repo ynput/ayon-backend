@@ -32,7 +32,8 @@ SORT_OPTIONS = {
 FILTER_OPTIONS = [
     "label",
     "owner",
-    "entity_typeentity_list_type",
+    "entity_type",
+    "entity_list_type",
     "created_at",
     "updated_at",
     "count",

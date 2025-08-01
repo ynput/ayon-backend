@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import validator
 
@@ -6,7 +6,18 @@ from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.get_entity_class import get_entity_class
-from ayon_server.types import Field, OPModel, ProjectLevelEntityType
+from ayon_server.types import Field, OPModel
+
+ActionEntityType = Literal[
+    "project",
+    "list",
+    "folder",
+    "task",
+    "product",
+    "version",
+    "representation",
+    "workfile",
+]
 
 
 class ActionContext(OPModel):
@@ -29,13 +40,12 @@ class ActionContext(OPModel):
     ] = None
 
     entity_type: Annotated[
-        ProjectLevelEntityType | None,
+        ActionEntityType | None,
         Field(
             title="Entity Type",
             description=(
-                "The type of the entity. "
-                "If not specified, project-lever "
-                "or global actions are used."
+                "The type of the entity. Either a project level entity, 'list' "
+                "or 'project' for project-wide actions. or None for global actions."
             ),
             example="folder",
         ),
@@ -105,6 +115,7 @@ class ActionContext(OPModel):
             self.project_name is None
             or self.entity_type is None
             or self.entity_ids is None
+            or self.entity_type == "list"
         ):
             return []
 

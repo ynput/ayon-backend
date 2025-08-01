@@ -4,7 +4,6 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.config import ayonconfig
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import (
-    AyonException,
     ForbiddenException,
     ServiceUnavailableException,
 )
@@ -100,7 +99,9 @@ async def _get_feedback_verification(
             {"status": "error", "detail": detail},
             ttl=600,
         )
-        raise AyonException(f"Failed to generate feedback token: {detail}")
+        raise ServiceUnavailableException(
+            f"Failed to generate feedback token: {detail}"
+        )
 
 
 @router.get("/feedback")
@@ -113,6 +114,9 @@ async def get_feedback_verification(user: CurrentUser) -> UserVerificationRespon
         level = "admin"
     elif user.is_manager:
         level = "manager"
+
+    if ayonconfig.disable_feedback:
+        raise ForbiddenException("Feedback feature is disabled")
 
     # Get headers here to abort if not connected to the cloud
     headers = await CloudUtils.get_api_headers()

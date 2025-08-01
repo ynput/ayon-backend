@@ -1,4 +1,3 @@
-import os
 import time
 import traceback
 
@@ -16,7 +15,7 @@ from ayon_server.lib.postgres_exceptions import (
     IntegrityConstraintViolationError,
     parse_postgres_exception,
 )
-from ayon_server.logging import logger
+from ayon_server.logging import log_exception, logger
 
 
 def handle_http_exception(request: Request, exc: HTTPException) -> JSONResponse:
@@ -108,33 +107,8 @@ def handle_undhandled_exception(request: Request, exc: Exception) -> JSONRespons
     if request.state.user:
         extras["user"] = request.state.user.name
 
-    path_prefix = f"{os.getcwd()}/"
-    formatted = "".join(traceback.format_exception_only(type(exc), exc)).strip()
-    tb = traceback.extract_tb(exc.__traceback__)
-    traceback_msg = ""
-    for frame in tb[-20:]:
-        fpath = frame.filename.split("/")
-        for p in ("starlette", "fastapi", "python3.11", "pydantic"):
-            # Too noisy. ignore
-            if p in fpath:
-                break
-        else:
-            filepath = frame.filename.removeprefix(path_prefix)
-            traceback_msg += f"{filepath}:{frame.lineno}\n"
-            traceback_msg += f"{frame.line}\n\n"
-
-    extras["traceback"] = traceback_msg.strip()
-
-    logger.error(f"Unhandled {formatted}", **extras)
-
-    return JSONResponse(
-        {
-            "status": 500,
-            "detail": formatted,
-            "traceback": extras["traceback"],
-        },
-        status_code=500,
-    )
+    res = log_exception(exc, **extras)
+    return JSONResponse(status_code=res["status"], content=res)
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):

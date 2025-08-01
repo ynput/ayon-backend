@@ -1,3 +1,4 @@
+import json
 from typing import Annotated
 
 from ayon_server.entities.core import attribute_library
@@ -22,12 +23,14 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     validate_name,
     validate_name_list,
     validate_status_list,
+    validate_type_name_list,
 )
-from ayon_server.utils import EntityID, SQLTool
+from ayon_server.utils import EntityID, SQLTool, slugify
 
 SORT_OPTIONS = {
     "name": "folders.name",
@@ -89,6 +92,8 @@ async def get_folders(
         bool | None, argdesc("Whether to filter by folders with tasks")
     ] = None,
     has_links: ARGHasLinks = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
+    filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> FoldersConnection:
     """Return a list of folders."""
@@ -116,6 +121,7 @@ async def get_folders(
         "folders.updated_at AS updated_at",
         "folders.creation_order AS creation_order",
         "folders.data AS data",
+        "hierarchy.path AS path",
         "pr.attrib AS project_attributes",
         "ex.attrib AS inherited_attributes",
     ]
@@ -129,16 +135,14 @@ async def get_folders(
         INNER JOIN public.projects AS pr
         ON pr.name ILIKE '{project_name}'
         """,
+        f"""
+        INNER JOIN project_{project_name}.hierarchy AS hierarchy
+        ON folders.id = hierarchy.id
+        """,
     ]
-    sql_group_by = ["folders.id", "pr.attrib", "ex.attrib"]
+    sql_group_by = ["folders.id", "pr.attrib", "ex.attrib", "hierarchy.path"]
     sql_conditions = []
     sql_having = []
-
-    use_hierarchy = (
-        (paths is not None)
-        or (path_ex is not None)
-        or fields.has_any("path", "parents")
-    )
 
     access_list = await create_folder_access_list(root, info)
 
@@ -146,7 +150,6 @@ async def get_folders(
         sql_conditions.append(
             f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
         )
-        use_hierarchy = True
 
     # We need to use children-join
     if (has_children is not None) or fields.has_any("childount", "hasChildren"):
@@ -173,17 +176,6 @@ async def get_folders(
             f"""
             LEFT JOIN project_{project_name}.tasks AS tasks
             ON folders.id = tasks.folder_id
-            """
-        )
-
-    # We need to join hierarchy view
-    if use_hierarchy:
-        sql_columns.append("hierarchy.path AS path")
-        sql_group_by.append("hierarchy.path")
-        sql_joins.append(
-            f"""
-            INNER JOIN project_{project_name}.hierarchy AS hierarchy
-            ON folders.id = hierarchy.id
             """
         )
 
@@ -247,7 +239,7 @@ async def get_folders(
     if folder_types is not None:
         if not folder_types:
             return FoldersConnection()
-        validate_name_list(folder_types)
+        validate_type_name_list(folder_types)
         sql_conditions.append(f"folders.folder_type in {SQLTool.array(folder_types)}")
 
     if name is not None:
@@ -291,12 +283,11 @@ async def get_folders(
     if paths is not None:
         if not paths:
             return FoldersConnection()
-        # TODO: sanitize
-        paths = [p.strip("/") for p in paths]
+        paths = [p.strip("/").replace("'", "''") for p in paths]
         sql_conditions.append(f"hierarchy.path IN {SQLTool.array(paths)}")
 
     if path_ex is not None:
-        # TODO: sanitize
+        path_ex = path_ex.replace("'", "''")
         sql_conditions.append(f"'/' || hierarchy.path ~ '{path_ex}'")
 
     if attributes:
@@ -320,6 +311,47 @@ async def get_folders(
             )
         """
         sql_conditions.append(cond)
+
+    if search:
+        terms = slugify(search, make_set=True)
+        for term in terms:
+            term = term.replace("'", "''")
+            sql_conditions.append(
+                f"(folders.name ILIKE '%{term}%' OR "
+                f"folders.label ILIKE '%{term}%' OR "
+                f"hierarchy.path ILIKE '%{term}%')"
+            )
+
+    #
+    # Filter
+    #
+
+    if filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "label",
+            "folder_type",
+            "parent_id",
+            "attrib",
+            "data",
+            "active",
+            "status",
+            "tags",
+            "created_at",
+            "updated_at",
+        ]
+        fdata = json.loads(filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="folders",
+            column_map={
+                "attrib": "(pr.attrib || coalesce(ex.attrib, '{{}}'::jsonb ) || folders.attrib)",  # noqa: E501
+            },
+        ):
+            sql_conditions.append(fcond)
 
     #
     # Pagination

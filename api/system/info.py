@@ -1,4 +1,3 @@
-import contextlib
 from typing import Any
 from urllib.parse import urlparse
 
@@ -20,6 +19,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import Field, OPModel
+from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .router import router
 from .sites import SiteInfo
@@ -66,6 +66,19 @@ class InfoResponseModel(OPModel):
         None,
         title="Onboarding",
     )
+
+    disable_changelog: bool | None = Field(
+        None,
+        title="Disable changelog",
+        description="If set, the changelog will not be shown to the user",
+    )
+
+    hide_password_auth: bool | None = Field(
+        None,
+        title="Hide password authentication",
+        description="Password authentication will not be shown on the login page",
+    )
+
     password_recovery_available: bool | None = Field(None, title="Password recovery")
     user: UserEntity.model.main_model | None = Field(None, title="User information")  # type: ignore
     attributes: list[AttributeModel] | None = Field(None, title="List of attributes")
@@ -91,7 +104,7 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
     library = AddonLibrary.getinstance()
     active_versions = await library.get_active_versions()
 
-    for _name, definition in library.data.items():
+    for definition in library.data.values():
         try:
             vers = active_versions.get(definition.name, {})
         except ValueError:
@@ -105,7 +118,12 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
         except KeyError:
             continue
 
-        options = await addon.get_sso_options(base_url)
+        try:
+            options = await addon.get_sso_options(base_url)
+        except Exception:
+            log_traceback(f"Failed to get SSO options for addon {addon.name}")
+            continue
+
         if not options:
             continue
 
@@ -115,13 +133,14 @@ async def get_sso_options(request: Request) -> list[SSOOption]:
 
 
 async def get_user_sites(
-    user_name: str, current_site: SiteInfo | None
+    user_name: str, current_site: SiteInfo | None = None
 ) -> list[SiteInfo]:
     """Return a list of sites the user is registered to
 
     If site information in the request headers, it will be added to the
     top of the listand updated in the database if necessary.
     """
+
     sites: list[SiteInfo] = []
     current_needs_update = False
     current_site_exists = False
@@ -201,25 +220,33 @@ async def get_attributes() -> list[AttributeModel]:
     return attr_list
 
 
-async def get_additional_info(user: UserEntity, request: Request):
+async def get_additional_info(
+    user_name: str,
+    is_admin: bool,
+    site_id: str | None,
+    site_platform: str | None,
+    site_hostname: str | None,
+    site_version: str | None,
+) -> dict[str, Any]:
     """Return additional information for the user
 
     This is returned only if the user is logged in.
     """
+    server_config = await get_server_config()
 
-    # Handle site information
-
-    current_site: SiteInfo | None = None
-    with contextlib.suppress(ValidationError):
+    sites = []
+    if site_id and site_platform and site_hostname and site_version:
         current_site = SiteInfo(
-            id=request.headers.get("x-ayon-site-id"),
-            platform=request.headers.get("x-ayon-platform"),
-            hostname=request.headers.get("x-ayon-hostname"),
-            version=request.headers.get("x-ayon-version"),
-            users=[user.name],
+            id=site_id,
+            platform=site_platform,
+            hostname=site_hostname,
+            version=site_version,
+            users={user_name},
         )
+    else:
+        current_site = None
 
-    sites = await get_user_sites(user.name, current_site)
+    sites = await get_user_sites(user_name, current_site)
 
     attr_list = await get_attributes()
     extras = await CloudUtils.get_extras()
@@ -228,6 +255,9 @@ async def get_additional_info(user: UserEntity, request: Request):
         "attributes": attr_list,
         "sites": sites,
         "extras": extras,
+        "disable_changelog": not (
+            is_admin or server_config.changelog.show_changelog_to_users
+        ),
     }
 
 
@@ -268,9 +298,24 @@ async def get_site_info(
     API version are returned.
     """
 
+    coalesce = RequestCoalescer()
+
     additional_info = {}
     if current_user:
-        additional_info = await get_additional_info(current_user, request)
+        site_id = request.headers.get("x-ayon-site-id")
+        site_platform = request.headers.get("x-ayon-platform")
+        site_hostname = request.headers.get("x-ayon-hostname")
+        site_version = request.headers.get("x-ayon-version")
+
+        additional_info = await coalesce(
+            get_additional_info,
+            current_user.name,
+            current_user.is_admin,
+            site_id,
+            site_platform,
+            site_hostname,
+            site_version,
+        )
 
         if current_user.is_admin and not current_user.is_service:
             if not await is_onboarding_finished():
@@ -302,6 +347,9 @@ async def get_site_info(
             additional_info["login_page_brand"] = url
         elif ayonconfig.login_page_brand:  # Deprecated
             additional_info["login_page_brand"] = ayonconfig.login_page_brand
+
+        if server_config.authentication.hide_password_auth:
+            additional_info["hide_password_auth"] = True
 
     user_payload = current_user.payload if (current_user is not None) else None
     return InfoResponseModel(user=user_payload, **additional_info)

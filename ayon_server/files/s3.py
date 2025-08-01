@@ -12,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from typing_extensions import AsyncGenerator
 
 from ayon_server.config import ayonconfig
+from ayon_server.exceptions import AyonException, NotFoundException
 from ayon_server.helpers.download import get_file_name_from_headers
 from ayon_server.helpers.statistics import update_traffic_stats
 from ayon_server.logging import logger
@@ -59,17 +60,43 @@ async def get_s3_client(storage: "ProjectStorage"):
 # Presigned URLs
 
 
-def _get_signed_url(storage: "ProjectStorage", key: str, ttl: int = 3600) -> str:
+def _get_signed_url(
+    storage: "ProjectStorage",
+    key: str,
+    ttl: int = 3600,
+    *,
+    content_type: str | None = None,
+    content_disposition: str | None = None,
+) -> str:
     client = _get_s3_client(storage)
+    params = {"Bucket": storage.bucket_name, "Key": key}
+    if content_type:
+        params["ResponseContentType"] = content_type
+    if content_disposition:
+        params["ResponseContentDisposition"] = content_disposition
     return client.generate_presigned_url(
         "get_object",
-        Params={"Bucket": storage.bucket_name, "Key": key},
+        Params=params,
         ExpiresIn=ttl,
     )
 
 
-async def get_signed_url(storage: "ProjectStorage", key: str, ttl: int = 3600) -> str:
-    return await run_in_threadpool(_get_signed_url, storage, key, ttl)
+async def get_signed_url(
+    storage: "ProjectStorage",
+    key: str,
+    ttl: int = 3600,
+    *,
+    content_type: str | None = None,
+    content_disposition: str | None = None,
+) -> str:
+    return await run_in_threadpool(
+        _get_signed_url,
+        storage,
+        key,
+        ttl=ttl,
+        content_type=content_type,
+        content_disposition=content_disposition,
+    )
 
 
 # Simple file store / retrieve
@@ -118,10 +145,39 @@ async def delete_s3_file(storage: "ProjectStorage", key: str):
     await run_in_threadpool(_delete_s3_file, storage, key)
 
 
+def _get_s3_file_info(storage: "ProjectStorage", key: str) -> FileInfo:
+    client = _get_s3_client(storage)
+    try:
+        response = client.head_object(Bucket=storage.bucket_name, Key=key)
+        size = response["ContentLength"]
+    except client.exceptions.NoSuchKey:
+        raise NotFoundException("File not found")
+    except client.exceptions.ClientError as e:
+        raise NotFoundException(f"Error getting file size: {e}")
+    except Exception as e:
+        raise AyonException(f"Error getting file info: {e}")
+
+    return FileInfo(
+        size=size,
+        filename=key.split("/")[-1],
+        content_type=response.get("ContentType", "application/octet-stream"),
+    )
+
+
+async def get_s3_file_info(storage: "ProjectStorage", key: str) -> FileInfo:
+    return await run_in_threadpool(_get_s3_file_info, storage, key)
+
+
 class FileIterator:
-    def __init__(self, storage: "ProjectStorage", file_group: FileGroup):
+    def __init__(
+        self,
+        storage: "ProjectStorage",
+        file_group: FileGroup,
+        prefix: str = "",
+    ):
         self.storage = storage
         self.file_group: FileGroup = file_group
+        self.prefix = prefix
 
     def _init_iterator(self, prefix: str) -> None:
         paginator = self.client.get_paginator("list_objects_v2")
@@ -135,6 +191,8 @@ class FileIterator:
     async def init_iterator(self):
         self.client = await get_s3_client(self.storage)
         prefix = await self.storage.get_filegroup_dir(self.file_group)
+        if self.prefix:
+            prefix = f"{prefix}/{self.prefix}"
         await run_in_threadpool(self._init_iterator, prefix)
 
     def _next(self):
@@ -178,12 +236,23 @@ class S3Uploader:
     _worker_task: asyncio.Task[Any] | None
     _queue: asyncio.Queue[bytes | None]
 
-    def __init__(self, client, bucket_name: str, max_queue_size=5, max_workers=4):
+    def __init__(
+        self,
+        client,
+        bucket_name: str,
+        *,
+        max_queue_size=5,
+        max_workers=4,
+        content_type: str | None = None,
+        content_disposition: str | None = None,
+    ):
         self._client = client
         self._multipart = None
         self._parts: list[tuple[int, str]] = []
         self._key: str | None = None
         self.bucket_name = bucket_name
+        self.content_type = content_type
+        self.content_disposition = content_disposition
 
         # Limited-size async queue for chunk uploads to prevent over-filling
         self._queue = asyncio.Queue(maxsize=max_queue_size)
@@ -191,14 +260,19 @@ class S3Uploader:
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
 
     def _init_file_upload(self, key: str):
-        logger.debug(f"Initiating upload for {key}", user="s3")
         if self._multipart:
             raise Exception("Multipart upload already started")
 
-        self._multipart = self._client.create_multipart_upload(
-            Bucket=self.bucket_name,
-            Key=key,
-        )
+        params = {
+            "Bucket": self.bucket_name,
+            "Key": key,
+        }
+        if self.content_type:
+            params["ContentType"] = self.content_type
+        if self.content_disposition:
+            params["ContentDisposition"] = self.content_disposition
+
+        self._multipart = self._client.create_multipart_upload(**params)
 
         self._parts = []
         self._key = key
@@ -283,14 +357,13 @@ class S3Uploader:
         if self._worker_task:
             await self._worker_task  # Wait for the worker to finish.
 
-        logger.debug(f"Completing upload for {self._key}", user="s3")
+        logger.debug(f"Completing upload for {self._key}")
         await asyncio.get_running_loop().run_in_executor(self._executor, self._complete)
 
     def _abort(self) -> None:
         if not self._multipart:
             return
 
-        logger.warning(f"Aborting upload for {self._key}", user="s3")
         self._client.abort_multipart_upload(
             Bucket=self.bucket_name,
             Key=self._key,
@@ -302,45 +375,77 @@ class S3Uploader:
 
     async def abort(self) -> None:
         """Abort the multipart upload if there's an exception."""
+        logger.warning("Aborting upload")
         await asyncio.get_running_loop().run_in_executor(self._executor, self._abort)
 
     def __del__(self):
         """Ensure clean-up if the object is destroyed prematurely."""
-        self._abort()
+        try:
+            self._abort()
+        except Exception:
+            pass  # pass silently, probably already aborted
 
 
 async def handle_s3_upload(
     storage: "ProjectStorage",
     request: Request,
     path: str,
+    *,
+    content_type: str | None = None,
+    content_disposition: str | None = None,
 ) -> int:
     start_time = time.monotonic()
     client = await get_s3_client(storage)
     assert storage.bucket_name
-    uploader = S3Uploader(client, storage.bucket_name)
 
-    await uploader.init_file_upload(path)
+    context = {
+        "file_id": path.split("/")[-1],
+        "content_type": content_type,
+        "content_disposition": content_disposition,
+    }
+
     i = 0
-    buffer_size = 1024 * 1024 * 5
-    buff = b""
+    finished_ok = False
 
-    async for chunk in request.stream():
-        buff += chunk
-        if len(buff) >= buffer_size:
-            await uploader.push_chunk(buff)
-            i += len(buff)
+    with logger.contextualize(**context):
+        uploader = S3Uploader(
+            client,
+            storage.bucket_name,
+            content_type=content_type,
+            content_disposition=content_disposition,
+        )
+
+        try:
+            await uploader.init_file_upload(path)
+            buffer_size = 1024 * 1024 * 5
             buff = b""
 
-    if buff:
-        await uploader.push_chunk(buff)
-        i += len(buff)
+            async for chunk in request.stream():
+                buff += chunk
+                if len(buff) >= buffer_size:
+                    await uploader.push_chunk(buff)
+                    i += len(buff)
+                    buff = b""
 
-    await uploader.complete()
-    upload_time = time.monotonic() - start_time
+            if buff:
+                await uploader.push_chunk(buff)
+                i += len(buff)
 
-    await update_traffic_stats("ingress", i, service="s3")
-    logger.info(f"Uploaded {i} bytes to {path} in {upload_time:.2f} seconds")
-    return i
+            await uploader.complete()
+            upload_time = time.monotonic() - start_time
+            finished_ok = True
+
+            await update_traffic_stats("ingress", i, service="s3")
+            logger.info(f"Uploaded {i} bytes in {upload_time:.2f} seconds")
+            return i
+
+        finally:
+            if not finished_ok:
+                logger.warning("File upload failed")
+                try:
+                    await uploader.abort()
+                except Exception:
+                    pass
 
 
 async def remote_to_s3(

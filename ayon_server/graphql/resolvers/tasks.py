@@ -31,6 +31,7 @@ from ayon_server.types import (
     sanitize_string_list,
     validate_name_list,
     validate_status_list,
+    validate_type_name_list,
     validate_user_name_list,
 )
 from ayon_server.utils import SQLTool, slugify
@@ -221,7 +222,7 @@ async def get_tasks(
     if task_types is not None:
         if not task_types:
             return TasksConnection()
-        validate_name_list(task_types)
+        validate_type_name_list(task_types)
         sql_conditions.append(f"tasks.task_type IN {SQLTool.array(task_types)}")
 
     if statuses is not None:
@@ -356,6 +357,8 @@ async def get_tasks(
         or search
         or sort_by == "path"
         or "folder" in fields
+        or fields.any_endswith("path")
+        or fields.any_endswith("parents")
     ):
         sql_columns.extend(
             [
@@ -379,21 +382,11 @@ async def get_tasks(
             "ON folders.id = tasks.folder_id\n"
         )
 
-        if (
-            (access_list is not None)
-            or use_folder_query
-            or search
-            or sort_by == "path"
-            or any(
-                field.endswith("folder.path") or field.endswith("folder.parents")
-                for field in fields
-            )
-        ):
-            sql_columns.append("hierarchy.path AS _folder_path")
-            sql_joins.append(
-                f"INNER JOIN project_{project_name}.hierarchy AS hierarchy "
-                "ON folders.id = hierarchy.id\n"
-            )
+        sql_columns.append("hierarchy.path AS _folder_path")
+        sql_joins.append(
+            f"INNER JOIN project_{project_name}.hierarchy AS hierarchy "
+            "ON folders.id = hierarchy.id\n"
+        )
 
         if any(field.endswith("folder.attrib") for field in fields):
             sql_columns.append("pr.attrib as _folder_project_attributes")

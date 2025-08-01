@@ -1,3 +1,4 @@
+import traceback
 from typing import Any
 
 from pydantic.fields import FieldInfo, Undefined
@@ -43,6 +44,7 @@ def SettingsField(
     required_items: list[str] | None = None,
     section: str | None = None,
     widget: str | None = None,
+    syntax: str | None = None,
     layout: str | None = None,
     tags: list[str] | None = None,
     scope: list[str] | None = None,
@@ -60,9 +62,18 @@ def SettingsField(
     # conditionalEnum (camelCase) is deprecated, but used heavily.
     # We will need to support it for a long time, but it won't hurt.
     conditional_enum = conditional_enum or conditionalEnum
+    if conditionalEnum:
+        stack = traceback.extract_stack()[-2]
+        logger.debug(
+            f"Deprecated argument: conditionalEnum at {stack.filename}:{stack.lineno}"
+        )
 
     if kwargs:
-        logger.debug(f"SettingsField: unsupported argument: {kwargs}")
+        stack = traceback.extract_stack()[-2]
+        logger.debug(
+            f"Unsupported argument: {', '.join(kwargs.keys())} "
+            f"at {stack.filename}:{stack.lineno}"
+        )
 
     # Pydantic 1 uses `example` while Pydantic 2 uses `examples`
     # We will support both, but before Pydantic 2 is used, `examples` will
@@ -102,6 +113,11 @@ def SettingsField(
         extra["scope"] = scope
     if disabled is not None:
         extra["disabled"] = disabled
+    if syntax is not None:
+        if widget != "textarea":
+            m = "SettingsField: syntax is only supported for textarea widget"
+            logger.debug(m)
+        extra["syntax"] = syntax.lower()
 
     # construct FieldInfo
 

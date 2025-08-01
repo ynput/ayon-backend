@@ -1,6 +1,9 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
+
+from pydantic import validator
 
 from ayon_server.types import (
+    ATTRIBUTE_NAME_REGEX,
     AttributeEnumItem,
     AttributeType,
     Field,
@@ -110,13 +113,21 @@ class AttributeData(OPModel):
         ),
     ] = True
 
+    @validator("enum")
+    def validate_enum(
+        cls, value: list[AttributeEnumItem] | None
+    ) -> list[AttributeEnumItem] | None:
+        if value == []:
+            return None
+        return value
+
 
 class AttributeNameModel(OPModel):
     name: Annotated[
         str,
         Field(
             title="Attribute name",
-            regex="^[a-zA-Z0-9]{2,30}$",
+            regex=ATTRIBUTE_NAME_REGEX,
             example="my_attribute",
         ),
     ]
@@ -132,7 +143,7 @@ class AttributePutModel(OPModel):
         ),
     ]
     scope: Annotated[
-        list[ProjectLevelEntityType | TopLevelEntityType],
+        list[ProjectLevelEntityType | TopLevelEntityType | Literal["list"]],
         Field(
             default_factory=list,
             title="Scope",
