@@ -56,6 +56,30 @@ def build_update_query(
     return query, params
 
 
+async def sanitize_folder_update(
+    entity: ProjectLevelEntity,
+    operation: OperationModel,
+    update_payload_dict: dict[str, Any],
+) -> None:
+    """
+    Sanitize folder update operation to ensure that only allowed fields are updated.
+    """
+
+    folder_entity = cast(FolderEntity, entity)
+    has_versions = bool(await folder_entity.get_versions())
+    existing_folder_data = folder_entity.payload.dict(exclude_none=True)
+    if not operation.force:
+        for key in ("name", "folder_type", "parent_id"):
+            if key not in update_payload_dict:
+                continue
+            old_value = existing_folder_data.get(key)
+            new_value = update_payload_dict[key]
+            if has_versions and old_value != new_value:
+                raise ForbiddenException(
+                    f"Cannot change {key} of a folder with published versions"
+                )
+
+
 async def update_project_level_entity(
     entity_class: type[ProjectLevelEntity],
     project_name: str,
@@ -85,18 +109,7 @@ async def update_project_level_entity(
         await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)
 
     if operation.entity_type == "folder":
-        folder_entity = cast(FolderEntity, entity)
-        has_versions = bool(await folder_entity.get_versions())
-        existing_folder_data = folder_entity.payload.dict(exclude_none=True)
-        for key in ("name", "folder_type", "parent_id"):
-            if key not in update_payload_dict:
-                continue
-            old_value = existing_folder_data.get(key)
-            new_value = update_payload_dict[key]
-            if has_versions and old_value != new_value:
-                raise ForbiddenException(
-                    f"Cannot change {key} of a folder with published versions"
-                )
+        await sanitize_folder_update(entity, operation, update_payload_dict)
 
     # Build events for every change
     # Do this before applying the patch, to the entity to detect the changes
