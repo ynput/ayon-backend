@@ -2,7 +2,7 @@ import inspect
 import re
 from collections.abc import Callable
 from types import GenericAlias
-from typing import Any
+from typing import Annotated, Any, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError, parse_obj_as
 
@@ -39,8 +39,9 @@ def migrate_settings_overrides(
 
     new_data: dict[str, Any] = {}
 
-    # if not parent_key:
-    #     json_print(old_data, "Old data")
+    if get_origin(new_model_class) is Annotated:
+        args = get_args(new_model_class)
+        new_model_class = args[0] if args else new_model_class
 
     for key, value in old_data.items():
         if key in new_model_class.__fields__:

@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any, Literal
 
@@ -83,3 +84,6 @@ class EventModel(OPModel):
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
+
+
+HandlerType = Callable[[EventModel], Awaitable[None]]

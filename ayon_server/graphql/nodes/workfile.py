@@ -1,4 +1,3 @@
-import os
 from typing import TYPE_CHECKING, Any
 
 import strawberry
@@ -36,6 +35,7 @@ class WorkfileNode(BaseNode):
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
+    _parents: list[str] | None = None
 
     @strawberry.field(description="Parent task of the workfile")
     async def task(self, info: Info) -> TaskNode:
@@ -57,6 +57,10 @@ class WorkfileNode(BaseNode):
     def all_attrib(self) -> str:
         return json_dumps(self._attrib)
 
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        return self._parents or []
+
 
 #
 # Entity loader
@@ -69,7 +73,8 @@ def workfile_from_record(
     """Construct a version node from a DB row."""
 
     data = record.get("data") or {}
-    name = os.path.basename(record["path"])
+    npath = record["path"].replace("\\", "/")
+    name = npath.split("/")[-1] if npath else ""
 
     thumbnail = None
     if record["thumbnail_id"]:
@@ -80,6 +85,12 @@ def workfile_from_record(
             source_entity_id=thumb_data.get("sourceEntityId"),
             relation=thumb_data.get("relation"),
         )
+
+    parents: list[str] = []
+    if path := record.get("_folder_path"):
+        path = path.strip("/")
+        parents = path.split("/")[:-1] if path else []
+        parents.append(record["_task_name"])
 
     return WorkfileNode(
         project_name=project_name,
@@ -99,6 +110,7 @@ def workfile_from_record(
         updated_at=record["updated_at"],
         _attrib=record["attrib"] or {},
         _user=context["user"],
+        _parents=parents,
     )
 
 

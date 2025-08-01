@@ -29,14 +29,26 @@ class AvailableActionsListModel(OPModel):
 @aiocache.cached(ttl=60)
 async def _load_relevant_addons(
     user_name: str,
+    variant: str | None,
     is_developer: bool,
     user_last_modified: str,
 ) -> tuple[str, list[BaseServerAddon]]:
-    variant = None
     query: tuple[str] | tuple[str, str]
     _ = user_last_modified  # this is used just to invalidate the cache
 
-    if is_developer:
+    if variant == "production":
+        query = (
+            "SELECT name, data->'addons' as addons FROM bundles WHERE is_production",
+        )
+    elif variant == "staging":
+        query = ("SELECT name, data->'addons' as addons FROM bundles WHERE is_staging",)
+    elif variant:
+        query = (
+            "SELECT name, data->'addons' as addons FROM bundles WHERE name = $1",
+            variant,
+        )
+
+    elif is_developer:
         # get the list of addons from the development environment
         query = (
             """
@@ -49,7 +61,6 @@ async def _load_relevant_addons(
         query = (
             "SELECT name, data->'addons' as addons FROM bundles WHERE is_production",
         )
-        # we're in production mode
         variant = "production"
 
     res = await Postgres.fetch(*query)
@@ -74,7 +85,9 @@ async def _load_relevant_addons(
     return variant, result
 
 
-async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAddon]]:
+async def get_relevant_addons(
+    variant: str | None, user: UserEntity
+) -> tuple[str, list[BaseServerAddon]]:
     """Get the list of addons that are relevant for the user.
 
     Normally it means addons in the production bundle,
@@ -88,6 +101,7 @@ async def get_relevant_addons(user: UserEntity) -> tuple[str, list[BaseServerAdd
 
     return await _load_relevant_addons(
         user.name,
+        variant,
         is_developer,
         user_last_modified,
     )
@@ -255,9 +269,10 @@ class SimpleActionCache:
 async def get_simple_actions(
     user: UserEntity,
     context: ActionContext,
+    variant: str | None,
 ) -> AvailableActionsListModel:
     actions = []
-    variant, addons = await get_relevant_addons(user)
+    variant, addons = await get_relevant_addons(variant, user)
     project_name = context.project_name
     for addon in addons:
         simple_actions = await SimpleActionCache.get(addon, project_name, variant)
@@ -279,6 +294,7 @@ async def get_simple_actions(
 async def get_dynamic_actions(
     user: UserEntity,
     context: ActionContext,
+    variant: str | None,
 ) -> AvailableActionsListModel:
     """Get a list of dynamic actions for a given context.
 
@@ -291,7 +307,7 @@ async def get_dynamic_actions(
     """
 
     actions = []
-    variant, addons = await get_relevant_addons(user)
+    variant, addons = await get_relevant_addons(variant, user)
     for addon in addons:
         actions.extend(await addon.get_dynamic_actions(context, variant))
     return AvailableActionsListModel(actions=actions)
