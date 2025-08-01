@@ -103,6 +103,21 @@ class ColumnItemModel(OPModel):
     width: Annotated[int | None, Field(title="Column width")] = None
 
 
+FColumnList = Annotated[
+    list[ColumnItemModel],
+    Field(
+        title="List of columns",
+        default_factory=list,
+        example=[
+            {"name": "name", "pinned": True, "width": 120},
+            {"name": "status", "pinned": True, "width": 120},
+            {"name": "assignees", "width": 120},
+            {"name": "attrib.priority", "width": 120},
+        ],
+    ),
+]
+
+
 #
 # Per-page models
 #
@@ -111,45 +126,23 @@ class ColumnItemModel(OPModel):
 class OverviewSettings(OPModel):
     show_hierarchy: bool = True
     group_by: str | None = None
+    show_empty_groups: bool = False
     sort_by: str | None = None
     sort_desc: bool = False
     filter: QueryFilter | None = None
-    columns: Annotated[
-        list[ColumnItemModel],
-        Field(
-            title="List of columns",
-            default_factory=list,
-            example=[
-                {"name": "name", "pinned": True, "width": 120},
-                {"name": "status", "pinned": True, "width": 120},
-                {"name": "assignees", "width": 120},
-                {"name": "attrib.priority", "width": 120},
-            ],
-        ),
-    ]
+    columns: FColumnList
 
 
 class TaskProgressSettings(OPModel):
     filter: QueryFilter | None = None
+    columns: FColumnList
 
 
 class ListsSettings(OPModel):
     sort_by: str | None = None
     sort_desc: bool = False
     filter: QueryFilter | None = None
-    columns: Annotated[
-        list[ColumnItemModel],
-        Field(
-            title="List of columns",
-            default_factory=list,
-            example=[
-                {"name": "name", "pinned": True, "width": 120},
-                {"name": "status", "pinned": True, "width": 120},
-                {"name": "assignees", "width": 120},
-                {"name": "attrib.priority", "width": 120},
-            ],
-        ),
-    ]
+    columns: FColumnList
 
 
 ViewSettingsModel = OverviewSettings | TaskProgressSettings | ListsSettings
