@@ -93,11 +93,14 @@ async def list_views(
     views: list[ViewListItemModel] = []
 
     async with Postgres.transaction():
-        res = []
+        project_views = []
+        studio_views = await Postgres.fetch(query, view_type, user.name, "studio")
         if project_name:
             await Postgres.set_project_schema(project_name)
-            res.extend(await Postgres.fetch(query, view_type, user.name, "project"))
-        res.extend(await Postgres.fetch(query, view_type, user.name, "studio"))
+            project_views.extend(
+                await Postgres.fetch(query, view_type, user.name, "project")
+            )
+        res = project_views + studio_views
         for row in res:
             if row["visibility"] == "public":
                 try:
