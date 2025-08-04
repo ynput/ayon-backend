@@ -151,7 +151,7 @@ async def get_default_view(
         view_id = "000000000000000000000000000000000"  # Just make it fail
 
     query = """
-        SELECT * FROM views, $4 AS scope
+        SELECT *, $4 AS scope FROM views
         WHERE id = $1
         OR (view_type = $2 AND owner = $3 AND personal)
         ORDER BY personal DESC
@@ -204,7 +204,7 @@ async def get_view(
 
         # Redundant conditions added for security and clarity
         query = """
-            SELECT * FROM views, $4 AS scope
+            SELECT *, $4 AS scope FROM views
             WHERE id = $1
             AND view_type = $2
             AND (owner = $3 OR visibility = 'public')
