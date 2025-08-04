@@ -63,6 +63,8 @@ async def sanitize_folder_update(
 ) -> None:
     """
     Sanitize folder update operation to ensure that only allowed fields are updated.
+
+    Note: This function modifies the update_payload_dict in place!
     """
 
     folder_entity = cast(FolderEntity, entity)
