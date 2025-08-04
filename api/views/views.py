@@ -156,7 +156,7 @@ async def get_default_view(
         SELECT *, $4 AS scope FROM views
         WHERE id = $1
         OR (view_type = $2 AND owner = $3 AND personal)
-        ORDER BY personal DESC
+        ORDER BY personal ASC
         LIMIT 1
     """
 
