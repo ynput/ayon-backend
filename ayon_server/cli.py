@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import sys
 from functools import partial, wraps
 
 from typer import Typer
@@ -39,7 +40,12 @@ app = AsyncTyper()
 
 @app.command()
 def version() -> None:
-    """Print the version of the tool."""
+    """Print the AYON server version"""
     from ayon_server import __version__
 
-    print(f"AYON Server version: {__version__}")
+    print(
+        f"{__version__}",
+        file=sys.stderr,
+        flush=True,
+        end="",
+    )
