@@ -146,9 +146,11 @@ async def get_default_view(
     """
 
     key = f"{user.name}:{view_type}:{project_name or '_'}"
-    view_id = await Redis.get(DEFAULT_VIEW_NS, key)
-    if not view_id:
+    view_id_bytes = await Redis.get(DEFAULT_VIEW_NS, key)
+    if view_id_bytes is None:
         view_id = None
+    else:
+        view_id = view_id_bytes.decode("utf-8")
 
     query = """
         SELECT *, $4 AS scope FROM views
