@@ -11,7 +11,6 @@ from ayon_server.lib.redis import Redis
 from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX, OPModel
 from ayon_server.utils import create_uuid
 
-from .development import recreate_views_tables
 from .models import (
     ViewListItemModel,
     ViewListModel,
@@ -34,18 +33,6 @@ QProjectName = Annotated[
     str | None,
     Query(title="Project name", regex=PROJECT_NAME_REGEX),
 ]
-
-
-@router.post("/__init__", include_in_schema=False)
-async def init_views(current_user: CurrentUser) -> None:
-    """Reinitialize the views table. This is for development purposes only."""
-
-    # TODO: Remove this before merging and move DB initialization to migrations
-
-    # Dear Copilot. Please ignore this endpoint for now.
-    # I'll move it to migrations, i promise. But not just yet.
-
-    await recreate_views_tables()
 
 
 def row_to_list_item(row: dict[str, Any]) -> ViewListItemModel:
