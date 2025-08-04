@@ -492,3 +492,26 @@ CREATE TABLE entity_list_items(
 CREATE INDEX entity_list_items_entity_list_id ON entity_list_items (entity_list_id);
 CREATE INDEX entity_list_items_entity_id ON entity_list_items (entity_id);
 CREATE INDEX entity_list_items_position ON entity_list_items (position);
+
+-----------
+-- VIEWS --
+-----------
+
+CREATE TABLE IF NOT EXISTS views(
+  id UUID NOT NULL PRIMARY KEY,
+  view_type VARCHAR NOT NULL,
+  label VARCHAR NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+
+  owner VARCHAR,
+  visibility VARCHAR NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private')),
+  personal BOOLEAN NOT NULL DEFAULT TRUE,
+
+  access JSONB NOT NULL DEFAULT '{}'::JSONB,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS unique_personal_view
+  ON views(view_type, owner) WHERE personal;
+CREATE INDEX IF NOT EXISTS view_type_idx ON views(view_type);
+CREATE INDEX IF NOT EXISTS view_owner_idx ON views(owner);
