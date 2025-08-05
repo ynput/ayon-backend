@@ -7,9 +7,9 @@ from ayon_server.views.models import (
     FViewId,
     FViewLabel,
     FViewOwner,
-    FViewPersonal,
     FViewScope,
     FViewVisibility,
+    FViewWorking,
     ListsSettings,
     OverviewSettings,
     TaskProgressSettings,
@@ -30,7 +30,7 @@ class ViewListItemModel(OPModel):
     position: int
     owner: FViewOwner
     visibility: FViewVisibility
-    personal: FViewPersonal
+    working: FViewWorking
 
 
 class ViewListModel(OPModel):
@@ -75,7 +75,7 @@ class ListsViewModel(BaseViewModel):
 class BaseViewPostModel(OPModel):
     id: FViewId
     label: FViewLabel
-    personal: FViewPersonal = True
+    working: FViewWorking = True
     settings: ViewSettingsModel
 
 

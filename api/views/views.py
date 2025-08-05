@@ -44,7 +44,7 @@ def row_to_list_item(row: dict[str, Any]) -> ViewListItemModel:
         position=row.get("position", 0),
         owner=row["owner"],
         visibility=row.get("visibility", "private"),
-        personal=row.get("personal", False),
+        working=row.get("working", False),
     )
 
 
@@ -58,7 +58,7 @@ def row_to_model(row: dict[str, Any]) -> ViewModel:
         position=row.get("position", 0),
         owner=row["owner"],
         visibility=row.get("visibility", "private"),
-        personal=row.get("personal", False),
+        working=row.get("working", False),
         settings=row.get("data", {}),
     )
 
@@ -72,7 +72,7 @@ async def list_views(
     """Get the list of views available to the user."""
 
     query = """
-        SELECT id, label, position, owner, visibility, personal, access, $3 AS scope
+        SELECT id, label, position, owner, visibility, working, access, $3 AS scope
         FROM views WHERE view_type = $1 AND (owner = $2 OR visibility = 'public')
         ORDER BY position ASC, label ASC
     """
@@ -104,20 +104,20 @@ async def list_views(
     return ViewListModel(views=views)
 
 
-@router.get("/{view_type}/personal")
-async def get_personal_view(
+@router.get("/{view_type}/working")
+async def get_working_view(
     current_user: CurrentUser,
     view_type: PViewType,
     project_name: QProjectName = None,
 ) -> ViewModel:
-    """Get the personal view of the given type"""
+    """Get the working view of the given type"""
     async with Postgres.transaction():
         if project_name:
             await Postgres.set_project_schema(project_name)
 
         query = """
             SELECT *, $3 as scope FROM views
-            WHERE view_type = $1 AND owner = $2 AND personal
+            WHERE view_type = $1 AND owner = $2 AND working
         """
 
         row = await Postgres.fetchrow(
@@ -127,7 +127,7 @@ async def get_personal_view(
             "project" if project_name else "studio",
         )
         if not row:
-            raise NotFoundException(f"Personal {view_type} view not found")
+            raise NotFoundException(f"Working {view_type} view not found")
         return row_to_model(row)
 
 
@@ -142,8 +142,8 @@ async def get_default_view(
 ) -> ViewModel:
     """Return the view set by the user as default for the given type.
 
-    If no default view is set, it will return the personal view of the user.
-    If no personal view is set, raise 404
+    If no default view is set, it will return the working view of the user.
+    If no working view is set, raise 404
     """
 
     key = f"{user.name}:{view_type}:{project_name or '_'}"
@@ -156,8 +156,8 @@ async def get_default_view(
     query = """
         SELECT *, $4 AS scope FROM views
         WHERE id = $1
-        OR (view_type = $2 AND owner = $3 AND personal)
-        ORDER BY personal ASC
+        OR (view_type = $2 AND owner = $3 AND working)
+        ORDER BY working ASC
         LIMIT 1
     """
 
@@ -245,11 +245,11 @@ async def create_view(
             SET label = $3, data = $6, updated_at = NOW()
             WHERE view_type = $2
             AND owner = $4
-            AND personal IS TRUE
+            AND working IS TRUE
             AND $5 IS TRUE
             RETURNING id
         )
-        INSERT INTO views (id, view_type, label, owner, personal, data)
+        INSERT INTO views (id, view_type, label, owner, working, data)
         SELECT $1, $2, $3, $4, $5, $6
         WHERE NOT EXISTS (SELECT 1 FROM ex)
         RETURNING id;
@@ -261,7 +261,7 @@ async def create_view(
             view_type,
             payload.label,
             current_user.name,
-            payload.personal,
+            payload.working,
             payload.settings.dict(),
         )
 

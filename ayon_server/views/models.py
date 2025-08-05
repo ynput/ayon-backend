@@ -67,15 +67,15 @@ FViewOwner = Annotated[
     ),
 ]
 
-FViewPersonal = Annotated[
+FViewWorking = Annotated[
     bool,
     Field(
-        title="Personal view",
+        title="Working view",
         description=(
-            "Personal view is a special type of the view that "
+            "Working view is a special type of the view that "
             "automatically stores the current view settings "
             "without explicitly saving them. "
-            "Personal views are always private and scoped to the project "
+            "Working views are always private and scoped to the project "
         ),
     ),
 ]
