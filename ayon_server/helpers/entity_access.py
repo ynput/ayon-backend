@@ -1,6 +1,6 @@
 from typing import Any
 
-from ayon_server.entities import UserEntity
+from ayon_server.entities import ProjectEntity, UserEntity
 
 
 class EntityAccessHelper:
@@ -12,6 +12,7 @@ class EntityAccessHelper:
         access: dict[str, Any] | None = None,
         level: int = 0,
         owner: str | None = None,
+        project: ProjectEntity | None = None,
         default_open: bool = True,
     ) -> None:
         _ = access, user, level, owner

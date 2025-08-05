@@ -242,7 +242,7 @@ async def create_view(
         query = """
         WITH ex AS (
             UPDATE views
-            SET label = $3, data = $6
+            SET label = $3, data = $6, updated_at = NOW()
             WHERE view_type = $2
             AND owner = $4
             AND personal IS TRUE

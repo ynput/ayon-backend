@@ -49,24 +49,23 @@ END $$;
 
 
 
--- TODO: can be removed in 1.11.0
-
-DO $$
-DECLARE rec RECORD;
-BEGIN
-    FOR rec IN SELECT DISTINCT nspname FROM pg_namespace WHERE nspname LIKE 'project_%'
-    LOOP
-        BEGIN
-          EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
-          ALTER TABLE IF EXISTS views ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-          ALTER TABLE IF EXISTS views ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-        EXCEPTION
-          WHEN OTHERS THEN
-             RAISE WARNING 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
-        END;
-    END LOOP;
-    RETURN;
-END $$;
-
-ALTER TABLE IF EXISTS public.views ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-ALTER TABLE IF EXISTS public.views ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+--
+-- DO $$
+-- DECLARE rec RECORD;
+-- BEGIN
+--     FOR rec IN SELECT DISTINCT nspname FROM pg_namespace WHERE nspname LIKE 'project_%'
+--     LOOP
+--         BEGIN
+--           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
+--           ALTER TABLE IF EXISTS views ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+--           ALTER TABLE IF EXISTS views ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+--         EXCEPTION
+--           WHEN OTHERS THEN
+--              RAISE WARNING 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
+--         END;
+--     END LOOP;
+--     RETURN;
+-- END $$;
+--
+-- ALTER TABLE IF EXISTS public.views ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+-- ALTER TABLE IF EXISTS public.views ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
