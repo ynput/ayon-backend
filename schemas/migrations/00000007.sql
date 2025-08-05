@@ -63,7 +63,7 @@ DECLARE rec RECORD;
       ALTER INDEX IF EXISTS unique_personal_view RENAME TO unique_working_view;
       ALTER TABLE views RENAME COLUMN personal to working;
     EXCEPTION
-      WHEN OTHERS THEN RAISE WARNING 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
+      WHEN OTHERS THEN RAISE NOTICE 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
     END;
   END LOOP;
 
