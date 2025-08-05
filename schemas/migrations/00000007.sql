@@ -28,7 +28,7 @@ BEGIN
 
         owner VARCHAR,
         visibility VARCHAR NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private')),
-        personal BOOLEAN NOT NULL DEFAULT TRUE,
+        working BOOLEAN NOT NULL DEFAULT TRUE,
 
         access JSONB NOT NULL DEFAULT '{}'::JSONB,
         data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -36,7 +36,7 @@ BEGIN
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
-      CREATE UNIQUE INDEX IF NOT EXISTS unique_personal_view ON views(view_type, owner) WHERE personal;
+      CREATE UNIQUE INDEX IF NOT EXISTS unique_working_view ON views(view_type, owner) WHERE working;
       CREATE INDEX IF NOT EXISTS view_type_idx ON views(view_type);
       CREATE INDEX IF NOT EXISTS view_owner_idx ON views(owner);
 
@@ -49,23 +49,30 @@ END $$;
 
 
 
---
--- DO $$
--- DECLARE rec RECORD;
--- BEGIN
---     FOR rec IN SELECT DISTINCT nspname FROM pg_namespace WHERE nspname LIKE 'project_%'
---     LOOP
---         BEGIN
---           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
---           ALTER TABLE IF EXISTS views ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
---           ALTER TABLE IF EXISTS views ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
---         EXCEPTION
---           WHEN OTHERS THEN
---              RAISE WARNING 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
---         END;
---     END LOOP;
---     RETURN;
--- END $$;
---
--- ALTER TABLE IF EXISTS public.views ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
--- ALTER TABLE IF EXISTS public.views ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+DO $$
+DECLARE rec RECORD;
+  BEGIN
+  FOR rec IN SELECT DISTINCT nspname FROM pg_namespace WHERE nspname LIKE 'project_%'
+  LOOP
+    BEGIN
+      EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
+      BEGIN
+        ALTER TABLE views RENAME COLUMN personal to working;
+      EXCEPTION 
+        WHEN undefined_column THEN RAISE NOTICE 'column personal does not exist';
+      END;
+      ALTER INDEX IF EXISTS unique_personal_view RENAME TO unique_working_view;
+    EXCEPTION
+      WHEN OTHERS THEN RAISE WARNING 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
+    END;
+  END LOOP;
+  RETURN;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE public.views RENAME COLUMN personal to working;
+  EXCEPTION
+  WHEN undefined_column THEN RAISE NOTICE 'column personal does not exist';
+END $$;

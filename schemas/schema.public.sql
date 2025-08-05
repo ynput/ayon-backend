@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS views(
 
   owner VARCHAR,
   visibility VARCHAR NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private')),
-  personal BOOLEAN NOT NULL DEFAULT TRUE,
+  working BOOLEAN NOT NULL DEFAULT TRUE,
 
   access JSONB NOT NULL DEFAULT '{}'::JSONB,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -77,8 +77,7 @@ CREATE TABLE IF NOT EXISTS views(
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS unique_personal_view
-  ON views(view_type, owner) WHERE personal;
+CREATE UNIQUE INDEX IF NOT EXISTS unique_working_view ON views(view_type, owner) WHERE working;
 CREATE INDEX IF NOT EXISTS view_type_idx ON views(view_type);
 CREATE INDEX IF NOT EXISTS view_owner_idx ON views(owner);
 
