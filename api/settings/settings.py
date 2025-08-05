@@ -11,7 +11,7 @@ from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 from ayon_server.settings import BaseSettingsModel
-from ayon_server.types import NAME_REGEX
+from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX
 from ayon_server.utils import hash_data
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
@@ -281,7 +281,7 @@ async def get_all_settings(
             "Return project settings for the given project name. "
             "Studio settings will be returned if not set"
         ),
-        regex=NAME_REGEX,
+        regex=PROJECT_NAME_REGEX,
     ),
     project_bundle_name: str | None = Query(
         None,
