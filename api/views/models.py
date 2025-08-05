@@ -27,10 +27,11 @@ class ViewListItemModel(OPModel):
     id: FViewId
     label: FViewLabel
     scope: FViewScope
-    position: int
     owner: FViewOwner
     visibility: FViewVisibility
     working: FViewWorking
+    position: int
+    editable: bool
 
 
 class ViewListModel(OPModel):
@@ -43,6 +44,7 @@ class ViewListModel(OPModel):
 
 
 class BaseViewModel(ViewListItemModel):
+    access: dict[str, Any]
     settings: ViewSettingsModel
 
 
