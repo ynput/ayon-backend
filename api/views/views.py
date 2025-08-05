@@ -16,12 +16,20 @@ from .models import (
     ViewListItemModel,
     ViewListModel,
     ViewModel,
+    ViewPatchModel,
     ViewPostModel,
     construct_view_model,
 )
 from .router import router
 
-PViewType = Annotated[str, Path(regex=NAME_REGEX, example="overview")]
+PViewType = Annotated[
+    str,
+    Path(
+        title="View type",
+        regex=NAME_REGEX,
+        example="overview",
+    ),
+]
 PViewId = Annotated[
     str,
     Path(
@@ -32,7 +40,11 @@ PViewId = Annotated[
 ]
 QProjectName = Annotated[
     str | None,
-    Query(title="Project name", regex=PROJECT_NAME_REGEX),
+    Query(
+        title="Project name",
+        example="my_project",
+        regex=PROJECT_NAME_REGEX,
+    ),
 ]
 
 
@@ -314,6 +326,63 @@ async def create_view(
         )
 
     return EntityIdResponse(id=payload.id)
+
+
+@router.patch("/{view_type}/{view_id}")
+async def update_view(
+    user: CurrentUser,
+    view_type: PViewType,
+    view_id: PViewId,
+    payload: ViewPatchModel,
+    project_name: QProjectName = None,
+) -> None:
+    """Update a view in the database."""
+
+    async with Postgres.transaction():
+        if project_name:
+            await Postgres.set_project_schema(project_name)
+
+        # Fetch the existing view to check permissions and current settings
+
+        query = """
+            SELECT label, owner, working, data
+            FROM views WHERE id = $1
+        """
+        res = await Postgres.fetchrow(query, view_id)
+
+        if res is None:
+            raise NotFoundException("View not found")
+
+        access = res.get("access") or {}
+
+        await EntityAccessHelper.check(
+            user,
+            access=access,
+            level=EntityAccessHelper.UPDATE,
+            owner=res["owner"],
+            default_open=False,
+        )
+
+        # Update the view with the new settings
+
+        update_dict = payload.dict(exclude_unset=True)
+
+        label = update_dict.get("label", res["label"])
+        working = update_dict.get("working", res["working"])
+        access = update_dict.get("access", res["access"]) or {}
+        data = update_dict.get("data", res["data"])
+        owner = res["owner"]
+        if "owner" in update_dict:
+            if not user.is_admin:
+                raise ForbiddenException("Only admins can change the owner of a view.")
+            owner = update_dict["owner"]
+
+        query = """
+            UPDATE views
+            SET label = $1, working = $2, data = $3, owner = $4, updated_at = NOW()
+            WHERE id = $5
+        """
+        await Postgres.execute(query, label, working, data, owner, view_id)
 
 
 @router.delete("/{view_type}/{view_id}")

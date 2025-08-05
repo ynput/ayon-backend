@@ -103,6 +103,38 @@ class ListsViewPostModel(BaseViewPostModel):
 
 
 #
+# Patch REST API models
+#
+
+
+class BaseViewPatchModel(OPModel):
+    label: FViewLabel | None = None
+    owner: FViewOwner | None = None
+    settings: ViewSettingsModel | None = None
+
+
+class OverviewViewPatchModel(BaseViewPatchModel):
+    """Overview view post model."""
+
+    _view_type: Literal["overview"] = "overview"
+    settings: OverviewSettings | None = None
+
+
+class TaskProgressViewPatchModel(BaseViewPatchModel):
+    """Task progress view post model."""
+
+    _view_type: Literal["taskProgress"] = "taskProgress"
+    settings: TaskProgressSettings | None = None
+
+
+class ListsViewPatchModel(BaseViewPatchModel):
+    """Lists view post model."""
+
+    _view_type: Literal["lists"] = "lists"
+    settings: ListsSettings | None = None
+
+
+#
 # Compound models
 #
 
@@ -110,7 +142,7 @@ class ListsViewPostModel(BaseViewPostModel):
 ViewModel = Annotated[
     OverviewViewModel | TaskProgressViewModel | ListsViewModel,
     Field(
-        discriminator="view_type",
+        discriminator="_view_type",
         title="View model",
     ),
 ]
@@ -120,6 +152,14 @@ ViewPostModel = Annotated[
     Field(
         discriminator="_view_type",
         title="View post model",
+    ),
+]
+
+ViewPatchModel = Annotated[
+    OverviewViewPatchModel | TaskProgressViewPatchModel | ListsViewPatchModel,
+    Field(
+        discriminator="_view_type",
+        title="View model",
     ),
 ]
 
