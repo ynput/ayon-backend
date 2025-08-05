@@ -92,10 +92,11 @@ async def list_views(
             if row["visibility"] == "public":
                 try:
                     await EntityAccessHelper.check(
-                        row.get("access") or {},
                         user,
+                        access=row.get("access") or {},
                         level=10,
                         owner=row["owner"],
+                        default_open=False,
                     )
                 except ForbiddenException:
                     continue

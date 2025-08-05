@@ -67,9 +67,10 @@ class EntityList:
         _user = user or self._user
         if not _user:
             return
+
         await EntityAccessHelper.check(
-            self._payload.access,
             _user,
+            access=self._payload.access,
             level=level,
             owner=self._payload.owner,
         )
