@@ -27,6 +27,7 @@ from ayon_server.activities.watchers.watcher_list import get_watcher_list
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import BadRequestException, NotFoundException
+from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.utils import create_uuid
@@ -46,6 +47,7 @@ async def create_activity(
     timestamp: datetime.datetime | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
+    bump_entity_updated_at: bool = False,
 ) -> str:
     """Create an activity.
 
@@ -168,10 +170,10 @@ async def create_activity(
         ($1, $2, $3, $4, $5, $6, $6)
     """
 
-    async with Postgres.acquire() as conn, conn.transaction():
+    async with Postgres.transaction():
         tags = tags or []
         try:
-            await conn.execute(
+            await Postgres.execute(
                 query,
                 activity_id,
                 activity_type,
@@ -187,7 +189,7 @@ async def create_activity(
 
         if files is not None:
             try:
-                await conn.execute(
+                await Postgres.execute(
                     f"""
                     UPDATE project_{project_name}.files
                     SET
@@ -204,7 +206,7 @@ async def create_activity(
                     f"Project {project_name} no longer exists"
                 ) from e
 
-        st_ref = await conn.prepare(
+        st_ref = await Postgres.prepare(
             f"""
             INSERT INTO project_{project_name}.activity_references
             (
@@ -236,16 +238,32 @@ async def create_activity(
             ) from e
 
         # bump entity updated_at timestamp
+        #
+        # by default, this is not called - this is to avoid updates
+        # of entities that just have been updated by operations etc.
+        # we bump the updated_at timestamp only when the activity was
+        # explicitly created by the user using [POST] /activities or
+        # by uploading a file / reviewable
+        #
+        # If we try to bump the timestamp inside a transaction,
+        # (e.g. during the operations list execution, we may still
+        # be in a transaction where the row is locked for update.
 
-        await conn.execute(
-            f"""
-            UPDATE project_{project_name}.{entity_type}s
-            SET updated_at = $1
-            WHERE id = $2
-            """,
-            timestamp,
-            entity_id,
-        )
+        if bump_entity_updated_at:
+            await Postgres.execute(
+                f"""
+                UPDATE project_{project_name}.{entity_type}s
+                SET updated_at = $1
+                WHERE id = $2
+                """,
+                timestamp,
+                entity_id,
+            )
+
+        # Publishing reviewables must invalidate the hierarchy cache
+
+        if activity_type == "reviewable":
+            await rebuild_hierarchy_cache(project_name)
 
     # Notify the front-end about the new activity
 

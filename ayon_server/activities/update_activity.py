@@ -51,115 +51,115 @@ async def update_activity(
 ) -> None:
     """Update an activity."""
 
-    # load the activity
-
-    res = await Postgres.fetch(
-        f"""
-        SELECT activity_type, body, tags, data FROM project_{project_name}.activities
-        WHERE id = $1
-        """,
-        activity_id,
-    )
-
-    if not res:
-        raise NotFoundException("Activity not found")
-
-    activity_data = res[0]["data"]
-    activity_tags = res[0]["tags"]
-
-    if user_name and (user_name != activity_data["author"]) and not is_admin:
-        # Limited access - the user is not is the owner of the activity
-        # nor an admin, so we need to check if the user is trying to
-        # modify the checkboxes in the comment body only.
-        # otherwise, we raise a ForbiddenException
-        if body:
-            ensure_only_checkboxes_changed(res[0]["body"], body)
-        # prevent updating files, references, or data
-        files = None
-        extra_references = None
-        data = None
-
-    if body is None:
-        body = res[0]["body"]
-    assert body is not None, "Body must exist"  # mypy
-
-    activity_type = res[0]["activity_type"]
-    if len(body) > MAX_BODY_LENGTH:
-        raise BadRequestException(f"{activity_type.capitalize()} body is too long")
-
-    if data:
-        # do not overwrite the author
-        data.pop("author", None)
-        activity_data.update(data)
-
-    if tags is not None:
-        activity_tags = tags
-
-    activity_data.pop("hasChecklist", None)
-    if activity_type == "comment" and is_body_with_checklist(body):
-        activity_data["hasChecklist"] = True
-
-    references: set[ActivityReferenceModel] = set(extra_references or [])
-    async for row in Postgres.iterate(
-        f"""
-        SELECT id, entity_type, entity_id, entity_name, reference_type, data
-        FROM project_{project_name}.activity_references
-        WHERE activity_id = $1
-        """,
-        activity_id,
-    ):
-        references.add(
-            ActivityReferenceModel(
-                id=row["id"],
-                reference_type=row["reference_type"],
-                entity_type=row["entity_type"],
-                entity_id=row["entity_id"],
-                entity_name=row["entity_name"],
-                data=row["data"],
-            )
+    async with Postgres.transaction():
+        # load the activity
+        res = await Postgres.fetch(
+            f"""
+            SELECT activity_type, body, tags, data
+            FROM project_{project_name}.activities
+            WHERE id = $1
+            """,
+            activity_id,
         )
 
-    # Extract mentions from the body
-    mentions = extract_mentions(body)
+        if not res:
+            raise NotFoundException("Activity not found")
 
-    refs_to_delete = []
-    for ref in references:
-        if ref.reference_type == "mention":
-            if ref not in mentions:
-                refs_to_delete.append(ref.id)
-    references.update(mentions)
+        activity_data = res[0]["data"]
+        activity_tags = res[0]["tags"]
 
-    # Update files
+        if user_name and (user_name != activity_data["author"]) and not is_admin:
+            # Limited access - the user is not is the owner of the activity
+            # nor an admin, so we need to check if the user is trying to
+            # modify the checkboxes in the comment body only.
+            # otherwise, we raise a ForbiddenException
+            if body:
+                ensure_only_checkboxes_changed(res[0]["body"], body)
+            # prevent updating files, references, or data
+            files = None
+            extra_references = None
+            data = None
 
-    if files is not None:
-        if append_files:
-            for f in activity_data.get("files", []):
-                if f.get("id") not in files:
-                    files.append(f["id"])
+        if body is None:
+            body = res[0]["body"]
+        assert body is not None, "Body must exist"  # mypy
 
-        files_data = await process_activity_files(project_name, files)
-        if files_data:
-            activity_data["files"] = files_data
-        else:
-            activity_data.pop("files", None)
+        activity_type = res[0]["activity_type"]
+        if len(body) > MAX_BODY_LENGTH:
+            raise BadRequestException(f"{activity_type.capitalize()} body is too long")
 
-    # Update the activity
+        if data:
+            # do not overwrite the author
+            data.pop("author", None)
+            activity_data.update(data)
 
-    query = f"""
-        UPDATE project_{project_name}.activities
-        SET
-            body = $1,
-            tags = $2,
-            data = $3,
-            updated_at = now()
-        WHERE id = $4
-        """
+        if tags is not None:
+            activity_tags = tags
 
-    async with Postgres.acquire() as conn, conn.transaction():
-        await conn.execute(query, body, activity_tags, activity_data, activity_id)
+        activity_data.pop("hasChecklist", None)
+        if activity_type == "comment" and is_body_with_checklist(body):
+            activity_data["hasChecklist"] = True
+
+        references: set[ActivityReferenceModel] = set(extra_references or [])
+        async for row in Postgres.iterate(
+            f"""
+            SELECT id, entity_type, entity_id, entity_name, reference_type, data
+            FROM project_{project_name}.activity_references
+            WHERE activity_id = $1
+            """,
+            activity_id,
+        ):
+            references.add(
+                ActivityReferenceModel(
+                    id=row["id"],
+                    reference_type=row["reference_type"],
+                    entity_type=row["entity_type"],
+                    entity_id=row["entity_id"],
+                    entity_name=row["entity_name"],
+                    data=row["data"],
+                )
+            )
+
+        # Extract mentions from the body
+        mentions = extract_mentions(body)
+
+        refs_to_delete = []
+        for ref in references:
+            if ref.reference_type == "mention":
+                if ref not in mentions:
+                    refs_to_delete.append(ref.id)
+        references.update(mentions)
+
+        # Update files
 
         if files is not None:
-            await conn.execute(
+            if append_files:
+                for f in activity_data.get("files", []):
+                    if f.get("id") not in files:
+                        files.append(f["id"])
+
+            files_data = await process_activity_files(project_name, files)
+            if files_data:
+                activity_data["files"] = files_data
+            else:
+                activity_data.pop("files", None)
+
+        # Update the activity
+
+        query = f"""
+            UPDATE project_{project_name}.activities
+            SET
+                body = $1,
+                tags = $2,
+                data = $3,
+                updated_at = now()
+            WHERE id = $4
+            """
+
+        await Postgres.execute(query, body, activity_tags, activity_data, activity_id)
+
+        if files is not None:
+            await Postgres.execute(
                 f"""
                 UPDATE project_{project_name}.files
                 SET
@@ -173,7 +173,7 @@ async def update_activity(
                 files,
             )
 
-            await conn.execute(
+            await Postgres.execute(
                 f"""
                 UPDATE project_{project_name}.files
                 SET
@@ -187,7 +187,7 @@ async def update_activity(
             )
 
         if refs_to_delete:
-            await conn.execute(
+            await Postgres.execute(
                 f"""
                 DELETE FROM project_{project_name}.activity_references
                 WHERE id = ANY($1)
@@ -195,7 +195,7 @@ async def update_activity(
                 refs_to_delete,
             )
 
-        st_ref = await conn.prepare(
+        st_ref = await Postgres.prepare(
             f"""
             INSERT INTO project_{project_name}.activity_references
             (
@@ -222,35 +222,35 @@ async def update_activity(
             ref.insertable_tuple(activity_id) for ref in references
         )
 
-    # Notify the front-end about the update
+        # Notify the front-end about the update
 
-    summary_references: list[dict[str, str]] = []
-    for ref in references:
-        if ref.entity_id:
-            summary_references.append(
-                {
-                    "entity_id": ref.entity_id,
-                    "entity_type": ref.entity_type,
-                    "reference_type": ref.reference_type,
-                }
-            )
-    summary = {
-        "activity_id": activity_id,
-        "activity_type": activity_type,
-        "references": summary_references,
-    }
-    event_payload = {
-        "body": body,
-    }
+        summary_references: list[dict[str, str]] = []
+        for ref in references:
+            if ref.entity_id:
+                summary_references.append(
+                    {
+                        "entity_id": ref.entity_id,
+                        "entity_type": ref.entity_type,
+                        "reference_type": ref.reference_type,
+                    }
+                )
+        summary = {
+            "activity_id": activity_id,
+            "activity_type": activity_type,
+            "references": summary_references,
+        }
+        event_payload = {
+            "body": body,
+        }
 
-    await EventStream.dispatch(
-        "activity.updated",
-        project=project_name,
-        description=f"Updated {activity_type} activity",
-        summary=summary,
-        store=activity_type not in DO_NOT_TRACK_ACTIVITIES,
-        user=user_name,
-        sender=sender,
-        sender_type=sender_type,
-        payload=event_payload,
-    )
+        await EventStream.dispatch(
+            "activity.updated",
+            project=project_name,
+            description=f"Updated {activity_type} activity",
+            summary=summary,
+            store=activity_type not in DO_NOT_TRACK_ACTIVITIES,
+            user=user_name,
+            sender=sender,
+            sender_type=sender_type,
+            payload=event_payload,
+        )

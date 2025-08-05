@@ -1,8 +1,10 @@
 __all__ = ["logger", "log_traceback", "critical_error"]
 
+import os
 import sys
 import time
 import traceback
+from typing import TypedDict
 
 from loguru import logger as loguru_logger
 
@@ -82,11 +84,54 @@ logger.remove(0)
 logger.add(_serializer, level=ayonconfig.log_level)
 
 
-def log_traceback(message="Exception!", **kwargs):
-    """Log the current exception traceback."""
-    tb = traceback.format_exc()
-    logger.error(message, traceback=tb, **kwargs)
-    _write_stderr(indent(tb))
+class ExceptionInfo(TypedDict):
+    status: int
+    detail: str
+    traceback: str | None
+
+
+def log_exception(
+    exc: BaseException,
+    message: str | None = None,
+    **kwargs,
+) -> ExceptionInfo:
+    """Log an exception with its traceback."""
+
+    path_prefix = f"{os.getcwd()}/"
+    formatted = "".join(traceback.format_exception_only(type(exc), exc)).strip()
+    formatted = formatted.replace("{", "{{").replace("}", "}}")
+    tb = traceback.extract_tb(exc.__traceback__)
+    traceback_msg = f"{formatted}\n\n"
+    for frame in tb[-20:]:
+        fpath = frame.filename.split("/")
+        for p in ("starlette", "fastapi", "python3.11", "pydantic"):
+            # Too noisy. ignore
+            if p in fpath:
+                break
+        else:
+            filepath = frame.filename.removeprefix(path_prefix)
+            traceback_msg += f"{filepath}:{frame.lineno}\n"
+            traceback_msg += f"{frame.line}\n\n"
+
+    message = f"{message}" or f"Unhandled {formatted}"
+    extras = kwargs.copy()
+    extras["traceback"] = traceback_msg.strip()
+
+    logger.error(message, **extras)
+
+    return {
+        "status": 500,
+        "detail": formatted,
+        "traceback": traceback_msg.strip(),
+    }
+
+
+def log_traceback(message: str | None = None, **kwargs) -> ExceptionInfo:
+    """Log the current exception."""
+    exc = sys.exc_info()[1]
+    if not exc:
+        raise RuntimeError("No exception to log")
+    return log_exception(exc, message=message, **kwargs)
 
 
 def critical_error(message="Critical Error!", **kwargs):

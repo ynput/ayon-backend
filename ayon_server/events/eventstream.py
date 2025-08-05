@@ -1,16 +1,13 @@
-from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
 
 from ayon_server.exceptions import ConstraintViolationException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
 from ayon_server.utils import SQLTool, json_dumps
 
-from .base import EventModel, EventStatus, create_id
-
-HandlerType = Callable[[EventModel], Awaitable[None]]
+from .base import EventModel, EventStatus, HandlerType, create_id
 
 
 class EventStream:
@@ -206,8 +203,8 @@ class EventStream:
         for handler in handlers:
             try:
                 await handler(event)
-            except Exception as e:
-                logger.warning(f"Error in event handler: {e}")
+            except Exception:
+                log_traceback(f"Error in event handler '{handler.__name__}'")
 
         return event.id
 
@@ -314,30 +311,26 @@ class EventStream:
     @classmethod
     async def get(cls, event_id: str) -> EventModel:
         query = "SELECT * FROM public.events WHERE id = $1", event_id
-        event: EventModel | None = None
-        async for record in Postgres.iterate(*query):
-            event = EventModel(
-                id=record["id"],
-                hash=record["hash"],
-                topic=record["topic"],
-                project=record["project_name"],
-                user=record["user_name"],
-                sender=record["sender"],
-                sender_type=record["sender_type"],
-                depends_on=record["depends_on"],
-                status=record["status"],
-                retries=record["retries"],
-                description=record["description"],
-                payload=record["payload"],
-                summary=record["summary"],
-                created_at=record["created_at"],
-                updated_at=record["updated_at"],
-            )
-            break
-
-        if event is None:
+        record = await Postgres.fetchrow(*query)
+        if record is None:
             raise NotFoundException("Event not found")
-        return event
+        return EventModel(
+            id=record["id"],
+            hash=record["hash"],
+            topic=record["topic"],
+            project=record["project_name"],
+            user=record["user_name"],
+            sender=record["sender"],
+            sender_type=record["sender_type"],
+            depends_on=record["depends_on"],
+            status=record["status"],
+            retries=record["retries"],
+            description=record["description"],
+            payload=record["payload"],
+            summary=record["summary"],
+            created_at=record["created_at"],
+            updated_at=record["updated_at"],
+        )
 
     @classmethod
     async def delete(cls, event_id: str) -> None:

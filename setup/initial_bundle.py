@@ -90,7 +90,7 @@ async def create_initial_bundle(bundle_data: dict[str, Any]):
         "installer_version": None,
     }
 
-    async with Postgres.acquire() as conn, conn.transaction():
+    async with Postgres.transaction():
         logger.info(f"Creating initial bundle '{bundle_name}'")
         await Postgres.execute("UPDATE bundles SET is_production = FALSE")
 

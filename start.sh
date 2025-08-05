@@ -4,6 +4,8 @@
 
 SERVER_LOG_LEVEL=${AYON_SERVER_LOG_LEVEL:-warning}
 SERVER_WORKERS=${AYON_SERVER_WORKERS:-1}
+SERVER_MAX_REQUESTS=${AYON_SERVER_MAX_REQUESTS:-0}
+SERVER_MAX_REQUESTS_JITTER=${AYON_SERVER_MAX_REQUESTS_JITTER:-0}
 SERVER_TIMEOUT=${AYON_SERVER_TIMEOUT:-120}
 SERVER_TYPE=${AYON_SERVER_TYPE:-gunicorn}
 
@@ -70,6 +72,8 @@ else
             --log-level ${SERVER_LOG_LEVEL} \
             --workers ${SERVER_WORKERS} \
             --timeout ${SERVER_TIMEOUT} \
+            --max-requests ${SERVER_MAX_REQUESTS} \
+            --max-requests-jitter ${SERVER_MAX_REQUESTS_JITTER} \
             -b :5000 \
             ayon_server.api.server:app
 

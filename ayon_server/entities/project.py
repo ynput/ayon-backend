@@ -19,7 +19,7 @@ from ayon_server.entities.project_aux_tables import (
     aux_table_update,
     link_types_update,
 )
-from ayon_server.exceptions import NotFoundException
+from ayon_server.exceptions import NotFoundException, ServiceUnavailableException
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
@@ -48,87 +48,99 @@ class ProjectEntity(TopLevelEntity):
         project_name = name
 
         if payload := await Redis.get_json("project-data", project_name):
+            if isinstance(payload, list):
+                payload = payload[0]
             return cls.from_record(payload=payload)
 
-        if not (
-            project_data := await Postgres.fetch(
+        try:
+            project_data = await Postgres.fetchrow(
                 f"""
-            SELECT  *
-            FROM public.projects
-            WHERE name ILIKE $1
-            {'FOR UPDATE' if transaction and for_update else ''}
-            """,
+                SELECT  *
+                FROM public.projects
+                WHERE name ILIKE $1
+                {'FOR UPDATE NOWAIT' if for_update else ''}
+                """,
                 name,
             )
-        ):
-            raise NotFoundException
 
-        # Load folder types
-        folder_types = []
-        for name, data in await Postgres.fetch(
-            f"""
-            SELECT name, data
-            FROM project_{project_name}.folder_types
-            ORDER BY position
-            {'FOR UPDATE' if transaction and for_update else ''}
-            """
-        ):
-            folder_types.append({"name": name, **data})
+            if project_data is None:
+                raise NotFoundException(f"Project '{project_name}' not found")
 
-        # Load task types
-        task_types = []
-        for name, data in await Postgres.fetch(
-            f"""
-            SELECT name, data
-            FROM project_{project_name}.task_types
-            ORDER BY position
-            {'FOR UPDATE' if transaction and for_update else ''}
-            """
-        ):
-            task_types.append({"name": name, **data})
+            # Load folder types
+            folder_types = []
+            for name, data in await Postgres.fetch(
+                f"""
+                SELECT name, data
+                FROM project_{project_name}.folder_types
+                ORDER BY position
+                {'FOR UPDATE' if for_update else ''}
+                """
+            ):
+                folder_types.append({"name": name, **data})
 
-        # Load link types
-        link_types = []
-        for row in await Postgres.fetch(
-            f"""
-            SELECT name, link_type, input_type, output_type, data
-            FROM project_{project_name}.link_types
-            """
-        ):
-            link_types.append(dict(row))
+            # Load task types
+            task_types = []
+            for name, data in await Postgres.fetch(
+                f"""
+                SELECT name, data
+                FROM project_{project_name}.task_types
+                ORDER BY position
+                {'FOR UPDATE' if for_update else ''}
+                """
+            ):
+                task_types.append({"name": name, **data})
 
-        # Load statuses
-        statuses = []
-        for name, data in await Postgres.fetch(
-            f"""
-            SELECT name, data
-            FROM project_{project_name}.statuses
-            ORDER BY position
-            {'FOR UPDATE' if transaction and for_update else ''}
-            """
-        ):
-            statuses.append({"name": name, **data})
+            # Load link types
+            link_types = []
+            for row in await Postgres.fetch(
+                f"""
+                SELECT name, link_type, input_type, output_type, data
+                FROM project_{project_name}.link_types
+                {'FOR UPDATE' if for_update else ''}
+                """
+            ):
+                link_types.append(dict(row))
 
-        # Load tags
-        tags = []
-        for name, data in await Postgres.fetch(
-            f"""
-            SELECT name, data
-            FROM project_{project_name}.tags
-            ORDER BY position
-            {'FOR UPDATE' if transaction and for_update else ''}
-            """
-        ):
-            tags.append({"name": name, **data})
+            # Load statuses
+            statuses = []
+            for name, data in await Postgres.fetch(
+                f"""
+                SELECT name, data
+                FROM project_{project_name}.statuses
+                ORDER BY position
+                {'FOR UPDATE' if for_update else ''}
+                """
+            ):
+                statuses.append({"name": name, **data})
 
-        payload = dict(project_data[0]) | {
-            "folder_types": folder_types,
-            "task_types": task_types,
-            "link_types": link_types,
-            "statuses": statuses,
-            "tags": tags,
-        }
-        cls.original_attributes = project_data[0]["attrib"]
+            # Load tags
+            tags = []
+            for name, data in await Postgres.fetch(
+                f"""
+                SELECT name, data
+                FROM project_{project_name}.tags
+                ORDER BY position
+                {'FOR UPDATE' if for_update else ''}
+                """
+            ):
+                tags.append({"name": name, **data})
+
+            payload = dict(project_data) | {
+                "folder_types": folder_types,
+                "task_types": task_types,
+                "link_types": link_types,
+                "statuses": statuses,
+                "tags": tags,
+            }
+        except Postgres.UndefinedTableError:
+            # If the project schema does not exist, it means the project was deleted
+            raise NotFoundException(f"Project '{project_name}' not found")
+        except Postgres.LockNotAvailableError:
+            raise ServiceUnavailableException(
+                f"Project '{project_name}' is currently being modified"
+            )
+
+        cls.original_attributes = project_data["attrib"]
         await Redis.set_json("project-data", project_name, payload, ttl=3600)
         return cls.from_record(payload=payload)
 
@@ -136,21 +148,17 @@ class ProjectEntity(TopLevelEntity):
     # Save
     #
 
-    async def save(self, transaction=None) -> bool:
+    async def save(self, *args, **kwargs) -> bool:
         """Save the project to the database."""
-        try:
-            if transaction:
-                return await self._save(transaction)
-            else:
-                async with Postgres.acquire() as conn:
-                    async with conn.transaction():
-                        return await self._save(conn)
-        finally:
-            await Redis.delete("project-anatomy", self.name)
-            await Redis.delete("project-data", self.name)
-            await build_project_list()
+        async with Postgres.transaction():
+            try:
+                return await self._save()
+            finally:
+                await Redis.delete("project-anatomy", self.name)
+                await Redis.delete("project-data", self.name)
+                await build_project_list()
 
-    async def _save(self, transaction) -> bool:
+    async def _save(self) -> bool:
         assert self.folder_types, "Project must have at least one folder type"
         assert self.task_types, "Project must have at least one task type"
         assert self.statuses, "Project must have at least one status"
@@ -173,7 +181,7 @@ class ProjectEntity(TopLevelEntity):
 
             fields["updated_at"] = datetime.now()
 
-            await transaction.execute(
+            await Postgres.execute(
                 *SQLTool.update(
                     "public.projects", f"WHERE name='{project_name}'", **fields
                 )
@@ -184,7 +192,7 @@ class ProjectEntity(TopLevelEntity):
 
         else:
             # Create a project record
-            await transaction.execute(
+            await Postgres.execute(
                 *SQLTool.insert(
                     "projects",
                     **dict_exclude(
@@ -201,56 +209,42 @@ class ProjectEntity(TopLevelEntity):
                 )
             )
             # Create a new schema for the project tablespace
-            await transaction.execute(f"CREATE SCHEMA project_{project_name}")
+            await Postgres.execute(f"CREATE SCHEMA project_{project_name}")
 
             # Create tables in the newly created schema
-            await transaction.execute(
-                f"SET LOCAL search_path TO project_{project_name}"
-            )
-
+            await Postgres.execute(f"SET LOCAL search_path TO project_{project_name}")
             # TODO: Preload this to avoid blocking
-            await transaction.execute(open("schemas/schema.project.sql").read())
+            await Postgres.execute(open("schemas/schema.project.sql").read())
 
         #
         # Save aux tables
         #
-        await aux_table_update(
-            transaction, project_name, "folder_types", self.folder_types
-        )
-        await aux_table_update(transaction, project_name, "task_types", self.task_types)
-        await aux_table_update(transaction, project_name, "statuses", self.statuses)
-        await aux_table_update(transaction, project_name, "tags", self.tags)
-        await link_types_update(
-            transaction, project_name, "link_types", self.link_types
-        )
+        await aux_table_update(project_name, "folder_types", self.folder_types)
+        await aux_table_update(project_name, "task_types", self.task_types)
+        await aux_table_update(project_name, "statuses", self.statuses)
+        await aux_table_update(project_name, "tags", self.tags)
+        await link_types_update(project_name, "link_types", self.link_types)
         return True
 
     #
     # Delete
     #
 
-    async def delete(self, transaction=None) -> bool:
+    async def delete(self, *args, **kwargs) -> bool:
         """Delete existing project."""
-        try:
-            if transaction:
-                return await self._delete(transaction)
-            else:
-                async with Postgres.acquire() as conn:
-                    async with conn.transaction():
-                        return await self._delete(conn)
-        finally:
-            await Redis.delete("project-anatomy", self.name)
-            await Redis.delete("project-data", self.name)
-            await build_project_list()
-
-    async def _delete(self, transaction) -> bool:
         if not self.name:
             raise KeyError("Unable to delete project. Not loaded")
 
-        await transaction.execute(f"DROP SCHEMA project_{self.name} CASCADE")
-        await transaction.execute(
-            "DELETE FROM public.projects WHERE name = $1", self.name
-        )
+        async with Postgres.transaction():
+            try:
+                await Postgres.execute(f"DROP SCHEMA project_{self.name} CASCADE")
+                await Postgres.execute(
+                    "DELETE FROM public.projects WHERE name = $1", self.name
+                )
+            finally:
+                await Redis.delete("project-anatomy", self.name)
+                await Redis.delete("project-data", self.name)
+                await build_project_list()
         return True
 
     #

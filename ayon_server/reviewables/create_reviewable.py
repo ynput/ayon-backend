@@ -80,6 +80,7 @@ async def create_reviewable(
         files=[file_id],
         data={"reviewableLabel": label},
         user_name=user_name,
+        bump_entity_updated_at=True,
     )
 
     summary = {

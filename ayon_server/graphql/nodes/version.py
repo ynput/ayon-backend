@@ -38,6 +38,7 @@ class VersionNode(BaseNode):
     has_reviewables: bool = False
     author: str | None = None
     data: str | None = None
+    path: str | None = None
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
@@ -80,6 +81,13 @@ class VersionNode(BaseNode):
     def all_attrib(self) -> str:
         return json_dumps(self._attrib)
 
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
+
 
 #
 # Entity loader
@@ -118,6 +126,12 @@ def version_from_record(
             relation=thumb_data.get("relation"),
         )
 
+    path = None
+    if record.get("_folder_path"):
+        folder_path = record["_folder_path"].strip("/")
+        product_name = record["_product_name"]
+        path = f"/{folder_path}/{product_name}/{name}"
+
     return VersionNode(
         project_name=project_name,
         id=record["id"],
@@ -132,6 +146,7 @@ def version_from_record(
         author=author,
         status=record["status"],
         tags=record["tags"],
+        path=path,
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],

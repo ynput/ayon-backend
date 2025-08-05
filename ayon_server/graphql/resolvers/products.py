@@ -1,3 +1,4 @@
+import json
 from typing import Annotated
 
 from ayon_server.access.utils import folder_access_list
@@ -20,12 +21,13 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
     validate_name_list,
     validate_status_list,
     validate_type_name_list,
 )
-from ayon_server.utils import SQLTool
+from ayon_server.utils import SQLTool, slugify
 
 SORT_OPTIONS = {
     "name": "products.name",
@@ -64,6 +66,8 @@ async def get_products(
     ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
+    filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> ProductsConnection:
     """Return a list of products."""
@@ -130,12 +134,12 @@ async def get_products(
         if not statuses:
             return ProductsConnection()
         validate_status_list(statuses)
-        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
+        sql_conditions.append(f"products.status IN {SQLTool.array(statuses)}")
     if tags is not None:
         if not tags:
             return ProductsConnection()
         validate_name_list(tags)
-        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
+        sql_conditions.append(f"products.tags @> {SQLTool.array(tags, curly=True)}")
 
     if has_links is not None:
         sql_conditions.extend(
@@ -164,7 +168,14 @@ async def get_products(
     # Join with folders if parent folder is requested
     #
 
-    if "folder" in fields or (access_list is not None) or (path_ex is not None):
+    if (
+        "folder" in fields
+        or (access_list is not None)
+        or (path_ex is not None)
+        or search
+        or fields.any_endswith("parents")
+        or fields.any_endswith("path")
+    ):
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
@@ -216,19 +227,13 @@ async def get_products(
                 ]
             )
 
-        if any(
-            field.endswith("folder.path")
-            or field.endswith("folder.parents")
-            or (path_ex is not None)
-            for field in fields
-        ) or (access_list is not None):
-            sql_columns.append("hierarchy.path AS _folder_path")
-            sql_joins.append(
-                f"""
-                INNER JOIN project_{project_name}.hierarchy AS hierarchy
-                ON folders.id = hierarchy.id
-                """
-            )
+        sql_columns.append("hierarchy.path AS _folder_path")
+        sql_joins.append(
+            f"""
+            INNER JOIN project_{project_name}.hierarchy AS hierarchy
+            ON folders.id = hierarchy.id
+            """
+        )
 
     #
     # Verison_list
@@ -245,6 +250,45 @@ async def get_products(
                 ON products.id = version_list.product_id
             """
         )
+
+    if search:
+        terms = slugify(search, make_set=True)
+        for term in terms:
+            sub_conditions = []
+            term = term.replace("'", "''")
+            sub_conditions.append(f"products.name ILIKE '%{term}%'")
+            sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
+            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
+
+            condition = " OR ".join(sub_conditions)
+            sql_conditions.append(f"({condition})")
+
+    #
+    # Filter
+    #
+
+    if filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "folder_id",
+            "product_type",
+            "attrib",
+            "data",
+            "active",
+            "status",
+            "tags",
+            "created_at",
+            "updated_at",
+        ]
+        fdata = json.loads(filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="products",
+        ):
+            sql_conditions.append(fcond)
 
     #
     # Pagination

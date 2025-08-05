@@ -194,10 +194,33 @@ async def get_entity_list_items(
     allowed_parent_keys = []
 
     if entity_type == "task":
+        if fields.any_endswith("hasReviewables"):
+            sql_cte.append(
+                f"""
+                reviewables AS (
+                    SELECT v.task_id AS entity_id
+                    FROM project_{project_name}.activity_feed af
+                    INNER JOIN project_{project_name}.versions v
+                    ON af.entity_id = v.id
+                    AND af.entity_type = 'version'
+                    AND af.activity_type = 'reviewable'
+                )
+                """
+            )
+
+            sql_columns.append(
+                """
+                EXISTS (
+                SELECT 1 FROM reviewables WHERE entity_id = e.id
+                ) AS _entity_has_reviewables
+                """
+            )
+
         # when querying tasks, we need the parent folder attributes
         # as well because of the inheritance
         sql_columns.append("px.attrib as _entity_parent_folder_attrib")
         sql_columns.append("pf.folder_type as _parent_folder_type")
+        sql_columns.append("hierarchy.path AS _entity__folder_path")
         sql_joins.extend(
             [
                 f"""
@@ -208,30 +231,58 @@ async def get_entity_list_items(
                 INNER JOIN project_{project_name}.folders AS pf
                 ON e.folder_id = pf.id
                 """,
+                f"""
+                INNER JOIN project_{project_name}.hierarchy AS hierarchy
+                ON e.folder_id = hierarchy.id
+                """,
             ]
         )
         allowed_parent_keys = ["folder_type"]
 
     elif entity_type == "folder":
+        if fields.any_endswith("hasReviewables"):
+            sql_cte.append(
+                f"""
+                reviewables AS (
+                    SELECT p.folder_id AS entity_id
+                    FROM project_{project_name}.activity_feed af
+                    INNER JOIN project_{project_name}.versions v
+                    ON af.entity_id = v.id
+                    AND af.entity_type = 'version'
+                    AND  af.activity_type = 'reviewable'
+                    INNER JOIN project_{project_name}.products p
+                    ON p.id = v.product_id
+                )
+                """
+            )
+
+            sql_columns.append(
+                """
+                EXISTS (
+                SELECT 1 FROM reviewables WHERE entity_id = e.id
+                ) AS _entity_has_reviewables
+                """
+            )
+
         # when querying folders, we need the parent folder attributes
         # and also the project attribute in the case of root folders
         # ... yeah. and also the hierarchy path
         sql_columns.extend(
             [
-                "px.attrib as _entity_inherited_attributes",
-                "pr.attrib as _entity_project_attributes",
-                "pf.folder_type as _parent_folder_type",
+                "px.attrib AS _entity_inherited_attributes",
+                "pr.attrib AS _entity_project_attributes",
+                "pf.folder_type AS _parent_folder_type",
                 "hierarchy.path AS _entity_path",
             ]
         )
         sql_joins.extend(
             [
                 f"""
-                INNER JOIN project_{project_name}.exported_attributes AS px
+                LEFT JOIN project_{project_name}.exported_attributes AS px
                 ON e.parent_id = px.folder_id
                 """,
                 f"""
-                INNER JOIN project_{project_name}.folders AS pf
+                LEFT JOIN project_{project_name}.folders AS pf
                 ON e.parent_id = pf.id
                 """,
                 f"""
@@ -250,13 +301,20 @@ async def get_entity_list_items(
         sql_columns.extend(
             [
                 "pf.folder_type as _parent_folder_type",
+                "hierarchy.path AS _entity__folder_path",
             ]
         )
-        sql_joins.append(
-            f"""
-            INNER JOIN project_{project_name}.folders AS pf
-            ON e.folder_id = pf.id
-            """
+        sql_joins.extend(
+            [
+                f"""
+                INNER JOIN project_{project_name}.folders AS pf
+                ON e.folder_id = pf.id
+                """,
+                f"""
+                INNER JOIN project_{project_name}.hierarchy AS hierarchy
+                ON e.folder_id = hierarchy.id
+                """,
+            ]
         )
         allowed_parent_keys = ["folder_type"]
 
@@ -266,6 +324,8 @@ async def get_entity_list_items(
                 "pf.folder_type as _parent_folder_type",
                 "pd.product_type as _parent_product_type",
                 "pt.task_type as _parent_task_type",
+                "hierarchy.path AS _entity__folder_path",
+                "pd.name AS _entity__product_name",
             ]
         )
         sql_joins.extend(
@@ -281,6 +341,10 @@ async def get_entity_list_items(
                 f"""
                 LEFT JOIN project_{project_name}.tasks AS pt
                 ON e.task_id = pt.id
+                """,
+                f"""
+                INNER JOIN project_{project_name}.hierarchy AS hierarchy
+                ON pd.folder_id = hierarchy.id
                 """,
             ]
         )
@@ -306,18 +370,18 @@ async def get_entity_list_items(
                 """
             )
 
-    # The rest of the entity types should work out of the box
-
     # Unified attributes
     # Create additions column _all_attrib that contains all attributes
     # from the entity and the item itself - used for sorting and filtering
 
     if entity_type == "folder":
         sql_columns.append(
-            "(pr.attrib || px.attrib || e.attrib || i.attrib) as _all_attrib"
+            "(pr.attrib || COALESCE(px.attrib, '{}'::JSONB) || e.attrib || i.attrib) as _all_attrib"  # noqa: E501
         )
     elif entity_type == "task":
-        sql_columns.append("(px.attrib || e.attrib || i.attrib) as _all_attrib")
+        sql_columns.append(
+            "(COALESCE(px.attrib, '{}'::JSONB) || e.attrib || i.attrib) as _all_attrib"
+        )  # noqa: E501
     else:
         sql_columns.append("(e.attrib || i.attrib) as _all_attrib")
 
