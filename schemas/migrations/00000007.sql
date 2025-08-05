@@ -69,10 +69,3 @@ DECLARE rec RECORD;
   END LOOP;
   RETURN;
 END $$;
-
-DO $$
-BEGIN
-  ALTER TABLE public.views RENAME COLUMN personal to working;
-  EXCEPTION
-  WHEN undefined_column THEN RAISE NOTICE 'column personal does not exist';
-END $$;
