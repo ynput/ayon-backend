@@ -49,6 +49,9 @@ END $$;
 
 
 
+-- Temporary migration to rename personal views to working views
+-- This happened during the development, so just a few projects
+-- might be affected. This migration will be removed in the future.
 
 DO $$
 DECLARE rec RECORD;
@@ -57,15 +60,18 @@ DECLARE rec RECORD;
   LOOP
     BEGIN
       EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
-      BEGIN
-        ALTER TABLE views RENAME COLUMN personal to working;
-      EXCEPTION 
-        WHEN undefined_column THEN RAISE NOTICE 'column personal does not exist';
-      END;
       ALTER INDEX IF EXISTS unique_personal_view RENAME TO unique_working_view;
+      ALTER TABLE views RENAME COLUMN personal to working;
     EXCEPTION
       WHEN OTHERS THEN RAISE WARNING 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
     END;
   END LOOP;
+
+  BEGIN
+    ALTER TABLE public.views RENAME COLUMN personal to working;
+  EXCEPTION
+    WHEN OTHERS THEN RAISE NOTICE 'column personal does not exist';
+  END;
+
   RETURN;
 END $$;
