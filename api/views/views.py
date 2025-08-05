@@ -57,6 +57,7 @@ def row_to_list_item(row: dict[str, Any], editable: bool) -> ViewListItemModel:
         position=row.get("position", 0),
         owner=row["owner"],
         visibility=row.get("visibility", "private"),
+        access=row.get("access", {}),
         working=row.get("working", False),
         editable=editable,
     )
