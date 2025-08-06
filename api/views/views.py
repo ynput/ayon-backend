@@ -346,7 +346,7 @@ async def update_view(
         # Fetch the existing view to check permissions and current settings
 
         query = """
-            SELECT label, owner, working, data
+            SELECT label, owner, working, data, access
             FROM views WHERE id = $1
         """
         res = await Postgres.fetchrow(query, view_id)
