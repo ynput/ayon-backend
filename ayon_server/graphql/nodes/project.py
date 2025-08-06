@@ -21,7 +21,7 @@ from ayon_server.graphql.resolvers.tasks import get_task, get_tasks
 from ayon_server.graphql.resolvers.versions import get_version, get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfile, get_workfiles
 from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.helpers.external_users import external_user_exists
+from ayon_server.helpers.external_users import ExternalUsers
 from ayon_server.helpers.tags import get_used_project_tags
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_dumps
@@ -369,7 +369,7 @@ def project_from_record(
     thumbnail = None
     user = context["user"]
     if user.is_external:
-        if not external_user_exists(project_name, user.email):
+        if not ExternalUsers.exists(user.email, project_name=project_name):
             raise ForbiddenException(
                 f"External user {user.email} does not exist in project {project_name}."
             )

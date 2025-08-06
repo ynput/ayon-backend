@@ -9,7 +9,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.crypto import decrypt_json_urlsafe, encrypt_json_urlsafe
 from ayon_server.helpers.email import is_mailing_enabled, send_mail
-from ayon_server.helpers.external_users import external_user_exists
+from ayon_server.helpers.external_users import ExternalUsers
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import OPModel
 from ayon_server.utils import server_url_from_request, slugify
@@ -151,9 +151,8 @@ async def handle_token_auth_callback(
         if not payload.project_name:
             msg = "External user token must contain project name"
             raise BadRequestException(msg)
-        exists = await external_user_exists(
-            project_name=payload.project_name,
-            email=payload.email,
+        exists = await ExternalUsers.exists(
+            payload.email, project_name=payload.project_name
         )
         if not exists:
             msg = (
