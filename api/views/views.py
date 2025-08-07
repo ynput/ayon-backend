@@ -371,7 +371,7 @@ async def update_view(
         label = update_dict.get("label", res["label"])
         working = update_dict.get("working", res["working"])
         access = update_dict.get("access", res["access"]) or {}
-        data = update_dict.get("data", res["data"])
+        data = update_dict.get("settings", res["data"])
         owner = res["owner"]
         if "owner" in update_dict:
             if not user.is_admin:
@@ -380,7 +380,8 @@ async def update_view(
 
         query = """
             UPDATE views
-            SET label = $1, working = $2, data = $3, owner = $4, updated_at = NOW()
+            SET label = $1, working = $2, data = $3,
+            owner = $4, updated_at = NOW()
             WHERE id = $5
         """
         await Postgres.execute(query, label, working, data, owner, view_id)
