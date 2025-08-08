@@ -29,7 +29,6 @@ class ViewListItemModel(OPModel):
     scope: FViewScope
     owner: FViewOwner
     visibility: FViewVisibility
-    access: dict[str, Any]
     working: FViewWorking
     position: int
     access_level: int
@@ -46,6 +45,7 @@ class ViewListModel(OPModel):
 
 class BaseViewModel(ViewListItemModel):
     settings: ViewSettingsModel
+    access: dict[str, Any]
 
 
 class OverviewViewModel(BaseViewModel):

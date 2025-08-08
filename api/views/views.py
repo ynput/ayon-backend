@@ -57,7 +57,6 @@ def row_to_list_item(row: dict[str, Any], access_level: int) -> ViewListItemMode
         position=row.get("position", 0),
         owner=row["owner"],
         visibility=row.get("visibility", "private"),
-        access=row.get("access", {}),
         working=row.get("working", False),
         access_level=access_level,
     )
