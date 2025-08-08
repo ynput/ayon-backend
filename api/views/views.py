@@ -111,13 +111,13 @@ async def list_views(
             )
         res = project_views + studio_views
         for row in res:
-            access_level = 30
+            access_level = EntityAccessHelper.MANAGE
             if row["visibility"] == "public":
                 try:
                     await EntityAccessHelper.check(
                         user,
                         access=row.get("access") or {},
-                        level=access_level,
+                        level=EntityAccessHelper.MANAGE,
                         owner=row["owner"],
                         default_open=False,
                         project=project,
@@ -205,11 +205,11 @@ async def get_default_view(
             await EntityAccessHelper.check(
                 user,
                 access=row.get("access"),
-                level=100,
+                level=EntityAccessHelper.MANAGE,
                 owner=row["owner"],
                 default_open=False,
             )
-            access_level = 30
+            access_level = EntityAccessHelper.MANAGE
         except ForbiddenException as e:
             access_level = e.extra.get("access_level", 0)
         return row_to_model(row, access_level=access_level)
@@ -266,11 +266,11 @@ async def get_view(
             await EntityAccessHelper.check(
                 current_user,
                 access=row.get("access") or {},
-                level=EntityAccessHelper.UPDATE,
+                level=EntityAccessHelper.MANAGE,
                 owner=row["owner"],
                 default_open=False,
             )
-            access_level = 30
+            access_level = EntityAccessHelper.MANAGE
         except ForbiddenException as e:
             access_level = e.extra.get("access_level", 0)
         return row_to_model(row, access_level=access_level)
