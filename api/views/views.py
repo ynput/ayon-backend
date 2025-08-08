@@ -48,7 +48,7 @@ QProjectName = Annotated[
 ]
 
 
-def row_to_list_item(row: dict[str, Any], editable: bool) -> ViewListItemModel:
+def row_to_list_item(row: dict[str, Any], access_level: int) -> ViewListItemModel:
     """Convert a database row to a ViewListItemModel."""
     return ViewListItemModel(
         id=row["id"],
@@ -59,11 +59,11 @@ def row_to_list_item(row: dict[str, Any], editable: bool) -> ViewListItemModel:
         visibility=row.get("visibility", "private"),
         access=row.get("access", {}),
         working=row.get("working", False),
-        editable=editable,
+        access_level=access_level,
     )
 
 
-def row_to_model(row: dict[str, Any], editable: bool) -> ViewModel:
+def row_to_model(row: dict[str, Any], access_level: int) -> ViewModel:
     """Convert a database row to a ViewModel."""
     return construct_view_model(
         id=row["id"],
@@ -76,7 +76,7 @@ def row_to_model(row: dict[str, Any], editable: bool) -> ViewModel:
         access=row.get("access", {}),
         working=row.get("working", False),
         settings=row.get("data", {}),
-        editable=editable,
+        access_level=access_level,
     )
 
 
@@ -111,34 +111,23 @@ async def list_views(
             )
         res = project_views + studio_views
         for row in res:
+            access_level = 30
             if row["visibility"] == "public":
                 try:
                     await EntityAccessHelper.check(
                         user,
                         access=row.get("access") or {},
-                        level=EntityAccessHelper.READ,
+                        level=access_level,
                         owner=row["owner"],
                         default_open=False,
                         project=project,
                     )
-                except ForbiddenException:
-                    continue
+                except ForbiddenException as e:
+                    access_level = e.extra.get("access_level", 0)
+                    if access_level < EntityAccessHelper.READ:
+                        continue
 
-            editable = True
-            if user.name != row.get("owner"):
-                try:
-                    await EntityAccessHelper.check(
-                        user,
-                        access=row.get("access") or {},
-                        level=EntityAccessHelper.UPDATE,
-                        owner=row["owner"],
-                        default_open=False,
-                        project=project,
-                    )
-                except ForbiddenException:
-                    editable = False
-
-            views.append(row_to_list_item(row, editable=editable))
+            views.append(row_to_list_item(row, access_level=access_level))
     return ViewListModel(views=views)
 
 
@@ -166,7 +155,7 @@ async def get_working_view(
         )
         if not row:
             raise NotFoundException(f"Working {view_type} view not found")
-        return row_to_model(row, editable=True)
+        return row_to_model(row, access_level=30)
 
 
 DEFAULT_VIEW_NS = "default-view"
@@ -211,18 +200,19 @@ async def get_default_view(
         )
         if not row:
             raise NotFoundException(f"Default {view_type} view not found")
-        editable = True
+
         try:
             await EntityAccessHelper.check(
                 user,
                 access=row.get("access"),
-                level=EntityAccessHelper.UPDATE,
+                level=100,
                 owner=row["owner"],
                 default_open=False,
             )
-        except ForbiddenException:
-            editable = False
-        return row_to_model(row, editable=editable)
+            access_level = 30
+        except ForbiddenException as e:
+            access_level = e.extra.get("access_level", 0)
+        return row_to_model(row, access_level=access_level)
 
 
 class SetDefaultViewRequestModel(OPModel):
@@ -272,19 +262,18 @@ async def get_view(
 
         if not row:
             raise NotFoundException("View not found")
-        editable = True
-        if current_user.name != row.get("owner"):
-            try:
-                await EntityAccessHelper.check(
-                    current_user,
-                    access=row.get("access") or {},
-                    level=EntityAccessHelper.UPDATE,
-                    owner=row["owner"],
-                    default_open=False,
-                )
-            except ForbiddenException:
-                editable = False
-        return row_to_model(row, editable=editable)
+        try:
+            await EntityAccessHelper.check(
+                current_user,
+                access=row.get("access") or {},
+                level=EntityAccessHelper.UPDATE,
+                owner=row["owner"],
+                default_open=False,
+            )
+            access_level = 30
+        except ForbiddenException as e:
+            access_level = e.extra.get("access_level", 0)
+        return row_to_model(row, access_level=access_level)
 
 
 @router.post("/{view_type}")

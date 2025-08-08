@@ -32,7 +32,7 @@ class ViewListItemModel(OPModel):
     access: dict[str, Any]
     working: FViewWorking
     position: int
-    editable: bool
+    access_level: int
 
 
 class ViewListModel(OPModel):
