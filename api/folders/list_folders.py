@@ -126,7 +126,7 @@ class FolderListLoader:
         def process_record(record: dict[str, Any]) -> dict[str, Any]:
             return {camelize_memoized(k): v for k, v in record.items()}
 
-        entities_data = await Redis.get("project.folders", project_name)
+        entities_data = await Redis.get("project-folders", project_name)
         if entities_data is None:
             folder_list = await rebuild_hierarchy_cache(project_name)
         else:
