@@ -138,6 +138,7 @@ async def get_working_view(
     project_name: QProjectName = None,
 ) -> ViewModel:
     """Get the working view of the given type"""
+
     async with Postgres.transaction():
         if project_name:
             await Postgres.set_project_schema(project_name)
@@ -173,12 +174,16 @@ async def get_default_view(
     If no working view is set, raise 404
     """
 
+    project = None
+
     key = f"{user.name}:{view_type}:{project_name or '_'}"
     view_id_bytes = await Redis.get(DEFAULT_VIEW_NS, key)
     if view_id_bytes is None:
         view_id = None
     else:
         view_id = view_id_bytes.decode("utf-8")
+        if project_name:
+            project = await ProjectEntity.load(project_name)
 
     query = """
         SELECT *, $4 AS scope FROM views
@@ -208,6 +213,7 @@ async def get_default_view(
                 level=EntityAccessHelper.MANAGE,
                 owner=row["owner"],
                 default_open=False,
+                project=project,
             )
             access_level = EntityAccessHelper.MANAGE
         except ForbiddenException as e:
@@ -240,6 +246,12 @@ async def get_view(
     project_name: QProjectName = None,
 ) -> ViewModel:
     """Get a specific view by its ID."""
+
+    if project_name:
+        project = await ProjectEntity.load(project_name)
+    else:
+        project = None
+
     async with Postgres.transaction():
         if project_name:
             await Postgres.set_project_schema(project_name)
@@ -269,6 +281,7 @@ async def get_view(
                 level=EntityAccessHelper.MANAGE,
                 owner=row["owner"],
                 default_open=False,
+                project=project,
             )
             access_level = EntityAccessHelper.MANAGE
         except ForbiddenException as e:
@@ -328,6 +341,11 @@ async def update_view(
 ) -> None:
     """Update a view in the database."""
 
+    if project_name:
+        project = await ProjectEntity.load(project_name)
+    else:
+        project = None
+
     async with Postgres.transaction():
         if project_name:
             await Postgres.set_project_schema(project_name)
@@ -351,6 +369,7 @@ async def update_view(
             level=EntityAccessHelper.UPDATE,
             owner=res["owner"],
             default_open=False,
+            project=project,
         )
 
         # Update the view with the new settings
