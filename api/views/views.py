@@ -362,7 +362,7 @@ async def update_view(
         access = update_dict.get("access", res["access"]) or {}
         data = update_dict.get("settings", res["data"])
         owner = res["owner"]
-        if "owner" in update_dict:
+        if ("owner" in update_dict) and update_dict["owner"] != user.name:
             if not user.is_admin:
                 raise ForbiddenException("Only admins can change the owner of a view.")
             owner = update_dict["owner"]
