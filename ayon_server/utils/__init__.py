@@ -3,6 +3,7 @@ __all__ = [
     "hash_data",
     "create_hash",
     "create_uuid",
+    "format_filesize",
     "json_loads",
     "json_dumps",
     "json_print",
@@ -32,6 +33,7 @@ from .request_coalescer import RequestCoalescer
 from .sqltool import SQLTool
 from .strings import (
     camelize,
+    format_filesize,
     get_base_name,
     get_nickname,
     indent,
