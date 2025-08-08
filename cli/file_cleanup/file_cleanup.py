@@ -63,12 +63,13 @@ async def cleanup_project_files(project_name: str, *, dry_run: bool) -> None:
         """
     )
     for row in cursor.fetchall():
-        file_id, storage, database = row
-        if not storage:
+        file_id, is_on_storage, is_in_database = row
+        if not is_on_storage:
             logging.warning(f"{file_id} is missing from storage")
             if not dry_run:
                 await storage.unlink(file_id)
-        if not database:
+
+        if not is_in_database:
             logging.info(f"{file_id} is missing from database")
 
     # Close the SQLite connection
