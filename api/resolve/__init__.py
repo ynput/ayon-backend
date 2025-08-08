@@ -216,7 +216,7 @@ async def resolve_entities(
         if req.workfile_name is not None:
             cols.append("w.id as workfile_id")
             joins.append("INNER JOIN workfiles AS w ON t.id = w.task_id")
-            conds.append(f"w.name = '{req.workfile_name}'")
+            conds.append(f"w.path LIKE '%/{req.workfile_name}'")
             target_entity_type = "workfile"
 
         conds.extend(get_path_conditions(req.path))
