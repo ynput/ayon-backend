@@ -52,9 +52,14 @@ class EncryptedData(BaseModel):
         if stored_timestamp is None:
             return False
         try:
-            return int(stored_timestamp) == self.timestamp
+            return stored_timestamp.decode() == str(self.timestamp)
         except ValueError:
             return False
+
+    @property
+    def quoted_token(self) -> str:
+        """Return the token in a URL-safe format."""
+        return quote(self.token)
 
 
 async def encrypt_json_urlsafe(data: dict[str, Any]) -> EncryptedData:
@@ -64,7 +69,7 @@ async def encrypt_json_urlsafe(data: dict[str, Any]) -> EncryptedData:
     compressed = zlib.compress(json_bytes)
     now = int(time.time())
     encrypted = fernet.encrypt_at_time(compressed, now)
-    return EncryptedData(token=quote(encrypted.decode()), data=data, timestamp=now)
+    return EncryptedData(token=encrypted.decode(), data=data, timestamp=now)
 
 
 async def decrypt_json_urlsafe(token: str) -> EncryptedData:

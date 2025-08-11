@@ -17,7 +17,7 @@ Status can be one of:
 from typing import Any
 
 from ayon_server.entities import ProjectEntity
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, ConflictException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
@@ -38,7 +38,7 @@ class ExternalUsers:
             external_users = project.data.get("externalUsers", {})
 
             if email in external_users:
-                raise BadRequestException(
+                raise ConflictException(
                     f"External user {email} already exists in the project."
                 )
 
