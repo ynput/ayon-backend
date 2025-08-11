@@ -14,6 +14,7 @@ from ayon_server.auth.utils import (
 from ayon_server.constraints import Constraints
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.project import ProjectEntity
 from ayon_server.exceptions import (
     ConstraintViolationException,
     ForbiddenException,
@@ -319,11 +320,35 @@ class UserEntity(TopLevelEntity):
             raise ForbiddenException(f"You are not allowed to modify{pdef} {perm_name}")
 
     def check_project_access(self, project_name: str) -> None:
+        # This method is deprecated and is replaced by ensure_project_access.
+        # (which is async and can handle external users)
         if self.is_manager:
             return
+
+        if self.is_external:
+            raise ForbiddenException(
+                "External users cannot access projects directly. "
+                "Use the external user management API."
+            )
+
         access_groups = [k.lower() for k in self.data.get("accessGroups", {})]
         if project_name.lower() not in access_groups:
             raise ForbiddenException("No access group assigned on this project")
+
+    async def ensure_project_access(self, project_name: str) -> None:
+        if self.is_manager:
+            return
+
+        if self.is_external:
+            project = await ProjectEntity.load(project_name)
+            external_users = project.data.get("externalUsers", {})
+            if self.attrib.email not in external_users:
+                raise ForbiddenException("You are not invited to this project")
+
+        else:
+            access_groups = [k.lower() for k in self.data.get("accessGroups", {})]
+            if project_name.lower() not in access_groups:
+                raise ForbiddenException("No access group assigned on this project")
 
     def permissions(self, project_name: str | None = None) -> Permissions:
         """Return user permissions on a given project."""

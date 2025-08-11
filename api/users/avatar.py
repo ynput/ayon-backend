@@ -6,7 +6,7 @@ import aiofiles
 import httpx
 from fastapi import Request, Response
 
-from ayon_server.api.dependencies import CurrentUser, NoTraces, UserName
+from ayon_server.api.dependencies import AllowExternal, CurrentUser, NoTraces, UserName
 from ayon_server.api.files import image_response_from_bytes
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import NotFoundException
@@ -179,7 +179,7 @@ async def obtain_avatar(user_name: str) -> bytes:
     return avatar_bytes
 
 
-@router.get("/{user_name}/avatar", dependencies=[NoTraces])
+@router.get("/{user_name}/avatar", dependencies=[NoTraces, AllowExternal])
 async def get_avatar(user_name: UserName, current_user: CurrentUser) -> Response:
     """Retrieve the avatar for a given user."""
 

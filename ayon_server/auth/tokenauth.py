@@ -12,7 +12,7 @@ from ayon_server.helpers.email import is_mailing_enabled, send_mail
 from ayon_server.helpers.external_users import ExternalUsers
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import OPModel
-from ayon_server.utils import server_url_from_request, slugify
+from ayon_server.utils import slugify
 
 from .models import LoginResponseModel
 
@@ -147,6 +147,19 @@ async def handle_token_auth_callback(
     except Exception:
         raise BadRequestException("Invalid token payload format")
 
+    if not await enc_data.validate_nonce():
+        logger.debug(f"Token for external user {payload.email} expired")
+
+        # await send_extend_email(
+        #     original_payload=payload,
+        #     base_url=server_url_from_request(request),
+        # )
+
+        raise UnauthorizedException(
+            "Your email link already expired or was used before. "
+            "We're sending you a new one."
+        )
+
     if payload.external:
         if not payload.project_name:
             msg = "External user token must contain project name"
@@ -161,19 +174,7 @@ async def handle_token_auth_callback(
             )
             raise UnauthorizedException(msg)
 
-    if not await enc_data.validate_nonce():
-        logger.debug(f"Token for external user {payload.email} expired")
-
-        await send_extend_email(
-            original_payload=payload,
-            base_url=server_url_from_request(request),
-        )
-
-        raise UnauthorizedException(
-            "Your email link already expired or was used before. "
-            "We're sending you a new one."
-        )
-
+    # For future use. For now we only support external users.
     if not payload.external:
         msg = "Token is not for external use"
         raise BadRequestException(msg)

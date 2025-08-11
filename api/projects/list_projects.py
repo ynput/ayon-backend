@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import Query
 
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import AllowExternal, CurrentUser
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 from ayon_server.utils import SQLTool
@@ -43,7 +43,7 @@ class ListProjectsResponseModel(OPModel):
     )
 
 
-@router.get("/projects")
+@router.get("/projects", dependencies=[AllowExternal])
 async def list_projects(
     user: CurrentUser,
     page: int = Query(1, title="Page", ge=1),
@@ -115,7 +115,8 @@ async def list_projects(
                 code,
                 created_at,
                 updated_at,
-                active
+                active,
+                data
             FROM projects
             {SQLTool.conditions(conditions)}
             {SQLTool.order(sql_order, desc, length, offset)}
@@ -127,11 +128,17 @@ async def list_projects(
         # breaks the pagination. Remove pagination completely?
         # Or rather use graphql-like approach with cursor?
         if not can_list_all_projects:
-            access_groups = user.data.get("accessGroups", {})
-            if not isinstance(access_groups, dict):
-                continue
-            if not access_groups.get(row["name"]):
-                continue
+            if user.is_external:
+                external_users = row["data"].get("externalUsers", {})
+                if user.attrib.email not in external_users:
+                    continue
+
+            else:
+                access_groups = user.data.get("accessGroups", {})
+                if not isinstance(access_groups, dict):
+                    continue
+                if not access_groups.get(row["name"]):
+                    continue
 
         projects.append(
             ListProjectsItemModel(

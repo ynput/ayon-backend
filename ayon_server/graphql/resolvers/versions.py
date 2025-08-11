@@ -83,7 +83,11 @@ async def get_versions(
     """Return a list of versions."""
 
     project_name = root.project_name
+    user = info.context["user"]
     fields = FieldInfo(info, ["versions.edges.node", "version"])
+
+    if user.is_external:
+        return VersionsConnection(edges=[])
 
     #
     # SQL

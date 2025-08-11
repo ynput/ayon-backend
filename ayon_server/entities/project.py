@@ -252,6 +252,13 @@ class ProjectEntity(TopLevelEntity):
                 await build_project_list()
         return True
 
+    def as_user(self, user):
+        payload = self._payload.copy()
+        if user.is_external:
+            payload.data = {}
+            payload.config = {}
+        return payload
+
     #
     # Properties
     #

@@ -170,7 +170,7 @@ async def patch_project_activity(
     and tick/untick checkboxes in the comment
     """
 
-    user.check_project_access(project_name)
+    await user.ensure_project_access(project_name)
 
     user_name = user.name
 
