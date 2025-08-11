@@ -134,7 +134,14 @@ async def obtain_avatar(user_name: str) -> bytes:
     )
 
     if not res:
-        raise NotFoundException("User not found")
+        if user_name.startswith("external"):
+            # We cannot get full name for external users,
+            # as we do not know the current project.
+            # so we just strip the "external" prefix
+            # and the domain part of the user name.
+            elms = user_name.split(".")
+            user_name = ".".join(elms[1:-2])
+        return create_initials_svg(user_name).encode()
 
     avatar_bytes: bytes | None = None
 
