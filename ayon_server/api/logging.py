@@ -95,7 +95,8 @@ def handle_assertion_error(request: Request, exc: AssertionError) -> JSONRespons
     if request.state.user:
         extras["user"] = request.state.user.name
 
-    logger.error(detail, **extras)
+    with logger.contextualize(**extras):
+        logger.error(detail)
 
     extras["detail"] = detail
     extras["status"] = 500
@@ -171,6 +172,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
                 process_time = round(time.perf_counter() - start_time, 3)
                 f_result = f"| {response.status_code} in {process_time}s"
-                logger.trace(f"[{request.method}] {path} {f_result}", **extras)
+                with logger.contextualize(**extras):
+                    logger.trace(f"[{request.method}] {path} {f_result}")
 
         return response
