@@ -397,7 +397,8 @@ class UserEntity(TopLevelEntity):
             for team in teams:
                 members = team.get("members", [])
                 for member in members:
-                    if member.name == self.name:
+                    if member.get("name") == self.name:
                         result.add(team["name"])
+                        break
             self._teams = result
         return self._teams

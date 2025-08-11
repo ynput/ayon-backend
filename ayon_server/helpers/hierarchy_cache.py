@@ -80,7 +80,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
     for folder in result:
         folder["has_children"] = folder["id"] in ids_with_children
 
-    await Redis.set("project.folders", project_name, json_dumps(result), 3600)
+    await Redis.set("project-folders", project_name, json_dumps(result), 3600)
     elapsed_time = time.monotonic() - start_time
     logger.trace(
         f"Rebuilt hierarchy cache for {project_name} "
