@@ -1,8 +1,10 @@
------------------
--- Ayon 1.10.7 --
------------------
+-- Use weak references to users in project schemas
+-- that allows migrating projects between instances
+-- without breaking the foreign keys
 
--- Add views tables to projects
+-- Warning! This does not cover all cases: custom_roots and project_site_settings
+-- still reference users by name. If migration of such projects is needed,
+-- these tables should be handled manually.
 
 DO $$
 DECLARE rec RECORD;
@@ -34,15 +36,16 @@ FOR rec IN
       'entity_list_items'
     )
     AND tc.constraint_type = 'FOREIGN KEY';
-  LOOP
-    RAISE WARNING 'Removing users references from %.%', rec.project_schema, rec.table_name;
+LOOP
+  RAISE WARNING 'Removing users references from %.%', rec.project_schema, rec.table_name;
 
-    EXECUTE format(
-      'ALTER TABLE %I.%I DROP CONSTRAINT %I;',
-      rec.project_schema,
-      rec.table_name,
-      rec.constraint_name
-    );
-  END LOOP;
+  EXECUTE format(
+    'ALTER TABLE %I.%I DROP CONSTRAINT %I;',
+    rec.project_schema,
+    rec.table_name,
+    rec.constraint_name
+  );
+
+END LOOP;
 END $$;
 

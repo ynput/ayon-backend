@@ -1,51 +1,77 @@
--- Use weak references to users in project schemas
--- that allows migrating projects between instances
--- without breaking the foreign keys
+-----------------
+-- Ayon 1.10.7 --
+-----------------
 
--- Warning! This does not cover all cases: custom_roots and project_site_settings
--- still reference users by name. If migration of such projects is needed,
--- these tables should be handled manually.
+-- Add views tables to projects
 
 DO $$
 DECLARE rec RECORD;
 BEGIN
-FOR rec IN
-  SELECT DISTINCT
-    tc.table_schema project_schema,
-    tc.table_name,
-    kcu.column_name,
-    tc.constraint_name,
-    pc.confupdtype
-  FROM
-    information_schema.table_constraints AS tc
-  JOIN information_schema.key_column_usage AS kcu
-    ON tc.constraint_name = kcu.constraint_name
-    AND kcu.column_name IN (
-      'created_by', 
-      'updated_by',  
-      'owner'
-  )
-  JOIN pg_constraint AS pc
-    ON tc.constraint_name = pc.conname
-    AND tc.table_schema = pc.connamespace::regnamespace::text
-  WHERE
-    tc.table_schema LIKE 'project_%'
-    AND tc.table_name IN (
-      'workfiles', 
-      'entity_lists', 
-      'entity_list_items'
+  FOR rec IN (
+    SELECT DISTINCT nspname FROM pg_namespace 
+    WHERE nspname LIKE 'project_%'
+    AND nspname NOT IN (
+      SELECT DISTINCT table_schema FROM information_schema.tables 
+      WHERE table_name = 'views'
     )
-    AND tc.constraint_type = 'FOREIGN KEY';
-LOOP
-  RAISE WARNING 'Removing users references from %.%', rec.project_schema, rec.table_name;
+  )
+  LOOP
+    BEGIN
+      EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
+      RAISE WARNING 'Creating views table in %', rec.nspname;
 
-  EXECUTE format(
-    'ALTER TABLE %I.%I DROP CONSTRAINT %I;',
-    rec.project_schema,
-    rec.table_name,
-    rec.constraint_name
-  );
+      CREATE TABLE IF NOT EXISTS views(
+        id UUID NOT NULL PRIMARY KEY,
+        view_type VARCHAR NOT NULL,
+        label VARCHAR NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
 
-END LOOP;
+        owner VARCHAR,
+        visibility VARCHAR NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private')),
+        working BOOLEAN NOT NULL DEFAULT TRUE,
+
+        access JSONB NOT NULL DEFAULT '{}'::JSONB,
+        data JSONB NOT NULL DEFAULT '{}'::JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS unique_working_view ON views(view_type, owner) WHERE working;
+      CREATE INDEX IF NOT EXISTS view_type_idx ON views(view_type);
+      CREATE INDEX IF NOT EXISTS view_owner_idx ON views(owner);
+
+    EXCEPTION
+      WHEN OTHERS THEN RAISE WARNING 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
+    END;
+  END LOOP;
+  RETURN;
 END $$;
 
+
+
+-- Temporary migration to rename personal views to working views
+-- This happened during the development, so just a few projects
+-- might be affected. This migration will be removed in the future.
+
+DO $$
+DECLARE rec RECORD;
+  BEGIN
+  FOR rec IN SELECT DISTINCT nspname FROM pg_namespace WHERE nspname LIKE 'project_%'
+  LOOP
+    BEGIN
+      EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
+      ALTER INDEX IF EXISTS unique_personal_view RENAME TO unique_working_view;
+      ALTER TABLE views RENAME COLUMN personal to working;
+    EXCEPTION
+      WHEN OTHERS THEN RAISE NOTICE 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
+    END;
+  END LOOP;
+
+  BEGIN
+    ALTER TABLE public.views RENAME COLUMN personal to working;
+  EXCEPTION
+    WHEN OTHERS THEN RAISE NOTICE 'column personal does not exist';
+  END;
+
+  RETURN;
+END $$;
