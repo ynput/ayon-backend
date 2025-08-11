@@ -268,7 +268,7 @@ class UserEntity(TopLevelEntity):
 
     @property
     def is_external(self) -> bool:
-        return self.data.get("isDeveloper", False)
+        return self.data.get("isExternal", False)
 
     @property
     def is_manager(self) -> bool:
