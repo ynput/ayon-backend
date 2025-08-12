@@ -99,7 +99,7 @@ class ActivityNode:
                     "created_at": "1970-01-01T00:00:00Z",
                     "updated_at": "1970-01-01T00:00:00Z",
                 }
-            return info.context["user_from_record"](None, record, info.context)
+            return await info.context["user_from_record"](None, record, info.context)
         return None
 
     @strawberry.field
@@ -109,7 +109,7 @@ class ActivityNode:
             assignee = data["assignee"]
             loader = info.context["user_loader"]
             record = await loader.load(assignee)
-            return info.context["user_from_record"](None, record, info.context)
+            return await info.context["user_from_record"](None, record, info.context)
         return None
 
     @strawberry.field
@@ -124,10 +124,10 @@ class ActivityNode:
 
         loader = info.context["version_loader"]
         record = await loader.load((self.project_name, version_id))
-        return (
-            info.context["version_from_record"](self.project_name, record, info.context)
-            if record
-            else None
+        if record is None:
+            return None
+        return await info.context["version_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field
@@ -173,7 +173,7 @@ def replace_reference_body(node: ActivityNode) -> ActivityNode:
     return node
 
 
-def activity_from_record(
+async def activity_from_record(
     project_name: str | None,
     record: dict[str, Any],
     context: dict[str, Any],

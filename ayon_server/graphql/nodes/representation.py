@@ -50,7 +50,7 @@ class RepresentationNode(BaseNode):
         record = await info.context["version_loader"].load(
             (self.project_name, self.version_id)
         )
-        return info.context["version_from_record"](
+        return await info.context["version_from_record"](
             self.project_name, record, info.context
         )
 
@@ -104,7 +104,7 @@ def parse_files(
     return result
 
 
-def representation_from_record(
+async def representation_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> RepresentationNode:  # noqa # no. this line won't be shorter
     """Construct a representation node from a DB row."""

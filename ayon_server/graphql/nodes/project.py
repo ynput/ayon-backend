@@ -357,7 +357,7 @@ class ProjectNode:
         return await get_used_project_tags(self.project_name)
 
 
-def project_from_record(
+async def project_from_record(
     project_name: str | None, record: dict[str, Any], context: dict[str, Any]
 ) -> ProjectNode:
     """Construct a project node from a DB row."""

@@ -55,7 +55,7 @@ class VersionNode(BaseNode):
         record = await info.context["product_loader"].load(
             (self.project_name, self.product_id)
         )
-        return info.context["product_from_record"](
+        return await info.context["product_from_record"](
             self.project_name, record, info.context
         )
 
@@ -94,7 +94,7 @@ class VersionNode(BaseNode):
 #
 
 
-def version_from_record(
+async def version_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> VersionNode:
     """Construct a version node from a DB row."""

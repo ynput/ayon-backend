@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import EntityListsConnection
 from ayon_server.graphql.edges import EntityListEdge
@@ -57,18 +58,15 @@ async def get_entity_lists(
     project_name = root.project_name
     sql_conditions = []
 
+    project = await ProjectEntity.load(project_name)
+    info.context["project"] = project
+
     # Load explicit IDs
 
     if ids:
         if not ids:
             return EntityListsConnection()
         sql_conditions.append(f"id in {SQLTool.id_array(ids)}")
-
-    #
-    # Access control
-    #
-
-    # TODO: Access control to the lists    # TODO: Access control to the list records
 
     #
     # Filtering

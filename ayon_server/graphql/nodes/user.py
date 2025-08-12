@@ -68,7 +68,7 @@ class UserNode:
         return await get_tasks(root, info, assignees=[self.name])
 
 
-def user_from_record(
+async def user_from_record(
     project_name: str | None, record: dict[str, Any], context: dict[str, Any]
 ) -> UserNode:
     data = record.get("data", {})

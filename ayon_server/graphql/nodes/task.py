@@ -70,7 +70,7 @@ class TaskNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.folder_id)
         )
-        return info.context["folder_from_record"](
+        return await info.context["folder_from_record"](
             self.project_name, record, info.context
         )
 
@@ -106,7 +106,7 @@ class TaskNode(BaseNode):
         return path.split("/")[:-1] if path else []
 
 
-def task_from_record(
+async def task_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> TaskNode:
     """Construct a task node from a DB row."""
@@ -122,11 +122,10 @@ def task_from_record(
         if folder_data.get("id"):
             cfun = context["folder_from_record"]
             try:
-                folder = (
-                    cfun(project_name, folder_data, context=context)
-                    if folder_data
-                    else None
-                )
+                if folder_data is None:
+                    folder = None
+                else:
+                    folder = cfun(project_name, folder_data, context=context)
             except KeyError:
                 pass
 

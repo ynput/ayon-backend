@@ -54,7 +54,7 @@ class LinkEdge(BaseEdge):
             raise AyonException(msg)
 
         record = await loader.load((self.project_name, self.entity_id))
-        return parser(self.project_name, record, info.context)
+        return await parser(self.project_name, record, info.context)
 
 
 @strawberry.type

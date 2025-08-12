@@ -89,10 +89,11 @@ class FolderNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.parent_id)
         )
-        return (
-            info.context["folder_from_record"](self.project_name, record, info.context)
-            if record
-            else None
+        if record is None:
+            return None
+
+        return await info.context["folder_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field
@@ -127,7 +128,7 @@ class FolderNode(BaseNode):
 #
 
 
-def folder_from_record(
+async def folder_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> FolderNode:
     """Construct a folder node from a DB row."""
