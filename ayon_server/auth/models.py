@@ -5,6 +5,8 @@ from pydantic import Field
 from ayon_server.entities import UserEntity
 from ayon_server.types import OPModel
 
+UserMainModel = UserEntity.model.main_model  # noqa
+
 
 class LoginResponseModel(OPModel):
     detail: Annotated[
@@ -31,10 +33,7 @@ class LoginResponseModel(OPModel):
         ),
     ] = None
 
-    user: Annotated[
-        UserEntity.model.main_model | None,  # type: ignore
-        Field(title="User data"),
-    ] = None
+    user: Annotated[UserMainModel | None, Field(title="User data")] = None  # type: ignore
 
     redirect_url: Annotated[
         str | None,

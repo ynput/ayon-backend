@@ -125,7 +125,7 @@ async def task_from_record(
                 if folder_data is None:
                     folder = None
                 else:
-                    folder = cfun(project_name, folder_data, context=context)
+                    folder = await cfun(project_name, folder_data, context=context)
             except KeyError:
                 pass
 
