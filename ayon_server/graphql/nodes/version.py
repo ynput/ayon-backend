@@ -66,7 +66,9 @@ class VersionNode(BaseNode):
         record = await info.context["task_loader"].load(
             (self.project_name, self.task_id)
         )
-        return info.context["task_from_record"](self.project_name, record, info.context)
+        return await info.context["task_from_record"](
+            self.project_name, record, info.context
+        )
 
     @strawberry.field
     def attrib(self) -> VersionAttribType:
