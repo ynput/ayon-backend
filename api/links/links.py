@@ -2,9 +2,17 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter
 
-from ayon_server.api.dependencies import CurrentUser, LinkID, LinkType, ProjectName
+from ayon_server.api.dependencies import (
+    CurrentUser,
+    LinkID,
+    LinkType,
+    ProjectName,
+    Sender,
+    SenderType,
+)
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities.models.submodels import LinkTypeModel
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ConstraintViolationException,
@@ -201,6 +209,8 @@ async def create_entity_link(
     user: CurrentUser,
     project_name: ProjectName,
     post_data: CreateLinkRequestModel,
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new entity link."""
 
@@ -257,6 +267,32 @@ async def create_entity_link(
             raise BadRequestException("Unsupported link type.") from None
         except Postgres.UniqueViolationError:
             raise ConstraintViolationException("Link already exists.") from None
+
+        # Emit an event
+
+        event_summary = {
+            "id": link_id,
+            "linkType": link_type_name,
+            "inputType": input_type,
+            "outputType": output_type,
+            "inputId": post_data.input,
+            "outputId": post_data.output,
+        }
+
+        event_description = (
+            f"Created {link_type_name} link between "
+            f"{input_type} {post_data.input} and {output_type} {post_data.output}."
+        )
+
+        await EventStream.dispatch(
+            "link.created",
+            summary=event_summary,
+            description=event_description,
+            project=project_name,
+            user=user.name,
+            sender=sender,
+            sender_type=sender_type,
+        )
 
     logger.debug(
         f"Created {link_type_name} link between "
