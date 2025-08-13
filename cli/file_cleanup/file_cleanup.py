@@ -29,9 +29,9 @@ async def cleanup_project_files(project_name: str, *, dry_run: bool) -> None:
     # and store them in the database
 
     storage = await Storages.project(project_name)
-    async for row in storage.list_files():
+    async for _rec in storage.list_files():
         cursor.execute(
-            "INSERT OR IGNORE INTO files (file_id, storage) VALUES (?, ?)", (row, True)
+            "INSERT OR IGNORE INTO files (file_id, storage) VALUES (?, ?)", (_rec, True)
         )
 
     conn.commit()
