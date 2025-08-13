@@ -311,7 +311,11 @@ async def create_entity_link(
 
 @router.delete("/projects/{project_name}/links/{link_id}", status_code=204)
 async def delete_entity_link(
-    user: CurrentUser, project_name: ProjectName, link_id: LinkID
+    user: CurrentUser,
+    project_name: ProjectName,
+    link_id: LinkID,
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete a link.
 
@@ -322,15 +326,38 @@ async def delete_entity_link(
     async with Postgres.transaction():
         await Postgres.set_project_schema(project_name)
 
-        query = "SELECT author FROM links WHERE id = $1"
+        query = "SELECT input_id, output_id, link_type, author FROM links WHERE id = $1"
         res = await Postgres.fetchrow(query, link_id)
         if not res:
             raise NotFoundException(f"Link {link_id} not found.")
+
+        link_type = res["link_type"]
+        link_type_name, input_type, output_type = link_type.split("|")
 
         if res["author"] != user.name and not user.is_manager:
             raise ForbiddenException("You do not have permission to delete this link.")
 
         query = "DELETE FROM links WHERE id = $1"
         await Postgres.execute(query, link_id)
+
+        await EventStream.dispatch(
+            "link.deleted",
+            summary={
+                "id": link_id,
+                "linkType": link_type_name,
+                "inputType": input_type,
+                "outputType": output_type,
+                "inputId": res["input_id"],
+                "outputId": res["output_id"],
+            },
+            description=(
+                f"Deleted {link_type_name} link between "
+                f"{input_type} {res['input_id']} and {output_type} {res['output_id']}."
+            ),
+            project=project_name,
+            user=user.name,
+            sender=sender,
+            sender_type=sender_type,
+        )
 
     return EmptyResponse()
