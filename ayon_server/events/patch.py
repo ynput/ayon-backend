@@ -95,13 +95,17 @@ def build_pl_entity_change_events(
     result: list[EventData] = []
     common_data = {
         "project": original_entity.project_name,
-        "summary": {"entityId": original_entity.id, "parentId": parent_id},
+        "summary": {
+            "entityId": original_entity.id,
+            "parentId": parent_id,
+            "entityPath": original_entity.path,
+        },
     }
 
     if (new_name := patch_data.get("name")) is not None:
         if new_name != original_entity.name:
             description = (
-                f"Renamed {entity_type} {original_entity.name} to {patch.name}"  # type: ignore
+                f"Renamed {entity_type} {original_entity.path} to {patch.name}"  # type: ignore
             )
             result.append(
                 {
@@ -120,7 +124,7 @@ def build_pl_entity_change_events(
     if (new_status := patch_data.get("status")) is not None:
         if new_status != original_entity.status:
             description = (
-                f"Changed {entity_type} {original_entity.name} status to {patch.status}"  # type: ignore
+                f"Changed {entity_type} {original_entity.path} status to {patch.status}"  # type: ignore
             )
             result.append(
                 {
@@ -139,7 +143,7 @@ def build_pl_entity_change_events(
     if (new_tags := patch_data.get("tags")) is not None:
         if new_tags != original_entity.tags:
             description = get_tags_description(
-                f"{entity_type} {original_entity.name}",
+                f"{entity_type} {original_entity.path}",
                 original_entity.tags,
                 patch.tags,  # type: ignore
             )
@@ -182,7 +186,7 @@ def build_pl_entity_change_events(
         if new_attributes:
             attr_list = ", ".join(new_attributes.keys())
             evt["description"] = (
-                f"Changed {entity_type} {original_entity.name} attributes: {attr_list}"
+                f"Changed {entity_type} {original_entity.path} attributes: {attr_list}"
             )
             result.append(evt)
 
@@ -196,15 +200,18 @@ def build_pl_entity_change_events(
         if getattr(original_entity, column_name) == patch_data.get(column_name):
             continue
 
-        description = f"Changed {entity_type} {original_entity.name} {column_name}"
+        description = f"Changed {entity_type} {original_entity.path} {column_name}"
+        desc_nval = str(patch_data[column_name])
+        if len(desc_nval) < 30:
+            description += f" to {desc_nval}"
         if column_name == "active":
             if patch_data.get("active"):
                 description = (
-                    f"{entity_type.capitalize()} {original_entity.name} activated"
+                    f"{entity_type.capitalize()} {original_entity.path} activated"
                 )
             else:
                 description = (
-                    f"{entity_type.capitalize()} {original_entity.name} deactivated"
+                    f"{entity_type.capitalize()} {original_entity.path} deactivated"
                 )
 
         result.append(
