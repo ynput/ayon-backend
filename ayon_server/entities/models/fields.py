@@ -271,6 +271,13 @@ version_fields = [
         "regex": USER_NAME_REGEX,
         "example": "john_doe",
     },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain/v003",
+        "dynamic": True,
+    },
 ]
 
 
