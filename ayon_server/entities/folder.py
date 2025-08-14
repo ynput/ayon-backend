@@ -2,13 +2,12 @@ from datetime import datetime
 from typing import Any
 
 from ayon_server.access.utils import ensure_entity_access
+from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
     AyonException,
     ForbiddenException,
-    NotFoundException,
-    ServiceUnavailableException,
 )
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
@@ -66,28 +65,15 @@ class FolderEntity(ProjectLevelEntity):
                 project_{project_name}.exported_attributes as ia
                 ON f.parent_id = ia.folder_id
             INNER JOIN public.projects as p
-                ON p.name ILIKE $2
+                ON p.name ILIKE '{project_name}'
             WHERE f.id=$1
             {'FOR UPDATE OF f NOWAIT'
                 if for_update else ''
             }
             """
 
-        try:
-            record = await Postgres.fetchrow(query, entity_id, project_name)
-        except Postgres.UndefinedTableError:
-            raise NotFoundException(f"Project {project_name} not found")
-        except Postgres.LockNotAvailableError:
-            raise ServiceUnavailableException(
-                f"Folder {entity_id} is locked for update, try again later"
-            )
+        record = await query_entity_data(query, entity_id)
 
-        if record is None:
-            raise NotFoundException(
-                f"Folder {entity_id} not found in project {project_name}"
-            )
-
-        record = dict(record)
         path = record.pop("path")
         if path is not None:
             # ensure path starts with / but does not end with /

@@ -58,13 +58,15 @@ DECLARE rec RECORD;
   BEGIN
   FOR rec IN SELECT DISTINCT nspname FROM pg_namespace WHERE nspname LIKE 'project_%'
   LOOP
+    EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
     BEGIN
-      EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.nspname);
       ALTER INDEX IF EXISTS unique_personal_view RENAME TO unique_working_view;
       ALTER TABLE views RENAME COLUMN personal to working;
     EXCEPTION
       WHEN OTHERS THEN RAISE NOTICE 'Skipping schema % due to error: %', rec.nspname, SQLERRM;
     END;
+    ALTER TABLE IF EXISTS views ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+    ALTER TABLE IF EXISTS views ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   END LOOP;
 
   BEGIN
@@ -72,6 +74,9 @@ DECLARE rec RECORD;
   EXCEPTION
     WHEN OTHERS THEN RAISE NOTICE 'column personal does not exist';
   END;
+
+  ALTER TABLE IF EXISTS public.views ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+  ALTER TABLE IF EXISTS public.views ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
   RETURN;
 END $$;

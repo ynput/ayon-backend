@@ -4,13 +4,52 @@ from ayon_server.entities.models import ModelSet
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 
+from .common import query_entity_data
+
 
 class ProductEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "product"
     model = ModelSet("product", attribute_library["product"])
 
+    @classmethod
+    async def load(
+        cls,
+        project_name: str,
+        entity_id: str,
+        for_update: bool = False,
+        **kwargs,
+    ):
+        query = f"""
+            SELECT
+                p.id as id,
+                p.name as name,
+                p.folder_id as folder_id,
+                p.product_type as product_type,
+                p.attrib as attrib,
+                p.data as data,
+                p.active as active,
+                p.status as status,
+                p.tags as tags,
+                p.created_at as created_at,
+                p.updated_at as updated_at,
+                h.path as folder_path
+            FROM project_{project_name}.products p
+            JOIN project_{project_name}.hierarchy h ON p.folder_id = h.id
+            WHERE p.id=$1
+            {'FOR UPDATE NOWAIT' if for_update else ''}
+            """
+
+        record = await query_entity_data(query, entity_id)
+
+        hierarchy_path = record.pop("folder_path", None)
+        if hierarchy_path:
+            hierarchy_path = hierarchy_path.strip("/")
+            record["path"] = f"/{hierarchy_path}/{record['name']}"
+
+        return cls.from_record(project_name, record)
+
     #
-    # Properties
+    # Access Control
     #
 
     async def pre_save(self, insert: bool) -> None:
@@ -47,6 +86,10 @@ class ProductEntity(ProjectLevelEntity):
             self.folder_id,
             "publish",
         )
+
+    #
+    # Properties
+    #
 
     @property
     def folder_id(self) -> str:

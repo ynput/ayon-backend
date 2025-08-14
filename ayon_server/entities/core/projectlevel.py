@@ -5,12 +5,12 @@ from typing import Any
 from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
+from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core.base import BaseEntity
 from ayon_server.exceptions import (
     AyonException,
     ConstraintViolationException,
     NotFoundException,
-    ServiceUnavailableException,
 )
 from ayon_server.helpers.entity_links import remove_entity_links
 from ayon_server.helpers.statuses import get_default_status_for_entity
@@ -174,21 +174,7 @@ class ProjectLevelEntity(BaseEntity):
             {'FOR UPDATE NOWAIT' if for_update else ''}
             """
 
-        try:
-            record = await Postgres.fetchrow(query, entity_id)
-        except Postgres.UndefinedTableError as e:
-            raise NotFoundException(
-                f"Project '{project_name}' does not exist or is not initialized."
-            ) from e
-        except Postgres.LockNotAvailableError as e:
-            raise ServiceUnavailableException(
-                f"Entity {cls.entity_type} {entity_id} is locked for update."
-            ) from e
-        if record is None:
-            raise NotFoundException(
-                f"{cls.entity_type.capitalize()} {entity_id} "
-                f"not found in project {project_name}"
-            )
+        record = await query_entity_data(query, entity_id)
         return cls.from_record(project_name, record)
 
     #
@@ -357,6 +343,10 @@ class ProjectLevelEntity(BaseEntity):
     def tags(self, value: list[str]):
         self._payload.tags = value  # type: ignore
 
+    #
+    # Read only properties
+    #
+
     @property
     def entity_subtype(self) -> str | None:
         """Return the entity subtype.
@@ -365,3 +355,7 @@ class ProjectLevelEntity(BaseEntity):
         For other entities this is None.
         """
         return None
+
+    @property
+    def path(self) -> str:
+        return ""
