@@ -208,3 +208,11 @@ class VersionEntity(ProjectLevelEntity):
     @property
     def author(self) -> str:
         return self._payload.author  # type: ignore
+
+    #
+    # Read only properties
+    #
+
+    @property
+    def path(self) -> str:
+        return self._payload.path  # type: ignore
