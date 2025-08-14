@@ -20,7 +20,7 @@ from ayon_server.graphql.resolvers.representations import (
 from ayon_server.graphql.resolvers.tasks import get_task, get_tasks
 from ayon_server.graphql.resolvers.versions import get_version, get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfile, get_workfiles
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.helpers.tags import get_used_project_tags
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_dumps
@@ -140,7 +140,13 @@ class ProjectNode:
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+        return json_dumps(
+            process_attrib_data(
+                self.project_name,
+                self._user,
+                self._attrib,
+            )
+        )
 
     entity_list: EntityListNode = strawberry.field(
         resolver=get_entity_list,

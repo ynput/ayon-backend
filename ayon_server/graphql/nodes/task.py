@@ -9,7 +9,7 @@ from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import get_nickname, json_dumps
 
 if TYPE_CHECKING:
@@ -87,11 +87,14 @@ class TaskNode(BaseNode):
     @strawberry.field
     def all_attrib(self) -> str:
         """Return all attributes (inherited and own) as JSON string."""
-        all_attrib = {
-            **self._inherited_attrib,
-            **self._attrib,
-        }
-        return json_dumps(all_attrib)
+        return json_dumps(
+            process_attrib_data(
+                self.project_name,
+                self._user,
+                self._attrib,
+                self._inherited_attrib,
+            )
+        )
 
     @strawberry.field
     def own_attrib(self) -> list[str]:

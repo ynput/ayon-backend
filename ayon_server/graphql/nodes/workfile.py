@@ -7,7 +7,7 @@ from ayon_server.entities import WorkfileEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -57,7 +57,9 @@ class WorkfileNode(BaseNode):
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+        return json_dumps(
+            process_attrib_data(self.project_name, self._user, self._attrib)
+        )
 
     @strawberry.field()
     def parents(self) -> list[str]:

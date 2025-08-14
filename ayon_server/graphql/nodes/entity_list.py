@@ -3,9 +3,11 @@ from typing import Any
 
 import strawberry
 
+from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
+from ayon_server.graphql.utils import process_attrib_data
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
@@ -40,20 +42,34 @@ class EntityListItemEdge(BaseEdge):
     _forbidden: bool = strawberry.field(default=False)
     _data: strawberry.Private[dict[str, Any]]
     _attrib: strawberry.Private[dict[str, Any]]  # actual attrib data
+    _user: strawberry.Private[UserEntity]
 
     @strawberry.field()
     def all_attrib(self) -> str:
         """All attributes field is a JSON string."""
-        all_attrib: dict[str, Any] = {}
+        own_attrib = {}
+        inherited_attrib = {}
+        project_attrib = {}
+
         if self._entity:
             if hasattr(self._entity, "_project_attrib"):
-                all_attrib.update(self._entity._project_attrib or {})
+                project_attrib = self._entity._project_attrib or {}
             if hasattr(self._entity, "_inherited_attrib"):
-                all_attrib.update(self._entity._inherited_attrib or {})
+                inherited_attrib = self._entity._inherited_attrib or {}
             if hasattr(self._entity, "_attrib"):
-                all_attrib.update(self._entity._attrib or {})
-        all_attrib.update(self._attrib or {})
-        return json_dumps(all_attrib)
+                own_attrib = self._entity._attrib or {}
+
+        own_attrib.update(self._attrib or {})
+
+        return json_dumps(
+            process_attrib_data(
+                self.project_name,
+                self._user,
+                own_attrib=own_attrib,
+                inherited_attrib=inherited_attrib,
+                project_attrib=project_attrib,
+            )
+        )
 
     @strawberry.field()
     def own_attrib(self) -> list[str]:
@@ -135,6 +151,7 @@ class EntityListItemEdge(BaseEdge):
             _attrib=record["attrib"],
             _entity=entity,
             _forbidden=node_access_forbidden,
+            _user=context["user"],
         )
 
 
