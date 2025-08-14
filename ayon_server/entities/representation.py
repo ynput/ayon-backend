@@ -1,8 +1,7 @@
 from ayon_server.access.utils import ensure_entity_access
+from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
-from ayon_server.exceptions import NotFoundException, ServiceUnavailableException
-from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 
 from .version import version_name
@@ -47,23 +46,8 @@ class RepresentationEntity(ProjectLevelEntity):
             {'FOR UPDATE NOWAIT' if for_update else ''}
             """
 
-        try:
-            record = await Postgres.fetchrow(query, entity_id)
-        except Postgres.UndefinedTableError as e:
-            raise NotFoundException(
-                f"Project '{project_name}' does not exist or is not initialized."
-            ) from e
-        except Postgres.LockNotAvailableError as e:
-            raise ServiceUnavailableException(
-                f"Entity {cls.entity_type} {entity_id} is locked for update."
-            ) from e
-        if record is None:
-            raise NotFoundException(
-                f"{cls.entity_type.capitalize()} {entity_id} "
-                f"not found in project {project_name}"
-            )
+        record = await query_entity_data(query, entity_id)
 
-        record = dict(record)
         hierarchy_path = record.pop("folder_path", None)
         product_name = record.pop("product_name", None)
         if hierarchy_path and product_name:

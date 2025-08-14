@@ -1,13 +1,10 @@
 from typing import Any
 
 from ayon_server.access.utils import ensure_entity_access
+from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
-from ayon_server.exceptions import (
-    AyonException,
-    NotFoundException,
-    ServiceUnavailableException,
-)
+from ayon_server.exceptions import AyonException
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -64,19 +61,7 @@ class TaskEntity(ProjectLevelEntity):
             {'FOR UPDATE OF t NOWAIT' if for_update else ''}
             """
 
-        try:
-            record = await Postgres.fetchrow(query, entity_id)
-        except Postgres.UndefinedTableError:
-            raise NotFoundException(f"Project {project_name} not found")
-        except Postgres.LockNotAvailableError:
-            raise ServiceUnavailableException(
-                f"Task {entity_id} is locked by another operation"
-            )
-
-        if record is None:
-            raise NotFoundException(
-                f"Task {entity_id} not found in project {project_name}"
-            )
+        record = await query_entity_data(query, entity_id)
 
         attrib: dict[str, Any] = {}
         if (ia := record["inherited_attrib"]) is not None:
