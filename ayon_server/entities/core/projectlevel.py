@@ -357,6 +357,10 @@ class ProjectLevelEntity(BaseEntity):
     def tags(self, value: list[str]):
         self._payload.tags = value  # type: ignore
 
+    #
+    # Read only properties
+    #
+
     @property
     def entity_subtype(self) -> str | None:
         """Return the entity subtype.
@@ -365,3 +369,7 @@ class ProjectLevelEntity(BaseEntity):
         For other entities this is None.
         """
         return None
+
+    @property
+    def path(self) -> str:
+        return ""

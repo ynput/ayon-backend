@@ -197,6 +197,13 @@ task_fields = [
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
     },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/rigging",
+        "dynamic": True,
+    },
 ]
 
 

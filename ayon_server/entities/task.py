@@ -52,8 +52,11 @@ class TaskEntity(ProjectLevelEntity):
                 t.updated_at as updated_at,
                 t.status as status,
                 t.tags as tags,
-                ia.attrib AS inherited_attrib
+                ia.attrib AS inherited_attrib,
+                h.path as folder_path
             FROM project_{project_name}.tasks as t
+            JOIN project_{project_name}.hierarchy as h
+                ON t.folder_id = h.id
             LEFT JOIN
                 project_{project_name}.exported_attributes as ia
                 ON t.folder_id = ia.folder_id
@@ -88,6 +91,11 @@ class TaskEntity(ProjectLevelEntity):
         attrib |= record["attrib"]
         own_attrib = list(record["attrib"].keys())
         payload = {**record, "attrib": attrib}
+
+        folder_path = payload.pop("folder_path", None)
+        folder_path = folder_path.strip("/")
+        payload["path"] = f"/{folder_path}/{payload['name']}"
+
         return cls.from_record(
             project_name=project_name,
             payload=payload,
@@ -177,3 +185,11 @@ class TaskEntity(ProjectLevelEntity):
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
         self._payload.thumbnail_id = value  # type: ignore
+
+    #
+    # Read only properties
+    #
+
+    @property
+    def path(self) -> str:
+        return self._payload.path  # type: ignore
