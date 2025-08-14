@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from ayon_server.types import NAME_REGEX, Field, OPModel, Platform
+from ayon_server.utils import camelize
 
 dependency_packages_meta: dict[str, Any] = {
     "title": "Dependency packages",
@@ -89,6 +90,48 @@ class BundlePatchModel(BaseBundleModel):
     is_dev: bool | None = Field(None, example=False)
     active_user: str | None = Field(None, example="admin")
     addon_development: dict[str, AddonDevelopmentItem] | None = Field(None)
+
+    def get_changed_fields(self) -> list[str]:
+        dict_data = self.dict(exclude_none=True)
+        return [camelize(field) for field in dict_data.keys()]
+
+    def get_changes_description(self, bundle_name: str) -> str:
+        description = f"Bundle '{bundle_name}' has been "
+        changes = []
+
+        if self.is_production is not None:
+            changes.append(
+                "set as production" if self.is_production else "unset as production"
+            )
+
+        if self.is_staging is not None:
+            changes.append("set as staging" if self.is_staging else "unset as staging")
+
+        if self.is_archived is not None:
+            changes.append("archived" if self.is_archived else "unarchived")
+
+        if self.is_dev is not None:
+            changes.append(
+                "set as development" if self.is_dev else "unset as development"
+            )
+
+        if self.addons is not None:
+            changes.append("updated with new addons")
+
+        if self.installer_version is not None:
+            changes.append("updated with a new installer version")
+
+        if self.dependency_packages is not None:
+            changes.append("updated with new dependency packages")
+
+        if changes and len(changes) < 3:
+            if len(changes) > 1:
+                description += ", ".join(changes[:-1]) + ", and " + changes[-1] + "."
+            else:
+                description += changes[0] + "."
+        else:
+            description += "updated."
+        return description
 
 
 class ListBundleModel(OPModel):
