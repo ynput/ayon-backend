@@ -151,12 +151,20 @@ async def _create_new_bundle(
         bundle.created_at,
     )
 
+    stat = ""
+    if bundle.is_production:
+        stat = " production"
+    elif bundle.is_staging:
+        stat = " staging"
+    elif bundle.is_dev:
+        stat = " development"
+
     await EventStream.dispatch(
         "bundle.created",
         sender=sender,
         sender_type=sender_type,
         user=user.name if user else None,
-        description=f"Bundle {bundle.name} created",
+        description=f"New{stat} bundle '{bundle.name}' created",
         summary={
             "name": bundle.name,
             "isProduction": bundle.is_production,
