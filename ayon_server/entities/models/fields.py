@@ -201,7 +201,7 @@ task_fields = [
         "name": "path",
         "type": "string",
         "title": "Path",
-        "example": "/assets/characters/xenomorph/rigging",
+        "example": "/assets/characters/xenomorph/modeling",
         "dynamic": True,
     },
 ]
@@ -233,6 +233,13 @@ product_fields = [
         "description": "Product ",
         "regex": NAME_REGEX,
         "example": "model",
+    },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain",
+        "dynamic": True,
     },
 ]
 
@@ -325,6 +332,13 @@ representation_fields = [
             },
             "ayon.2d.Image.v1": {},
         },
+    },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain/v003/ma",
+        "dynamic": True,
     },
 ]
 

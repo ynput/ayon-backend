@@ -30,15 +30,6 @@ class VersionEntity(ProjectLevelEntity):
         for_update: bool = False,
         **kwargs,
     ):
-        """Return an entity instance based on its ID and a project name.
-
-        Raise ValueError if project_name or base_id is not valid.
-        Raise KeyError if the folder does not exists.
-
-        Set for_update=True and pass a transaction to lock the row
-        for update.
-        """
-
         query = f"""
             SELECT
                 v.id as id,
