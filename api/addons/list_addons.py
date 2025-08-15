@@ -5,7 +5,7 @@ from fastapi import Query, Request
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.addons.models import FrontendScopes, SourceInfo, SourceInfoTypes
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import AllowExternal, CurrentUser
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
@@ -129,7 +129,7 @@ async def _get_addon_list(base_url: str, details: bool) -> list[AddonListItem]:
     return result
 
 
-@router.get("", response_model_exclude_none=True)
+@router.get("", response_model_exclude_none=True, dependencies=[AllowExternal])
 async def list_addons(
     request: Request,
     user: CurrentUser,

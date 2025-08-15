@@ -30,6 +30,8 @@ async def get_inbox(
     show_important_messages: bool | None = None,
 ) -> ActivitiesConnection:
     user = info.context["user"]
+    if user.is_external:
+        return ActivitiesConnection(edges=[])
 
     sql_conditions = []
     subquery_conds = []

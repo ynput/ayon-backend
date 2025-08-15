@@ -64,7 +64,7 @@ async def list_link_types(
 ) -> LinkTypeListResponse:
     """List all link types"""
 
-    user.check_project_access(project_name)
+    await user.ensure_project_access(project_name)
 
     types: list[LinkTypeModel] = []
     query = f"""

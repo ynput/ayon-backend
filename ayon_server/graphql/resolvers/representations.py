@@ -50,7 +50,11 @@ async def get_representations(
     """Return a list of representations."""
 
     project_name = root.project_name
+    user = info.context["user"]
     fields = FieldInfo(info, ["representations.edges.node", "representation"])
+
+    if user.is_external:
+        return RepresentationsConnection(edges=[])
 
     #
     # Conditions

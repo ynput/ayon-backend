@@ -34,7 +34,7 @@ class KanbanNode:
     last_version_with_reviewable_product_id: str | None = strawberry.field(default=None)
 
 
-def kanban_node_from_record(
+async def kanban_node_from_record(
     project_name: str | None,
     record: dict[str, Any],
     context: dict[str, Any],

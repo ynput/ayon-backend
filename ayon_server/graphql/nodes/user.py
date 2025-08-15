@@ -7,7 +7,7 @@ from strawberry import LazyType
 from ayon_server.entities import UserEntity
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import get_nickname, json_dumps, obscure
 
 if TYPE_CHECKING:
@@ -60,7 +60,7 @@ class UserNode:
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+        return json_dumps(process_attrib_data(None, self._user, self._attrib))
 
     @strawberry.field
     async def tasks(self, info: Info, project_name: str) -> "TasksConnection":
@@ -68,7 +68,7 @@ class UserNode:
         return await get_tasks(root, info, assignees=[self.name])
 
 
-def user_from_record(
+async def user_from_record(
     project_name: str | None, record: dict[str, Any], context: dict[str, Any]
 ) -> UserNode:
     data = record.get("data", {})

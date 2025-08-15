@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import Query, Response
 
 from ayon_server.access.utils import AccessChecker
-from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.api.dependencies import AllowExternal, CurrentUser, ProjectName
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -154,7 +154,12 @@ class FolderListLoader:
 folder_list_loader = FolderListLoader()
 
 
-@router.get("", response_class=Response, responses={200: {"model": FolderListModel}})
+@router.get(
+    "",
+    response_class=Response,
+    responses={200: {"model": FolderListModel}},
+    dependencies=[AllowExternal],
+)
 async def get_folder_list(
     user: CurrentUser,
     project_name: ProjectName,
@@ -184,6 +189,14 @@ async def get_folder_list(
     #   instead of camelCase as used in the frontend.
     # - all folders are stored there, so we need to filter out the ones the user
     #   does not have access to. So we cannot avoid parsing the JSON, solving the ACL
+
+    if user.is_external:
+        return Response(
+            json_dumps(
+                {"detail": "External users cannot access this endpoint", "folders": []}
+            ),
+            media_type="application/json",
+        )
 
     start_time = time.monotonic()
     access_checker = AccessChecker()

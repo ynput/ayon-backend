@@ -73,7 +73,11 @@ async def get_products(
     """Return a list of products."""
 
     project_name = root.project_name
+    user = info.context["user"]
     fields = FieldInfo(info, ["products.edges.node", "product"])
+
+    if user.is_external:
+        return ProductsConnection(edges=[])
 
     #
     # SQL

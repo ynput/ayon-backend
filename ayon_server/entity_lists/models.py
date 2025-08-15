@@ -7,10 +7,10 @@ from ayon_server.utils import create_uuid, now
 
 
 class ListAccessLevel(IntEnum):
+    NO_ACCESS = 0  # No access to the list
     READ = 10  # Can view the list and its items
-    UPDATE = 20  # Can update attributes of the list items
-    CONSTRUCT = 30  # Can add/remove items from the list or materialize new items
-    ADMIN = 40  # Can update/delete the list itself and add new users to the list
+    UPDATE = 20  # Can add/remove items from the list, but not materialize new items
+    MANAGE = 30  # Can manage list, rename, change access, etc.
 
 
 # List attributes

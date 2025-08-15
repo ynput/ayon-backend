@@ -6,7 +6,7 @@ import aiofiles
 import httpx
 from fastapi import Request, Response
 
-from ayon_server.api.dependencies import CurrentUser, NoTraces, UserName
+from ayon_server.api.dependencies import AllowExternal, CurrentUser, NoTraces, UserName
 from ayon_server.api.files import image_response_from_bytes
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import NotFoundException
@@ -134,7 +134,14 @@ async def obtain_avatar(user_name: str) -> bytes:
     )
 
     if not res:
-        raise NotFoundException("User not found")
+        if user_name.startswith("external"):
+            # We cannot get full name for external users,
+            # as we do not know the current project.
+            # so we just strip the "external" prefix
+            # and the domain part of the user name.
+            elms = user_name.split(".")
+            user_name = ".".join(elms[1:-2])
+        return create_initials_svg(user_name).encode()
 
     avatar_bytes: bytes | None = None
 
@@ -172,7 +179,7 @@ async def obtain_avatar(user_name: str) -> bytes:
     return avatar_bytes
 
 
-@router.get("/{user_name}/avatar", dependencies=[NoTraces])
+@router.get("/{user_name}/avatar", dependencies=[NoTraces, AllowExternal])
 async def get_avatar(user_name: UserName, current_user: CurrentUser) -> Response:
     """Retrieve the avatar for a given user."""
 

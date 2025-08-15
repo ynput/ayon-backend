@@ -95,15 +95,6 @@ class EntityList:
                 f"Cannot update entity list {self._payload.label}"
             ) from e
 
-    async def ensure_can_construct(self, user: UserEntity | None = None) -> None:
-        try:
-            await self.ensure_access_level(user=user, level=30)
-        except ForbiddenException as e:
-            assert user, "this should not happen"
-            raise ForbiddenException(
-                f"Cannot construct entity list {self._payload.label}"
-            ) from e
-
     async def ensure_can_admin(self, user: UserEntity | None = None) -> None:
         """Check if the user has permission to admin the entity list."""
         try:

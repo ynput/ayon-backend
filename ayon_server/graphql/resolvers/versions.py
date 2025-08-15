@@ -83,6 +83,7 @@ async def get_versions(
     """Return a list of versions."""
 
     project_name = root.project_name
+    user = info.context["user"]
     fields = FieldInfo(info, ["versions.edges.node", "version"])
 
     #
@@ -206,12 +207,20 @@ async def get_versions(
             get_has_links_conds(project_name, "versions.id", has_links)
         )
 
-    access_list = await create_folder_access_list(root, info)
-    if access_list is not None:
-        sql_conditions.append(
-            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
-        )
-        needs_hierarchy = True
+    if user.is_external:
+        if not ids:
+            return VersionsConnection(edges=[])
+
+        # External users can only access version by their ID.
+        pass
+
+    else:
+        access_list = await create_folder_access_list(root, info)
+        if access_list is not None:
+            sql_conditions.append(
+                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+            )
+            needs_hierarchy = True
 
     if search:
         needs_hierarchy = True

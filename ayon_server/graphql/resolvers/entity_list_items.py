@@ -158,7 +158,12 @@ async def get_entity_list_items(
     #    This is implemented on EntityListItemEdge level and we need access_checker
     #    to do that.
 
-    if accessible_only:
+    if info.context["user"].is_external:
+        # External users can access underlying entities as long they have
+        # access to the entity list itself, so we don't need to do anything
+        pass
+
+    elif accessible_only:
         access_list = await create_folder_access_list(root, info)
         if access_list is not None:
             # if access list is None, user has access to everything within the project

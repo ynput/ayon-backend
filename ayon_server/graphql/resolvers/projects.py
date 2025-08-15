@@ -63,7 +63,7 @@ async def get_projects(
     if fields.has_any("config"):
         cols.append("config")
 
-    if fields.has_any("data", "bundle"):
+    if fields.has_any("data", "bundle") or info.context["user"].is_external:
         cols.append("data")
 
     #

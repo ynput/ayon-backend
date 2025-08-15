@@ -41,7 +41,7 @@ async def get_project_entity_uris(
 ) -> GetUrisResponse:
     """Return a list of Ayon URIs for the given entity IDs."""
 
-    user.check_project_access(project_name)
+    await user.ensure_project_access(project_name)
 
     if request.entity_type == "folder":
         uris = await folder_uris(project_name, request.ids)
