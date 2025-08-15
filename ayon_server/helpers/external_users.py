@@ -14,12 +14,14 @@ Status can be one of:
 }
 """
 
-from typing import Any
+from typing import Any, Literal
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import BadRequestException, ConflictException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
+
+ExternalUserStatus = Literal["pending", "active"]
 
 
 class ExternalUsers:

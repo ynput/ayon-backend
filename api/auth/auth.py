@@ -6,7 +6,7 @@
 
 from fastapi import Request
 
-from ayon_server.api.dependencies import AccessToken
+from ayon_server.api.dependencies import AccessToken, AllowExternal, CurrentUserOptional
 from ayon_server.auth.models import LoginResponseModel, LogoutResponseModel
 from ayon_server.auth.password import PasswordAuth
 from ayon_server.auth.session import Session
@@ -62,8 +62,10 @@ async def logout(access_token: AccessToken) -> LogoutResponseModel:
     return LogoutResponseModel()
 
 
-@router.get("/tokenauth")
-async def token_auth_callback(request: Request) -> LoginResponseModel:
+@router.get("/tokenauth", dependencies=[AllowExternal])
+async def token_auth_callback(
+    request: Request, current_user: CurrentUserOptional
+) -> LoginResponseModel:
     """Callback for token authentication.
 
     This endpoint is used to handle the callback from the token
@@ -74,4 +76,4 @@ async def token_auth_callback(request: Request) -> LoginResponseModel:
     if not token:
         raise BadRequestException("Missing 'q' query parameter with token")
 
-    return await handle_token_auth_callback(token, request)
+    return await handle_token_auth_callback(token, request, current_user)

@@ -303,11 +303,13 @@ async def get_site_info(
     coalesce = RequestCoalescer()
 
     additional_info = {}
+
     if current_user:
         site_id = request.headers.get("x-ayon-site-id")
         site_platform = request.headers.get("x-ayon-platform")
         site_hostname = request.headers.get("x-ayon-hostname")
         site_version = request.headers.get("x-ayon-version")
+        sso_options = await get_sso_options(request)
 
         additional_info = await coalesce(
             get_additional_info,
@@ -320,12 +322,14 @@ async def get_site_info(
             site_version,
         )
 
+        additional_info["sso_options"] = sso_options
+
         if current_user.is_admin and not current_user.is_service:
             if not await is_onboarding_finished():
                 additional_info["onboarding"] = True
     elif full:
-        sso_options = await get_sso_options(request)
         has_admin_user = await CloudUtils.get_admin_exists()
+        sso_options = await get_sso_options(request)
         additional_info = {
             "sso_options": sso_options,
             "no_admin_user": (not has_admin_user) or None,

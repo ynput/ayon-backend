@@ -134,6 +134,7 @@ async def create_external_user_session(
 async def handle_token_auth_callback(
     token: str,
     request: Request,
+    current_user: UserEntity | None = None,
 ) -> LoginResponseModel:
     try:
         enc_data = await decrypt_json_urlsafe(token)
@@ -146,6 +147,16 @@ async def handle_token_auth_callback(
         payload = TokenPayload(**enc_data.data)
     except Exception:
         raise BadRequestException("Invalid token payload format")
+
+    if current_user and current_user.session:
+        # user is already logged in. construct the response
+
+        return LoginResponseModel(
+            detail=f"User {current_user.name} already logged in",
+            token=current_user.session.token,
+            user=current_user.payload,
+            redirect_url=payload.redirect_url,
+        )
 
     if not await enc_data.validate_nonce():
         logger.debug(f"Token for external user {payload.email} expired")
