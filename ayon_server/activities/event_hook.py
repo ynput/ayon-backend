@@ -178,28 +178,6 @@ class ActivityFeedEventHook:
         if version.author and version.author != event.user:
             await ensure_watching(version, version.author)
 
-        await create_activity(
-            version,
-            activity_type="version.publish",
-            body=f"Published [{version.name}](version:{version.id})",
-            user_name=version.author or event.user,
-            data={
-                "context": {
-                    "folderId": row["folder_id"],
-                    "folderName": row["folder_name"],
-                    "folderLabel": row["folder_label"],
-                    "folderPath": row["folder_path"],
-                    "productId": row["product_id"],
-                    "productName": row["product_name"],
-                    "productType": row["product_type"],
-                    "taskId": row["task_id"],
-                    "taskLabel": row["task_label"],
-                    "taskName": row["task_name"],
-                    "taskType": row["task_type"],
-                }
-            },
-        )
-
         # add watchers from tasks
 
         query = f"""
@@ -222,3 +200,25 @@ class ActivityFeedEventHook:
                 data={"watcher": watcher},
             )
         await build_watcher_list(version)
+
+        await create_activity(
+            version,
+            activity_type="version.publish",
+            body=f"Published [{version.name}](version:{version.id})",
+            user_name=version.author or event.user,
+            data={
+                "context": {
+                    "folderId": row["folder_id"],
+                    "folderName": row["folder_name"],
+                    "folderLabel": row["folder_label"],
+                    "folderPath": row["folder_path"],
+                    "productId": row["product_id"],
+                    "productName": row["product_name"],
+                    "productType": row["product_type"],
+                    "taskId": row["task_id"],
+                    "taskLabel": row["task_label"],
+                    "taskName": row["task_name"],
+                    "taskType": row["task_type"],
+                }
+            },
+        )
