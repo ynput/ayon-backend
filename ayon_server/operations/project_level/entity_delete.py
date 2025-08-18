@@ -31,7 +31,7 @@ async def delete_project_level_entity(
     # Create events and delete the entity
     #
 
-    description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
+    description = f"{operation.entity_type.capitalize()} {entity.path} deleted"
     events = [
         {
             "topic": f"entity.{operation.entity_type}.deleted",

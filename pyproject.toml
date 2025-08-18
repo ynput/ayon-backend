@@ -94,7 +94,7 @@ plugins = [
 
 check_untyped_defs = true
 disallow_any_generics = true
-exclude = "tests/|venv/|tool/"
+exclude = "tests/|venv/|tool/|test_"
 explicit_package_bases = true
 no_implicit_reexport = true
 strict_optional = true
