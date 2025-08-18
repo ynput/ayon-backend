@@ -357,6 +357,8 @@ async def get_tasks(
         or search
         or sort_by == "path"
         or "folder" in fields
+        or fields.any_endswith("path")
+        or fields.any_endswith("parents")
     ):
         sql_columns.extend(
             [

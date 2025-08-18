@@ -1,6 +1,6 @@
 [project]
 name = "ayon-server"
-version = "1.10.3"
+version = "1.11.1"
 description = ""
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
@@ -19,6 +19,7 @@ dependencies = [
   "granian >=1.1.1",
   "gunicorn >=23.0",
   "httpx >=0.26",
+  "jinja2>=3.1.6",
   "loguru>=0.7.3",
   "orjson >=3.8.6",
   "pillow >=10.3.0",

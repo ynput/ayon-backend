@@ -32,6 +32,7 @@ from ayon_server.utils import SQLTool, dict_exclude
 if TYPE_CHECKING:
     from ayon_server.api.clientinfo import ClientInfo
     from ayon_server.auth.session import SessionModel
+    from ayon_server.entities.project import ProjectEntity
 
 
 class SessionInfo:
@@ -58,6 +59,7 @@ class UserEntity(TopLevelEntity):
     # project_name[access_type]: [path1, path2, ...]
     path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
     save_hooks: list[Callable[["UserEntity"], Awaitable[None]]] = []
+    _teams: set[str] | None = None
 
     #
     # Load
@@ -382,3 +384,17 @@ class UserEntity(TopLevelEntity):
             recipient = f"{self.attrib.fullName} <{recipient}>"
 
         await send_mail([recipient], subject, text, html)
+
+    def get_teams(self, project: "ProjectEntity") -> set[str]:
+        """Get teams the user is part of in a given project."""
+        if self._teams is None:
+            result = set()
+            teams = project.data.get("teams", [])
+            for team in teams:
+                members = team.get("members", [])
+                for member in members:
+                    if member.get("name") == self.name:
+                        result.add(team["name"])
+                        break
+            self._teams = result
+        return self._teams

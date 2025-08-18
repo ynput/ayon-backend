@@ -1,4 +1,4 @@
-__all__ = ["router", "access_groups", "project_access"]
+__all__ = ["router", "access_groups", "project_access", "utils"]
 
-from . import access_groups, project_access
+from . import access_groups, project_access, utils
 from .router import router

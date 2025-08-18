@@ -244,6 +244,7 @@ class ProjectEntity(TopLevelEntity):
             finally:
                 await Redis.delete("project-anatomy", self.name)
                 await Redis.delete("project-data", self.name)
+                await Redis.delete("project-folders", self.name)
                 await build_project_list()
         return True
 
