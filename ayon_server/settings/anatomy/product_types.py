@@ -14,7 +14,7 @@ class ProductTypeOverride(BaseSettingsModel):
     icon: Annotated[str, SettingsField(title="Icon", widget="icon")] = "deployed_code"
 
 
-default_product_types = [
+default_product_type_definitions = [
     ProductTypeOverride(name="image", icon="imagesmode"),
     ProductTypeOverride(name="render", icon="photo_library"),
     ProductTypeOverride(name="review", icon="photo_library"),
@@ -82,7 +82,7 @@ class ProductTypes(BaseSettingsModel):
         list[ProductTypeOverride],
         SettingsField(
             title="Appearance overrides",
-            default_factory=lambda: default_product_types,
+            default_factory=lambda: default_product_type_definitions,
         ),
     ]
 

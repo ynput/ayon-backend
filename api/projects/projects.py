@@ -21,7 +21,8 @@ from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy.folder_types import FolderType
 from ayon_server.settings.anatomy.product_types import (
-    default_product_types,
+    DefaultProductType,
+    default_product_type_definitions,
 )
 from ayon_server.settings.anatomy.statuses import Status
 from ayon_server.settings.anatomy.tags import Tag
@@ -76,8 +77,8 @@ class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
     tags: TAGS_FIELD
 
 
-default_product_types_value = [
-    p.dict(exclude_unset=True) for p in default_product_types
+default_pt_definitions = [
+    p.dict(exclude_unset=True) for p in default_product_type_definitions
 ]
 
 
@@ -100,7 +101,10 @@ async def get_project(
         project.config["productTypes"] = {}
 
     if "default" not in project.config["productTypes"]:
-        project.config["productTypes"]["default"] = default_product_types_value
+        project.config["productTypes"]["default"] = DefaultProductType().dict()
+
+    if "definitions" not in project.config["productTypes"]:
+        project.config["productTypes"]["definitions"] = default_pt_definitions
 
     return cast(ProjectModel, project.as_user(user))
 
