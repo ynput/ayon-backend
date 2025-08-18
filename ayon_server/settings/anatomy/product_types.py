@@ -14,16 +14,6 @@ class ProductTypeOverride(BaseSettingsModel):
     icon: Annotated[str, SettingsField(title="Icon", widget="icon")] = "deployed_code"
 
 
-class ProductBaseType(BaseSettingsModel):
-    name: Annotated[str, SettingsField(title="Product Base Type")] = ""
-    color: Annotated[str, SettingsField(title="Color", widget="color")] = "#cccccc"
-    icon: Annotated[str, SettingsField(title="Icon", widget="icon")] = "deployed_code"
-    product_types: Annotated[
-        list[ProductTypeOverride],
-        SettingsField(default_factory=list, title="Product Types"),
-    ]
-
-
 default_product_types = [
     ProductTypeOverride(name="image", icon="imagesmode"),
     ProductTypeOverride(name="render", icon="photo_library"),
@@ -47,22 +37,61 @@ default_product_types = [
 ]
 
 
+class DefaultProductType(BaseSettingsModel):
+    color: Annotated[
+        str,
+        SettingsField(
+            title="Default color",
+            widget="color",
+        ),
+    ] = "#cccccc"
+
+    icon: Annotated[
+        str,
+        SettingsField(
+            title="Default icon",
+            widget="icon",
+        ),
+    ] = "deployed_code"
+
+
+# class ProductBaseType(BaseSettingsModel):
+#     name: Annotated[str, SettingsField(title="Product Base Type")] = ""
+#     color: Annotated[str, SettingsField(title="Color", widget="color")] = "#cccccc"
+#     icon: Annotated[str, SettingsField(title="Icon", widget="icon")] = "deployed_code"
+#     product_types: Annotated[
+#         list[ProductTypeOverride],
+#         SettingsField(default_factory=list, title="Product Types"),
+#     ]
+#
+#
+
+
 class ProductTypes(BaseSettingsModel):
     """Product types customization settings."""
 
     default: Annotated[
+        DefaultProductType,
+        SettingsField(
+            title="Default appearance",
+            description="Default appearance for product types",
+        ),
+    ] = DefaultProductType()
+
+    definitions: Annotated[
         list[ProductTypeOverride],
         SettingsField(
-            title="Default product types",
+            title="Appearance overrides",
             default_factory=lambda: default_product_types,
         ),
     ]
 
-    # TODO: For future use, once base product types are implemented
-    # base: Annotated[
-    #     list[ProductBaseType],
-    #     SettingsField(
-    #         default_factory=list,
-    #         title="Base product types",
-    #     ),
-    # ]
+
+#   base_definitions: Annotated[
+#         list[ProductBaseType],
+#         SettingsField(
+#             title="Product Base Types",
+#             description="Product base types configuration",
+#             default_factory=list,
+#         ),
+#     ]
