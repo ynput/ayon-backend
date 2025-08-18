@@ -12,7 +12,7 @@ from ayon_server.helpers.email import is_mailing_enabled, send_mail
 from ayon_server.helpers.external_users import ExternalUsers
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import OPModel
-from ayon_server.utils import slugify
+from ayon_server.utils import server_url_from_request, slugify
 
 from .models import LoginResponseModel
 
@@ -22,12 +22,12 @@ Hello {full_name},
 </p>
 
 <p>
-the invite link you used to log in to Ayon has expired or was used before.
+the invite link you used to log in to Ayon has expired.
 Please use the following link to log in again:
 </p>
 
 <p>
-<a clicktracking=off href="{invite_link}">Accept Invitation</a>
+<a clicktracking=off href="{invite_link}">Login to ayon</a>
 </p>
 """
 
@@ -161,10 +161,10 @@ async def handle_token_auth_callback(
     if not await enc_data.validate_nonce():
         logger.debug(f"Token for external user {payload.email} expired")
 
-        # await send_extend_email(
-        #     original_payload=payload,
-        #     base_url=server_url_from_request(request),
-        # )
+        await send_extend_email(
+            original_payload=payload,
+            base_url=server_url_from_request(request),
+        )
 
         raise UnauthorizedException(
             "Your email link already expired or was used before. "
@@ -185,8 +185,8 @@ async def handle_token_auth_callback(
             )
             raise UnauthorizedException(msg)
 
-    # For future use. For now we only support external users.
-    if not payload.external:
+    else:
+        # For future use. For now we only support external users.
         msg = "Token is not for external use"
         raise BadRequestException(msg)
 
