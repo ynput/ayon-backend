@@ -318,3 +318,8 @@ class FolderEntity(ProjectLevelEntity):
     @property
     def entity_subtype(self) -> str | None:
         return self.folder_type
+
+    @property
+    def has_versions(self) -> bool:
+        """Check if the folder has any versions."""
+        return self._payload.has_versions  # type: ignore
