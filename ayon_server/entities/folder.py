@@ -56,7 +56,13 @@ class FolderEntity(ProjectLevelEntity):
                 f.tags as tags,
                 h.path as path,
                 ia.attrib AS inherited_attrib,
-                p.attrib AS project_attrib
+                p.attrib AS project_attrib,
+                exists(
+                    select 1 from project_{project_name}.versions v
+                    inner join project_{project_name}.products p
+                    on p.id = v.product_id
+                    where p.folder_id = f.id
+                ) as has_versions
             FROM project_{project_name}.folders as f
             INNER JOIN
                 project_{project_name}.hierarchy as h
