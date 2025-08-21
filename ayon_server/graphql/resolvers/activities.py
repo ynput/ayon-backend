@@ -35,6 +35,7 @@ async def get_activities(
     changed_after: str | None = None,
 ) -> ActivitiesConnection:
     project_name = root.project_name
+    user = info.context["user"]
 
     sql_conditions = []
 
@@ -99,6 +100,10 @@ async def get_activities(
     if tags:
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
+
+    if user.is_external:
+        # external users can only see external categories
+        categories = ["external"]
 
     if categories:
         cat_conds = []

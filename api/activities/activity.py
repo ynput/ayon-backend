@@ -12,6 +12,7 @@ from ayon_server.activities import (
 from ayon_server.activities.watchers.set_watchers import ensure_watching
 from ayon_server.api.dependencies import (
     ActivityID,
+    AllowExternal,
     CurrentUser,
     PathEntityID,
     PathProjectLevelEntityType,
@@ -22,6 +23,7 @@ from ayon_server.api.dependencies import (
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import BadRequestException
 from ayon_server.files import Storages
+from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.types import Field, OPModel
 
@@ -51,7 +53,11 @@ class CreateActivityResponseModel(OPModel):
     id: str = Field(..., example="123")
 
 
-@router.post("/{entity_type}/{entity_id}/activities", status_code=201)
+@router.post(
+    "/{entity_type}/{entity_id}/activities",
+    status_code=201,
+    dependencies=[AllowExternal],
+)
 async def post_project_activity(
     project_name: ProjectName,
     entity_type: PathProjectLevelEntityType,
@@ -73,10 +79,17 @@ async def post_project_activity(
         if activity.activity_type not in ["comment"]:
             raise BadRequestException("Humans can only create comments")
 
+    if user.is_external:
+        activity.data = {"category": "external"}
+
     entity_class = get_entity_class(entity_type)
     entity = await entity_class.load(project_name, entity_id)
 
-    await entity.ensure_read_access(user)  # TODO: different acl level?
+    await EntityAccessHelper.ensure_entity_access(
+        user,
+        entity=entity,
+        level=EntityAccessHelper.READ,
+    )
 
     id = await create_activity(
         entity=entity,

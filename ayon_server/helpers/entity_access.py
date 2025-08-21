@@ -1,6 +1,8 @@
 from typing import Any
 
+from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.entities.core.projectlevel import ProjectLevelEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
@@ -72,3 +74,29 @@ class EntityAccessHelper:
             )
             for row in res
         ]
+
+    @classmethod
+    async def ensure_entity_access(
+        cls,
+        user: UserEntity,
+        entity: ProjectLevelEntity,
+        level: int = READ,
+    ) -> None:
+        """Ensure that the user has the required access level to the entity."""
+
+        if level >= cls.MANAGE:
+            _level = "delete"
+        elif level >= cls.UPDATE:
+            _level = "update"
+        elif level >= cls.READ:
+            _level = "read"
+        else:
+            return
+
+        await ensure_entity_access(
+            user,
+            entity.project_name,
+            entity.entity_type,
+            entity.id,
+            _level,
+        )
