@@ -105,7 +105,7 @@ async def version_from_record(
 
     current_user = context["user"]
     author = record["author"]
-    if current_user.is_guest and author is not None:
+    if (current_user.is_guest or current_user.is_external) and author is not None:
         author = get_nickname(author)
 
     data = record.get("data") or {}

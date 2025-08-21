@@ -134,7 +134,7 @@ async def task_from_record(
 
     current_user = context["user"]
     assignees: list[str] = []
-    if current_user.is_guest:
+    if current_user.is_guest or current_user.is_external:
         for assignee in record["assignees"]:
             if assignee == current_user.name:
                 assignees.append(assignee)
