@@ -59,6 +59,7 @@ async def get_entity_lists(
     sql_conditions = []
 
     project = await ProjectEntity.load(project_name)
+    user = info.context["user"]
     info.context["project"] = project
 
     # Load explicit IDs
@@ -67,6 +68,9 @@ async def get_entity_lists(
         if not ids:
             return EntityListsConnection()
         sql_conditions.append(f"id in {SQLTool.id_array(ids)}")
+
+    if user.is_external:
+        sql_conditions.append(f"access->>'external:{user.attrib.email}' IS NOT NULL")
 
     #
     # Filtering
