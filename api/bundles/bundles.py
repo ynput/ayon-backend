@@ -151,12 +151,20 @@ async def _create_new_bundle(
         bundle.created_at,
     )
 
+    stat = ""
+    if bundle.is_production:
+        stat = " production"
+    elif bundle.is_staging:
+        stat = " staging"
+    elif bundle.is_dev:
+        stat = " development"
+
     await EventStream.dispatch(
         "bundle.created",
         sender=sender,
         sender_type=sender_type,
         user=user.name if user else None,
-        description=f"Bundle {bundle.name} created",
+        description=f"New{stat} bundle '{bundle.name}' created",
         summary={
             "name": bundle.name,
             "isProduction": bundle.is_production,
@@ -250,8 +258,6 @@ async def update_bundle(
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("Only admins can patch bundles")
-
-    status_changed_to: str | None = None
 
     async with Postgres.transaction():
         res = await Postgres.fetch(
@@ -416,9 +422,10 @@ async def update_bundle(
         sender=sender,
         sender_type=sender_type,
         user=user.name,
-        description=f"Bundle {bundle_name} updated",
+        description=patch.get_changes_description(bundle_name),
         summary={
             "name": bundle_name,
+            "changedFields": patch.get_changed_fields(),
             "isProduction": bundle.is_production,
             "isStaging": bundle.is_staging,
             "isArchived": bundle.is_archived,
@@ -427,20 +434,6 @@ async def update_bundle(
         },
         payload=data,
     )
-
-    if status_changed_to:
-        await EventStream.dispatch(
-            "bundle.status_changed",
-            sender=sender,
-            sender_type=sender_type,
-            user=user.name,
-            description=f"Bundle {bundle_name} changed to {status_changed_to}",
-            summary={
-                "name": bundle_name,
-                "status": status_changed_to,
-            },
-            payload=data,
-        )
 
     if build:
         # TODO

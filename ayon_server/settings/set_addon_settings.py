@@ -213,15 +213,19 @@ async def set_addon_settings(
         otype = f"({site_id}) "
     description = f"{addon_name} {addon_version} {variant} {otype}overrides changed"
 
+    summary = {
+        "addon_name": addon_name,
+        "addon_version": addon_version,
+        "variant": variant if not site_id else None,
+    }
+
+    if site_id:
+        summary["site_id"] = site_id
+
     await EventStream.dispatch(
         topic="settings.changed",
         description=description,
-        summary={
-            "addon_name": addon_name,
-            "addon_version": addon_version,
-            "variant": variant if not site_id else None,
-            "site_id": site_id,
-        },
+        summary=summary,
         user=user_name,
         project=project_name,
         payload=payload,
