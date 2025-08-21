@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from ayon_server.entities import ProjectEntity
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.edges import ActivityEdge
 from ayon_server.graphql.nodes.activity import ActivityNode
@@ -35,6 +36,9 @@ async def get_activities(
     changed_after: str | None = None,
 ) -> ActivitiesConnection:
     project_name = root.project_name
+    project = await ProjectEntity.load(project_name)
+    info.context["project"] = project
+
     user = info.context["user"]
 
     sql_conditions = []
