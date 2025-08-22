@@ -403,7 +403,7 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
                     result.append("FALSE")
                 elif c.operator == "notin":
                     result.append("TRUE")
-
+                continue
             if r := build_condition(c, **kwargs):
                 result.append(r)
         else:
