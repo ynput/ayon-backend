@@ -27,8 +27,6 @@ class RemoveUnusedSettings(ProjectMaintenanceTask):
                 SELECT count(*) AS count FROM deleted_settings;
             """
 
-            await Postgres.execute(query)
-
             res = await Postgres.fetchrow(query)
             if res and res["count"]:
                 logger.info(
@@ -52,8 +50,6 @@ class RemoveUnusedSettings(ProjectMaintenanceTask):
                 )
                 SELECT count(*) AS count FROM deleted_roots;
             """
-
-            await Postgres.execute(query)
 
             res = await Postgres.fetchrow(query)
             if res and res["count"]:
