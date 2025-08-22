@@ -148,6 +148,13 @@ folder_fields = [
         "example": "/assets/characters/xenomorph",
         "dynamic": True,
     },
+    {
+        "name": "has_versions",
+        "type": "boolean",
+        "title": "Has versions",
+        "example": True,
+        "dynamic": True,
+    },
 ]
 
 

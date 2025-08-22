@@ -206,6 +206,18 @@ async def get_folders(
             """
         )
 
+    if fields.any_endswith("hasVersions"):
+        sql_columns.append(
+            f"""
+            exists(
+                select 1 from project_{project_name}.versions v
+                inner join project_{project_name}.products p
+                on p.id = v.product_id
+                where p.folder_id = folders.id
+            ) as has_versions
+            """
+        )
+
     #
     # Conditions
     #
