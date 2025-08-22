@@ -68,7 +68,6 @@ async def sanitize_folder_update(
     """
 
     folder_entity = cast(FolderEntity, entity)
-    has_versions = bool(await folder_entity.get_versions())
     existing_folder_data = folder_entity.payload.dict(exclude_none=True)
     if not operation.force:
         for key in ("name", "folder_type", "parent_id"):
@@ -76,7 +75,7 @@ async def sanitize_folder_update(
                 continue
             old_value = existing_folder_data.get(key)
             new_value = update_payload_dict[key]
-            if has_versions and old_value != new_value:
+            if folder_entity.has_versions and old_value != new_value:
                 raise ForbiddenException(
                     f"Cannot change {key} of a folder with published versions"
                 )

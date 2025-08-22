@@ -35,7 +35,15 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
             ea.path as path,
             COUNT (tasks.id) AS task_count,
             array_agg(tasks.name) AS task_names,
-            EXISTS (SELECT 1 FROM reviewables WHERE folder_id = f.id) AS has_reviewables
+            EXISTS (
+                SELECT 1 FROM reviewables WHERE folder_id = f.id
+            ) AS has_reviewables,
+            EXISTS (
+                SELECT 1 from project_{project_name}.versions v
+                INNER join project_{project_name}.products p
+                ON p.id = v.product_id
+                WHERE p.folder_id = f.id
+            ) AS has_versions
         FROM
             project_{project_name}.folders f
         INNER JOIN
@@ -71,6 +79,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
                     "tags": row["tags"],
                     "own_attrib": list(row["attrib"].keys()),
                     "has_reviewables": row["has_reviewables"],
+                    "has_versions": row["has_versions"],
                     "updated_at": row["updated_at"],
                 }
             )
