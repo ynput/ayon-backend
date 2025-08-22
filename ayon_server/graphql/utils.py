@@ -71,7 +71,13 @@ def process_attrib_data(
         if not (attr_limit == "all" or key in attr_limit):
             continue
 
-        if attribute_library.by_name(key)["type"] == "datetime":
+        try:
+            attr = attribute_library.by_name(key)
+        except KeyError:
+            # If the attribute is not defined in the library, skip it
+            continue
+
+        if attr["type"] == "datetime":
             if isinstance(value, str):
                 try:
                     value = datetime.fromisoformat(value)
