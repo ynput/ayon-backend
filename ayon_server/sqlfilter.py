@@ -398,6 +398,12 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
             if r := build_filter(c, **kwargs):
                 result.append(r)
         elif isinstance(c, QueryCondition):
+            if not c.value:
+                if c.operator in ("in", "any"):
+                    result.append("FALSE")
+                elif c.operator == "notin":
+                    result.append("TRUE")
+                continue
             if r := build_condition(c, **kwargs):
                 result.append(r)
         else:
