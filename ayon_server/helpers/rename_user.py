@@ -4,52 +4,80 @@ from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 
 PROJECT_QUERIES = [
+    """
+    UPDATE tasks SET
+    assignees = array_replace(assignees, $2, $1)
+    WHERE $2 = ANY(assignees)
+    """,
+    """
+    UPDATE versions SET
+    author = $1 WHERE author = $2
+    """,
     # Activities and files
     """
-    UPDATE project_{project_name}.files SET
+    UPDATE activities SET
+    data = jsonb_set(data, '{author}', $1::jsonb)
+    WHERE data->>'author' = $2
+    """,
+    """
+    UPDATE activities SET
+    data = jsonb_set(data, '{watcher}', $1::jsonb)
+    WHERE activity_type = 'watch' AND data->>'watcher' = $2
+    """,
+    """
+    UPDATE activities SET
+    data = jsonb_set(data, '{assignee}', $1::jsonb)
+    WHERE activity_type LIKE 'assignee.%' AND data->>'assignee' = $2
+    """,
+    # TODO: there is also an author record in:
+    # activities->data->files[]->author
+    # but it is not crucial to update it
+    # we can do it later if needed
+    """
+    UPDATE files SET
     author = $1 WHERE author = $2
     """,
     """
-    UPDATE project_{project_name}.activity_references SET
+    UPDATE activity_references SET
     entity_name = $1 WHERE entity_name = $2 AND entity_type = 'user'
     """,
     # Workfiles
     """
-    UPDATE project_{project_name}.workfiles
+    UPDATE workfiles
     SET created_by = $1 WHERE created_by = $2
     """,
     """
-    UPDATE project_{project_name}.workfiles
+    UPDATE workfiles
     SET updated_by = $1 WHERE updated_by = $2
     """,
     # Entity lists
     """
-    UPDATE project_{project_name}.entity_lists
+    UPDATE entity_lists
     SET owner = $1 WHERE owner = $2
     """,
     """
-    UPDATE project_{project_name}.entity_lists
+    UPDATE entity_lists
     SET created_by = $1 WHERE created_by = $2
     """,
     """
-    UPDATE project_{project_name}.entity_lists
+    UPDATE entity_lists
     SET updated_by = $1 WHERE updated_by = $2
     """,
     """
-    UPDATE project_{project_name}.entity_list_items
+    UPDATE entity_list_items
     SET created_by = $1 WHERE created_by = $2
     """,
     """
-    UPDATE project_{project_name}.entity_list_items
+    UPDATE entity_list_items
     SET updated_by = $1 WHERE updated_by = $2
     """,
     # Project settings
     """
-    UPDATE project_{project_name}.project_site_settings
+    UPDATE project_site_settings
     SET user_name = $1 WHERE user_name = $2
     """,
     """
-    UPDATE project_{project_name}.custom_roots
+    UPDATE custom_roots
     SET user_name = $1 WHERE user_name = $2
     """,
 ]
@@ -69,53 +97,19 @@ async def rename_user(
     is used only for logging purposes.
     """
 
-    async with Postgres.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                "UPDATE public.users SET name = $1 WHERE name = $2",
-                new_name,
-                old_name,
-            )
+    async with Postgres.transaction():
+        await Postgres.execute(
+            "UPDATE public.users SET name = $1 WHERE name = $2",
+            new_name,
+            old_name,
+        )
 
-            # Update tasks assignees - since assignees is an array,
-            # it won't update automatically (there's no foreign key)
+        projects = await get_project_list()
 
-            projects = await get_project_list()
-
-            for project in projects:
-                project_name = project.name
-                query = f"""
-                    UPDATE project_{project_name}.tasks SET
-                    assignees = array_replace(
-                        assignees, '{old_name}', '{new_name}'
-                    )
-                    WHERE '{old_name}' = ANY(assignees)
-                """
-                await conn.execute(query)
-
-                # activities.data->>'author'
-
-                query = f"""
-                    UPDATE project_{project_name}.activities SET
-                    data = jsonb_set(
-                        data,
-                        '{{author}}',
-                        $1::jsonb
-                    )
-                    WHERE data->>'author' = $2
-                """
-                await conn.execute(query, new_name, old_name)
-
-                # TODO: there is also an author record in:
-                # activities->data->files[]->author
-                # but it is probably not important to update it
-
-                for query in PROJECT_QUERIES:
-                    await conn.execute(
-                        query.format(project_name=project_name),
-                        new_name,
-                        old_name,
-                    )
+        for project in projects:
+            await Postgres.set_project_schema(project.name)
+            for query in PROJECT_QUERIES:
+                await Postgres.execute(query, new_name, old_name)
 
     # Renaming user has many side effects, so we need to log out all Sessions
     # and let the user log in again
