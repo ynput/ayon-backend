@@ -47,9 +47,9 @@ class EntityListItemEdge(BaseEdge):
     @strawberry.field()
     def all_attrib(self) -> str:
         """All attributes field is a JSON string."""
-        own_attrib = {}
-        inherited_attrib = {}
-        project_attrib = {}
+        own_attrib: dict[str, Any] = {}
+        inherited_attrib: dict[str, Any] = {}
+        project_attrib: dict[str, Any] = {}
 
         if self._entity:
             if hasattr(self._entity, "_project_attrib"):
@@ -63,9 +63,9 @@ class EntityListItemEdge(BaseEdge):
 
         return json_dumps(
             process_attrib_data(
-                self.project_name,
-                self._user,
-                own_attrib=own_attrib,
+                own_attrib,
+                user=self._user,
+                project_name=self.project_name,
                 inherited_attrib=inherited_attrib,
                 project_attrib=project_attrib,
             )

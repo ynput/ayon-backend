@@ -13,9 +13,10 @@ T = TypeVar("T")
 
 
 def process_attrib_data(
-    project_name: str | None,
-    user: UserEntity,
     own_attrib: dict[str, Any],
+    *,
+    user: UserEntity,
+    project_name: str | None = None,
     inherited_attrib: dict[str, Any] | None = None,
     project_attrib: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -85,6 +86,7 @@ def process_attrib_data(
 def parse_attrib_data(
     target_type: type[T],
     own_attrib: dict[str, Any],
+    *,
     user: UserEntity,
     project_name: str | None = None,
     inherited_attrib: dict[str, Any] | None = None,
@@ -95,11 +97,11 @@ def parse_attrib_data(
     result = {
         key: value
         for key, value in process_attrib_data(
-            project_name,
-            user,
             own_attrib,
-            inherited_attrib,
-            project_attrib,
+            user=user,
+            project_name=project_name,
+            inherited_attrib=inherited_attrib,
+            project_attrib=project_attrib,
         ).items()
         if key in target_type.__dataclass_fields__.keys()  # type: ignore
     }

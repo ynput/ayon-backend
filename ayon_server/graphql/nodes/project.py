@@ -142,9 +142,9 @@ class ProjectNode:
     def all_attrib(self) -> str:
         return json_dumps(
             process_attrib_data(
-                self.project_name,
-                self._user,
                 self._attrib,
+                user=self._user,
+                project_name=self.project_name,
             )
         )
 

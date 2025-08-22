@@ -113,11 +113,11 @@ class FolderNode(BaseNode):
         """Return all attributes (inherited and own) as JSON string."""
         return json_dumps(
             process_attrib_data(
-                self.project_name,
-                self._user,
                 self._attrib,
-                self._inherited_attrib,
-                self._project_attrib,
+                user=self._user,
+                project_name=self.project_name,
+                inherited_attrib=self._inherited_attrib,
+                project_attrib=self._project_attrib,
             )
         )
 

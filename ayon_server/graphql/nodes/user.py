@@ -61,7 +61,7 @@ class UserNode:
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(process_attrib_data(None, self._user, self._attrib))
+        return json_dumps(process_attrib_data(self._attrib, user=self._user))
 
     @strawberry.field
     async def tasks(self, info: Info, project_name: str) -> "TasksConnection":
