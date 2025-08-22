@@ -9,7 +9,7 @@ from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.products import get_products
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -90,10 +90,11 @@ class FolderNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.parent_id)
         )
-        return (
-            info.context["folder_from_record"](self.project_name, record, info.context)
-            if record
-            else None
+        if record is None:
+            return None
+
+        return await info.context["folder_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field
@@ -110,12 +111,15 @@ class FolderNode(BaseNode):
     @strawberry.field
     def all_attrib(self) -> str:
         """Return all attributes (inherited and own) as JSON string."""
-        all_attrib = {
-            **self._project_attrib,
-            **self._inherited_attrib,
-            **self._attrib,
-        }
-        return json_dumps(all_attrib)
+        return json_dumps(
+            process_attrib_data(
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+                inherited_attrib=self._inherited_attrib,
+                project_attrib=self._project_attrib,
+            )
+        )
 
     @strawberry.field
     def own_attrib(self) -> list[str]:
@@ -128,7 +132,7 @@ class FolderNode(BaseNode):
 #
 
 
-def folder_from_record(
+async def folder_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> FolderNode:
     """Construct a folder node from a DB row."""

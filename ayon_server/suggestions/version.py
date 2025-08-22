@@ -6,17 +6,16 @@ from ayon_server.lib.postgres import Postgres
 from .models import (
     FolderSuggestionItem,
     ProductSuggestionItem,
+    SuggestionType,
     TaskSuggestionItem,
     UserSuggestionItem,
     VersionSuggestionItem,
 )
 
-SUGGESTION_TYPE = UserSuggestionItem | VersionSuggestionItem | TaskSuggestionItem
-
 
 async def get_version_suggestions(
     user: str, version: VersionEntity
-) -> dict[str, list[SUGGESTION_TYPE]]:
+) -> dict[str, list[SuggestionType]]:
     """
     Assignees: Every assignee in the project, sorted by author first.
     Versions: Direct sibling versions to the version.
@@ -24,8 +23,8 @@ async def get_version_suggestions(
     """
 
     project_name = version.project_name
-    result: defaultdict[str, list[SUGGESTION_TYPE]] = defaultdict(list)
-    item: SUGGESTION_TYPE
+    result: defaultdict[str, list[SuggestionType]] = defaultdict(list)
+    item: SuggestionType
     parent: ProductSuggestionItem | FolderSuggestionItem
 
     # get users:

@@ -7,7 +7,7 @@ from ayon_server.entities import WorkfileEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -42,7 +42,9 @@ class WorkfileNode(BaseNode):
         record = await info.context["task_loader"].load(
             (self.project_name, self.task_id)
         )
-        return info.context["task_from_record"](self.project_name, record, info.context)
+        return await info.context["task_from_record"](
+            self.project_name, record, info.context
+        )
 
     @strawberry.field
     def attrib(self) -> WorkfileAttribType:
@@ -55,7 +57,13 @@ class WorkfileNode(BaseNode):
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+        return json_dumps(
+            process_attrib_data(
+                self._attrib,
+                project_name=self.project_name,
+                user=self._user,
+            )
+        )
 
     @strawberry.field()
     def parents(self) -> list[str]:
@@ -67,7 +75,7 @@ class WorkfileNode(BaseNode):
 #
 
 
-def workfile_from_record(
+async def workfile_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> WorkfileNode:
     """Construct a version node from a DB row."""

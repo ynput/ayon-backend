@@ -1,6 +1,7 @@
 from typing import Annotated, cast
 
 from ayon_server.api.dependencies import (
+    AllowExternal,
     CurrentUser,
     NewProjectName,
     ProjectName,
@@ -77,6 +78,7 @@ class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
     "/projects/{project_name}",
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
+    dependencies=[AllowExternal],
 )
 async def get_project(
     user: CurrentUser,
@@ -84,7 +86,7 @@ async def get_project(
 ) -> ProjectModel:
     """Retrieve a project by its name."""
 
-    user.check_project_access(project_name)
+    await user.ensure_project_access(project_name)
     coalesce = RequestCoalescer()
     project = await coalesce(ProjectEntity.load, project_name)
     return cast(ProjectModel, project.as_user(user))
@@ -99,7 +101,7 @@ async def get_project(
 async def get_project_stats(user: CurrentUser, project_name: ProjectName):
     """Retrieve a project statistics by its name."""
 
-    user.check_project_access(project_name)
+    await user.ensure_project_access(project_name)
     counts = {}
     for entity in ["folders", "products", "versions", "representations", "tasks"]:
         res = await Postgres.fetch(

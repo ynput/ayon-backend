@@ -101,6 +101,9 @@ async def get_folders(
     project_name = root.project_name
     fields = FieldInfo(info, ["folders.edges.node", "folder"])
 
+    if info.context["user"].is_external:
+        return FoldersConnection(edges=[])
+
     #
     # SQL
     #

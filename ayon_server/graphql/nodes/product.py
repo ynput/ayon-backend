@@ -8,7 +8,7 @@ from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -79,7 +79,7 @@ class ProductNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.folder_id)
         )
-        return info.context["folder_from_record"](
+        return await info.context["folder_from_record"](
             self.project_name, record, info.context
         )
 
@@ -88,10 +88,11 @@ class ProductNode(BaseNode):
         record = await info.context["latest_version_loader"].load(
             (self.project_name, self.id)
         )
-        return (
-            info.context["version_from_record"](self.project_name, record, info.context)
-            if record
-            else None
+        if record is None:
+            return None
+
+        return await info.context["version_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field
@@ -105,7 +106,13 @@ class ProductNode(BaseNode):
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+        return json_dumps(
+            process_attrib_data(
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+            )
+        )
 
     @strawberry.field()
     def parents(self) -> list[str]:
@@ -115,7 +122,7 @@ class ProductNode(BaseNode):
         return path.split("/")[:-1] if path else []
 
 
-def product_from_record(
+async def product_from_record(
     project_name: str,
     record: dict[str, Any],
     context: dict[str, Any],
@@ -133,11 +140,10 @@ def product_from_record(
         if folder_data.get("id"):
             try:
                 cfun = context["folder_from_record"]
-                folder = (
-                    cfun(project_name, folder_data, context=context)
-                    if folder_data
-                    else None
-                )
+                if folder_data is None:
+                    folder = None
+                else:
+                    folder = await cfun(project_name, folder_data, context=context)
             except KeyError:
                 pass
 
