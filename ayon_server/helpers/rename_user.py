@@ -29,6 +29,28 @@ PROJECT_QUERIES = [
     data = jsonb_set(data, '{assignee}', $1::jsonb)
     WHERE activity_type LIKE 'assignee.%' AND data->>'assignee' = $2
     """,
+    """
+    UPDATE activities
+    SET data = jsonb_set(
+        data,
+        '{files}',
+        (
+            SELECT jsonb_agg(
+                CASE
+                    WHEN file->>'author' = $2
+                    THEN jsonb_set(file, '{author}', to_jsonb($1))
+                    ELSE file
+                END
+            )
+            FROM jsonb_array_elements(data->'files') AS file
+        )
+    )
+    WHERE EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(data->'files') AS file
+        WHERE file->>'author' = $2
+    )
+    """,
     # TODO: there is also an author record in:
     # activities->data->files[]->author
     # but it is not crucial to update it
