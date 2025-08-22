@@ -416,8 +416,8 @@ CREATE TABLE settings(
 CREATE TABLE project_site_settings(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
-  site_id VARCHAR REFERENCES public.sites(id) ON DELETE CASCADE,
-  user_name VARCHAR REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  site_id VARCHAR,
+  user_name VARCHAR,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (addon_name, addon_version, site_id, user_name)
 );
@@ -431,8 +431,8 @@ CREATE TABLE IF NOT EXISTS addon_data(
 );
 
 CREATE TABLE IF NOT EXISTS custom_roots(
-  site_id VARCHAR NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
-  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  site_id VARCHAR NOT NULL,
+  user_name VARCHAR NOT NULL,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (site_id, user_name)
 );

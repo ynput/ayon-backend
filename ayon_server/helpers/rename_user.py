@@ -43,6 +43,15 @@ PROJECT_QUERIES = [
     UPDATE project_{project_name}.entity_list_items
     SET updated_by = $1 WHERE updated_by = $2
     """,
+    # Project settings
+    """
+    UPDATE project_{project_name}.project_site_settings
+    SET user_name = $1 WHERE user_name = $2
+    """,
+    """
+    UPDATE project_{project_name}.custom_roots
+    SET user_name = $1 WHERE user_name = $2
+    """,
 ]
 
 
