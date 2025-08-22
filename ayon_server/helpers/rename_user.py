@@ -38,7 +38,7 @@ PROJECT_QUERIES = [
             SELECT jsonb_agg(
                 CASE
                     WHEN file->>'author' = $2
-                    THEN jsonb_set(file, '{author}', to_jsonb($1))
+                    THEN jsonb_set(file, '{author}', $1::JSONB)
                     ELSE file
                 END
             )
