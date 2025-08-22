@@ -48,6 +48,7 @@ from ayon_server.graphql.resolvers.users import get_user, get_users
 from ayon_server.graphql.types import Info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
+from ayon_server.utils import json_dumps
 
 
 async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
@@ -134,7 +135,7 @@ class Query:
             updated_at=user.updated_at,
             created_at=user.created_at,
             _attrib=user.attrib.dict(),
-            access_groups=user.data.get("accessGroups", {}),
+            access_groups=json_dumps(user.data.get("accessGroups", {})),
             is_admin=user.is_admin,
             is_manager=user.is_manager,
             is_service=user.is_service,
