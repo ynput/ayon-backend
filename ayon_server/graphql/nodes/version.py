@@ -8,7 +8,7 @@ from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.representations import get_representations
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import get_nickname, json_dumps
 
 if TYPE_CHECKING:
@@ -55,7 +55,7 @@ class VersionNode(BaseNode):
         record = await info.context["product_loader"].load(
             (self.project_name, self.product_id)
         )
-        return info.context["product_from_record"](
+        return await info.context["product_from_record"](
             self.project_name, record, info.context
         )
 
@@ -66,7 +66,9 @@ class VersionNode(BaseNode):
         record = await info.context["task_loader"].load(
             (self.project_name, self.task_id)
         )
-        return info.context["task_from_record"](self.project_name, record, info.context)
+        return await info.context["task_from_record"](
+            self.project_name, record, info.context
+        )
 
     @strawberry.field
     def attrib(self) -> VersionAttribType:
@@ -79,7 +81,13 @@ class VersionNode(BaseNode):
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+        return json_dumps(
+            process_attrib_data(
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+            )
+        )
 
     @strawberry.field()
     def parents(self) -> list[str]:
@@ -94,14 +102,14 @@ class VersionNode(BaseNode):
 #
 
 
-def version_from_record(
+async def version_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> VersionNode:
     """Construct a version node from a DB row."""
 
     current_user = context["user"]
     author = record["author"]
-    if current_user.is_guest and author is not None:
+    if (current_user.is_guest or current_user.is_external) and author is not None:
         author = get_nickname(author)
 
     data = record.get("data") or {}

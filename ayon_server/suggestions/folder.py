@@ -5,17 +5,16 @@ from ayon_server.lib.postgres import Postgres
 
 from .models import (
     FolderSuggestionItem,
+    SuggestionType,
     TaskSuggestionItem,
     UserSuggestionItem,
 )
-
-SUGGESTION_TYPE = UserSuggestionItem | TaskSuggestionItem
 
 
 async def get_folder_suggestions(
     user: str,
     folder: FolderEntity,
-) -> dict[str, list[SUGGESTION_TYPE]]:
+) -> dict[str, list[SuggestionType]]:
     """
     Assignees: Every assignee in the project
     Versions: Disabled - what versions would you want to see on a folder?
@@ -23,8 +22,8 @@ async def get_folder_suggestions(
     """
 
     project_name = folder.project_name
-    result: defaultdict[str, list[SUGGESTION_TYPE]] = defaultdict(list)
-    item: SUGGESTION_TYPE
+    result: defaultdict[str, list[SuggestionType]] = defaultdict(list)
+    item: SuggestionType
 
     # get users:
 

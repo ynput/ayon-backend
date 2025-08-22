@@ -48,7 +48,7 @@ QProjectName = Annotated[
 ]
 
 
-def row_to_list_item(row: dict[str, Any], editable: bool) -> ViewListItemModel:
+def row_to_list_item(row: dict[str, Any], access_level: int) -> ViewListItemModel:
     """Convert a database row to a ViewListItemModel."""
     return ViewListItemModel(
         id=row["id"],
@@ -57,13 +57,12 @@ def row_to_list_item(row: dict[str, Any], editable: bool) -> ViewListItemModel:
         position=row.get("position", 0),
         owner=row["owner"],
         visibility=row.get("visibility", "private"),
-        access=row.get("access", {}),
         working=row.get("working", False),
-        editable=editable,
+        access_level=access_level,
     )
 
 
-def row_to_model(row: dict[str, Any], editable: bool) -> ViewModel:
+def row_to_model(row: dict[str, Any], access_level: int) -> ViewModel:
     """Convert a database row to a ViewModel."""
     return construct_view_model(
         id=row["id"],
@@ -76,7 +75,7 @@ def row_to_model(row: dict[str, Any], editable: bool) -> ViewModel:
         access=row.get("access", {}),
         working=row.get("working", False),
         settings=row.get("data", {}),
-        editable=editable,
+        access_level=access_level,
     )
 
 
@@ -111,34 +110,23 @@ async def list_views(
             )
         res = project_views + studio_views
         for row in res:
+            access_level = EntityAccessHelper.MANAGE
             if row["visibility"] == "public":
                 try:
                     await EntityAccessHelper.check(
                         user,
                         access=row.get("access") or {},
-                        level=EntityAccessHelper.READ,
+                        level=EntityAccessHelper.MANAGE,
                         owner=row["owner"],
                         default_open=False,
                         project=project,
                     )
-                except ForbiddenException:
-                    continue
+                except ForbiddenException as e:
+                    access_level = e.extra.get("access_level", 0)
+                    if access_level < EntityAccessHelper.READ:
+                        continue
 
-            editable = True
-            if user.name != row.get("owner"):
-                try:
-                    await EntityAccessHelper.check(
-                        user,
-                        access=row.get("access") or {},
-                        level=EntityAccessHelper.UPDATE,
-                        owner=row["owner"],
-                        default_open=False,
-                        project=project,
-                    )
-                except ForbiddenException:
-                    editable = False
-
-            views.append(row_to_list_item(row, editable=editable))
+            views.append(row_to_list_item(row, access_level=access_level))
     return ViewListModel(views=views)
 
 
@@ -149,6 +137,7 @@ async def get_working_view(
     project_name: QProjectName = None,
 ) -> ViewModel:
     """Get the working view of the given type"""
+
     async with Postgres.transaction():
         if project_name:
             await Postgres.set_project_schema(project_name)
@@ -166,7 +155,7 @@ async def get_working_view(
         )
         if not row:
             raise NotFoundException(f"Working {view_type} view not found")
-        return row_to_model(row, editable=True)
+        return row_to_model(row, access_level=30)
 
 
 DEFAULT_VIEW_NS = "default-view"
@@ -184,12 +173,16 @@ async def get_default_view(
     If no working view is set, raise 404
     """
 
+    project = None
+
     key = f"{user.name}:{view_type}:{project_name or '_'}"
     view_id_bytes = await Redis.get(DEFAULT_VIEW_NS, key)
     if view_id_bytes is None:
         view_id = None
     else:
         view_id = view_id_bytes.decode("utf-8")
+        if project_name:
+            project = await ProjectEntity.load(project_name)
 
     query = """
         SELECT *, $4 AS scope FROM views
@@ -211,18 +204,20 @@ async def get_default_view(
         )
         if not row:
             raise NotFoundException(f"Default {view_type} view not found")
-        editable = True
+
         try:
             await EntityAccessHelper.check(
                 user,
                 access=row.get("access"),
-                level=EntityAccessHelper.UPDATE,
+                level=EntityAccessHelper.MANAGE,
                 owner=row["owner"],
                 default_open=False,
+                project=project,
             )
-        except ForbiddenException:
-            editable = False
-        return row_to_model(row, editable=editable)
+            access_level = EntityAccessHelper.MANAGE
+        except ForbiddenException as e:
+            access_level = e.extra.get("access_level", 0)
+        return row_to_model(row, access_level=access_level)
 
 
 class SetDefaultViewRequestModel(OPModel):
@@ -250,6 +245,12 @@ async def get_view(
     project_name: QProjectName = None,
 ) -> ViewModel:
     """Get a specific view by its ID."""
+
+    if project_name:
+        project = await ProjectEntity.load(project_name)
+    else:
+        project = None
+
     async with Postgres.transaction():
         if project_name:
             await Postgres.set_project_schema(project_name)
@@ -272,19 +273,19 @@ async def get_view(
 
         if not row:
             raise NotFoundException("View not found")
-        editable = True
-        if current_user.name != row.get("owner"):
-            try:
-                await EntityAccessHelper.check(
-                    current_user,
-                    access=row.get("access") or {},
-                    level=EntityAccessHelper.UPDATE,
-                    owner=row["owner"],
-                    default_open=False,
-                )
-            except ForbiddenException:
-                editable = False
-        return row_to_model(row, editable=editable)
+        try:
+            await EntityAccessHelper.check(
+                current_user,
+                access=row.get("access") or {},
+                level=EntityAccessHelper.MANAGE,
+                owner=row["owner"],
+                default_open=False,
+                project=project,
+            )
+            access_level = EntityAccessHelper.MANAGE
+        except ForbiddenException as e:
+            access_level = e.extra.get("access_level", 0)
+        return row_to_model(row, access_level=access_level)
 
 
 @router.post("/{view_type}")
@@ -339,6 +340,11 @@ async def update_view(
 ) -> None:
     """Update a view in the database."""
 
+    if project_name:
+        project = await ProjectEntity.load(project_name)
+    else:
+        project = None
+
     async with Postgres.transaction():
         if project_name:
             await Postgres.set_project_schema(project_name)
@@ -346,7 +352,7 @@ async def update_view(
         # Fetch the existing view to check permissions and current settings
 
         query = """
-            SELECT label, owner, working, data
+            SELECT label, owner, working, data, access
             FROM views WHERE id = $1
         """
         res = await Postgres.fetchrow(query, view_id)
@@ -362,6 +368,7 @@ async def update_view(
             level=EntityAccessHelper.UPDATE,
             owner=res["owner"],
             default_open=False,
+            project=project,
         )
 
         # Update the view with the new settings
@@ -371,16 +378,17 @@ async def update_view(
         label = update_dict.get("label", res["label"])
         working = update_dict.get("working", res["working"])
         access = update_dict.get("access", res["access"]) or {}
-        data = update_dict.get("data", res["data"])
+        data = update_dict.get("settings", res["data"])
         owner = res["owner"]
-        if "owner" in update_dict:
+        if ("owner" in update_dict) and update_dict["owner"] != user.name:
             if not user.is_admin:
                 raise ForbiddenException("Only admins can change the owner of a view.")
             owner = update_dict["owner"]
 
         query = """
             UPDATE views
-            SET label = $1, working = $2, data = $3, owner = $4, updated_at = NOW()
+            SET label = $1, working = $2, data = $3,
+            owner = $4, updated_at = NOW()
             WHERE id = $5
         """
         await Postgres.execute(query, label, working, data, owner, view_id)

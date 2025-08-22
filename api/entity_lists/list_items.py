@@ -28,7 +28,7 @@ async def create_entity_list_item(
 ) -> None:
     async with Postgres.transaction():
         entity_list = await EntityList.load(project_name, list_id, user=user)
-        await entity_list.ensure_can_construct()
+        await entity_list.ensure_can_update()
 
         await entity_list.add(
             payload.entity_id,
@@ -54,7 +54,7 @@ async def update_entity_list_item(
 ) -> None:
     async with Postgres.transaction():
         entity_list = await EntityList.load(project_name, list_id, user=user)
-        await entity_list.ensure_can_construct()
+        await entity_list.ensure_can_update()
         item = entity_list.item_by_id(list_item_id)
 
         payload_dict = payload.dict(exclude_unset=True)
@@ -77,7 +77,7 @@ async def delete_entity_list_item(
 ) -> None:
     async with Postgres.transaction():
         entity_list = await EntityList.load(project_name, list_id, user=user)
-        await entity_list.ensure_can_construct()
+        await entity_list.ensure_can_update()
         await entity_list.remove(list_item_id)
         await entity_list.save(sender=sender, sender_type=sender_type)
 
@@ -172,7 +172,7 @@ async def update_entity_list_items(
 ) -> None:
     async with Postgres.transaction():
         entity_list = await EntityList.load(project_name, list_id, user=user)
-        await entity_list.ensure_can_construct()
+        await entity_list.ensure_can_update()
 
         if payload.mode == "delete":
             await _multi_delete(entity_list, payload.items)

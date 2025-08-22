@@ -1,4 +1,4 @@
-from typing import Literal, NotRequired, TypedDict
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 from ayon_server.types import Field, OPModel
 
@@ -34,11 +34,50 @@ class HttpSourceInfo(ClientSourceInfo):
 
 
 class SSOOption(OPModel):
-    name: str = Field(...)
-    title: str | None = None
-    icon: str | None = None
-    color: str = "#47b7da"
-    text_color: str = "#ffffff"
+    name: Annotated[
+        str,
+        Field(
+            title="Provider name",
+            description="Unique name of the SSO provider",
+        ),
+    ]
+
+    hidden: Annotated[
+        bool,
+        Field(
+            title="Hidden",
+            description="If True, the provider will not be shown in the UI",
+        ),
+    ] = False
+
+    title: Annotated[
+        str | None,
+        Field(
+            description="Nice human-readable title of the provider",
+        ),
+    ] = None
+
+    icon: Annotated[
+        str | None,
+        Field(
+            title="Icon",
+        ),
+    ] = None
+
+    color: Annotated[
+        str,
+        Field(
+            title="Button background color",
+        ),
+    ] = "#47b7da"
+
+    text_color: Annotated[
+        str,
+        Field(
+            title="Button text color",
+        ),
+    ] = "#ffffff"
+
     redirect_key: str | None = None
     url: str
     args: dict[str, str] = Field(default_factory=dict)

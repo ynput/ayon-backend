@@ -2,7 +2,7 @@ from typing import Any
 
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 
 from .models import OperationModel
 
@@ -35,6 +35,10 @@ async def create_project_level_entity(
             payload_dict["created_by"] = user.name
         if not payload_dict.get("updated_by"):
             payload_dict["updated_by"] = payload_dict["created_by"]
+
+    elif operation.entity_type == "folder":
+        if payload_dict["id"] == payload_dict.get("parent_id"):
+            raise BadRequestException("Folder cannot be its own parent")
 
     #
     # Create the entity and events

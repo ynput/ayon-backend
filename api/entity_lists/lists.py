@@ -85,7 +85,7 @@ async def update_entity_list(
 
     async with Postgres.transaction():
         entity_list = await EntityList.load(project_name, list_id, user=user)
-        await entity_list.ensure_can_update()
+        await entity_list.ensure_can_admin()
 
         payload_dict = payload.dict(exclude_unset=True)
         for key, value in payload_dict.items():

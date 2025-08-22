@@ -12,6 +12,7 @@ from ayon_server.views.models import (
     FViewWorking,
     ListsSettings,
     OverviewSettings,
+    ReviewsSettings,
     TaskProgressSettings,
     ViewSettingsModel,
 )
@@ -29,10 +30,9 @@ class ViewListItemModel(OPModel):
     scope: FViewScope
     owner: FViewOwner
     visibility: FViewVisibility
-    access: dict[str, Any]
     working: FViewWorking
     position: int
-    editable: bool
+    access_level: int
 
 
 class ViewListModel(OPModel):
@@ -46,6 +46,7 @@ class ViewListModel(OPModel):
 
 class BaseViewModel(ViewListItemModel):
     settings: ViewSettingsModel
+    access: dict[str, Any]
 
 
 class OverviewViewModel(BaseViewModel):
@@ -67,6 +68,13 @@ class ListsViewModel(BaseViewModel):
 
     view_type: Literal["lists"] = "lists"
     settings: ListsSettings
+
+
+class ReviewsViewModel(BaseViewModel):
+    """Reviews view model."""
+
+    view_type: Literal["reviews"] = "reviews"
+    settings: ReviewsSettings
 
 
 #
@@ -102,6 +110,13 @@ class ListsViewPostModel(BaseViewPostModel):
     settings: ListsSettings
 
 
+class ReviewsViewPostModel(BaseViewPostModel):
+    """Reviews view post model."""
+
+    _view_type: Literal["reviews"] = "reviews"
+    settings: ReviewsSettings
+
+
 #
 # Patch REST API models
 #
@@ -134,13 +149,20 @@ class ListsViewPatchModel(BaseViewPatchModel):
     settings: ListsSettings | None = None
 
 
+class ReviewsViewPatchModel(BaseViewPatchModel):
+    """Reviews view post model."""
+
+    _view_type: Literal["reviews"] = "reviews"
+    settings: ReviewsSettings | None = None
+
+
 #
 # Compound models
 #
 
 
 ViewModel = Annotated[
-    OverviewViewModel | TaskProgressViewModel | ListsViewModel,
+    OverviewViewModel | TaskProgressViewModel | ListsViewModel | ReviewsViewModel,
     Field(
         discriminator="_view_type",
         title="View model",
@@ -148,7 +170,10 @@ ViewModel = Annotated[
 ]
 
 ViewPostModel = Annotated[
-    OverviewViewPostModel | TaskProgressViewPostModel | ListsViewPostModel,
+    OverviewViewPostModel
+    | TaskProgressViewPostModel
+    | ListsViewPostModel
+    | ReviewsViewPostModel,
     Field(
         discriminator="_view_type",
         title="View post model",
@@ -156,7 +181,10 @@ ViewPostModel = Annotated[
 ]
 
 ViewPatchModel = Annotated[
-    OverviewViewPatchModel | TaskProgressViewPatchModel | ListsViewPatchModel,
+    OverviewViewPatchModel
+    | TaskProgressViewPatchModel
+    | ListsViewPatchModel
+    | ReviewsViewPatchModel,
     Field(
         discriminator="_view_type",
         title="View model",
@@ -171,4 +199,6 @@ def construct_view_model(**data: Any) -> ViewModel:
         return TaskProgressViewModel(**data)
     elif data.get("view_type") == "lists":
         return ListsViewModel(**data)
+    elif data.get("view_type") == "reviews":
+        return ReviewsViewModel(**data)
     raise ValueError("Invalid view type provided")

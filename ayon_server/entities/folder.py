@@ -2,13 +2,12 @@ from datetime import datetime
 from typing import Any
 
 from ayon_server.access.utils import ensure_entity_access
+from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
     AyonException,
     ForbiddenException,
-    NotFoundException,
-    ServiceUnavailableException,
 )
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
@@ -57,7 +56,13 @@ class FolderEntity(ProjectLevelEntity):
                 f.tags as tags,
                 h.path as path,
                 ia.attrib AS inherited_attrib,
-                p.attrib AS project_attrib
+                p.attrib AS project_attrib,
+                exists(
+                    select 1 from project_{project_name}.versions v
+                    inner join project_{project_name}.products p
+                    on p.id = v.product_id
+                    where p.folder_id = f.id
+                ) as has_versions
             FROM project_{project_name}.folders as f
             INNER JOIN
                 project_{project_name}.hierarchy as h
@@ -66,28 +71,15 @@ class FolderEntity(ProjectLevelEntity):
                 project_{project_name}.exported_attributes as ia
                 ON f.parent_id = ia.folder_id
             INNER JOIN public.projects as p
-                ON p.name ILIKE $2
+                ON p.name ILIKE '{project_name}'
             WHERE f.id=$1
             {'FOR UPDATE OF f NOWAIT'
                 if for_update else ''
             }
             """
 
-        try:
-            record = await Postgres.fetchrow(query, entity_id, project_name)
-        except Postgres.UndefinedTableError:
-            raise NotFoundException(f"Project {project_name} not found")
-        except Postgres.LockNotAvailableError:
-            raise ServiceUnavailableException(
-                f"Folder {entity_id} is locked for update, try again later"
-            )
+        record = await query_entity_data(query, entity_id)
 
-        if record is None:
-            raise NotFoundException(
-                f"Folder {entity_id} not found in project {project_name}"
-            )
-
-        record = dict(record)
         path = record.pop("path")
         if path is not None:
             # ensure path starts with / but does not end with /
@@ -278,6 +270,26 @@ class FolderEntity(ProjectLevelEntity):
         )
 
     #
+    # Helper methods
+    #
+
+    async def get_folder_descendant_ids(self) -> set[str]:
+        query = f"""
+            WITH RECURSIVE descendants AS (
+                SELECT id, parent_id
+                FROM project_{self.project_name}.folders
+                WHERE parent_id = $1
+                UNION
+                SELECT f.id, f.parent_id
+                FROM project_{self.project_name}.folders f
+                INNER JOIN descendants d ON f.parent_id = d.id
+            )
+            SELECT id FROM descendants;
+        """
+        rows = await Postgres.fetch(query, self.id)
+        return {row["id"] for row in rows}
+
+    #
     # Properties
     #
 
@@ -326,3 +338,8 @@ class FolderEntity(ProjectLevelEntity):
     @property
     def entity_subtype(self) -> str | None:
         return self.folder_type
+
+    @property
+    def has_versions(self) -> bool:
+        """Check if the folder has any versions."""
+        return self._payload.has_versions  # type: ignore
