@@ -5,7 +5,7 @@ from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.core.projectlevel import ProjectLevelEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import OPModel
+from ayon_server.types import AccessType, OPModel
 
 
 class ShareOption(OPModel):
@@ -83,6 +83,8 @@ class EntityAccessHelper:
         level: int = READ,
     ) -> None:
         """Ensure that the user has the required access level to the entity."""
+
+        _level: AccessType
 
         if level >= cls.MANAGE:
             _level = "delete"

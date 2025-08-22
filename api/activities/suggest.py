@@ -5,6 +5,7 @@ from ayon_server.entities import FolderEntity, TaskEntity, VersionEntity
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.suggestions.folder import get_folder_suggestions
 from ayon_server.suggestions.models import (
+    SuggestionType,
     TaskSuggestionItem,
     UserSuggestionItem,
     VersionSuggestionItem,
@@ -46,6 +47,8 @@ async def suggest_entity_mention(
     entity_class = get_entity_class(request.entity_type)
     entity = await entity_class.load(project_name, request.entity_id)
     await entity.ensure_read_access(user)
+
+    res: dict[str, list[SuggestionType]]
 
     if request.entity_type == "folder":
         res = await get_folder_suggestions(user.name, cast(FolderEntity, entity))
