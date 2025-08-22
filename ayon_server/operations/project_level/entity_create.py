@@ -37,7 +37,7 @@ async def create_project_level_entity(
             payload_dict["updated_by"] = payload_dict["created_by"]
 
     elif operation.entity_type == "folder":
-        if payload_dict["id"] == payload_dict["parent_id"]:
+        if payload_dict["id"] == payload_dict.get("parent_id"):
             raise BadRequestException("Folder cannot be its own parent")
 
     #
