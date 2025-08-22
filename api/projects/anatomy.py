@@ -25,7 +25,7 @@ async def _get_project_anatomy(project_name: ProjectName) -> Anatomy:
 @router.get("/projects/{project_name}/anatomy")
 async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> Anatomy:
     """Retrieve a project anatomy."""
-    user.check_project_access(project_name)
+    await user.ensure_project_access(project_name)
     coalesce = RequestCoalescer()
     return await coalesce(_get_project_anatomy, project_name)
 

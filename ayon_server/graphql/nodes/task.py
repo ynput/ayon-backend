@@ -9,7 +9,7 @@ from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import get_nickname, json_dumps
 
 if TYPE_CHECKING:
@@ -70,7 +70,7 @@ class TaskNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.folder_id)
         )
-        return info.context["folder_from_record"](
+        return await info.context["folder_from_record"](
             self.project_name, record, info.context
         )
 
@@ -87,11 +87,14 @@ class TaskNode(BaseNode):
     @strawberry.field
     def all_attrib(self) -> str:
         """Return all attributes (inherited and own) as JSON string."""
-        all_attrib = {
-            **self._inherited_attrib,
-            **self._attrib,
-        }
-        return json_dumps(all_attrib)
+        return json_dumps(
+            process_attrib_data(
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+                inherited_attrib=self._inherited_attrib,
+            )
+        )
 
     @strawberry.field
     def own_attrib(self) -> list[str]:
@@ -106,7 +109,7 @@ class TaskNode(BaseNode):
         return path.split("/")[:-1] if path else []
 
 
-def task_from_record(
+async def task_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> TaskNode:
     """Construct a task node from a DB row."""
@@ -122,17 +125,16 @@ def task_from_record(
         if folder_data.get("id"):
             cfun = context["folder_from_record"]
             try:
-                folder = (
-                    cfun(project_name, folder_data, context=context)
-                    if folder_data
-                    else None
-                )
+                if folder_data is None:
+                    folder = None
+                else:
+                    folder = await cfun(project_name, folder_data, context=context)
             except KeyError:
                 pass
 
     current_user = context["user"]
     assignees: list[str] = []
-    if current_user.is_guest:
+    if current_user.is_guest or current_user.is_external:
         for assignee in record["assignees"]:
             if assignee == current_user.name:
                 assignees.append(assignee)

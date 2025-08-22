@@ -3,9 +3,12 @@ from typing import Any
 
 import strawberry
 
+from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
+from ayon_server.graphql.utils import process_attrib_data
+from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
 
@@ -39,20 +42,34 @@ class EntityListItemEdge(BaseEdge):
     _forbidden: bool = strawberry.field(default=False)
     _data: strawberry.Private[dict[str, Any]]
     _attrib: strawberry.Private[dict[str, Any]]  # actual attrib data
+    _user: strawberry.Private[UserEntity]
 
     @strawberry.field()
     def all_attrib(self) -> str:
         """All attributes field is a JSON string."""
-        all_attrib: dict[str, Any] = {}
+        own_attrib: dict[str, Any] = {}
+        inherited_attrib: dict[str, Any] = {}
+        project_attrib: dict[str, Any] = {}
+
         if self._entity:
             if hasattr(self._entity, "_project_attrib"):
-                all_attrib.update(self._entity._project_attrib or {})
+                project_attrib = self._entity._project_attrib or {}
             if hasattr(self._entity, "_inherited_attrib"):
-                all_attrib.update(self._entity._inherited_attrib or {})
+                inherited_attrib = self._entity._inherited_attrib or {}
             if hasattr(self._entity, "_attrib"):
-                all_attrib.update(self._entity._attrib or {})
-        all_attrib.update(self._attrib or {})
-        return json_dumps(all_attrib)
+                own_attrib = self._entity._attrib or {}
+
+        own_attrib.update(self._attrib or {})
+
+        return json_dumps(
+            process_attrib_data(
+                own_attrib,
+                user=self._user,
+                project_name=self.project_name,
+                inherited_attrib=inherited_attrib,
+                project_attrib=project_attrib,
+            )
+        )
 
     @strawberry.field()
     def own_attrib(self) -> list[str]:
@@ -88,10 +105,10 @@ class EntityListItemEdge(BaseEdge):
         else:
             raise AyonException("Unknown entity type in entity list item.")
         record = await loader.load((self.project_name, self.entity_id))
-        return parser(self.project_name, record, info.context)
+        return await parser(self.project_name, record, info.context)
 
     @classmethod
-    def from_record(
+    async def from_record(
         cls,
         project_name: str,
         record: dict[str, Any],
@@ -108,7 +125,7 @@ class EntityListItemEdge(BaseEdge):
             getter_name = f"{context['entity_type']}_from_record"
             if getter := context.get(getter_name):
                 # logger.trace(f"Using {getter_name} to get entity")
-                entity = getter(project_name, vdict, context)
+                entity = await getter(project_name, vdict, context)
 
         folder_path = record.get("folder_path", "")
         node_access_forbidden = False
@@ -134,6 +151,7 @@ class EntityListItemEdge(BaseEdge):
             _attrib=record["attrib"],
             _entity=entity,
             _forbidden=node_access_forbidden,
+            _user=context["user"],
         )
 
 
@@ -217,12 +235,24 @@ class EntityListNode:
         )
 
 
-def entity_list_from_record(
+async def entity_list_from_record(
     project_name: str,
     record: dict[str, Any],
     context: dict[str, Any],
 ) -> EntityListNode:
     data = record.get("data", {})
+
+    user = context.get("user")
+    if user:
+        await EntityAccessHelper.check(
+            user,
+            access=record.get("access"),
+            level=EntityAccessHelper.READ,
+            owner=record.get("owner"),
+            project=context.get("project"),
+            default_open=True,
+        )
+
     return EntityListNode(
         project_name=project_name,
         id=record["id"],

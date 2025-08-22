@@ -30,6 +30,9 @@ async def get_list_of_secrets(user: CurrentUser) -> list[Secret]:
     all_secrets = await Secrets.all()
     for name, value in all_secrets.items():
         val = value if user.is_admin else None
+        if name.startswith("_"):
+            # Skip internal secrets
+            continue
         result.append(Secret(name=name, value=val))
     return result
 

@@ -197,7 +197,8 @@ class EventStream:
                 ctx["user"] = event.user
             if event.project:
                 ctx["project"] = event.project
-            logger.debug(f"[EVENT CREATE] {event.topic}{p}", **ctx)
+            with logger.contextualize(**ctx):
+                logger.debug(f"[EVENT CREATE] {event.topic}{p}")
 
         handlers = cls.local_hooks.get(event.topic, {}).values()
         for handler in handlers:
@@ -304,7 +305,8 @@ class EventStream:
                     ctx["user"] = message["user"]
                 if message["project"]:
                     ctx["project"] = message["project"]
-                logger.debug(f"[EVENT UPDATE] {message['topic']}{p}", **ctx)
+                with logger.contextualize(**ctx):
+                    logger.debug(f"[EVENT UPDATE] {message['topic']}{p}")
                 return True
         return False
 

@@ -97,14 +97,17 @@ async def _migrate_addon_settings(
                 event_payload = {"originalValue": res[0]["data"], "newValue": {}}
 
     if event_created:
+        summary = {
+            "addon_name": target_addon.name,  # backwards compatibility
+            "addon_version": target_addon.version,  # backwards compatibility
+            "variant": target_variant,
+            "source_version": source_addon.version,
+            "source_variant": source_variant,
+        }
         events.append(
             {
                 "description": f"{event_head} {event_description}",
-                "summary": {
-                    "addon_name": target_addon.name,
-                    "addon_version": target_addon.version,
-                    "variant": target_variant,
-                },
+                "summary": summary,
                 "payload": event_payload,
             }
         )
@@ -192,14 +195,17 @@ async def _migrate_addon_settings(
                     event_payload = {"originalValue": res[0]["data"], "newValue": {}}
 
         if event_created:
+            summary = {
+                "variant": target_variant,
+                "source_version": source_addon.version,
+                "source_variant": source_variant,
+                "addon_name": target_addon.name,  # backwards compatibility
+                "addon_version": target_addon.version,  # backwards compatibility
+            }
             events.append(
                 {
                     "description": f"{event_head}: {event_description}",
-                    "summary": {
-                        "addon_name": target_addon.name,
-                        "addon_version": target_addon.version,
-                        "variant": target_variant,
-                    },
+                    "summary": summary,
                     "project": project_name,
                     "payload": event_payload,
                 }

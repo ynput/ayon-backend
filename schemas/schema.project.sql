@@ -277,7 +277,7 @@ CREATE TABLE versions(
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
-    author VARCHAR, -- REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    author VARCHAR,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -346,8 +346,8 @@ CREATE TABLE workfiles(
 
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
 
-    created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-    updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    created_by VARCHAR,
+    updated_by VARCHAR,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -361,6 +361,7 @@ CREATE TABLE workfiles(
 
 CREATE INDEX workfile_parent_idx ON workfiles(task_id);
 CREATE INDEX workfile_thumbnail_idx ON workfiles(thumbnail_id);
+
 
 -----------
 -- LINKS --
@@ -382,7 +383,7 @@ CREATE TABLE links (
     link_type VARCHAR NOT NULL REFERENCES link_types(name) ON DELETE CASCADE,
     input_id UUID NOT NULL,
     output_id UUID NOT NULL,
-    author VARCHAR, -- REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    author VARCHAR,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -415,8 +416,8 @@ CREATE TABLE settings(
 CREATE TABLE project_site_settings(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
-  site_id VARCHAR REFERENCES public.sites(id) ON DELETE CASCADE,
-  user_name VARCHAR REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  site_id VARCHAR,
+  user_name VARCHAR,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (addon_name, addon_version, site_id, user_name)
 );
@@ -430,8 +431,8 @@ CREATE TABLE IF NOT EXISTS addon_data(
 );
 
 CREATE TABLE IF NOT EXISTS custom_roots(
-  site_id VARCHAR NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
-  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  site_id VARCHAR NOT NULL,
+  user_name VARCHAR NOT NULL,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (site_id, user_name)
 );
@@ -447,7 +448,7 @@ CREATE TABLE entity_lists(
   entity_list_type VARCHAR NOT NULL,
   entity_type VARCHAR NOT NULL,
   label VARCHAR NOT NULL,
-  owner VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+  owner VARCHAR,
 
   access JSONB NOT NULL DEFAULT '{}'::JSONB,
   template JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -458,8 +459,8 @@ CREATE TABLE entity_lists(
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-  updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+  created_by VARCHAR,
+  updated_by VARCHAR,
   creation_order SERIAL NOT NULL
 );
 
@@ -483,8 +484,8 @@ CREATE TABLE entity_list_items(
 
   folder_path VARCHAR NOT NULL DEFAULT '',
 
-  created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-  updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+  created_by VARCHAR,
+  updated_by VARCHAR,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -492,3 +493,27 @@ CREATE TABLE entity_list_items(
 CREATE INDEX entity_list_items_entity_list_id ON entity_list_items (entity_list_id);
 CREATE INDEX entity_list_items_entity_id ON entity_list_items (entity_id);
 CREATE INDEX entity_list_items_position ON entity_list_items (position);
+
+-----------
+-- VIEWS --
+-----------
+
+CREATE TABLE IF NOT EXISTS views(
+  id UUID NOT NULL PRIMARY KEY,
+  view_type VARCHAR NOT NULL,
+  label VARCHAR NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+
+  owner VARCHAR,
+  visibility VARCHAR NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private')),
+  working BOOLEAN NOT NULL DEFAULT TRUE,
+
+  access JSONB NOT NULL DEFAULT '{}'::JSONB,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS unique_working_view ON views(view_type, owner) WHERE working;
+CREATE INDEX IF NOT EXISTS view_type_idx ON views(view_type);
+CREATE INDEX IF NOT EXISTS view_owner_idx ON views(owner);

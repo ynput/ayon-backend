@@ -1,5 +1,6 @@
 __all__ = [
     "camelize",
+    "format_filesize",
     "get_base_name",
     "get_nickname",
     "indent",
@@ -30,6 +31,20 @@ def camelize(src: str) -> str:
 
 def get_base_name(file_path: str) -> str:
     return os.path.splitext(os.path.basename(file_path))[0]
+
+
+def format_filesize(size: int) -> str:
+    """Format a file size in bytes to a human-readable string."""
+    if size < 1024:
+        return f"{size} B"
+    elif size < 1024**2:
+        return f"{size / 1024:.2f} KB"
+    elif size < 1024**3:
+        return f"{size / 1024**2:.2f} MB"
+    elif size < 1024**4:
+        return f"{size / 1024**3:.2f} GB"
+    else:
+        return f"{size / 1024**4:.2f} TB"
 
 
 @functools.lru_cache(maxsize=128)
