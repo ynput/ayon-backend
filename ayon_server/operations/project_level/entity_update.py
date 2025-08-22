@@ -4,7 +4,7 @@ from typing import Any, cast
 from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.patch import build_pl_entity_change_events
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
 
 from .models import OperationModel
@@ -79,6 +79,18 @@ async def sanitize_folder_update(
                 raise ForbiddenException(
                     f"Cannot change {key} of a folder with published versions"
                 )
+
+    if "parent_id" in update_payload_dict:
+        # Prevent setting parent_id to self or any of its descendants
+        new_parent_id = update_payload_dict["parent_id"]
+        if new_parent_id == entity.id:
+            raise BadRequestException("Folder cannot be its own parent")
+
+        descendants = await folder_entity.get_folder_descendant_ids()
+        if new_parent_id in descendants:
+            raise BadRequestException(
+                "Folder cannot be moved to one of its descendants"
+            )
 
 
 async def update_project_level_entity(

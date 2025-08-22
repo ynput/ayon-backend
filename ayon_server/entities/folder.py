@@ -270,6 +270,26 @@ class FolderEntity(ProjectLevelEntity):
         )
 
     #
+    # Helper methods
+    #
+
+    async def get_folder_descendant_ids(self) -> set[str]:
+        query = f"""
+            WITH RECURSIVE descendants AS (
+                SELECT id, parent_id
+                FROM project_{self.project_name}.folders
+                WHERE parent_id = $1
+                UNION
+                SELECT f.id, f.parent_id
+                FROM project_{self.project_name}.folders f
+                INNER JOIN descendants d ON f.parent_id = d.id
+            )
+            SELECT id FROM descendants;
+        """
+        rows = await Postgres.fetch(query, self.id)
+        return {row["id"] for row in rows}
+
+    #
     # Properties
     #
 
