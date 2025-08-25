@@ -98,7 +98,6 @@ async def get_addon_list_for_settings(
             )
 
         project_addons = r[0]["addons"]
-        logger.trace(f"Got project addons {project_addons}")
         for addon_name, addon_version in project_addons.items():
             addons[addon_name] = addon_version
             inherited_addons.remove(addon_name)
@@ -110,5 +109,5 @@ async def get_addon_list_for_settings(
     return AddonListForSettings(
         addons=addons,
         inherited_addons=list(inherited_addons),
-        bundle_name=bundle_name,
+        bundle_name=project_bundle_name or bundle_name,
     )

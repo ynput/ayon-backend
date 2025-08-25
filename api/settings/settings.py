@@ -245,9 +245,7 @@ async def _get_all_settings(
         result = AllSettingsResponseModel(
             bundle_name=addon_list["bundle_name"],
             addons=addon_result,
-            inherited_addons=list(addon_list["inherited_addons"])
-            if project_bundle_name
-            else [],
+            inherited_addons=list(addon_list.get("inherited_addons", set())),
         )
 
         # Cache the result
