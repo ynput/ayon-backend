@@ -108,6 +108,6 @@ async def get_addon_list_for_settings(
 
     return AddonListForSettings(
         addons=addons,
-        inherited_addons=list(inherited_addons),
+        inherited_addons=list(inherited_addons) if project_bundle_name else [],
         bundle_name=project_bundle_name or bundle_name,
     )
