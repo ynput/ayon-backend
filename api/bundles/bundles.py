@@ -414,7 +414,7 @@ async def update_bundle(
             bundle_name,
         )
 
-    if patch.is_production is not None or patch.is_staging is not None:
+    if patch.is_production is not None or patch.is_staging is not None or patch.addons:
         await AddonLibrary.clear_addon_list_cache()
 
     await EventStream.dispatch(
