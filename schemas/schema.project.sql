@@ -16,20 +16,32 @@ ALTER TABLE thumbnails ALTER COLUMN data SET STORAGE EXTERNAL;
 CREATE TABLE task_types(
     name VARCHAR NOT NULL PRIMARY KEY,
     position INTEGER NOT NULL DEFAULT 0,
-    data JSONB NOT NULL DEFAULT '{}'::JSONB
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    CONSTRAINT task_types_name_check CHECK (name != '')
 );
+
+CREATE UNIQUE INDEX task_types_ci_name_unique ON task_types(LOWER(name));
+
 
 CREATE TABLE folder_types(
     name VARCHAR NOT NULL PRIMARY KEY,
     position INTEGER NOT NULL DEFAULT 0,
-    data JSONB NOT NULL DEFAULT '{}'::JSONB
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    CONSTRAINT folder_types_name_check CHECK (name != '')
 );
+
+CREATE UNIQUE INDEX folder_types_ci_name_unique ON folder_types(LOWER(name));
+
 
 CREATE TABLE statuses(
     name VARCHAR NOT NULL PRIMARY KEY,
     position INTEGER NOT NULL DEFAULT 0,
-    data JSONB NOT NULL DEFAULT '{}'::JSONB
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    CONSTRAINT statuses_name_check CHECK (name != '')
 );
+
+CREATE UNIQUE INDEX statuses_ci_name_unique ON statuses(LOWER(name));
+
 
 CREATE TABLE tags(
     name VARCHAR NOT NULL PRIMARY KEY,
@@ -172,10 +184,10 @@ CREATE UNIQUE INDEX folder_creation_order_idx ON folders(creation_order);
 
 -- Two partial indices are used as a workaround for root folders (which have parent_id NULL)
 
-CREATE UNIQUE INDEX folder_unique_name_parent ON folders (parent_id, name)
+CREATE UNIQUE INDEX folder_unique_name_parent ON folders (parent_id, LOWER(name))
     WHERE (active IS TRUE AND parent_id IS NOT NULL);
 
-CREATE UNIQUE INDEX folder_root_unique_name ON folders (name)
+CREATE UNIQUE INDEX folder_root_unique_name ON folders (LOWER(name))
     WHERE (active IS TRUE AND parent_id IS NULL);
 
 
@@ -238,7 +250,7 @@ CREATE INDEX task_parent_idx ON tasks(folder_id);
 CREATE INDEX task_type_idx ON tasks(task_type);
 CREATE INDEX task_thumbnail_idx ON tasks(thumbnail_id);
 CREATE UNIQUE INDEX task_creation_order_idx ON tasks(creation_order);
-CREATE UNIQUE INDEX task_unique_name ON tasks(folder_id, name);
+CREATE UNIQUE INDEX task_unique_name ON tasks(folder_id, LOWER(name)) WHERE (active IS TRUE);
 
 -------------
 -- PRODUCTS --
@@ -264,7 +276,7 @@ CREATE TABLE products(
 CREATE INDEX product_parent_idx ON products(folder_id);
 CREATE INDEX product_type_idx ON products(product_type);
 CREATE UNIQUE INDEX product_creation_order_idx ON products(creation_order);
-CREATE UNIQUE INDEX product_unique_name_parent ON products (folder_id, name) WHERE (active IS TRUE);
+CREATE UNIQUE INDEX product_unique_name_parent ON products (folder_id, LOWER(name)) WHERE (active IS TRUE);
 
 --------------
 -- VERSIONS --
@@ -332,7 +344,7 @@ CREATE TABLE representations(
 );
 
 CREATE INDEX representation_parent_idx ON representations(version_id);
-CREATE UNIQUE INDEX representation_unique_name_on_version ON representations (version_id, name) WHERE (active IS TRUE);
+CREATE UNIQUE INDEX representation_unique_name_on_version ON representations (version_id, LOWER(name)) WHERE (active IS TRUE);
 CREATE UNIQUE INDEX representation_creation_order_idx ON representations(creation_order);
 
 ---------------
