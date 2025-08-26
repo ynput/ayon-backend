@@ -124,6 +124,9 @@ async def create_activity(
         )
         data["author"] = user_name
 
+    if "@external" in body:
+        data["category"] = "external"
+
     references.update(extract_mentions(body))
     if activity_type not in ["watch"]:
         # We don't need to collect additional references for watch activities

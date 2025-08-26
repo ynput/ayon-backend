@@ -9,7 +9,7 @@ from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.products import get_products
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -46,6 +46,7 @@ class FolderNode(BaseNode):
     child_count: int = strawberry.field(default=0)
     product_count: int = strawberry.field(default=0)
     task_count: int = strawberry.field(default=0)
+    has_versions: bool = strawberry.field(default=False)
     has_reviewables: bool = strawberry.field(default=False)
 
     products: ProductsConnection = strawberry.field(
@@ -89,10 +90,11 @@ class FolderNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.parent_id)
         )
-        return (
-            info.context["folder_from_record"](self.project_name, record, info.context)
-            if record
-            else None
+        if record is None:
+            return None
+
+        return await info.context["folder_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field
@@ -109,12 +111,15 @@ class FolderNode(BaseNode):
     @strawberry.field
     def all_attrib(self) -> str:
         """Return all attributes (inherited and own) as JSON string."""
-        all_attrib = {
-            **self._project_attrib,
-            **self._inherited_attrib,
-            **self._attrib,
-        }
-        return json_dumps(all_attrib)
+        return json_dumps(
+            process_attrib_data(
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+                inherited_attrib=self._inherited_attrib,
+                project_attrib=self._project_attrib,
+            )
+        )
 
     @strawberry.field
     def own_attrib(self) -> list[str]:
@@ -127,7 +132,7 @@ class FolderNode(BaseNode):
 #
 
 
-def folder_from_record(
+async def folder_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> FolderNode:
     """Construct a folder node from a DB row."""
@@ -168,6 +173,7 @@ def folder_from_record(
         product_count=record.get("product_count", 0),
         task_count=record.get("task_count", 0),
         has_reviewables=has_reviewables,
+        has_versions=record.get("has_versions", False),
         path="/" + record.get("path", "").strip("/"),
         _attrib=record["attrib"] or {},
         _project_attrib=record["project_attributes"] or {},

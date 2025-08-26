@@ -4,7 +4,7 @@ from typing import Any, cast
 from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.patch import build_pl_entity_change_events
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
 
 from .models import OperationModel
@@ -56,6 +56,43 @@ def build_update_query(
     return query, params
 
 
+async def sanitize_folder_update(
+    entity: ProjectLevelEntity,
+    operation: OperationModel,
+    update_payload_dict: dict[str, Any],
+) -> None:
+    """
+    Sanitize folder update operation to ensure that only allowed fields are updated.
+
+    Note: This function modifies the update_payload_dict in place!
+    """
+
+    folder_entity = cast(FolderEntity, entity)
+    existing_folder_data = folder_entity.payload.dict(exclude_none=True)
+    if not operation.force:
+        for key in ("name", "folder_type", "parent_id"):
+            if key not in update_payload_dict:
+                continue
+            old_value = existing_folder_data.get(key)
+            new_value = update_payload_dict[key]
+            if folder_entity.has_versions and old_value != new_value:
+                raise ForbiddenException(
+                    f"Cannot change {key} of a folder with published versions"
+                )
+
+    if "parent_id" in update_payload_dict:
+        # Prevent setting parent_id to self or any of its descendants
+        new_parent_id = update_payload_dict["parent_id"]
+        if new_parent_id == entity.id:
+            raise BadRequestException("Folder cannot be its own parent")
+
+        descendants = await folder_entity.get_folder_descendant_ids()
+        if new_parent_id in descendants:
+            raise BadRequestException(
+                "Folder cannot be moved to one of its descendants"
+            )
+
+
 async def update_project_level_entity(
     entity_class: type[ProjectLevelEntity],
     project_name: str,
@@ -85,18 +122,7 @@ async def update_project_level_entity(
         await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)
 
     if operation.entity_type == "folder":
-        folder_entity = cast(FolderEntity, entity)
-        has_versions = bool(await folder_entity.get_versions())
-        existing_folder_data = folder_entity.payload.dict(exclude_none=True)
-        for key in ("name", "folder_type", "parent_id"):
-            if key not in update_payload_dict:
-                continue
-            old_value = existing_folder_data.get(key)
-            new_value = update_payload_dict[key]
-            if has_versions and old_value != new_value:
-                raise ForbiddenException(
-                    f"Cannot change {key} of a folder with published versions"
-                )
+        await sanitize_folder_update(entity, operation, update_payload_dict)
 
     # Build events for every change
     # Do this before applying the patch, to the entity to detect the changes

@@ -17,9 +17,8 @@ class AddonLibrary:
 
     @staticmethod
     async def clear_addon_list_cache():
-        keys = await Redis.keys("addon-list")
-        for key in keys:
-            await Redis.delete_ns("addon-list")
+        await Redis.delete_ns("addon-list")
+        await Redis.delete_ns("all-settings")
 
     @classmethod
     def getinstance(cls) -> "AddonLibrary":

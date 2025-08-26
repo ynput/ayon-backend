@@ -7,6 +7,7 @@ from ayon_server.exceptions import (
     NotFoundException,
     NotImplementedException,
 )
+from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid, now
@@ -59,31 +60,20 @@ class EntityList:
         return self._payload.entity_list_type
 
     async def ensure_access_level(
-        self, user: UserEntity | None = None, level: int = 0
+        self,
+        user: UserEntity | None = None,
+        level: int = 0,
     ) -> None:
         _user = user or self._user
-        """Check if the user has permission to read the entity list."""
         if not _user:
             return
-        if _user.is_manager:
-            return
-        if _user.name == self._payload.owner:
-            return
 
-        if not self._payload.access:
-            return
-
-        uaccess = self._payload.access.get("__everyone__")
-        if uaccess and uaccess >= level:
-            return
-
-        uaccess = self._payload.access.get(_user.name)
-        if uaccess and uaccess >= level:
-            return
-
-        # TODO check teams as well
-
-        raise ForbiddenException()
+        await EntityAccessHelper.check(
+            _user,
+            access=self._payload.access,
+            level=level,
+            owner=self._payload.owner,
+        )
 
     async def ensure_can_read(self, user: UserEntity | None = None) -> None:
         _user = user or self._user
@@ -103,15 +93,6 @@ class EntityList:
         except ForbiddenException as e:
             raise ForbiddenException(
                 f"Cannot update entity list {self._payload.label}"
-            ) from e
-
-    async def ensure_can_construct(self, user: UserEntity | None = None) -> None:
-        try:
-            await self.ensure_access_level(user=user, level=30)
-        except ForbiddenException as e:
-            assert user, "this should not happen"
-            raise ForbiddenException(
-                f"Cannot construct entity list {self._payload.label}"
             ) from e
 
     async def ensure_can_admin(self, user: UserEntity | None = None) -> None:

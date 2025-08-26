@@ -148,6 +148,13 @@ folder_fields = [
         "example": "/assets/characters/xenomorph",
         "dynamic": True,
     },
+    {
+        "name": "has_versions",
+        "type": "boolean",
+        "title": "Has versions",
+        "example": True,
+        "dynamic": True,
+    },
 ]
 
 
@@ -197,6 +204,13 @@ task_fields = [
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
     },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modeling",
+        "dynamic": True,
+    },
 ]
 
 
@@ -226,6 +240,13 @@ product_fields = [
         "description": "Product ",
         "regex": NAME_REGEX,
         "example": "model",
+    },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain",
+        "dynamic": True,
     },
 ]
 
@@ -271,6 +292,13 @@ version_fields = [
         "regex": USER_NAME_REGEX,
         "example": "john_doe",
     },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain/v003",
+        "dynamic": True,
+    },
 ]
 
 
@@ -311,6 +339,13 @@ representation_fields = [
             },
             "ayon.2d.Image.v1": {},
         },
+    },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain/v003/ma",
+        "dynamic": True,
     },
 ]
 

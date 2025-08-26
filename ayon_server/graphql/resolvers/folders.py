@@ -101,6 +101,9 @@ async def get_folders(
     project_name = root.project_name
     fields = FieldInfo(info, ["folders.edges.node", "folder"])
 
+    if info.context["user"].is_external:
+        return FoldersConnection(edges=[])
+
     #
     # SQL
     #
@@ -200,6 +203,18 @@ async def get_folders(
             EXISTS (
             SELECT 1 FROM reviewables WHERE folder_id = folders.id
             ) AS has_reviewables
+            """
+        )
+
+    if fields.any_endswith("hasVersions"):
+        sql_columns.append(
+            f"""
+            exists(
+                select 1 from project_{project_name}.versions v
+                inner join project_{project_name}.products p
+                on p.id = v.product_id
+                where p.folder_id = folders.id
+            ) as has_versions
             """
         )
 
