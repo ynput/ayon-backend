@@ -17,27 +17,30 @@ CREATE TABLE task_types(
     name VARCHAR NOT NULL PRIMARY KEY,
     position INTEGER NOT NULL DEFAULT 0,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
-    CONSTRAINT task_types_name_check CHECK (name != ''),
-    CONSTRAINT task_types_ci_name_unique UNIQUE (LOWER(name))
+    CONSTRAINT task_types_name_check CHECK (name != '')
 );
+
+CREATE UNIQUE INDEX task_types_ci_name_unique ON task_types(LOWER(name));
 
 
 CREATE TABLE folder_types(
     name VARCHAR NOT NULL PRIMARY KEY,
     position INTEGER NOT NULL DEFAULT 0,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
-    CONSTRAINT folder_types_name_check CHECK (name != ''),
-    CONSTRAINT folder_types_ci_name_unique UNIQUE (LOWER(name))
+    CONSTRAINT folder_types_name_check CHECK (name != '')
 );
+
+CREATE UNIQUE INDEX folder_types_ci_name_unique ON folder_types(LOWER(name));
 
 
 CREATE TABLE statuses(
     name VARCHAR NOT NULL PRIMARY KEY,
     position INTEGER NOT NULL DEFAULT 0,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
-    CONSTRAINT statuses_name_check CHECK (name != ''),
-    CONSTRAINT statuses_ci_name_unique UNIQUE (LOWER(name))
+    CONSTRAINT statuses_name_check CHECK (name != '')
 );
+
+CREATE UNIQUE INDEX statuses_ci_name_unique ON statuses(LOWER(name));
 
 
 CREATE TABLE tags(
