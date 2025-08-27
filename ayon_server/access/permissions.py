@@ -22,7 +22,7 @@ async def attr_enum():
     ]
 
 
-def top_level_fields_enum():
+def top_level_fields_enum() -> list[dict[str, str]]:
     return [
         {"value": "name", "label": "Entity name"},
         {"value": "label", "label": "Entity label"},

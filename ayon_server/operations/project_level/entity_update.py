@@ -136,7 +136,7 @@ async def update_project_level_entity(
     # pre_save method of the entity, that expects the payload to be
     # updated (that covers various entity-specific logic, validtion, etc.).
 
-    entity.patch(payload)
+    entity.patch(payload, user=user)
 
     # Add the following fields directly to update_payload_dict
     # They don't affect the events created, so they don't need to be
