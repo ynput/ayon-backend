@@ -1,5 +1,6 @@
 from typing import Any
 
+import aiocache
 from pydantic import validator
 
 from ayon_server.lib.postgres import Postgres
@@ -15,10 +16,16 @@ def get_folder_access_types():
     ]
 
 
+@aiocache.cached(ttl=300)
 async def attr_enum():
     return [
-        row["name"]
-        async for row in Postgres.iterate("SELECT name FROM public.attributes")
+        {"value": row["name"], "label": row["title"] or row["name"]}
+        async for row in Postgres.iterate(
+            """
+            SELECT name, data->'title' as title FROM public.attributes
+            ORDER BY COALESCE(data->>'title', name)
+            """
+        )
     ]
 
 
