@@ -85,7 +85,7 @@ class BaseEntity:
                             )
 
                     for field_name, val in pdata.items():
-                        if getattr(self._payload, field_name) == val:
+                        if getattr(self._payload, field_name, None) == val:
                             continue
                         if field_name not in perms.attrib_write.fields:
                             raise ForbiddenException(
