@@ -211,13 +211,19 @@ class ProjectPermissions(BaseSettingsModel):
     )
 
 
-class Permissions(ProjectPermissions, StudioPermissions):
+class Permissions(ProjectPermissions):
     """
     The Permissions model defines the permissions for an access group.
     to interact with specific resources in the system.
     """
 
     _layout = "root"
+
+    studio: StudioManagementPermissions = SettingsField(
+        default_factory=StudioManagementPermissions,
+        title="Studio permissions",
+        scope=["studio"],
+    )
 
     @classmethod
     def from_record(cls, perm_dict: dict[str, Any]) -> "Permissions":
