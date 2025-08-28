@@ -40,6 +40,24 @@ class FolderEntity(ProjectLevelEntity):
             raise ValueError(f"Invalid {cls.entity_type} ID specified")
 
         query = f"""
+
+            WITH RECURSIVE folder_closure AS (
+                SELECT id AS ancestor_id, id AS descendant_id
+                FROM project_{project_name}.folders
+                UNION ALL
+                SELECT fc.ancestor_id, f.id AS descendant_id
+                FROM folder_closure fc
+                JOIN project_{project_name}.folders f
+                ON f.parent_id = fc.descendant_id
+            ),
+
+            folder_with_versions AS (
+                SELECT DISTINCT fc.ancestor_id
+                FROM folder_closure fc
+                JOIN project_{project_name}.products p ON p.folder_id = fc.descendant_id
+                JOIN project_{project_name}.versions v ON v.product_id = p.id
+            )
+
             SELECT
                 f.id as id,
                 f.name as name,
@@ -57,25 +75,24 @@ class FolderEntity(ProjectLevelEntity):
                 h.path as path,
                 ia.attrib AS inherited_attrib,
                 p.attrib AS project_attrib,
-                exists(
-                    select 1 from project_{project_name}.versions v
-                    inner join project_{project_name}.products p
-                    on p.id = v.product_id
-                    where p.folder_id = f.id
-                ) as has_versions
+                (fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions
+
             FROM project_{project_name}.folders as f
-            INNER JOIN
-                project_{project_name}.hierarchy as h
-                ON f.id = h.id
-            LEFT JOIN
-                project_{project_name}.exported_attributes as ia
-                ON f.parent_id = ia.folder_id
+
+            INNER JOIN project_{project_name}.hierarchy as h
+            ON f.id = h.id
+
+            LEFT JOIN project_{project_name}.exported_attributes as ia
+            ON f.parent_id = ia.folder_id
+
+            LEFT JOIN folder_with_versions fwv
+            ON fwv.ancestor_id = f.id
+
             INNER JOIN public.projects as p
-                ON p.name ILIKE '{project_name}'
+            ON p.name ILIKE '{project_name}'
+
             WHERE f.id=$1
-            {'FOR UPDATE OF f NOWAIT'
-                if for_update else ''
-            }
+            {'FOR UPDATE OF f NOWAIT' if for_update else ''}
             """
 
         record = await query_entity_data(query, entity_id)

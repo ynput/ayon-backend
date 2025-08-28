@@ -10,7 +10,7 @@ from ayon_server.utils import json_dumps
 async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
     start_time = time.monotonic()
     query = f"""
-        WITH reviewables AS (
+        WITH RECURSIVE reviewables AS (
             SELECT p.folder_id AS folder_id
             FROM project_{project_name}.activity_feed af
             INNER JOIN project_{project_name}.versions v
@@ -19,6 +19,23 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
             AND  af.activity_type = 'reviewable'
             INNER JOIN project_{project_name}.products p
             ON p.id = v.product_id
+        ),
+
+        folder_closure AS (
+            SELECT id AS ancestor_id, id AS descendant_id
+            FROM project_{project_name}.folders
+            UNION ALL
+            SELECT fc.ancestor_id, f.id AS descendant_id
+            FROM folder_closure fc
+            JOIN project_{project_name}.folders f
+            ON f.parent_id = fc.descendant_id
+        ),
+
+        folder_with_versions AS (
+            SELECT DISTINCT fc.ancestor_id
+            FROM folder_closure fc
+            JOIN project_{project_name}.products p ON p.folder_id = fc.descendant_id
+            JOIN project_{project_name}.versions v ON v.product_id = p.id
         )
 
         SELECT
@@ -35,25 +52,24 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
             ea.path as path,
             COUNT (tasks.id) AS task_count,
             array_agg(tasks.name) AS task_names,
-            EXISTS (
-                SELECT 1 FROM reviewables WHERE folder_id = f.id
-            ) AS has_reviewables,
-            EXISTS (
-                SELECT 1 from project_{project_name}.versions v
-                INNER join project_{project_name}.products p
-                ON p.id = v.product_id
-                WHERE p.folder_id = f.id
-            ) AS has_versions
-        FROM
-            project_{project_name}.folders f
-        INNER JOIN
-            project_{project_name}.exported_attributes ea
+            (fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions,
+            (r.folder_id IS NOT NULL)::BOOLEAN AS has_reviewables
+
+        FROM project_{project_name}.folders f
+
+        INNER JOIN project_{project_name}.exported_attributes ea
         ON f.id = ea.folder_id
-        LEFT JOIN
-            project_{project_name}.tasks AS tasks
-        ON
-            tasks.folder_id = f.id
-        GROUP BY f.id, ea.attrib, ea.path
+
+        LEFT JOIN project_{project_name}.tasks AS tasks
+        ON tasks.folder_id = f.id
+
+        LEFT JOIN folder_with_versions fwv
+        ON fwv.ancestor_id = f.id
+
+        LEFT JOIN reviewables r
+        ON r.folder_id = f.id
+
+        GROUP BY f.id, ea.attrib, ea.path, fwv.ancestor_id, r.folder_id
     """
 
     result = []
