@@ -15,6 +15,8 @@ from ayon_server.utils.hashing import create_uuid
 
 from .router import router
 
+BACKGROUND_OPS_TTL = 600  # 10 minutes
+
 
 class OperationsRequestModel(OPModel):
     operations: list[OperationModel] = Field(default_factory=list)
@@ -107,7 +109,7 @@ async def _execute_background_operations(
         "background-operations",
         task_id,
         {"status": "in_progress"},
-        ttl=600,
+        ttl=BACKGROUND_OPS_TTL,
     )
     response = await ops.process(
         can_fail=can_fail,
@@ -118,7 +120,7 @@ async def _execute_background_operations(
         "background-operations",
         task_id,
         {"status": "completed", "result": response.dict()},
-        ttl=600,
+        ttl=BACKGROUND_OPS_TTL,
     )
 
 
@@ -165,7 +167,7 @@ async def background_operations(
         "background-operations",
         task_id,
         {"status": "pending"},
-        ttl=600,
+        ttl=BACKGROUND_OPS_TTL,
     )
     return BackgroundOperationsResponseModel(id=task_id)
 
