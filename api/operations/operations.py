@@ -3,7 +3,7 @@ from typing import Literal
 from fastapi import BackgroundTasks
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName, Sender, SenderType
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.redis import Redis
 from ayon_server.operations.project_level import (
     OperationModel,
@@ -103,7 +103,12 @@ async def _execute_background_operations(
     *,
     can_fail: bool,
 ) -> None:
-    await Redis.set_json("background-operations", task_id, {"status": "in_progress"})
+    await Redis.set_json(
+        "background-operations",
+        task_id,
+        {"status": "in_progress"},
+        ttl=600,
+    )
     response = await ops.process(
         can_fail=can_fail,
         raise_on_error=False,
@@ -113,13 +118,11 @@ async def _execute_background_operations(
         "background-operations",
         task_id,
         {"status": "completed", "result": response.dict()},
+        ttl=600,
     )
 
 
-@router.post(
-    "/projects/{project_name}/operations",
-    response_model=OperationsResponseModel,
-)
+@router.post("/projects/{project_name}/operations/background")
 async def background_operations(
     payload: OperationsRequestModel,
     project_name: ProjectName,
@@ -127,7 +130,7 @@ async def background_operations(
     sender: Sender,
     sender_type: SenderType,
     background_tasks: BackgroundTasks,
-):
+) -> BackgroundOperationsResponseModel:
     """
     The same as `POST /projects/{project_name}/operations` but runs in the background.
     The response is returned immediately and contains a task ID that can be used to
@@ -158,6 +161,30 @@ async def background_operations(
         can_fail=payload.can_fail,
     )
 
-    await Redis.set_json("background-operations", task_id, {"status": "pending"})
-
+    await Redis.set_json(
+        "background-operations",
+        task_id,
+        {"status": "pending"},
+        ttl=600,
+    )
     return BackgroundOperationsResponseModel(id=task_id)
+
+
+@router.get("/projects/{project_name}/operations/background/{task_id}")
+async def get_background_operations_status(
+    project_name: ProjectName,
+    task_id: str,
+    user: CurrentUser,
+) -> BackgroundOperationsResponseModel:
+    """Get the status of a background operations task."""
+
+    # Note: project_name is not used here but kept for consistency
+    # and future use (if needed).
+    _ = project_name, user
+
+    data = await Redis.get_json("background-operations", task_id)
+    if not data:
+        msg = f"Background operations task '{task_id}' not found"
+        raise NotFoundException(msg)
+
+    return BackgroundOperationsResponseModel(id=task_id, **data)
