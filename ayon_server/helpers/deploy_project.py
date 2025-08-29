@@ -36,7 +36,7 @@ def anatomy_to_project_data(anatomy: Anatomy) -> dict[str, Any]:
         }
     }
 
-    config["productTypes"] = anatomy.product_types.dict(
+    config["productBaseTypes"] = anatomy.product_base_types.dict(
         exclude_defaults=True,
         exclude_unset=True,
         exclude_none=True,

@@ -22,7 +22,6 @@ from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy.folder_types import FolderType
 from ayon_server.settings.anatomy.product_base_types import (
-    DefaultProductBaseType,
     default_product_type_definitions,
 )
 from ayon_server.settings.anatomy.statuses import Status
@@ -99,14 +98,8 @@ async def get_project(
     coalesce = RequestCoalescer()
     project = await coalesce(ProjectEntity.load, project_name)
 
-    if "productTypes" not in project.config:
-        project.config["productTypes"] = {}
-
-    if "default" not in project.config["productTypes"]:
-        project.config["productTypes"]["default"] = DefaultProductBaseType().dict()
-
-    if "definitions" not in project.config["productTypes"]:
-        project.config["productTypes"]["definitions"] = default_pt_definitions
+    if "productBaseTypes" not in project.config:
+        project.config["productBaseTypes"]["definitions"] = default_pt_definitions
 
     return cast(ProjectModel, project.as_user(user))
 
