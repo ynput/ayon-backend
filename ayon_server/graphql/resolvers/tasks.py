@@ -268,11 +268,21 @@ async def get_tasks(
     if has_links is not None:
         sql_conditions.extend(get_has_links_conds(project_name, "tasks.id", has_links))
 
-    access_list = await create_folder_access_list(root, info)
-    if access_list is not None:
-        sql_conditions.append(
-            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
-        )
+    user = info.context["user"]
+    access_list = None
+    if not user.is_manager:
+        perms = user.permissions(project_name)
+
+        if perms.advanced.show_sibling_tasks:
+            access_list = await create_folder_access_list(root, info)
+            if access_list is not None:
+                sql_conditions.append(
+                    f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+                )
+        else:
+            sql_conditions.append(
+                f"tasks.assignees && {SQLTool.array([user.name], curly=True)}"
+            )
 
     if attributes:
         for attribute_input in attributes:
