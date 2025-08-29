@@ -4,7 +4,7 @@ from typing import Any, cast
 from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.patch import build_pl_entity_change_events
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
 
 from .models import OperationModel
@@ -68,7 +68,6 @@ async def sanitize_folder_update(
     """
 
     folder_entity = cast(FolderEntity, entity)
-    has_versions = bool(await folder_entity.get_versions())
     existing_folder_data = folder_entity.payload.dict(exclude_none=True)
     if not operation.force:
         for key in ("name", "folder_type", "parent_id"):
@@ -76,10 +75,22 @@ async def sanitize_folder_update(
                 continue
             old_value = existing_folder_data.get(key)
             new_value = update_payload_dict[key]
-            if has_versions and old_value != new_value:
+            if folder_entity.has_versions and old_value != new_value:
                 raise ForbiddenException(
                     f"Cannot change {key} of a folder with published versions"
                 )
+
+    if "parent_id" in update_payload_dict:
+        # Prevent setting parent_id to self or any of its descendants
+        new_parent_id = update_payload_dict["parent_id"]
+        if new_parent_id == entity.id:
+            raise BadRequestException("Folder cannot be its own parent")
+
+        descendants = await folder_entity.get_folder_descendant_ids()
+        if new_parent_id in descendants:
+            raise BadRequestException(
+                "Folder cannot be moved to one of its descendants"
+            )
 
 
 async def update_project_level_entity(
@@ -125,7 +136,7 @@ async def update_project_level_entity(
     # pre_save method of the entity, that expects the payload to be
     # updated (that covers various entity-specific logic, validtion, etc.).
 
-    entity.patch(payload)
+    entity.patch(payload, user=user)
 
     # Add the following fields directly to update_payload_dict
     # They don't affect the events created, so they don't need to be

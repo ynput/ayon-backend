@@ -40,17 +40,21 @@ class ProjectEntity(TopLevelEntity):
     async def load(
         cls,
         name: str,
-        transaction=None,
-        for_update=False,
+        transaction=None,  # deprecated
+        for_update: bool = False,
     ) -> "ProjectEntity":
         """Load a project from the database."""
 
         project_name = name
 
-        if payload := await Redis.get_json("project-data", project_name):
-            if isinstance(payload, list):
-                payload = payload[0]
-            return cls.from_record(payload=payload)
+        if not for_update:
+            # if we are not going to update the project, we can use the cache
+            # to speed up the loading. Otherwise, we need to lock the project
+            # record to prevent concurrent modifications
+            if payload := await Redis.get_json("project-data", project_name):
+                if isinstance(payload, list):
+                    payload = payload[0]
+                return cls.from_record(payload=payload)
 
         try:
             project_data = await Postgres.fetchrow(
@@ -247,6 +251,13 @@ class ProjectEntity(TopLevelEntity):
                 await Redis.delete("project-folders", self.name)
                 await build_project_list()
         return True
+
+    def as_user(self, user):
+        payload = self._payload.copy()
+        if user.is_external:
+            payload.data = {}  # type: ignore
+            payload.config = {}  # type: ignore
+        return payload
 
     #
     # Properties

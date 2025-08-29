@@ -60,7 +60,8 @@ class BaseEntity:
     def patch(self, patch_data: BaseModel, user: Optional["UserEntity"] = None) -> None:
         """Apply a patch to the entity."""
 
-        pattr = patch_data.dict(exclude_unset=True).get("attrib", {})
+        pdata = patch_data.dict(exclude_unset=True)
+        pattr = pdata.pop("attrib", {})
 
         if user is not None and hasattr(self, "project_name"):
             if not (user.is_manager):
@@ -81,6 +82,15 @@ class BaseEntity:
                             raise ForbiddenException(
                                 f"You are not allowed to modify {attr}"
                                 f" attribute in {self.project_name}"
+                            )
+
+                    for field_name, val in pdata.items():
+                        if getattr(self._payload, field_name, None) == val:
+                            continue
+                        if field_name not in perms.attrib_write.fields:
+                            raise ForbiddenException(
+                                f"You are not allowed to modify {field_name}"
+                                f" field in {self.project_name}"
                             )
 
         if pattr:

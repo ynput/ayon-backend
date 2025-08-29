@@ -1,9 +1,9 @@
 [project]
 name = "ayon-server"
-version = "1.11.1"
+version = "1.11.2"
 description = ""
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.11,<3.14"
 
 dependencies = [
   "aiocache >=0.12.2",
@@ -82,11 +82,6 @@ ignore = [
 ]
 
 
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
-
-
 [tool.mypy]
 plugins = [
   "pydantic.mypy"
@@ -94,7 +89,7 @@ plugins = [
 
 check_untyped_defs = true
 disallow_any_generics = true
-exclude = "tests/|venv/|tool/"
+exclude = "tests/|venv/|tool/|test_"
 explicit_package_bases = true
 no_implicit_reexport = true
 strict_optional = true

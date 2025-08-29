@@ -56,7 +56,11 @@ async def get_workfiles(
     """Return a list of workfiles."""
 
     project_name = root.project_name
+    user = info.context["user"]
     fields = FieldInfo(info, ["workfiles.edges.node", "workfile"])
+
+    if user.is_external:
+        return WorkfilesConnection(edges=[])
 
     #
     # SQL

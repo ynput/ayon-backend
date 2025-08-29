@@ -16,20 +16,32 @@ ALTER TABLE thumbnails ALTER COLUMN data SET STORAGE EXTERNAL;
 CREATE TABLE task_types(
     name VARCHAR NOT NULL PRIMARY KEY,
     position INTEGER NOT NULL DEFAULT 0,
-    data JSONB NOT NULL DEFAULT '{}'::JSONB
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    CONSTRAINT task_types_name_check CHECK (name != '')
 );
+
+CREATE UNIQUE INDEX task_types_ci_name_unique ON task_types(LOWER(name));
+
 
 CREATE TABLE folder_types(
     name VARCHAR NOT NULL PRIMARY KEY,
     position INTEGER NOT NULL DEFAULT 0,
-    data JSONB NOT NULL DEFAULT '{}'::JSONB
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    CONSTRAINT folder_types_name_check CHECK (name != '')
 );
+
+CREATE UNIQUE INDEX folder_types_ci_name_unique ON folder_types(LOWER(name));
+
 
 CREATE TABLE statuses(
     name VARCHAR NOT NULL PRIMARY KEY,
     position INTEGER NOT NULL DEFAULT 0,
-    data JSONB NOT NULL DEFAULT '{}'::JSONB
+    data JSONB NOT NULL DEFAULT '{}'::JSONB,
+    CONSTRAINT statuses_name_check CHECK (name != '')
 );
+
+CREATE UNIQUE INDEX statuses_ci_name_unique ON statuses(LOWER(name));
+
 
 CREATE TABLE tags(
     name VARCHAR NOT NULL PRIMARY KEY,
@@ -172,10 +184,10 @@ CREATE UNIQUE INDEX folder_creation_order_idx ON folders(creation_order);
 
 -- Two partial indices are used as a workaround for root folders (which have parent_id NULL)
 
-CREATE UNIQUE INDEX folder_unique_name_parent ON folders (parent_id, name)
+CREATE UNIQUE INDEX folder_unique_name_parent ON folders (parent_id, LOWER(name))
     WHERE (active IS TRUE AND parent_id IS NOT NULL);
 
-CREATE UNIQUE INDEX folder_root_unique_name ON folders (name)
+CREATE UNIQUE INDEX folder_root_unique_name ON folders (LOWER(name))
     WHERE (active IS TRUE AND parent_id IS NULL);
 
 
@@ -238,7 +250,7 @@ CREATE INDEX task_parent_idx ON tasks(folder_id);
 CREATE INDEX task_type_idx ON tasks(task_type);
 CREATE INDEX task_thumbnail_idx ON tasks(thumbnail_id);
 CREATE UNIQUE INDEX task_creation_order_idx ON tasks(creation_order);
-CREATE UNIQUE INDEX task_unique_name ON tasks(folder_id, name);
+CREATE UNIQUE INDEX task_unique_name ON tasks(folder_id, LOWER(name)) WHERE (active IS TRUE);
 
 -------------
 -- PRODUCTS --
@@ -264,7 +276,7 @@ CREATE TABLE products(
 CREATE INDEX product_parent_idx ON products(folder_id);
 CREATE INDEX product_type_idx ON products(product_type);
 CREATE UNIQUE INDEX product_creation_order_idx ON products(creation_order);
-CREATE UNIQUE INDEX product_unique_name_parent ON products (folder_id, name) WHERE (active IS TRUE);
+CREATE UNIQUE INDEX product_unique_name_parent ON products (folder_id, LOWER(name)) WHERE (active IS TRUE);
 
 --------------
 -- VERSIONS --
@@ -277,7 +289,7 @@ CREATE TABLE versions(
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
-    author VARCHAR, -- REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    author VARCHAR,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -332,7 +344,7 @@ CREATE TABLE representations(
 );
 
 CREATE INDEX representation_parent_idx ON representations(version_id);
-CREATE UNIQUE INDEX representation_unique_name_on_version ON representations (version_id, name) WHERE (active IS TRUE);
+CREATE UNIQUE INDEX representation_unique_name_on_version ON representations (version_id, LOWER(name)) WHERE (active IS TRUE);
 CREATE UNIQUE INDEX representation_creation_order_idx ON representations(creation_order);
 
 ---------------
@@ -346,8 +358,8 @@ CREATE TABLE workfiles(
 
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
 
-    created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-    updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    created_by VARCHAR,
+    updated_by VARCHAR,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -361,6 +373,7 @@ CREATE TABLE workfiles(
 
 CREATE INDEX workfile_parent_idx ON workfiles(task_id);
 CREATE INDEX workfile_thumbnail_idx ON workfiles(thumbnail_id);
+
 
 -----------
 -- LINKS --
@@ -382,7 +395,7 @@ CREATE TABLE links (
     link_type VARCHAR NOT NULL REFERENCES link_types(name) ON DELETE CASCADE,
     input_id UUID NOT NULL,
     output_id UUID NOT NULL,
-    author VARCHAR, -- REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    author VARCHAR,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -415,8 +428,8 @@ CREATE TABLE settings(
 CREATE TABLE project_site_settings(
   addon_name VARCHAR NOT NULL,
   addon_version VARCHAR NOT NULL,
-  site_id VARCHAR REFERENCES public.sites(id) ON DELETE CASCADE,
-  user_name VARCHAR REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  site_id VARCHAR,
+  user_name VARCHAR,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (addon_name, addon_version, site_id, user_name)
 );
@@ -430,8 +443,8 @@ CREATE TABLE IF NOT EXISTS addon_data(
 );
 
 CREATE TABLE IF NOT EXISTS custom_roots(
-  site_id VARCHAR NOT NULL REFERENCES public.sites(id) ON DELETE CASCADE,
-  user_name VARCHAR NOT NULL REFERENCES public.users(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  site_id VARCHAR NOT NULL,
+  user_name VARCHAR NOT NULL,
   data JSONB NOT NULL DEFAULT '{}'::JSONB,
   PRIMARY KEY (site_id, user_name)
 );
@@ -447,7 +460,7 @@ CREATE TABLE entity_lists(
   entity_list_type VARCHAR NOT NULL,
   entity_type VARCHAR NOT NULL,
   label VARCHAR NOT NULL,
-  owner VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+  owner VARCHAR,
 
   access JSONB NOT NULL DEFAULT '{}'::JSONB,
   template JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -458,8 +471,8 @@ CREATE TABLE entity_lists(
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-  updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+  created_by VARCHAR,
+  updated_by VARCHAR,
   creation_order SERIAL NOT NULL
 );
 
@@ -483,8 +496,8 @@ CREATE TABLE entity_list_items(
 
   folder_path VARCHAR NOT NULL DEFAULT '',
 
-  created_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
-  updated_by VARCHAR REFERENCES public.users(name) ON UPDATE CASCADE ON DELETE SET NULL,
+  created_by VARCHAR,
+  updated_by VARCHAR,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

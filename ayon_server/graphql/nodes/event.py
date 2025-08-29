@@ -24,7 +24,7 @@ class EventNode:
     data: str | None
 
 
-def event_from_record(
+async def event_from_record(
     project_name: str | None,
     record: dict[str, Any],
     context: dict[str, Any],

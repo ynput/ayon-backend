@@ -101,6 +101,9 @@ async def get_folders(
     project_name = root.project_name
     fields = FieldInfo(info, ["folders.edges.node", "folder"])
 
+    if info.context["user"].is_external:
+        return FoldersConnection(edges=[])
+
     #
     # SQL
     #
@@ -195,13 +198,52 @@ async def get_folders(
             """
         )
 
-        sql_columns.append(
+        sql_columns.append("(r.folder_id IS NOT NULL)::BOOLEAN AS has_reviewables")
+
+        sql_joins.append(
             """
-            EXISTS (
-            SELECT 1 FROM reviewables WHERE folder_id = folders.id
-            ) AS has_reviewables
+            LEFT JOIN reviewables r
+            ON r.folder_id = folders.id
             """
         )
+
+        sql_group_by.append("r.folder_id")
+
+    if fields.any_endswith("hasVersions"):
+        sql_columns.append("(fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions")
+
+        sql_cte.extend(
+            [
+                f"""
+            folder_closure AS (
+                SELECT id AS ancestor_id, id AS descendant_id
+                FROM project_{project_name}.folders
+                UNION ALL
+                SELECT fc.ancestor_id, f.id AS descendant_id
+                FROM folder_closure fc
+                JOIN project_{project_name}.folders f
+                ON f.parent_id = fc.descendant_id
+            )
+            """,
+                f"""
+            folder_with_versions AS (
+                SELECT DISTINCT fc.ancestor_id
+                FROM folder_closure fc
+                JOIN project_{project_name}.products p ON p.folder_id = fc.descendant_id
+                JOIN project_{project_name}.versions v ON v.product_id = p.id
+            )
+            """,
+            ]
+        )
+
+        sql_joins.append(
+            """
+            LEFT JOIN folder_with_versions fwv
+            ON fwv.ancestor_id = folders.id
+            """
+        )
+
+        sql_group_by.append("fwv.ancestor_id")
 
     #
     # Conditions
@@ -382,7 +424,7 @@ async def get_folders(
 
     if sql_cte:
         cte = ", ".join(sql_cte)
-        cte = f"WITH {cte}"
+        cte = f"WITH RECURSIVE {cte}"
     else:
         cte = ""
 
