@@ -1,5 +1,6 @@
 from typing import Any
 
+import aiocache
 from pydantic import validator
 
 from ayon_server.lib.postgres import Postgres
@@ -15,10 +16,32 @@ def get_folder_access_types():
     ]
 
 
+@aiocache.cached(ttl=300)
 async def attr_enum():
     return [
-        row["name"]
-        async for row in Postgres.iterate("SELECT name FROM public.attributes")
+        {"value": row["name"], "label": row["title"] or row["name"]}
+        async for row in Postgres.iterate(
+            """
+            SELECT name, data->'title' as title FROM public.attributes
+            ORDER BY COALESCE(data->>'title', name)
+            """
+        )
+    ]
+
+
+def top_level_fields_enum() -> list[dict[str, str]]:
+    return [
+        {"value": "name", "label": "Entity name"},
+        {"value": "label", "label": "Entity label"},
+        {"value": "status", "label": "Entity status"},
+        {"value": "tags", "label": "Entity tags"},
+        {"value": "active", "label": "Entity active state"},
+        {"value": "parent_id", "label": "Folder parent ID"},
+        {"value": "folder_type", "label": "Folder type"},
+        {"value": "task_type", "label": "Task type"},
+        {"value": "assignees", "label": "Task assignees"},
+        {"value": "product_type", "label": "Product type"},
+        {"value": "author", "label": "Version author"},
     ]
 
 
@@ -69,6 +92,15 @@ class FolderAccessList(BasePermissionsModel):
 
 
 class AttributeReadAccessList(BasePermissionsModel):
+    # We cannot restrict reading top-level fields for now
+    # as they are not nullable and we need to return at least something
+    # Keeping this here for the future reference
+    # fields: list[str] = SettingsField(
+    #     title="Readable fields",
+    #     default_factory=list,
+    #     enum_resolver=top_level_fields_enum,
+    # )
+
     attributes: list[str] = SettingsField(
         title="Readable attributes",
         default_factory=list,
@@ -77,6 +109,11 @@ class AttributeReadAccessList(BasePermissionsModel):
 
 
 class AttributeWriteAccessList(BasePermissionsModel):
+    fields: list[str] = SettingsField(
+        title="Writable fields",
+        default_factory=list,
+        enum_resolver=top_level_fields_enum,
+    )
     attributes: list[str] = SettingsField(
         title="Writable attributes",
         default_factory=list,
