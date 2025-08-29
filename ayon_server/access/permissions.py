@@ -151,10 +151,7 @@ class ProjectAdvancedPermissions(BaseSettingsModel):
     show_sibling_tasks: bool = SettingsField(
         True,
         title="Show sibling tasks",
-        description=(
-            "When enabled, 'asssigned' ,"
-            "permission also shows all tasks in the same folder"
-        ),
+        description="Show sibling tasks when access mode is 'Assigned'",
     )
 
 
