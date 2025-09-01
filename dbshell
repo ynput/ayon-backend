@@ -1,0 +1,29 @@
+#!/bin/bash
+
+url="${AYON_POSTGRES_URL}"
+if [[ -z "$url" ]]; then
+  url=postgres://ayon:ayon@postgres/ayon
+fi
+
+# Remove scheme (postgres://)
+url="${url#postgres://}"
+
+# Extract user and host parts
+userpass="${url%@*}"
+hostdb="${url#*@}"
+
+# Extract user and password
+user="${userpass%%:*}"
+pass="${userpass#*:}"
+
+# Extract host and db
+hostport="${hostdb%%/*}"
+dbname="${hostdb#*/}"
+
+# Split host and optional port
+host="${hostport%%:*}"
+port="${hostport#*:}"
+# if no port specified, default to 5432
+[[ "$host" == "$port" ]] && port="5432"  
+
+PGPASSWORD="${pass}" psql -U "${user}" -h "${host}" -p "${port}" "${dbname}"

@@ -1,48 +1,100 @@
 from typing import NoReturn
 
 from ayon_server.access.utils import ensure_entity_access
+from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
-from ayon_server.exceptions import ConstraintViolationException
+from ayon_server.exceptions import (
+    ConstraintViolationException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
+
+
+def version_name(version: int) -> str:
+    if version < 0:
+        return "HERO"
+    return f"v{version:03d}"
 
 
 class VersionEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "version"
     model = ModelSet("version", attribute_library["version"])
 
-    async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
-        """Save entity to database."""
+    @classmethod
+    async def load(
+        cls,
+        project_name: str,
+        entity_id: str,
+        for_update: bool = False,
+        **kwargs,
+    ):
+        query = f"""
+            SELECT
+                v.id as id,
+                v.version as version,
+                v.product_id as product_id,
+                v.task_id as task_id,
+                v.thumbnail_id as thumbnail_id,
+                v.author as author,
 
-        async with Postgres.transaction():
-            if self.version < 0:
-                # Ensure there is no previous hero version
-                res = await Postgres.fetch(
-                    f"""
-                    SELECT id FROM project_{self.project_name}.versions
-                    WHERE
-                        version < 0
-                    AND id != $1
-                    AND product_id = $2
-                    """,
-                    self.id,
-                    self.product_id,
-                )
-                if res:
-                    raise ConstraintViolationException("Hero version already exists.")
+                v.attrib as attrib,
+                v.data as data,
+                v.active as active,
+                v.status as status,
+                v.tags as tags,
+                v.created_at as created_at,
+                v.updated_at as updated_at,
 
-            await super().save()
+                p.name as product_name,
+                h.path as folder_path
 
-            if self.task_id:
-                await Postgres.execute(
-                    f"""
-                    UPDATE project_{self.project_name}.tasks
-                    SET updated_at = NOW()
-                    WHERE id = $1
-                    """,
-                    self.task_id,
-                )
+            FROM project_{project_name}.versions v
+            JOIN project_{project_name}.products p ON v.product_id = p.id
+            JOIN project_{project_name}.hierarchy h ON p.folder_id = h.id
+            WHERE v.id=$1
+            {'FOR UPDATE NOWAIT' if for_update else ''}
+            """
+
+        record = await query_entity_data(query, entity_id)
+
+        hierarchy_path = record.pop("folder_path", None)
+        product_name = record.pop("product_name", None)
+        if hierarchy_path and product_name:
+            hierarchy_path = hierarchy_path.strip("/")
+            vname = version_name(record["version"])
+            record["path"] = f"/{hierarchy_path}/{product_name}/{vname}"
+
+        return cls.from_record(project_name, record)
+
+    async def pre_save(self, insert: bool) -> None:
+        if self.version < 0:
+            # Ensure there is no previous hero version
+            res = await Postgres.fetchrow(
+                f"""
+                SELECT id FROM project_{self.project_name}.versions
+                WHERE
+                    version < 0
+                AND id != $1
+                AND product_id = $2
+                """,
+                self.id,
+                self.product_id,
+            )
+            if res is not None:
+                raise ConstraintViolationException("Hero version already exists.")
+
+        if self.task_id:
+            # Bump the updated_at timestamp of the task
+            # in order to re-fetch a new thumbnail
+            await Postgres.execute(
+                f"""
+                UPDATE project_{self.project_name}.tasks
+                SET updated_at = NOW()
+                WHERE id = $1
+                """,
+                self.task_id,
+            )
 
     @classmethod
     async def refresh_views(cls, project_name: str) -> None:
@@ -85,9 +137,7 @@ class VersionEntity(ProjectLevelEntity):
 
     @property
     def name(self) -> str:
-        if self.version < 0:
-            return "HERO"
-        return f"v{self.version:03d}"
+        return version_name(self.version)
 
     @name.setter
     def name(self, value: str) -> NoReturn:
@@ -133,3 +183,11 @@ class VersionEntity(ProjectLevelEntity):
     @property
     def author(self) -> str:
         return self._payload.author  # type: ignore
+
+    #
+    # Read only properties
+    #
+
+    @property
+    def path(self) -> str:
+        return self._payload.path  # type: ignore

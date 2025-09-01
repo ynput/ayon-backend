@@ -8,7 +8,7 @@ from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -48,6 +48,7 @@ class ProductNode(BaseNode):
     status: str
     tags: list[str]
     data: str | None
+    path: str | None = None
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
@@ -79,7 +80,7 @@ class ProductNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.folder_id)
         )
-        return info.context["folder_from_record"](
+        return await info.context["folder_from_record"](
             self.project_name, record, info.context
         )
 
@@ -88,10 +89,11 @@ class ProductNode(BaseNode):
         record = await info.context["latest_version_loader"].load(
             (self.project_name, self.id)
         )
-        return (
-            info.context["version_from_record"](self.project_name, record, info.context)
-            if record
-            else None
+        if record is None:
+            return None
+
+        return await info.context["version_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field
@@ -105,16 +107,30 @@ class ProductNode(BaseNode):
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+        return json_dumps(
+            process_attrib_data(
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+            )
+        )
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
 
 
-def product_from_record(
+async def product_from_record(
     project_name: str,
     record: dict[str, Any],
     context: dict[str, Any],
 ) -> ProductNode:
     """Construct a product node from a DB row."""
 
+    folder = None
     if context:
         folder_data = {}
         for key, value in record.items():
@@ -122,13 +138,15 @@ def product_from_record(
                 key = key.removeprefix("_folder_")
                 folder_data[key] = value
 
-        folder = (
-            context["folder_from_record"](project_name, folder_data, context=context)
-            if folder_data
-            else None
-        )
-    else:
-        folder = None
+        if folder_data.get("id"):
+            try:
+                cfun = context["folder_from_record"]
+                if folder_data is None:
+                    folder = None
+                else:
+                    folder = await cfun(project_name, folder_data, context=context)
+            except KeyError:
+                pass
 
     vlist = []
     version_ids = record.get("version_ids", [])
@@ -138,6 +156,11 @@ def product_from_record(
             vlist.append(VersionListItem(id=id, version=vers))
 
     data = record.get("data", {})
+
+    path = None
+    if record.get("_folder_path"):
+        folder_path = record["_folder_path"].strip("/")
+        path = f"/{folder_path}/{record['name']}"
 
     return ProductNode(
         project_name=project_name,
@@ -153,6 +176,7 @@ def product_from_record(
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         version_list=vlist,
+        path=path,
         _folder=folder,
         _attrib=record["attrib"] or {},
         _user=context["user"],

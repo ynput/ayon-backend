@@ -57,6 +57,29 @@ CREATE TABLE IF NOT EXISTS public.product_types(
   data JSONB NOT NULL DEFAULT '{}'::JSONB
 );
 
+-----------
+-- VIEWS --
+-----------
+
+CREATE TABLE IF NOT EXISTS views(
+  id UUID NOT NULL PRIMARY KEY,
+  view_type VARCHAR NOT NULL,
+  label VARCHAR NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+
+  owner VARCHAR,
+  visibility VARCHAR NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private')),
+  working BOOLEAN NOT NULL DEFAULT TRUE,
+
+  access JSONB NOT NULL DEFAULT '{}'::JSONB,
+  data JSONB NOT NULL DEFAULT '{}'::JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS unique_working_view ON views(view_type, owner) WHERE working;
+CREATE INDEX IF NOT EXISTS view_type_idx ON views(view_type);
+CREATE INDEX IF NOT EXISTS view_owner_idx ON views(owner);
 
 CREATE TABLE IF NOT EXISTS public.product_base_types(
   name VARCHAR NOT NULL PRIMARY KEY,

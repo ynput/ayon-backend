@@ -24,6 +24,7 @@ async def list_available_actions_for_context(
     context: ActionContext,
     user: CurrentUser,
     mode: ActionListMode = Query("simple", title="Action List Mode"),
+    variant: str | None = Query(None, title="Settings Variant"),
 ) -> AvailableActionsListModel:
     """Get available actions for a context.
 
@@ -45,15 +46,15 @@ async def list_available_actions_for_context(
     actions = []
 
     if mode == "simple":
-        r = await get_simple_actions(user, context)
+        r = await get_simple_actions(user, context, variant)
         actions.extend(r.actions)
     elif mode == "dynamic":
-        r = await get_dynamic_actions(user, context)
+        r = await get_dynamic_actions(user, context, variant)
         actions.extend(r.actions)
     elif mode == "all":
-        r1 = await get_simple_actions(user, context)
+        r1 = await get_simple_actions(user, context, variant)
         actions.extend(r1.actions)
-        r2 = await get_dynamic_actions(user, context)
+        r2 = await get_dynamic_actions(user, context, variant)
         actions.extend(r2.actions)
 
     for action in actions:

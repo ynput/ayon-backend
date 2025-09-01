@@ -112,7 +112,7 @@ async def get_tasks(
 ) -> TasksConnection:
     """Return a list of tasks."""
 
-    if folder_ids == ["root"]:
+    if folder_ids == ["root"] or info.context["user"].is_external:
         # this is a workaround to allow selecting tasks along with children folders
         # in a single query of the manager page.
         # (assuming the root element of the project cannot have tasks :) )
@@ -357,6 +357,8 @@ async def get_tasks(
         or search
         or sort_by == "path"
         or "folder" in fields
+        or fields.any_endswith("path")
+        or fields.any_endswith("parents")
     ):
         sql_columns.extend(
             [

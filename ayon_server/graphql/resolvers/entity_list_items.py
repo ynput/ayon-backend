@@ -158,7 +158,12 @@ async def get_entity_list_items(
     #    This is implemented on EntityListItemEdge level and we need access_checker
     #    to do that.
 
-    if accessible_only:
+    if info.context["user"].is_external:
+        # External users can access underlying entities as long they have
+        # access to the entity list itself, so we don't need to do anything
+        pass
+
+    elif accessible_only:
         access_list = await create_folder_access_list(root, info)
         if access_list is not None:
             # if access list is None, user has access to everything within the project
@@ -220,6 +225,7 @@ async def get_entity_list_items(
         # as well because of the inheritance
         sql_columns.append("px.attrib as _entity_parent_folder_attrib")
         sql_columns.append("pf.folder_type as _parent_folder_type")
+        sql_columns.append("hierarchy.path AS _entity__folder_path")
         sql_joins.extend(
             [
                 f"""
@@ -229,6 +235,10 @@ async def get_entity_list_items(
                 f"""
                 INNER JOIN project_{project_name}.folders AS pf
                 ON e.folder_id = pf.id
+                """,
+                f"""
+                INNER JOIN project_{project_name}.hierarchy AS hierarchy
+                ON e.folder_id = hierarchy.id
                 """,
             ]
         )
@@ -296,13 +306,20 @@ async def get_entity_list_items(
         sql_columns.extend(
             [
                 "pf.folder_type as _parent_folder_type",
+                "hierarchy.path AS _entity__folder_path",
             ]
         )
-        sql_joins.append(
-            f"""
-            INNER JOIN project_{project_name}.folders AS pf
-            ON e.folder_id = pf.id
-            """
+        sql_joins.extend(
+            [
+                f"""
+                INNER JOIN project_{project_name}.folders AS pf
+                ON e.folder_id = pf.id
+                """,
+                f"""
+                INNER JOIN project_{project_name}.hierarchy AS hierarchy
+                ON e.folder_id = hierarchy.id
+                """,
+            ]
         )
         allowed_parent_keys = ["folder_type"]
 
@@ -312,6 +329,8 @@ async def get_entity_list_items(
                 "pf.folder_type as _parent_folder_type",
                 "pd.product_type as _parent_product_type",
                 "pt.task_type as _parent_task_type",
+                "hierarchy.path AS _entity__folder_path",
+                "pd.name AS _entity__product_name",
             ]
         )
         sql_joins.extend(
@@ -327,6 +346,10 @@ async def get_entity_list_items(
                 f"""
                 LEFT JOIN project_{project_name}.tasks AS pt
                 ON e.task_id = pt.id
+                """,
+                f"""
+                INNER JOIN project_{project_name}.hierarchy AS hierarchy
+                ON pd.folder_id = hierarchy.id
                 """,
             ]
         )
@@ -351,8 +374,6 @@ async def get_entity_list_items(
                 ) AS _entity_has_reviewables
                 """
             )
-
-    # The rest of the entity types should work out of the box
 
     # Unified attributes
     # Create additions column _all_attrib that contains all attributes

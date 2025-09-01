@@ -1,4 +1,3 @@
-import os
 from typing import TYPE_CHECKING, Any
 
 import strawberry
@@ -8,7 +7,7 @@ from ayon_server.entities import WorkfileEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -36,13 +35,16 @@ class WorkfileNode(BaseNode):
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
+    _parents: list[str] | None = None
 
     @strawberry.field(description="Parent task of the workfile")
     async def task(self, info: Info) -> TaskNode:
         record = await info.context["task_loader"].load(
             (self.project_name, self.task_id)
         )
-        return info.context["task_from_record"](self.project_name, record, info.context)
+        return await info.context["task_from_record"](
+            self.project_name, record, info.context
+        )
 
     @strawberry.field
     def attrib(self) -> WorkfileAttribType:
@@ -55,7 +57,17 @@ class WorkfileNode(BaseNode):
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+        return json_dumps(
+            process_attrib_data(
+                self._attrib,
+                project_name=self.project_name,
+                user=self._user,
+            )
+        )
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        return self._parents or []
 
 
 #
@@ -63,13 +75,14 @@ class WorkfileNode(BaseNode):
 #
 
 
-def workfile_from_record(
+async def workfile_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> WorkfileNode:
     """Construct a version node from a DB row."""
 
     data = record.get("data") or {}
-    name = os.path.basename(record["path"])
+    npath = record["path"].replace("\\", "/")
+    name = npath.split("/")[-1] if npath else ""
 
     thumbnail = None
     if record["thumbnail_id"]:
@@ -80,6 +93,12 @@ def workfile_from_record(
             source_entity_id=thumb_data.get("sourceEntityId"),
             relation=thumb_data.get("relation"),
         )
+
+    parents: list[str] = []
+    if path := record.get("_folder_path"):
+        path = path.strip("/")
+        parents = path.split("/")[:-1] if path else []
+        parents.append(record["_task_name"])
 
     return WorkfileNode(
         project_name=project_name,
@@ -99,6 +118,7 @@ def workfile_from_record(
         updated_at=record["updated_at"],
         _attrib=record["attrib"] or {},
         _user=context["user"],
+        _parents=parents,
     )
 
 

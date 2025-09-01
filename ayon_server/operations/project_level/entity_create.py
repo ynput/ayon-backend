@@ -2,7 +2,7 @@ from typing import Any
 
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 
 from .models import OperationModel
 
@@ -12,7 +12,7 @@ async def create_project_level_entity(
     project_name: str,
     operation: OperationModel,
     user: UserEntity | None,
-) -> tuple[ProjectLevelEntity, list[dict[str, Any]], int]:
+) -> tuple[str, list[dict[str, Any]], int]:
     assert operation.data is not None, "data is required for create"
 
     payload = entity_class.model.post_model(**operation.data)
@@ -36,6 +36,10 @@ async def create_project_level_entity(
         if not payload_dict.get("updated_by"):
             payload_dict["updated_by"] = payload_dict["created_by"]
 
+    elif operation.entity_type == "folder":
+        if payload_dict["id"] == payload_dict.get("parent_id"):
+            raise BadRequestException("Folder cannot be its own parent")
+
     #
     # Create the entity and events
     #
@@ -54,4 +58,4 @@ async def create_project_level_entity(
         }
     ]
     await entity.save(auto_commit=False)
-    return entity, events, 201
+    return entity.id, events, 201

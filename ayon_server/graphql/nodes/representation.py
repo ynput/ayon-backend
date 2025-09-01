@@ -7,7 +7,7 @@ from ayon_server.entities import RepresentationEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import get_base_name, json_dumps
 
 if TYPE_CHECKING:
@@ -38,6 +38,7 @@ class RepresentationNode(BaseNode):
     tags: list[str]
     data: str | None
     traits: str | None
+    path: str | None = None
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
@@ -49,7 +50,7 @@ class RepresentationNode(BaseNode):
         record = await info.context["version_loader"].load(
             (self.project_name, self.version_id)
         )
-        return info.context["version_from_record"](
+        return await info.context["version_from_record"](
             self.project_name, record, info.context
         )
 
@@ -77,8 +78,20 @@ class RepresentationNode(BaseNode):
 
     @strawberry.field
     def all_attrib(self) -> str:
-        """Alias for `allAttrib`"""
-        return json_dumps(self._attrib)
+        return json_dumps(
+            process_attrib_data(
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+            )
+        )
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
 
 
 def parse_files(
@@ -96,12 +109,20 @@ def parse_files(
     return result
 
 
-def representation_from_record(
+async def representation_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> RepresentationNode:  # noqa # no. this line won't be shorter
     """Construct a representation node from a DB row."""
 
     data = record.get("data") or {}
+
+    path = None
+    if record.get("_folder_path"):
+        folder_path = record["_folder_path"].strip("/")
+        product_name = record["_product_name"]
+        version_number = record["_version_number"]
+        version_name = f"v{version_number:03d}"
+        path = f"/{folder_path}/{product_name}/{version_name}/{record['name']}"
 
     return RepresentationNode(
         project_name=project_name,
@@ -117,6 +138,7 @@ def representation_from_record(
         context=json_dumps(data.get("context", {})),
         files=parse_files(record.get("files", [])),
         traits=json_dumps(record["traits"]) if record["traits"] else None,
+        path=path,
         _attrib=record["attrib"] or {},
         _user=context["user"],
     )

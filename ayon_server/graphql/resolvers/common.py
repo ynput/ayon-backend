@@ -164,7 +164,9 @@ async def resolve(
 
         if node_type is not None:
             try:
-                node = node_type.from_record(project_name, record_dict, context=context)
+                node = await node_type.from_record(
+                    project_name, record_dict, context=context
+                )
             except ForbiddenException:
                 continue
             edges.append(edge_type(node=node, cursor=cursor))
@@ -174,7 +176,9 @@ async def resolve(
             # But the actual node is created on the edge, not here
             try:
                 payload = {**record_dict, "cursor": cursor}
-                edge = edge_type.from_record(project_name, payload, context=context)
+                edge = await edge_type.from_record(
+                    project_name, payload, context=context
+                )
             except ForbiddenException:
                 continue
             edges.append(edge)

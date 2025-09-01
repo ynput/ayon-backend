@@ -2,8 +2,10 @@ from datetime import datetime
 
 import strawberry
 
+from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
+from ayon_server.logging import logger
 
 
 @strawberry.type
@@ -50,10 +52,16 @@ class LinkEdge(BaseEdge):
         elif self.entity_type == "representation":
             loader = info.context["representation_loader"]
             parser = info.context["representation_from_record"]
+        elif self.entity_type == "workfile":
+            loader = info.context["workfile_loader"]
+            parser = info.context["workfile_from_record"]
         else:
-            raise ValueError
+            msg = f"Unsupported entity type '{self.entity_type}' for link node"
+            logger.error(msg)
+            raise AyonException(msg)
+
         record = await loader.load((self.project_name, self.entity_id))
-        return parser(self.project_name, record, info.context)
+        return await parser(self.project_name, record, info.context)
 
 
 @strawberry.type
@@ -125,3 +133,7 @@ class BaseNode:
             activity_types=activity_types,
             reference_types=reference_types,
         )
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        return []

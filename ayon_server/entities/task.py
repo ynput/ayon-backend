@@ -1,13 +1,10 @@
 from typing import Any
 
 from ayon_server.access.utils import ensure_entity_access
+from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
-from ayon_server.exceptions import (
-    AyonException,
-    NotFoundException,
-    ServiceUnavailableException,
-)
+from ayon_server.exceptions import AyonException
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -52,8 +49,11 @@ class TaskEntity(ProjectLevelEntity):
                 t.updated_at as updated_at,
                 t.status as status,
                 t.tags as tags,
-                ia.attrib AS inherited_attrib
+                ia.attrib AS inherited_attrib,
+                h.path as folder_path
             FROM project_{project_name}.tasks as t
+            JOIN project_{project_name}.hierarchy as h
+                ON t.folder_id = h.id
             LEFT JOIN
                 project_{project_name}.exported_attributes as ia
                 ON t.folder_id = ia.folder_id
@@ -61,19 +61,7 @@ class TaskEntity(ProjectLevelEntity):
             {'FOR UPDATE OF t NOWAIT' if for_update else ''}
             """
 
-        try:
-            record = await Postgres.fetchrow(query, entity_id)
-        except Postgres.UndefinedTableError:
-            raise NotFoundException(f"Project {project_name} not found")
-        except Postgres.LockNotAvailableError:
-            raise ServiceUnavailableException(
-                f"Task {entity_id} is locked by another operation"
-            )
-
-        if record is None:
-            raise NotFoundException(
-                f"Task {entity_id} not found in project {project_name}"
-            )
+        record = await query_entity_data(query, entity_id)
 
         attrib: dict[str, Any] = {}
         if (ia := record["inherited_attrib"]) is not None:
@@ -88,6 +76,11 @@ class TaskEntity(ProjectLevelEntity):
         attrib |= record["attrib"]
         own_attrib = list(record["attrib"].keys())
         payload = {**record, "attrib": attrib}
+
+        folder_path = payload.pop("folder_path", None)
+        folder_path = folder_path.strip("/")
+        payload["path"] = f"/{folder_path}/{payload['name']}"
+
         return cls.from_record(
             project_name=project_name,
             payload=payload,
@@ -177,3 +170,11 @@ class TaskEntity(ProjectLevelEntity):
     @thumbnail_id.setter
     def thumbnail_id(self, value: str) -> None:
         self._payload.thumbnail_id = value  # type: ignore
+
+    #
+    # Read only properties
+    #
+
+    @property
+    def path(self) -> str:
+        return self._payload.path  # type: ignore

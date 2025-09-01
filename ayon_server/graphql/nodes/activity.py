@@ -5,7 +5,7 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.graphql.types import Info
-from ayon_server.utils import json_dumps, json_loads
+from ayon_server.utils import json_dumps, json_loads, slugify
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.user import UserNode
@@ -86,6 +86,28 @@ class ActivityNode:
         data = json_loads(self.activity_data)
         if "author" in data:
             author = data["author"]
+            if author.startswith("external."):
+                external_users = info.context["project"].data.get("externalUsers", {})
+                for email, payload in external_users.items():
+                    candidate_name = slugify(f"external.{email}", separator=".")
+                    if candidate_name != author:
+                        continue
+                    full_name = payload.get("fullName", email)
+                    record = {
+                        "name": author,
+                        "attrib": {
+                            "email": email,
+                            "fullName": full_name,
+                        },
+                        "active": False,
+                        "deleted": True,
+                        "created_at": "1970-01-01T00:00:00Z",
+                        "updated_at": "1970-01-01T00:00:00Z",
+                    }
+                    return await info.context["user_from_record"](
+                        None, record, info.context
+                    )
+
             loader = info.context["user_loader"]
             record = await loader.load(author)
             if not record:
@@ -99,7 +121,7 @@ class ActivityNode:
                     "created_at": "1970-01-01T00:00:00Z",
                     "updated_at": "1970-01-01T00:00:00Z",
                 }
-            return info.context["user_from_record"](None, record, info.context)
+            return await info.context["user_from_record"](None, record, info.context)
         return None
 
     @strawberry.field
@@ -109,7 +131,7 @@ class ActivityNode:
             assignee = data["assignee"]
             loader = info.context["user_loader"]
             record = await loader.load(assignee)
-            return info.context["user_from_record"](None, record, info.context)
+            return await info.context["user_from_record"](None, record, info.context)
         return None
 
     @strawberry.field
@@ -124,10 +146,10 @@ class ActivityNode:
 
         loader = info.context["version_loader"]
         record = await loader.load((self.project_name, version_id))
-        return (
-            info.context["version_from_record"](self.project_name, record, info.context)
-            if record
-            else None
+        if record is None:
+            return None
+        return await info.context["version_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field
@@ -173,7 +195,7 @@ def replace_reference_body(node: ActivityNode) -> ActivityNode:
     return node
 
 
-def activity_from_record(
+async def activity_from_record(
     project_name: str | None,
     record: dict[str, Any],
     context: dict[str, Any],

@@ -49,4 +49,4 @@ class OperationResponseModel(OPModel):
 
 class OperationsResponseModel(OPModel):
     operations: Annotated[list[OperationResponseModel], Field(default_factory=list)]
-    success: Annotated[bool, Field(title="Overall success")]
+    success: Annotated[bool, Field(title="Overall success")] = False

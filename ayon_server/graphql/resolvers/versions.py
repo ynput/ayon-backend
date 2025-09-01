@@ -27,7 +27,7 @@ from ayon_server.types import (
     validate_status_list,
     validate_user_name_list,
 )
-from ayon_server.utils import SQLTool
+from ayon_server.utils import SQLTool, slugify
 
 SORT_OPTIONS = {
     "version": "versions.version",
@@ -76,12 +76,14 @@ async def get_versions(
         argdesc("List hero versions. If hero does not exist, list latest"),
     ] = False,
     has_links: ARGHasLinks = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> VersionsConnection:
     """Return a list of versions."""
 
     project_name = root.project_name
+    user = info.context["user"]
     fields = FieldInfo(info, ["versions.edges.node", "version"])
 
     #
@@ -128,6 +130,8 @@ async def get_versions(
     sql_conditions = []
     sql_joins = []
 
+    needs_hierarchy = False
+
     # Empty overrides. Skip querying
     if ids == ["0" * 32]:
         return VersionsConnection(edges=[])
@@ -138,20 +142,24 @@ async def get_versions(
         sql_conditions.append(f"versions.id IN {SQLTool.id_array(ids)}")
     if version:
         sql_conditions.append(f"versions.version = {version}")
+
     if versions is not None:
         if not versions:
             return VersionsConnection()
         sql_conditions.append(f"versions.version IN {SQLTool.array(versions)}")
+
     if authors is not None:
         if not authors:
             return VersionsConnection()
         validate_user_name_list(authors)
         sql_conditions.append(f"versions.author IN {SQLTool.array(authors)}")
+
     if statuses is not None:
         if not statuses:
             return VersionsConnection()
         validate_status_list(statuses)
         sql_conditions.append(f"versions.status IN {SQLTool.array(statuses)}")
+
     if tags is not None:
         if not tags:
             return VersionsConnection()
@@ -164,6 +172,7 @@ async def get_versions(
         sql_conditions.append(f"versions.product_id IN {SQLTool.id_array(product_ids)}")
     elif root.__class__.__name__ == "ProductNode":
         sql_conditions.append(f"versions.product_id = '{root.id}'")
+
     if task_ids:
         sql_conditions.append(f"versions.task_id IN {SQLTool.id_array(task_ids)}")
     elif root.__class__.__name__ == "TaskNode":
@@ -180,7 +189,6 @@ async def get_versions(
         )
     elif heroOnly:
         sql_conditions.append("versions.version < 0")
-
     elif heroOrLatestOnly:
         sql_conditions.append(
             f"""
@@ -199,23 +207,59 @@ async def get_versions(
             get_has_links_conds(project_name, "versions.id", has_links)
         )
 
-    access_list = await create_folder_access_list(root, info)
-    if access_list is not None:
-        sql_conditions.append(
-            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+    if user.is_external:
+        if not ids:
+            return VersionsConnection(edges=[])
+
+        # External users can only access version by their ID.
+        pass
+
+    else:
+        access_list = await create_folder_access_list(root, info)
+        if access_list is not None:
+            sql_conditions.append(
+                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+            )
+            needs_hierarchy = True
+
+    if search:
+        needs_hierarchy = True
+        terms = slugify(search, make_set=True, min_length=2)
+
+        for term in terms:
+            sub_conditions = []
+            if term.isdigit():
+                sub_conditions.append(f"versions.version = {int(term)}")
+            elif term.startswith("v") and term[1:].isdigit():
+                sub_conditions.append(f"versions.version = {int(term[1:])}")
+
+            term = term.replace("'", "''")  # Escape single quotes
+            sub_conditions.append(f"products.name ILIKE '%{term}%'")
+            sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
+            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
+
+            condition = " OR ".join(sub_conditions)
+            sql_conditions.append(f"({condition})")
+
+    if fields.any_endswith("path") or fields.any_endswith("parents"):
+        needs_hierarchy = True
+
+    if needs_hierarchy:
+        sql_columns.append("hierarchy.path AS _folder_path")
+        sql_columns.append("products.name AS _product_name")
+
+        sql_joins.append(
+            f"""
+            INNER JOIN project_{project_name}.products AS products
+            ON products.id = versions.product_id
+            """
         )
 
-        sql_joins.extend(
-            [
-                f"""
-                INNER JOIN project_{project_name}.products AS products
-                ON products.id = versions.product_id
-                """,
-                f"""
-                INNER JOIN project_{project_name}.hierarchy AS hierarchy
-                ON hierarchy.id = products.folder_id
-                """,
-            ]
+        sql_joins.append(
+            f"""
+            INNER JOIN project_{project_name}.hierarchy AS hierarchy
+            ON hierarchy.id = products.folder_id
+            """
         )
 
     #

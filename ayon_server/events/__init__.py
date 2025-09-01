@@ -2,13 +2,14 @@ __all__ = [
     "EventStream",
     "EventModel",
     "EventStatus",
+    "HandlerType",
     "dispatch_event",
     "update_event",
 ]
 
 from typing import Any
 
-from ayon_server.events.base import EventModel, EventStatus
+from ayon_server.events.base import EventModel, EventStatus, HandlerType
 from ayon_server.events.eventstream import EventStream
 
 

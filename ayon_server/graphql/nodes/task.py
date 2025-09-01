@@ -9,7 +9,7 @@ from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import get_nickname, json_dumps
 
 if TYPE_CHECKING:
@@ -38,6 +38,7 @@ class TaskNode(BaseNode):
     has_reviewables: bool
     tags: list[str]
     data: str | None
+    path: str | None = None
 
     _attrib: strawberry.Private[dict[str, Any]]
     _inherited_attrib: strawberry.Private[dict[str, Any]]
@@ -69,7 +70,7 @@ class TaskNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.folder_id)
         )
-        return info.context["folder_from_record"](
+        return await info.context["folder_from_record"](
             self.project_name, record, info.context
         )
 
@@ -86,22 +87,34 @@ class TaskNode(BaseNode):
     @strawberry.field
     def all_attrib(self) -> str:
         """Return all attributes (inherited and own) as JSON string."""
-        all_attrib = {
-            **self._inherited_attrib,
-            **self._attrib,
-        }
-        return json_dumps(all_attrib)
+        return json_dumps(
+            process_attrib_data(
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+                inherited_attrib=self._inherited_attrib,
+            )
+        )
 
     @strawberry.field
     def own_attrib(self) -> list[str]:
         """Return a list of attributes that are defined on the task."""
         return list(self._attrib.keys())
 
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
 
-def task_from_record(
+
+async def task_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> TaskNode:
     """Construct a task node from a DB row."""
+
+    folder = None
     if context:
         folder_data = {}
         for key, value in record.items():
@@ -109,17 +122,19 @@ def task_from_record(
                 key = key.removeprefix("_folder_")
                 folder_data[key] = value
 
-        folder = (
-            context["folder_from_record"](project_name, folder_data, context=context)
-            if folder_data
-            else None
-        )
-    else:
-        folder = None
+        if folder_data.get("id"):
+            cfun = context["folder_from_record"]
+            try:
+                if folder_data is None:
+                    folder = None
+                else:
+                    folder = await cfun(project_name, folder_data, context=context)
+            except KeyError:
+                pass
 
     current_user = context["user"]
     assignees: list[str] = []
-    if current_user.is_guest:
+    if current_user.is_guest or current_user.is_external:
         for assignee in record["assignees"]:
             if assignee == current_user.name:
                 assignees.append(assignee)
@@ -145,6 +160,11 @@ def task_from_record(
             relation=thumb_data.get("relation"),
         )
 
+    path = None
+    if record.get("_folder_path"):
+        folder_path = record["_folder_path"].strip("/")
+        path = f"/{folder_path}/{record['name']}"
+
     return TaskNode(
         project_name=project_name,
         id=record["id"],
@@ -160,6 +180,7 @@ def task_from_record(
         tags=record["tags"],
         data=json_dumps(data) if data else None,
         active=record["active"],
+        path=path,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         _folder=folder,

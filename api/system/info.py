@@ -7,7 +7,7 @@ from fastapi import Query, Request
 from pydantic import ValidationError
 
 from ayon_server.addons import AddonLibrary, SSOOption
-from ayon_server.api.dependencies import CurrentUserOptional, NoTraces
+from ayon_server.api.dependencies import AllowExternal, CurrentUserOptional, NoTraces
 from ayon_server.config import ayonconfig
 from ayon_server.config.serverconfig import get_server_config
 from ayon_server.entities import UserEntity
@@ -71,6 +71,12 @@ class InfoResponseModel(OPModel):
         None,
         title="Disable changelog",
         description="If set, the changelog will not be shown to the user",
+    )
+
+    hide_password_auth: bool | None = Field(
+        None,
+        title="Hide password authentication",
+        description="Password authentication will not be shown on the login page",
     )
 
     password_recovery_available: bool | None = Field(None, title="Password recovery")
@@ -217,6 +223,7 @@ async def get_attributes() -> list[AttributeModel]:
 async def get_additional_info(
     user_name: str,
     is_admin: bool,
+    is_external: bool,
     site_id: str | None,
     site_platform: str | None,
     site_hostname: str | None,
@@ -240,7 +247,8 @@ async def get_additional_info(
     else:
         current_site = None
 
-    sites = await get_user_sites(user_name, current_site)
+    if not is_external:
+        sites = await get_user_sites(user_name, current_site)
 
     attr_list = await get_attributes()
     extras = await CloudUtils.get_extras()
@@ -276,7 +284,7 @@ async def is_onboarding_finished() -> bool:
 @router.get(
     "/info",
     response_model_exclude_none=True,
-    dependencies=[NoTraces],
+    dependencies=[NoTraces, AllowExternal],
 )
 async def get_site_info(
     request: Request,
@@ -295,28 +303,33 @@ async def get_site_info(
     coalesce = RequestCoalescer()
 
     additional_info = {}
+
     if current_user:
         site_id = request.headers.get("x-ayon-site-id")
         site_platform = request.headers.get("x-ayon-platform")
         site_hostname = request.headers.get("x-ayon-hostname")
         site_version = request.headers.get("x-ayon-version")
+        sso_options = await get_sso_options(request)
 
         additional_info = await coalesce(
             get_additional_info,
             current_user.name,
             current_user.is_admin,
+            current_user.is_external,
             site_id,
             site_platform,
             site_hostname,
             site_version,
         )
 
+        additional_info["sso_options"] = sso_options
+
         if current_user.is_admin and not current_user.is_service:
             if not await is_onboarding_finished():
                 additional_info["onboarding"] = True
     elif full:
-        sso_options = await get_sso_options(request)
         has_admin_user = await CloudUtils.get_admin_exists()
+        sso_options = await get_sso_options(request)
         additional_info = {
             "sso_options": sso_options,
             "no_admin_user": (not has_admin_user) or None,
@@ -341,6 +354,9 @@ async def get_site_info(
             additional_info["login_page_brand"] = url
         elif ayonconfig.login_page_brand:  # Deprecated
             additional_info["login_page_brand"] = ayonconfig.login_page_brand
+
+        if server_config.authentication.hide_password_auth:
+            additional_info["hide_password_auth"] = True
 
     user_payload = current_user.payload if (current_user is not None) else None
     return InfoResponseModel(user=user_payload, **additional_info)
