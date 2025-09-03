@@ -1,6 +1,8 @@
 import json
 from typing import Annotated
 
+from ayon_server.access.access_groups import AccessGroups
+from ayon_server.access.utils import path_to_paths
 from ayon_server.entities.core import attribute_library
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import TasksConnection
@@ -44,6 +46,48 @@ SORT_OPTIONS = {
     "taskType": "tasks.task_type",
     "assignees": "array_to_string(tasks.assignees, '')",
 }
+
+
+class FullAccess(Exception):
+    pass
+
+
+async def create_task_acl(
+    project_name: str, access_group_names: list[str]
+) -> tuple[set[str], bool]:
+    """Get the access control list for tasks based on access groups.
+
+    - set of folder paths we have full access to
+    - bool indicating if we have 'assigned' access
+
+    raises FullAccess if we have full access to all tasks
+
+    """
+
+    full_access = set()
+    assigned_access: bool = False
+
+    for ag_name in access_group_names:
+        if (ag_name, project_name) in AccessGroups.access_groups:
+            ag_perms = AccessGroups.access_groups[(ag_name, project_name)]
+        elif (ag_name, "_") in AccessGroups.access_groups:
+            ag_perms = AccessGroups.access_groups[(ag_name, "_")]
+        else:
+            continue
+        read_perms = ag_perms.read
+        if not read_perms.enabled:
+            # we have an access group that does not restrict read access,
+            # so we have full access
+            raise FullAccess()
+        for acl in read_perms.access_list:
+            if acl.access_type == "assigned":
+                assigned_access = True
+                continue
+
+            for p in path_to_paths(acl.path, True, True):
+                full_access.add(p)
+
+    return full_access, assigned_access
 
 
 async def get_tasks(
@@ -268,11 +312,37 @@ async def get_tasks(
     if has_links is not None:
         sql_conditions.extend(get_has_links_conds(project_name, "tasks.id", has_links))
 
-    access_list = await create_folder_access_list(root, info)
-    if access_list is not None:
-        sql_conditions.append(
-            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
-        )
+    user = info.context["user"]
+    access_list = None
+    if not user.is_manager:
+        perms = user.permissions(project_name)
+
+        if perms.advanced.show_sibling_tasks:
+            access_list = await create_folder_access_list(root, info)
+            if access_list is not None:
+                sql_conditions.append(
+                    f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+                )
+        else:
+            try:
+                facl, assigned_access = await create_task_acl(
+                    project_name,
+                    user.data.get("accessGroups", {}).get(project_name, []),
+                )
+            except FullAccess:
+                pass
+            else:
+                sql_acl_conds = []
+                sql_acl_conds.append(
+                    f"hierarchy.path like ANY ('{{ {','.join(facl)} }}')"
+                )
+                if assigned_access:
+                    sql_acl_conds.append(
+                        f"""tasks.assignees::text[] @> '{{{user.name}}}'"""
+                    )
+
+                if sql_acl_conds:
+                    sql_conditions.append(f"({' OR '.join(sql_acl_conds)})")
 
     if attributes:
         for attribute_input in attributes:
@@ -454,6 +524,7 @@ FROM project_{project_name}.tasks AS tasks
 
     # Keep it here for debugging :)
     # from ayon_server.logging import logger
+    #
     # logger.debug(f"Task query\n{query}")
 
     return await resolve(

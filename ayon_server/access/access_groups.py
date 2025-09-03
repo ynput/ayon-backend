@@ -104,7 +104,7 @@ class AccessGroups:
                     elif not result[perm_name]["enabled"]:
                         continue
 
-                if perm_name in ["project", "studio"]:
+                if perm_name in ["project", "studio", "advanced"]:
                     for k, v in result.get(perm_name, {}).items():
                         old_value = result[perm_name].get(k, 0)
                         new_value = value.__getattribute__(k)
@@ -130,6 +130,13 @@ class AccessGroups:
                         set(result[perm_name].get("attributes", []))
                         | set(value.attributes)
                     )
+
+                    if isinstance(value, AttributeWriteAccessList):
+                        result[perm_name]["fields"] = list(
+                            set(result[perm_name].get("can_create", []))
+                            | set(value.fields)
+                        )
+
                 elif perm_name == "endpoints":
                     assert isinstance(value, EndpointsAccessList)
                     result[perm_name]["endpoints"] = list(
