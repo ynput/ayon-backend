@@ -14,9 +14,7 @@ from ayon_server.api.dependencies import (
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.auth.session import Session
 from ayon_server.auth.utils import validate_password
-from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
-from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ConflictException,
@@ -161,19 +159,7 @@ async def create_user(
             raise BadRequestException("Only service users can have API keys")
         nuser.set_api_key(put_data.api_key)
 
-    event: dict[str, Any] = {
-        "topic": "entity.user.created",
-        "description": f"User {user_name} created",
-        "summary": {"entityName": user.name},
-    }
-
-    await nuser.save()
-    await EventStream.dispatch(
-        sender=sender,
-        sender_type=sender_type,
-        user=user.name,
-        **event,
-    )
+    await nuser.save(user=user, sendor=sender, sender_type=sender_type)
     return EmptyResponse()
 
 
@@ -188,24 +174,7 @@ async def delete_user(
         raise ForbiddenException
 
     target_user = await UserEntity.load(user_name)
-
-    event: dict[str, Any] = {
-        "description": f"User {user_name} deleted",
-        "summary": {"entityName": user_name},
-    }
-    if ayonconfig.audit_trail:
-        event["payload"] = {
-            "entityData": target_user.dict_simple(),
-        }
-
-    await target_user.delete()
-    await EventStream.dispatch(
-        "entity.user.deleted",
-        sender=sender,
-        sender_type=sender_type,
-        user=user.name,
-        **event,
-    )
+    await target_user.delete(user=user.name, sendor=sender, sender_type=sender_type)
     return EmptyResponse()
 
 
@@ -308,6 +277,8 @@ async def change_password(
     patch_data: ChangePasswordRequestModel,
     user: CurrentUser,
     user_name: UserName,
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     patch_data_dict = patch_data.dict(exclude_unset=True)
 
@@ -323,7 +294,7 @@ async def change_password(
             complexity_check=not user.is_admin,
         )
 
-        await target_user.save()
+        await target_user.save(user=user.name, sender=sender, sender_type=sender_type)
         return EmptyResponse()
 
     elif "api_key" in patch_data_dict:
@@ -335,7 +306,7 @@ async def change_password(
             raise BadRequestException(f"{user_name} is not a service account")
         target_user.set_api_key(patch_data.api_key)
 
-        await target_user.save()
+        await target_user.save(user=user.name, sender=sender, sender_type=sender_type)
         return EmptyResponse()
 
     raise BadRequestException("No password or API key provided")
@@ -482,6 +453,8 @@ async def assign_access_groups(
     patch_data: AssignAccessGroupsRequestModel,
     user: CurrentUser,
     user_name: UserName,
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     if not user.is_manager:
         raise ForbiddenException("You are not permitted to assign access groups")
@@ -499,7 +472,7 @@ async def assign_access_groups(
         ag_set[project_name] = access_groups
 
     target_user.data["accessGroups"] = ag_set
-    await target_user.save()
+    await target_user.save(user=user.name, sender=sender, sender_type=sender_type)
     return EmptyResponse()
 
 
