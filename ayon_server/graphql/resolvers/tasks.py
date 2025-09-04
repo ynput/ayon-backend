@@ -391,9 +391,9 @@ async def get_tasks(
         # isn't it nice that slugify effectively prevents sql injections?
         for term in terms:
             cond = f"""(
-            tasks.name ILIKE '{term}%'
-            OR tasks.label ILIKE '{term}%'
-            OR tasks.task_type ILIKE '{term}%'
+            tasks.name ILIKE '%{term}%'
+            OR tasks.label ILIKE '%{term}%'
+            OR tasks.task_type ILIKE '%{term}%'
             OR hierarchy.path ILIKE '%{term}%'
             )"""
             sql_conditions.append(cond)
