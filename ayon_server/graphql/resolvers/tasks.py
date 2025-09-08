@@ -84,6 +84,9 @@ async def create_task_acl(
                 assigned_access = True
                 continue
 
+            if acl.path is None:
+                continue
+
             for p in path_to_paths(acl.path, True, True):
                 full_access.add(p)
 
