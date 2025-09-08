@@ -69,7 +69,7 @@ async def get_entity_lists(
             return EntityListsConnection()
         sql_conditions.append(f"id in {SQLTool.id_array(ids)}")
 
-    if user.is_external:
+    if user.is_guest:
         sql_conditions.append(f"access->>'external:{user.attrib.email}' IS NOT NULL")
 
     #

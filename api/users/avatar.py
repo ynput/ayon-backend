@@ -183,14 +183,10 @@ async def obtain_avatar(user_name: str) -> bytes:
 async def get_avatar(user_name: UserName, current_user: CurrentUser) -> Response:
     """Retrieve the avatar for a given user."""
 
-    if current_user.is_guest:
-        avatar_bytes = create_initials_svg(user_name).encode()
-
-    else:
-        avatar_bytes = await Redis.get(REDIS_NS, user_name)
-        if not avatar_bytes:
-            avatar_bytes = await obtain_avatar(user_name)
-            await Redis.set(REDIS_NS, user_name, avatar_bytes)
+    avatar_bytes = await Redis.get(REDIS_NS, user_name)
+    if not avatar_bytes:
+        avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
     return image_response_from_bytes(avatar_bytes)
 

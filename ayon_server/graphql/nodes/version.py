@@ -9,7 +9,7 @@ from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.representations import get_representations
 from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
-from ayon_server.utils import get_nickname, json_dumps
+from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import RepresentationsConnection
@@ -109,8 +109,6 @@ async def version_from_record(
 
     current_user = context["user"]
     author = record["author"]
-    if (current_user.is_guest or current_user.is_external) and author is not None:
-        author = get_nickname(author)
 
     data = record.get("data") or {}
     version_no = record["version"]

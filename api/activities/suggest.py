@@ -41,7 +41,7 @@ async def suggest_entity_mention(
     with relevant entities that the user can mention.
     """
 
-    if user.is_external:
+    if user.is_guest:
         return SuggestResponse()
 
     entity_class = get_entity_class(request.entity_type)

@@ -223,7 +223,7 @@ async def get_attributes() -> list[AttributeModel]:
 async def get_additional_info(
     user_name: str,
     is_admin: bool,
-    is_external: bool,
+    is_guest: bool,
     site_id: str | None,
     site_platform: str | None,
     site_hostname: str | None,
@@ -247,7 +247,7 @@ async def get_additional_info(
     else:
         current_site = None
 
-    if not is_external:
+    if not is_guest:
         sites = await get_user_sites(user_name, current_site)
 
     attr_list = await get_attributes()
@@ -315,7 +315,7 @@ async def get_site_info(
             get_additional_info,
             current_user.name,
             current_user.is_admin,
-            current_user.is_external,
+            current_user.is_guest,
             site_id,
             site_platform,
             site_hostname,

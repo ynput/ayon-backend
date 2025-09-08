@@ -128,7 +128,7 @@ async def list_projects(
         # breaks the pagination. Remove pagination completely?
         # Or rather use graphql-like approach with cursor?
         if not can_list_all_projects:
-            if user.is_external:
+            if user.is_guest:
                 external_users = row["data"].get("externalUsers", {})
                 if user.attrib.email not in external_users:
                     continue

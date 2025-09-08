@@ -269,10 +269,6 @@ class UserEntity(TopLevelEntity):
         return self.data.get("isDeveloper", False)
 
     @property
-    def is_external(self) -> bool:
-        return self.data.get("isExternal", False)
-
-    @property
     def is_manager(self) -> bool:
         data = self.data
         return (
@@ -326,7 +322,7 @@ class UserEntity(TopLevelEntity):
         if self.is_manager:
             return
 
-        if self.is_external:
+        if self.is_guest:
             raise ForbiddenException(
                 "External users cannot access projects directly. "
                 "Use the external user management API."
@@ -340,7 +336,7 @@ class UserEntity(TopLevelEntity):
         if self.is_manager:
             return
 
-        if self.is_external:
+        if self.is_guest:
             project = await ProjectEntity.load(project_name)
             external_users = project.data.get("externalUsers", {})
             if self.attrib.email not in external_users:

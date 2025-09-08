@@ -10,7 +10,7 @@ from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
-from ayon_server.utils import get_nickname, json_dumps
+from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import VersionsConnection, WorkfilesConnection
@@ -133,15 +133,7 @@ async def task_from_record(
                 pass
 
     current_user = context["user"]
-    assignees: list[str] = []
-    if current_user.is_guest or current_user.is_external:
-        for assignee in record["assignees"]:
-            if assignee == current_user.name:
-                assignees.append(assignee)
-            else:
-                assignees.append(get_nickname(assignee))
-    else:
-        assignees = record["assignees"]
+    assignees = record["assignees"]
 
     data = record.get("data") or {}
 

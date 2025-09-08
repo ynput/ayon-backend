@@ -79,7 +79,7 @@ async def post_project_activity(
         if activity.activity_type not in ["comment"]:
             raise BadRequestException("Humans can only create comments")
 
-    if user.is_external:
+    if user.is_guest:
         activity.data = {"category": "external"}
 
     entity_class = get_entity_class(entity_type)

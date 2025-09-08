@@ -190,7 +190,7 @@ async def get_folder_list(
     # - all folders are stored there, so we need to filter out the ones the user
     #   does not have access to. So we cannot avoid parsing the JSON, solving the ACL
 
-    if user.is_external:
+    if user.is_guest:
         return Response(
             json_dumps(
                 {"detail": "External users cannot access this endpoint", "folders": []}

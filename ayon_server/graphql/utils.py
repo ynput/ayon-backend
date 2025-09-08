@@ -22,7 +22,7 @@ def process_attrib_data(
 ) -> dict[str, Any]:
     attr_limit: list[str] | Literal["all"] = []
 
-    if user.is_external:
+    if user.is_guest:
         # External users have no access to attributes
         attr_limit = []
 

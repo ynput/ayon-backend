@@ -137,7 +137,7 @@ async def dep_current_user(request: Request) -> UserEntity:
     if not user:
         raise UnauthorizedException(request.state.unauthorized_reason or "Unauthorized")
 
-    if user.is_external:
+    if user.is_guest:
         route = request.scope.get("route")
         if isinstance(route, APIRoute):
             if request.url.path not in EXTERNAL_ROUTE_WHITELIST:

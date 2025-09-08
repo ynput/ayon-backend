@@ -76,7 +76,7 @@ async def get_products(
     user = info.context["user"]
     fields = FieldInfo(info, ["products.edges.node", "product"])
 
-    if user.is_external:
+    if user.is_guest:
         return ProductsConnection(edges=[])
 
     #

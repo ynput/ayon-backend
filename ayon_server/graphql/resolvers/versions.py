@@ -207,7 +207,7 @@ async def get_versions(
             get_has_links_conds(project_name, "versions.id", has_links)
         )
 
-    if user.is_external:
+    if user.is_guest:
         if not ids:
             return VersionsConnection(edges=[])
 

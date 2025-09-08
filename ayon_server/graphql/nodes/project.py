@@ -373,7 +373,7 @@ async def project_from_record(
 
     thumbnail = None
     user = context["user"]
-    if user.is_external:
+    if user.is_guest:
         external_users = record.get("data", {}).get("externalUsers", {})
         if user.attrib.email not in external_users:
             raise ForbiddenException("You do not have access to this project.")
