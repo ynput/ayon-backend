@@ -23,7 +23,7 @@ def process_attrib_data(
     attr_limit: list[str] | Literal["all"] = []
 
     if user.is_guest:
-        # External users have no access to attributes
+        # Guest users have no access to attributes
         attr_limit = ["fullName"]
 
     elif user.is_manager:

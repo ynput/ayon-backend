@@ -210,8 +210,8 @@ async def get_versions(
     if user.is_guest:
         if not ids:
             return VersionsConnection(edges=[])
-
-        # External users can only access version by their ID.
+        # Guest users can only access version by their ID.
+        # So listing versions is not allowed.
         pass
 
     else:

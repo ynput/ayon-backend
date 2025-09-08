@@ -193,7 +193,7 @@ async def get_folder_list(
     if user.is_guest:
         return Response(
             json_dumps(
-                {"detail": "External users cannot access this endpoint", "folders": []}
+                {"detail": "Guest users cannot access this endpoint", "folders": []}
             ),
             media_type="application/json",
         )

@@ -159,7 +159,7 @@ async def get_entity_list_items(
     #    to do that.
 
     if info.context["user"].is_guest:
-        # External users can access underlying entities as long they have
+        # Guest users can access underlying entities as long they have
         # access to the entity list itself, so we don't need to do anything
         pass
 
