@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import Query, Response
 
 from ayon_server.access.utils import AccessChecker
-from ayon_server.api.dependencies import AllowExternal, CurrentUser, ProjectName
+from ayon_server.api.dependencies import AllowGuests, CurrentUser, ProjectName
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -158,7 +158,7 @@ folder_list_loader = FolderListLoader()
     "",
     response_class=Response,
     responses={200: {"model": FolderListModel}},
-    dependencies=[AllowExternal],
+    dependencies=[AllowGuests],
 )
 async def get_folder_list(
     user: CurrentUser,

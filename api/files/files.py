@@ -4,7 +4,7 @@ import aiocache
 from fastapi import Header, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 
-from ayon_server.api.dependencies import AllowExternal, CurrentUser, FileID, ProjectName
+from ayon_server.api.dependencies import AllowGuests, CurrentUser, FileID, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import (
     BadRequestException,
@@ -141,7 +141,7 @@ async def get_file_headers(project_name: str, file_id: str) -> dict[str, str]:
     return headers
 
 
-@router.head("/{file_id}", dependencies=[AllowExternal])
+@router.head("/{file_id}", dependencies=[AllowGuests])
 async def get_project_file_head(
     project_name: ProjectName,
     file_id: FileID,
@@ -156,7 +156,7 @@ async def get_project_file_head(
     )
 
 
-@router.get("/{file_id}", response_model=None, dependencies=[AllowExternal])
+@router.get("/{file_id}", response_model=None, dependencies=[AllowGuests])
 async def get_project_file(
     project_name: ProjectName,
     file_id: FileID,
@@ -189,7 +189,7 @@ async def get_project_file(
     return RedirectResponse(url=url, status_code=302)
 
 
-@router.get("/{file_id}/info", response_model=FileInfo, dependencies=[AllowExternal])
+@router.get("/{file_id}/info", response_model=FileInfo, dependencies=[AllowGuests])
 async def get_project_file_info(
     project_name: ProjectName,
     file_id: FileID,
@@ -207,7 +207,7 @@ async def get_project_file_info(
     return await storage.get_file_info(file_id)
 
 
-@router.get("/{file_id}/payload", response_model=None, dependencies=[AllowExternal])
+@router.get("/{file_id}/payload", response_model=None, dependencies=[AllowGuests])
 async def get_project_file_payload(
     request: Request,
     project_name: ProjectName,
@@ -231,7 +231,7 @@ async def get_project_file_payload(
     return FileResponse(path, headers=headers)
 
 
-@router.get("/{file_id}/thumbnail", response_model=None, dependencies=[AllowExternal])
+@router.get("/{file_id}/thumbnail", response_model=None, dependencies=[AllowGuests])
 async def get_project_file_thumbnail(
     project_name: ProjectName,
     file_id: FileID,
@@ -248,7 +248,7 @@ async def get_project_file_thumbnail(
     return await get_file_preview(project_name, file_id)
 
 
-@router.get("/{file_id}/still", response_model=None, dependencies=[AllowExternal])
+@router.get("/{file_id}/still", response_model=None, dependencies=[AllowGuests])
 async def get_project_file_still(
     project_name: ProjectName,
     file_id: FileID,

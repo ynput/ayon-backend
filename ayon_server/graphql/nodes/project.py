@@ -374,11 +374,11 @@ async def project_from_record(
     thumbnail = None
     user = context["user"]
     if user.is_guest:
-        external_users = record.get("data", {}).get("externalUsers", {})
-        if user.attrib.email not in external_users:
+        guest_users = record.get("data", {}).get("guestUsers", {})
+        if user.attrib.email not in guest_users:
             raise ForbiddenException("You do not have access to this project.")
 
-        # external users do not have access to project internal data
+        # guest users do not have access to project internal data
         data = {}
         config = None
         bundle = ProjectBundleType()

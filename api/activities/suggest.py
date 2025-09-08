@@ -1,6 +1,6 @@
 from typing import Literal, cast
 
-from ayon_server.api.dependencies import AllowExternal, CurrentUser, ProjectName
+from ayon_server.api.dependencies import AllowGuests, CurrentUser, ProjectName
 from ayon_server.entities import FolderEntity, TaskEntity, VersionEntity
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.suggestions.folder import get_folder_suggestions
@@ -28,7 +28,7 @@ class SuggestResponse(OPModel):
     versions: list[VersionSuggestionItem] = Field(default_factory=list)
 
 
-@router.post("/suggest", response_model_exclude_none=True, dependencies=[AllowExternal])
+@router.post("/suggest", response_model_exclude_none=True, dependencies=[AllowGuests])
 async def suggest_entity_mention(
     user: CurrentUser,
     project_name: ProjectName,

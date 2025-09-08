@@ -7,7 +7,7 @@ from fastapi import Query, Request
 from pydantic import ValidationError
 
 from ayon_server.addons import AddonLibrary, SSOOption
-from ayon_server.api.dependencies import AllowExternal, CurrentUserOptional, NoTraces
+from ayon_server.api.dependencies import AllowGuests, CurrentUserOptional, NoTraces
 from ayon_server.config import ayonconfig
 from ayon_server.config.serverconfig import get_server_config
 from ayon_server.entities import UserEntity
@@ -284,7 +284,7 @@ async def is_onboarding_finished() -> bool:
 @router.get(
     "/info",
     response_model_exclude_none=True,
-    dependencies=[NoTraces, AllowExternal],
+    dependencies=[NoTraces, AllowGuests],
 )
 async def get_site_info(
     request: Request,

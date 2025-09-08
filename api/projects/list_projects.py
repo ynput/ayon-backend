@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import Query
 
-from ayon_server.api.dependencies import AllowExternal, CurrentUser
+from ayon_server.api.dependencies import AllowGuests, CurrentUser
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 from ayon_server.utils import SQLTool
@@ -43,7 +43,7 @@ class ListProjectsResponseModel(OPModel):
     )
 
 
-@router.get("/projects", dependencies=[AllowExternal])
+@router.get("/projects", dependencies=[AllowGuests])
 async def list_projects(
     user: CurrentUser,
     page: int = Query(1, title="Page", ge=1),
@@ -129,8 +129,8 @@ async def list_projects(
         # Or rather use graphql-like approach with cursor?
         if not can_list_all_projects:
             if user.is_guest:
-                external_users = row["data"].get("externalUsers", {})
-                if user.attrib.email not in external_users:
+                guest_users = row["data"].get("guestUsers", {})
+                if user.attrib.email not in guest_users:
                     continue
 
             else:

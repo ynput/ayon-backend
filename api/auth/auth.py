@@ -6,7 +6,7 @@
 
 from fastapi import Request
 
-from ayon_server.api.dependencies import AccessToken, AllowExternal, CurrentUserOptional
+from ayon_server.api.dependencies import AccessToken, AllowGuests, CurrentUserOptional
 from ayon_server.auth.models import LoginResponseModel, LogoutResponseModel
 from ayon_server.auth.password import PasswordAuth
 from ayon_server.auth.session import Session
@@ -62,7 +62,7 @@ async def logout(access_token: AccessToken) -> LogoutResponseModel:
     return LogoutResponseModel()
 
 
-@router.get("/tokenauth", dependencies=[AllowExternal])
+@router.get("/tokenauth", dependencies=[AllowGuests])
 async def token_auth_callback(
     request: Request, current_user: CurrentUserOptional
 ) -> LoginResponseModel:

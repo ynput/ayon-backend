@@ -35,12 +35,12 @@ def dep_no_traces() -> None:
     return None
 
 
-def dep_allow_external() -> None:
+def dep_allow_guests() -> None:
     return None
 
 
 NoTraces = Depends(dep_no_traces)
-AllowExternal = Depends(dep_allow_external)
+AllowGuests = Depends(dep_allow_guests)
 
 
 def dep_current_addon(request: Request) -> BaseServerAddon:
@@ -115,7 +115,7 @@ async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
 ThumbnailContentType = Annotated[str, Depends(dep_thumbnail_content_type)]
 
 
-EXTERNAL_ROUTE_WHITELIST = [
+GUESTS_ROUTE_WHITELIST = [
     "/graphql",
 ]
 
@@ -140,19 +140,19 @@ async def dep_current_user(request: Request) -> UserEntity:
     if user.is_guest:
         route = request.scope.get("route")
         if isinstance(route, APIRoute):
-            if request.url.path not in EXTERNAL_ROUTE_WHITELIST:
+            if request.url.path not in GUESTS_ROUTE_WHITELIST:
                 for dependency in route.dependencies:
-                    if dependency == AllowExternal:
-                        # This route allows external users
+                    if dependency == AllowGuests:
+                        # This route allows guest users
                         break
                 else:
-                    # No AllowExternal dependency found, raise UnauthorizedException
+                    # No AllowGuests dependency found, raise UnauthorizedException
                     logger.warning(
-                        f"External user {user.name} tried to access "
+                        f"Guest {user.name} tried to access "
                         f"a restricted endpoint: {request.url.path}"
                     )
                     raise ForbiddenException(
-                        "External users are not allowed to access this endpoint"
+                        "Guest users are not allowed to access this endpoint"
                     )
 
     return user

@@ -70,7 +70,12 @@ async def get_entity_lists(
         sql_conditions.append(f"id in {SQLTool.id_array(ids)}")
 
     if user.is_guest:
-        sql_conditions.append(f"access->>'external:{user.attrib.email}' IS NOT NULL")
+        sql_conditions.append(f"""
+            (
+            access->>'guest:{user.attrib.email}' IS NOT NULL
+            OR (access->'__guests__')::INTEGER > 0
+            )
+            """)
 
     #
     # Filtering

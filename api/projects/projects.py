@@ -1,7 +1,7 @@
 from typing import Annotated, cast
 
 from ayon_server.api.dependencies import (
-    AllowExternal,
+    AllowGuests,
     CurrentUser,
     NewProjectName,
     ProjectName,
@@ -78,7 +78,7 @@ class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
     "/projects/{project_name}",
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
-    dependencies=[AllowExternal],
+    dependencies=[AllowGuests],
 )
 async def get_project(
     user: CurrentUser,

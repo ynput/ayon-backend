@@ -5,7 +5,7 @@ from fastapi import Path
 from ayon_server.api.clientinfo import ClientInfo
 from ayon_server.api.dependencies import (
     AccessToken,
-    AllowExternal,
+    AllowGuests,
     CurrentUser,
     Sender,
     SenderType,
@@ -36,7 +36,7 @@ from .router import router
 #
 
 
-@router.get("/me", response_model_exclude_none=True, dependencies=[AllowExternal])
+@router.get("/me", response_model_exclude_none=True, dependencies=[AllowGuests])
 async def get_current_user(
     user: CurrentUser,
 ) -> UserEntity.model.main_model:  # type: ignore
