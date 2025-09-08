@@ -84,8 +84,8 @@ async def create_task_acl(
                 assigned_access = True
                 continue
 
-            # make linter happy. path is nullable only for 'assigned' type
-            if not acl.path:
+            if acl.path is None:
+                # make linter happy. path is nullable only for 'assigned' type
                 continue
 
             for p in path_to_paths(acl.path, True, True):
