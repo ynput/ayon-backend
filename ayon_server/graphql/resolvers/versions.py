@@ -85,6 +85,10 @@ async def get_versions(
     project_name = root.project_name
     user = info.context["user"]
     fields = FieldInfo(info, ["versions.edges.node", "version"])
+    if user.is_guest:
+        if not ids:
+            return VersionsConnection(edges=[])
+        pass
 
     #
     # SQL
@@ -207,14 +211,7 @@ async def get_versions(
             get_has_links_conds(project_name, "versions.id", has_links)
         )
 
-    if user.is_guest:
-        if not ids:
-            return VersionsConnection(edges=[])
-        # Guest users can only access version by their ID.
-        # So listing versions is not allowed.
-        pass
-
-    else:
+    if not user.is_manager:
         access_list = await create_folder_access_list(root, info)
         if access_list is not None:
             sql_conditions.append(

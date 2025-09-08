@@ -191,6 +191,12 @@ async def get_folder_list(
     #   does not have access to. So we cannot avoid parsing the JSON, solving the ACL
 
     if user.is_guest:
+        # We allow access to this endpoint for guest users
+        # but at this moment, it retuns no folders.
+        # In the future, we might want to allow access to certain folders
+        # for guest users, so we keep the endpoint accessible.
+        # This also prevents returning 403 error and flooding the UI with
+        # error messages.
         return Response(
             json_dumps(
                 {"detail": "Guest users cannot access this endpoint", "folders": []}
