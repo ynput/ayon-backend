@@ -77,7 +77,8 @@ async def get_products(
     fields = FieldInfo(info, ["products.edges.node", "product"])
 
     if user.is_guest:
-        return ProductsConnection(edges=[])
+        if not ids:
+            return ProductsConnection(edges=[])
 
     #
     # SQL
@@ -162,11 +163,19 @@ async def get_products(
         # Selecting products directly from the project node,
         # so we need to check access rights
         user = info.context["user"]
-        access_list = await folder_access_list(user, project_name)
-        if access_list is not None:
-            sql_conditions.append(
-                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
-            )
+        if user.is_guest:
+            # Guests need to provide explicit IDs
+            # that is handled above and provides a sufficient
+            # level of security.
+
+            # We may use additional checks for version lists in the future
+            pass
+        else:
+            access_list = await folder_access_list(user, project_name)
+            if access_list is not None:
+                sql_conditions.append(
+                    f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+                )
 
     #
     # Join with folders if parent folder is requested
@@ -344,8 +353,8 @@ async def get_products(
 async def get_product(root, info: Info, id: str) -> ProductNode:
     """Return a representation node based on its ID"""
     if not id:
-        raise BadRequestException("Folder ID is not specified")
+        raise BadRequestException("Product ID is not specified")
     connection = await get_products(root, info, ids=[id])
     if not connection.edges:
-        raise NotFoundException("Folder not found")
+        raise NotFoundException("Product not found")
     return connection.edges[0].node
