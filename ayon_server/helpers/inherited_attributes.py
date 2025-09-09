@@ -9,7 +9,9 @@ from ayon_server.logging import logger
 async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> None:
     st_crawl = await Postgres.prepare(
         f"""
-        SELECT h.id, h.path, f.attrib as own, e.attrib as exported
+        SELECT
+            h.id, h.path, f.attrib as own,
+            e.attrib as exported, e.path as exported_path
         FROM project_{project_name}.hierarchy h
         INNER JOIN project_{project_name}.folders f
         ON h.id = f.id
@@ -26,7 +28,7 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
          VALUES
             ($1, $2, $3)
          ON CONFLICT (folder_id)
-         DO UPDATE SET attrib = EXCLUDED.attrib, path = EXCLUDED.path
+         DO UPDATE SET path = EXCLUDED.path, attrib = EXCLUDED.attrib
          """
     )
 
@@ -49,7 +51,10 @@ async def _rebuild_from(project_name: str, project_attrib: dict[str, Any]) -> No
 
         caching[path_elements] = new_attrib_set
 
-        if record["exported"] != new_attrib_set:
+        if (
+            record["exported"] != new_attrib_set
+            or record["exported_path"] != record["path"]
+        ):
             buff.append(
                 (
                     record["id"],
