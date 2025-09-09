@@ -133,9 +133,13 @@ async def task_from_record(
                 pass
 
     current_user = context["user"]
-    assignees = record["assignees"]
 
-    data = record.get("data") or {}
+    if current_user.is_guest:
+        assignees = []
+        data = {}
+    else:
+        assignees = record["assignees"]
+        data = record.get("data") or {}
 
     if "has_reviewables" in record:
         has_reviewables = record["has_reviewables"]
