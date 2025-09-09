@@ -102,6 +102,10 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
             if row["parent_id"] is not None:
                 ids_with_children.add(row["parent_id"])
 
+        await Postgres.execute(
+            f"REFRESH MATERIALIZED VIEW project_{project_name}.hierarchy"
+        )
+
     for folder in result:
         folder["has_children"] = folder["id"] in ids_with_children
 
