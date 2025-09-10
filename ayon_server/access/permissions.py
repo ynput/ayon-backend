@@ -31,17 +31,18 @@ async def attr_enum():
 
 def top_level_fields_enum() -> list[dict[str, str]]:
     return [
-        {"value": "name", "label": "Entity name"},
-        {"value": "label", "label": "Entity label"},
-        {"value": "status", "label": "Entity status"},
-        {"value": "tags", "label": "Entity tags"},
-        {"value": "active", "label": "Entity active state"},
-        {"value": "parent_id", "label": "Folder parent ID"},
-        {"value": "folder_type", "label": "Folder type"},
-        {"value": "task_type", "label": "Task type"},
-        {"value": "assignees", "label": "Task assignees"},
-        {"value": "product_type", "label": "Product type"},
-        {"value": "author", "label": "Version author"},
+        {"value": "name", "label": "Change entity name"},
+        {"value": "label", "label": "Change entity label"},
+        {"value": "status", "label": "Change entity status"},
+        {"value": "tags", "label": "Change entity tags"},
+        {"value": "active", "label": "Enable or disable entity"},
+        {"value": "parent_id", "label": "Move folder"},
+        {"value": "folder_type", "label": "Change folder type"},
+        {"value": "folder_id", "label": "Move task"},
+        {"value": "task_type", "label": "Change task type"},
+        {"value": "assignees", "label": "Change task assignees"},
+        {"value": "product_type", "label": "Change product type"},
+        {"value": "author", "label": "Change version author"},
     ]
 
 
@@ -109,15 +110,16 @@ class AttributeReadAccessList(BasePermissionsModel):
 
 
 class AttributeWriteAccessList(BasePermissionsModel):
-    fields: list[str] = SettingsField(
-        title="Writable fields",
-        default_factory=list,
-        enum_resolver=top_level_fields_enum,
-    )
     attributes: list[str] = SettingsField(
         title="Writable attributes",
         default_factory=list,
         enum_resolver=attr_enum,
+    )
+    fields: list[str] = SettingsField(
+        title=" ",
+        default_factory=list,
+        enum_resolver=top_level_fields_enum,
+        widget="switchbox",
     )
 
 
@@ -184,19 +186,30 @@ class ProjectManagementPermissions(BaseSettingsModel):
 # But the model used to store all the permissions is the combined one
 
 
-class StudioPermissions(BaseSettingsModel):
+class ProjectAdvancedPermissions(BaseSettingsModel):
+    show_sibling_tasks: bool = SettingsField(
+        True,
+        title="Show sibling tasks",
+        description=(
+            "If a user can access a task through the 'Assigned' permission, "
+            "enabling this will also show all sibling tasks in the same folder. "
+            "When disabled, only the assigned task is visible."
+        ),
+    )
+
+
+class Permissions(BaseSettingsModel):
+    _layout = "root"
+
     studio: StudioManagementPermissions = SettingsField(
         default_factory=StudioManagementPermissions,
         title="Studio permissions",
         scope=["studio"],
     )
 
-
-class ProjectPermissions(BaseSettingsModel):
     project: ProjectManagementPermissions = SettingsField(
         default_factory=ProjectManagementPermissions,
         title="Project permissions",
-        scope=["studio", "project"],
     )
 
     create: FolderAccessList = SettingsField(
@@ -247,19 +260,9 @@ class ProjectPermissions(BaseSettingsModel):
         description="Whitelist REST endpoints a user can access",
     )
 
-
-class Permissions(ProjectPermissions):
-    """
-    The Permissions model defines the permissions for an access group.
-    to interact with specific resources in the system.
-    """
-
-    _layout = "root"
-
-    studio: StudioManagementPermissions = SettingsField(
-        default_factory=StudioManagementPermissions,
-        title="Studio permissions",
-        scope=["studio"],
+    advanced: ProjectAdvancedPermissions = SettingsField(
+        default_factory=lambda: ProjectAdvancedPermissions(),
+        title="Advanced access control",
     )
 
     @classmethod

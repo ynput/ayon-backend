@@ -96,6 +96,7 @@ async def send_extend_email(original_payload: TokenPayload, base_url: str) -> No
         subject="Ayon access link renewal",
         full_name=original_payload.full_name,
         external=original_payload.external,
+        project_name=original_payload.project_name,
         redirect_url=original_payload.redirect_url,
     )
 

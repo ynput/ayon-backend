@@ -15,7 +15,7 @@ def server_url_from_request(request: Request) -> str:
         port = request.headers.get("X-Forwarded-Port", request.url.port)
 
         if port and port not in ("80", "443"):
-            return f"{scheme}://{host}:{port}"
+            return f"{scheme}://{host}"
 
         return f"{scheme}://{host}"
 
