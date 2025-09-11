@@ -98,9 +98,6 @@ async def get_project(
     coalesce = RequestCoalescer()
     project = await coalesce(ProjectEntity.load, project_name)
 
-    if "productBaseTypes" not in project.config:
-        project.config["productBaseTypes"]["definitions"] = default_pt_definitions
-
     return cast(ProjectModel, project.as_user(user))
 
 
