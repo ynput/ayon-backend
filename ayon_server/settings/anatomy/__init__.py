@@ -6,6 +6,7 @@ __all__ = [
     "Status",
     "Tag",
     "TaskType",
+    "ProductBaseTypes",
 ]
 
 from pydantic import validator
@@ -13,6 +14,7 @@ from pydantic import validator
 from ayon_server.entities import ProjectEntity
 from ayon_server.settings.anatomy.folder_types import FolderType, default_folder_types
 from ayon_server.settings.anatomy.link_types import LinkType, default_link_types
+from ayon_server.settings.anatomy.product_base_types import ProductBaseTypes
 from ayon_server.settings.anatomy.roots import Root, default_roots
 from ayon_server.settings.anatomy.statuses import Status, default_statuses
 from ayon_server.settings.anatomy.tags import Tag, default_tags
@@ -85,6 +87,11 @@ class Anatomy(BaseSettingsModel):
         title="Tags",
         description="Tags configuration",
         example=[default_tags[0].dict()],
+    )
+
+    product_base_types: ProductBaseTypes = SettingsField(
+        title="Product Types",
+        default_factory=lambda: ProductBaseTypes(),  # type: ignore
     )
 
     @validator("roots", "folder_types", "task_types", "statuses", "tags")

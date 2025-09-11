@@ -7,6 +7,7 @@ from ayon_server.settings.anatomy import (
     Anatomy,
     FolderType,
     LinkType,
+    ProductBaseTypes,
     Root,
     Status,
     Tag,
@@ -52,6 +53,9 @@ def extract_project_anatomy(project: ProjectEntity) -> Anatomy:
         folder_types=[FolderType(**k) for k in project.folder_types],
         task_types=[TaskType(**k) for k in project.task_types],
         statuses=[Status(**k) for k in project.statuses],
+        product_base_types=ProductBaseTypes(
+            **project.config.get("productBaseTypes", {})
+        ),
         tags=[Tag(**k) for k in project.tags],
         link_types=[LinkType(**k) for k in process_link_types(project.link_types)],
     )
