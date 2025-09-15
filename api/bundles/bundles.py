@@ -307,14 +307,13 @@ async def update_bundle(
 
         if bundle.is_dev:
             logger.debug(f"Updating dev bundle {bundle.name}")
-            if patch.active_user is not None:
-                # remove user from previously assigned bundles
-                # to avoid constraint violation
+            if "active_user" in patch.dict(exclude_unset=True, by_alias=False):
                 await Postgres.execute(
                     "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
                     patch.active_user,
                 )
-                bundle.active_user = patch.active_user
+                if patch.active_user is None:
+                    bundle.active_user = patch.active_user
 
             if patch.addon_development is not None:
                 bundle.addon_development = patch.addon_development
