@@ -1,6 +1,6 @@
 from typing import Any
 
-from ayon_server.entities import UserEntity
+from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     ForbiddenException,
@@ -14,7 +14,12 @@ from ayon_server.utils import create_uuid, now
 from ayon_server.utils.utils import dict_patch
 
 from .entity_folder_path import get_entity_folder_path
-from .models import EntityListItemModel, EntityListModel, EntityListSummary
+from .models import (
+    EntityListItemModel,
+    EntityListModel,
+    EntityListSummary,
+    ListAccessLevel,
+)
 from .save_entity_list import save_entity_list
 
 
@@ -180,7 +185,33 @@ class EntityList:
                 item = EntityListItemModel(**row)
                 items.append(item)
 
-        return cls(project_name, EntityListModel(**res, items=items), user=user)
+        access_level = EntityAccessHelper.MANAGE
+        if user:
+            project = await ProjectEntity.load(project_name)
+            access_level = EntityAccessHelper.MANAGE
+            try:
+                await EntityAccessHelper.check(
+                    user,
+                    access=res["access"],
+                    level=access_level,
+                    owner=res["owner"],
+                    project=project,
+                    default_open=False,
+                )
+            except ForbiddenException as e:
+                access_level = e.extra.get("access_level", 10)
+            if access_level < 10:
+                raise ForbiddenException(f"Access denied to entity list {res['label']}")
+
+        return cls(
+            project_name,
+            EntityListModel(
+                **res,
+                access_level=ListAccessLevel(access_level),
+                items=items,
+            ),
+            user=user,
+        )
 
     def item_by_id(self, item_id: str) -> EntityListItemModel:
         """Get an item by ID"""
