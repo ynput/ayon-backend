@@ -111,7 +111,7 @@ async def rename_user(
     *,
     invoking_user_name: str | None = None,
     sender: str | None = None,
-    sender_type: str | None,
+    sender_type: str | None = None,
 ) -> None:
     """Changes the user name of a user in the database and all references to it.
 

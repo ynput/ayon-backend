@@ -91,7 +91,7 @@ async def update_entity_list(
         for key, value in payload_dict.items():
             if not hasattr(entity_list.payload, key):
                 continue
-            if isinstance(value, dict):
+            if isinstance(value, dict) and key != "access":
                 nval = dict_patch(getattr(entity_list.payload, key), value)
                 setattr(entity_list.payload, key, nval)
             else:
