@@ -167,6 +167,8 @@ class ProjectEntity(TopLevelEntity):
         assert self.task_types, "Project must have at least one task type"
         assert self.statuses, "Project must have at least one status"
 
+        self.config.pop("productTypes", None)  # legacy
+
         project_name = self.name
         if self.exists:
             fields = dict_exclude(
