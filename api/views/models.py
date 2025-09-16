@@ -151,7 +151,7 @@ class OverviewViewPatchModel(BaseViewPatchModel):
 
 
 class TasksViewPatchModel(BaseViewPatchModel):
-    """Tasks view post model."""
+    """Tasks view patch model."""
 
     _view_type: Literal["tasks"] = "tasks"
     settings: TasksSettings | None = None
