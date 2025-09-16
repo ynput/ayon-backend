@@ -14,6 +14,7 @@ from ayon_server.views.models import (
     OverviewSettings,
     ReviewsSettings,
     TaskProgressSettings,
+    TasksSettings,
     ViewSettingsModel,
 )
 
@@ -52,28 +53,35 @@ class BaseViewModel(ViewListItemModel):
 class OverviewViewModel(BaseViewModel):
     """Overview view model."""
 
-    view_type: Literal["overview"] = "overview"
+    _view_type: Literal["overview"] = "overview"
     settings: OverviewSettings
+
+
+class TasksViewModel(BaseViewModel):
+    """Tasks view model."""
+
+    _view_type: Literal["tasks"] = "tasks"
+    settings: TasksSettings
 
 
 class TaskProgressViewModel(BaseViewModel):
     """Task progress view model."""
 
-    view_type: Literal["taskProgress"] = "taskProgress"
+    _view_type: Literal["taskProgress"] = "taskProgress"
     settings: TaskProgressSettings
 
 
 class ListsViewModel(BaseViewModel):
     """Lists view model."""
 
-    view_type: Literal["lists"] = "lists"
+    _view_type: Literal["lists"] = "lists"
     settings: ListsSettings
 
 
 class ReviewsViewModel(BaseViewModel):
     """Reviews view model."""
 
-    view_type: Literal["reviews"] = "reviews"
+    _view_type: Literal["reviews"] = "reviews"
     settings: ReviewsSettings
 
 
@@ -94,6 +102,13 @@ class OverviewViewPostModel(BaseViewPostModel):
 
     _view_type: Literal["overview"] = "overview"
     settings: OverviewSettings
+
+
+class TasksViewPostModel(BaseViewPostModel):
+    """Tasks view post model."""
+
+    _view_type: Literal["tasks"] = "tasks"
+    settings: TasksSettings
 
 
 class TaskProgressViewPostModel(BaseViewPostModel):
@@ -135,6 +150,13 @@ class OverviewViewPatchModel(BaseViewPatchModel):
     settings: OverviewSettings | None = None
 
 
+class TasksViewPatchModel(BaseViewPatchModel):
+    """Tasks view post model."""
+
+    _view_type: Literal["tasks"] = "tasks"
+    settings: TasksSettings | None = None
+
+
 class TaskProgressViewPatchModel(BaseViewPatchModel):
     """Task progress view post model."""
 
@@ -162,7 +184,11 @@ class ReviewsViewPatchModel(BaseViewPatchModel):
 
 
 ViewModel = Annotated[
-    OverviewViewModel | TaskProgressViewModel | ListsViewModel | ReviewsViewModel,
+    OverviewViewModel
+    | TaskProgressViewModel
+    | ListsViewModel
+    | ReviewsViewModel
+    | TasksViewModel,
     Field(
         discriminator="_view_type",
         title="View model",
@@ -173,7 +199,8 @@ ViewPostModel = Annotated[
     OverviewViewPostModel
     | TaskProgressViewPostModel
     | ListsViewPostModel
-    | ReviewsViewPostModel,
+    | ReviewsViewPostModel
+    | TasksViewPostModel,
     Field(
         discriminator="_view_type",
         title="View post model",
@@ -197,6 +224,8 @@ def construct_view_model(**data: Any) -> ViewModel:
         return OverviewViewModel(**data)
     elif data.get("view_type") == "taskProgress":
         return TaskProgressViewModel(**data)
+    elif data.get("view_type") == "tasks":
+        return TasksViewModel(**data)
     elif data.get("view_type") == "lists":
         return ListsViewModel(**data)
     elif data.get("view_type") == "reviews":
