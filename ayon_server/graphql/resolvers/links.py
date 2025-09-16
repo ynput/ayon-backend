@@ -23,7 +23,6 @@ async def get_links(
         access_checker = AccessChecker()
         await access_checker.load(user, project_name)
         info.context["access_checker"] = access_checker
-        print(access_checker.exact_paths)
 
     edges: list[LinkEdge] = []
 

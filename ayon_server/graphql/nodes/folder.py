@@ -177,7 +177,7 @@ async def folder_from_record(
         has_reviewables=has_reviewables,
         has_versions=record.get("has_versions", False),
         path=path,
-        _folder_path=record.get("path", "").strip("/") or None,
+        _folder_path=path,
         _attrib=record["attrib"] or {},
         _project_attrib=record["project_attributes"] or {},
         _inherited_attrib=record["inherited_attributes"] or {},
