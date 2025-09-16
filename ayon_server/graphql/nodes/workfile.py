@@ -36,6 +36,7 @@ class WorkfileNode(BaseNode):
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
     _parents: list[str] | None = None
+    _folder_path: strawberry.Private[str | None] = None
 
     @strawberry.field(description="Parent task of the workfile")
     async def task(self, info: Info) -> TaskNode:
@@ -95,9 +96,10 @@ async def workfile_from_record(
         )
 
     parents: list[str] = []
-    if path := record.get("_folder_path"):
-        path = path.strip("/")
-        parents = path.split("/")[:-1] if path else []
+    folder_path = None
+    if folder_path := record.get("_folder_path"):
+        folder_path = "/" + folder_path.strip("/")
+        parents = folder_path.split("/")[:-1] if folder_path else []
         parents.append(record["_task_name"])
 
     return WorkfileNode(
@@ -119,6 +121,7 @@ async def workfile_from_record(
         _attrib=record["attrib"] or {},
         _user=context["user"],
         _parents=parents,
+        _folder_path=folder_path,
     )
 
 

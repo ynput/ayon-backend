@@ -1,5 +1,6 @@
 from typing import Literal
 
+from ayon_server.access.utils import AccessChecker
 from ayon_server.graphql.nodes.common import LinkEdge, LinksConnection
 from ayon_server.graphql.types import Info, PageInfo
 from ayon_server.lib.postgres import Postgres
@@ -17,6 +18,12 @@ async def get_links(
     name_ex: str | None = None,
 ) -> LinksConnection:
     project_name = root.project_name
+    user = info.context["user"]
+    if not user.is_manager:
+        access_checker = AccessChecker()
+        await access_checker.load(user, project_name)
+        info.context["access_checker"] = access_checker
+        print(access_checker.exact_paths)
 
     edges: list[LinkEdge] = []
 
