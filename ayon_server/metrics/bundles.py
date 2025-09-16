@@ -18,6 +18,15 @@ class ProductionBundle(OPModel):
         title="Launcher version",
         example="1.0.0",
     )
+    dependency_packages: dict[str, str] = Field(
+        default_factory=dict,
+        title="Dependency packages",
+        example={
+            "windows": "ayon_2502101448_windows.zip",
+            "darwin": "ayon_2502101448_darwin.zip",
+            "linux": "ayon_2502101448_linux.zip",
+        },
+    )
 
 
 async def get_production_bundle(
@@ -48,6 +57,7 @@ async def get_production_bundle(
     return ProductionBundle(
         addons=addons,
         launcher_version=bundle_data.get("installer_version", ""),
+        dependency_packages=bundle_data.get("dependency_packages", {}),
     )
 
 
