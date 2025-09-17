@@ -3,6 +3,7 @@ from typing import Annotated
 
 from ayon_server.access.access_groups import AccessGroups
 from ayon_server.access.utils import path_to_paths
+from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import attribute_library
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import TasksConnection
@@ -93,6 +94,28 @@ async def create_task_acl(
     return full_access, assigned_access
 
 
+async def get_task_types_sort_case(project_name: str) -> str:
+    """
+    Get a SQL CASE expression to sort by task types
+    in the order they are defined in the project anatomy.
+    """
+
+    # Load task types to create a sorter
+    # this is fast as ProjectEntity is cached
+    task_type_names = [
+        r["name"] for r in (await ProjectEntity.load(project_name)).task_types
+    ]
+    if not task_type_names:
+        return "tasks.task_type"
+    case = "CASE"
+    i = 0
+    for i, task_type_name in enumerate(task_type_names):
+        case += f" WHEN tasks.task_type = '{task_type_name}' THEN {i}"
+    case += f" ELSE {i+1}"
+    case += " END"
+    return case
+
+
 async def get_tasks(
     root,
     info: Info,
@@ -167,7 +190,6 @@ async def get_tasks(
 
     project_name = root.project_name
     fields = FieldInfo(info, ["tasks.edges.node", "task"])
-
     use_folder_query = False
 
     #
@@ -467,7 +489,10 @@ async def get_tasks(
 
     order_by = []
     if sort_by is not None:
-        if sort_by in SORT_OPTIONS:
+        if sort_by == "taskType":
+            task_type_case = await get_task_types_sort_case(project_name)
+            order_by.append(task_type_case)
+        elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by == "path":
             order_by = ["hierarchy.path", "tasks.name"]
