@@ -51,6 +51,7 @@ class ProductNode(BaseNode):
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
+    _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
 
@@ -157,9 +158,10 @@ async def product_from_record(
     data = record.get("data", {})
 
     path = None
+    folder_path = None
     if record.get("_folder_path"):
-        folder_path = record["_folder_path"].strip("/")
-        path = f"/{folder_path}/{record['name']}"
+        folder_path = "/" + record["_folder_path"].strip("/")
+        path = f"{folder_path}/{record['name']}"
 
     return ProductNode(
         project_name=project_name,
@@ -176,6 +178,7 @@ async def product_from_record(
         version_list=vlist,
         path=path,
         _folder=folder,
+        _folder_path=folder_path,
         _attrib=record["attrib"] or {},
         _user=context["user"],
     )
