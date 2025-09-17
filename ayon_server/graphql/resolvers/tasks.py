@@ -175,6 +175,8 @@ async def get_tasks(
     #
 
     sql_cte = []
+    sql_conditions = []
+
     sql_columns = [
         "tasks.id AS id",
         "tasks.name AS name",
@@ -191,9 +193,20 @@ async def get_tasks(
         "tasks.created_at AS created_at",
         "tasks.updated_at AS updated_at",
         "tasks.creation_order AS creation_order",
+        "hierarchy.path AS _folder_path",
+        "ex.attrib as parent_folder_attrib",
     ]
-    sql_conditions = []
-    sql_joins = []
+
+    sql_joins = [
+        f"""
+        INNER JOIN project_{project_name}.hierarchy AS hierarchy
+        ON tasks.folder_id = hierarchy.id
+        """,
+        f"""
+        INNER JOIN project_{project_name}.exported_attributes AS ex
+        ON tasks.folder_id = ex.folder_id
+        """,
+    ]
 
     if fields.any_endswith("hasReviewables"):
         sql_cte.append(
@@ -402,37 +415,12 @@ async def get_tasks(
             sql_conditions.append(cond)
 
     #
-    # Joins
+    # Additional joins
+    # Following joins have overhead, so only do them if needed
     #
 
-    # Do we need to join the parent folder's exported attributes?
-    # We need it if we want to show the task attributes or filter by them
-    if (
-        attributes
-        or filter
-        or sort_by
-        or fields.any_endswith("attrib")
-        or fields.any_endswith("allAttrib")
-    ):
-        sql_columns.append("pf.attrib as parent_folder_attrib")
-        sql_joins.append(
-            f"INNER JOIN project_{project_name}.exported_attributes AS pf "
-            "ON tasks.folder_id = pf.folder_id\n"
-        )
-    else:
-        # Otherwise, just return an empty JSONB object
-        sql_columns.append("'{}'::JSONB as parent_folder_attrib")
-
     # Do we need the parent folder data?
-    if (
-        (access_list is not None)
-        or use_folder_query
-        or search
-        or sort_by == "path"
-        or "folder" in fields
-        or fields.any_endswith("path")
-        or fields.any_endswith("parents")
-    ):
+    if use_folder_query or search or "folder" in fields:
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
@@ -448,38 +436,36 @@ async def get_tasks(
                 "folders.tags AS _folder_tags",
                 "folders.created_at AS _folder_created_at",
                 "folders.updated_at AS _folder_updated_at",
+                "projects.attrib as _folder_project_attributes",
+                "pf_ex.attrib as _folder_inherited_attributes",
+                "pf_ex.path AS _folder_path",
             ]
         )
-        sql_joins.append(
-            f"INNER JOIN project_{project_name}.folders "
-            "ON folders.id = tasks.folder_id\n"
-        )
 
-        sql_columns.append("hierarchy.path AS _folder_path")
-        sql_joins.append(
-            f"INNER JOIN project_{project_name}.hierarchy AS hierarchy "
-            "ON folders.id = hierarchy.id\n"
-        )
+        # Use inner join, tasks without folder cannot exist
 
-        if any(field.endswith("folder.attrib") for field in fields):
-            sql_columns.append("pr.attrib as _folder_project_attributes")
-            sql_columns.append("ex.attrib as _folder_inherited_attributes")
-            sql_joins.append(
-                f"LEFT JOIN project_{project_name}.exported_attributes AS ex "
-                "ON folders.parent_id = ex.folder_id\n",
-            )
-            sql_joins.append(
-                f"INNER JOIN public.projects AS pr ON pr.name ILIKE '{project_name}'\n"
-            )
-        else:
-            sql_columns.append("'{}'::JSONB as _folder_project_attributes")
-            sql_columns.append("'{}'::JSONB as _folder_inherited_attributes")
+        sql_joins.extend(
+            [
+                f"""
+                INNER JOIN project_{project_name}.folders
+                ON folders.id = tasks.folder_id
+                """,
+                f"""
+                INNER JOIN project_{project_name}.exported_attributes AS pf_ex
+                ON folders.parent_id = pf_ex.folder_id
+                """,
+                f"""
+                INNER JOIN public.projects AS projects
+                ON projects.name ILIKE '{project_name}'
+                """,
+            ]
+        )
 
     #
     # Pagination
     #
 
-    order_by = ["tasks.creation_order"]
+    order_by = []
     if sort_by is not None:
         if sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
@@ -492,6 +478,18 @@ async def get_tasks(
             order_by.insert(0, attr_case)
         else:
             raise BadRequestException(f"Invalid sort_by value: {sort_by}")
+
+    if not order_by:
+        # If no sorting specified, use creation order to have stable sorting
+        # as the requester doesn't care about the order in this case.
+        order_by.append("tasks.creation_order")
+
+    elif len(order_by) < 2:
+        # If a single sort criteria is specified, add a secondary sort by name
+        # to have stable sorting when multiple items have the same value
+        # In this case we don't want to use creation order as secondary sort,
+        # because sorting is mainly invoked from the GUI and path makes more sense
+        order_by.append("hierarchy.path || '/' || tasks.name")
 
     ordering, paging_conds, cursor = create_pagination(
         order_by,
