@@ -9,7 +9,7 @@ import asyncio
 import random
 from typing import Any
 
-from asyncpg.exceptions import IntegrityConstraintViolationError
+from asyncpg.exceptions import DeadlockDetectedError, IntegrityConstraintViolationError
 from pydantic.error_wrappers import ValidationError
 
 from ayon_server.entities import UserEntity
@@ -18,6 +18,7 @@ from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
     ConflictException,
+    DeadlockException,
     ServiceUnavailableException,
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
@@ -151,15 +152,18 @@ async def _process_operations(
             # to commit all operations at once.
 
             async with Postgres.transaction():
-                evt, response = await _process_operation(
-                    project_name,
-                    user,
-                    operation,
-                )
-                if evt is not None:
-                    events.extend(evt)
-                result.append(response)
-                entity_types.add(operation.entity_type)
+                try:
+                    evt, response = await _process_operation(
+                        project_name,
+                        user,
+                        operation,
+                    )
+                    if evt is not None:
+                        events.extend(evt)
+                    result.append(response)
+                    entity_types.add(operation.entity_type)
+                except DeadlockDetectedError as e:
+                    raise DeadlockException() from e
 
         except ServiceUnavailableException as e:
             logger.debug(f"[OPS] {e}, retrying operation")
@@ -265,7 +269,10 @@ async def _process_operations(
     if success or can_fail:
         for entity_type in entity_types:
             entity_class = get_entity_class(entity_type)
-            await entity_class.refresh_views(project_name)
+            try:
+                await entity_class.refresh_views(project_name)
+            except DeadlockDetectedError as e:
+                raise DeadlockException() from e
 
     return events, OperationsResponseModel(operations=result, success=success)
 
