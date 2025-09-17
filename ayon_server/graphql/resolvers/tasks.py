@@ -441,12 +441,7 @@ async def get_tasks(
     #
 
     # Do we need the parent folder data?
-    if (
-        use_folder_query
-        or search
-        or "folder" in fields
-        or (sort_by and sort_by.startswith("attrib."))
-    ):
+    if use_folder_query or search or "folder" in fields:
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",
@@ -501,7 +496,7 @@ async def get_tasks(
             order_by = ["hierarchy.path", "tasks.name"]
         elif sort_by.startswith("attrib."):
             attr_name = sort_by[7:]
-            exp = "(pf_ex.attrib || tasks.attrib)"
+            exp = "(ex.attrib || tasks.attrib)"
             attr_case = await get_attrib_sort_case(attr_name, exp)
             order_by.insert(0, attr_case)
         else:
