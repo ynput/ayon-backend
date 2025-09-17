@@ -459,7 +459,6 @@ async def get_tasks(
                 "folders.updated_at AS _folder_updated_at",
                 "projects.attrib as _folder_project_attributes",
                 "pf_ex.attrib as _folder_inherited_attributes",
-                "pf_ex.path AS _folder_path",
             ]
         )
 
