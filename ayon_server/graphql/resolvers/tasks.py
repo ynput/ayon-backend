@@ -108,7 +108,6 @@ async def get_task_types_sort_case(project_name: str) -> str:
     if not task_type_names:
         return "tasks.task_type"
     case = "CASE"
-    i = 0
     for i, task_type_name in enumerate(task_type_names):
         case += f" WHEN tasks.task_type = '{task_type_name}' THEN {i}"
     case += f" ELSE {i+1}"
