@@ -8,7 +8,7 @@ from ayon_server.entities import UserEntity
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
-from ayon_server.utils import json_dumps
+from ayon_server.utils import get_nickname, json_dumps, obscure
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import TasksConnection
@@ -41,6 +41,7 @@ class UserNode:
     is_service: bool
     is_guest: bool
     is_developer: bool
+    is_external: bool = False
     has_password: bool
     disable_password_login: bool = False
     user_pool: str | None = None
@@ -48,7 +49,7 @@ class UserNode:
     deleted: bool = False
 
     _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]  # The user making the request
+    _user: strawberry.Private[UserEntity]
 
     @strawberry.field
     def attrib(self) -> UserAttribType:
@@ -78,15 +79,26 @@ async def user_from_record(
     is_developer = data.get("isDeveloper", False)
     is_manager = data.get("isManager", False)
     is_guest = data.get("isGuest", False)
+    is_external = data.get("isExternal", False)
     user_pool = data.get("userPool")
     disable_password_login = data.get("disablePasswordLogin", False)
 
-    current_user = context["user"]
-
     name = record["name"]
     attrib = record.get("attrib", {})
-    if not current_user.is_manager:
-        attrib = {k: v for k, v in attrib.items() if k in ("fullName")}
+
+    current_user = context["user"]
+    if (
+        (current_user.is_guest or current_user.is_external)
+        and current_user.name != name
+        and current_user.name != data.get("createdBy")
+    ):
+        if name != "admin":
+            name = get_nickname(name)
+        if email := attrib.get("email"):
+            attrib["email"] = obscure(email)
+        if attrib.get("fullName"):
+            attrib["fullName"] = name
+        attrib["avatarUrl"] = None
 
     return UserNode(
         name=name,
@@ -99,6 +111,7 @@ async def user_from_record(
         is_service=is_service,
         is_guest=is_guest,
         is_developer=is_developer,
+        is_external=is_external,
         user_pool=user_pool,
         has_password=bool(data.get("password")),
         default_access_groups=data.get("defaultAccessGroups", []),

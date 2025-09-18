@@ -86,10 +86,10 @@ class ActivityNode:
         data = json_loads(self.activity_data)
         if "author" in data:
             author = data["author"]
-            if author.startswith("guest."):
-                guest_users = info.context["project"].data.get("guestUsers", {})
-                for email, payload in guest_users.items():
-                    candidate_name = slugify(f"guest.{email}", separator=".")
+            if author.startswith("external."):
+                external_users = info.context["project"].data.get("externalUsers", {})
+                for email, payload in external_users.items():
+                    candidate_name = slugify(f"external.{email}", separator=".")
                     if candidate_name != author:
                         continue
                     full_name = payload.get("fullName", email)

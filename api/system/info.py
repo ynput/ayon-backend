@@ -7,7 +7,7 @@ from fastapi import Query, Request
 from pydantic import ValidationError
 
 from ayon_server.addons import AddonLibrary, SSOOption
-from ayon_server.api.dependencies import AllowGuests, CurrentUserOptional, NoTraces
+from ayon_server.api.dependencies import AllowExternal, CurrentUserOptional, NoTraces
 from ayon_server.config import ayonconfig
 from ayon_server.config.serverconfig import get_server_config
 from ayon_server.entities import UserEntity
@@ -223,7 +223,7 @@ async def get_attributes() -> list[AttributeModel]:
 async def get_additional_info(
     user_name: str,
     is_admin: bool,
-    is_guest: bool,
+    is_external: bool,
     site_id: str | None,
     site_platform: str | None,
     site_hostname: str | None,
@@ -247,7 +247,7 @@ async def get_additional_info(
     else:
         current_site = None
 
-    if not is_guest:
+    if not is_external:
         sites = await get_user_sites(user_name, current_site)
 
     attr_list = await get_attributes()
@@ -284,7 +284,7 @@ async def is_onboarding_finished() -> bool:
 @router.get(
     "/info",
     response_model_exclude_none=True,
-    dependencies=[NoTraces, AllowGuests],
+    dependencies=[NoTraces, AllowExternal],
 )
 async def get_site_info(
     request: Request,
@@ -315,7 +315,7 @@ async def get_site_info(
             get_additional_info,
             current_user.name,
             current_user.is_admin,
-            current_user.is_guest,
+            current_user.is_external,
             site_id,
             site_platform,
             site_hostname,

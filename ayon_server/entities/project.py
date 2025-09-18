@@ -256,7 +256,7 @@ class ProjectEntity(TopLevelEntity):
 
     def as_user(self, user):
         payload = self._payload.copy()
-        if user.is_guest:
+        if user.is_external:
             payload.data = {}  # type: ignore
             payload.config = {}  # type: ignore
         return payload

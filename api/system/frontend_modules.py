@@ -1,6 +1,6 @@
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.addons.models import FrontendModules
-from ayon_server.api.dependencies import AllowGuests, CurrentUser
+from ayon_server.api.dependencies import AllowExternal, CurrentUser
 from ayon_server.types import OPModel
 
 from .router import router
@@ -12,7 +12,7 @@ class FrontendModuleListItem(OPModel):
     modules: FrontendModules
 
 
-@router.get("/frontendModules", dependencies=[AllowGuests])
+@router.get("/frontendModules", dependencies=[AllowExternal])
 async def list_frontend_modules(user: CurrentUser) -> list[FrontendModuleListItem]:
     addon_library = AddonLibrary.getinstance()
 

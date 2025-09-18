@@ -66,7 +66,7 @@ async def get_kanban(
 
     """
     user = info.context["user"]
-    if user.is_guest:
+    if user.is_external:
         return KanbanConnection(edges=[])
 
     project_data: list[dict[str, str]] = []

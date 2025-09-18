@@ -53,7 +53,7 @@ async def get_representations(
     user = info.context["user"]
     fields = FieldInfo(info, ["representations.edges.node", "representation"])
 
-    if user.is_guest:
+    if user.is_external:
         return RepresentationsConnection(edges=[])
 
     #

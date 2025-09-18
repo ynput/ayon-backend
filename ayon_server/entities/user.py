@@ -269,6 +269,10 @@ class UserEntity(TopLevelEntity):
         return self.data.get("isDeveloper", False)
 
     @property
+    def is_external(self) -> bool:
+        return self.data.get("isExternal", False)
+
+    @property
     def is_manager(self) -> bool:
         data = self.data
         return (
@@ -318,14 +322,14 @@ class UserEntity(TopLevelEntity):
 
     def check_project_access(self, project_name: str) -> None:
         # This method is deprecated and is replaced by ensure_project_access.
-        # (which is async and can handle guest users)
+        # (which is async and can handle external users)
         if self.is_manager:
             return
 
-        if self.is_guest:
+        if self.is_external:
             raise ForbiddenException(
-                "Guest users cannot access projects directly. "
-                "Use the guest user management API."
+                "External users cannot access projects directly. "
+                "Use the external user management API."
             )
 
         access_groups = [k.lower() for k in self.data.get("accessGroups", {})]
@@ -336,10 +340,10 @@ class UserEntity(TopLevelEntity):
         if self.is_manager:
             return
 
-        if self.is_guest:
+        if self.is_external:
             project = await ProjectEntity.load(project_name)
-            guest_users = project.data.get("guestUsers", {})
-            if self.attrib.email not in guest_users:
+            external_users = project.data.get("externalUsers", {})
+            if self.attrib.email not in external_users:
                 raise ForbiddenException("You are not invited to this project")
 
         else:

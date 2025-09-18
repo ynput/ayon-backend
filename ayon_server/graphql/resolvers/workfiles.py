@@ -59,7 +59,7 @@ async def get_workfiles(
     user = info.context["user"]
     fields = FieldInfo(info, ["workfiles.edges.node", "workfile"])
 
-    if user.is_guest:
+    if user.is_external:
         return WorkfilesConnection(edges=[])
 
     #

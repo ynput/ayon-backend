@@ -8,7 +8,7 @@ from ayon_server.actions.context import ActionContext
 from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
 from ayon_server.actions.manifest import BaseActionManifest
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import AllowGuests, CurrentUser, Sender, SenderType
+from ayon_server.api.dependencies import CurrentUser, Sender, SenderType
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
@@ -19,7 +19,7 @@ from .router import router
 ActionListMode = Literal["simple", "dynamic", "all"]
 
 
-@router.post("/list", response_model_exclude_none=True, dependencies=[AllowGuests])
+@router.post("/list", response_model_exclude_none=True)
 async def list_available_actions_for_context(
     context: ActionContext,
     user: CurrentUser,
@@ -44,11 +44,6 @@ async def list_available_actions_for_context(
     """
 
     actions = []
-
-    if user.is_guest:
-        # Guests cannot see actions, but we don't want to
-        # throw 403 here
-        return AvailableActionsListModel(actions=[])
 
     if mode == "simple":
         r = await get_simple_actions(user, context, variant)

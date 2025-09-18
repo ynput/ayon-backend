@@ -158,8 +158,8 @@ async def get_entity_list_items(
     #    This is implemented on EntityListItemEdge level and we need access_checker
     #    to do that.
 
-    if info.context["user"].is_guest:
-        # Guest users can access underlying entities as long they have
+    if info.context["user"].is_external:
+        # External users can access underlying entities as long they have
         # access to the entity list itself, so we don't need to do anything
         pass
 

@@ -105,8 +105,8 @@ async def get_activities(
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
-    if user.is_guest:
-        # guest users can only see external categories
+    if user.is_external:
+        # external users can only see external categories
         categories = ["external"]
 
     if categories:

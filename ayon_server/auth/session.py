@@ -119,7 +119,7 @@ class Session:
             token = create_hash()
         client_info = get_client_info(request) if request else None
 
-        if user.exists and not user.data.get("isGuest", False):
+        if user.exists and not user.data.get("isExternal", False):
             await AuthUtils.ensure_can_login(user, client_info)
 
         session = SessionModel(

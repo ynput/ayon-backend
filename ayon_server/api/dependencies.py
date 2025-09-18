@@ -35,12 +35,12 @@ def dep_no_traces() -> None:
     return None
 
 
-def dep_allow_guests() -> None:
+def dep_allow_external() -> None:
     return None
 
 
 NoTraces = Depends(dep_no_traces)
-AllowGuests = Depends(dep_allow_guests)
+AllowExternal = Depends(dep_allow_external)
 
 
 def dep_current_addon(request: Request) -> BaseServerAddon:
@@ -115,7 +115,7 @@ async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
 ThumbnailContentType = Annotated[str, Depends(dep_thumbnail_content_type)]
 
 
-GUESTS_ROUTE_WHITELIST = [
+EXTERNAL_ROUTE_WHITELIST = [
     "/graphql",
 ]
 
@@ -137,22 +137,22 @@ async def dep_current_user(request: Request) -> UserEntity:
     if not user:
         raise UnauthorizedException(request.state.unauthorized_reason or "Unauthorized")
 
-    if user.is_guest:
+    if user.is_external:
         route = request.scope.get("route")
         if isinstance(route, APIRoute):
-            if request.url.path not in GUESTS_ROUTE_WHITELIST:
+            if request.url.path not in EXTERNAL_ROUTE_WHITELIST:
                 for dependency in route.dependencies:
-                    if dependency == AllowGuests:
-                        # This route allows guest users
+                    if dependency == AllowExternal:
+                        # This route allows external users
                         break
                 else:
-                    # No AllowGuests dependency found, raise UnauthorizedException
+                    # No AllowExternal dependency found, raise UnauthorizedException
                     logger.warning(
-                        f"Guest {user.name} tried to access "
+                        f"External user {user.name} tried to access "
                         f"a restricted endpoint: {request.url.path}"
                     )
                     raise ForbiddenException(
-                        "Guest users are not allowed to access this endpoint"
+                        "External users are not allowed to access this endpoint"
                     )
 
     return user
