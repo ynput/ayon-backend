@@ -266,13 +266,6 @@ async def _process_operations(
 
     # Create overall success value
     success = all(op.success for op in result)
-    if success or can_fail:
-        for entity_type in entity_types:
-            entity_class = get_entity_class(entity_type)
-            try:
-                await entity_class.refresh_views(project_name)
-            except DeadlockDetectedError as e:
-                raise DeadlockException() from e
 
     return events, OperationsResponseModel(operations=result, success=success)
 
@@ -484,6 +477,13 @@ class ProjectLevelOperations:
 
         if events:
             msg = f"[OPS] {len(events)} events dispatched"
+            affected_entity_types = {op.entity_type for op in self.operations}
+            for entity_type in affected_entity_types:
+                entity_class = get_entity_class(entity_type)
+                try:
+                    await entity_class.refresh_views(self.project_name)
+                except DeadlockDetectedError:
+                    logger.debug("[OPS] View refresh deadlock. Skipping refresh.")
 
             if wait_for_events:
                 # If we are waiting for events, we wait for them to be dispatched
