@@ -22,6 +22,8 @@ from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy.folder_types import FolderType
 from ayon_server.settings.anatomy.product_base_types import (
+    DefaultProductBaseType,
+    ProductBaseType,
     default_product_type_definitions,
 )
 from ayon_server.settings.anatomy.statuses import Status
@@ -77,9 +79,7 @@ class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
     tags: TAGS_FIELD
 
 
-default_pt_definitions = [
-    p.dict(exclude_unset=True) for p in default_product_type_definitions
-]
+default_pt_definitions = [p.dict() for p in default_product_type_definitions]
 
 
 @router.get(
@@ -97,6 +97,23 @@ async def get_project(
     await user.ensure_project_access(project_name)
     coalesce = RequestCoalescer()
     project = await coalesce(ProjectEntity.load, project_name)
+
+    product_base_types_config = project.config.get("productBaseTypes", {})
+
+    product_base_types_config["default"] = DefaultProductBaseType(
+        **product_base_types_config.get("default", {})
+    ).dict()
+
+    if "definitions" not in product_base_types_config:
+        product_base_types_config["definitions"] = default_pt_definitions
+    else:
+        product_base_types_config["definitions"] = [
+            ProductBaseType(**pt).dict()
+            for pt in product_base_types_config["definitions"]
+        ]
+
+    project.config["productBaseTypes"] = product_base_types_config
+    project.config.pop("productTypes", None)  # legacy
 
     return cast(ProjectModel, project.as_user(user))
 
