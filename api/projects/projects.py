@@ -1,7 +1,7 @@
 from typing import Annotated, cast
 
 from ayon_server.api.dependencies import (
-    AllowExternal,
+    AllowGuests,
     CurrentUser,
     NewProjectName,
     ProjectName,
@@ -86,7 +86,7 @@ default_pt_definitions = [p.dict() for p in default_product_type_definitions]
     "/projects/{project_name}",
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
-    dependencies=[AllowExternal],
+    dependencies=[AllowGuests],
 )
 async def get_project(
     user: CurrentUser,

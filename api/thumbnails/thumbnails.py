@@ -4,7 +4,7 @@ from typing import Literal
 from fastapi import APIRouter, Query, Request, Response
 
 from ayon_server.api.dependencies import (
-    AllowExternal,
+    AllowGuests,
     CurrentUser,
     FolderID,
     NoTraces,
@@ -237,7 +237,7 @@ async def create_folder_thumbnail(
 
 @router.get(
     "/projects/{project_name}/folders/{folder_id}/thumbnail",
-    dependencies=[NoTraces, AllowExternal],
+    dependencies=[NoTraces, AllowGuests],
 )
 async def get_folder_thumbnail(
     user: CurrentUser,
@@ -350,7 +350,7 @@ async def create_version_thumbnail(
 
 @router.get(
     "/projects/{project_name}/versions/{version_id}/thumbnail",
-    dependencies=[NoTraces, AllowExternal],
+    dependencies=[NoTraces, AllowGuests],
 )
 async def get_version_thumbnail(
     user: CurrentUser,
@@ -446,7 +446,7 @@ async def create_workfile_thumbnail(
 
 @router.get(
     "/projects/{project_name}/workfiles/{workfile_id}/thumbnail",
-    dependencies=[NoTraces, AllowExternal],
+    dependencies=[NoTraces, AllowGuests],
 )
 async def get_workfile_thumbnail(
     user: CurrentUser,
@@ -500,7 +500,7 @@ async def create_task_thumbnail(
 
 @router.get(
     "/projects/{project_name}/tasks/{task_id}/thumbnail",
-    dependencies=[NoTraces, AllowExternal],
+    dependencies=[NoTraces, AllowGuests],
 )
 async def get_task_thumbnail(
     user: CurrentUser,

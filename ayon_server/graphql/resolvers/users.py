@@ -65,6 +65,9 @@ async def get_users(
     user = info.context["user"]
     if project_name is None and projects is None:
         user.check_permissions("studio.list_all_users")
+    if user.is_guest:
+        # TODO: allow listing users assigned to the same project?
+        return UsersConnection(edges=[])
 
     # Filter by name
 
