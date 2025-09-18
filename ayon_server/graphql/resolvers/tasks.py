@@ -86,6 +86,7 @@ async def create_task_acl(
                 continue
 
             if acl.path is None:
+                # make linter happy. path is nullable only for 'assigned' type
                 continue
 
             for p in path_to_paths(acl.path, True, True):
@@ -181,7 +182,7 @@ async def get_tasks(
 ) -> TasksConnection:
     """Return a list of tasks."""
 
-    if folder_ids == ["root"] or info.context["user"].is_external:
+    if folder_ids == ["root"] or info.context["user"].is_guest:
         # this is a workaround to allow selecting tasks along with children folders
         # in a single query of the manager page.
         # (assuming the root element of the project cannot have tasks :) )

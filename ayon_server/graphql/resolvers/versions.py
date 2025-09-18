@@ -86,6 +86,10 @@ async def get_versions(
     user = info.context["user"]
     fields = FieldInfo(info, ["versions.edges.node", "version"])
 
+    # if user.is_guest:
+    #     if not ids:
+    #         return VersionsConnection(edges=[])
+
     #
     # SQL
     #
@@ -207,14 +211,29 @@ async def get_versions(
             get_has_links_conds(project_name, "versions.id", has_links)
         )
 
-    if user.is_external:
-        if not ids:
-            return VersionsConnection(edges=[])
+    if user.is_guest:
+        sql_cte.append(
+            f"""guest_accessible_versions AS (
+                SELECT DISTINCT(entity_id)
+                FROM project_{project_name}.entity_list_items i
+                JOIN project_{project_name}.entity_lists l
+                ON l.id = i.entity_list_id
+                AND l.entity_type = 'version'
+                AND (
+                        (l.access->'__guests__')::integer > 0
+                        OR (l.access->'guest:{user.attrib.email}')::integer > 0
+                    )
+                )
+            """
+        )
+        sql_joins.append(
+            """
+            INNER JOIN guest_accessible_versions AS gav
+            ON gav.entity_id = versions.id
+            """
+        )
 
-        # External users can only access version by their ID.
-        pass
-
-    else:
+    elif not user.is_manager:
         access_list = await create_folder_access_list(root, info)
         if access_list is not None:
             sql_conditions.append(

@@ -141,7 +141,6 @@ class Query:
             is_service=user.is_service,
             is_developer=user.is_developer,
             is_guest=user.is_guest,
-            is_external=user.is_external,
             user_pool=user.data.get("userPool"),
             default_access_groups=user.data.get("defaultAccessGroups", []),
             has_password=bool(user.data.get("password")),
