@@ -63,33 +63,39 @@ async def _process_operation(
     events: list[dict[str, Any]] | None = None
     status = 200
 
-    if operation.type == "create":
-        entity_id, events, status = await create_project_level_entity(
-            entity_class,
-            project_name,
-            operation,
-            user,
-        )
+    try:
+        if operation.type == "create":
+            entity_id, events, status = await create_project_level_entity(
+                entity_class,
+                project_name,
+                operation,
+                user,
+            )
 
-    elif operation.type == "update":
-        entity_id, events, status = await update_project_level_entity(
-            entity_class,
-            project_name,
-            operation,
-            user,
-        )
+        elif operation.type == "update":
+            entity_id, events, status = await update_project_level_entity(
+                entity_class,
+                project_name,
+                operation,
+                user,
+            )
 
-    elif operation.type == "delete":
-        entity_id, events, status = await delete_project_level_entity(
-            entity_class,
-            project_name,
-            operation,
-            user,
-        )
+        elif operation.type == "delete":
+            entity_id, events, status = await delete_project_level_entity(
+                entity_class,
+                project_name,
+                operation,
+                user,
+            )
 
-    else:
-        # This should never happen (already validated)
-        raise BadRequestException(f"Unknown operation type {operation.type}")
+        else:
+            # This should never happen (already validated)
+            raise BadRequestException(f"Unknown operation type {operation.type}")
+
+    except DeadlockDetectedError as e:
+        # Catching deadlock here, because later, we need to handle it
+        # as ayon exception
+        raise DeadlockException() from e
 
     return (
         events,
@@ -152,18 +158,15 @@ async def _process_operations(
             # to commit all operations at once.
 
             async with Postgres.transaction():
-                try:
-                    evt, response = await _process_operation(
-                        project_name,
-                        user,
-                        operation,
-                    )
-                    if evt is not None:
-                        events.extend(evt)
-                    result.append(response)
-                    entity_types.add(operation.entity_type)
-                except DeadlockDetectedError as e:
-                    raise DeadlockException() from e
+                evt, response = await _process_operation(
+                    project_name,
+                    user,
+                    operation,
+                )
+                if evt is not None:
+                    events.extend(evt)
+                result.append(response)
+                entity_types.add(operation.entity_type)
 
         except ServiceUnavailableException as e:
             logger.debug(f"[OPS] {e}, retrying operation")
