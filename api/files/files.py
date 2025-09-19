@@ -138,6 +138,8 @@ async def get_file_headers(project_name: str, file_id: str) -> dict[str, str]:
         "Content-Type": data["mime"],
         "Content-Disposition": f'inline; filename="{data["filename"]}"',
     }
+    if data.get("ynputShared"):
+        headers["X-Ynput-Shared"] = "1"
     return headers
 
 
@@ -172,9 +174,10 @@ async def get_project_file(
 
     storage = await Storages.project(project_name)
     headers = await get_file_headers(project_name, file_id)
+    ynput_shared = bool(headers.get("X-Ynput-Shared"))
 
     if storage.cdn_resolver is not None:
-        return await storage.get_cdn_link(file_id)
+        return await storage.get_cdn_link(file_id, ynput_shared=ynput_shared)
 
     if storage.storage_type == "s3":
         url = await storage.get_signed_url(

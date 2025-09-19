@@ -169,7 +169,12 @@ class ProjectStorage:
             )
         raise Exception("Signed URLs are only supported for S3 storage")
 
-    async def get_cdn_link(self, file_id: str) -> RedirectResponse:
+    async def get_cdn_link(
+        self,
+        file_id: str,
+        *,
+        ynput_shared: bool = False,
+    ) -> RedirectResponse:
         """Return a signed URL to access the file on the CDN over HTTP
 
         This method is only supported for CDN-enabled storages.
@@ -185,6 +190,7 @@ class ProjectStorage:
                 "projectName": self.project_name,
                 "projectTimestamp": project_timestamp,
                 "fileId": file_id,
+                "ynputShared": ynput_shared,
             }
 
             headers = await CloudUtils.get_api_headers()
