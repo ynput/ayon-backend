@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 import strawberry
 
@@ -36,7 +37,7 @@ class LinkEdge(BaseEdge):
     cursor: str | None = strawberry.field(default=None)
 
     @strawberry.field(description="Linked node")
-    async def node(self, info: Info) -> "BaseNode":
+    async def node(self, info: Info) -> Optional["BaseNode"]:
         if self.entity_type == "folder":
             loader = info.context["folder_loader"]
             parser = info.context["folder_from_record"]
@@ -61,7 +62,20 @@ class LinkEdge(BaseEdge):
             raise AyonException(msg)
 
         record = await loader.load((self.project_name, self.entity_id))
-        return await parser(self.project_name, record, info.context)
+
+        entity_node = await parser(self.project_name, record, info.context)
+        access_checker = info.context.get("access_checker")
+        if access_checker:
+            entity_folder_path = (entity_node._folder_path or "").strip("/")
+            if entity_folder_path not in access_checker.exact_paths:
+                # We don't handle partial errors in the frontend yet,
+                # but it would probably be a good idea to do so in the future.
+                #
+                # For now we just silently hide the linked entity if access is denied.
+                #
+                # raise ForbiddenException("Access to the linked entity denied")
+                return None
+        return entity_node
 
 
 @strawberry.type

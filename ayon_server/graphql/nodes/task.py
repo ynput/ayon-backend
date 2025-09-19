@@ -43,6 +43,7 @@ class TaskNode(BaseNode):
     _attrib: strawberry.Private[dict[str, Any]]
     _inherited_attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
+    _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
 
@@ -161,9 +162,10 @@ async def task_from_record(
         )
 
     path = None
+    folder_path = None
     if record.get("_folder_path"):
-        folder_path = record["_folder_path"].strip("/")
-        path = f"/{folder_path}/{record['name']}"
+        folder_path = "/" + record["_folder_path"].strip("/")
+        path = f"{folder_path}/{record['name']}"
 
     return TaskNode(
         project_name=project_name,
@@ -187,6 +189,7 @@ async def task_from_record(
         _attrib=record["attrib"],
         _inherited_attrib=record["parent_folder_attrib"],
         _user=current_user,
+        _folder_path=folder_path,
     )
 
 

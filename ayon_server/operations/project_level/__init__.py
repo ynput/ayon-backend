@@ -9,7 +9,7 @@ import asyncio
 import random
 from typing import Any
 
-from asyncpg.exceptions import IntegrityConstraintViolationError
+from asyncpg.exceptions import DeadlockDetectedError, IntegrityConstraintViolationError
 from pydantic.error_wrappers import ValidationError
 
 from ayon_server.entities import UserEntity
@@ -18,6 +18,7 @@ from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
     ConflictException,
+    DeadlockException,
     ServiceUnavailableException,
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
@@ -62,33 +63,39 @@ async def _process_operation(
     events: list[dict[str, Any]] | None = None
     status = 200
 
-    if operation.type == "create":
-        entity_id, events, status = await create_project_level_entity(
-            entity_class,
-            project_name,
-            operation,
-            user,
-        )
+    try:
+        if operation.type == "create":
+            entity_id, events, status = await create_project_level_entity(
+                entity_class,
+                project_name,
+                operation,
+                user,
+            )
 
-    elif operation.type == "update":
-        entity_id, events, status = await update_project_level_entity(
-            entity_class,
-            project_name,
-            operation,
-            user,
-        )
+        elif operation.type == "update":
+            entity_id, events, status = await update_project_level_entity(
+                entity_class,
+                project_name,
+                operation,
+                user,
+            )
 
-    elif operation.type == "delete":
-        entity_id, events, status = await delete_project_level_entity(
-            entity_class,
-            project_name,
-            operation,
-            user,
-        )
+        elif operation.type == "delete":
+            entity_id, events, status = await delete_project_level_entity(
+                entity_class,
+                project_name,
+                operation,
+                user,
+            )
 
-    else:
-        # This should never happen (already validated)
-        raise BadRequestException(f"Unknown operation type {operation.type}")
+        else:
+            # This should never happen (already validated)
+            raise BadRequestException(f"Unknown operation type {operation.type}")
+
+    except DeadlockDetectedError as e:
+        # Catching deadlock here, because later, we need to handle it
+        # as ayon exception
+        raise DeadlockException() from e
 
     return (
         events,
@@ -262,10 +269,6 @@ async def _process_operations(
 
     # Create overall success value
     success = all(op.success for op in result)
-    if success or can_fail:
-        for entity_type in entity_types:
-            entity_class = get_entity_class(entity_type)
-            await entity_class.refresh_views(project_name)
 
     return events, OperationsResponseModel(operations=result, success=success)
 
@@ -477,6 +480,13 @@ class ProjectLevelOperations:
 
         if events:
             msg = f"[OPS] {len(events)} events dispatched"
+            affected_entity_types = {op.entity_type for op in self.operations}
+            for entity_type in affected_entity_types:
+                entity_class = get_entity_class(entity_type)
+                try:
+                    await entity_class.refresh_views(self.project_name)
+                except DeadlockDetectedError:
+                    logger.debug("[OPS] View refresh deadlock. Skipping refresh.")
 
             if wait_for_events:
                 # If we are waiting for events, we wait for them to be dispatched

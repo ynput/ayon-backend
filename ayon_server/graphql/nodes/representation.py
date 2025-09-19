@@ -42,6 +42,7 @@ class RepresentationNode(BaseNode):
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
+    _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
 
@@ -117,12 +118,13 @@ async def representation_from_record(
     data = record.get("data") or {}
 
     path = None
+    folder_path = None
     if record.get("_folder_path"):
-        folder_path = record["_folder_path"].strip("/")
+        folder_path = "/" + record["_folder_path"].strip("/")
         product_name = record["_product_name"]
         version_number = record["_version_number"]
         version_name = f"v{version_number:03d}"
-        path = f"/{folder_path}/{product_name}/{version_name}/{record['name']}"
+        path = f"{folder_path}/{product_name}/{version_name}/{record['name']}"
 
     return RepresentationNode(
         project_name=project_name,
@@ -139,6 +141,7 @@ async def representation_from_record(
         files=parse_files(record.get("files", [])),
         traits=json_dumps(record["traits"]) if record["traits"] else None,
         path=path,
+        _folder_path=folder_path,
         _attrib=record["attrib"] or {},
         _user=context["user"],
     )

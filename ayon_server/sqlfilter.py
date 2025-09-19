@@ -125,6 +125,7 @@ PATH_ELEMENT_REGEX = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 def create_path_from_key(
     key: str,
     column_whitelist: list[str] | None = None,
+    single_json_column: str | None = None,
 ) -> list[str]:
     """Ensure the key is valid and return a list of path elements.
 
@@ -139,6 +140,9 @@ def create_path_from_key(
     if not all(PATH_ELEMENT_REGEX.match(p) for p in path):
         raise ValueError("Invalid path element detected")
 
+    if single_json_column:
+        return [single_json_column] + path
+
     # First element (column) must be snake_case
     column = camel_to_snake(path[0])
     if column_whitelist is not None and column not in column_whitelist:
@@ -151,11 +155,16 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
     """Return a SQL WHERE clause from a Condition object."""
 
     json_fields = kwargs.get("json_fields", JSON_FIELDS)
+    single_json_column = kwargs.get("single_json_column", None)
     table_prefix = kwargs.get("table_prefix")
     column_whitelist = kwargs.get("column_whitelist", None)
     column_map: dict[str, str] = kwargs.get("column_map", {})
 
-    path = create_path_from_key(c.key, column_whitelist)
+    path = create_path_from_key(
+        c.key,
+        column_whitelist,
+        single_json_column=single_json_column,
+    )
     value = c.value
     operator = c.operator
     cast_type = "text"
@@ -180,7 +189,10 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             cast_type = "integer" if isinstance(value, int) else "number"
             safe_value = value
 
-    elif len(path) > 1 and path[0] in json_fields:
+    elif (len(path) > 1 and path[0] in json_fields) or single_json_column:
+        if single_json_column:
+            column = single_json_column
+
         for k in path[1:]:
             column += f"->'{k}'"
 

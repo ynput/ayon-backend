@@ -175,6 +175,9 @@ class EntityListModel(OPModel):
     created_at: Annotated[datetime, FCreatedAt]
     updated_at: Annotated[datetime, FUpdatedAt]
     active: Annotated[bool, FListActive]
+    access_level: Annotated[
+        ListAccessLevel, Field(title="Current user's access level")
+    ] = ListAccessLevel.MANAGE
 
 
 class EntityListPostModel(OPModel):

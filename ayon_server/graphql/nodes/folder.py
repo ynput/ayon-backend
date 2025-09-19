@@ -40,6 +40,7 @@ class FolderNode(BaseNode):
     _project_attrib: strawberry.Private[dict[str, Any]]
     _inherited_attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
+    _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
 
@@ -154,6 +155,7 @@ async def folder_from_record(
             relation=thumb_data.get("relation"),
         )
 
+    path = "/" + record.get("path", "").strip("/")
     return FolderNode(
         project_name=project_name,
         id=record["id"],
@@ -174,7 +176,8 @@ async def folder_from_record(
         task_count=record.get("task_count", 0),
         has_reviewables=has_reviewables,
         has_versions=record.get("has_versions", False),
-        path="/" + record.get("path", "").strip("/"),
+        path=path,
+        _folder_path=path,
         _attrib=record["attrib"] or {},
         _project_attrib=record["project_attributes"] or {},
         _inherited_attrib=record["inherited_attributes"] or {},
