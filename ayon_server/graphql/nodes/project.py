@@ -325,18 +325,13 @@ class ProjectNode:
     @strawberry.field(description="List of project's product base types")
     async def product_base_types(self) -> list[ProductBaseType]:
         return [
-            ProductBaseType(
+            ProductBaseTgiype(
                 name=row["name"],
-                icon=row["data"].get("icon"),
-                color=row["data"].get("color"),
             )
             async for row in Postgres.iterate(
                 f"""
-                SELECT name, data FROM product_base_types
-                WHERE name IN (
-                    SELECT DISTINCT(product_base_type)
-                    FROM project_{self.project_name}.products
-                )
+                SELECT DISTINCT(product_base_type) AS name
+                FROM project_{self.project_name}.products
                 ORDER BY name ASC
             """
             )

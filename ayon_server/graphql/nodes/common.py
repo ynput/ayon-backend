@@ -19,8 +19,6 @@ class ProductType(BaseEdge):
 @strawberry.type
 class ProductBaseType(BaseEdge):
     name: str = strawberry.field()
-    icon: str | None = strawberry.field(default=None)
-    color: str | None = strawberry.field(default=None)
 
 
 @strawberry.type

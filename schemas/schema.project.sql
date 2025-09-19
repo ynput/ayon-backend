@@ -262,7 +262,7 @@ CREATE TABLE products(
 
     folder_id UUID NOT NULL REFERENCES folders(id),
     product_type VARCHAR NOT NULL REFERENCES public.product_types(name) ON UPDATE CASCADE,
-    product_base_type VARCHAR NULL REFERENCES public.product_base_types(name) ON UPDATE CASCADE ON DELETE SET NULL,
+    product_base_type VARCHAR NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
