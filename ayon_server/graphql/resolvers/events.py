@@ -48,7 +48,7 @@ async def get_events(
     """Return a list of events."""
 
     user = info.context["user"]
-    if user.is_external:
+    if user.is_guest:
         return EventsConnection(edges=[])
     sql_conditions = []
 
