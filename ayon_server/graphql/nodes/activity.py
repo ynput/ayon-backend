@@ -52,6 +52,12 @@ class ActivityReactionNode:
 
 
 @strawberry.type
+class ActivityCategory:
+    name: str = strawberry.field()
+    color: str = strawberry.field()
+
+
+@strawberry.type
 class ActivityNode:
     project_name: str = strawberry.field()
 
@@ -71,7 +77,7 @@ class ActivityNode:
     activity_type: str = strawberry.field()
     body: str = strawberry.field()
     tags: list[str] = strawberry.field()
-    category: str | None = strawberry.field()
+    category: ActivityCategory | None = strawberry.field()
     activity_data: str = strawberry.field()
     reference_data: str = strawberry.field()
     active: bool = strawberry.field(default=True)
@@ -214,7 +220,13 @@ async def activity_from_record(
     activity_data = record.pop("activity_data", {})
     reference_data = record.pop("reference_data", {})
     tags = record.pop("tags", [])
-    category = activity_data.get("category")
+    category = None
+    if category_name := activity_data.get("category"):
+        category = ActivityCategory(
+            name=category_name,
+            label=category_name,  # TODO
+            color="#cccccc",  # TODO
+        )
 
     origin_data = activity_data.get("origin")
     if origin_data:

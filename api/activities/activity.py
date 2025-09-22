@@ -9,6 +9,7 @@ from ayon_server.activities import (
     delete_activity,
     update_activity,
 )
+from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.activities.watchers.set_watchers import ensure_watching
 from ayon_server.api.dependencies import (
     ActivityID,
@@ -21,7 +22,7 @@ from ayon_server.api.dependencies import (
     SenderType,
 )
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.files import Storages
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.helpers.get_entity_class import get_entity_class
@@ -80,7 +81,31 @@ async def post_project_activity(
             raise BadRequestException("Humans can only create comments")
 
     if user.is_guest:
-        activity.data = {"category": "external"}
+        # check for activity.data.entityList
+        if not activity.data or "entityList" not in activity.data:
+            raise ForbiddenException("Guests must provide entityList in activity data")
+
+        # TODO: check if the guest has access to the version in the entityList
+
+        activity.data["category"] = (
+            "guest"  # TODO: fill from list.data["guestCategory"]["email"]
+        )
+
+    elif not user.is_manager:
+        writable_categories = await ActivityCategories.get_writable_categories(
+            user, project_name
+        )
+        activity_category = activity.data.get("category") if activity.data else None
+        # if user.is_guest:
+        #     if not activity_category:
+        #         raise ForbiddenException("Guests must use the 'external' category")
+        #     if activity_category not in writable_categories:
+        #         raise ForbiddenException("Guests can only use
+        #         the 'external' category")
+        # else:
+        # normal users
+        if activity_category and activity_category not in writable_categories:
+            raise ForbiddenException("You cannot use this activity category")
 
     entity_class = get_entity_class(entity_type)
     entity = await entity_class.load(project_name, entity_id)
