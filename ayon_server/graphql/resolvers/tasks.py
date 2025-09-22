@@ -216,7 +216,7 @@ async def get_tasks(
         "tasks.updated_at AS updated_at",
         "tasks.creation_order AS creation_order",
         "hierarchy.path AS _folder_path",
-        "ex.attrib as parent_folder_attrib",
+        "f_ex.attrib as parent_folder_attrib",
     ]
 
     sql_joins = [
@@ -225,8 +225,8 @@ async def get_tasks(
         ON tasks.folder_id = hierarchy.id
         """,
         f"""
-        INNER JOIN project_{project_name}.exported_attributes AS ex
-        ON tasks.folder_id = ex.folder_id
+        INNER JOIN project_{project_name}.exported_attributes AS f_ex
+        ON tasks.folder_id = f_ex.folder_id
         """,
     ]
 
@@ -389,7 +389,7 @@ async def get_tasks(
             values = [v.replace("'", "''") for v in attribute_input.values]
             sql_conditions.append(
                 f"""
-                (coalesce(pf.attrib, '{{}}'::jsonb ) || tasks.attrib)
+                (coalesce(f_ex.attrib, '{{}}'::jsonb ) || tasks.attrib)
                 ->>'{attribute_input.name}' IN {SQLTool.array(values)}
                 """
             )
@@ -419,7 +419,7 @@ async def get_tasks(
             column_whitelist=column_whitelist,
             table_prefix="tasks",
             column_map={
-                "attrib": "(coalesce(pf.attrib, '{}'::jsonb ) || tasks.attrib)"
+                "attrib": "(coalesce(f_ex.attrib, '{}'::jsonb ) || tasks.attrib)"
             },
         ):
             sql_conditions.append(fcond)
@@ -497,7 +497,7 @@ async def get_tasks(
             order_by = ["hierarchy.path", "tasks.name"]
         elif sort_by.startswith("attrib."):
             attr_name = sort_by[7:]
-            exp = "(ex.attrib || tasks.attrib)"
+            exp = "(f_ex.attrib || tasks.attrib)"
             attr_case = await get_attrib_sort_case(attr_name, exp)
             order_by.insert(0, attr_case)
         else:
