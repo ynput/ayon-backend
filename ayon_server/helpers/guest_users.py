@@ -1,12 +1,12 @@
 """
-External users are stored in the project data
+Guest users are stored in the project data
 
 Status can be one of:
  - `pending` - user was invited, but not yet logged in
  - `active` - user has logged in and already accessed the instance
 
 {
-    "externalUsers": {
+    "guestUsers": {
         "user@example.com": {
             "fullName": "User Name",
             "status": "pending",
@@ -21,10 +21,10 @@ from ayon_server.exceptions import BadRequestException, ConflictException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
-ExternalUserStatus = Literal["pending", "active"]
+GuestUserStatus = Literal["pending", "active"]
 
 
-class ExternalUsers:
+class GuestUsers:
     @classmethod
     async def add(
         cls,
@@ -33,26 +33,26 @@ class ExternalUsers:
         project_name: str,
         full_name: str | None = None,
     ) -> None:
-        """Add an external user to a project."""
+        """Add an guest user to a project."""
 
         async with Postgres.transaction():
             project = await ProjectEntity.load(name=project_name, for_update=True)
-            external_users = project.data.get("externalUsers", {})
+            guest_users = project.data.get("guestUsers", {})
 
-            if email in external_users:
+            if email in guest_users:
                 raise ConflictException(
-                    f"External user {email} already exists in the project."
+                    f"Guest user {email} already exists in the project."
                 )
 
             if not full_name:
                 full_name = email
 
-            external_users[email] = {
+            guest_users[email] = {
                 "fullName": full_name,
                 "status": "pending",
             }
 
-            project.data["externalUsers"] = external_users
+            project.data["guestUsers"] = guest_users
             await project.save()
 
     @classmethod
@@ -62,19 +62,19 @@ class ExternalUsers:
         *,
         project_name: str,
     ) -> None:
-        """Remove an external user from a project."""
+        """Remove an guest user from a project."""
 
         async with Postgres.transaction():
             project = await ProjectEntity.load(name=project_name, for_update=True)
-            external_users = project.data.get("externalUsers", {})
+            guest_users = project.data.get("guestUsers", {})
 
-            if email not in external_users:
+            if email not in guest_users:
                 raise BadRequestException(
-                    f"External user {email} does not exist in the project."
+                    f"Guest user {email} does not exist in the project."
                 )
 
-            del external_users[email]
-            project.data["externalUsers"] = external_users
+            del guest_users[email]
+            project.data["guestUsers"] = guest_users
             await project.save()  # Assuming save method persists the changes
 
     @classmethod
@@ -84,21 +84,21 @@ class ExternalUsers:
         *,
         project_name: str,
     ) -> bool:
-        """Ensure the external user is in the project."""
+        """Ensure the guest user is in the project."""
 
         async with Postgres.transaction():
             project = await ProjectEntity.load(name=project_name)
-            exists = email in project.data.get("externalUsers", {})
+            exists = email in project.data.get("guestUsers", {})
             if not exists:
                 return False
 
-            status = project.data["externalUsers"][email].get("status", "pending")
+            status = project.data["guestUsers"][email].get("status", "pending")
             if status == "pending":
-                project.data["externalUsers"][email]["status"] = "active"
+                project.data["guestUsers"][email]["status"] = "active"
                 await project.save()
 
                 logger.info(
-                    f"External user {email} is now active in project {project_name}."
+                    f"Guest user {email} is now active in project {project_name}."
                 )
 
             return True
@@ -112,6 +112,6 @@ class ExternalUsers:
         full_name: str | None = None,
         **kwargs: Any,
     ) -> None:
-        """Invite an external user to a project."""
+        """Invite an guest user to a project."""
 
         pass

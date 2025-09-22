@@ -6,7 +6,7 @@ import aiofiles
 import httpx
 from fastapi import Request, Response
 
-from ayon_server.api.dependencies import AllowExternal, CurrentUser, NoTraces, UserName
+from ayon_server.api.dependencies import AllowGuests, CurrentUser, NoTraces, UserName
 from ayon_server.api.files import image_response_from_bytes
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import NotFoundException
@@ -134,10 +134,10 @@ async def obtain_avatar(user_name: str) -> bytes:
     )
 
     if not res:
-        if user_name.startswith("external"):
-            # We cannot get full name for external users,
+        if user_name.startswith("guest."):
+            # We cannot get full name for guests users,
             # as we do not know the current project.
-            # so we just strip the "external" prefix
+            # so we just strip the "guest" prefix
             # and the domain part of the user name.
             elms = user_name.split(".")
             user_name = ".".join(elms[1:-2])
@@ -179,18 +179,14 @@ async def obtain_avatar(user_name: str) -> bytes:
     return avatar_bytes
 
 
-@router.get("/{user_name}/avatar", dependencies=[NoTraces, AllowExternal])
+@router.get("/{user_name}/avatar", dependencies=[NoTraces, AllowGuests])
 async def get_avatar(user_name: UserName, current_user: CurrentUser) -> Response:
     """Retrieve the avatar for a given user."""
 
-    if current_user.is_guest:
-        avatar_bytes = create_initials_svg(user_name).encode()
-
-    else:
-        avatar_bytes = await Redis.get(REDIS_NS, user_name)
-        if not avatar_bytes:
-            avatar_bytes = await obtain_avatar(user_name)
-            await Redis.set(REDIS_NS, user_name, avatar_bytes)
+    avatar_bytes = await Redis.get(REDIS_NS, user_name)
+    if not avatar_bytes:
+        avatar_bytes = await obtain_avatar(user_name)
+        await Redis.set(REDIS_NS, user_name, avatar_bytes)
 
     return image_response_from_bytes(avatar_bytes)
 

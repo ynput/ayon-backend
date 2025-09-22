@@ -1,6 +1,7 @@
 from typing import Any
 
 from ayon_server.api.dependencies import (
+    AllowGuests,
     CurrentUser,
     FolderID,
     ProductID,
@@ -226,13 +227,17 @@ async def get_reviewables(
     return result
 
 
-@router.get("/products/{product_id}/reviewables")
+@router.get("/products/{product_id}/reviewables", dependencies=[AllowGuests])
 async def get_reviewables_for_product(
     user: CurrentUser,
     project_name: ProjectName,
     product_id: ProductID,
 ) -> list[VersionReviewablesModel]:
     """Returns a list of reviewables for a given product."""
+
+    if user.is_guest:
+        # Guests cannot see reviewables
+        return []
 
     product = await ProductEntity.load(project_name, product_id)
     await product.ensure_read_access(user)
@@ -254,24 +259,32 @@ async def get_reviewables_for_version(
     return (await get_reviewables(project_name, version_id=version_id))[0]
 
 
-@router.get("/tasks/{task_id}/reviewables")
+@router.get("/tasks/{task_id}/reviewables", dependencies=[AllowGuests])
 async def get_reviewables_for_task(
     user: CurrentUser,
     project_name: ProjectName,
     task_id: TaskID,
 ) -> list[VersionReviewablesModel]:
+    if user.is_guest:
+        # Guests cannot see reviewables
+        return []
+
     task = await TaskEntity.load(project_name, task_id)
     await task.ensure_read_access(user)
 
     return await get_reviewables(project_name, task_id=task_id)
 
 
-@router.get("/folders/{folder_id}/reviewables")
+@router.get("/folders/{folder_id}/reviewables", dependencies=[AllowGuests])
 async def get_reviewables_for_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
 ) -> list[VersionReviewablesModel]:
+    if user.is_guest:
+        # Guests cannot see reviewables
+        return []
+
     folder = await FolderEntity.load(project_name, folder_id)
     await folder.ensure_read_access(user)
 
