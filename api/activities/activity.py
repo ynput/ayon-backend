@@ -12,7 +12,7 @@ from ayon_server.activities import (
 from ayon_server.activities.watchers.set_watchers import ensure_watching
 from ayon_server.api.dependencies import (
     ActivityID,
-    AllowExternal,
+    AllowGuests,
     CurrentUser,
     PathEntityID,
     PathProjectLevelEntityType,
@@ -56,7 +56,7 @@ class CreateActivityResponseModel(OPModel):
 @router.post(
     "/{entity_type}/{entity_id}/activities",
     status_code=201,
-    dependencies=[AllowExternal],
+    dependencies=[AllowGuests],
 )
 async def post_project_activity(
     project_name: ProjectName,
@@ -79,7 +79,7 @@ async def post_project_activity(
         if activity.activity_type not in ["comment"]:
             raise BadRequestException("Humans can only create comments")
 
-    if user.is_external:
+    if user.is_guest:
         activity.data = {"category": "external"}
 
     entity_class = get_entity_class(entity_type)
