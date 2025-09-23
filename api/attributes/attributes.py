@@ -193,8 +193,6 @@ async def patch_attribute_config(
     """Partially update attribute configuration"""
 
     attribute = await get_attribute_config(user, attribute_name)
-    if not user.is_admin:
-        raise ForbiddenException("Only administrators are allowed to modify attributes")
 
     patch_payload = payload.dict(exclude_unset=True)
     patch_data = patch_payload.pop("data", {})
@@ -219,6 +217,16 @@ async def patch_attribute_config(
         )
     ):
         requires_restart = True
+
+        if not user.is_admin:
+            raise ForbiddenException(
+                "Only administrators are allowed to modify attribute configuration"
+            )
+
+    if not user.is_manager:
+        raise ForbiddenException(
+            "Only managers are allowed to modify attribute metadata"
+        )
 
     for key, value in patch_payload.items():
         setattr(attribute, key, value)
