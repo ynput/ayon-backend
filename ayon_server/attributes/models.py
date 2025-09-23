@@ -166,7 +166,6 @@ class AttributePatchModel(OPModel):
     scope: Annotated[
         list[ProjectLevelEntityType | TopLevelEntityType | Literal["list"]] | None,
         Field(
-            default=None,
             title="Scope",
             description="List of entity types the attribute is available on",
             example=["folder", "task"],
