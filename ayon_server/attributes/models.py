@@ -158,7 +158,7 @@ class AttributePatchModel(OPModel):
     position: Annotated[
         int | None,
         Field(
-            title="Positon",
+            title="Position",
             description="Default order",
             example=12,
         ),
