@@ -151,6 +151,31 @@ class AttributePutModel(OPModel):
             example=["folder", "task"],
         ),
     ]
+    data: AttributeData
+
+
+class AttributePatchModel(OPModel):
+    position: Annotated[
+        int | None,
+        Field(
+            title="Positon",
+            description="Default order",
+            example=12,
+        ),
+    ] = None
+    scope: Annotated[
+        list[ProjectLevelEntityType | TopLevelEntityType | Literal["list"]] | None,
+        Field(
+            default=None,
+            title="Scope",
+            description="List of entity types the attribute is available on",
+            example=["folder", "task"],
+        ),
+    ] = None
+    data: AttributeData | None = None
+
+
+class AttributeModel(AttributePutModel, AttributeNameModel):
     builtin: Annotated[
         bool,
         Field(
@@ -158,8 +183,3 @@ class AttributePutModel(OPModel):
             description="Is attribute builtin. Built-in attributes cannot be removed.",
         ),
     ] = False
-    data: AttributeData
-
-
-class AttributeModel(AttributePutModel, AttributeNameModel):
-    pass
