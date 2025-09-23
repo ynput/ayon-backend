@@ -135,10 +135,10 @@ async def task_from_record(
 
     current_user = context["user"]
 
-    if current_user.is_guest:
-        assignees = []
-        data = {}
-    else:
+    data: dict[str, Any] = {}
+    assignees: list[str] = []
+
+    if not current_user.is_guest:
         assignees = record["assignees"]
         data = record.get("data") or {}
 
