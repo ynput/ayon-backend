@@ -471,8 +471,9 @@ async def get_tasks(
                 INNER JOIN project_{project_name}.folders
                 ON folders.id = tasks.folder_id
                 """,
+                # but not here. parent's parent can be NULL
                 f"""
-                INNER JOIN project_{project_name}.exported_attributes AS pf_ex
+                LEFT JOIN project_{project_name}.exported_attributes AS pf_ex
                 ON folders.parent_id = pf_ex.folder_id
                 """,
                 f"""
