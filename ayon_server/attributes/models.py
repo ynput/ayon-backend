@@ -17,12 +17,11 @@ class AttributeData(OPModel):
     type: Annotated[
         AttributeType,
         Field(
-            ...,
             title="Type",
             description="Type of attribute value",
             example="string",
         ),
-    ]
+    ] = "string"
 
     title: Annotated[
         str | None,
