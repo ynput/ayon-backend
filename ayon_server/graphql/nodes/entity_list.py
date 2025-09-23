@@ -174,9 +174,8 @@ class EntityListNode:
     entity_type: str = strawberry.field()
     label: str = strawberry.field()
 
-    # TODO
-    # access
-    # attrib
+    access: str = strawberry.field(default="{}")  # JSON string of access dict
+    all_attrib: str = strawberry.field(default="{}")  # JSON string of all attrib keys
 
     tags: list[str] = strawberry.field(default_factory=list)
 
@@ -279,7 +278,8 @@ async def entity_list_from_record(
         entity_list_type=record["entity_list_type"],
         entity_type=record["entity_type"],
         label=record["label"],
-        # attrib
+        access=json_dumps(record.get("access") or {}),
+        all_attrib=json_dumps(record.get("attrib") or {}),
         tags=record["tags"] or [],
         owner=record["owner"],
         active=record["active"],
