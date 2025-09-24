@@ -167,6 +167,8 @@ class ProjectEntity(TopLevelEntity):
         assert self.task_types, "Project must have at least one task type"
         assert self.statuses, "Project must have at least one status"
 
+        self.config.pop("productTypes", None)  # legacy
+
         project_name = self.name
         if self.exists:
             fields = dict_exclude(
@@ -254,7 +256,7 @@ class ProjectEntity(TopLevelEntity):
 
     def as_user(self, user):
         payload = self._payload.copy()
-        if user.is_external:
+        if user.is_guest:
             payload.data = {}  # type: ignore
             payload.config = {}  # type: ignore
         return payload

@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import Query, Response
 
 from ayon_server.access.utils import AccessChecker
-from ayon_server.api.dependencies import AllowExternal, CurrentUser, ProjectName
+from ayon_server.api.dependencies import AllowGuests, CurrentUser, ProjectName
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -82,6 +82,7 @@ class FolderListItem(OPModel):
     status: str
     attrib: dict[str, Any] | None = None
     own_attrib: list[str] | None = None
+    created_at: datetime.datetime
     updated_at: datetime.datetime
 
 
@@ -158,7 +159,7 @@ folder_list_loader = FolderListLoader()
     "",
     response_class=Response,
     responses={200: {"model": FolderListModel}},
-    dependencies=[AllowExternal],
+    dependencies=[AllowGuests],
 )
 async def get_folder_list(
     user: CurrentUser,
@@ -190,10 +191,16 @@ async def get_folder_list(
     # - all folders are stored there, so we need to filter out the ones the user
     #   does not have access to. So we cannot avoid parsing the JSON, solving the ACL
 
-    if user.is_external:
+    if user.is_guest:
+        # We allow access to this endpoint for guest users
+        # but at this moment, it retuns no folders.
+        # In the future, we might want to allow access to certain folders
+        # for guest users, so we keep the endpoint accessible.
+        # This also prevents returning 403 error and flooding the UI with
+        # error messages.
         return Response(
             json_dumps(
-                {"detail": "External users cannot access this endpoint", "folders": []}
+                {"detail": "Guest users cannot access this endpoint", "folders": []}
             ),
             media_type="application/json",
         )

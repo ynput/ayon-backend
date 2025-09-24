@@ -10,7 +10,7 @@ from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
-from ayon_server.utils import get_nickname, json_dumps
+from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import VersionsConnection, WorkfilesConnection
@@ -43,6 +43,7 @@ class TaskNode(BaseNode):
     _attrib: strawberry.Private[dict[str, Any]]
     _inherited_attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
+    _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
 
@@ -133,17 +134,13 @@ async def task_from_record(
                 pass
 
     current_user = context["user"]
-    assignees: list[str] = []
-    if current_user.is_guest or current_user.is_external:
-        for assignee in record["assignees"]:
-            if assignee == current_user.name:
-                assignees.append(assignee)
-            else:
-                assignees.append(get_nickname(assignee))
-    else:
-        assignees = record["assignees"]
 
-    data = record.get("data") or {}
+    data: dict[str, Any] = {}
+    assignees: list[str] = []
+
+    if not current_user.is_guest:
+        assignees = record["assignees"]
+        data = record.get("data") or {}
 
     if "has_reviewables" in record:
         has_reviewables = record["has_reviewables"]
@@ -161,9 +158,10 @@ async def task_from_record(
         )
 
     path = None
+    folder_path = None
     if record.get("_folder_path"):
-        folder_path = record["_folder_path"].strip("/")
-        path = f"/{folder_path}/{record['name']}"
+        folder_path = "/" + record["_folder_path"].strip("/")
+        path = f"{folder_path}/{record['name']}"
 
     return TaskNode(
         project_name=project_name,
@@ -187,6 +185,7 @@ async def task_from_record(
         _attrib=record["attrib"],
         _inherited_attrib=record["parent_folder_attrib"],
         _user=current_user,
+        _folder_path=folder_path,
     )
 
 
