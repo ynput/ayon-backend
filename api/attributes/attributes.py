@@ -6,7 +6,11 @@ from pydantic import Field, ValidationError
 from ayon_server.api.dependencies import AttributeName, CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.api.system import require_server_restart
-from ayon_server.attributes.models import AttributeModel, AttributePutModel
+from ayon_server.attributes.models import (
+    AttributeModel,
+    AttributePatchModel,
+    AttributePutModel,
+)
 from ayon_server.attributes.validate_attribute_data import validate_attribute_data
 from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import ForbiddenException, NotFoundException
@@ -167,7 +171,9 @@ async def get_attribute_config(
 
 @router.put("/{attribute_name}", status_code=204)
 async def set_attribute_config(
-    payload: AttributePutModel, user: CurrentUser, attribute_name: AttributeName
+    payload: AttributePutModel,
+    user: CurrentUser,
+    attribute_name: AttributeName,
 ) -> EmptyResponse:
     """Update attribute configuration"""
     if not user.is_admin:
@@ -177,6 +183,63 @@ async def set_attribute_config(
     await require_server_restart(
         None, "Restart the server to apply the attribute changes."
     )
+    return EmptyResponse()
+
+
+@router.patch("/{attribute_name}", status_code=204)
+async def patch_attribute_config(
+    payload: AttributePatchModel, user: CurrentUser, attribute_name: AttributeName
+) -> EmptyResponse:
+    """Partially update attribute configuration"""
+
+    attribute = await get_attribute_config(user, attribute_name)
+
+    patch_payload = payload.dict(exclude_unset=True)
+    patch_data = patch_payload.pop("data", {})
+
+    requires_restart = False
+
+    if "scope" in patch_payload or any(
+        k in patch_data
+        for k in (
+            "type",
+            "default",
+            "gt",
+            "ge",
+            "lt",
+            "le",
+            "regex",
+            "min_length",
+            "max_length",
+            "min_items",
+            "max_items",
+            "inherit",
+        )
+    ):
+        requires_restart = True
+
+        if not user.is_admin:
+            raise ForbiddenException(
+                "Only administrators are allowed to modify attribute configuration"
+            )
+
+    if not user.is_manager:
+        raise ForbiddenException(
+            "Only managers are allowed to modify attribute metadata"
+        )
+
+    for key, value in patch_payload.items():
+        setattr(attribute, key, value)
+
+    for key, value in patch_data.items():
+        setattr(attribute.data, key, value)
+
+    await save_attribute(attribute)
+
+    if requires_restart:
+        await require_server_restart(
+            None, "Restart the server to apply the attribute changes."
+        )
     return EmptyResponse()
 
 
