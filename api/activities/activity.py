@@ -82,7 +82,9 @@ async def post_project_activity(
 
     if user.is_guest:
         # check for activity.data.entityList
-        if not activity.data or "entityList" not in activity.data:
+        entity_list_id = activity.data.get("entityList") if activity.data else None
+
+        if not entity_list_id:
             raise ForbiddenException("Guests must provide entityList in activity data")
 
         # TODO: check if the guest has access to the version in the entityList
