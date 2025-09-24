@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
@@ -11,7 +11,7 @@ from ayon_server.utils import create_uuid
 #
 
 ViewScopes = Literal["project", "studio"]
-ViewType = Literal["overview", "taskProgress", "lists", "reviews"]
+ViewType = Literal["overview", "taskProgress", "lists", "reviews", "tasks"]
 
 FViewScope = Annotated[
     ViewScopes,
@@ -124,21 +124,41 @@ FColumnList = Annotated[
 
 
 class OverviewSettings(OPModel):
+    """Settings for the overview page."""
+
     show_hierarchy: bool = True
     group_by: str | None = None
     show_empty_groups: bool = False
     sort_by: str | None = None
     sort_desc: bool = False
     filter: QueryFilter | None = None
+    slice_type: str | None = None
     columns: FColumnList
 
 
-class TaskProgressSettings(OPModel):
+class TasksSettings(OPModel):
+    """Settings for the kanban tasks view."""
+
     filter: QueryFilter | None = None
+    group_by: str | None = None
+    group_desc: bool = False
+    sort_by: list[dict[str, Any]] | None = None
+    mode: Literal["board", "list"] = "board"
+    collapsed: list[str] | None = None
+    assignees: list[str] | None = None
+
+
+class TaskProgressSettings(OPModel):
+    """Settings for the task progress page."""
+
+    filter: QueryFilter | None = None
+    slice_type: str | None = None
     columns: FColumnList
 
 
 class ListsSettings(OPModel):
+    """Settings for the lists page."""
+
     sort_by: str | None = None
     sort_desc: bool = False
     filter: QueryFilter | None = None
@@ -149,4 +169,10 @@ class ReviewsSettings(ListsSettings):
     pass
 
 
-ViewSettingsModel = OverviewSettings | TaskProgressSettings | ListsSettings
+ViewSettingsModel = (
+    OverviewSettings
+    | TaskProgressSettings
+    | ListsSettings
+    | ReviewsSettings
+    | TasksSettings
+)
