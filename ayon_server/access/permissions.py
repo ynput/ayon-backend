@@ -31,17 +31,18 @@ async def attr_enum():
 
 def top_level_fields_enum() -> list[dict[str, str]]:
     return [
-        {"value": "name", "label": "Entity name"},
-        {"value": "label", "label": "Entity label"},
-        {"value": "status", "label": "Entity status"},
-        {"value": "tags", "label": "Entity tags"},
-        {"value": "active", "label": "Entity active state"},
-        {"value": "parent_id", "label": "Folder parent ID"},
-        {"value": "folder_type", "label": "Folder type"},
-        {"value": "task_type", "label": "Task type"},
-        {"value": "assignees", "label": "Task assignees"},
-        {"value": "product_type", "label": "Product type"},
-        {"value": "author", "label": "Version author"},
+        {"value": "name", "label": "Change entity name"},
+        {"value": "label", "label": "Change entity label"},
+        {"value": "status", "label": "Change entity status"},
+        {"value": "tags", "label": "Change entity tags"},
+        {"value": "active", "label": "Enable or disable entity"},
+        {"value": "parent_id", "label": "Move folder"},
+        {"value": "folder_type", "label": "Change folder type"},
+        {"value": "folder_id", "label": "Move task"},
+        {"value": "task_type", "label": "Change task type"},
+        {"value": "assignees", "label": "Change task assignees"},
+        {"value": "product_type", "label": "Change product type"},
+        {"value": "author", "label": "Change version author"},
     ]
 
 
@@ -109,15 +110,16 @@ class AttributeReadAccessList(BasePermissionsModel):
 
 
 class AttributeWriteAccessList(BasePermissionsModel):
-    fields: list[str] = SettingsField(
-        title="Writable fields",
-        default_factory=list,
-        enum_resolver=top_level_fields_enum,
-    )
     attributes: list[str] = SettingsField(
         title="Writable attributes",
         default_factory=list,
         enum_resolver=attr_enum,
+    )
+    fields: list[str] = SettingsField(
+        title=" ",
+        default_factory=list,
+        enum_resolver=top_level_fields_enum,
+        widget="switchbox",
     )
 
 

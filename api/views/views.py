@@ -9,7 +9,7 @@ from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX, OPModel
+from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX, Field, OPModel
 from ayon_server.utils import create_uuid
 
 from .models import (
@@ -21,6 +21,15 @@ from .models import (
     construct_view_model,
 )
 from .router import router
+
+FViewId = Annotated[
+    str,
+    Field(
+        title="View ID",
+        regex=r"^[0-9a-f]{32}$",
+        example=create_uuid(),
+    ),
+]
 
 PViewType = Annotated[
     str,
@@ -193,15 +202,24 @@ async def get_default_view(
     """
 
     async with Postgres.transaction():
-        if project_name:
-            await Postgres.set_project_schema(project_name)
         row = await Postgres.fetchrow(
             query,
             view_id,
             view_type,
             user.name,
-            "project" if project_name else "studio",
+            "studio",
         )
+
+        if not row and project_name:
+            await Postgres.set_project_schema(project_name)
+            row = await Postgres.fetchrow(
+                query,
+                view_id,
+                view_type,
+                user.name,
+                "project",
+            )
+
         if not row:
             raise NotFoundException(f"Default {view_type} view not found")
 
@@ -221,7 +239,7 @@ async def get_default_view(
 
 
 class SetDefaultViewRequestModel(OPModel):
-    view_id: PViewId
+    view_id: FViewId
 
 
 @router.post("/{view_type}/default")

@@ -13,6 +13,7 @@ from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream, HandlerType
+from ayon_server.exceptions import UnauthorizedException
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
 from ayon_server.utils import get_nickname, json_dumps, json_loads, obscure
@@ -79,7 +80,11 @@ class Client:
         topics: list[str],
         project: str | None = None,
     ) -> bool:
-        session_data = await Session.check(access_token, None)
+        try:
+            session_data = await Session.check(access_token, None)
+        except UnauthorizedException as e:
+            logger.warning(f"[WS] Unauthorized access: {e}")
+            session_data = None
         if session_data is not None:
             self.topics = [*topics, *ALWAYS_SUBSCRIBE] if "*" not in topics else ["*"]
             self.authorized = True

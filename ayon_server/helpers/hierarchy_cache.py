@@ -47,6 +47,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
             f.status,
             f.attrib,
             f.tags,
+            f.created_at,
             f.updated_at,
             ea.attrib as all_attrib,
             ea.path as path,
@@ -75,6 +76,11 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
     result = []
     ids_with_children = set()
     async with Postgres.transaction():
+        # Ensure the hierarchy view is up to date
+        await Postgres.execute(
+            f"REFRESH MATERIALIZED VIEW project_{project_name}.hierarchy"
+        )
+
         stmt = await Postgres.prepare(query)
         async for row in stmt.cursor():
             result.append(
@@ -96,6 +102,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
                     "own_attrib": list(row["attrib"].keys()),
                     "has_reviewables": row["has_reviewables"],
                     "has_versions": row["has_versions"],
+                    "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
                 }
             )

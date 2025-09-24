@@ -128,3 +128,10 @@ class ServiceUnavailableException(AyonException):
 
     detail: str = "Service unavailable"
     status: int = 503
+
+
+class DeadlockException(AyonException):
+    """Exception raised when a database deadlock is detected."""
+
+    detail: str = "Database deadlock detected"
+    status: int = 503

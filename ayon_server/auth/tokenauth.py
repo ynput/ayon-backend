@@ -9,7 +9,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.crypto import decrypt_json_urlsafe, encrypt_json_urlsafe
 from ayon_server.helpers.email import is_mailing_enabled, send_mail
-from ayon_server.helpers.external_users import ExternalUsers
+from ayon_server.helpers.guest_users import GuestUsers
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import OPModel
 from ayon_server.utils import server_url_from_request, slugify
@@ -34,7 +34,7 @@ Please use the following link to log in again:
 
 class TokenPayload(OPModel):
     email: str
-    external: bool = True
+    is_guest: bool = True
     project_name: str | None = None
     full_name: str | None = None
     redirect_url: str | None = None
@@ -47,7 +47,7 @@ async def send_invite_email(
     *,
     full_name: str | None = None,
     subject: str | None = None,
-    external: bool = True,
+    is_guest: bool = True,
     project_name: str | None = None,
     redirect_url: str | None = None,
 ) -> None:
@@ -59,7 +59,7 @@ async def send_invite_email(
     payload = TokenPayload(
         email=email,
         full_name=full_name,
-        external=external,
+        is_guest=is_guest,
         project_name=project_name,
         redirect_url=redirect_url,
     )
@@ -95,19 +95,20 @@ async def send_extend_email(original_payload: TokenPayload, base_url: str) -> No
         body_template=LINK_RENEWAL_TEMPLATE,
         subject="Ayon access link renewal",
         full_name=original_payload.full_name,
-        external=original_payload.external,
+        is_guest=original_payload.is_guest,
+        project_name=original_payload.project_name,
         redirect_url=original_payload.redirect_url,
     )
 
 
-async def create_external_user_session(
+async def create_guest_user_session(
     email: str,
     request: Request,
     *,
     full_name: str | None = None,
     redirect_url: str | None = None,
 ) -> LoginResponseModel:
-    name = slugify(f"external.{email}", separator=".")
+    name = slugify(f"guest.{email}", separator=".")
 
     user = UserEntity(
         payload={
@@ -117,14 +118,14 @@ async def create_external_user_session(
                 "fullName": full_name,
             },
             "data": {
-                "isExternal": True,
+                "isGuest": True,
             },
         }
     )
     session = await Session.create(user, request=request)
 
     return LoginResponseModel(
-        detail=f"External user {email} logged in",
+        detail=f"Guest user {email} logged in",
         token=session.token,
         user=session.user,
         redirect_url=redirect_url,
@@ -159,7 +160,7 @@ async def handle_token_auth_callback(
         )
 
     if not await enc_data.validate_nonce():
-        logger.debug(f"Token for external user {payload.email} expired")
+        logger.debug(f"Token for guest user {payload.email} expired")
 
         await send_extend_email(
             original_payload=payload,
@@ -171,26 +172,26 @@ async def handle_token_auth_callback(
             "We're sending you a new one."
         )
 
-    if payload.external:
+    if payload.is_guest:
         if not payload.project_name:
-            msg = "External user token must contain project name"
+            msg = "Guest user token must contain project name"
             raise BadRequestException(msg)
-        exists = await ExternalUsers.exists(
+        exists = await GuestUsers.exists(
             payload.email, project_name=payload.project_name
         )
         if not exists:
             msg = (
-                f"External user {payload.email} "
+                f"Guest user {payload.email} "
                 f"does not exist in project {payload.project_name}"
             )
             raise UnauthorizedException(msg)
 
     else:
-        # For future use. For now we only support external users.
-        msg = "Token is not for external use"
+        # For future use. For now we only support guest users.
+        msg = "Token is not for guest use"
         raise BadRequestException(msg)
 
-    return await create_external_user_session(
+    return await create_guest_user_session(
         email=payload.email,
         request=request,
         full_name=payload.full_name,

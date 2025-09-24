@@ -9,7 +9,7 @@ from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.representations import get_representations
 from ayon_server.graphql.types import Info
 from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
-from ayon_server.utils import get_nickname, json_dumps
+from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import RepresentationsConnection
@@ -42,6 +42,7 @@ class VersionNode(BaseNode):
 
     _attrib: strawberry.Private[dict[str, Any]]
     _user: strawberry.Private[UserEntity]
+    _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
 
@@ -109,8 +110,6 @@ async def version_from_record(
 
     current_user = context["user"]
     author = record["author"]
-    if (current_user.is_guest or current_user.is_external) and author is not None:
-        author = get_nickname(author)
 
     data = record.get("data") or {}
     version_no = record["version"]
@@ -135,10 +134,11 @@ async def version_from_record(
         )
 
     path = None
+    folder_path = None
     if record.get("_folder_path"):
-        folder_path = record["_folder_path"].strip("/")
+        folder_path = "/" + record["_folder_path"].strip("/")
         product_name = record["_product_name"]
-        path = f"/{folder_path}/{product_name}/{name}"
+        path = f"{folder_path}/{product_name}/{name}"
 
     return VersionNode(
         project_name=project_name,
@@ -158,6 +158,7 @@ async def version_from_record(
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        _folder_path=folder_path,
         _attrib=record["attrib"] or {},
         _user=current_user,
     )

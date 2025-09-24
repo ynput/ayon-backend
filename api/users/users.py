@@ -5,7 +5,7 @@ from fastapi import Path
 from ayon_server.api.clientinfo import ClientInfo
 from ayon_server.api.dependencies import (
     AccessToken,
-    AllowExternal,
+    AllowGuests,
     CurrentUser,
     Sender,
     SenderType,
@@ -25,7 +25,6 @@ from ayon_server.helpers.rename_user import rename_user
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import USER_NAME_REGEX, Field, OPModel
-from ayon_server.utils import get_nickname, obscure
 
 from .avatar import REDIS_NS, obtain_avatar
 from .router import router
@@ -35,7 +34,7 @@ from .router import router
 #
 
 
-@router.get("/me", response_model_exclude_none=True, dependencies=[AllowExternal])
+@router.get("/me", response_model_exclude_none=True, dependencies=[AllowGuests])
 async def get_current_user(
     user: CurrentUser,
 ) -> UserEntity.model.main_model:  # type: ignore
@@ -70,21 +69,13 @@ async def get_user(
     if user.is_manager:
         return result.payload
 
-    if (
-        user.is_guest
-        and user.name != result.name
-        and result.data.get("createdBy") != user.name
-    ):
-        if result.name != "admin":
-            result.name = get_nickname(result.name)
-        if result.attrib.email:
-            result.attrib.email = obscure(result.attrib.email)
-        if result.attrib.fullName:
-            result.attrib.fullName = obscure(result.attrib.fullName)
-        result.attrib.avatarUrl = None
-
-    # To normal users, show only colleague's name
-    return {"name": result.name}
+    # Non-managers can only see basic info about other users
+    return {
+        "name": result.name,
+        "attrib": {
+            "fullName": result.attrib.fullName,
+        },
+    }
 
 
 class NewUserModel(UserEntity.model.post_model):  # type: ignore
@@ -134,9 +125,6 @@ async def create_user(
         raise ForbiddenException
 
     validate_user_data(put_data.data)
-
-    if user.is_guest:
-        put_data.data["isGuest"] = True
 
     try:
         nuser = await UserEntity.load(user_name)
@@ -199,19 +187,6 @@ async def patch_user(
     if target_user.is_admin and (not user.is_admin):
         raise ForbiddenException("Admins can only be modified by other admins")
 
-    if user.is_guest:
-        # Guests can only modify themselves and users they created
-        if (
-            target_user.name != user.name
-            and target_user.data.get("createdBy") != user.name
-        ):
-            raise ForbiddenException(
-                "Guests can only modify themselves and their guests"
-            )
-        # user cannot change any user's guest status
-        payload.data.pop("isGuest", None)
-        payload.data.pop("isDeveloper", None)
-
     if not user.is_admin:
         # Non-admins cannot change any user's admin status
         payload.data.pop("isAdmin", None)
@@ -227,6 +202,9 @@ async def patch_user(
     elif target_user.name == user.name:
         # Managers cannot demote themselves
         payload.data.pop("isManager", None)
+
+    if payload.data.get("isGuest"):
+        raise BadRequestException("Guest users cannot be modified this way")
 
     validate_user_data(payload.data)
 

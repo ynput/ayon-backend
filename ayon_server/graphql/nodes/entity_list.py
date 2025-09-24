@@ -4,7 +4,7 @@ from typing import Any
 import strawberry
 
 from ayon_server.entities.user import UserEntity
-from ayon_server.exceptions import AyonException
+from ayon_server.exceptions import AyonException, ForbiddenException
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
 from ayon_server.graphql.utils import process_attrib_data
@@ -174,9 +174,8 @@ class EntityListNode:
     entity_type: str = strawberry.field()
     label: str = strawberry.field()
 
-    # TODO
-    # access
-    # attrib
+    access: str = strawberry.field(default="{}")  # JSON string of access dict
+    all_attrib: str = strawberry.field(default="{}")  # JSON string of all attrib keys
 
     tags: list[str] = strawberry.field(default_factory=list)
 
@@ -190,6 +189,7 @@ class EntityListNode:
     updated_by: str | None = strawberry.field(default=None)
 
     _data: strawberry.Private[dict[str, Any]]
+    _access: strawberry.Private[dict[str, Any]]  # access data
 
     @strawberry.field()
     def count(self) -> int:
@@ -234,6 +234,26 @@ class EntityListNode:
             accessible_only=accessible_only,
         )
 
+    @strawberry.field
+    async def access_level(
+        self,
+        info: Info,
+    ) -> int:
+        user = info.context["user"]
+        access_level = EntityAccessHelper.MANAGE
+        try:
+            await EntityAccessHelper.check(
+                user,
+                access=self._access,
+                level=EntityAccessHelper.MANAGE,
+                owner=self.owner,
+                project=info.context.get("project"),
+                default_open=True,
+            )
+        except ForbiddenException as e:
+            access_level = e.extra.get("access_level", 10)
+        return access_level
+
 
 async def entity_list_from_record(
     project_name: str,
@@ -241,7 +261,6 @@ async def entity_list_from_record(
     context: dict[str, Any],
 ) -> EntityListNode:
     data = record.get("data", {})
-
     user = context.get("user")
     if user:
         await EntityAccessHelper.check(
@@ -259,8 +278,8 @@ async def entity_list_from_record(
         entity_list_type=record["entity_list_type"],
         entity_type=record["entity_type"],
         label=record["label"],
-        # access
-        # attrib
+        access=json_dumps(record.get("access") or {}),
+        all_attrib=json_dumps(record.get("attrib") or {}),
         tags=record["tags"] or [],
         owner=record["owner"],
         active=record["active"],
@@ -269,6 +288,7 @@ async def entity_list_from_record(
         created_by=record["created_by"],
         updated_by=record["updated_by"],
         _data=data,
+        _access=record.get("access") or {},
     )
 
 

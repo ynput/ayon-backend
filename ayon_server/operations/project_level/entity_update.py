@@ -80,12 +80,15 @@ async def sanitize_folder_update(
                     f"Cannot change {key} of a folder with published versions"
                 )
 
+    # Make sure the hierarchy is acyclic
+
     if "parent_id" in update_payload_dict:
-        # Prevent setting parent_id to self or any of its descendants
+        # parent_id must be different than the folder id
         new_parent_id = update_payload_dict["parent_id"]
         if new_parent_id == entity.id:
             raise BadRequestException("Folder cannot be its own parent")
 
+        # parent_id cannot be one of the folder's descendants
         descendants = await folder_entity.get_folder_descendant_ids()
         if new_parent_id in descendants:
             raise BadRequestException(

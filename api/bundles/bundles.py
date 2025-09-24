@@ -3,7 +3,7 @@ from typing import Any, Literal
 from fastapi import Query
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import AllowExternal, CurrentUser, Sender, SenderType
+from ayon_server.api.dependencies import AllowGuests, CurrentUser, Sender, SenderType
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
@@ -82,7 +82,7 @@ async def _list_bundles(archived: bool = False):
     )
 
 
-@router.get("/bundles", response_model_exclude_none=True, dependencies=[AllowExternal])
+@router.get("/bundles", response_model_exclude_none=True, dependencies=[AllowGuests])
 async def list_bundles(
     user: CurrentUser,
     archived: bool = Query(False, description="Include archived bundles"),
@@ -307,9 +307,7 @@ async def update_bundle(
 
         if bundle.is_dev:
             logger.debug(f"Updating dev bundle {bundle.name}")
-            if patch.active_user is not None:
-                # remove user from previously assigned bundles
-                # to avoid constraint violation
+            if "active_user" in patch.dict(exclude_unset=True, by_alias=False):
                 await Postgres.execute(
                     "UPDATE bundles SET active_user = NULL WHERE active_user = $1",
                     patch.active_user,
