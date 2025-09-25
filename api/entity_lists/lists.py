@@ -19,7 +19,7 @@ from ayon_server.utils import create_uuid, dict_patch
 from .router import router
 
 
-@router.post("", status_code=201)
+@router.post("/lists", status_code=201)
 async def create_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
@@ -72,7 +72,7 @@ async def create_entity_list(
         return await entity_list.save(sender=sender, sender_type=sender_type)
 
 
-@router.patch("/{list_id}")
+@router.patch("/lists/{list_id}")
 async def update_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
@@ -102,7 +102,7 @@ async def update_entity_list(
     return EmptyResponse()
 
 
-@router.get("/{list_id}")
+@router.get("/lists/{list_id}")
 async def get_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
@@ -121,7 +121,7 @@ async def get_entity_list(
     return entity_list.payload
 
 
-@router.delete("/{list_id}")
+@router.delete("/lists/{list_id}")
 async def delete_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
@@ -137,7 +137,7 @@ async def delete_entity_list(
     return EmptyResponse()
 
 
-@router.post("/{list_id}/materialize")
+@router.post("/lists/{list_id}/materialize")
 async def materialize_entity_list(
     user: CurrentUser,
     project_name: ProjectName,

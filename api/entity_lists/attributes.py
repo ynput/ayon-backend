@@ -12,7 +12,7 @@ class EntityListAttributeDefinition(AttributeNameModel):
     data: AttributeData
 
 
-@router.get("/{list_id}/attributes", response_model_exclude_unset=True)
+@router.get("/lists/{list_id}/attributes", response_model_exclude_unset=True)
 async def get_entity_list_attributes_definition(
     user: CurrentUser,
     project_name: ProjectName,
@@ -42,7 +42,7 @@ async def get_entity_list_attributes_definition(
     return result
 
 
-@router.put("/{list_id}/attributes")
+@router.put("/lists/{list_id}/attributes")
 async def set_entity_list_attributes_definition(
     user: CurrentUser,
     project_name: ProjectName,
