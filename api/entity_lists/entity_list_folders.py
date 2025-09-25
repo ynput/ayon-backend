@@ -7,9 +7,16 @@ from ayon_server.api.dependencies import (
     Sender,
     SenderType,
 )
+from ayon_server.api.responses import EmptyResponse, EntityIdResponse
+from ayon_server.exceptions import (
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 from ayon_server.utils.entity_id import EntityID
+from ayon_server.utils.utils import dict_patch
 
 from .router import router
 
@@ -45,7 +52,6 @@ class EntityListFolderPostModel(OPModel):
     label: Annotated[str, FFolderLabel]
     parent_id: Annotated[str | None, FFolderParentID] = None
 
-    owner: Annotated[str | None, FFolderOwner] = None
     access: Annotated[dict[str, int], FFolderAccess]
     data: Annotated[EntityListFolderData, FFolderData]
 
@@ -54,7 +60,6 @@ class EntityListFolderPatchModel(OPModel):
     label: Annotated[str | None, FFolderLabel] = None
     parent_id: Annotated[str | None, FFolderParentID] = None
 
-    owner: Annotated[str | None, FFolderOwner] = None
     access: Annotated[dict[str, int] | None, FFolderAccess]
     data: Annotated[EntityListFolderData | None, FFolderData]
 
@@ -87,7 +92,7 @@ async def get_entity_list_folders(
             result.append(EntityListModel(**row))
             # TODO: acl
 
-    return EntityListFoldersResponseModel(folders=[])
+    return EntityListFoldersResponseModel(folders=result)
 
 
 @router.post("/entityListFolders")
@@ -97,8 +102,29 @@ async def create_entity_list_folder(
     sender: Sender,
     sender_type: SenderType,
     payload: EntityListFolderPostModel,
-):
-    pass
+) -> EntityIdResponse:
+    if payload.id is None:
+        payload.id = EntityID.create()
+
+    async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
+        try:
+            await Postgres.execute(
+                """
+                INSERT INTO entity_list_folders
+                (id, label, parent_id, owner, access, data)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                payload.id,
+                payload.label,
+                payload.parent_id,
+                user.name,
+                payload.access,
+                payload.data.dict(exclude_unset=True),
+            )
+        except Postgres.UniqueViolationError:
+            raise ConflictException("Folder with the given ID already exists")
+    return EntityIdResponse(id=payload.id)
 
 
 @router.patch("/entityListFolders/{folder_id}")
@@ -109,8 +135,39 @@ async def update_entity_list_folder(
     sender: Sender,
     sender_type: SenderType,
     payload: EntityListFolderPatchModel,
-) -> None:
-    pass
+) -> EmptyResponse:
+    async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
+        res = await Postgres.fetchrow(
+            "SELECT * FROM entity_list_folders WHERE id = $1", folder_id
+        )
+
+        if not res:
+            raise NotFoundException("Entity list folder not found")
+
+        if not user.is_manager and res["owner"] != user.name:
+            raise ForbiddenException("Only owner or manager can update this folder")
+
+        payload_dict = payload.dict(exclude_unset=True)
+
+        data = dict_patch(res["data"] or {}, payload_dict.pop("data", {}) or {})
+        await Postgres.execute(
+            """
+            UPDATE entity_list_folders
+            SET label = COALESCE($2, label),
+                parent_id = COALESCE($3, parent_id),
+                access = COALESCE($4, access),
+                data = COALESCE($5, data)
+            WHERE id = $1
+            """,
+            folder_id,
+            payload_dict.get("label"),
+            payload_dict.get("parent_id"),
+            payload_dict.get("access"),
+            data,
+        )
+
+    return EmptyResponse()
 
 
 @router.delete("/entityListFolders/{folder_id}")
@@ -120,10 +177,22 @@ async def delete_entity_list_folder(
     folder_id: FolderID,
     sender: Sender,
     sender_type: SenderType,
-) -> None:
+) -> EmptyResponse:
     async with Postgres.transaction():
         await Postgres.set_project_schema(project_name)
+        res = await Postgres.fetchrow(
+            "SELECT owner FROM entity_list_folders WHERE id = $1", folder_id
+        )
+
+        if not res:
+            raise NotFoundException("Entity list folder not found")
+
+        if not user.is_manager and res["owner"] != user.name:
+            raise ForbiddenException("Only owner or manager can delete this folder")
+
         await Postgres.execute(
             "DELETE FROM entity_list_folders WHERE id = $1",
             folder_id,
         )
+
+    return EmptyResponse()
