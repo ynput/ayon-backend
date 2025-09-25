@@ -48,6 +48,7 @@ async def create_entity_list(
             payload.label,
             id=list_id,
             entity_list_type=payload.entity_list_type,
+            entity_list_folder_id=payload.entity_list_folder_id,
             template=payload.template,
             access=payload.access,
             attrib=payload.attrib,

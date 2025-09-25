@@ -68,29 +68,26 @@ class EntityListModel(OPModel):
     access: Annotated[dict[str, int], FFolderAccess]
     data: Annotated[EntityListFolderData, FFolderData]
 
-    path: Annotated[
-        list[str],
-        Field(
-            description="List of folder labels from root to this folder",
-            default_factory=list,
-        ),
-    ]
 
-    parents: Annotated[
-        list[str],
-        Field(
-            description="List of parent folder IDs",
-            default_factory=list,
-        ),
-    ]
+class EntityListFoldersResponseModel(OPModel):
+    folders: Annotated[list[EntityListModel], Field(default_factory=list)]
 
 
 @router.get("/entityListFolders")
 async def get_entity_list_folders(
     user: CurrentUser,
     project_name: ProjectName,
-):
-    pass
+) -> EntityListFoldersResponseModel:
+    result = []
+    async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
+        query = "SELECT * FROM entity_list_folders ORDER BY label"
+        stmt = await Postgres.prepare(query)
+        async for row in stmt.cursor():
+            result.append(EntityListModel(**row))
+            # TODO: acl
+
+    return EntityListFoldersResponseModel(folders=[])
 
 
 @router.post("/entityListFolders")
@@ -99,6 +96,7 @@ async def create_entity_list_folder(
     project_name: ProjectName,
     sender: Sender,
     sender_type: SenderType,
+    payload: EntityListFolderPostModel,
 ):
     pass
 
@@ -110,6 +108,7 @@ async def update_entity_list_folder(
     folder_id: FolderID,
     sender: Sender,
     sender_type: SenderType,
+    payload: EntityListFolderPatchModel,
 ) -> None:
     pass
 
