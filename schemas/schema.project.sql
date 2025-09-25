@@ -460,6 +460,8 @@ CREATE TABLE IF NOT EXISTS entity_list_folders (
     parent_id UUID REFERENCES entity_list_categories(id) ON DELETE CASCADE,
     path VARCHAR[] NOT NULL,
     parents VARCHAR[] NOT NULL DEFAULT '{}',
+    owner VARCHAR,
+    access JSONB DEFAULT '{}'::JSONB,
     data JSONB DEFAULT '{}'::JSONB
 );
 

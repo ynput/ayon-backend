@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from ayon_server.api.dependencies import (
     CurrentUser,
     FolderID,
@@ -6,8 +8,81 @@ from ayon_server.api.dependencies import (
     SenderType,
 )
 from ayon_server.lib.postgres import Postgres
+from ayon_server.types import Field, OPModel
+from ayon_server.utils.entity_id import EntityID
 
 from .router import router
+
+#
+# Entity list folder models
+#
+
+
+class EntityListFolderData(OPModel):
+    color: Annotated[str | None, Field(description="Hex color code")] = None
+    icon: Annotated[str | None, Field(description="Icon name")] = None
+    scope: Annotated[list[str] | None, Field(description="Folder scope")] = None
+
+
+FFolderID = Field(title="Folder ID", **EntityID.META)
+FFolderLabel = Field(title="Folder label", min_length=1, max_length=255)
+FFolderParentID = Field(title="Parent folder ID", **EntityID.META)
+FFolderOwner = Field(title="Owner user name", min_length=1, max_length=255)
+FFolderAccess = Field(title="Access control list", default_factory=dict)
+FFolderData = Field(
+    title="Folder additional data",
+    default_factory=lambda: EntityListFolderData(),
+)
+
+
+#
+# Get / list item model
+#
+
+
+class EntityListFolderPostModel(OPModel):
+    id: Annotated[str | None, FFolderID] = None
+    label: Annotated[str, FFolderLabel]
+    parent_id: Annotated[str | None, FFolderParentID] = None
+
+    owner: Annotated[str | None, FFolderOwner] = None
+    access: Annotated[dict[str, int], FFolderAccess]
+    data: Annotated[EntityListFolderData, FFolderData]
+
+
+class EntityListFolderPatchModel(OPModel):
+    label: Annotated[str | None, FFolderLabel] = None
+    parent_id: Annotated[str | None, FFolderParentID] = None
+
+    owner: Annotated[str | None, FFolderOwner] = None
+    access: Annotated[dict[str, int] | None, FFolderAccess]
+    data: Annotated[EntityListFolderData | None, FFolderData]
+
+
+class EntityListModel(OPModel):
+    id: Annotated[str, FFolderID]
+    label: Annotated[str, FFolderLabel]
+    parent_id: Annotated[str | None, FFolderParentID] = None
+
+    owner: Annotated[str | None, FFolderOwner] = None
+    access: Annotated[dict[str, int], FFolderAccess]
+    data: Annotated[EntityListFolderData, FFolderData]
+
+    path: Annotated[
+        list[str],
+        Field(
+            description="List of folder labels from root to this folder",
+            default_factory=list,
+        ),
+    ]
+
+    parents: Annotated[
+        list[str],
+        Field(
+            description="List of parent folder IDs",
+            default_factory=list,
+        ),
+    ]
 
 
 @router.get("/entityListFolders")
