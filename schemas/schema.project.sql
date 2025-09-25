@@ -454,11 +454,49 @@ CREATE TABLE IF NOT EXISTS custom_roots(
 -- Entity lists --
 ------------------
 
+CREATE TABLE IF NOT EXISTS entity_list_folders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    label VARCHAR NOT NULL,
+    parent_id UUID REFERENCES entity_list_categories(id) ON DELETE CASCADE,
+    path VARCHAR[] NOT NULL,
+    parents VARCHAR[] NOT NULL DEFAULT '{}',
+    data JSONB DEFAULT '{}'::JSONB
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_entity_list_folder_parent_label ON entity_list_folders(parent_id, label);
+
+
+CREATE OR REPLACE FUNCTION update_entity_list_folders_path() RETURNS TRIGGER AS $$
+DECLARE
+    parent_path VARCHAR[];
+    parent_parents UUID[];
+BEGIN
+    IF NEW.parent_id IS NOT NULL THEN
+        SELECT path, parents INTO parent_path, parent_parents FROM entity_list_folders WHERE id = NEW.parent_id;
+        NEW.path := parent_path || NEW.label;
+        NEW.parents := parent_parents || NEW.parent_id;
+    ELSE
+        NEW.path := ARRAY[NEW.label];
+        NEW.parents := '{}';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_update_entity_list_folders_path
+BEFORE INSERT OR UPDATE ON entity_list_folders
+FOR EACH ROW EXECUTE FUNCTION update_entity_list_folders_path();
+
+
+-- Entity lists and items
+
 
 CREATE TABLE entity_lists(
   id UUID NOT NULL PRIMARY KEY,
   entity_list_type VARCHAR NOT NULL,
   entity_type VARCHAR NOT NULL,
+  entity_list_folder_id UUID REFERENCES entity_list_folders(id) ON DELETE SET NULL,
   label VARCHAR NOT NULL,
   owner VARCHAR,
 
