@@ -41,7 +41,6 @@ FFolderData = Field(
     default_factory=lambda: EntityListFolderData(),
 )
 
-
 #
 # Get / list item model
 #
@@ -64,7 +63,7 @@ class EntityListFolderPatchModel(OPModel):
     data: Annotated[EntityListFolderData | None, FFolderData]
 
 
-class EntityListModel(OPModel):
+class EntityListFolderModel(OPModel):
     id: Annotated[str, FFolderID]
     label: Annotated[str, FFolderLabel]
     parent_id: Annotated[str | None, FFolderParentID] = None
@@ -75,7 +74,7 @@ class EntityListModel(OPModel):
 
 
 class EntityListFoldersResponseModel(OPModel):
-    folders: Annotated[list[EntityListModel], Field(default_factory=list)]
+    folders: Annotated[list[EntityListFolderModel], Field(default_factory=list)]
 
 
 @router.get("/entityListFolders")
@@ -89,7 +88,7 @@ async def get_entity_list_folders(
         query = "SELECT * FROM entity_list_folders ORDER BY label"
         stmt = await Postgres.prepare(query)
         async for row in stmt.cursor():
-            result.append(EntityListModel(**row))
+            result.append(EntityListFolderModel(**row))
             # TODO: acl
 
     return EntityListFoldersResponseModel(folders=result)
