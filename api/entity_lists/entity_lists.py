@@ -89,6 +89,9 @@ async def update_entity_list(
         await entity_list.ensure_can_admin()
 
         payload_dict = payload.dict(exclude_unset=True)
+
+        print(payload_dict)
+
         for key, value in payload_dict.items():
             if not hasattr(entity_list.payload, key):
                 continue
