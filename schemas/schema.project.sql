@@ -173,6 +173,8 @@ CREATE TABLE folders(
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by VARCHAR,
+    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -241,6 +243,8 @@ CREATE TABLE tasks(
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+    created_by VARCHAR,
+    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -268,6 +272,8 @@ CREATE TABLE products(
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+    created_by VARCHAR,
+    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -296,6 +302,8 @@ CREATE TABLE versions(
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+    created_by VARCHAR,
+    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -338,6 +346,8 @@ CREATE TABLE representations(
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+    created_by VARCHAR,
+    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
@@ -358,14 +368,13 @@ CREATE TABLE workfiles(
 
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
 
-    created_by VARCHAR,
-    updated_by VARCHAR,
-
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
+    created_by VARCHAR,
+    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     creation_order SERIAL NOT NULL
