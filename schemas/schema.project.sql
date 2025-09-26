@@ -457,6 +457,7 @@ CREATE TABLE IF NOT EXISTS custom_roots(
 CREATE TABLE entity_list_folders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     label VARCHAR NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
     parent_id UUID REFERENCES entity_list_folders(id) ON DELETE CASCADE,
     owner VARCHAR,
     access JSONB DEFAULT '{}'::JSONB,
