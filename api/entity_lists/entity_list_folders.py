@@ -138,7 +138,8 @@ async def update_entity_list_folder(
     async with Postgres.transaction():
         await Postgres.set_project_schema(project_name)
         res = await Postgres.fetchrow(
-            "SELECT * FROM entity_list_folders WHERE id = $1", folder_id
+            "SELECT * FROM entity_list_folders WHERE id = $1",
+            folder_id,
         )
 
         if not res:
@@ -149,21 +150,27 @@ async def update_entity_list_folder(
 
         payload_dict = payload.dict(exclude_unset=True)
 
-        data = dict_patch(res["data"] or {}, payload_dict.pop("data", {}) or {})
+        new_payload = {
+            "label": payload_dict.get("label", res["label"]),
+            "parent_id": payload_dict.get("parent_id", res["parent_id"]),
+            "access": payload_dict.get("access", res["access"]),
+            "data": dict_patch(res["data"] or {}, payload_dict.pop("data", {}) or {}),
+        }
+
         await Postgres.execute(
             """
             UPDATE entity_list_folders
-            SET label = COALESCE($2, label),
-                parent_id = COALESCE($3, parent_id),
-                access = COALESCE($4, access),
-                data = COALESCE($5, data)
+            SET label = $2,
+                parent_id = $3,
+                access = $4,
+                data = $5
             WHERE id = $1
             """,
             folder_id,
-            payload_dict.get("label"),
-            payload_dict.get("parent_id"),
-            payload_dict.get("access"),
-            data,
+            new_payload["label"],
+            new_payload["parent_id"],
+            new_payload["access"],
+            new_payload["data"],
         )
 
     return EmptyResponse()
