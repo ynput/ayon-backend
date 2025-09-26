@@ -145,10 +145,11 @@ async def update_project_level_entity(
     # They don't affect the events created, so they don't need to be
     # in the payload pydantic model.
 
-    if operation.entity_type == "workfile":
-        if "updated_by" not in update_payload_dict and user is not None:
-            # If the updated_by field is not set, we set it to the current user
+    if "updated_by" not in update_payload_dict:
+        if user is not None:
             update_payload_dict["updated_by"] = user.name
+        else:
+            update_payload_dict["updated_by"] = None
 
     if "updated_at" not in update_payload_dict:
         update_payload_dict["updated_at"] = datetime.now()

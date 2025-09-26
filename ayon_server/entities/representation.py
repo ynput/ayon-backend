@@ -31,6 +31,8 @@ class RepresentationEntity(ProjectLevelEntity):
                 r.active as active,
                 r.status as status,
                 r.tags as tags,
+                r.created_by as created_by,
+                r.updated_by as updated_by,
                 r.created_at as created_at,
                 r.updated_at as updated_at,
 
