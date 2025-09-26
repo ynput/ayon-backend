@@ -67,6 +67,7 @@ class EntityListFolderModel(OPModel):
     id: Annotated[str, FFolderID]
     label: Annotated[str, FFolderLabel]
     parent_id: Annotated[str | None, FFolderParentID] = None
+    position: Annotated[int, Field(title="Folder position", ge=0)] = 0
 
     owner: Annotated[str | None, FFolderOwner] = None
     access: Annotated[dict[str, int], FFolderAccess]
@@ -85,7 +86,7 @@ async def get_entity_list_folders(
     result = []
     async with Postgres.transaction():
         await Postgres.set_project_schema(project_name)
-        query = "SELECT * FROM entity_list_folders ORDER BY label"
+        query = "SELECT * FROM entity_list_folders ORDER BY parent_id, position, label"
         stmt = await Postgres.prepare(query)
         async for row in stmt.cursor():
             result.append(EntityListFolderModel(**row))
@@ -200,5 +201,40 @@ async def delete_entity_list_folder(
             "DELETE FROM entity_list_folders WHERE id = $1",
             folder_id,
         )
+
+    return EmptyResponse()
+
+
+class EntityListFolderOrderModel(OPModel):
+    order: Annotated[
+        list[str],
+        Field(
+            title="Ordered list of folder IDs",
+            min_items=1,
+        ),
+    ]
+
+
+@router.post("/entityListFolders/order")
+async def set_entity_list_folders_order(
+    user: CurrentUser,
+    project_name: ProjectName,
+    sender: Sender,
+    sender_type: SenderType,
+    payload: EntityListFolderOrderModel,
+) -> EmptyResponse:
+    async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
+
+        for position, folder_id in enumerate(payload.order):
+            await Postgres.execute(
+                """
+                UPDATE entity_list_folders
+                SET position = $2
+                WHERE id = $1
+                """,
+                folder_id,
+                position,
+            )
 
     return EmptyResponse()
