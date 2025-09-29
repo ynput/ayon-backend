@@ -40,7 +40,12 @@ async def get_activities(
     info.context["project"] = project
 
     user = info.context["user"]
+    if user.is_guest:
+        if user.attrib.email not in project.data.get("guestUsers", {}):
+            raise Exception("Guest user not allowed in this project")
 
+    sql_cte = []
+    sql_joins = []
     sql_conditions = []
 
     if not (entity_type and entity_ids):
@@ -106,8 +111,28 @@ async def get_activities(
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
     if user.is_guest:
-        # guest users can only see external categories
-        categories = ["external"]
+        # guest users can only see activities that are tagged with
+        # entityList they have access to AND the category matches
+        # Guest category set on the entity list, If guestCategory of
+        # the entity list is null, user won't be able to see any activities
+
+        sql_cte.append(
+            f"""
+            accessible_lists AS (
+                SELECT id, data FROM project_{project_name}.entity_lists
+                WHERE COALESCE(access->'guest:{user.attrib.email}', 0) > 0
+            )
+            """
+        )
+
+        sql_joins.append(
+            """
+            JOIN accessible_lists ON
+                activity_data->>'entityList' = accessible_lists.id
+            AND activity_data->>'category' IS NOT NULL
+            AND activity_data->>'category' = accessible_lists.data->>'guestCategory'
+            """
+        )
 
     if categories:
         cat_conds = []
@@ -152,9 +177,17 @@ async def get_activities(
     # Build the query
     #
 
+    if sql_cte:
+        cte = ", ".join(sql_cte)
+        cte = f"WITH {cte}"
+    else:
+        cte = ""
+
     query = f"""
+        {cte}
         SELECT {cursor}, *
         FROM project_{project_name}.activity_feed
+        {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
