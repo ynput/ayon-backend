@@ -22,10 +22,16 @@ from ayon_server.api.dependencies import (
     SenderType,
 )
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import BadRequestException, ForbiddenException
+from ayon_server.entities import ProjectEntity
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.files import Storages
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.helpers.get_entity_class import get_entity_class
+from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -87,25 +93,44 @@ async def post_project_activity(
         if not entity_list_id:
             raise ForbiddenException("Guests must provide entityList in activity data")
 
-        # TODO: check if the guest has access to the version in the entityList
+        project = await ProjectEntity.load(project_name)
+        if user.attrib.email not in project.data.get("guestUsers", []):
+            raise ForbiddenException("You are not allowed to access this project")
 
-        activity.data["category"] = (
-            "guest"  # TODO: fill from list.data["guestCategory"]["email"]
+        # Get the entity list to check whether the guest has access to it
+        # and to get the guest category
+        res = await Postgres.fetchrow(
+            """
+            SELECT data, access FROM project_{project_name}.entity_lists
+            WHERE id = %s
+            """,
+            entity_list_id,
         )
+
+        if not res:
+            raise NotFoundException("Entity list not found")
+
+        list_guest_category = res["data"].get("guestCategory")
+        if not list_guest_category:
+            raise ForbiddenException("The entity list does not have a guest category")
+
+        access = res["access"]
+        await EntityAccessHelper.check(
+            user,
+            access=access,
+            level=EntityAccessHelper.READ,
+            project=project,
+        )
+
+        if activity.data is None:
+            activity.data = {}
+        activity.data["category"] = list_guest_category
 
     elif not user.is_manager:
         writable_categories = await ActivityCategories.get_writable_categories(
             user, project_name
         )
         activity_category = activity.data.get("category") if activity.data else None
-        # if user.is_guest:
-        #     if not activity_category:
-        #         raise ForbiddenException("Guests must use the 'external' category")
-        #     if activity_category not in writable_categories:
-        #         raise ForbiddenException("Guests can only use
-        #         the 'external' category")
-        # else:
-        # normal users
         if activity_category and activity_category not in writable_categories:
             raise ForbiddenException("You cannot use this activity category")
 
