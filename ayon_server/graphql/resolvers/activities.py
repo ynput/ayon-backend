@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.entities import ProjectEntity
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.edges import ActivityEdge
@@ -113,8 +114,17 @@ async def get_activities(
     if user.is_guest:
         # guest users can only see activities that are tagged with
         # entityList they have access to AND the category matches
-        # Guest category set on the entity list, If guestCategory of
-        # the entity list is null, user won't be able to see any activities
+        # one of the categories that are allowed to access (or NULL)
+
+        # allowed categories are stored in powerpack addon settings
+        # this is different from guestCommentCategory, that is stored per list
+        # in entityList.data and is used to determine whether user CAN comment
+        # and with which category
+
+        accessible_categories = await ActivityCategories.get_accessible_categories(
+            user,
+            project=project,
+        )
 
         sql_cte.append(
             f"""
@@ -126,11 +136,13 @@ async def get_activities(
         )
 
         sql_joins.append(
-            """
+            f"""
             JOIN accessible_lists ON
                 activity_data->>'entityList' = accessible_lists.id
-            AND activity_data->>'category' IS NOT NULL
-            AND activity_data->>'category' = accessible_lists.data->>'guestCategory'
+            AND (
+               activity_data->>'category' IS NULL
+               OR activity_data->>'category' = IN {SQLTool.array(accessible_categories)}
+            )
             """
         )
 

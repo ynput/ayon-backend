@@ -1,5 +1,8 @@
 from typing import Any
 
+from ayon_server.entities import ProjectEntity, UserEntity
+from ayon_server.helpers.entity_access import EntityAccessHelper
+
 
 class ActivityCategories:
     @classmethod
@@ -7,5 +10,12 @@ class ActivityCategories:
         return []
 
     @classmethod
-    async def get_writable_categories(cls, user: Any, project_name: str) -> list[str]:
+    async def get_accessible_categories(
+        cls,
+        user: UserEntity,
+        *,
+        project_name: str | None = None,
+        level: int = EntityAccessHelper.READ,
+        project: ProjectEntity | None = None,
+    ) -> list[str]:
         return []

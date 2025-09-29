@@ -86,6 +86,8 @@ async def post_project_activity(
         if activity.activity_type not in ["comment"]:
             raise BadRequestException("Humans can only create comments")
 
+    project = await ProjectEntity.load(project_name)
+
     if user.is_guest:
         # check for activity.data.entityList
         entity_list_id = activity.data.get("entityList") if activity.data else None
@@ -93,7 +95,6 @@ async def post_project_activity(
         if not entity_list_id:
             raise ForbiddenException("Guests must provide entityList in activity data")
 
-        project = await ProjectEntity.load(project_name)
         if user.attrib.email not in project.data.get("guestUsers", {}):
             raise ForbiddenException("You are not allowed to access this project")
 
@@ -110,7 +111,7 @@ async def post_project_activity(
         if not res:
             raise NotFoundException("Entity list not found")
 
-        list_guest_category = res["data"].get("guestCategory")
+        list_guest_category = res["data"].get("guestCommentCategory")
         if not list_guest_category:
             raise ForbiddenException("The entity list does not have a guest category")
 
@@ -128,8 +129,10 @@ async def post_project_activity(
 
     elif not user.is_manager:
         # Normal users - can comment only with their writable categories
-        writable_categories = await ActivityCategories.get_writable_categories(
-            user, project_name
+        writable_categories = await ActivityCategories.get_accessible_categories(
+            user,
+            project=project,
+            level=EntityAccessHelper.UPDATE,
         )
         activity_category = activity.data.get("category") if activity.data else None
         if activity_category and activity_category not in writable_categories:
