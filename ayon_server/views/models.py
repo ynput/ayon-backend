@@ -125,6 +125,7 @@ FColumnList = Annotated[
 
 class OverviewSettings(OPModel):
     show_hierarchy: bool = True
+    row_height: int | None = None
     group_by: str | None = None
     show_empty_groups: bool = False
     sort_by: str | None = None
