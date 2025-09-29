@@ -94,7 +94,7 @@ async def post_project_activity(
             raise ForbiddenException("Guests must provide entityList in activity data")
 
         project = await ProjectEntity.load(project_name)
-        if user.attrib.email not in project.data.get("guestUsers", []):
+        if user.attrib.email not in project.data.get("guestUsers", {}):
             raise ForbiddenException("You are not allowed to access this project")
 
         # Get the entity list to check whether the guest has access to it
@@ -118,7 +118,7 @@ async def post_project_activity(
         await EntityAccessHelper.check(
             user,
             access=access,
-            level=EntityAccessHelper.READ,
+            level=EntityAccessHelper.READ,  # Read is enough to comment
             project=project,
         )
 
@@ -127,6 +127,7 @@ async def post_project_activity(
         activity.data["category"] = list_guest_category
 
     elif not user.is_manager:
+        # Normal users - can comment only with their writable categories
         writable_categories = await ActivityCategories.get_writable_categories(
             user, project_name
         )

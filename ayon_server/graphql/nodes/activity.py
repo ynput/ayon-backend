@@ -224,7 +224,6 @@ async def activity_from_record(
     if category_name := activity_data.get("category"):
         category = ActivityCategory(
             name=category_name,
-            label=category_name,  # TODO
             color="#cccccc",  # TODO
         )
 
