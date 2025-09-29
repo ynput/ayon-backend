@@ -140,6 +140,7 @@ class TaskProgressSettings(OPModel):
 
 
 class ListsSettings(OPModel):
+    row_height: int | None = None
     sort_by: str | None = None
     sort_desc: bool = False
     filter: QueryFilter | None = None
