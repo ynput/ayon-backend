@@ -64,6 +64,10 @@ class EntityList:
     def entity_list_type(self) -> str:
         return self._payload.entity_list_type
 
+    @property
+    def entity_list_folder_id(self) -> str | None:
+        return self._payload.entity_list_folder_id
+
     async def ensure_access_level(
         self,
         user: UserEntity | None = None,
@@ -118,6 +122,7 @@ class EntityList:
         *,
         id: str | None = None,
         entity_list_type: str = "generic",
+        entity_list_folder_id: str | None = None,
         template: dict[str, Any] | None = None,
         access: dict[str, Any] | None = None,
         attrib: dict[str, Any] | None = None,
@@ -139,6 +144,7 @@ class EntityList:
             id=id or create_uuid(),
             entity_type=entity_type,
             entity_list_type=entity_list_type,
+            entity_list_folder_id=entity_list_folder_id,
             label=label,
             tags=tags or [],
             attrib=attrib or {},
@@ -353,6 +359,7 @@ class EntityList:
         summary = {
             "id": self._payload.id,
             "entity_list_type": self._payload.entity_list_type,
+            "entity_list_folder_id": self._payload.entity_list_folder_id,
             "entity_type": self._payload.entity_type,
             "label": self._payload.label,
             "count": len(self._payload.items),

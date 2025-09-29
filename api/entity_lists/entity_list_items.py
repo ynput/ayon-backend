@@ -17,7 +17,7 @@ from ayon_server.lib.postgres import Postgres
 from .router import router
 
 
-@router.post("/{list_id}/items", status_code=201)
+@router.post("/lists/{list_id}/items", status_code=201)
 async def create_entity_list_item(
     user: CurrentUser,
     project_name: ProjectName,
@@ -42,7 +42,7 @@ async def create_entity_list_item(
         await entity_list.save(sender=sender, sender_type=sender_type)
 
 
-@router.patch("/{list_id}/items/{list_item_id}")
+@router.patch("/lists/{list_id}/items/{list_item_id}")
 async def update_entity_list_item(
     user: CurrentUser,
     project_name: ProjectName,
@@ -66,7 +66,7 @@ async def update_entity_list_item(
         await entity_list.save(sender=sender, sender_type=sender_type)
 
 
-@router.delete("/{list_id}/items/{list_item_id}")
+@router.delete("/lists/{list_id}/items/{list_item_id}")
 async def delete_entity_list_item(
     user: CurrentUser,
     project_name: ProjectName,
@@ -161,7 +161,7 @@ async def _multi_merge(
     entity_list.normalize_positions()
 
 
-@router.patch("/{list_id}/items")
+@router.patch("/lists/{list_id}/items")
 async def update_entity_list_items(
     user: CurrentUser,
     project_name: ProjectName,

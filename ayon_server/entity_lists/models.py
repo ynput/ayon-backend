@@ -44,6 +44,10 @@ FListEntityType = Field(
     description="Type of the entity that can be included in the list",
     example="task",
 )
+FFolderID = Field(
+    title="List folder ID",
+    description="ID of the folder containing the list",
+)
 FListAccess = Field(
     title="Access",
     default_factory=dict,
@@ -161,6 +165,7 @@ class EntityListItemPatchModel(OPModel):
 class EntityListModel(OPModel):
     id: Annotated[str, FListID]
     entity_list_type: Annotated[str, FListType]
+    entity_list_folder_id: Annotated[str | None, FFolderID] = None
     entity_type: Annotated[ProjectLevelEntityType, FListEntityType]
     label: Annotated[str, FListLabel]
     access: Annotated[dict[str, ListAccessLevel], FListAccess]
@@ -183,6 +188,7 @@ class EntityListModel(OPModel):
 class EntityListPostModel(OPModel):
     id: Annotated[str, FListID]
     entity_list_type: Annotated[str, FListType] = "generic"
+    entity_list_folder_id: Annotated[str | None, FFolderID] = None
     entity_type: Annotated[ProjectLevelEntityType, FListEntityType]
     label: Annotated[str, FListLabel]
     access: Annotated[dict[str, ListAccessLevel], FListAccess]
@@ -199,6 +205,7 @@ class EntityListPatchModel(OPModel):
     label: Annotated[str | None, FListLabel] = None
     access: Annotated[dict[str, ListAccessLevel], FListAccess]
     attrib: Annotated[dict[str, Any], FListAttrib]
+    entity_list_folder_id: Annotated[str | None, FFolderID] = None
     data: Annotated[dict[str, Any], FListData]
     tags: Annotated[list[str], FListTags]
     owner: Annotated[str | None, FListOwner] = None
