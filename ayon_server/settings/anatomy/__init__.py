@@ -12,6 +12,7 @@ __all__ = [
 from pydantic import validator
 
 from ayon_server.entities import ProjectEntity
+from ayon_server.settings.anatomy.entity_naming import EntityNaming
 from ayon_server.settings.anatomy.folder_types import FolderType, default_folder_types
 from ayon_server.settings.anatomy.link_types import LinkType, default_link_types
 from ayon_server.settings.anatomy.product_base_types import ProductBaseTypes
@@ -35,6 +36,12 @@ class ProjectAttribModel(
 class Anatomy(BaseSettingsModel):
     _layout = "root"
     _title = "Project anatomy"
+
+    entity_naming: EntityNaming = SettingsField(
+        default_factory=EntityNaming,
+        title="Entity Naming",
+        description="Settings for automatic entity name generation",
+    )
 
     roots: list[Root] = SettingsField(
         default=default_roots,
