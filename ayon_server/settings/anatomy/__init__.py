@@ -1,5 +1,6 @@
 __all__ = [
     "Anatomy",
+    "EntityNaming",
     "FolderType",
     "LinkType",
     "Root",
