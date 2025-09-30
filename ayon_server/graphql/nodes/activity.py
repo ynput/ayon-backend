@@ -64,6 +64,7 @@ class ActivityNode:
     reference_id: str = strawberry.field()
     activity_id: str = strawberry.field()
     reference_type: str = strawberry.field()
+    activity_type: str = strawberry.field()
 
     entity_type: str = strawberry.field()  # TODO. use literal?
     entity_id: str | None = strawberry.field()
@@ -74,7 +75,6 @@ class ActivityNode:
     updated_at: datetime = strawberry.field()
     creation_order: int = strawberry.field()
 
-    activity_type: str = strawberry.field()
     body: str = strawberry.field()
     tags: list[str] = strawberry.field()
     category: ActivityCategory | None = strawberry.field()
@@ -259,16 +259,27 @@ async def activity_from_record(
 
     node = ActivityNode(
         project_name=project_name,
-        activity_data=json_dumps(activity_data),
-        reference_data=json_dumps(reference_data),
-        origin=origin,
-        parents=parents,
+        reference_id=record.pop("reference_id"),
+        activity_id=record.pop("activity_id"),
+        reference_type=record.pop("reference_type"),
+        activity_type=record.pop("activity_type"),
+        entity_type=record.pop("entity_type"),
+        entity_id=record.pop("entity_id", None),
+        entity_name=record.pop("entity_name", None),
+        entity_path=record.pop("entity_path", None),
+        created_at=record.pop("created_at"),
+        updated_at=record.pop("updated_at"),
+        creation_order=record.pop("creation_order"),
+        body=body,
         tags=tags,
         category=category,
+        activity_data=json_dumps(activity_data),
+        reference_data=json_dumps(reference_data),
+        active=record.pop("active", True),
         read=reference_data.pop("read", False),
+        origin=origin,
+        parents=parents,
         reactions=reactions,
-        body=body,
-        **record,
     )
     # probably won't be used
     # node = replace_reference_body(node)

@@ -130,7 +130,7 @@ async def get_activities(
             f"""
             accessible_lists AS (
                 SELECT id, data FROM project_{project_name}.entity_lists
-                WHERE COALESCE(access->'guest:{user.attrib.email}', 0) > 0
+                WHERE COALESCE((access->'guest:{user.attrib.email}')::INTEGER, 0) > 0
             )
             """
         )
@@ -138,10 +138,12 @@ async def get_activities(
         sql_joins.append(
             f"""
             JOIN accessible_lists ON
-                activity_data->>'entityList' = accessible_lists.id
+                (activity_data->>'entityList')::UUID = accessible_lists.id
             AND (
-               activity_data->>'category' IS NULL
-               OR activity_data->>'category' = IN {SQLTool.array(accessible_categories)}
+                activity_data->>'category' IS NULL
+                OR activity_data->>'category' = ANY({
+                    SQLTool.array(accessible_categories, curly=True)
+                })
             )
             """
         )
@@ -204,8 +206,9 @@ async def get_activities(
         {ordering}
     """
 
-    # from ayon_server.logging import logger
-    # logger.trace(f"Querying activities: {query}")
+    from ayon_server.logging import logger
+
+    logger.trace(f"Querying activities: {query}")
 
     return await resolve(
         ActivitiesConnection,
