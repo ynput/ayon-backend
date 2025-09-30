@@ -242,9 +242,10 @@ async def get_activities(
         {ordering}
     """
 
-    from ayon_server.logging import logger
-
-    logger.trace(f"Querying activities: {query}")
+    # Keep this here for future debugging
+    # from ayon_server.logging import logger
+    #
+    # logger.trace(f"Querying activities: {query}")
 
     return await resolve(
         ActivitiesConnection,

@@ -18,5 +18,4 @@ class ActivityCategories:
         level: int = EntityAccessHelper.READ,
         project: ProjectEntity | None = None,
     ) -> list[str]:
-        print("NOT POWERED YET: Getting accessible categories")
         return []
