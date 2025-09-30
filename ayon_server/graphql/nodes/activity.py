@@ -222,9 +222,10 @@ async def activity_from_record(
     tags = record.pop("tags", [])
     category = None
     if category_name := activity_data.get("category"):
+        cdata = context.get("activity_categories", {}).get(category_name)
         category = ActivityCategory(
             name=category_name,
-            color="#cccccc",  # TODO
+            color=cdata.get("color") if cdata else "#999999",
         )
 
     origin_data = activity_data.get("origin")

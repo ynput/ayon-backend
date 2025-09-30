@@ -40,10 +40,25 @@ async def get_activities(
     project = await ProjectEntity.load(project_name)
     info.context["project"] = project
 
+    # Ensure the guest user is allowed in this project
+
     user = info.context["user"]
     if user.is_guest:
         if user.attrib.email not in project.data.get("guestUsers", {}):
             raise Exception("Guest user not allowed in this project")
+
+    # load activity categories and push them to context as
+    # a dictionary for easy access
+
+    activity_categories = await ActivityCategories.get_activity_categories(project_name)
+    info.context["activity_categories"] = {}
+    for cat in activity_categories:
+        info.context["activity_categories"][cat["name"]] = {
+            "color": cat.get("color"),
+            "name": cat.get("name"),
+        }
+
+    # SQL components
 
     sql_cte = []
     sql_joins = []
@@ -147,6 +162,27 @@ async def get_activities(
             )
             """
         )
+    elif not user.is_manager:
+        # normal users can see activities that match their readable categories
+        accessible_categories = await ActivityCategories.get_accessible_categories(
+            user,
+            project=project,
+        )
+        if accessible_categories:
+            sql_conditions.append(
+                f"""
+                (
+                    activity_data->>'category' IS NULL
+                    OR activity_data->>'category' = ANY({
+                        SQLTool.array(accessible_categories, curly=True)
+                    })
+                )
+                """
+            )
+        else:
+            # user has no access to any categories,
+            # so can see only activities without category
+            sql_conditions.append("activity_data->>'category' IS NULL")
 
     if categories:
         cat_conds = []
