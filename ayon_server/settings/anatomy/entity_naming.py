@@ -22,7 +22,7 @@ def get_case_enum():
 class EntityNaming(BaseSettingsModel):
     capitalization: str = SettingsField(
         "lower",
-        title="Captialization",
+        title="Capitalization",
         enum_resolver=get_case_enum,
         description="How to capitalize the entity names",
     )
