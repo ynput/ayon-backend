@@ -101,7 +101,7 @@ async def post_project_activity(
         # Get the entity list to check whether the guest has access to it
         # and to get the guest category
         res = await Postgres.fetchrow(
-            """
+            f"""
             SELECT data, access FROM project_{project_name}.entity_lists
             WHERE id = %s
             """,
