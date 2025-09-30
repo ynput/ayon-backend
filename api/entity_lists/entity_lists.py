@@ -121,7 +121,8 @@ async def get_entity_list(
     """
 
     entity_list = await EntityList.load(project_name, list_id, user=user)
-    await entity_list.ensure_can_read()
+    # we don't need to check for permissions here,
+    # as this is handled in the load method
     return entity_list.payload
 
 

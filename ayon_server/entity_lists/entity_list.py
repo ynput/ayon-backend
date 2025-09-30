@@ -202,7 +202,7 @@ class EntityList:
                     level=access_level,
                     owner=res["owner"],
                     project=project,
-                    default_open=False,
+                    default_open=True,
                 )
             except ForbiddenException as e:
                 access_level = e.extra.get("access_level", 10)
