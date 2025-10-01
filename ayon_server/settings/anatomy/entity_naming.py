@@ -1,5 +1,9 @@
+from typing import Literal
+
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.settings_field import SettingsField
+
+SeparatorType = Literal["", "_", "-", "."]
 
 
 def get_separator_enum():
@@ -9,6 +13,9 @@ def get_separator_enum():
         {"value": "-", "label": "Dash (-)"},
         {"value": ".", "label": "Dot (.)"},
     ]
+
+
+CapitalizationType = Literal["lower", "upper", "keep", "pascal", "camel"]
 
 
 def get_case_enum():
@@ -22,13 +29,13 @@ def get_case_enum():
 
 
 class EntityNaming(BaseSettingsModel):
-    capitalization: str = SettingsField(
+    capitalization: CapitalizationType = SettingsField(
         "lower",
         title="Capitalization",
         enum_resolver=get_case_enum,
         description="How to capitalize the entity names",
     )
-    separator: str = SettingsField(
+    separator: SeparatorType = SettingsField(
         "_",
         title="Separator",
         enum_resolver=get_separator_enum,
