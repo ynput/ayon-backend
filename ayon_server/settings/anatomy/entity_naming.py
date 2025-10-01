@@ -7,15 +7,17 @@ def get_separator_enum():
         {"value": "", "label": "None"},
         {"value": "_", "label": "Underscore (_)"},
         {"value": "-", "label": "Dash (-)"},
+        {"value": ".", "label": "Dot (.)"},
     ]
 
 
 def get_case_enum():
     return [
-        {"value": "lower", "label": "convert to lowercase"},
-        {"value": "upper", "label": "CONVERT TO UPPERCASE"},
-        {"value": "keep", "label": "Keep original case"},
-        {"value": "capitalize", "label": "Capitalize First Letter"},
+        {"value": "lower", "label": "All lowercase"},
+        {"value": "upper", "label": "All UPPERCASE"},
+        {"value": "keep", "label": "Keep original capitalization"},
+        {"value": "pascal", "label": "Capitalize Every Word"},
+        {"value": "camel", "label": "capitalize Every Word Except First"},
     ]
 
 
