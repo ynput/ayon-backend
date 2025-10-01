@@ -410,12 +410,20 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
             if r := build_filter(c, **kwargs):
                 result.append(r)
         elif isinstance(c, QueryCondition):
-            if not c.value:
+            if c.value is None:
+                if c.operator not in ("isnull", "notnull"):
+                    raise ValueError("Value cannot be null unless using isnull/notnull")
+                # isnull/notnull operators do not need a value
+
+            elif isinstance(c.value, list) and not c.value:
                 if c.operator in ("in", "any"):
                     result.append("FALSE")
                 elif c.operator == "notin":
                     result.append("TRUE")
+
+                # Empty list with other operators is invalid, just skip it
                 continue
+
             if r := build_condition(c, **kwargs):
                 result.append(r)
         else:
