@@ -406,6 +406,34 @@ async def get_folders(
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
             order_by.insert(0, f"folders.attrib->>'{sort_by[7:]}'")
+
+        elif sort_by.startswith("links."):
+            # sort by count of links
+            _, link_type, direction = sort_by.split(".")
+
+            direction = "out" if direction == "in" else "in"
+
+            sql_cte.append(
+                f"""
+                link_counts AS (
+                    SELECT COUNT(id) AS link_count, {direction}put_id AS link_entity_id
+                    FROM project_{project_name}.links
+                    WHERE link_type LIKE '{link_type}%'
+                    GROUP BY {direction}put_id
+                )
+                """
+            )
+
+            sql_joins.append(
+                """
+                LEFT JOIN link_counts
+                ON folders.id = link_counts.link_entity_id
+                """
+            )
+
+            order_by.insert(0, "COALESCE(link_counts.link_count, 0)")
+            sql_group_by.append("link_counts.link_count")
+
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
