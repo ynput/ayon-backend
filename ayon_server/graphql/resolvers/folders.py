@@ -1,12 +1,23 @@
 import json
 from typing import Annotated
 
+from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import attribute_library
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
 from ayon_server.graphql.nodes.folder import FolderNode
-from ayon_server.graphql.resolvers.common import (
+from ayon_server.graphql.types import Info
+from ayon_server.sqlfilter import QueryFilter, build_filter
+from ayon_server.types import (
+    validate_name,
+    validate_name_list,
+    validate_status_list,
+    validate_type_name_list,
+)
+from ayon_server.utils import EntityID, SQLTool, slugify
+
+from .common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,
@@ -21,16 +32,12 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
-from ayon_server.graphql.resolvers.pagination import create_pagination
-from ayon_server.graphql.types import Info
-from ayon_server.sqlfilter import QueryFilter, build_filter
-from ayon_server.types import (
-    validate_name,
-    validate_name_list,
-    validate_status_list,
-    validate_type_name_list,
+from .pagination import create_pagination
+from .sorting import (
+    get_attrib_sort_case,
+    get_folder_types_sort_case,
+    get_status_sort_case,
 )
-from ayon_server.utils import EntityID, SQLTool, slugify
 
 SORT_OPTIONS = {
     "name": "folders.name",
@@ -99,6 +106,7 @@ async def get_folders(
     """Return a list of folders."""
 
     project_name = root.project_name
+    project = await ProjectEntity.load(project_name)
     fields = FieldInfo(info, ["folders.edges.node", "folder"])
 
     if info.context["user"].is_guest:
@@ -399,15 +407,36 @@ async def get_folders(
     # Pagination
     #
 
-    order_by = ["folders.creation_order"]
+    order_by = []
 
     if sort_by is not None:
-        if sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
+        if sort_by == "folderType":
+            folder_type_case = get_folder_types_sort_case(project)
+            order_by.append(folder_type_case)
+        elif sort_by == "status":
+            status_type_case = get_status_sort_case(project, "folders.status")
+            order_by.append(status_type_case)
+        elif sort_by in SORT_OPTIONS:
+            order_by.append(SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
-            order_by.insert(0, f"folders.attrib->>'{sort_by[7:]}'")
+            attr_name = sort_by[7:]
+            exp = "(ex.attrib || folders.attrib)"
+            attr_case = await get_attrib_sort_case(attr_name, exp)
+            order_by.append(attr_case)
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
+
+    if not order_by:
+        # If no sorting specified, use creation order to have stable sorting
+        # as the requester doesn't care about the order in this case.
+        order_by.append("tasks.creation_order")
+
+    elif len(order_by) < 2:
+        # If a single sort criteria is specified, add a secondary sort by name
+        # to have stable sorting when multiple items have the same value
+        # In this case we don't want to use creation order as secondary sort,
+        # because sorting is mainly invoked from the GUI and path makes more sense
+        order_by.append("hierarchy.path")
 
     ordering, paging_conds, cursor = create_pagination(
         order_by,
@@ -438,6 +467,10 @@ async def get_folders(
         {SQLTool.conditions(sql_having).replace("WHERE", "HAVING", 1)}
         {ordering}
     """
+    # Keep it here for debugging :)
+    from ayon_server.logging import logger
+
+    logger.debug(f"Folder query\n{query}")
 
     return await resolve(
         FoldersConnection,
