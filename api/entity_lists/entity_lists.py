@@ -90,8 +90,6 @@ async def update_entity_list(
 
         payload_dict = payload.dict(exclude_unset=True)
 
-        print(payload_dict)
-
         for key, value in payload_dict.items():
             if not hasattr(entity_list.payload, key):
                 continue
