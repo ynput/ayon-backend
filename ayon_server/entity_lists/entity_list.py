@@ -72,6 +72,7 @@ class EntityList:
         self,
         user: UserEntity | None = None,
         level: int = 0,
+        default_open: bool = True,
     ) -> None:
         _user = user or self._user
         if not _user:
@@ -82,6 +83,7 @@ class EntityList:
             access=self._payload.access,
             level=level,
             owner=self._payload.owner,
+            default_open=default_open,
         )
 
     async def ensure_can_read(self, user: UserEntity | None = None) -> None:
@@ -107,7 +109,7 @@ class EntityList:
     async def ensure_can_admin(self, user: UserEntity | None = None) -> None:
         """Check if the user has permission to admin the entity list."""
         try:
-            await self.ensure_access_level(user=user, level=40)
+            await self.ensure_access_level(user=user, level=30)
         except ForbiddenException as e:
             raise ForbiddenException(
                 f"Cannot admin entity list {self._payload.label}"
