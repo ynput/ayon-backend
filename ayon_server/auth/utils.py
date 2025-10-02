@@ -12,21 +12,29 @@ def validate_password(password: str) -> None:
     whether it contains letters, numbers and special characters.
 
     """
+    problems = []
+    misses = []
+
     if len(password) < ayonconfig.auth_pass_min_length:
-        raise LowPasswordComplexityException(
-            "Password must be at least "
-            f"{ayonconfig.auth_pass_min_length} characters long"
-        )
+        problems.append(f"be at least {ayonconfig.auth_pass_min_length} characters")
     if ayonconfig.auth_pass_complex:
         # Ensure password has digits, letters and special characters
         if not any(c.isalpha() for c in password):
-            raise LowPasswordComplexityException("Password must contain letters")
+            misses.append("letters")
         if not any(c.isdigit() for c in password):
-            raise LowPasswordComplexityException("Password must contain digits")
+            misses.append("digits")
         if not any(c in ".-!@#$%^&*()_+" for c in password):
-            raise LowPasswordComplexityException(
-                "Password must contain special characters"
-            )
+            misses.append("special characters")
+
+    if misses:
+        if len(misses) == 1:
+            problems.append(f"contain {misses[0]}")
+        else:
+            problems.append("contain " + ", ".join(misses[:-1]) + f" and {misses[-1]}")
+    if problems:
+        message = "Password must " + " and ".join(problems) + "."
+        raise LowPasswordComplexityException(message)
+    return
 
 
 def hash_password(password: str, salt: str = "") -> str:
