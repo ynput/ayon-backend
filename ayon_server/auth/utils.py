@@ -29,14 +29,6 @@ def validate_password(password: str) -> None:
             )
 
 
-def ensure_password_complexity(password: str) -> bool:
-    try:
-        validate_password(password)
-    except LowPasswordComplexityException:
-        return False
-    return True
-
-
 def hash_password(password: str, salt: str = "") -> str:
     """Create a hash string from a given password and salt,
     and pepper from the config.
