@@ -9,6 +9,7 @@ from ayon_server.activities import (
     delete_activity,
     update_activity,
 )
+from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.activities.watchers.set_watchers import ensure_watching
 from ayon_server.api.dependencies import (
     ActivityID,
@@ -21,10 +22,16 @@ from ayon_server.api.dependencies import (
     SenderType,
 )
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import BadRequestException
+from ayon_server.entities import ProjectEntity
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.files import Storages
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.helpers.get_entity_class import get_entity_class
+from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
 from .router import router
@@ -79,8 +86,57 @@ async def post_project_activity(
         if activity.activity_type not in ["comment"]:
             raise BadRequestException("Humans can only create comments")
 
+    project = await ProjectEntity.load(project_name)
+
     if user.is_guest:
-        activity.data = {"category": "external"}
+        # check for activity.data.entityList
+        entity_list_id = activity.data.get("entityList") if activity.data else None
+
+        if not entity_list_id:
+            raise ForbiddenException("Guests must provide entityList in activity data")
+
+        if user.attrib.email not in project.data.get("guestUsers", {}):
+            raise ForbiddenException("You are not allowed to access this project")
+
+        # Get the entity list to check whether the guest has access to it
+        # and to get the guest category
+        res = await Postgres.fetchrow(
+            f"""
+            SELECT data, access FROM project_{project_name}.entity_lists
+            WHERE id = %s
+            """,
+            entity_list_id,
+        )
+
+        if not res:
+            raise NotFoundException("Entity list not found")
+
+        list_guest_category = res["data"].get("guestCommentCategory")
+        if not list_guest_category:
+            raise ForbiddenException("The entity list does not have a guest category")
+
+        access = res["access"]
+        await EntityAccessHelper.check(
+            user,
+            access=access,
+            level=EntityAccessHelper.READ,  # Read is enough to comment
+            project=project,
+        )
+
+        if activity.data is None:
+            activity.data = {}
+        activity.data["category"] = list_guest_category
+
+    elif not user.is_manager:
+        # Normal users - can comment only with their writable categories
+        writable_categories = await ActivityCategories.get_accessible_categories(
+            user,
+            project=project,
+            level=EntityAccessHelper.UPDATE,
+        )
+        activity_category = activity.data.get("category") if activity.data else None
+        if activity_category and activity_category not in writable_categories:
+            raise ForbiddenException("You cannot use this activity category")
 
     entity_class = get_entity_class(entity_type)
     entity = await entity_class.load(project_name, entity_id)
