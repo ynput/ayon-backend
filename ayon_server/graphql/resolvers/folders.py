@@ -429,7 +429,7 @@ async def get_folders(
     if not order_by:
         # If no sorting specified, use creation order to have stable sorting
         # as the requester doesn't care about the order in this case.
-        order_by.append("tasks.creation_order")
+        order_by.append("folders.creation_order")
 
     elif len(order_by) < 2:
         # If a single sort criteria is specified, add a secondary sort by name
