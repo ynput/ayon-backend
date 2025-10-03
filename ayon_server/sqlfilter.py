@@ -420,9 +420,10 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
                     result.append("FALSE")
                 elif c.operator == "notin":
                     result.append("TRUE")
-
-                # Empty list with other operators is invalid, just skip it
-                continue
+                elif c.operator not in ["eq", "ne"]:
+                    # Empty list with other operators is invalid, just skip it
+                    continue
+                # eq and ne with empty list is okay tho.
 
             if r := build_condition(c, **kwargs):
                 result.append(r)
