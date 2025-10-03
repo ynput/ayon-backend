@@ -2,28 +2,8 @@ import re
 from base64 import b64decode, b64encode
 from typing import Any
 
-from ayon_server.entities.core.attrib import attribute_library
-from ayon_server.exceptions import BadRequestException
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps, json_loads
-
-
-async def get_attrib_sort_case(attr: str, exp: str) -> str:
-    try:
-        attr_data = attribute_library.by_name(attr)
-    except KeyError:
-        raise BadRequestException(f"Invalid attribute {attr}")
-    enum = attr_data.get("enum", [])
-    if not enum:
-        return f"{exp}->'{attr}'"
-    case = "CASE"
-    i = 0
-    for i, eval in enumerate(enum):
-        e = eval["value"]
-        case += f" WHEN {exp}->>'{attr}' = '{e}' THEN {i}"
-    case += f" ELSE {i+1}"
-    case += " END"
-    return case
 
 
 def decode_cursor(cursor: str | None) -> tuple[list[str], list[str]]:
