@@ -45,6 +45,8 @@ class VersionEntity(ProjectLevelEntity):
                 v.tags as tags,
                 v.created_at as created_at,
                 v.updated_at as updated_at,
+                v.created_by as created_by,
+                v.updated_by as updated_by,
 
                 p.name as product_name,
                 h.path as folder_path
