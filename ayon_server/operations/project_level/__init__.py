@@ -484,6 +484,7 @@ class ProjectLevelOperations:
             for entity_type in affected_entity_types:
                 entity_class = get_entity_class(entity_type)
                 try:
+                    logger.trace(f"[OPS] Refreshing views for {entity_type}")
                     await entity_class.refresh_views(self.project_name)
                 except DeadlockDetectedError:
                     logger.debug("[OPS] View refresh deadlock. Skipping refresh.")
@@ -501,6 +502,7 @@ class ProjectLevelOperations:
             else:
                 # Otherwise, we create a task to process the events
                 # in the background and return the response immediately.
+                logger.trace("[OPS] Dispatching events in the background")
                 task = asyncio.create_task(
                     _process_events(
                         events,
