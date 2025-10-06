@@ -196,8 +196,8 @@ class FolderEntity(ProjectLevelEntity):
         """Refresh hierarchy materialized view on folder save."""
         logger.trace(f"Refreshing folder views for project {project_name}")
 
-        await rebuild_hierarchy_cache(project_name)
         await rebuild_inherited_attributes(project_name)
+        await rebuild_hierarchy_cache(project_name)
 
     async def delete(self, *args, auto_commit: bool = True, **kwargs) -> bool:
         async with Postgres.transaction():

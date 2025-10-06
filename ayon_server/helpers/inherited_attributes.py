@@ -82,6 +82,10 @@ async def rebuild_inherited_attributes(
     start = time.monotonic()
 
     async with Postgres.transaction():
+        await Postgres.execute(
+            f"REFRESH MATERIALIZED VIEW project_{project_name}.hierarchy"
+        )
+
         if pattr is None:
             project_attrib = attribute_library.project_defaults
             res = await Postgres.fetch(
