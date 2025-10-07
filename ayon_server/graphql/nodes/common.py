@@ -55,6 +55,8 @@ class LinkEdge(BaseEdge):
             raise AyonException(msg)
 
         record = await loader.load((self.project_name, self.entity_id))
+        if not record:
+            return None
 
         entity_node = await parser(self.project_name, record, info.context)
         access_checker = info.context.get("access_checker")

@@ -90,8 +90,6 @@ async def update_entity_list(
 
         payload_dict = payload.dict(exclude_unset=True)
 
-        print(payload_dict)
-
         for key, value in payload_dict.items():
             if not hasattr(entity_list.payload, key):
                 continue
@@ -121,7 +119,8 @@ async def get_entity_list(
     """
 
     entity_list = await EntityList.load(project_name, list_id, user=user)
-    await entity_list.ensure_can_read()
+    # we don't need to check for permissions here,
+    # as this is handled in the load method
     return entity_list.payload
 
 

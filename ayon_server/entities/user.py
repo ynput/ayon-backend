@@ -8,8 +8,8 @@ from ayon_server.access.access_groups import AccessGroups
 from ayon_server.access.permissions import Permissions
 from ayon_server.auth.utils import (
     create_password,
-    ensure_password_complexity,
     hash_password,
+    validate_password,
 )
 from ayon_server.constraints import Constraints
 from ayon_server.entities.core import TopLevelEntity, attribute_library
@@ -18,7 +18,6 @@ from ayon_server.entities.project import ProjectEntity
 from ayon_server.exceptions import (
     ConstraintViolationException,
     ForbiddenException,
-    LowPasswordComplexityException,
     NotFoundException,
     ServiceUnavailableException,
 )
@@ -375,8 +374,8 @@ class UserEntity(TopLevelEntity):
             self.data.pop("password", None)
             return
 
-        if complexity_check and not ensure_password_complexity(password):
-            raise LowPasswordComplexityException
+        if complexity_check:
+            validate_password(password)
         hashed_password = create_password(password)
         self.data["password"] = hashed_password
 

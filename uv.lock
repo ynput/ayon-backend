@@ -193,7 +193,7 @@ wheels = [
 
 [[package]]
 name = "ayon-server"
-version = "1.12.1"
+version = "1.12.2"
 source = { virtual = "." }
 dependencies = [
     { name = "aiocache" },

@@ -232,7 +232,6 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         else:
             safe_value = json.dumps(value).replace("'", "''")
             safe_value = f"'{safe_value}'::jsonb"
-        logger.trace(f"Safe value of {type(value)} {value}: {safe_value}")
 
     else:
         raise ValueError(f"Invalid path: {path}")
@@ -274,7 +273,8 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
         if len(value) == 0:
             if operator == "eq":
                 if len(path) > 1:
-                    return f"NOT EXISTS (SELECT 1 FROM jsonb_array_elements({column}))"
+                    # Treat nulls in attribues as empty arrays
+                    return f"((NOT EXISTS (SELECT 1 FROM jsonb_array_elements({column}))) OR {column} IS NULL)"  # noqa 501
                 return f"array_length({column}, 1) IS NULL"
 
             if operator == "ne":
@@ -410,12 +410,21 @@ def build_filter(f: QueryFilter | None, **kwargs) -> str | None:
             if r := build_filter(c, **kwargs):
                 result.append(r)
         elif isinstance(c, QueryCondition):
-            if not c.value:
+            if c.value is None:
+                if c.operator not in ("isnull", "notnull"):
+                    raise ValueError("Value cannot be null unless using isnull/notnull")
+                # isnull/notnull operators do not need a value
+
+            elif isinstance(c.value, list) and not c.value:
                 if c.operator in ("in", "any"):
                     result.append("FALSE")
                 elif c.operator == "notin":
                     result.append("TRUE")
-                continue
+                elif c.operator not in ["eq", "ne"]:
+                    # Empty list with other operators is invalid, just skip it
+                    continue
+                # eq and ne with empty list is okay tho.
+
             if r := build_condition(c, **kwargs):
                 result.append(r)
         else:
