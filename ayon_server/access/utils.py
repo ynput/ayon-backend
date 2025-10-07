@@ -242,8 +242,9 @@ async def ensure_entity_access(
         {SQLTool.conditions(conditions)}
     """
 
-    async for _ in Postgres.iterate(query):
+    if await Postgres.fetchrow(query):
         return True
+
     raise ForbiddenException("Entity access denied")
 
 
