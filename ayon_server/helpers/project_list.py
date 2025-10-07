@@ -65,3 +65,12 @@ async def get_project_info(project_name: str) -> ProjectListItem:
         if project.name == project_name:
             return project
     raise NotFoundException(f"Project {project_name} not found")
+
+
+async def normalize_project_name(project_name: str) -> str:
+    """Return a normalized project name (case-sensitive)"""
+    project_list = await get_project_list()
+    for project in project_list:
+        if project.name.lower() == project_name.lower():
+            return project.name
+    raise NotFoundException(f"Project {project_name} not found")
