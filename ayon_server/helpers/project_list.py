@@ -61,8 +61,9 @@ async def get_project_list() -> list[ProjectListItem]:
 async def get_project_info(project_name: str) -> ProjectListItem:
     """Return a single project info"""
     project_list = await get_project_list()
+    project_name = project_name.lower()
     for project in project_list:
-        if project.name.lower() == project_name.lower():
+        if project.name.lower() == project_name:
             return project
     raise NotFoundException(f"Project {project_name} not found")
 
