@@ -11,6 +11,9 @@ from ayon_server.exceptions import ForbiddenException
 if TYPE_CHECKING:
     from ayon_server.entities.user import UserEntity
 
+ALWAYS_WRITABLE_ATTRS = []
+ALWAYS_WRITABLE_FIELDS = ["thumbnail_id"]
+
 
 class BaseEntity:
     entity_type: str
@@ -75,10 +78,15 @@ class BaseEntity:
                     patch_data.attrib.developerMode = None  # type: ignore
 
                 if perms.attrib_write.enabled:
+                    writable_attrs = (
+                        perms.attrib_write.attributes + ALWAYS_WRITABLE_ATTRS
+                    )
+                    writable_fields = perms.attrib_write.fields + ALWAYS_WRITABLE_FIELDS
+
                     for attr, val in pattr.items():
                         if getattr(self.attrib, attr) == val:
                             continue
-                        if attr not in perms.attrib_write.attributes:
+                        if attr not in writable_attrs:
                             raise ForbiddenException(
                                 f"You are not allowed to modify {attr}"
                                 f" attribute in {self.project_name}"
@@ -87,7 +95,7 @@ class BaseEntity:
                     for field_name, val in pdata.items():
                         if getattr(self._payload, field_name, None) == val:
                             continue
-                        if field_name not in perms.attrib_write.fields:
+                        if field_name not in writable_fields:
                             raise ForbiddenException(
                                 f"You are not allowed to modify {field_name}"
                                 f" field in {self.project_name}"
