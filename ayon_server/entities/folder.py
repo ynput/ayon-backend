@@ -196,6 +196,16 @@ class FolderEntity(ProjectLevelEntity):
         """Refresh hierarchy materialized view on folder save."""
         logger.trace(f"Refreshing folder views for project {project_name}")
 
+        # Do not change the order of these calls!
+        #
+        # Inherited attributes call:
+        #  - refreshes hierarchy materialized view
+        #  - rebuilds exported_attributes table
+        #
+        # Hierarchy cache call:
+        #  - caches the hierarchy table in Redis
+        #  - which depends on the exported_attributes table
+
         await rebuild_inherited_attributes(project_name)
         await rebuild_hierarchy_cache(project_name)
 
