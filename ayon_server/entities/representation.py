@@ -1,53 +1,44 @@
 from ayon_server.access.utils import ensure_entity_access
-from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.types import ProjectLevelEntityType
 
 from .version import version_name
 
+BASE_GET_QUERY = """
+    SELECT
+        r.id as id,
+        r.name as name,
+        r.version_id as version_id,
+        r.files as files,
+        r.attrib as attrib,
+        r.data as data,
+        r.traits as traits,
+        r.active as active,
+        r.status as status,
+        r.tags as tags,
+        r.created_at as created_at,
+        r.updated_at as updated_at,
+
+        v.version as version,
+        p.name as product_name,
+        h.path as folder_path
+
+    FROM project_{project_name}.representations r
+    JOIN project_{project_name}.versions v ON r.version_id = v.id
+    JOIN project_{project_name}.products p ON v.product_id = p.id
+    JOIN project_{project_name}.hierarchy h ON p.folder_id = h.id
+"""
+
 
 class RepresentationEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "representation"
     model = ModelSet("representation", attribute_library["representation"])
+    base_get_query = BASE_GET_QUERY
+    selector = "r.id"
 
-    @classmethod
-    async def load(
-        cls,
-        project_name: str,
-        entity_id: str,
-        for_update: bool = False,
-        **kwargs,
-    ):
-        query = f"""
-            SELECT
-                r.id as id,
-                r.name as name,
-                r.version_id as version_id,
-                r.files as files,
-                r.attrib as attrib,
-                r.data as data,
-                r.traits as traits,
-                r.active as active,
-                r.status as status,
-                r.tags as tags,
-                r.created_at as created_at,
-                r.updated_at as updated_at,
-
-                v.version as version,
-                p.name as product_name,
-                h.path as folder_path
-
-            FROM project_{project_name}.representations r
-            JOIN project_{project_name}.versions v ON r.version_id = v.id
-            JOIN project_{project_name}.products p ON v.product_id = p.id
-            JOIN project_{project_name}.hierarchy h ON p.folder_id = h.id
-            WHERE r.id=$1
-            {'FOR UPDATE NOWAIT' if for_update else ''}
-            """
-
-        record = await query_entity_data(query, entity_id)
-
+    @staticmethod
+    def preprocess_record(record: dict) -> dict:
         hierarchy_path = record.pop("folder_path", None)
         product_name = record.pop("product_name", None)
         if hierarchy_path and product_name:
@@ -55,8 +46,7 @@ class RepresentationEntity(ProjectLevelEntity):
             vname = version_name(record["version"])
             rname = record["name"]
             record["path"] = f"/{hierarchy_path}/{product_name}/{vname}/{rname}"
-
-        return cls.from_record(project_name, record)
+        return record
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         if user.is_manager:
