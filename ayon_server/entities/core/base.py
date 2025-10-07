@@ -11,8 +11,8 @@ from ayon_server.exceptions import ForbiddenException
 if TYPE_CHECKING:
     from ayon_server.entities.user import UserEntity
 
-ALWAYS_WRITABLE_ATTRS = []
-ALWAYS_WRITABLE_FIELDS = ["thumbnail_id"]
+ALWAYS_WRITABLE_ATTRS: list[str] = []
+ALWAYS_WRITABLE_FIELDS: list[str] = ["thumbnail_id"]
 
 
 class BaseEntity:
