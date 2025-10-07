@@ -79,6 +79,10 @@ class ProjectLevelEntity(BaseEntity):
         and reformats ids.
 
         """
+        # ensure payload is a dict (it might be a asyncpg.Record)
+        payload = dict(payload)
+        if own_attrib is None:
+            own_attrib = list(payload["attrib"].keys())
         payload = cls.preprocess_record(payload)
         parsed = {}
         for key in cls.model.main_model.__fields__:
@@ -191,12 +195,10 @@ class ProjectLevelEntity(BaseEntity):
         """
 
         record = await query_entity_data(query, entity_id)
-        own_attrib = list(record["attrib"].keys())
 
         return cls.from_record(
             project_name=project_name,
             payload=record,
-            own_attrib=own_attrib,
         )
 
     #
