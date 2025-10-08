@@ -1,11 +1,17 @@
 import functools
 from collections.abc import Coroutine
-from typing import Any, Literal
+from typing import Any, Literal, NotRequired, Required, TypedDict
 
 from aiocache import cached
 
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
+
+
+class EnumOption(TypedDict):
+    value: Required[str]
+    label: NotRequired[str]
+    color: NotRequired[str]
 
 
 async def get_primary_anatomy_preset():
@@ -15,7 +21,7 @@ async def get_primary_anatomy_preset():
     return Anatomy()
 
 
-async def addons_enum():
+async def addons_enum() -> list[EnumOption]:
     """Return a list of all installed addons"""
     from ayon_server.addons.library import AddonLibrary
 
@@ -27,7 +33,7 @@ async def addons_enum():
     return result
 
 
-async def folder_types_enum(project_name: str | None = None):
+async def folder_types_enum(project_name: str | None = None) -> list[str]:
     if project_name is None:
         anatomy = await get_primary_anatomy_preset()
         return [folder_type.name for folder_type in anatomy.folder_types]
@@ -56,7 +62,7 @@ async def product_types_enum() -> list[str]:
     ]
 
 
-async def task_types_enum(project_name: str | None = None):
+async def task_types_enum(project_name: str | None = None) -> list[str]:
     if project_name is None:
         anatomy = await get_primary_anatomy_preset()
         return [task_type.name for task_type in anatomy.task_types]
@@ -73,7 +79,7 @@ async def task_types_enum(project_name: str | None = None):
     ]
 
 
-async def link_types_enum(project_name: str | None = None):
+async def link_types_enum(project_name: str | None = None) -> list[EnumOption]:
     result = []
     if project_name is None:
         anatomy = await get_primary_anatomy_preset()
@@ -113,7 +119,7 @@ async def secrets_enum(project_name: str | None = None) -> list[str]:
     ]
 
 
-async def anatomy_presets_enum():
+async def anatomy_presets_enum() -> list[EnumOption]:
     query = "SELECT name, is_primary FROM anatomy_presets ORDER BY name"
     primary: str | None = None
     result = []
@@ -223,6 +229,6 @@ async def _get_app_host_names():
 
 
 @cached(ttl=3600)
-async def addon_all_app_host_names_enum():
+async def addon_all_app_host_names_enum() -> list[EnumOption]:
     result = await _get_app_host_names()
     return [{"label": host_name, "value": host_name} for host_name in result]
