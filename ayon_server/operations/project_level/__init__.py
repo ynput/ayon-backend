@@ -465,7 +465,7 @@ class ProjectLevelOperations:
                         raise RollbackException()
 
                 except RollbackException:
-                    logger.trace("[OPS] Operations rolled back")
+                    logger.debug("[OPS] Operations rolled back")
                     break
 
                 except ServiceUnavailableException:
