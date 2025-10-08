@@ -4,6 +4,7 @@ from typing import Any, Literal, NotRequired, Required, TypedDict
 
 from aiocache import cached
 
+from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 
@@ -12,6 +13,24 @@ class EnumOption(TypedDict):
     value: Required[str]
     label: NotRequired[str]
     color: NotRequired[str]
+
+
+async def attributes_enum() -> list[EnumOption]:
+    got = set()
+    result = []
+    for attributes in attribute_library.data.values():
+        for attribute in attributes:
+            if attribute["name"] in got:
+                continue
+            got.add(attribute["name"])
+            result.append(
+                {
+                    "label": attribute.get("title", attribute["name"]),
+                    "value": attribute["name"],
+                }
+            )
+    result.sort(key=lambda x: x["label"])
+    return result
 
 
 async def get_primary_anatomy_preset():
