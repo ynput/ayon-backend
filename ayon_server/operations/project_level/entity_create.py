@@ -4,6 +4,7 @@ from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 
+from .hooks import OperationHooks
 from .models import OperationModel
 
 
@@ -15,10 +16,25 @@ async def create_project_level_entity(
 ) -> tuple[str, list[dict[str, Any]], int]:
     assert operation.data is not None, "data is required for create"
 
+    hooks = OperationHooks.hooks()
+    if hooks:
+        # create a temporary entity to pass to hooks
+        # this won't be saved
+        temp_payload = entity_class.model.post_model(**operation.data)
+        if operation.entity_id is not None:
+            temp_payload.id = operation.entity_id
+        temp_entity = entity_class(project_name, temp_payload.dict())
+        for hook in hooks:
+            await hook(project_name, operation, temp_entity, user)
+
+    #
+    # Prepare the payload
+    #
+
     payload = entity_class.model.post_model(**operation.data)
-    payload_dict = payload.dict()
     if operation.entity_id is not None:
-        payload_dict["id"] = operation.entity_id
+        payload.id = operation.entity_id
+    payload_dict = payload.dict()
 
     #
     # Sanity checks
@@ -47,6 +63,7 @@ async def create_project_level_entity(
     entity = entity_class(project_name, payload_dict)
     if user:
         await entity.ensure_create_access(user)
+
     description = f"{operation.entity_type.capitalize()} {entity.name} created"
     events = [
         {
