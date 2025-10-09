@@ -117,7 +117,7 @@ async def update_project_level_entity(
 
         for hook in hooks:
             logger.debug(f"Executing operation hook: {hook}")
-            await hook(project_name, operation, temp_entity, user)
+            await hook(operation, temp_entity, user)
 
     # Casting the payload to the model class is used to validate the data
     payload = entity_class.model.patch_model(**operation.data)

@@ -25,7 +25,7 @@ async def create_project_level_entity(
             temp_payload.id = operation.entity_id
         temp_entity = entity_class(project_name, temp_payload.dict())
         for hook in hooks:
-            await hook(project_name, operation, temp_entity, user)
+            await hook(operation, temp_entity, user)
 
     #
     # Prepare the payload
