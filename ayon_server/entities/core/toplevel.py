@@ -52,3 +52,19 @@ class TopLevelEntity(BaseEntity):
     def replace(self, replace_data: BaseModel) -> None:
         """Replace entity data with given data."""
         self._payload = self.model.main_model(name=self.name, **replace_data.dict())
+
+    @property
+    def created_by(self) -> str | None:
+        return self._payload.data.get("createdBy")  # type: ignore
+
+    @created_by.setter
+    def created_by(self, value: str) -> None:
+        self._payload.data["createdBy"] = value  # type: ignore
+
+    @property
+    def updated_by(self) -> str | None:
+        return self._payload.data.get("updatedBy")  # type: ignore
+
+    @updated_by.setter
+    def updated_by(self, value: str) -> None:
+        self._payload.data["updatedBy"] = value  # type: ignore

@@ -68,6 +68,8 @@ class FolderEntity(ProjectLevelEntity):
                 f.attrib as attrib,
                 f.data as data,
                 f.active as active,
+                f.created_by as created_by,
+                f.updated_by as updated_by,
                 f.created_at as created_at,
                 f.updated_at as updated_at,
                 f.status as status,
@@ -167,6 +169,7 @@ class FolderEntity(ProjectLevelEntity):
                         data=self.data,
                         active=self.active,
                         updated_at=datetime.now(),
+                        updated_by=kwargs.get("user_name"),
                     )
                 )
 
@@ -175,6 +178,7 @@ class FolderEntity(ProjectLevelEntity):
                 await Postgres.execute(
                     *SQLTool.insert(
                         f"project_{self.project_name}.{self.entity_type}s",
+                        created_by=kwargs.get("user_name"),
                         **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
                     )
                 )
