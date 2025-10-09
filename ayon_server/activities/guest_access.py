@@ -56,10 +56,13 @@ async def ensure_guest_can_react(user: UserEntity, project_name: str, activity_i
         JOIN project_{project_name}.entity_lists l
             ON (a.data->>'entityList')::UUID = l.id
         WHERE a.id = $1
-        AND (l.access->$2)::INTEGER >= 0
+        AND  (
+            (l.access->'__guests__')::INTEGER >= 0
+         OR (l.access->$2)::INTEGER >= 0
+        )
         """,
         activity_id,
-        user.attrib.email,
+        f"guest:{user.attrib.email}",
     )
 
     if not res:
