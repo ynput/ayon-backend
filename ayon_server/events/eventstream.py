@@ -200,12 +200,21 @@ class EventStream:
             with logger.contextualize(**ctx):
                 logger.debug(f"[EVENT CREATE] {event.topic}{p}")
 
-        handlers = cls.local_hooks.get(event.topic, {}).values()
-        for handler in handlers:
-            try:
-                await handler(event)
-            except Exception:
-                log_traceback(f"Error in event handler '{handler.__name__}'")
+        for topic, handlers in cls.local_hooks.items():
+            do_handle = False
+            if topic == event.topic:
+                do_handle = True
+            elif topic.endswith(".*"):
+                if event.topic.startswith(topic[:-2]):
+                    do_handle = True
+            if not do_handle:
+                continue
+
+            for handler in handlers.values():
+                try:
+                    await handler(event)
+                except Exception:
+                    log_traceback(f"Error in event handler '{handler.__name__}'")
 
         return event.id
 

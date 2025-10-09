@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Any
 
 from ayon_server.access.utils import ensure_entity_access
-from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
@@ -14,89 +13,69 @@ from ayon_server.helpers.inherited_attributes import rebuild_inherited_attribute
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
-from ayon_server.utils import EntityID, SQLTool, dict_exclude
+from ayon_server.utils import SQLTool, dict_exclude
+
+BASE_GET_QUERY = """
+    WITH RECURSIVE folder_closure AS (
+        SELECT id AS ancestor_id, id AS descendant_id
+        FROM project_{project_name}.folders
+        UNION ALL
+        SELECT fc.ancestor_id, f.id AS descendant_id
+        FROM folder_closure fc
+        JOIN project_{project_name}.folders f
+        ON f.parent_id = fc.descendant_id
+    ),
+
+    folder_with_versions AS (
+        SELECT DISTINCT fc.ancestor_id
+        FROM folder_closure fc
+        JOIN project_{project_name}.products p ON p.folder_id = fc.descendant_id
+        JOIN project_{project_name}.versions v ON v.product_id = p.id
+    )
+
+    SELECT
+        f.id as id,
+        f.name as name,
+        f.label as label,
+        f.folder_type as folder_type,
+        f.parent_id as parent_id,
+        f.thumbnail_id as thumbnail_id,
+        f.attrib as attrib,
+        f.data as data,
+        f.active as active,
+        f.created_at as created_at,
+        f.updated_at as updated_at,
+        f.status as status,
+        f.tags as tags,
+        h.path as path,
+        ia.attrib AS inherited_attrib,
+        p.attrib AS project_attrib,
+        (fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions
+
+    FROM project_{project_name}.folders as f
+
+    INNER JOIN project_{project_name}.hierarchy as h
+    ON f.id = h.id
+
+    LEFT JOIN project_{project_name}.exported_attributes as ia
+    ON f.parent_id = ia.folder_id
+
+    LEFT JOIN folder_with_versions fwv
+    ON fwv.ancestor_id = f.id
+
+    INNER JOIN public.projects as p
+    ON p.name ILIKE '{project_name}'
+"""
 
 
 class FolderEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "folder"
     model: ModelSet = ModelSet("folder", attribute_library["folder"])
+    base_get_query = BASE_GET_QUERY
+    selector = "f.id"
 
-    @classmethod
-    async def load(
-        cls,
-        project_name: str,
-        entity_id: str,
-        for_update: bool = False,
-        **kwargs: Any,
-    ) -> "FolderEntity":
-        """Load a folder from the database by its project name and IDself.
-
-        This is reimplemented, because we need to select dynamic
-        attribute hierarchy.path along with the base data and
-        the attributes inherited from parent entities.
-        """
-
-        if EntityID.parse(entity_id) is None:
-            raise ValueError(f"Invalid {cls.entity_type} ID specified")
-
-        query = f"""
-
-            WITH RECURSIVE folder_closure AS (
-                SELECT id AS ancestor_id, id AS descendant_id
-                FROM project_{project_name}.folders
-                UNION ALL
-                SELECT fc.ancestor_id, f.id AS descendant_id
-                FROM folder_closure fc
-                JOIN project_{project_name}.folders f
-                ON f.parent_id = fc.descendant_id
-            ),
-
-            folder_with_versions AS (
-                SELECT DISTINCT fc.ancestor_id
-                FROM folder_closure fc
-                JOIN project_{project_name}.products p ON p.folder_id = fc.descendant_id
-                JOIN project_{project_name}.versions v ON v.product_id = p.id
-            )
-
-            SELECT
-                f.id as id,
-                f.name as name,
-                f.label as label,
-                f.folder_type as folder_type,
-                f.parent_id as parent_id,
-                f.thumbnail_id as thumbnail_id,
-                f.attrib as attrib,
-                f.data as data,
-                f.active as active,
-                f.created_at as created_at,
-                f.updated_at as updated_at,
-                f.status as status,
-                f.tags as tags,
-                h.path as path,
-                ia.attrib AS inherited_attrib,
-                p.attrib AS project_attrib,
-                (fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions
-
-            FROM project_{project_name}.folders as f
-
-            INNER JOIN project_{project_name}.hierarchy as h
-            ON f.id = h.id
-
-            LEFT JOIN project_{project_name}.exported_attributes as ia
-            ON f.parent_id = ia.folder_id
-
-            LEFT JOIN folder_with_versions fwv
-            ON fwv.ancestor_id = f.id
-
-            INNER JOIN public.projects as p
-            ON p.name ILIKE '{project_name}'
-
-            WHERE f.id=$1
-            {'FOR UPDATE OF f NOWAIT' if for_update else ''}
-            """
-
-        record = await query_entity_data(query, entity_id)
-
+    @staticmethod
+    def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
         path = record.pop("path")
         if path is not None:
             # ensure path starts with / but does not end with /
@@ -118,13 +97,7 @@ class FolderEntity(ProjectLevelEntity):
                 "this shouldn't happen"
             )
         attrib.update(record["attrib"])
-        own_attrib = list(record["attrib"].keys())
-        payload = {**record, "attrib": attrib}
-        return cls.from_record(
-            project_name=project_name,
-            payload=payload,
-            own_attrib=own_attrib,
-        )
+        return {**record, "attrib": attrib}
 
     async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         async with Postgres.transaction():
