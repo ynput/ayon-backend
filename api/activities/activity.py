@@ -161,7 +161,7 @@ async def post_project_activity(
     return CreateActivityResponseModel(id=id)
 
 
-@router.delete("/activities/{activity_id}")
+@router.delete("/activities/{activity_id}", dependencies=[AllowGuests])
 async def delete_project_activity(
     project_name: ProjectName,
     activity_id: ActivityID,
@@ -213,7 +213,7 @@ class ActivityPatchModel(OPModel):
     data: dict[str, Any] | None = Field(None, example={"key": "value"})
 
 
-@router.patch("/activities/{activity_id}")
+@router.patch("/activities/{activity_id}", dependencies=[AllowGuests])
 async def patch_project_activity(
     project_name: ProjectName,
     activity_id: ActivityID,
