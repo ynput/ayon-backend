@@ -88,6 +88,12 @@ async def post_project_activity(
 
     project = await ProjectEntity.load(project_name)
 
+    writable_categories = await ActivityCategories.get_accessible_categories(
+        user,
+        project=project,
+        level=EntityAccessHelper.UPDATE,
+    )
+
     if user.is_guest:
         # check for activity.data.entityList
         entity_list_id = activity.data.get("entityList") if activity.data else None
@@ -129,13 +135,11 @@ async def post_project_activity(
             activity.data = {}
         activity.data["category"] = list_guest_category
 
+        if list_guest_category not in writable_categories:
+            raise ForbiddenException("You cannot use this activity category")
+
     elif not user.is_manager:
         # Normal users - can comment only with their writable categories
-        writable_categories = await ActivityCategories.get_accessible_categories(
-            user,
-            project=project,
-            level=EntityAccessHelper.UPDATE,
-        )
         activity_category = activity.data.get("category") if activity.data else None
         if activity_category and activity_category not in writable_categories:
             raise ForbiddenException("You cannot use this activity category")
@@ -143,11 +147,12 @@ async def post_project_activity(
     entity_class = get_entity_class(entity_type)
     entity = await entity_class.load(project_name, entity_id)
 
-    await EntityAccessHelper.ensure_entity_access(
-        user,
-        entity=entity,
-        level=EntityAccessHelper.READ,
-    )
+    if not user.is_guest:
+        await EntityAccessHelper.ensure_entity_access(
+            user,
+            entity=entity,
+            level=EntityAccessHelper.READ,
+        )
 
     id = await create_activity(
         entity=entity,
