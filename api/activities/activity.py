@@ -111,9 +111,10 @@ async def post_project_activity(
         if not res:
             raise NotFoundException("Entity list not found")
 
-        list_guest_category = res["data"].get("guestCommentCategory")
+        list_guest_categories = res["data"].get("guestCommentCategories")
+        list_guest_category = list_guest_categories.get(user.attrib.email)
         if not list_guest_category:
-            raise ForbiddenException("The entity list does not have a guest category")
+            raise ForbiddenException("Guest has no comment category")
 
         access = res["access"]
         await EntityAccessHelper.check(
