@@ -16,7 +16,7 @@ from ayon_server.events import EventStream, HandlerType
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import log_traceback, logger
-from ayon_server.utils import get_nickname, json_dumps, json_loads, obscure
+from ayon_server.utils import json_dumps, json_loads
 
 ALWAYS_SUBSCRIBE = [
     "server.started",
@@ -125,10 +125,15 @@ class Client:
     @property
     def is_valid(self) -> bool:
         if self.disconnected:
+            logger.trace(f"[WS] Disconnected client: {self}")
             return False
         if not self.authorized and (time.time() - self.created_at > 3):
+            logger.trace(f"[WS] Unauthorized client timed out: {self}")
             return False
         return True
+
+    def __repr__(self) -> str:
+        return f"<WSClient user={self.user_name}>"
 
 
 class Messaging(BackgroundWorker):
@@ -179,42 +184,49 @@ class Messaging(BackgroundWorker):
 
                 await handle_subscribers(message)
 
-                # TODO: much much smarter logic here
-                for _client_id, client in self.clients.items():
+                topic = message.get("topic", None)
+                if topic is None:
+                    logger.trace(f"WS Message without topic: {message}")
+                    continue
+
+                for client in self.clients.values():
                     project_name = message.get("project", None)
-                    if (
-                        client.project_name is not None
-                        and message.get("topic") != "inbox.message"
-                    ):
-                        if project_name and project_name != client.project_name:
+                    if project_name is not None:
+                        if topic == "inbox.message":
+                            # inbox messages are sent to all projects
+                            pass
+
+                        elif message.get("project") != client.project_name:
+                            # only send project-specific messages to clients
                             continue
 
-                    if project_name and client.user and (not client.user.is_manager):
-                        access_groups = client.user.data.get("accessGroups", {})
-                        if project_name not in access_groups:
-                            continue
+                        if client.user:
+                            if client.user.is_guest:
+                                if topic not in (
+                                    "activity.created",
+                                    "heartbeat",
+                                    "activity.updated",
+                                    "entity.version.updated",
+                                ):
+                                    continue
+
+                            elif not client.user.is_manager:
+                                access_groups = client.user.data.get("accessGroups", {})
+                                if project_name not in access_groups:
+                                    continue
 
                     recipients = message.get("recipients", None)
                     if isinstance(recipients, list):
                         if client.user_name not in recipients:
                             continue
 
-                    for topic in client.topics:
-                        if topic == "*" or message["topic"].startswith(topic):
-                            if (
-                                client.is_guest
-                                and message.get("user") != client.user_name
-                            ):
-                                m = copy.deepcopy(message)
-                                if m.get("user"):
-                                    m["user"] = get_nickname(m["user"])
-                                if message["topic"].startswith("log"):
-                                    m["description"] = obscure(m["description"])
-                                await client.send(m)
-                            else:
-                                m = copy.deepcopy(message)
-                                m.pop("recipients", None)
-                                await client.send(m)
+                    for client_topic in client.topics:
+                        if client_topic == "*" or message["topic"].startswith(
+                            client_topic
+                        ):
+                            m = copy.deepcopy(message)
+                            m.pop("recipients", None)
+                            await client.send(m)
 
                 if message["topic"] == "server.restart_requested":
                     restart_server()
@@ -224,8 +236,6 @@ class Messaging(BackgroundWorker):
             except Exception:
                 log_traceback("Unhandled exception in messaging loop", nodb=True)
                 await asyncio.sleep(0.5)
-
-        logger.warning("Stopping redis2ws")
 
 
 messaging = Messaging()

@@ -1,4 +1,7 @@
+from fastapi import Query
+
 from ayon_server.api.dependencies import (
+    AllowGuests,
     CurrentUser,
     ProjectName,
     Sender,
@@ -12,7 +15,7 @@ from ayon_server.entity_lists.models import (
     EntityListPostModel,
     EntityListSummary,
 )
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import create_uuid, dict_patch
 
@@ -104,11 +107,16 @@ async def update_entity_list(
     return EmptyResponse()
 
 
-@router.get("/lists/{list_id}")
+def dict_keep_keys(d: dict, *keys: str) -> dict:
+    return {k: v for k, v in d.items() if k in keys}
+
+
+@router.get("/lists/{list_id}", dependencies=[AllowGuests])
 async def get_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
     list_id: str,
+    metadata_only: bool = Query(False, description="When true, only return metadata"),
 ) -> EntityListModel:
     """Get entity list
 
@@ -118,10 +126,40 @@ async def get_entity_list(
     Use GraphQL API to get the list items instead.
     """
 
-    entity_list = await EntityList.load(project_name, list_id, user=user)
+    if user.is_guest and metadata_only is False:
+        # for guest users, we only allow metadata only requests
+        raise ForbiddenException("Guest users can only request metadata only")
+
+    entity_list = await EntityList.load(
+        project_name,
+        list_id,
+        user=user,
+        with_items=not metadata_only,
+    )
     # we don't need to check for permissions here,
     # as this is handled in the load method
-    return entity_list.payload
+    payload = entity_list.payload
+
+    if user.is_guest:
+        # remove sensitive information for guest users
+        payload.attrib = {}
+        payload.access = dict_keep_keys(
+            payload.access or {}, "__guests__", f"guest:{user.attrib.email}"
+        )
+        payload.owner = None
+        payload.created_by = None
+        payload.updated_by = None
+
+        guest_activity_category = payload.data.get("guestActivityCategories", {}).get(
+            user.attrib.email
+        )
+        payload.data = {}
+        if guest_activity_category:
+            payload.data["guestActivityCategories"] = {
+                user.attrib.email: guest_activity_category
+            }
+
+    return payload
 
 
 @router.delete("/lists/{list_id}")

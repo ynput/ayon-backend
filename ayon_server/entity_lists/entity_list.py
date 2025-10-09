@@ -171,6 +171,7 @@ class EntityList:
         project_name: str,
         id: str,
         user: UserEntity | None = None,
+        with_items: bool = True,
         conn: Any = None,  # deprecated
     ) -> "EntityList":
         """Load the entity list from the database."""
@@ -181,17 +182,18 @@ class EntityList:
             res = await Postgres.fetchrow(query, id)
             if not res:
                 raise NotFoundException(f"Entity list {id} not found")
-
-            item_query = """
-                SELECT * FROM entity_list_items
-                WHERE entity_list_id = $1 ORDER BY position
-            """
-
             items = []
-            stmt = await Postgres.prepare(item_query)
-            async for row in stmt.cursor(res["id"]):
-                item = EntityListItemModel(**row)
-                items.append(item)
+
+            if with_items:
+                item_query = """
+                    SELECT * FROM entity_list_items
+                    WHERE entity_list_id = $1 ORDER BY position
+                """
+
+                stmt = await Postgres.prepare(item_query)
+                async for row in stmt.cursor(res["id"]):
+                    item = EntityListItemModel(**row)
+                    items.append(item)
 
         access_level = EntityAccessHelper.MANAGE
         if user:
