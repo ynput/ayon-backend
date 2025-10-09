@@ -103,7 +103,7 @@ async def post_project_activity(
         res = await Postgres.fetchrow(
             f"""
             SELECT data, access FROM project_{project_name}.entity_lists
-            WHERE id = %s
+            WHERE id = $1
             """,
             entity_list_id,
         )
