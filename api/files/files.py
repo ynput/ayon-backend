@@ -32,7 +32,7 @@ class CreateFileResponseModel(OPModel):
     id: str = Field(..., example="123")
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, dependencies=[AllowGuests])
 async def upload_project_file(
     project_name: ProjectName,
     request: Request,
@@ -98,7 +98,7 @@ async def upload_project_file(
     return CreateFileResponseModel(id=file_id)
 
 
-@router.delete("/{file_id}")
+@router.delete("/{file_id}", dependencies=[AllowGuests])
 async def delete_project_file(
     project_name: ProjectName,
     file_id: FileID,
