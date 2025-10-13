@@ -12,8 +12,9 @@ from typing import Any, Literal, TypeVar
 
 from pydantic import BaseModel, Field, create_model
 
+from ayon_server.enum.enum_item import EnumItem
 from ayon_server.logging import log_traceback, logger
-from ayon_server.types import AttributeEnumItem, AttributeType
+from ayon_server.types import AttributeType
 
 C = TypeVar("C", bound=type)
 
@@ -103,7 +104,7 @@ class FieldDefinition(BaseModel):
     min_items: int | None = Field(title="Minimum items")
     max_items: int | None = Field(title="Maximum items")
     regex: str | None = Field(title="Field regex")
-    enum: list[AttributeEnumItem] | None = Field(None, title="Enum values")
+    enum: list[EnumItem] | None = Field(None, title="Enum values")
 
 
 def generate_model(
@@ -155,7 +156,7 @@ def generate_model(
 
         if field.get("enum"):
             field["_attrib_enum"] = True
-            if isinstance(field["enum"][0], AttributeEnumItem):
+            if isinstance(field["enum"][0], EnumItem):
                 field["enum"] = [e.value for e in field["enum"]]
         #
         # Default value

@@ -3,11 +3,12 @@ import functools
 import inspect
 from typing import Any
 
+from ayon_server.enum.enum_item import EnumItem
 from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.settings.common import BaseSettingsModel
-from ayon_server.types import AttributeEnumItem, SimpleValue, camelize
+from ayon_server.types import SimpleValue, camelize
 
 
 async def get_attrib_enum(
@@ -119,7 +120,7 @@ async def postprocess_settings_schema(  # noqa
                     enum_values, enum_labels = await get_attrib_enum(name)
                 else:
                     for item in enum:
-                        if isinstance(item, AttributeEnumItem):
+                        if isinstance(item, EnumItem):
                             enum_values.append(item.value)
                             enum_labels[item.value] = item.label
                         elif isinstance(item, str):
