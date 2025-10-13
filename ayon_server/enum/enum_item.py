@@ -13,7 +13,7 @@ class EnumItem(OPModel):
     value: Annotated[SimpleValue, Field(title="Enum value")]
     label: Annotated[str, Field(title="Enum label")]
     description: Annotated[str | None, Field(title="Enum item description")] = None
-    fulltext: Annotated[list[str], Field(title="Fulltext search terms")]
+    fulltext: Annotated[list[str] | None, Field(title="Fulltext search terms")] = None
 
     icon: Annotated[
         str | IconModel | None,
