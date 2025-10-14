@@ -7,7 +7,7 @@ from fastapi import APIRouter, Path, Query
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.enum.enum_item import EnumItem
-from ayon_server.enum.resolve import resolve_enum
+from ayon_server.enum.resolve import enum_resolver
 from ayon_server.types import PROJECT_NAME_REGEX
 
 router = APIRouter(tags=["Enums"])
@@ -42,7 +42,7 @@ async def get_enum(
         "project_name": project_name,
     }
 
-    return await resolve_enum(
+    return await enum_resolver.resolve(
         enum_name,
         user=current_user,
         context=context,

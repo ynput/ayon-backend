@@ -1,5 +1,5 @@
-from .users import enum_users
+__all__ = [
+    "UsersEnumResolver",
+]
 
-RESOLVERS = {
-    "users": enum_users,
-}
+from .users import UsersEnumResolver
