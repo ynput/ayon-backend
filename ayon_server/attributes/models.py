@@ -113,6 +113,15 @@ class AttributeData(OPModel):
         ),
     ] = None
 
+    enum_resolver_settings: Annotated[
+        dict[str, Any] | None,
+        Field(
+            title="Enum resolver settings",
+            description="Settings passed to the enum resolver function.",
+            example={"someSetting": "someValue"},
+        ),
+    ] = None
+
     inherit: Annotated[
         bool,
         Field(

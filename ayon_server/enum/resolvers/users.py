@@ -14,13 +14,15 @@ query = """
 class UsersEnumResolver(BaseEnumResolver):
     name = "users"
 
-    async def get_settings_form(self) -> None:
-        return None
-
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         result: list[EnumItem] = []
 
         project_name = context.get("project_name")
+        user = context.get("user")
+        if user and not user.is_manager and not project_name:
+            # Non-managers can only query users within a project
+            # they have access to.
+            return []
 
         async with Postgres.transaction():
             stmt = await Postgres.prepare(query)
