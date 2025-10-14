@@ -1,14 +1,24 @@
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ayon_server.forms import SimpleForm
 
 from .enum_item import EnumItem
+
+if TYPE_CHECKING:
+    from .enum_resolver import EnumResolver
 
 
 class BaseEnumResolver:
     """Base class for enum resolvers."""
 
     name: str
+
+    def __init__(self, enum_resolver: "EnumResolver") -> None:
+        self.enum_resolver = enum_resolver
+
+    async def get_accepted_params(self) -> dict[str, type]:
+        """Return a dictionary of accepted parameters and their types."""
+        return {}
 
     async def get_settings_form(self) -> SimpleForm | None:
         """Return a form for resolver settings.

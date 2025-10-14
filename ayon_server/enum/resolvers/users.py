@@ -1,3 +1,5 @@
+from typing import Any
+
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.lib.postgres import Postgres
@@ -15,7 +17,7 @@ class UsersEnumResolver(BaseEnumResolver):
     async def get_settings_form(self) -> None:
         return None
 
-    async def resolve(self, context: dict) -> list[EnumItem]:
+    async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         result: list[EnumItem] = []
 
         project_name = context.get("project_name")

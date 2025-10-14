@@ -14,6 +14,7 @@ class EnumItem(OPModel):
     label: Annotated[str, Field(title="Enum label")]
     description: Annotated[str | None, Field(title="Enum item description")] = None
     fulltext: Annotated[list[str] | None, Field(title="Fulltext search terms")] = None
+    group: Annotated[str | None, Field(title="Enum group")] = None
 
     icon: Annotated[
         str | IconModel | None,
