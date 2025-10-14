@@ -55,11 +55,13 @@ def get_status_sort_case(project: ProjectEntity, exp: str) -> str:
 
 
 async def get_attrib_sort_case(attr: str, exp: str) -> str:
+    if not attr.isidentifier():
+        raise BadRequestException("Invalid attribute name")
     try:
         attr_data = attribute_library.by_name(attr)
+        enum = attr_data.get("enum", [])
     except KeyError:
-        raise BadRequestException(f"Invalid attribute {attr}")
-    enum = attr_data.get("enum", [])
+        enum = []
     if not enum:
         return f"{exp}->'{attr}'"
     case = "CASE"
