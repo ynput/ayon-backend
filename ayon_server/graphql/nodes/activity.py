@@ -93,19 +93,15 @@ class ActivityNode:
         if "author" in data:
             author = data["author"]
             if author.startswith("guest."):
-                guest_users = info.context["project"].data.get("guestUsers", {})
-                for email, payload in guest_users.items():
-                    candidate_name = slugify(f"guest.{email}", separator=".")
-                    if candidate_name != author:
-                        continue
-                    full_name = payload.get("fullName", email)
+                if "project" not in info.context:
+                    # in inbox, we don't have project context
                     record = {
                         "name": author,
                         "attrib": {
-                            "email": email,
-                            "fullName": full_name,
+                            "email": author,
+                            "fullName": author,
                         },
-                        "active": False,
+                        "active": True,
                         "deleted": True,
                         "created_at": "1970-01-01T00:00:00Z",
                         "updated_at": "1970-01-01T00:00:00Z",
@@ -113,6 +109,27 @@ class ActivityNode:
                     return await info.context["user_from_record"](
                         None, record, info.context
                     )
+                else:
+                    guest_users = info.context["project"].data.get("guestUsers", {})
+                    for email, payload in guest_users.items():
+                        candidate_name = slugify(f"guest.{email}", separator=".")
+                        if candidate_name != author:
+                            continue
+                        full_name = payload.get("fullName", email)
+                        record = {
+                            "name": author,
+                            "attrib": {
+                                "email": email,
+                                "fullName": full_name,
+                            },
+                            "active": True,
+                            "deleted": True,
+                            "created_at": "1970-01-01T00:00:00Z",
+                            "updated_at": "1970-01-01T00:00:00Z",
+                        }
+                        return await info.context["user_from_record"](
+                            None, record, info.context
+                        )
 
             loader = info.context["user_loader"]
             record = await loader.load(author)

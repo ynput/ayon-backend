@@ -3,8 +3,10 @@ from typing import Literal
 
 from fastapi import Path
 
+from ayon_server.activities.guest_access import ensure_guest_can_react
 from ayon_server.api.dependencies import (
     ActivityID,
+    AllowGuests,
     CurrentUser,
     ProjectName,
     Sender,
@@ -133,7 +135,11 @@ class CreateReactionModel(OPModel):
     reaction: str = Field(..., description="The reaction to be created", example="like")
 
 
-@router.post("/activities/{activity_id}/reactions", status_code=201)
+@router.post(
+    "/activities/{activity_id}/reactions",
+    status_code=201,
+    dependencies=[AllowGuests],
+)
 async def create_reaction_to_activity(
     user: CurrentUser,
     project_name: ProjectName,
@@ -142,6 +148,9 @@ async def create_reaction_to_activity(
     sender: Sender,
     sender_type: SenderType,
 ):
+    if user.is_guest:
+        await ensure_guest_can_react(user, project_name, activity_id)
+
     await modify_reactions(
         project_name,
         activity_id,
@@ -153,7 +162,11 @@ async def create_reaction_to_activity(
     )
 
 
-@router.delete("/activities/{activity_id}/reactions/{reaction}", status_code=204)
+@router.delete(
+    "/activities/{activity_id}/reactions/{reaction}",
+    status_code=204,
+    dependencies=[AllowGuests],
+)
 async def delete_reaction_to_activity(
     user: CurrentUser,
     project_name: ProjectName,
