@@ -1,13 +1,20 @@
 from collections.abc import Awaitable, Callable, Iterable
 
+from pydantic import BaseModel
+
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.logging import logger
 
 from .models import OperationModel
 
+
+class HookResult(BaseModel):
+    on_result: list[str] | None = None
+
+
 HookType = Callable[
-    [OperationModel, ProjectLevelEntity, UserEntity | None], Awaitable[None]
+    [OperationModel, ProjectLevelEntity, UserEntity | None], Awaitable[HookResult]
 ]
 
 
