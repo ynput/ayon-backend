@@ -26,8 +26,17 @@ class EnumRegistry:
 
     @classmethod
     def register(cls, resolver: type[BaseEnumResolver]) -> None:
-        cls.resolvers[resolver.name] = resolver(cls)
-        logger.trace(f"Registered enum resolver '{resolver.name}'")
+        if resolver.name in cls.resolvers:
+            msg = f"Replaced enum resolver '{resolver.name}'"
+        else:
+            msg = f"Registered enum resolver '{resolver.name}'"
+
+        try:
+            cls.resolvers[resolver.name] = resolver(cls)
+        except Exception as e:
+            logger.warning(f"Failed to register enum resolver '{resolver.name}': {e}")
+        else:
+            logger.debug(msg)
 
     @classmethod
     def unregister(cls, resolver_name: str) -> None:
