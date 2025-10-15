@@ -3,7 +3,7 @@ from typing import Any
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.lib.postgres import Postgres
-from ayon_server.models.icon_model import IconModel
+from ayon_server.models import IconModel
 
 query = """
     SELECT name, attrib, data FROM public.users
@@ -13,6 +13,9 @@ query = """
 
 class UsersEnumResolver(BaseEnumResolver):
     name = "users"
+
+    async def get_accepted_params(self) -> dict[str, type]:
+        return {"project_name": str}
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         result: list[EnumItem] = []

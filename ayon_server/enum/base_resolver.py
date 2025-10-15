@@ -5,7 +5,7 @@ from ayon_server.forms import SimpleForm
 from .enum_item import EnumItem
 
 if TYPE_CHECKING:
-    from .enum_resolver import EnumResolver
+    from .enum_registry import EnumRegistry
 
 
 class BaseEnumResolver:
@@ -13,8 +13,8 @@ class BaseEnumResolver:
 
     name: str
 
-    def __init__(self, enum_resolver: "EnumResolver") -> None:
-        self.enum_resolver = enum_resolver
+    def __init__(self, enum_registry: "type[EnumRegistry]") -> None:
+        self.enum_registry = enum_registry
 
     async def get_accepted_params(self) -> dict[str, type]:
         """Return a dictionary of accepted parameters and their types."""

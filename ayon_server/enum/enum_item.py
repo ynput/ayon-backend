@@ -19,7 +19,8 @@ class EnumItem(OPModel):
     icon: Annotated[
         str | IconModel | None,
         Field(
-            title="Icon name",
+            title="Icon",
+            description="Icon name (material symbol) or IconModel object",
         ),
     ] = None
 
