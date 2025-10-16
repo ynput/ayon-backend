@@ -59,6 +59,7 @@ async def get_reviewables(
     folder_id: str | None = None,
     user: UserEntity | None = None,
 ) -> list[VersionReviewablesModel]:
+    cond = ""
     if version_id:
         cond = "versions.id = $1"
         cval = version_id
@@ -71,6 +72,20 @@ async def get_reviewables(
     elif folder_id:
         cond = "products.folder_id = $1"
         cval = folder_id
+
+    if user and user.is_guest:
+        cond += f""" AND versions.id IN (
+            SELECT DISTINCT(i.entity_id) FROM
+            project_{project_name}.entity_list_items i
+            JOIN project_{project_name}.entity_lists l
+                ON l.id = i.entity_list_id
+                AND l.entity_list_type = 'review-session'
+                AND (
+                (l.access->'__guests__')::integer > 0
+                OR (l.access->'guest:{user.attrib.email}')::integer > 0
+            )
+        )
+        """
 
     query = f"""
         SELECT
@@ -144,7 +159,10 @@ async def get_reviewables(
 
         if row["version_id"] not in versions:
             attrib = row["version_attrib"] or {}
-            if user and not user.is_manager:
+            if user and user.is_guest:
+                # Remove all attributes for guest users
+                attrib = {}
+            elif user and not user.is_manager:
                 perms = user.permissions(project_name)
                 if perms.attrib_read.enabled:
                     for k in list(attrib.keys()):
@@ -235,17 +253,19 @@ async def get_reviewables_for_product(
 ) -> list[VersionReviewablesModel]:
     """Returns a list of reviewables for a given product."""
 
-    if user.is_guest:
-        # Guests cannot see reviewables
-        return []
-
     product = await ProductEntity.load(project_name, product_id)
-    await product.ensure_read_access(user)
 
-    return await get_reviewables(project_name, product_id=product_id)
+    if not user.is_guest:
+        await product.ensure_read_access(user)
+
+    return await get_reviewables(
+        project_name,
+        product_id=product_id,
+        user=user,
+    )
 
 
-@router.get("/versions/{version_id}/reviewables")
+@router.get("/versions/{version_id}/reviewables", dependencies=[AllowGuests])
 async def get_reviewables_for_version(
     user: CurrentUser,
     project_name: ProjectName,
@@ -254,9 +274,17 @@ async def get_reviewables_for_version(
     """Returns a list of reviewables for a given version."""
 
     version = await VersionEntity.load(project_name, version_id)
-    await version.ensure_read_access(user)
 
-    return (await get_reviewables(project_name, version_id=version_id))[0]
+    if not user.is_guest:
+        await version.ensure_read_access(user)
+
+    return (
+        await get_reviewables(
+            project_name,
+            version_id=version_id,
+            user=user,
+        )
+    )[0]
 
 
 @router.get("/tasks/{task_id}/reviewables", dependencies=[AllowGuests])
@@ -265,14 +293,16 @@ async def get_reviewables_for_task(
     project_name: ProjectName,
     task_id: TaskID,
 ) -> list[VersionReviewablesModel]:
-    if user.is_guest:
-        # Guests cannot see reviewables
-        return []
-
     task = await TaskEntity.load(project_name, task_id)
-    await task.ensure_read_access(user)
 
-    return await get_reviewables(project_name, task_id=task_id)
+    if not user.is_guest:
+        await task.ensure_read_access(user)
+
+    return await get_reviewables(
+        project_name,
+        task_id=task_id,
+        user=user,
+    )
 
 
 @router.get("/folders/{folder_id}/reviewables", dependencies=[AllowGuests])
@@ -281,11 +311,13 @@ async def get_reviewables_for_folder(
     project_name: ProjectName,
     folder_id: FolderID,
 ) -> list[VersionReviewablesModel]:
-    if user.is_guest:
-        # Guests cannot see reviewables
-        return []
-
     folder = await FolderEntity.load(project_name, folder_id)
-    await folder.ensure_read_access(user)
 
-    return await get_reviewables(project_name, folder_id=folder_id)
+    if not user.is_guest:
+        await folder.ensure_read_access(user)
+
+    return await get_reviewables(
+        project_name,
+        folder_id=folder_id,
+        user=user,
+    )
