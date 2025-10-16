@@ -296,7 +296,7 @@ async def get_products(
                 latest_approved_versions AS (
                     SELECT DISTINCT ON (product_id) *
                     FROM project_{project_name}.versions
-                    WHERE status = 'approved' AND version >= 0
+                    WHERE status = 'Approved' AND version >= 0
                     ORDER BY product_id, version DESC, created_at DESC
                 )
                 """
