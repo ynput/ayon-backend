@@ -6,7 +6,6 @@ from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logger
 
 from .hooks import OperationHooks
 from .models import OperationModel
@@ -116,7 +115,6 @@ async def update_project_level_entity(
         temp_entity.patch(temp_payload, user=user)
 
         for hook in hooks:
-            logger.debug(f"Executing operation hook: {hook}")
             await hook(operation, temp_entity, user)
 
     # Casting the payload to the model class is used to validate the data

@@ -10,7 +10,8 @@ from .models import OperationModel
 
 
 class HookResult(BaseModel):
-    on_result: list[str] | None = None
+    message: str | None = None
+    triggers: list[str] | None = None
 
 
 HookType = Callable[
@@ -28,7 +29,7 @@ class OperationHooks:
         operation: OperationModel,
         entity: ProjectLevelEntity,
         user: UserEntity | None,
-    ) -> None:
+    ) -> HookResult:
         pass
     ```
 
@@ -46,13 +47,17 @@ class OperationHooks:
 
     In both cases, hook should not modify the entity, but the operation data
     (operation.data) or raise exceptions to prevent the operation.
+
+    Handling Hook result is not yet implemented.
     """
 
     _hooks = []
 
     @classmethod
     def register(cls, hook: HookType) -> None:
-        logger.debug(f"Registering operation hook: {hook}")
+        # Get the function name for better logging
+        hook_name = getattr(hook, "__name__", str(hook))
+        logger.debug(f"Registering operation hook '{hook_name}'")
         cls._hooks.append(hook)
 
     @classmethod
