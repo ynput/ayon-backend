@@ -34,34 +34,34 @@ BASE_GET_QUERY = """
     )
 
     SELECT
-        f.id as id,
-        f.name as name,
-        f.label as label,
-        f.folder_type as folder_type,
-        f.parent_id as parent_id,
-        f.thumbnail_id as thumbnail_id,
-        f.attrib as attrib,
-        f.data as data,
-        f.active as active,
-        f.created_at as created_at,
-        f.updated_at as updated_at,
-        f.status as status,
-        f.tags as tags,
-        h.path as path,
+        entity.id as id,
+        entity.name as name,
+        entity.label as label,
+        entity.folder_type as folder_type,
+        entity.parent_id as parent_id,
+        entity.thumbnail_id as thumbnail_id,
+        entity.attrib as attrib,
+        entity.data as data,
+        entity.active as active,
+        entity.created_at as created_at,
+        entity.updated_at as updated_at,
+        entity.status as status,
+        entity.tags as tags,
+        hierarchy.path as path,
         ia.attrib AS inherited_attrib,
         p.attrib AS project_attrib,
         (fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions
 
-    FROM project_{project_name}.folders as f
+    FROM project_{project_name}.folders as entity
 
-    INNER JOIN project_{project_name}.hierarchy as h
-    ON f.id = h.id
+    INNER JOIN project_{project_name}.hierarchy as hierarchy
+    ON entity.id = hierarchy.id
 
     LEFT JOIN project_{project_name}.exported_attributes as ia
-    ON f.parent_id = ia.folder_id
+    ON entity.parent_id = ia.folder_id
 
     LEFT JOIN folder_with_versions fwv
-    ON fwv.ancestor_id = f.id
+    ON fwv.ancestor_id = entity.id
 
     INNER JOIN public.projects as p
     ON p.name ILIKE '{project_name}'
@@ -72,7 +72,6 @@ class FolderEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "folder"
     model: ModelSet = ModelSet("folder", attribute_library["folder"])
     base_get_query = BASE_GET_QUERY
-    selector = "f.id"
 
     @staticmethod
     def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:

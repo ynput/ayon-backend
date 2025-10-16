@@ -6,20 +6,21 @@ from ayon_server.types import ProjectLevelEntityType
 
 BASE_GET_QUERY = """
     SELECT
-        p.id as id,
-        p.name as name,
-        p.folder_id as folder_id,
-        p.product_type as product_type,
-        p.attrib as attrib,
-        p.data as data,
-        p.active as active,
-        p.status as status,
-        p.tags as tags,
-        p.created_at as created_at,
-        p.updated_at as updated_at,
-        h.path as folder_path
-    FROM project_{project_name}.products p
-    JOIN project_{project_name}.hierarchy h ON p.folder_id = h.id
+        entity.id as id,
+        entity.name as name,
+        entity.folder_id as folder_id,
+        entity.product_type as product_type,
+        entity.attrib as attrib,
+        entity.data as data,
+        entity.active as active,
+        entity.status as status,
+        entity.tags as tags,
+        entity.created_at as created_at,
+        entity.updated_at as updated_at,
+        hierarchy.path as folder_path
+    FROM project_{project_name}.products entity
+    JOIN project_{project_name}.hierarchy hierarchy
+        ON entity.folder_id = hierarchy.id
 """
 
 
@@ -27,7 +28,6 @@ class ProductEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "product"
     model = ModelSet("product", attribute_library["product"])
     base_get_query = BASE_GET_QUERY
-    selector = "p.id"
 
     @staticmethod
     def preprocess_record(record: dict) -> dict:

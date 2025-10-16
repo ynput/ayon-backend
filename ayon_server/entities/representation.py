@@ -7,27 +7,27 @@ from .version import version_name
 
 BASE_GET_QUERY = """
     SELECT
-        r.id as id,
-        r.name as name,
-        r.version_id as version_id,
-        r.files as files,
-        r.attrib as attrib,
-        r.data as data,
-        r.traits as traits,
-        r.active as active,
-        r.status as status,
-        r.tags as tags,
-        r.created_at as created_at,
-        r.updated_at as updated_at,
+        entity.id as id,
+        entity.name as name,
+        entity.version_id as version_id,
+        entity.files as files,
+        entity.attrib as attrib,
+        entity.data as data,
+        entity.traits as traits,
+        entity.active as active,
+        entity.status as status,
+        entity.tags as tags,
+        entity.created_at as created_at,
+        entity.updated_at as updated_at,
 
         v.version as version,
         p.name as product_name,
-        h.path as folder_path
+        hierarchy.path as folder_path
 
-    FROM project_{project_name}.representations r
-    JOIN project_{project_name}.versions v ON r.version_id = v.id
+    FROM project_{project_name}.representations entity
+    JOIN project_{project_name}.versions v ON entity.version_id = v.id
     JOIN project_{project_name}.products p ON v.product_id = p.id
-    JOIN project_{project_name}.hierarchy h ON p.folder_id = h.id
+    JOIN project_{project_name}.hierarchy h ON p.folder_id = hierarchy.id
 """
 
 
@@ -35,7 +35,6 @@ class RepresentationEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "representation"
     model = ModelSet("representation", attribute_library["representation"])
     base_get_query = BASE_GET_QUERY
-    selector = "r.id"
 
     @staticmethod
     def preprocess_record(record: dict) -> dict:

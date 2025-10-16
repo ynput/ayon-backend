@@ -11,28 +11,28 @@ from ayon_server.types import ProjectLevelEntityType
 
 BASE_GET_QUERY = """
     SELECT
-        t.id as id,
-        t.name as name,
-        t.label as label,
-        t.task_type as task_type,
-        t.thumbnail_id as thumbnail_id,
-        t.assignees as assignees,
-        t.folder_id as folder_id,
-        t.attrib as attrib,
-        t.data as data,
-        t.active as active,
-        t.created_at as created_at,
-        t.updated_at as updated_at,
-        t.status as status,
-        t.tags as tags,
+        entity.id as id,
+        entity.name as name,
+        entity.label as label,
+        entity.task_type as task_type,
+        entity.thumbnail_id as thumbnail_id,
+        entity.assignees as assignees,
+        entity.folder_id as folder_id,
+        entity.attrib as attrib,
+        entity.data as data,
+        entity.active as active,
+        entity.created_at as created_at,
+        entity.updated_at as updated_at,
+        entity.status as status,
+        entity.tags as tags,
         ia.attrib AS inherited_attrib,
-        h.path as folder_path
-    FROM project_{project_name}.tasks as t
-    JOIN project_{project_name}.hierarchy as h
-        ON t.folder_id = h.id
+        hierarchy.path as folder_path
+    FROM project_{project_name}.tasks as entity
+    JOIN project_{project_name}.hierarchy as hierarchy
+        ON entity.folder_id = hierarchy.id
     LEFT JOIN
         project_{project_name}.exported_attributes as ia
-        ON t.folder_id = ia.folder_id
+        ON entity.folder_id = ia.folder_id
 """
 
 
@@ -40,7 +40,6 @@ class TaskEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "task"
     model = ModelSet("task", attribute_library["task"])
     base_get_query = BASE_GET_QUERY
-    selector = "t.id"
 
     @staticmethod
     def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:

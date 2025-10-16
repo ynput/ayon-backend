@@ -20,7 +20,7 @@ from ayon_server.utils import EntityID, SQLTool, dict_exclude
 
 BASE_GET_QUERY = """
     SELECT *
-    FROM project_{project_name}.{entity_type}s
+    FROM project_{project_name}.{entity_type}s entity
 """
 
 
@@ -28,7 +28,6 @@ class ProjectLevelEntity(BaseEntity):
     entity_type: ProjectLevelEntityType
     project_name: str
     base_get_query: str = BASE_GET_QUERY
-    selector: str = "id"
 
     @staticmethod
     def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
@@ -190,7 +189,7 @@ class ProjectLevelEntity(BaseEntity):
         )
 
         query += f"""
-            WHERE {cls.selector}=$1
+            WHERE entity.id=$1
             {'FOR UPDATE OF f NOWAIT' if for_update else ''}
         """
 

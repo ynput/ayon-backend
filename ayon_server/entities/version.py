@@ -11,27 +11,26 @@ from ayon_server.types import ProjectLevelEntityType
 
 BASE_GET_QUERY = """
     SELECT
-        v.id as id,
-        v.version as version,
-        v.product_id as product_id,
-        v.task_id as task_id,
-        v.thumbnail_id as thumbnail_id,
-        v.author as author,
-
-        v.attrib as attrib,
-        v.data as data,
-        v.active as active,
-        v.status as status,
-        v.tags as tags,
-        v.created_at as created_at,
-        v.updated_at as updated_at,
+        entity.id as id,
+        entity.version as version,
+        entity.product_id as product_id,
+        entity.task_id as task_id,
+        entity.thumbnail_id as thumbnail_id,
+        entity.author as author,
+        entity.attrib as attrib,
+        entity.data as data,
+        entity.active as active,
+        entity.status as status,
+        entity.tags as tags,
+        entity.created_at as created_at,
+        entity.updated_at as updated_at,
 
         p.name as product_name,
-        h.path as folder_path
+        hierarchy.path as folder_path
 
-    FROM project_{project_name}.versions v
-    JOIN project_{project_name}.products p ON v.product_id = p.id
-    JOIN project_{project_name}.hierarchy h ON p.folder_id = h.id
+    FROM project_{project_name}.versions entity
+    JOIN project_{project_name}.products p ON entity.product_id = p.id
+    JOIN project_{project_name}.hierarchy hierarchy ON p.folder_id = h.id
 """
 
 
@@ -45,7 +44,6 @@ class VersionEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "version"
     model = ModelSet("version", attribute_library["version"])
     base_get_query = BASE_GET_QUERY
-    selector = "v.id"
 
     @staticmethod
     def preprocess_record(record: dict) -> dict:
