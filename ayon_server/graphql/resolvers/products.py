@@ -265,7 +265,7 @@ async def get_products(
         )
 
     #
-    # Verison_list
+    # Version_list
     # (this is probably not needed anymore. Should we remove it?)
     #
 
@@ -327,6 +327,44 @@ async def get_products(
     #
     # Filtering products by versions
     #
+
+    if version_filter:
+        column_whitelist = [
+            "id",
+            "product_id",
+            "version",
+            "attrib",
+            "data",
+            "status",
+            "tags",
+            "created_at",
+            "updated_at",
+        ]
+
+        fdata = json.loads(version_filter)
+        fq = QueryFilter(**fdata)
+        fcond = build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="versions",
+        )
+
+        sql_cte.append(
+            f"""
+            filtered_versions AS (
+                SELECT DISTINCT product_id
+                FROM project_{project_name}.versions
+                WHERE {fcond}
+            )
+            """
+        )
+
+        sql_joins.append(
+            """
+            INNER JOIN filtered_versions
+            ON products.id = filtered_versions.product_id
+            """
+        )
 
     #
     # Pagination
