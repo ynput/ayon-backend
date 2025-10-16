@@ -154,7 +154,7 @@ async def get_tasks(
             "Empty list will return tasks with any tags."
         ),
     ] = None,
-    includeFolderChildren: Annotated[
+    include_folder_children: Annotated[
         bool,
         argdesc("Include tasks in child folders when folderIds is used"),
     ] = False,
@@ -240,7 +240,7 @@ async def get_tasks(
         if not folder_ids:
             return TasksConnection()
 
-        if includeFolderChildren:
+        if include_folder_children:
             use_folder_query = True
             sql_cte.append(
                 f"""

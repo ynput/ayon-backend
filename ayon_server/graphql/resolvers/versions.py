@@ -59,6 +59,14 @@ async def get_versions(
         list[str] | None,
         argdesc("List of parent task IDs"),
     ] = None,
+    folder_ids: Annotated[
+        list[str] | None,
+        argdesc("List of folder IDs to filter by"),
+    ] = None,
+    include_folder_children: Annotated[
+        bool,
+        argdesc("Include versions in child folders when folderIds is used"),
+    ] = False,
     authors: Annotated[
         list[str] | None,
         argdesc("List of version author user names to filter by."),
@@ -86,16 +94,22 @@ async def get_versions(
     user = info.context["user"]
     fields = FieldInfo(info, ["versions.edges.node", "version"])
 
-    # if user.is_guest:
-    #     if not ids:
-    #         return VersionsConnection(edges=[])
-
     #
     # SQL
     #
+
     sql_cte = []
     sql_conditions = []
-    sql_joins = []
+    sql_joins = [
+        f"""
+        INNER JOIN project_{project_name}.products AS products
+        ON products.id = versions.product_id
+        """,
+        f"""
+        INNER JOIN project_{project_name}.hierarchy AS hierarchy
+        ON hierarchy.id = products.folder_id
+        """,
+    ]
 
     sql_columns = [
         "versions.id AS id",
@@ -115,20 +129,6 @@ async def get_versions(
         "hierarchy.path AS _folder_path",
         "products.name AS _product_name",
     ]
-
-    sql_joins.append(
-        f"""
-        INNER JOIN project_{project_name}.products AS products
-        ON products.id = versions.product_id
-        """
-    )
-
-    sql_joins.append(
-        f"""
-        INNER JOIN project_{project_name}.hierarchy AS hierarchy
-        ON hierarchy.id = products.folder_id
-        """
-    )
 
     if fields.any_endswith("hasReviewables"):
         sql_cte.append(
@@ -199,13 +199,21 @@ async def get_versions(
     # Filtering by latest / hero versions
     #
 
+    cte_latest = f"""
+        latest_versions AS (
+            SELECT DISTINCT ON (product_id) *
+            FROM project_{project_name}.versions
+            WHERE version >= 0
+            ORDER BY product_id, version DESC
+        )
+    """
+
     if latest_only:
-        sql_conditions.append(
-            f"""
-            versions.id IN (
-            SELECT l.ids[array_upper(l.ids, 1)]
-            FROM project_{project_name}.version_list as l
-            )
+        sql_cte.append(cte_latest)
+        sql_joins.append(
+            """
+            INNER JOIN latest_versions AS lv
+            ON lv.id = versions.id
             """
         )
 
@@ -213,15 +221,16 @@ async def get_versions(
         sql_conditions.append("versions.version < 0")
 
     elif hero_or_latest_only:
+        sql_cte.append(cte_latest)
+        sql_joins.append(
+            """
+            LEFT JOIN latest_versions AS lv
+            ON lv.product_id = versions.product_id
+            """
+        )
         sql_conditions.append(
-            f"""
-            (versions.version < 0
-            OR versions.id IN (
-                SELECT l.ids[array_upper(l.ids, 1)]
-                FROM project_{project_name}.version_list as l
-                WHERE l.versions[1] >= 0
-            )
-            )
+            """
+            (versions.version < 0 OR lv.id = versions.id)
             """
         )
 
@@ -281,7 +290,6 @@ async def get_versions(
             elif term.startswith("v") and term[1:].isdigit():
                 sub_conditions.append(f"versions.version = {int(term[1:])}")
 
-            term = term.replace("'", "''")  # Escape single quotes
             sub_conditions.append(f"products.name ILIKE '%{term}%'")
             sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
             sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
