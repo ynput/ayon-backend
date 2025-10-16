@@ -63,15 +63,15 @@ async def get_versions(
         list[str] | None,
         argdesc("List of version author user names to filter by."),
     ] = None,
-    latestOnly: Annotated[
+    latest_only: Annotated[
         bool,
         argdesc("List only latest versions"),
     ] = False,
-    heroOnly: Annotated[
+    hero_only: Annotated[
         bool,
         argdesc("List only hero versions"),
     ] = False,
-    heroOrLatestOnly: Annotated[
+    hero_or_latest_only: Annotated[
         bool,
         argdesc("List hero versions. If hero does not exist, list latest"),
     ] = False,
@@ -94,6 +94,8 @@ async def get_versions(
     # SQL
     #
     sql_cte = []
+    sql_conditions = []
+    sql_joins = []
 
     sql_columns = [
         "versions.id AS id",
@@ -110,7 +112,23 @@ async def get_versions(
         "versions.created_at AS created_at",
         "versions.updated_at AS updated_at",
         "versions.creation_order AS creation_order",
+        "hierarchy.path AS _folder_path",
+        "products.name AS _product_name",
     ]
+
+    sql_joins.append(
+        f"""
+        INNER JOIN project_{project_name}.products AS products
+        ON products.id = versions.product_id
+        """
+    )
+
+    sql_joins.append(
+        f"""
+        INNER JOIN project_{project_name}.hierarchy AS hierarchy
+        ON hierarchy.id = products.folder_id
+        """
+    )
 
     if fields.any_endswith("hasReviewables"):
         sql_cte.append(
@@ -130,11 +148,6 @@ async def get_versions(
             ) AS has_reviewables
             """
         )
-
-    sql_conditions = []
-    sql_joins = []
-
-    needs_hierarchy = False
 
     # Empty overrides. Skip querying
     if ids == ["0" * 32]:
@@ -182,7 +195,11 @@ async def get_versions(
     elif root.__class__.__name__ == "TaskNode":
         sql_conditions.append(f"versions.task_id = '{root.id}'")
 
-    if latestOnly:
+    #
+    # Filtering by latest / hero versions
+    #
+
+    if latest_only:
         sql_conditions.append(
             f"""
             versions.id IN (
@@ -191,9 +208,11 @@ async def get_versions(
             )
             """
         )
-    elif heroOnly:
+
+    elif hero_only:
         sql_conditions.append("versions.version < 0")
-    elif heroOrLatestOnly:
+
+    elif hero_or_latest_only:
         sql_conditions.append(
             f"""
             (versions.version < 0
@@ -206,10 +225,18 @@ async def get_versions(
             """
         )
 
+    #
+    # Filtering by links
+    #
+
     if has_links is not None:
         sql_conditions.extend(
             get_has_links_conds(project_name, "versions.id", has_links)
         )
+
+    #
+    # Access control
+    #
 
     if user.is_guest:
         sql_cte.append(
@@ -239,10 +266,12 @@ async def get_versions(
             sql_conditions.append(
                 f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
             )
-            needs_hierarchy = True
+
+    #
+    # Fuzzy search
+    #
 
     if search:
-        needs_hierarchy = True
         terms = slugify(search, make_set=True, min_length=2)
 
         for term in terms:
@@ -259,27 +288,6 @@ async def get_versions(
 
             condition = " OR ".join(sub_conditions)
             sql_conditions.append(f"({condition})")
-
-    if fields.any_endswith("path") or fields.any_endswith("parents"):
-        needs_hierarchy = True
-
-    if needs_hierarchy:
-        sql_columns.append("hierarchy.path AS _folder_path")
-        sql_columns.append("products.name AS _product_name")
-
-        sql_joins.append(
-            f"""
-            INNER JOIN project_{project_name}.products AS products
-            ON products.id = versions.product_id
-            """
-        )
-
-        sql_joins.append(
-            f"""
-            INNER JOIN project_{project_name}.hierarchy AS hierarchy
-            ON hierarchy.id = products.folder_id
-            """
-        )
 
     #
     # Filter
@@ -298,13 +306,18 @@ async def get_versions(
             "tags",
             "created_at",
             "updated_at",
+            "product_type",
         ]
+
         fdata = json.loads(filter)
         fq = QueryFilter(**fdata)
         if fcond := build_filter(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="versions",
+            column_map={
+                "product_type": "products.product_type",
+            },
         ):
             sql_conditions.append(fcond)
 
