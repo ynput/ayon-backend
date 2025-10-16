@@ -53,6 +53,10 @@ class ProductNode(BaseNode):
     _user: strawberry.Private[UserEntity]
     _folder_path: strawberry.Private[str | None] = None
 
+    _hero_version_data: strawberry.Private[dict[str, Any] | None] = None
+    _latest_approved_version_data: strawberry.Private[dict[str, Any] | None] = None
+    _latest_version_data: strawberry.Private[dict[str, Any] | None] = None
+
     # GraphQL specifics
 
     @strawberry.field
@@ -122,6 +126,44 @@ class ProductNode(BaseNode):
         path = self.path.strip("/")
         return path.split("/")[:-1] if path else []
 
+    @strawberry.field
+    async def featured_version(
+        self,
+        info: Info,
+        order: list[str] | None = None,
+    ) -> VersionNode | None:
+        """Return the featured version of the product.
+
+        Order may contain ["hero", "latestApproved", "latest"]
+        which is the order of preference for the featured version.
+
+        This array is optional, if not provided, this exact order is used.
+
+        This node may be null if no versions are available.
+        """
+
+        if order is None:
+            order = ["hero", "latestApproved", "latest"]
+
+        for item in order:
+            if item == "hero" and self._hero_version_data:
+                data = self._hero_version_data
+            elif item == "latestApproved" and self._latest_approved_version_data:
+                data = self._latest_approved_version_data
+            elif item == "latest" and self._latest_version_data:
+                data = self._latest_version_data
+            else:
+                continue
+
+            data["_folder_path"] = self._folder_path
+            data["_product_name"] = self.name
+
+            return await info.context["version_from_record"](
+                self.project_name, data, info.context
+            )
+
+        return None
+
 
 async def product_from_record(
     project_name: str,
@@ -181,6 +223,9 @@ async def product_from_record(
         _folder_path=folder_path,
         _attrib=record["attrib"] or {},
         _user=context["user"],
+        _hero_version_data=record.get("_hero_version_data"),
+        _latest_approved_version_data=record.get("_latest_approved_version_data"),
+        _latest_version_data=record.get("_latest_version_data"),
     )
 
 

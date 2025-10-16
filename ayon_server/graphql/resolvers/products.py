@@ -264,6 +264,72 @@ async def get_products(
             ]
         )
 
+    if ff_field := fields.find_field("featuredVersion"):
+        req_order = ff_field.arguments.get("order") or [
+            "hero",
+            "latestApproved",
+            "latest",
+        ]
+
+        if "hero" in req_order:
+            sql_cte.append(
+                f"""
+                hero_versions AS (
+                    SELECT DISTINCT ON (product_id) *
+                    FROM project_{project_name}.versions
+                    WHERE version < 0
+                    ORDER BY product_id, created_at DESC
+                )
+                """
+            )
+            sql_joins.append(
+                """
+                LEFT JOIN hero_versions AS ff_hero
+                ON products.id = ff_hero.product_id
+                """
+            )
+            sql_columns.append("to_jsonb(ff_hero.*) as _hero_version_data")
+
+        if "latestApproved" in req_order:
+            sql_cte.append(
+                f"""
+                latest_approved_versions AS (
+                    SELECT DISTINCT ON (product_id) *
+                    FROM project_{project_name}.versions
+                    WHERE status = 'approved' AND version >= 0
+                    ORDER BY product_id, version DESC, created_at DESC
+                )
+                """
+            )
+            sql_joins.append(
+                """
+                LEFT JOIN latest_approved_versions AS ff_latest_approved
+                ON products.id = ff_latest_approved.product_id
+                """
+            )
+            sql_columns.append(
+                "to_jsonb(ff_latest_approved.*) as _latest_approved_version_data"
+            )
+
+        if "latest" in req_order:
+            sql_cte.append(
+                f"""
+                latest_versions AS (
+                    SELECT DISTINCT ON (product_id) *
+                    FROM project_{project_name}.versions
+                    WHERE version >= 0
+                    ORDER BY product_id, version DESC, created_at DESC
+                )
+                """
+            )
+            sql_joins.append(
+                """
+                LEFT JOIN latest_versions AS ff_latest
+                ON products.id = ff_latest.product_id
+                """
+            )
+            sql_columns.append("to_jsonb(ff_latest.*) as _latest_version_data")
+
     #
     # Version_list
     # (this is probably not needed anymore. Should we remove it?)
