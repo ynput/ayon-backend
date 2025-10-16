@@ -2,6 +2,7 @@ __all__ = ["get_addon_list_for_settings", "AddonListForSettings"]
 
 from typing import TypedDict
 
+from ayon_server.addons import AddonLibrary
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -97,10 +98,19 @@ async def get_addon_list_for_settings(
                 f"Studio {variant} bundle is not set",
             )
 
+        for addon_name, addon_version in list(addons.items()):
+            try:
+                _addon = AddonLibrary.addon(addon_name, addon_version)
+            except NotFoundException:
+                continue
+
+            if _addon.project_can_override_addon_version:
+                addons.pop(addon_name)
+                inherited_addons.remove(addon_name)
+
         project_addons = r[0]["addons"]
         for addon_name, addon_version in project_addons.items():
             addons[addon_name] = addon_version
-            inherited_addons.remove(addon_name)
 
     assert (
         bundle_name is not None
