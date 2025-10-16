@@ -109,6 +109,14 @@ async def get_versions(
         INNER JOIN project_{project_name}.hierarchy AS hierarchy
         ON hierarchy.id = products.folder_id
         """,
+        f"""
+        INNER JOIN project_{project_name}.folders AS folders
+        ON folders.id = products.folder_id
+        """,
+        f"""
+        LEFT JOIN project_{project_name}.tasks AS tasks
+        ON tasks.id = versions.task_id
+        """,
     ]
 
     sql_columns = [
@@ -358,6 +366,8 @@ async def get_versions(
             "created_at",
             "updated_at",
             "product_type",
+            "task_type",
+            "folder_type",
         ]
 
         fdata = json.loads(filter)
@@ -368,6 +378,8 @@ async def get_versions(
             table_prefix="versions",
             column_map={
                 "product_type": "products.product_type",
+                "task_type": "tasks.task_type",
+                "folder_type": "folders.folder_type",
             },
         ):
             sql_conditions.append(fcond)
