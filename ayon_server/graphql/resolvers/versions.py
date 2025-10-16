@@ -136,7 +136,7 @@ async def get_versions(
             reviewables AS (
                 SELECT entity_id FROM project_{project_name}.activity_feed
                 WHERE entity_type = 'version'
-                AND   activity_type = 'reviewable'
+                AND activity_type = 'reviewable'
             )
             """
         )
@@ -157,6 +157,7 @@ async def get_versions(
         if not ids:
             return VersionsConnection()
         sql_conditions.append(f"versions.id IN {SQLTool.id_array(ids)}")
+
     if version:
         sql_conditions.append(f"versions.version = {version}")
 
@@ -195,13 +196,55 @@ async def get_versions(
     elif root.__class__.__name__ == "TaskNode":
         sql_conditions.append(f"versions.task_id = '{root.id}'")
 
+    if folder_ids is not None:
+        if not folder_ids:
+            return VersionsConnection()
+
+        if include_folder_children:
+            sql_cte.append(
+                f"""
+                top_folder_paths AS (
+                    SELECT path FROM project_{project_name}.hierarchy
+                    WHERE id IN {SQLTool.id_array(folder_ids)}
+                )
+                """
+            )
+
+            sql_cte.append(
+                f"""
+                child_folder_ids AS (
+                    SELECT id FROM project_{project_name}.hierarchy
+                    WHERE EXISTS (
+                        SELECT 1 FROM top_folder_paths
+                        WHERE project_{project_name}.hierarchy.path
+                        LIKE top_folder_paths.path || '/%'
+                    )
+                    OR project_{project_name}.hierarchy.path = ANY(
+                        SELECT path FROM top_folder_paths
+                    )
+                )
+                """
+            )
+
+            sql_joins.append(
+                """
+                INNER JOIN child_folder_ids AS cfi
+                ON cfi.id = products.folder_id
+                """
+            )
+
+        else:
+            sql_conditions.append(
+                f"products.folder_id IN {SQLTool.id_array(folder_ids)}"
+            )
+
     #
     # Filtering by latest / hero versions
     #
 
     cte_latest = f"""
         latest_versions AS (
-            SELECT DISTINCT ON (product_id) *
+            SELECT DISTINCT ON (product_id) id, version, product_id
             FROM project_{project_name}.versions
             WHERE version >= 0
             ORDER BY product_id, version DESC
