@@ -134,7 +134,7 @@ class ProductNode(BaseNode):
     ) -> VersionNode | None:
         """Return the featured version of the product.
 
-        Order may contain ["hero", "latestApproved", "latest"]
+        Order may contain ["latestApproved", "hero", "latest"]
         which is the order of preference for the featured version.
 
         This array is optional, if not provided, this exact order is used.
@@ -143,7 +143,7 @@ class ProductNode(BaseNode):
         """
 
         if order is None:
-            order = ["hero", "latestApproved", "latest"]
+            order = ["latestApproved", "hero", "latest"]
 
         for item in order:
             if item == "hero" and self._hero_version_data:
