@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import Query
 
 from ayon_server.api.dependencies import (
@@ -107,7 +109,7 @@ async def update_entity_list(
     return EmptyResponse()
 
 
-def dict_keep_keys(d: dict, *keys: str) -> dict:
+def dict_keep_keys(d: dict[str, Any], *keys: str) -> dict[str, Any]:
     return {k: v for k, v in d.items() if k in keys}
 
 
