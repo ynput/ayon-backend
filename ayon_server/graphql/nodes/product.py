@@ -158,6 +158,7 @@ class ProductNode(BaseNode):
 
             data["_folder_path"] = self._folder_path
             data["_product_name"] = self.name
+            data["id"] = data["id"].replace("-", "")
             data["created_at"] = datetime.fromisoformat(data["created_at"])
             data["updated_at"] = datetime.fromisoformat(data["updated_at"])
 
