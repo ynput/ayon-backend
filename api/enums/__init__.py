@@ -25,7 +25,15 @@ async def get_enum(
     ],
     current_user: CurrentUser,
 ) -> list[EnumItem]:
-    """Get enum values by name."""
+    """Get enum values by name.
+
+    This endpoint retrieves the possible values of a specified enum.
+    It accepts query parameters that can influence the resolution of the enum values,
+    such as filtering based on user permissions or other contextual data.
+
+    These query parameters can vary depending on the enum being requested,
+    but when requested from a project context, `project_name` should be provided.
+    """
 
     context = {}
     accepted_params = await EnumRegistry.get_accepted_params(enum_name)

@@ -10,17 +10,40 @@ from ayon_server.utils import slugify
 class EnumItem(OPModel):
     """Attribute enum item."""
 
-    value: Annotated[SimpleValue, Field(title="Enum value")]
-    label: Annotated[str, Field(title="Enum label")]
-    description: Annotated[str | None, Field(title="Enum item description")] = None
-    fulltext: Annotated[list[str] | None, Field(title="Fulltext search terms")] = None
-    group: Annotated[str | None, Field(title="Enum group")] = None
+    value: Annotated[
+        SimpleValue,
+        Field(title="Enum value", example="my_value"),
+    ]
+
+    label: Annotated[
+        str,
+        Field(title="Enum label", example="My Value"),
+    ]
+
+    description: Annotated[
+        str | None,
+        Field(title="Enum item description", example="Description of My value"),
+    ] = None
+
+    fulltext: Annotated[
+        list[str] | None,
+        Field(title="Fulltext search terms", example=["my", "value"]),
+    ] = None
+
+    group: Annotated[
+        str | None,
+        Field(
+            title="Enum group",
+            example=None,
+        ),
+    ] = None
 
     icon: Annotated[
         str | IconModel | None,
         Field(
             title="Icon",
             description="Icon name (material symbol) or IconModel object",
+            example="dashboard",
         ),
     ] = None
 
@@ -29,6 +52,7 @@ class EnumItem(OPModel):
         Field(
             title="Color in RGB hex format",
             regex="^#[0-9a-fA-F]{6}$",
+            example="#FF0000",
         ),
     ] = None
 
@@ -45,7 +69,7 @@ class EnumItem(OPModel):
         if v is not None:
             return v
 
-        terms: set[str] = set(v or [])
+        terms: set[str] = set()
         if "value" in values:
             terms |= slugify(str(values["value"]), make_set=True)
         if "label" in values and values["label"]:

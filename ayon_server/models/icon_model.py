@@ -1,14 +1,14 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from .rest_model import RestField, RestModel
 
 IconType = Literal["material-symbols", "url"]
 
 
-class IconModel(BaseModel):
+class IconModel(RestModel):
     type: Annotated[
         IconType,
-        Field(
+        RestField(
             title="Icon Type",
             example="material-symbols",
         ),
@@ -16,7 +16,7 @@ class IconModel(BaseModel):
 
     name: Annotated[
         str | None,
-        Field(
+        RestField(
             title="Icon Name",
             description="The name of the icon (for type material-symbols)",
             example="icon_of_sin",
@@ -25,7 +25,7 @@ class IconModel(BaseModel):
 
     color: Annotated[
         str | None,
-        Field(
+        RestField(
             title="Icon Color",
             description="The color of the icon (for type material-symbols)",
             example="#FF0000",
@@ -34,7 +34,7 @@ class IconModel(BaseModel):
 
     url: Annotated[
         str | None,
-        Field(
+        RestField(
             description="The URL of the icon (for type url)",
             example="https://example.com/icon.png",
         ),
