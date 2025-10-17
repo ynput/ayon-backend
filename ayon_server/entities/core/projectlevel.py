@@ -190,7 +190,7 @@ class ProjectLevelEntity(BaseEntity):
 
         query += f"""
             WHERE entity.id=$1
-            {'FOR UPDATE OF f NOWAIT' if for_update else ''}
+            {'FOR UPDATE OF entity NOWAIT' if for_update else ''}
         """
 
         record = await query_entity_data(query, entity_id)

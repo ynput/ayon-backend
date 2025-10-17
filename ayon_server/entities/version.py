@@ -30,7 +30,7 @@ BASE_GET_QUERY = """
 
     FROM project_{project_name}.versions entity
     JOIN project_{project_name}.products p ON entity.product_id = p.id
-    JOIN project_{project_name}.hierarchy hierarchy ON p.folder_id = h.id
+    JOIN project_{project_name}.hierarchy hierarchy ON p.folder_id = hierarchy.id
 """
 
 
