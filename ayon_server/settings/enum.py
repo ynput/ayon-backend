@@ -1,33 +1,64 @@
+"""Various enums for settings and elsewhere.
+
+Individual resolvers from this module will be moved to ayon_server.enum in future,
+so they will be available in /api/enum/ endpoint as well.
+"""
+
 import functools
 from collections.abc import Coroutine
 from typing import Any, Literal
 
 from aiocache import cached
 
+from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.enum import EnumItem
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 
 
-async def get_primary_anatomy_preset():
+async def attributes_enum() -> list[EnumItem]:
+    got = set()
+    result = []
+    for attributes in attribute_library.data.values():
+        for attribute in attributes:
+            if attribute["name"] in got:
+                continue
+            got.add(attribute["name"])
+            result.append(
+                EnumItem(
+                    value=attribute["name"],
+                    label=attribute.get("title", attribute["name"]),
+                )
+            )
+    result.sort(key=lambda x: x.label)
+    return result
+
+
+async def get_primary_anatomy_preset() -> Anatomy:
     query = "SELECT * FROM anatomy_presets WHERE is_primary is TRUE"
     async for row in Postgres.iterate(query):
         return Anatomy(**row["data"])
     return Anatomy()
 
 
-async def addons_enum():
+async def addons_enum() -> list[EnumItem]:
     """Return a list of all installed addons"""
     from ayon_server.addons.library import AddonLibrary
 
     instance = AddonLibrary.getinstance()
     result = []
     for addon_name, definition in instance.items():
-        result.append({"label": addon_name, "value": addon_name})
-    result.sort(key=lambda x: x["label"])
+        result.append(
+            EnumItem(
+                value=addon_name,
+                label=definition.friendly_name,
+            )
+        )
+    result.sort(key=lambda x: x.label)
     return result
 
 
-async def folder_types_enum(project_name: str | None = None):
+async def folder_types_enum(project_name: str | None = None) -> list[str]:
     if project_name is None:
         anatomy = await get_primary_anatomy_preset()
         return [folder_type.name for folder_type in anatomy.folder_types]
@@ -56,7 +87,7 @@ async def product_types_enum() -> list[str]:
     ]
 
 
-async def task_types_enum(project_name: str | None = None):
+async def task_types_enum(project_name: str | None = None) -> list[str]:
     if project_name is None:
         anatomy = await get_primary_anatomy_preset()
         return [task_type.name for task_type in anatomy.task_types]
@@ -73,7 +104,7 @@ async def task_types_enum(project_name: str | None = None):
     ]
 
 
-async def link_types_enum(project_name: str | None = None):
+async def link_types_enum(project_name: str | None = None) -> list[EnumItem]:
     result = []
     if project_name is None:
         anatomy = await get_primary_anatomy_preset()
@@ -84,7 +115,13 @@ async def link_types_enum(project_name: str | None = None):
 
             label = f"{lt.capitalize()} ({li.capitalize()} -> {lo.capitalize()})"
             value = f"{lt}|{li}|{lo}"
-            result.append({"label": label, "value": value, "color": link_type.color})
+            result.append(
+                EnumItem(
+                    label=label,
+                    value=value,
+                    color=link_type.color,
+                )
+            )
 
         return result
 
@@ -96,11 +133,11 @@ async def link_types_enum(project_name: str | None = None):
         label = f"{lt.capitalize()} ({li.capitalize()} -> {lo.capitalize()})"
         value = f"{lt}|{li}|{lo}"
         result.append(
-            {
-                "label": label,
-                "value": value,
-                "color": row["data"].get("color", None),
-            }
+            EnumItem(
+                label=label,
+                value=value,
+                color=row["data"].get("color", None),
+            )
         )
     return result
 
@@ -113,7 +150,7 @@ async def secrets_enum(project_name: str | None = None) -> list[str]:
     ]
 
 
-async def anatomy_presets_enum():
+async def anatomy_presets_enum() -> list[EnumItem]:
     query = "SELECT name, is_primary FROM anatomy_presets ORDER BY name"
     primary: str | None = None
     result = []
@@ -123,14 +160,14 @@ async def anatomy_presets_enum():
             primary = row["name"]
         else:
             label = row["name"]
-        result.append({"label": label, "value": row["name"]})
+        result.append(EnumItem(label=label, value=row["name"]))
 
     if primary is not None:
         primary_label = f"<PRIMARY ({primary})>"
     else:
         primary_label = "<PRIMARY (built-in)>"
-    result.insert(0, {"value": "__primary__", "label": primary_label})
-    result.insert(1, {"value": "__builtin__", "label": "<BUILT-IN>"})
+    result.insert(0, EnumItem(value="__primary__", label=primary_label))
+    result.insert(1, EnumItem(value="__builtin__", label="<BUILT-IN>"))
     return result
 
 
@@ -145,7 +182,7 @@ TemplateItemsCategory = Literal[
 
 def anatomy_template_items_enum(
     category: TemplateItemsCategory,
-) -> functools.partial[Coroutine[Any, Any, list[dict[str, str]]]]:
+) -> functools.partial[Coroutine[Any, Any, list[EnumItem]]]:
     """Provides values of template names from Anatomy as dropdown.
 
     Wrapper for actual function as Settings require callable.
@@ -165,14 +202,14 @@ def anatomy_template_items_enum(
 async def _anatomy_template_items_enum(
     project_name: str | None,
     category: TemplateItemsCategory,
-) -> list[dict[str, str]]:
+) -> list[EnumItem]:
     if not project_name:
         template_names = await _get_template_names_studio(category)
     else:
         template_names = await _get_template_names_project(project_name, category)
 
     return [
-        {"label": template_name, "value": template_name}
+        EnumItem(label=template_name, value=template_name)
         for template_name in sorted(template_names)
     ]
 
@@ -223,6 +260,6 @@ async def _get_app_host_names():
 
 
 @cached(ttl=3600)
-async def addon_all_app_host_names_enum():
+async def addon_all_app_host_names_enum() -> list[EnumItem]:
     result = await _get_app_host_names()
-    return [{"label": host_name, "value": host_name} for host_name in result]
+    return [EnumItem(label=host_name, value=host_name) for host_name in result]
