@@ -50,6 +50,7 @@ class WorkfileNode(BaseNode):
     @strawberry.field
     def attrib(self) -> WorkfileAttribType:
         return parse_attrib_data(
+            "workfile",
             WorkfileAttribType,
             self._attrib,
             user=self._user,
@@ -60,6 +61,7 @@ class WorkfileNode(BaseNode):
     def all_attrib(self) -> str:
         return json_dumps(
             process_attrib_data(
+                "workfile",
                 self._attrib,
                 project_name=self.project_name,
                 user=self._user,

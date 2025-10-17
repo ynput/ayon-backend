@@ -78,6 +78,7 @@ class TaskNode(BaseNode):
     @strawberry.field
     def attrib(self) -> TaskAttribType:
         return parse_attrib_data(
+            "task",
             TaskAttribType,
             self._attrib,
             user=self._user,
@@ -90,6 +91,7 @@ class TaskNode(BaseNode):
         """Return all attributes (inherited and own) as JSON string."""
         return json_dumps(
             process_attrib_data(
+                "task",
                 self._attrib,
                 user=self._user,
                 project_name=self.project_name,

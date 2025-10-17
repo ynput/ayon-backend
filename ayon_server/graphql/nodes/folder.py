@@ -101,6 +101,7 @@ class FolderNode(BaseNode):
     @strawberry.field
     def attrib(self) -> FolderAttribType:
         return parse_attrib_data(
+            "folder",
             FolderAttribType,
             self._attrib,
             user=self._user,
@@ -114,6 +115,7 @@ class FolderNode(BaseNode):
         """Return all attributes (inherited and own) as JSON string."""
         return json_dumps(
             process_attrib_data(
+                "folder",
                 self._attrib,
                 user=self._user,
                 project_name=self.project_name,

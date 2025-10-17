@@ -74,6 +74,7 @@ class VersionNode(BaseNode):
     @strawberry.field
     def attrib(self) -> VersionAttribType:
         return parse_attrib_data(
+            "version",
             VersionAttribType,
             self._attrib,
             user=self._user,
@@ -84,6 +85,7 @@ class VersionNode(BaseNode):
     def all_attrib(self) -> str:
         return json_dumps(
             process_attrib_data(
+                "version",
                 self._attrib,
                 user=self._user,
                 project_name=self.project_name,
