@@ -52,7 +52,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
             ea.attrib as all_attrib,
             ea.path as path,
             COUNT (tasks.id) AS task_count,
-            array_agg(tasks.name) AS task_names,
+            array_agg(DISTINCT tasks.name) AS task_names,
             (fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions,
             (r.folder_id IS NOT NULL)::BOOLEAN AS has_reviewables
 
