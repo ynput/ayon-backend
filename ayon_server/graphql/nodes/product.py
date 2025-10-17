@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import strawberry
@@ -157,6 +158,8 @@ class ProductNode(BaseNode):
 
             data["_folder_path"] = self._folder_path
             data["_product_name"] = self.name
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
 
             return await info.context["version_from_record"](
                 self.project_name, data, info.context
