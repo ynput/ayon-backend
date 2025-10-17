@@ -293,11 +293,21 @@ async def get_products(
         if "latestApproved" in req_order:
             sql_cte.append(
                 f"""
+                approved_statuses AS (
+                    SELECT name from project_{project_name}.statuses
+                    WHERE data->>'state' = 'done'
+                )
+                """
+            )
+
+            sql_cte.append(
+                f"""
                 latest_approved_versions AS (
-                    SELECT DISTINCT ON (product_id) *
-                    FROM project_{project_name}.versions
-                    WHERE status = 'Approved' AND version >= 0
-                    ORDER BY product_id, version DESC, created_at DESC
+                    SELECT DISTINCT ON (v.product_id) v.*
+                    FROM project_{project_name}.versions v
+                    JOIN approved_statuses AS s
+                    ON v.status = s.name
+                    ORDER BY v.product_id, v.version DESC
                 )
                 """
             )
@@ -318,7 +328,7 @@ async def get_products(
                     SELECT DISTINCT ON (product_id) *
                     FROM project_{project_name}.versions
                     WHERE version >= 0
-                    ORDER BY product_id, version DESC, created_at DESC
+                    ORDER BY product_id, version DESC
                 )
                 """
             )
