@@ -51,7 +51,7 @@ class OperationHooks:
     Handling Hook result is not yet implemented.
     """
 
-    _hooks = []
+    _hooks: list[HookType] = []
 
     @classmethod
     def register(cls, hook: HookType) -> None:

@@ -1,4 +1,4 @@
-from typing import NoReturn
+from typing import Any, NoReturn
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
@@ -46,7 +46,7 @@ class VersionEntity(ProjectLevelEntity):
     base_get_query = BASE_GET_QUERY
 
     @staticmethod
-    def preprocess_record(record: dict) -> dict:
+    def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
         hierarchy_path = record.pop("folder_path", None)
         product_name = record.pop("product_name", None)
         if hierarchy_path and product_name:

@@ -1,3 +1,5 @@
+from typing import Any
+
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
@@ -27,7 +29,7 @@ BASE_GET_QUERY = """
     FROM project_{project_name}.representations entity
     JOIN project_{project_name}.versions v ON entity.version_id = v.id
     JOIN project_{project_name}.products p ON v.product_id = p.id
-    JOIN project_{project_name}.hierarchy h ON p.folder_id = hierarchy.id
+    JOIN project_{project_name}.hierarchy hierarchy ON p.folder_id = hierarchy.id
 """
 
 
@@ -37,7 +39,7 @@ class RepresentationEntity(ProjectLevelEntity):
     base_get_query = BASE_GET_QUERY
 
     @staticmethod
-    def preprocess_record(record: dict) -> dict:
+    def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
         hierarchy_path = record.pop("folder_path", None)
         product_name = record.pop("product_name", None)
         if hierarchy_path and product_name:
