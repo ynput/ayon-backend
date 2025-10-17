@@ -3,6 +3,7 @@ import asyncio
 import asyncpg
 
 from ayon_server.activities import ActivityFeedEventHook
+from ayon_server.enum import EnumRegistry
 from ayon_server.events.default_hooks import DEFAULT_HOOKS
 from ayon_server.events.eventstream import EventStream
 from ayon_server.extensions import init_extensions
@@ -61,5 +62,6 @@ async def ayon_init(extensions: bool = True):
             all_nodes=all_nodes,
         )
 
+    EnumRegistry.initialize()
     ActivityFeedEventHook.install(EventStream)
     await build_project_list()
