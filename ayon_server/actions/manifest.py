@@ -4,50 +4,13 @@ The metadata includes the label, position, order, icon, addon name, and addon ve
 This is all the information needed to display the action in the frontend.
 """
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from pydantic import validator
 
 from ayon_server.forms.simple_form import SimpleFormField
+from ayon_server.models import IconModel
 from ayon_server.types import Field, OPModel
-
-IconType = Literal["material-symbols", "url"]
-
-
-class IconModel(OPModel):
-    type: Annotated[
-        IconType,
-        Field(
-            title="Icon Type",
-            example="material-symbols",
-        ),
-    ] = "url"
-
-    name: Annotated[
-        str | None,
-        Field(
-            title="Icon Name",
-            description="The name of the icon (for type material-symbols)",
-            example="icon_of_sin",
-        ),
-    ] = None
-
-    color: Annotated[
-        str | None,
-        Field(
-            title="Icon Color",
-            description="The color of the icon (for type material-symbols)",
-            example="#FF0000",
-        ),
-    ] = None
-
-    url: Annotated[
-        str | None,
-        Field(
-            description="The URL of the icon (for type url)",
-            example="https://example.com/icon.png",
-        ),
-    ] = None
 
 
 class BaseActionManifest(OPModel):
