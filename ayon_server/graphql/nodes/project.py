@@ -132,6 +132,7 @@ class ProjectNode:
     @strawberry.field
     def attrib(self) -> ProjectAttribType:
         return parse_attrib_data(
+            "project",
             ProjectAttribType,
             self._attrib,
             user=self._user,
@@ -142,6 +143,7 @@ class ProjectNode:
     def all_attrib(self) -> str:
         return json_dumps(
             process_attrib_data(
+                "project",
                 self._attrib,
                 user=self._user,
                 project_name=self.project_name,

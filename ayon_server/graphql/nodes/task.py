@@ -4,12 +4,10 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import TaskEntity
-from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -28,6 +26,7 @@ class TaskAttribType:
 
 @strawberry.type
 class TaskNode(BaseNode):
+    entity_type: strawberry.Private[str] = "task"
     label: str | None
     task_type: str
     thumbnail_id: str | None = None
@@ -40,9 +39,7 @@ class TaskNode(BaseNode):
     data: str | None
     path: str | None = None
 
-    _attrib: strawberry.Private[dict[str, Any]]
     _inherited_attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
     _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
@@ -77,25 +74,7 @@ class TaskNode(BaseNode):
 
     @strawberry.field
     def attrib(self) -> TaskAttribType:
-        return parse_attrib_data(
-            TaskAttribType,
-            self._attrib,
-            user=self._user,
-            project_name=self.project_name,
-            inherited_attrib=self._inherited_attrib,
-        )
-
-    @strawberry.field
-    def all_attrib(self) -> str:
-        """Return all attributes (inherited and own) as JSON string."""
-        return json_dumps(
-            process_attrib_data(
-                self._attrib,
-                user=self._user,
-                project_name=self.project_name,
-                inherited_attrib=self._inherited_attrib,
-            )
-        )
+        return TaskAttribType(**self.processed_attrib())
 
     @strawberry.field
     def own_attrib(self) -> list[str]:

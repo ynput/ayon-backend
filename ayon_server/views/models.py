@@ -11,7 +11,7 @@ from ayon_server.utils import create_uuid
 #
 
 ViewScopes = Literal["project", "studio"]
-ViewType = Literal["overview", "taskProgress", "lists", "reviews"]
+ViewType = Literal["overview", "taskProgress", "lists", "reviews", "versions"]
 
 FViewScope = Annotated[
     ViewScopes,
@@ -151,4 +151,20 @@ class ReviewsSettings(ListsSettings):
     pass
 
 
-ViewSettingsModel = OverviewSettings | TaskProgressSettings | ListsSettings
+class VersionsSettings(ListsSettings):
+    show_stacked: bool = False
+    row_height: int | None = None
+    show_grid: bool = False
+    grid_height: int | None = None
+    main_version: Literal["latest", "hero"] | None = None
+    group_by: str | None = None
+    show_empty_groups: bool = False
+    sort_by: str | None = None
+    sort_desc: bool = False
+    filter: QueryFilter | None = None
+    columns: FColumnList
+
+
+ViewSettingsModel = (
+    OverviewSettings | TaskProgressSettings | ListsSettings | VersionsSettings
+)
