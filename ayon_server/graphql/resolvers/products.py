@@ -424,23 +424,23 @@ async def get_products(
             column_whitelist=column_whitelist,
             table_prefix="versions",
         )
-
-        sql_cte.append(
-            f"""
-            filtered_versions AS (
-                SELECT DISTINCT product_id
-                FROM project_{project_name}.versions
-                WHERE {fcond}
+        if fcond:
+            sql_cte.append(
+                f"""
+                filtered_versions AS (
+                    SELECT DISTINCT product_id
+                    FROM project_{project_name}.versions
+                    WHERE {fcond}
+                )
+                """
             )
-            """
-        )
 
-        sql_joins.append(
-            """
-            INNER JOIN filtered_versions
-            ON products.id = filtered_versions.product_id
-            """
-        )
+            sql_joins.append(
+                """
+                INNER JOIN filtered_versions
+                ON products.id = filtered_versions.product_id
+                """
+            )
 
     #
     # Pagination
