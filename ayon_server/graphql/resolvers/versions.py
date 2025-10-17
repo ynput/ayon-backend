@@ -50,7 +50,10 @@ async def get_versions(
     statuses: Annotated[
         list[str] | None, argdesc("List of statuses to filter by")
     ] = None,
-    tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
+    tags: Annotated[
+        list[str] | None,
+        argdesc("List of tags to filter by"),
+    ] = None,
     product_ids: Annotated[
         list[str] | None,
         argdesc("List of parent products IDs"),
@@ -84,9 +87,22 @@ async def get_versions(
         argdesc("List hero versions. If hero does not exist, list latest"),
     ] = False,
     has_links: ARGHasLinks = None,
-    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
-    filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
-    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
+    search: Annotated[
+        str | None,
+        argdesc("Fuzzy text search filter"),
+    ] = None,
+    filter: Annotated[
+        str | None,
+        argdesc("Filter tasks using QueryFilter"),
+    ] = None,
+    product_filter: Annotated[
+        str | None,
+        argdesc("Filter versions by their product using QueryFilter"),
+    ] = None,
+    sort_by: Annotated[
+        str | None,
+        sortdesc(SORT_OPTIONS),
+    ] = None,
 ) -> VersionsConnection:
     """Return a list of versions."""
 
@@ -363,6 +379,7 @@ async def get_versions(
             "active",
             "status",
             "tags",
+            "attrib",
             "created_at",
             "updated_at",
             "product_type",
@@ -381,6 +398,29 @@ async def get_versions(
                 "task_type": "tasks.task_type",
                 "folder_type": "folders.folder_type",
             },
+        ):
+            sql_conditions.append(fcond)
+
+    if product_filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "folder_id",
+            "product_type",
+            "status",
+            "attrib",
+            "tags",
+            "active",
+            "created_at",
+            "updated_at",
+        ]
+
+        fdata = json.loads(product_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="products",
         ):
             sql_conditions.append(fcond)
 

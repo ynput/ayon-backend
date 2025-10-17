@@ -88,7 +88,7 @@ async def get_products(
     ] = None,
     version_filter: Annotated[
         str | None,
-        argdesc("Filter products by its versions using QueryFilter"),
+        argdesc("Filter products by their versions using QueryFilter"),
     ] = None,
     sort_by: Annotated[
         str | None,
