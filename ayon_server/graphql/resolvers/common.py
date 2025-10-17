@@ -131,6 +131,8 @@ class FieldInfo:
             if result is not None:
                 return result
 
+        return None
+
 
 async def create_folder_access_list(root, info) -> list[str] | None:
     user = info.context["user"]

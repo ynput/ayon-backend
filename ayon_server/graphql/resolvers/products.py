@@ -524,6 +524,10 @@ async def get_products(
         {ordering}
     """
 
+    # print()
+    # print (query)
+    # print()
+
     return await resolve(
         ProductsConnection,
         ProductEdge,

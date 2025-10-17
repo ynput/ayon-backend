@@ -4,12 +4,10 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import FolderEntity
-from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.products import get_products
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -26,6 +24,7 @@ class FolderAttribType:
 
 @strawberry.type
 class FolderNode(BaseNode):
+    entity_type: strawberry.Private[str] = "folder"
     label: str | None
     folder_type: str
     parent_id: str | None
@@ -36,10 +35,8 @@ class FolderNode(BaseNode):
     tags: list[str]
     data: str | None
 
-    _attrib: strawberry.Private[dict[str, Any]]
     _project_attrib: strawberry.Private[dict[str, Any]]
     _inherited_attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
     _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
@@ -100,29 +97,7 @@ class FolderNode(BaseNode):
 
     @strawberry.field
     def attrib(self) -> FolderAttribType:
-        return parse_attrib_data(
-            "folder",
-            FolderAttribType,
-            self._attrib,
-            user=self._user,
-            project_name=self.project_name,
-            project_attrib=self._project_attrib,
-            inherited_attrib=self._inherited_attrib,
-        )
-
-    @strawberry.field
-    def all_attrib(self) -> str:
-        """Return all attributes (inherited and own) as JSON string."""
-        return json_dumps(
-            process_attrib_data(
-                "folder",
-                self._attrib,
-                user=self._user,
-                project_name=self.project_name,
-                inherited_attrib=self._inherited_attrib,
-                project_attrib=self._project_attrib,
-            )
-        )
+        return FolderAttribType(**self.processed_attrib())
 
     @strawberry.field
     def own_attrib(self) -> list[str]:

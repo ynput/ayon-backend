@@ -4,10 +4,8 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import RepresentationEntity
-from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import get_base_name, json_dumps
 
 if TYPE_CHECKING:
@@ -33,6 +31,7 @@ class RepresentationAttribType:
 
 @strawberry.type
 class RepresentationNode(BaseNode):
+    entity_type: strawberry.Private[str] = "representation"
     version_id: str
     status: str
     tags: list[str]
@@ -40,8 +39,6 @@ class RepresentationNode(BaseNode):
     traits: str | None
     path: str | None = None
 
-    _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
     _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
@@ -70,24 +67,7 @@ class RepresentationNode(BaseNode):
 
     @strawberry.field
     def attrib(self) -> RepresentationAttribType:
-        return parse_attrib_data(
-            "representation",
-            RepresentationAttribType,
-            self._attrib,
-            user=self._user,
-            project_name=self.project_name,
-        )
-
-    @strawberry.field
-    def all_attrib(self) -> str:
-        return json_dumps(
-            process_attrib_data(
-                "representation",
-                self._attrib,
-                user=self._user,
-                project_name=self.project_name,
-            )
-        )
+        return RepresentationAttribType(**self.processed_attrib())
 
     @strawberry.field()
     def parents(self) -> list[str]:
