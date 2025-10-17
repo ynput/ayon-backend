@@ -62,6 +62,9 @@ async def process_enum(
     for item in enum:
         if isinstance(item, str):
             enum_values.append(item)
+        elif isinstance(item, EnumItem):
+            enum_values.append(item.value)
+            enum_labels[item.value] = item.label
         elif isinstance(item, dict):
             if "value" not in item or "label" not in item:
                 logger.warning(f"Invalid enumerator item: {item}")

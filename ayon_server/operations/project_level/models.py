@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from ayon_server.types import Field, OPModel, ProjectLevelEntityType
 from ayon_server.utils import create_uuid
@@ -50,3 +50,11 @@ class OperationResponseModel(OPModel):
 class OperationsResponseModel(OPModel):
     operations: Annotated[list[OperationResponseModel], Field(default_factory=list)]
     success: Annotated[bool, Field(title="Overall success")] = False
+
+
+FieldType = Literal["field", "attribute"]
+
+
+class FieldChangeModel(OPModel):
+    type: Annotated[FieldType, Field(title="Type of the field")]
+    name: Annotated[str, Field(title="Name of the field")]

@@ -1,7 +1,6 @@
 from typing import Any
 
 from ayon_server.access.utils import ensure_entity_access
-from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import AyonException
@@ -9,60 +8,41 @@ from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
-from ayon_server.utils import EntityID
+
+BASE_GET_QUERY = """
+    SELECT
+        entity.id as id,
+        entity.name as name,
+        entity.label as label,
+        entity.task_type as task_type,
+        entity.thumbnail_id as thumbnail_id,
+        entity.assignees as assignees,
+        entity.folder_id as folder_id,
+        entity.attrib as attrib,
+        entity.data as data,
+        entity.active as active,
+        entity.created_at as created_at,
+        entity.updated_at as updated_at,
+        entity.status as status,
+        entity.tags as tags,
+        ia.attrib AS inherited_attrib,
+        hierarchy.path as folder_path
+    FROM project_{project_name}.tasks as entity
+    JOIN project_{project_name}.hierarchy as hierarchy
+        ON entity.folder_id = hierarchy.id
+    LEFT JOIN
+        project_{project_name}.exported_attributes as ia
+        ON entity.folder_id = ia.folder_id
+"""
 
 
 class TaskEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "task"
     model = ModelSet("task", attribute_library["task"])
+    base_get_query = BASE_GET_QUERY
 
-    @classmethod
-    async def load(
-        cls,
-        project_name: str,
-        entity_id: str,
-        for_update=False,
-        **kwargs: Any,
-    ) -> "TaskEntity":
-        """Load a task from the database by its project name and ID.
-
-        This is reimplemented, because we need to select
-        attributes inherited from the parent folder.
-        """
-
-        if EntityID.parse(entity_id) is None:
-            raise ValueError(f"Invalid {cls.entity_type} ID specified")
-
-        query = f"""
-            SELECT
-                t.id as id,
-                t.name as name,
-                t.label as label,
-                t.task_type as task_type,
-                t.thumbnail_id as thumbnail_id,
-                t.assignees as assignees,
-                t.folder_id as folder_id,
-                t.attrib as attrib,
-                t.data as data,
-                t.active as active,
-                t.created_at as created_at,
-                t.updated_at as updated_at,
-                t.status as status,
-                t.tags as tags,
-                ia.attrib AS inherited_attrib,
-                h.path as folder_path
-            FROM project_{project_name}.tasks as t
-            JOIN project_{project_name}.hierarchy as h
-                ON t.folder_id = h.id
-            LEFT JOIN
-                project_{project_name}.exported_attributes as ia
-                ON t.folder_id = ia.folder_id
-            WHERE t.id=$1
-            {'FOR UPDATE OF t NOWAIT' if for_update else ''}
-            """
-
-        record = await query_entity_data(query, entity_id)
-
+    @staticmethod
+    def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
         attrib: dict[str, Any] = {}
         if (ia := record["inherited_attrib"]) is not None:
             for key, value in ia.items():
@@ -74,18 +54,12 @@ class TaskEntity(ProjectLevelEntity):
                 "this shouldn't happen"
             )
         attrib |= record["attrib"]
-        own_attrib = list(record["attrib"].keys())
         payload = {**record, "attrib": attrib}
 
         folder_path = payload.pop("folder_path", None)
         folder_path = folder_path.strip("/")
         payload["path"] = f"/{folder_path}/{payload['name']}"
-
-        return cls.from_record(
-            project_name=project_name,
-            payload=payload,
-            own_attrib=own_attrib,
-        )
+        return payload
 
     async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         async with Postgres.transaction():
