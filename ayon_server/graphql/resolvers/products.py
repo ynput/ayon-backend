@@ -50,6 +50,10 @@ async def get_products(
         list[str] | None,
         argdesc("List of parent folder IDs to filter by"),
     ] = None,
+    include_folder_children: Annotated[
+        bool,
+        argdesc("Include versions in child folders when folderIds is used"),
+    ] = False,
     names: Annotated[
         list[str] | None,
         argdesc("Filter by a list of names"),
@@ -160,7 +164,41 @@ async def get_products(
     if folder_ids is not None:
         if not folder_ids:
             return ProductsConnection()
-        sql_conditions.append(f"products.folder_id IN {SQLTool.id_array(folder_ids)}")
+        if not include_folder_children:
+            sql_conditions.append(
+                f"products.folder_id IN {SQLTool.id_array(folder_ids)}"
+            )
+        else:
+            sql_cte.append(
+                f"""
+                top_folder_paths AS (
+                    SELECT path FROM project_{project_name}.hierarchy
+                    WHERE id IN {SQLTool.id_array(folder_ids)}
+                )
+                """
+            )
+            sql_cte.append(
+                f"""
+                child_folder_ids AS (
+                    SELECT id FROM project_{project_name}.hierarchy
+                    WHERE EXISTS (
+                        SELECT 1 FROM top_folder_paths
+                        WHERE project_{project_name}.hierarchy.path
+                        LIKE top_folder_paths.path || '/%'
+                    )
+                    OR project_{project_name}.hierarchy.path = ANY(
+                        SELECT path FROM top_folder_paths
+                    )
+                )
+                """
+            )
+            sql_joins.append(
+                """
+                INNER JOIN child_folder_ids AS cfi
+                ON cfi.id = products.folder_id
+                """
+            )
+
     elif root.__class__.__name__ == "FolderNode":
         # cannot use isinstance here because of circular imports
         sql_conditions.append(f"products.folder_id = '{root.id}'")
