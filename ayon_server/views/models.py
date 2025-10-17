@@ -125,6 +125,7 @@ FColumnList = Annotated[
 
 class OverviewSettings(OPModel):
     show_hierarchy: bool = True
+    row_height: int | None = None
     group_by: str | None = None
     show_empty_groups: bool = False
     sort_by: str | None = None
@@ -139,6 +140,7 @@ class TaskProgressSettings(OPModel):
 
 
 class ListsSettings(OPModel):
+    row_height: int | None = None
     sort_by: str | None = None
     sort_desc: bool = False
     filter: QueryFilter | None = None

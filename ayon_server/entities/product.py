@@ -1,52 +1,43 @@
+from typing import Any
+
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 
-from .common import query_entity_data
+BASE_GET_QUERY = """
+    SELECT
+        entity.id as id,
+        entity.name as name,
+        entity.folder_id as folder_id,
+        entity.product_type as product_type,
+        entity.attrib as attrib,
+        entity.data as data,
+        entity.active as active,
+        entity.status as status,
+        entity.tags as tags,
+        entity.created_at as created_at,
+        entity.updated_at as updated_at,
+        hierarchy.path as folder_path
+    FROM project_{project_name}.products entity
+    JOIN project_{project_name}.hierarchy hierarchy
+        ON entity.folder_id = hierarchy.id
+"""
 
 
 class ProductEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "product"
     model = ModelSet("product", attribute_library["product"])
+    base_get_query = BASE_GET_QUERY
 
-    @classmethod
-    async def load(
-        cls,
-        project_name: str,
-        entity_id: str,
-        for_update: bool = False,
-        **kwargs,
-    ):
-        query = f"""
-            SELECT
-                p.id as id,
-                p.name as name,
-                p.folder_id as folder_id,
-                p.product_type as product_type,
-                p.attrib as attrib,
-                p.data as data,
-                p.active as active,
-                p.status as status,
-                p.tags as tags,
-                p.created_at as created_at,
-                p.updated_at as updated_at,
-                h.path as folder_path
-            FROM project_{project_name}.products p
-            JOIN project_{project_name}.hierarchy h ON p.folder_id = h.id
-            WHERE p.id=$1
-            {'FOR UPDATE NOWAIT' if for_update else ''}
-            """
-
-        record = await query_entity_data(query, entity_id)
-
+    @staticmethod
+    def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
         hierarchy_path = record.pop("folder_path", None)
         if hierarchy_path:
             hierarchy_path = hierarchy_path.strip("/")
             record["path"] = f"/{hierarchy_path}/{record['name']}"
-
-        return cls.from_record(project_name, record)
+        return record
 
     #
     # Access Control

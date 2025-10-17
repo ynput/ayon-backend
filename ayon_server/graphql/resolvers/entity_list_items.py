@@ -22,7 +22,11 @@ from ayon_server.graphql.nodes.entity_list import (
     EntityListItemsConnection,
     EntityListNode,
 )
-from ayon_server.graphql.resolvers.common import (
+from ayon_server.graphql.types import Info
+from ayon_server.sqlfilter import QueryFilter, build_filter
+from ayon_server.utils import SQLTool
+
+from .common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,
@@ -31,13 +35,8 @@ from ayon_server.graphql.resolvers.common import (
     create_folder_access_list,
     resolve,
 )
-from ayon_server.graphql.resolvers.pagination import (
-    create_pagination,
-    get_attrib_sort_case,
-)
-from ayon_server.graphql.types import Info
-from ayon_server.sqlfilter import QueryFilter, build_filter
-from ayon_server.utils import SQLTool
+from .pagination import create_pagination
+from .sorting import get_attrib_sort_case
 
 COLS_ITEMS = [
     "id",

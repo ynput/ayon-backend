@@ -456,11 +456,27 @@ CREATE TABLE IF NOT EXISTS custom_roots(
 -- Entity lists --
 ------------------
 
+CREATE TABLE entity_list_folders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    label VARCHAR NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    parent_id UUID REFERENCES entity_list_folders(id) ON DELETE CASCADE,
+    owner VARCHAR,
+    access JSONB DEFAULT '{}'::JSONB,
+    data JSONB DEFAULT '{}'::JSONB
+);
+
+CREATE UNIQUE INDEX uq_entity_list_folder_parent_label ON entity_list_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
+
+
+-- Entity lists and items
+
 
 CREATE TABLE entity_lists(
   id UUID NOT NULL PRIMARY KEY,
   entity_list_type VARCHAR NOT NULL,
   entity_type VARCHAR NOT NULL,
+  entity_list_folder_id UUID REFERENCES entity_list_folders(id) ON DELETE SET NULL,
   label VARCHAR NOT NULL,
   owner VARCHAR,
 

@@ -170,13 +170,13 @@ class EntityListNode:
     project_name: str = strawberry.field()
 
     id: str = strawberry.field()
-    entity_list_type: str = strawberry.field()
     entity_type: str = strawberry.field()
+    entity_list_type: str = strawberry.field()
+    entity_list_folder_id: str | None = strawberry.field(default=None)
     label: str = strawberry.field()
 
-    # TODO
-    # access
-    # attrib
+    access: str = strawberry.field(default="{}")  # JSON string of access dict
+    all_attrib: str = strawberry.field(default="{}")  # JSON string of all attrib keys
 
     tags: list[str] = strawberry.field(default_factory=list)
 
@@ -263,6 +263,9 @@ async def entity_list_from_record(
 ) -> EntityListNode:
     data = record.get("data", {})
     user = context.get("user")
+
+    entity_list_folder_id = record.get("entity_list_folder_id")
+
     if user:
         await EntityAccessHelper.check(
             user,
@@ -277,9 +280,11 @@ async def entity_list_from_record(
         project_name=project_name,
         id=record["id"],
         entity_list_type=record["entity_list_type"],
+        entity_list_folder_id=entity_list_folder_id,
         entity_type=record["entity_type"],
         label=record["label"],
-        # attrib
+        access=json_dumps(record.get("access") or {}),
+        all_attrib=json_dumps(record.get("attrib") or {}),
         tags=record["tags"] or [],
         owner=record["owner"],
         active=record["active"],
