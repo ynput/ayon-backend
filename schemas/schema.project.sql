@@ -175,6 +175,8 @@ CREATE TABLE folders(
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
@@ -243,6 +245,8 @@ CREATE TABLE tasks(
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
@@ -261,7 +265,7 @@ CREATE TABLE products(
     name VARCHAR NOT NULL,
 
     folder_id UUID NOT NULL REFERENCES folders(id),
-    product_type VARCHAR NOT NULL REFERENCES public.product_types(name) ON UPDATE CASCADE,
+    product_type VARCHAR NOT NULL,
     product_base_type VARCHAR NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -271,6 +275,8 @@ CREATE TABLE products(
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
@@ -300,6 +306,8 @@ CREATE TABLE versions(
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
@@ -342,6 +350,8 @@ CREATE TABLE representations(
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
