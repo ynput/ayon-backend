@@ -232,3 +232,31 @@ def construct_view_model(**data: Any) -> ViewModel:
     elif data.get("view_type") == "versions":
         return VersionsViewModel(**data)
     raise ValueError("Invalid view type provided")
+
+
+def get_post_model_class(view_type: str) -> type[ViewPostModel]:
+    if view_type == "overview":
+        return OverviewViewPostModel
+    elif view_type == "taskProgress":
+        return TaskProgressViewPostModel
+    elif view_type == "lists":
+        return ListsViewPostModel
+    elif view_type == "reviews":
+        return ReviewsViewPostModel
+    elif view_type == "versions":
+        return VersionsViewPostModel
+    raise ValueError("Invalid view type provided")
+
+
+def get_patch_model_class(view_type: str) -> type[ViewPatchModel]:
+    if view_type == "overview":
+        return OverviewViewPatchModel
+    elif view_type == "taskProgress":
+        return TaskProgressViewPatchModel
+    elif view_type == "lists":
+        return ListsViewPatchModel
+    elif view_type == "reviews":
+        return ReviewsViewPatchModel
+    elif view_type == "versions":
+        return VersionsViewPatchModel
+    raise ValueError("Invalid view type provided")
