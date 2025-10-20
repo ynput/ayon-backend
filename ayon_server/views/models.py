@@ -151,12 +151,13 @@ class ReviewsSettings(ListsSettings):
     pass
 
 
-class VersionsSettings(ListsSettings):
-    show_stacked: bool = False
+class VersionsSettings(OPModel):
+    show_products: bool = False
     row_height: int | None = None
     show_grid: bool = False
     grid_height: int | None = None
-    main_version: Literal["latest", "hero"] | None = None
+    featured_version_order: list[str] | None = None
+    slicer_type: str | None = None
     group_by: str | None = None
     show_empty_groups: bool = False
     sort_by: str | None = None
