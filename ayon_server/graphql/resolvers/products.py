@@ -38,7 +38,7 @@ SORT_OPTIONS = {
     "productType": "products.product_type",
     "createdAt": "products.created_at",
     "updatedAt": "products.updated_at",
-    "tags": "products.tags",
+    "tags": "array_to_string(products.tags, '')",
 }
 
 
