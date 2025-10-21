@@ -94,6 +94,10 @@ async def get_products(
         str | None,
         argdesc("Filter products by their versions using QueryFilter"),
     ] = None,
+    task_filter: Annotated[
+        str | None,
+        argdesc("Filter products by their tasks (via versions) using QueryFilter"),
+    ] = None,
     sort_by: Annotated[
         str | None,
         sortdesc(SORT_OPTIONS),
@@ -439,36 +443,87 @@ async def get_products(
             sql_conditions.append(fcond)
 
     #
-    # Filtering products by versions
+    # Filtering products by versions and tasks
     #
 
-    if version_filter:
-        column_whitelist = [
-            "id",
-            "product_id",
-            "version",
-            "attrib",
-            "data",
-            "status",
-            "tags",
-            "created_at",
-            "updated_at",
-        ]
+    if version_filter or task_filter:
+        version_cond = ""
+        task_cond = ""
 
-        fdata = json.loads(version_filter)
-        fq = QueryFilter(**fdata)
-        fcond = build_filter(
-            fq,
-            column_whitelist=column_whitelist,
-            table_prefix="versions",
-        )
-        if fcond:
+        if version_filter:
+            column_whitelist = [
+                "id",
+                "product_id",
+                "version",
+                "attrib",
+                "data",
+                "status",
+                "tags",
+                "created_at",
+                "updated_at",
+                "task_type",
+                "assignees",
+            ]
+
+            fdata = json.loads(version_filter)
+            fq = QueryFilter(**fdata)
+            fcond = build_filter(
+                fq,
+                column_whitelist=column_whitelist,
+                table_prefix="versions",
+                column_map={
+                    "task_type": "tasks.task_type",
+                    "assignees": "tasks.assignees",
+                },
+            )
+            if fcond:
+                version_cond = f"{fcond}"
+
+        if task_filter:
+            column_whitelist = [
+                "id",
+                "task_type",
+                "assignees",
+                "attrib",
+                "data",
+                "status",
+                "tags",
+                "created_at",
+                "updated_at",
+            ]
+
+            fdata = json.loads(task_filter)
+            fq = QueryFilter(**fdata)
+            fcond = build_filter(
+                fq,
+                column_whitelist=column_whitelist,
+                table_prefix="tasks",
+            )
+            if fcond:
+                task_cond = f"{fcond}"
+
+        if version_cond or task_cond:
+            vtconds = []
+            tjoin = ""
+            if version_cond:
+                vtconds.append(version_cond)
+            if task_cond:
+                vtconds.append(task_cond)
+                tjoin = f"""
+                LEFT JOIN project_{project_name}.tasks
+                ON versions.task_id = tasks.id
+                """
+
+            vtcondstr = "WHERE " + " AND ".join(vtconds)
+
             sql_cte.append(
                 f"""
                 filtered_versions AS (
                     SELECT DISTINCT product_id
                     FROM project_{project_name}.versions
-                    WHERE {fcond}
+                    {tjoin}
+                    {vtcondstr}
+
                 )
                 """
             )
@@ -527,7 +582,7 @@ async def get_products(
     # print()
     # print (query)
     # print()
-
+    #
     return await resolve(
         ProductsConnection,
         ProductEdge,
