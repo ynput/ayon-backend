@@ -32,6 +32,15 @@ class BaseActionManifest(OPModel):
         ),
     ]
 
+    description: Annotated[
+        str | None,
+        Field(
+            title="Description",
+            description="A short description of the action",
+            example="Launches Autodesk 3ds Max 2024",
+        ),
+    ] = None
+
     group_label: Annotated[
         str | None,
         Field(
