@@ -1,6 +1,7 @@
 import json
 from typing import Annotated
 
+from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import VersionsConnection
 from ayon_server.graphql.edges import VersionEdge
@@ -29,11 +30,17 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool, slugify
 
+from .sorting import get_attrib_sort_case, get_status_sort_case
+
 SORT_OPTIONS = {
+    "author": "versions.author",
     "version": "versions.version",
-    "status": "versions.status",
     "createdAt": "versions.created_at",
     "updatedAt": "versions.updated_at",
+    "tags": "array_to_string(versions.tags, '')",
+    "path": "hierarchy.path || '/' || products.name || '/' || versions.version::text",
+    "productType": "products.product_type",
+    "productName": "products.name",
 }
 
 
@@ -111,6 +118,7 @@ async def get_versions(
     """Return a list of versions."""
 
     project_name = root.project_name
+    project = await ProjectEntity.load(project_name)
     user = info.context["user"]
     fields = FieldInfo(info, ["versions.edges.node", "version"])
 
@@ -457,10 +465,15 @@ async def get_versions(
 
     order_by = ["versions.creation_order"]
     if sort_by is not None:
-        if sort_by in SORT_OPTIONS:
+        if sort_by == "status":
+            status_type_case = get_status_sort_case(project, "versions.status")
+            order_by.insert(0, status_type_case)
+        elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
-            order_by.insert(0, f"versions.attrib->>'{sort_by[7:]}'")
+            attr_name = sort_by[7:]
+            attr_case = await get_attrib_sort_case(attr_name, "versions.attrib")
+            order_by.insert(0, attr_case)
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
@@ -491,6 +504,11 @@ async def get_versions(
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
+
+    # print()
+    # print("Versions query:")
+    # print(query)
+    # print()
 
     return await resolve(
         VersionsConnection,

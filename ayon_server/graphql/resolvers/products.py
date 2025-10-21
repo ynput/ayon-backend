@@ -2,6 +2,7 @@ import json
 from typing import Annotated
 
 from ayon_server.access.utils import folder_access_list
+from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import ProductsConnection
 from ayon_server.graphql.edges import ProductEdge
@@ -29,11 +30,15 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool, slugify
 
+from .sorting import get_attrib_sort_case, get_status_sort_case
+
 SORT_OPTIONS = {
     "name": "products.name",
+    "path": "hierarchy.path || '/' || products.name",
     "productType": "products.product_type",
     "createdAt": "products.created_at",
     "updatedAt": "products.updated_at",
+    "tags": "products.tags",
 }
 
 
@@ -106,6 +111,7 @@ async def get_products(
     """Return a list of products."""
 
     project_name = root.project_name
+    project = await ProjectEntity.load(project_name)
     user = info.context["user"]
     fields = FieldInfo(info, ["products.edges.node", "product"])
 
@@ -542,10 +548,15 @@ async def get_products(
 
     order_by = ["products.creation_order"]
     if sort_by is not None:
-        if sort_by in SORT_OPTIONS:
+        if sort_by == "status":
+            status_type_case = get_status_sort_case(project, "products.status")
+            order_by.insert(0, status_type_case)
+        elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
-            order_by.insert(0, f"products.attrib->>'{sort_by[7:]}'")
+            attr_name = sort_by[7:]
+            attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
+            order_by.insert(0, attr_case)
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
