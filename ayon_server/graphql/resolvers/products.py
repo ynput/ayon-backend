@@ -485,6 +485,7 @@ async def get_products(
                 "task_type",
                 "assignees",
                 "attrib",
+                "active",
                 "data",
                 "status",
                 "tags",

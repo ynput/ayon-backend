@@ -95,6 +95,10 @@ async def get_versions(
         str | None,
         argdesc("Filter tasks using QueryFilter"),
     ] = None,
+    task_filter: Annotated[
+        str | None,
+        argdesc("Filter products by their tasks (via versions) using QueryFilter"),
+    ] = None,
     product_filter: Annotated[
         str | None,
         argdesc("Filter versions by their product using QueryFilter"),
@@ -421,6 +425,29 @@ async def get_versions(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="products",
+        ):
+            sql_conditions.append(fcond)
+
+    if task_filter:
+        column_whitelist = [
+            "id",
+            "task_type",
+            "assignees",
+            "attrib",
+            "active",
+            "data",
+            "status",
+            "tags",
+            "created_at",
+            "updated_at",
+        ]
+
+        fdata = json.loads(task_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="tasks",
         ):
             sql_conditions.append(fcond)
 
