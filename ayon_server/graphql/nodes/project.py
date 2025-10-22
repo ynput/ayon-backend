@@ -334,6 +334,7 @@ class ProjectNode:
                 f"""
                 SELECT DISTINCT(product_base_type) AS name
                 FROM project_{self.project_name}.products
+                WHERE product_base_type IS NOT NULL
                 ORDER BY name ASC
             """
             )
