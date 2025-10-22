@@ -139,5 +139,13 @@ class AttributeLibrary:
                     return attr
         raise KeyError(f"Attribute {name} not found")
 
+    @functools.cache
+    def by_name_scoped(self, entity_type: str, name: str) -> dict[str, Any]:
+        """Return attribute definition by name for a specific entity type."""
+        for attr in self.data[entity_type]:
+            if attr["name"] == name:
+                return attr
+        raise KeyError(f"Attribute {name} not found for entity type {entity_type}")
+
 
 attribute_library = AttributeLibrary()

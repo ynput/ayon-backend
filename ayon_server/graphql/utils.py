@@ -79,9 +79,9 @@ def process_attrib_data(
             continue
 
         try:
-            attr = attribute_library.by_name(key)
+            attr = attribute_library.by_name_scoped(entity_type, key)
         except KeyError:
-            # If the attribute is not defined in the library, skip it
+            # Attribute not defined for this entity type
             continue
 
         if attr["type"] == "datetime":
