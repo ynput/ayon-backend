@@ -1,6 +1,7 @@
 import json
 from typing import Annotated
 
+from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import VersionsConnection
 from ayon_server.graphql.edges import VersionEdge
@@ -29,11 +30,17 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool, slugify
 
+from .sorting import get_attrib_sort_case, get_status_sort_case
+
 SORT_OPTIONS = {
+    "author": "versions.author",
     "version": "versions.version",
-    "status": "versions.status",
     "createdAt": "versions.created_at",
     "updatedAt": "versions.updated_at",
+    "tags": "array_to_string(versions.tags, '')",
+    "path": "hierarchy.path || '/' || products.name || '/' || versions.version::text",
+    "productType": "products.product_type",
+    "productName": "products.name",
 }
 
 
@@ -50,7 +57,10 @@ async def get_versions(
     statuses: Annotated[
         list[str] | None, argdesc("List of statuses to filter by")
     ] = None,
-    tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
+    tags: Annotated[
+        list[str] | None,
+        argdesc("List of tags to filter by"),
+    ] = None,
     product_ids: Annotated[
         list[str] | None,
         argdesc("List of parent products IDs"),
@@ -59,41 +69,83 @@ async def get_versions(
         list[str] | None,
         argdesc("List of parent task IDs"),
     ] = None,
+    folder_ids: Annotated[
+        list[str] | None,
+        argdesc("List of folder IDs to filter by"),
+    ] = None,
+    include_folder_children: Annotated[
+        bool,
+        argdesc("Include versions in child folders when folderIds is used"),
+    ] = False,
     authors: Annotated[
         list[str] | None,
         argdesc("List of version author user names to filter by."),
     ] = None,
-    latestOnly: Annotated[
+    latest_only: Annotated[
         bool,
         argdesc("List only latest versions"),
     ] = False,
-    heroOnly: Annotated[
+    hero_only: Annotated[
         bool,
         argdesc("List only hero versions"),
     ] = False,
-    heroOrLatestOnly: Annotated[
+    hero_or_latest_only: Annotated[
         bool,
         argdesc("List hero versions. If hero does not exist, list latest"),
     ] = False,
     has_links: ARGHasLinks = None,
-    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
-    filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
-    sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
+    search: Annotated[
+        str | None,
+        argdesc("Fuzzy text search filter"),
+    ] = None,
+    filter: Annotated[
+        str | None,
+        argdesc("Filter tasks using QueryFilter"),
+    ] = None,
+    task_filter: Annotated[
+        str | None,
+        argdesc("Filter products by their tasks (via versions) using QueryFilter"),
+    ] = None,
+    product_filter: Annotated[
+        str | None,
+        argdesc("Filter versions by their product using QueryFilter"),
+    ] = None,
+    sort_by: Annotated[
+        str | None,
+        sortdesc(SORT_OPTIONS),
+    ] = None,
 ) -> VersionsConnection:
     """Return a list of versions."""
 
     project_name = root.project_name
+    project = await ProjectEntity.load(project_name)
     user = info.context["user"]
     fields = FieldInfo(info, ["versions.edges.node", "version"])
-
-    # if user.is_guest:
-    #     if not ids:
-    #         return VersionsConnection(edges=[])
 
     #
     # SQL
     #
+
     sql_cte = []
+    sql_conditions = []
+    sql_joins = [
+        f"""
+        INNER JOIN project_{project_name}.products AS products
+        ON products.id = versions.product_id
+        """,
+        f"""
+        INNER JOIN project_{project_name}.hierarchy AS hierarchy
+        ON hierarchy.id = products.folder_id
+        """,
+        f"""
+        INNER JOIN project_{project_name}.folders AS folders
+        ON folders.id = products.folder_id
+        """,
+        f"""
+        LEFT JOIN project_{project_name}.tasks AS tasks
+        ON tasks.id = versions.task_id
+        """,
+    ]
 
     sql_columns = [
         "versions.id AS id",
@@ -110,6 +162,8 @@ async def get_versions(
         "versions.created_at AS created_at",
         "versions.updated_at AS updated_at",
         "versions.creation_order AS creation_order",
+        "hierarchy.path AS _folder_path",
+        "products.name AS _product_name",
     ]
 
     if fields.any_endswith("hasReviewables"):
@@ -118,7 +172,7 @@ async def get_versions(
             reviewables AS (
                 SELECT entity_id FROM project_{project_name}.activity_feed
                 WHERE entity_type = 'version'
-                AND   activity_type = 'reviewable'
+                AND activity_type = 'reviewable'
             )
             """
         )
@@ -131,11 +185,6 @@ async def get_versions(
             """
         )
 
-    sql_conditions = []
-    sql_joins = []
-
-    needs_hierarchy = False
-
     # Empty overrides. Skip querying
     if ids == ["0" * 32]:
         return VersionsConnection(edges=[])
@@ -144,6 +193,7 @@ async def get_versions(
         if not ids:
             return VersionsConnection()
         sql_conditions.append(f"versions.id IN {SQLTool.id_array(ids)}")
+
     if version:
         sql_conditions.append(f"versions.version = {version}")
 
@@ -182,34 +232,99 @@ async def get_versions(
     elif root.__class__.__name__ == "TaskNode":
         sql_conditions.append(f"versions.task_id = '{root.id}'")
 
-    if latestOnly:
-        sql_conditions.append(
-            f"""
-            versions.id IN (
-            SELECT l.ids[array_upper(l.ids, 1)]
-            FROM project_{project_name}.version_list as l
+    if folder_ids is not None:
+        if not folder_ids:
+            return VersionsConnection()
+
+        if include_folder_children:
+            sql_cte.append(
+                f"""
+                top_folder_paths AS (
+                    SELECT path FROM project_{project_name}.hierarchy
+                    WHERE id IN {SQLTool.id_array(folder_ids)}
+                )
+                """
             )
+
+            sql_cte.append(
+                f"""
+                child_folder_ids AS (
+                    SELECT id FROM project_{project_name}.hierarchy
+                    WHERE EXISTS (
+                        SELECT 1 FROM top_folder_paths
+                        WHERE project_{project_name}.hierarchy.path
+                        LIKE top_folder_paths.path || '/%'
+                    )
+                    OR project_{project_name}.hierarchy.path = ANY(
+                        SELECT path FROM top_folder_paths
+                    )
+                )
+                """
+            )
+
+            sql_joins.append(
+                """
+                INNER JOIN child_folder_ids AS cfi
+                ON cfi.id = products.folder_id
+                """
+            )
+
+        else:
+            sql_conditions.append(
+                f"products.folder_id IN {SQLTool.id_array(folder_ids)}"
+            )
+
+    #
+    # Filtering by latest / hero versions
+    #
+
+    cte_latest = f"""
+        latest_versions AS (
+            SELECT DISTINCT ON (product_id) id, version, product_id
+            FROM project_{project_name}.versions
+            WHERE version >= 0
+            ORDER BY product_id, version DESC
+        )
+    """
+
+    if latest_only:
+        sql_cte.append(cte_latest)
+        sql_joins.append(
+            """
+            INNER JOIN latest_versions AS lv
+            ON lv.id = versions.id
             """
         )
-    elif heroOnly:
+
+    elif hero_only:
         sql_conditions.append("versions.version < 0")
-    elif heroOrLatestOnly:
-        sql_conditions.append(
-            f"""
-            (versions.version < 0
-            OR versions.id IN (
-                SELECT l.ids[array_upper(l.ids, 1)]
-                FROM project_{project_name}.version_list as l
-                WHERE l.versions[1] >= 0
-            )
-            )
+
+    elif hero_or_latest_only:
+        sql_cte.append(cte_latest)
+        sql_joins.append(
+            """
+            LEFT JOIN latest_versions AS lv
+            ON lv.product_id = versions.product_id
             """
         )
+        sql_conditions.append(
+            """
+            (versions.version < 0 OR lv.id = versions.id)
+            """
+        )
+
+    #
+    # Filtering by links
+    #
 
     if has_links is not None:
         sql_conditions.extend(
             get_has_links_conds(project_name, "versions.id", has_links)
         )
+
+    #
+    # Access control
+    #
 
     if user.is_guest:
         sql_cte.append(
@@ -239,10 +354,12 @@ async def get_versions(
             sql_conditions.append(
                 f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
             )
-            needs_hierarchy = True
+
+    #
+    # Fuzzy search
+    #
 
     if search:
-        needs_hierarchy = True
         terms = slugify(search, make_set=True, min_length=2)
 
         for term in terms:
@@ -252,34 +369,12 @@ async def get_versions(
             elif term.startswith("v") and term[1:].isdigit():
                 sub_conditions.append(f"versions.version = {int(term[1:])}")
 
-            term = term.replace("'", "''")  # Escape single quotes
             sub_conditions.append(f"products.name ILIKE '%{term}%'")
             sub_conditions.append(f"products.product_type ILIKE '%{term}%'")
             sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
 
             condition = " OR ".join(sub_conditions)
             sql_conditions.append(f"({condition})")
-
-    if fields.any_endswith("path") or fields.any_endswith("parents"):
-        needs_hierarchy = True
-
-    if needs_hierarchy:
-        sql_columns.append("hierarchy.path AS _folder_path")
-        sql_columns.append("products.name AS _product_name")
-
-        sql_joins.append(
-            f"""
-            INNER JOIN project_{project_name}.products AS products
-            ON products.id = versions.product_id
-            """
-        )
-
-        sql_joins.append(
-            f"""
-            INNER JOIN project_{project_name}.hierarchy AS hierarchy
-            ON hierarchy.id = products.folder_id
-            """
-        )
 
     #
     # Filter
@@ -296,15 +391,71 @@ async def get_versions(
             "active",
             "status",
             "tags",
+            "attrib",
             "created_at",
             "updated_at",
+            "product_type",
+            "task_type",
+            "folder_type",
         ]
+
         fdata = json.loads(filter)
         fq = QueryFilter(**fdata)
         if fcond := build_filter(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="versions",
+            column_map={
+                "product_type": "products.product_type",
+                "task_type": "tasks.task_type",
+                "folder_type": "folders.folder_type",
+            },
+        ):
+            sql_conditions.append(fcond)
+
+    if product_filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "folder_id",
+            "product_type",
+            "status",
+            "attrib",
+            "tags",
+            "active",
+            "created_at",
+            "updated_at",
+        ]
+
+        fdata = json.loads(product_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="products",
+        ):
+            sql_conditions.append(fcond)
+
+    if task_filter:
+        column_whitelist = [
+            "id",
+            "task_type",
+            "assignees",
+            "attrib",
+            "active",
+            "data",
+            "status",
+            "tags",
+            "created_at",
+            "updated_at",
+        ]
+
+        fdata = json.loads(task_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="tasks",
         ):
             sql_conditions.append(fcond)
 
@@ -314,10 +465,15 @@ async def get_versions(
 
     order_by = ["versions.creation_order"]
     if sort_by is not None:
-        if sort_by in SORT_OPTIONS:
+        if sort_by == "status":
+            status_type_case = get_status_sort_case(project, "versions.status")
+            order_by.insert(0, status_type_case)
+        elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
-            order_by.insert(0, f"versions.attrib->>'{sort_by[7:]}'")
+            attr_name = sort_by[7:]
+            attr_case = await get_attrib_sort_case(attr_name, "versions.attrib")
+            order_by.insert(0, attr_case)
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
@@ -348,6 +504,11 @@ async def get_versions(
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
+
+    # print()
+    # print("Versions query:")
+    # print(query)
+    # print()
 
     return await resolve(
         VersionsConnection,

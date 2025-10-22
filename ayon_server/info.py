@@ -47,7 +47,8 @@ def get_release_info() -> ReleaseInfo | None:
 
         return ReleaseInfo(**release_info)
     except Exception:
-        logger.debug("Failed to load RELEASE file", nodb=True)
+        with logger.contextualize(nodb=True):
+            logger.debug("Failed to load RELEASE file")
         return None
 
 

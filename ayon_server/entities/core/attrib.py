@@ -39,10 +39,11 @@ class AttributeLibrary:
 
     def initial_load_thread(self) -> None:
         if Postgres.pool is not None:
-            logger.error(
-                "Postgres pool exist during attribute load. " "This should not happen.",
-                nodb=True,
-            )
+            with logger.contextualize(nodb=True):
+                logger.error(
+                    "Postgres pool exist during attribute load. "
+                    "This should not happen."
+                )
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(self.load(True))

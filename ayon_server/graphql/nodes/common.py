@@ -1,12 +1,15 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 import strawberry
 
+from ayon_server.entities import UserEntity
 from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
+from ayon_server.graphql.utils import process_attrib_data
 from ayon_server.logging import logger
+from ayon_server.utils import json_dumps
 
 
 @strawberry.type
@@ -93,6 +96,7 @@ class ThumbnailInfo:
 
 @strawberry.interface
 class BaseNode:
+    entity_type: strawberry.Private[str] = "unknown"
     project_name: str = strawberry.field()
 
     id: str = strawberry.field()
@@ -101,6 +105,32 @@ class BaseNode:
     active: bool = strawberry.field()
     created_at: datetime = strawberry.field()
     updated_at: datetime = strawberry.field()
+
+    _attrib: strawberry.Private[dict[str, Any]]
+    _user: strawberry.Private[UserEntity]
+    _processed_attrib: strawberry.Private[dict[str, Any] | None] = None
+
+    def processed_attrib(self) -> dict[str, Any]:
+        if self._processed_attrib is None:
+            inherited_attrib = (
+                self._inherited_attrib if hasattr(self, "_inherited_attrib") else None
+            )
+            project_attrib = (
+                self._project_attrib if hasattr(self, "_project_attrib") else None
+            )
+            return process_attrib_data(
+                self.entity_type,
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+                project_attrib=project_attrib,
+                inherited_attrib=inherited_attrib,
+            )
+        return self._processed_attrib
+
+    @strawberry.field
+    def all_attrib(self) -> str:
+        return json_dumps(self.processed_attrib())
 
     @strawberry.field
     async def links(

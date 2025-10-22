@@ -1,14 +1,13 @@
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import ProductEntity
-from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -42,6 +41,7 @@ class ProductAttribType:
 
 @strawberry.type
 class ProductNode(BaseNode):
+    entity_type: strawberry.Private[str] = "product"
     folder_id: str
     product_type: str
     product_base_type: str | None
@@ -50,9 +50,11 @@ class ProductNode(BaseNode):
     data: str | None
     path: str | None = None
 
-    _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
     _folder_path: strawberry.Private[str | None] = None
+
+    _hero_version_data: strawberry.Private[dict[str, Any] | None] = None
+    _latest_approved_version_data: strawberry.Private[dict[str, Any] | None] = None
+    _latest_version_data: strawberry.Private[dict[str, Any] | None] = None
 
     # GraphQL specifics
 
@@ -99,22 +101,7 @@ class ProductNode(BaseNode):
 
     @strawberry.field
     def attrib(self) -> ProductAttribType:
-        return parse_attrib_data(
-            ProductAttribType,
-            self._attrib,
-            user=self._user,
-            project_name=self.project_name,
-        )
-
-    @strawberry.field
-    def all_attrib(self) -> str:
-        return json_dumps(
-            process_attrib_data(
-                self._attrib,
-                user=self._user,
-                project_name=self.project_name,
-            )
-        )
+        return ProductAttribType(**self.processed_attrib())
 
     @strawberry.field()
     def parents(self) -> list[str]:
@@ -122,6 +109,47 @@ class ProductNode(BaseNode):
             return []
         path = self.path.strip("/")
         return path.split("/")[:-1] if path else []
+
+    @strawberry.field
+    async def featured_version(
+        self,
+        info: Info,
+        order: list[str] | None = None,
+    ) -> VersionNode | None:
+        """Return the featured version of the product.
+
+        Order may contain ["latestApproved", "hero", "latest"]
+        which is the order of preference for the featured version.
+
+        This array is optional, if not provided, this exact order is used.
+
+        This node may be null if no versions are available.
+        """
+
+        if order is None:
+            order = ["latestApproved", "hero", "latest"]
+
+        for item in order:
+            if item == "hero" and self._hero_version_data:
+                data = self._hero_version_data
+            elif item == "latestApproved" and self._latest_approved_version_data:
+                data = self._latest_approved_version_data
+            elif item == "latest" and self._latest_version_data:
+                data = self._latest_version_data
+            else:
+                continue
+
+            data["_folder_path"] = self._folder_path
+            data["_product_name"] = self.name
+            data["id"] = data["id"].replace("-", "")
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+
+            return await info.context["version_from_record"](
+                self.project_name, data, info.context
+            )
+
+        return None
 
 
 async def product_from_record(
@@ -183,6 +211,9 @@ async def product_from_record(
         _folder_path=folder_path,
         _attrib=record["attrib"] or {},
         _user=context["user"],
+        _hero_version_data=record.get("_hero_version_data"),
+        _latest_approved_version_data=record.get("_latest_approved_version_data"),
+        _latest_version_data=record.get("_latest_version_data"),
     )
 
 

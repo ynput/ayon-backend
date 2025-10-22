@@ -8,7 +8,7 @@ from ayon_server.entities import ProjectEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.connections import ActivitiesConnection, EntityListsConnection
-from ayon_server.graphql.nodes.common import ProductType, ProductBaseType, ThumbnailInfo
+from ayon_server.graphql.nodes.common import ProductBaseType, ProductType, ThumbnailInfo
 from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.entity_lists import get_entity_list, get_entity_lists
 from ayon_server.graphql.resolvers.folders import get_folder, get_folders
@@ -132,6 +132,7 @@ class ProjectNode:
     @strawberry.field
     def attrib(self) -> ProjectAttribType:
         return parse_attrib_data(
+            "project",
             ProjectAttribType,
             self._attrib,
             user=self._user,
@@ -142,6 +143,7 @@ class ProjectNode:
     def all_attrib(self) -> str:
         return json_dumps(
             process_attrib_data(
+                "project",
                 self._attrib,
                 user=self._user,
                 project_name=self.project_name,
@@ -325,7 +327,7 @@ class ProjectNode:
     @strawberry.field(description="List of project's product base types")
     async def product_base_types(self) -> list[ProductBaseType]:
         return [
-            ProductBaseTgiype(
+            ProductBaseType(
                 name=row["name"],
             )
             async for row in Postgres.iterate(
@@ -336,7 +338,6 @@ class ProjectNode:
             """
             )
         ]
-
 
     @strawberry.field(description="List of project's statuses")
     async def statuses(self) -> list[Status]:

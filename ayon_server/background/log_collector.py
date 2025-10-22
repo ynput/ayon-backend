@@ -57,7 +57,8 @@ class LogCollector(BackgroundWorker):
             await EventStream.dispatch(**record)
         except Exception:
             m = f"Unable to dispatch log message: {record}"
-            logger.warning(m, nodb=True)
+            with logger.contextualize(nodb=True):
+                logger.warning(m)
 
     async def run(self):
         # During the startup, we cannot write to the database
@@ -81,9 +82,10 @@ class LogCollector(BackgroundWorker):
 
     async def finalize(self):
         while not self.queue.empty():
-            logger.trace(
-                f"Processing {len(self.queue.queue)} remaining log messages", nodb=True
-            )
+            with logger.contextualize(nodb=True):
+                logger.trace(
+                    f"Processing {len(self.queue.queue)} remaining log messages"
+                )
             record = self.queue.get()
             await self.process_message(record)
 

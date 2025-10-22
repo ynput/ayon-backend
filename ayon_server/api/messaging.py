@@ -33,7 +33,11 @@ GUEST_TOPICS = (
 
 
 async def _handle_subscribers_task(event_id: str, handlers: list[HandlerType]) -> None:
-    event = await EventStream.get(event_id)
+    try:
+        event = await EventStream.get(event_id)
+    except Exception:
+        logger.error(f"Failed to fetch event '{event_id}' for global handlers")
+        return
     for handler in handlers:
         try:
             await handler(event)
