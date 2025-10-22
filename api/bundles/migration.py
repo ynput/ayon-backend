@@ -1,5 +1,8 @@
 __all__ = ["migrate_settings"]
 
+import asyncio
+from typing import Any
+
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException, NotFoundException
@@ -45,6 +48,12 @@ async def _get_bundles_addons(
     return source_addons, target_addons
 
 
+async def _dispatch_events(events: list[dict[str, Any]], user_name: str | None) -> None:
+    for event in events:
+        event["user"] = user_name
+        await EventStream.dispatch("settings.changed", **event)
+
+
 async def migrate_settings(
     source_bundle: str,
     target_bundle: str,
@@ -57,6 +66,8 @@ async def migrate_settings(
     Perform migration of settings from source to
     target bundle in a given transaction.
     """
+
+    events: list[dict[str, Any]] = []
 
     async with Postgres.transaction():
         if source_variant not in ("production", "staging"):
@@ -118,6 +129,5 @@ async def migrate_settings(
                 with_projects,
             )
 
-            for event in events:
-                event["user"] = user_name
-                await EventStream.dispatch("settings.changed", **event)
+    if events:
+        asyncio.create_task(_dispatch_events(events, user_name))
