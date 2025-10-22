@@ -8,17 +8,7 @@ from ayon_server.types import ProjectLevelEntityType
 
 BASE_GET_QUERY = """
     SELECT
-        entity.id as id,
-        entity.name as name,
-        entity.folder_id as folder_id,
-        entity.product_type as product_type,
-        entity.attrib as attrib,
-        entity.data as data,
-        entity.active as active,
-        entity.status as status,
-        entity.tags as tags,
-        entity.created_at as created_at,
-        entity.updated_at as updated_at,
+        entity.*,
         hierarchy.path as folder_path
     FROM project_{project_name}.products entity
     JOIN project_{project_name}.hierarchy hierarchy
