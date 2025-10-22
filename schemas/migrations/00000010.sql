@@ -59,7 +59,7 @@ BEGIN
     HAVING COUNT(c.column_name) = 0
     LOOP
         BEGIN
-          RAISE WARNING 'Adding product_base_type and updated_by to %.%', rec.table_schema, rec.table_name;
+          RAISE WARNING 'Adding product_base_type to %.%', rec.table_schema, rec.table_name;
           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.table_schema);
           -- TODO: Uncomment once we are sure
           -- EXECUTE 'ALTER TABLE' || quote_ident(rec.table_name) || 'ADD COLUMN IF NOT EXISTS product_base_type VARCHAR;';
