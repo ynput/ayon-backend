@@ -4,10 +4,8 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import WorkfileEntity
-from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -23,6 +21,7 @@ class WorkfileAttribType:
 
 @strawberry.type
 class WorkfileNode(BaseNode):
+    entity_type: strawberry.Private[str] = "workfile"
     path: str
     task_id: str | None
     thumbnail_id: str | None
@@ -33,8 +32,6 @@ class WorkfileNode(BaseNode):
     data: str | None
     tags: list[str]
 
-    _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
     _parents: list[str] | None = None
     _folder_path: strawberry.Private[str | None] = None
 
@@ -49,22 +46,7 @@ class WorkfileNode(BaseNode):
 
     @strawberry.field
     def attrib(self) -> WorkfileAttribType:
-        return parse_attrib_data(
-            WorkfileAttribType,
-            self._attrib,
-            user=self._user,
-            project_name=self.project_name,
-        )
-
-    @strawberry.field
-    def all_attrib(self) -> str:
-        return json_dumps(
-            process_attrib_data(
-                self._attrib,
-                project_name=self.project_name,
-                user=self._user,
-            )
-        )
+        return WorkfileAttribType(**self.processed_attrib())
 
     @strawberry.field()
     def parents(self) -> list[str]:

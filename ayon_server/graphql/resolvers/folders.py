@@ -41,7 +41,6 @@ from .sorting import (
 
 SORT_OPTIONS = {
     "name": "folders.name",
-    "status": "folders.status",
     "createdAt": "folders.created_at",
     "updatedAt": "folders.updated_at",
     "folderType": "folders.folder_type",

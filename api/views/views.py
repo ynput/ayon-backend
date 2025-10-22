@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from fastapi import Path, Query
+from fastapi import Path, Query, Request
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EntityIdResponse
@@ -19,6 +19,8 @@ from .models import (
     ViewPatchModel,
     ViewPostModel,
     construct_view_model,
+    get_patch_model_class,
+    get_post_model_class,
 )
 from .router import router
 
@@ -308,12 +310,20 @@ async def get_view(
 
 @router.post("/{view_type}")
 async def create_view(
+    request: Request,
     current_user: CurrentUser,
     view_type: PViewType,
     payload: ViewPostModel,
     project_name: QProjectName = None,
 ) -> EntityIdResponse:
     """Create a new view for current user."""
+
+    # we need to match the view settings model explicitly,
+    # so we extract the settings from the request body
+
+    _json = await request.json()
+    payload_class = get_post_model_class(view_type)
+    payload = payload_class(**_json)
 
     async with Postgres.transaction():
         if project_name:
@@ -350,6 +360,7 @@ async def create_view(
 
 @router.patch("/{view_type}/{view_id}")
 async def update_view(
+    request: Request,
     user: CurrentUser,
     view_type: PViewType,
     view_id: PViewId,
@@ -357,6 +368,10 @@ async def update_view(
     project_name: QProjectName = None,
 ) -> None:
     """Update a view in the database."""
+
+    _json = await request.json()
+    payload_class = get_patch_model_class(view_type)
+    payload = payload_class(**_json)
 
     if project_name:
         project = await ProjectEntity.load(project_name)

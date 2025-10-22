@@ -8,6 +8,7 @@ from typing import Any, NewType
 
 from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.utils import SQLTool
 
 KeyType = NewType("KeyType", tuple[str, str])
@@ -26,6 +27,8 @@ async def folder_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     keys must be a list of tuples (project_name, folder_id) and project_name
     values must be the same!
     """
+
+    logger.trace(f"Using folder_loader for {len(keys)} keys")
 
     result_dict: dict[KeyType, Any] = dict.fromkeys(keys)
     project_name = get_project_name(keys)
@@ -79,6 +82,8 @@ async def product_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     values must be the same!
     """
 
+    logger.trace(f"Using product_loader for {len(keys)} keys")
+
     result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
@@ -103,6 +108,8 @@ async def task_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     keys must be a list of tuples (project_name, task_id) and project_name
     values must be the same!
     """
+
+    logger.trace(f"Using task_loader for {len(keys)} keys")
 
     result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
@@ -149,6 +156,8 @@ async def workfile_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     values must be the same!
     """
 
+    logger.trace(f"Using workfile_loader for {len(keys)} keys")
+
     # TODO: query parent tasks?
 
     result_dict = dict.fromkeys(keys)
@@ -181,6 +190,8 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     keys must be a list of tuples (project_name, version_id) and project_name
     values must be the same!
     """
+
+    logger.trace(f"Using version_loader for {len(keys)} keys")
 
     result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
@@ -233,6 +244,8 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
 
 async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     """Load a list of latest versions of given products"""
+
+    logger.trace(f"Using latest_version_loader for {len(keys)} keys")
 
     result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
@@ -291,6 +304,8 @@ async def representation_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
     values must be the same!
     """
 
+    logger.trace(f"Using representation_loader for {len(keys)} keys")
+
     result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
@@ -324,6 +339,8 @@ async def representation_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
 
 async def user_loader(keys: list[str]) -> list[dict[str, Any] | None]:
     """Load a list of user records by their names."""
+
+    logger.trace(f"Using user_loader for {len(keys)} keys")
 
     result_dict = dict.fromkeys(keys)
     query = f"SELECT * FROM public.users WHERE name IN {SQLTool.array(keys)}"
