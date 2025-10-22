@@ -4,7 +4,10 @@ from typing import TYPE_CHECKING, Any, Optional
 import strawberry
 from strawberry import LazyType
 
+from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info
+from ayon_server.logging import logger
 from ayon_server.utils import json_dumps, json_loads, slugify
 
 if TYPE_CHECKING:
@@ -239,11 +242,25 @@ async def activity_from_record(
     tags = record.pop("tags", [])
     category = None
     if category_name := activity_data.get("category"):
+        # use get here - inbox won't have categories in context
         cdata = context.get("activity_categories", {}).get(category_name)
         category = ActivityCategory(
             name=category_name,
             color=cdata.get("color") if cdata else "#999999",
         )
+
+        if "inboxAccessibleCategories" in context:
+            # but inbox has a map of accessible categories
+            accessible_cats = context["inboxAccessibleCategories"]
+            if project_name not in accessible_cats:
+                accessible_cats[
+                    project_name
+                ] = await ActivityCategories.get_accessible_categories(
+                    context["user"], project_name=project_name
+                )
+            if category_name not in accessible_cats[project_name]:
+                logger.trace(f"Skipping inaccessible activity category {category_name}")
+                raise ForbiddenException()
 
     origin_data = activity_data.get("origin")
     if origin_data:
