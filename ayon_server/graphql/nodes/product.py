@@ -131,10 +131,13 @@ class ProductNode(BaseNode):
         for item in order:
             if item == "hero" and self._hero_version_data:
                 data = self._hero_version_data
+                data["featured_version_type"] = "hero"
             elif item == "latestDone" and self._latest_done_version_data:
                 data = self._latest_done_version_data
+                data["featured_version_type"] = "latestDone"
             elif item == "latest" and self._latest_version_data:
                 data = self._latest_version_data
+                data["featured_version_type"] = "latest"
             else:
                 continue
 
