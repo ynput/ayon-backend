@@ -306,9 +306,14 @@ async def get_versions(
         )
 
     elif hero_only:
+        # This returns actual (negative) hero versions only
+        # Not versions that point to hero via hero_versions CTE
         sql_conditions.append("versions.version < 0")
 
     elif hero_or_latest_only:
+        # Same as above, but include latest if no hero exists
+        # This is provided mainly for backward compatibility and the pipeline
+        # The frontend uses new featuredVersion filter instead
         sql_cte.append(cte_latest)
         sql_joins.append(
             """

@@ -52,7 +52,7 @@ class ProductNode(BaseNode):
     _folder_path: strawberry.Private[str | None] = None
 
     _hero_version_data: strawberry.Private[dict[str, Any] | None] = None
-    _latest_approved_version_data: strawberry.Private[dict[str, Any] | None] = None
+    _latest_done_version_data: strawberry.Private[dict[str, Any] | None] = None
     _latest_version_data: strawberry.Private[dict[str, Any] | None] = None
 
     # GraphQL specifics
@@ -117,7 +117,7 @@ class ProductNode(BaseNode):
     ) -> VersionNode | None:
         """Return the featured version of the product.
 
-        Order may contain ["latestApproved", "hero", "latest"]
+        Order may contain ["latestDone", "hero", "latest"]
         which is the order of preference for the featured version.
 
         This array is optional, if not provided, this exact order is used.
@@ -126,13 +126,13 @@ class ProductNode(BaseNode):
         """
 
         if order is None:
-            order = ["latestApproved", "hero", "latest"]
+            order = ["latestDone", "hero", "latest"]
 
         for item in order:
             if item == "hero" and self._hero_version_data:
                 data = self._hero_version_data
-            elif item == "latestApproved" and self._latest_approved_version_data:
-                data = self._latest_approved_version_data
+            elif item == "latestDone" and self._latest_done_version_data:
+                data = self._latest_done_version_data
             elif item == "latest" and self._latest_version_data:
                 data = self._latest_version_data
             else:
@@ -210,7 +210,7 @@ async def product_from_record(
         _attrib=record["attrib"] or {},
         _user=context["user"],
         _hero_version_data=record.get("_hero_version_data"),
-        _latest_approved_version_data=record.get("_latest_approved_version_data"),
+        _latest_done_version_data=record.get("_latest_done_version_data"),
         _latest_version_data=record.get("_latest_version_data"),
     )
 

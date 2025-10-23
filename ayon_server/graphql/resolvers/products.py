@@ -316,7 +316,7 @@ async def get_products(
     if ff_field := fields.find_field("featuredVersion"):
         req_order = ff_field.arguments.get("order") or [
             "hero",
-            "latestApproved",
+            "latestDone",
             "latest",
         ]
 
@@ -339,10 +339,10 @@ async def get_products(
             )
             sql_columns.append("to_jsonb(ff_hero.*) as _hero_version_data")
 
-        if "latestApproved" in req_order:
+        if "latestDone" in req_order:
             sql_cte.append(
                 f"""
-                approved_statuses AS (
+                done_statuses AS (
                     SELECT name from project_{project_name}.statuses
                     WHERE data->>'state' = 'done'
                 )
@@ -351,10 +351,10 @@ async def get_products(
 
             sql_cte.append(
                 f"""
-                latest_approved_versions AS (
+                latest_done_versions AS (
                     SELECT DISTINCT ON (v.product_id) v.*
                     FROM project_{project_name}.versions v
-                    JOIN approved_statuses AS s
+                    JOIN done_statuses AS s
                     ON v.status = s.name
                     ORDER BY v.product_id, v.version DESC
                 )
@@ -362,12 +362,12 @@ async def get_products(
             )
             sql_joins.append(
                 """
-                LEFT JOIN latest_approved_versions AS ff_latest_approved
-                ON products.id = ff_latest_approved.product_id
+                LEFT JOIN latest_done_versions AS ff_latest_done
+                ON products.id = ff_latest_done.product_id
                 """
             )
             sql_columns.append(
-                "to_jsonb(ff_latest_approved.*) as _latest_approved_version_data"
+                "to_jsonb(ff_latest_done.*) as _latest_done_version_data"
             )
 
         if "latest" in req_order:
