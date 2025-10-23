@@ -141,6 +141,11 @@ class ProductNode(BaseNode):
             data["_folder_path"] = self._folder_path
             data["_product_name"] = self.name
             data["id"] = data["id"].replace("-", "")
+            data["hero_version_id"] = (
+                data["hero_version_id"].replace("-", "")
+                if data.get("hero_version_id")
+                else None
+            )
             data["created_at"] = datetime.fromisoformat(data["created_at"])
             data["updated_at"] = datetime.fromisoformat(data["updated_at"])
 

@@ -324,17 +324,23 @@ async def get_products(
             sql_cte.append(
                 f"""
                 hero_versions AS (
-                    SELECT DISTINCT ON (product_id) *
-                    FROM project_{project_name}.versions
-                    WHERE version < 0
-                    ORDER BY product_id, created_at DESC
+                    SELECT
+                        distinct on (version.product_id)
+                        version.*,
+                        hero_version.id AS hero_version_id
+                    FROM project_{project_name}.versions AS version
+                    JOIN project_{project_name}.versions AS hero_version
+                    ON hero_version.product_id = version.product_id
+                    AND hero_version.version < 0
+                    AND ABS(hero_version.version) = version.version
+                    ORDER BY version.product_id, version.version DESC
                 )
                 """
             )
             sql_joins.append(
                 """
                 LEFT JOIN hero_versions AS ff_hero
-                ON products.id = ff_hero.product_id
+                ON ff_hero.product_id = products.id
                 """
             )
             sql_columns.append("to_jsonb(ff_hero.*) as _hero_version_data")
