@@ -258,7 +258,7 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
         ON hierarchy.id = p.folder_id
 
         LEFT JOIN hero_versions
-        ON hero_versions.id = versions.id
+        ON hero_versions.id = v.id
 
         WHERE v.id IN (
             SELECT l.ids[array_upper(l.ids, 1)]
