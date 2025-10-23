@@ -125,18 +125,7 @@ async def get_products(
     #
 
     sql_columns = [
-        "products.id AS id",
-        "products.name AS name",
-        "products.folder_id AS folder_id",
-        "products.product_type AS product_type",
-        "products.attrib AS attrib",
-        "products.data AS data",
-        "products.status AS status",
-        "products.tags AS tags",
-        "products.active AS active",
-        "products.created_at AS created_at",
-        "products.updated_at AS updated_at",
-        "products.creation_order AS creation_order",
+        "products.*",
         "folders.id AS _folder_id",
         "folders.name AS _folder_name",
         "folders.label AS _folder_label",
@@ -320,20 +309,36 @@ async def get_products(
             "latest",
         ]
 
+        sql_cte.append(
+            f"""
+            reviewables AS (
+                SELECT entity_id FROM project_{project_name}.activity_feed
+                WHERE entity_type = 'version'
+                AND activity_type = 'reviewable'
+            )
+            """
+        )
+
         if "hero" in req_order:
             sql_cte.append(
                 f"""
                 hero_versions AS (
                     SELECT
-                        distinct on (version.product_id)
-                        version.*,
-                        hero_version.id AS hero_version_id
-                    FROM project_{project_name}.versions AS version
-                    JOIN project_{project_name}.versions AS hero_version
-                    ON hero_version.product_id = version.product_id
-                    AND hero_version.version < 0
-                    AND ABS(hero_version.version) = version.version
-                    ORDER BY version.product_id, version.version DESC
+                        distinct on (versions.product_id)
+                        versions.*,
+                        hero_versions.id AS hero_version_id,
+                        rv.entity_id IS NOT NULL AS has_reviewables
+                    FROM project_{project_name}.versions AS versions
+
+                    JOIN project_{project_name}.versions AS hero_versions
+                    ON hero_versions.product_id = versions.product_id
+                    AND hero_versions.version < 0
+                    AND ABS(hero_versions.version) = versions.version
+
+                    LEFT JOIN reviewables AS rv
+                    ON versions.id = rv.entity_id
+
+                    ORDER BY versions.product_id, versions.version DESC
                 )
                 """
             )
@@ -358,11 +363,19 @@ async def get_products(
             sql_cte.append(
                 f"""
                 latest_done_versions AS (
-                    SELECT DISTINCT ON (v.product_id) v.*
-                    FROM project_{project_name}.versions v
+                    SELECT
+                        DISTINCT ON (versions.product_id)
+                        versions.*,
+                        rv.entity_id IS NOT NULL AS has_reviewables
+                    FROM project_{project_name}.versions
+
                     JOIN done_statuses AS s
-                    ON v.status = s.name
-                    ORDER BY v.product_id, v.version DESC
+                    ON versions.status = s.name
+
+                    LEFT JOIN reviewables AS rv
+                    ON versions.id = rv.entity_id
+
+                    ORDER BY versions.product_id, versions.version DESC
                 )
                 """
             )
@@ -380,10 +393,16 @@ async def get_products(
             sql_cte.append(
                 f"""
                 latest_versions AS (
-                    SELECT DISTINCT ON (product_id) *
+                    SELECT
+                        DISTINCT ON (versions.product_id) versions.*,
+                        rv.entity_id IS NOT NULL AS has_reviewables
                     FROM project_{project_name}.versions
-                    WHERE version >= 0
-                    ORDER BY product_id, version DESC
+
+                    LEFT JOIN reviewables AS rv
+                    ON versions.id = rv.entity_id
+
+                    WHERE versions.version >= 0
+                    ORDER BY versions.product_id, versions.version DESC
                 )
                 """
             )
