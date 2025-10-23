@@ -36,6 +36,7 @@ SORT_OPTIONS = {
     "name": "products.name",
     "path": "hierarchy.path || '/' || products.name",
     "productType": "products.product_type",
+    "folderName": "folders.name",
     "createdAt": "products.created_at",
     "updatedAt": "products.updated_at",
     "tags": "array_to_string(products.tags, '')",
