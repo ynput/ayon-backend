@@ -149,19 +149,7 @@ async def get_versions(
     ]
 
     sql_columns = [
-        "versions.id AS id",
-        "versions.version AS version",
-        "versions.product_id AS product_id",
-        "versions.task_id AS task_id",
-        "versions.thumbnail_id AS thumbnail_id",
-        "versions.author AS author",
-        "versions.attrib AS attrib",
-        "versions.data AS data",
-        "versions.status AS status",
-        "versions.tags AS tags",
-        "versions.active AS active",
-        "versions.created_at AS created_at",
-        "versions.updated_at AS updated_at",
+        "versions.*",
         "versions.creation_order AS creation_order",
         "hierarchy.path AS _folder_path",
         "products.name AS _product_name",
@@ -232,6 +220,26 @@ async def get_versions(
         sql_conditions.append(f"versions.task_id IN {SQLTool.id_array(task_ids)}")
     elif root.__class__.__name__ == "TaskNode":
         sql_conditions.append(f"versions.task_id = '{root.id}'")
+
+    sql_cte.append(
+        f"""
+        hero_versions AS (
+            SELECT version.id id, hero_version.id AS hero_version_id
+            FROM project_{project_name}.versions AS version
+            JOIN project_{project_name}.versions AS hero_version
+            ON hero_version.product_id = version.product_id
+            AND hero_version.version < 0
+            AND ABS(hero_version.version) = version.version
+        )
+        """
+    )
+    sql_joins.append(
+        """
+        LEFT JOIN hero_versions
+        ON hero_versions.id = versions.id
+        """
+    )
+    sql_columns.append("hero_versions.hero_version_id AS hero_version_id")
 
     if folder_ids is not None:
         if not folder_ids:

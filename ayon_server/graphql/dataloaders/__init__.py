@@ -35,19 +35,7 @@ async def folder_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
 
     query = f"""
         SELECT
-            folders.id AS id,
-            folders.name AS name,
-            folders.label AS label,
-            folders.active AS active,
-            folders.folder_type AS folder_type,
-            folders.parent_id AS parent_id,
-            folders.thumbnail_id AS thumbnail_id,
-            folders.attrib AS attrib,
-            folders.status AS status,
-            folders.tags AS tags,
-            folders.created_at AS created_at,
-            folders.updated_at AS updated_at,
-            folders.data as data,
+            folders.*,
             hierarchy.path AS path,
             pr.attrib AS project_attributes,
             ex.attrib AS inherited_attributes
@@ -116,21 +104,7 @@ async def task_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
 
     query = f"""
         SELECT
-            tasks.id AS id,
-            tasks.name AS name,
-            tasks.label AS label,
-            tasks.folder_id AS folder_id,
-            tasks.task_type AS task_type,
-            tasks.thumbnail_id AS thumbnail_id,
-            tasks.assignees AS assignees,
-            tasks.attrib AS attrib,
-            tasks.data AS data,
-            tasks.active AS active,
-            tasks.status AS status,
-            tasks.tags AS tags,
-            tasks.created_at AS created_at,
-            tasks.updated_at AS updated_at,
-            tasks.creation_order AS creation_order,
+            tasks.*,
             pf.attrib AS parent_folder_attrib,
             hierarchy.path AS _folder_path
         FROM project_{project_name}.tasks as tasks
@@ -201,23 +175,20 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
             SELECT entity_id FROM project_{project_name}.activity_feed
             WHERE entity_type = 'version'
             AND activity_type = 'reviewable'
+        ),
+
+        hero_versions AS (
+            SELECT version.id id, hero_version.id AS hero_version_id
+            FROM project_{project_name}.versions AS version
+            JOIN project_{project_name}.versions AS hero_version
+            ON hero_version.product_id = version.product_id
+            AND hero_version.version < 0
+            AND ABS(hero_version.version) = version.version
         )
 
         SELECT
-            v.id AS id,
-            v.version AS version,
-            v.product_id AS product_id,
-            v.thumbnail_id AS thumbnail_id,
-            v.task_id AS task_id,
-            v.author AS author,
-            v.attrib AS attrib,
-            v.data AS data,
-            v.active AS active,
-            v.status AS status,
-            v.tags AS tags,
-            v.created_at AS created_at,
-            v.updated_at AS updated_at,
-
+            v.*,
+            hero_versions.hero_version_id AS hero_version_id,
             hierarchy.path AS _folder_path,
             p.name AS _product_name,
 
@@ -232,6 +203,9 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
 
         JOIN project_{project_name}.hierarchy AS hierarchy
         ON hierarchy.id = p.folder_id
+
+        LEFT JOIN hero_versions
+        ON hero_versions.id = versions.id
 
         WHERE v.id IN {SQLTool.id_array([k[1] for k in keys])}
         """
@@ -255,22 +229,20 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
             SELECT entity_id FROM project_{project_name}.activity_feed
             WHERE entity_type = 'version'
             AND activity_type = 'reviewable'
+        ),
+
+        hero_versions AS (
+            SELECT version.id id, hero_version.id AS hero_version_id
+            FROM project_{project_name}.versions AS version
+            JOIN project_{project_name}.versions AS hero_version
+            ON hero_version.product_id = version.product_id
+            AND hero_version.version < 0
+            AND ABS(hero_version.version) = version.version
         )
 
         SELECT
-            v.id AS id,
-            v.version AS version,
-            v.product_id AS product_id,
-            v.thumbnail_id AS thumbnail_id,
-            v.task_id AS task_id,
-            v.author AS author,
-            v.attrib AS attrib,
-            v.data AS data,
-            v.active AS active,
-            v.status AS status,
-            v.tags AS tags,
-            v.created_at AS created_at,
-            v.updated_at AS updated_at,
+            v.*,
+            hero_versions.hero_version_id AS hero_version_id,
             hierarchy.path AS _folder_path,
             p.name AS _product_name,
             EXISTS (
@@ -284,6 +256,9 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
 
         JOIN project_{project_name}.hierarchy AS hierarchy
         ON hierarchy.id = p.folder_id
+
+        LEFT JOIN hero_versions
+        ON hero_versions.id = versions.id
 
         WHERE v.id IN (
             SELECT l.ids[array_upper(l.ids, 1)]
