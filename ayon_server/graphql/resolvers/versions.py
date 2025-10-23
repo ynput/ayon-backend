@@ -84,16 +84,25 @@ async def get_versions(
     ] = None,
     latest_only: Annotated[
         bool,
-        argdesc("List only latest versions"),
+        argdesc("DEPRECATED List only latest versions"),
     ] = False,
     hero_only: Annotated[
         bool,
-        argdesc("List only hero versions"),
+        argdesc("DEPRECATED List only hero versions"),
     ] = False,
     hero_or_latest_only: Annotated[
         bool,
-        argdesc("List hero versions. If hero does not exist, list latest"),
+        argdesc("DEPRECATED List hero versions. If hero does not exist, list latest"),
     ] = False,
+    featured_only: Annotated[
+        list[str] | None,
+        argdesc(
+            "List only one version for each product, based on the order of flags, "
+            "that can be 'hero', 'latestDone' and 'latest."
+            "This is a replacement for the deprecated "
+            "heroOnly, latestOnly and heroOrLatestOnly"
+        ),
+    ] = None,
     has_links: ARGHasLinks = None,
     search: Annotated[
         str | None,
@@ -174,6 +183,10 @@ async def get_versions(
             """
         )
 
+    #
+    # Direct, version-specific filtering
+    #
+
     # Empty overrides. Skip querying
     if ids == ["0" * 32]:
         return VersionsConnection(edges=[])
@@ -221,26 +234,6 @@ async def get_versions(
     elif root.__class__.__name__ == "TaskNode":
         sql_conditions.append(f"versions.task_id = '{root.id}'")
 
-    sql_cte.append(
-        f"""
-        hero_versions AS (
-            SELECT version.id id, hero_version.id AS hero_version_id
-            FROM project_{project_name}.versions AS version
-            JOIN project_{project_name}.versions AS hero_version
-            ON hero_version.product_id = version.product_id
-            AND hero_version.version < 0
-            AND ABS(hero_version.version) = version.version
-        )
-        """
-    )
-    sql_joins.append(
-        """
-        LEFT JOIN hero_versions
-        ON hero_versions.id = versions.id
-        """
-    )
-    sql_columns.append("hero_versions.hero_version_id AS hero_version_id")
-
     if folder_ids is not None:
         if not folder_ids:
             return VersionsConnection()
@@ -284,26 +277,81 @@ async def get_versions(
             )
 
     #
-    # Filtering by latest / hero versions
+    # Always-on CTEs (to get latest and hero versions)
     #
 
-    cte_latest = f"""
-        latest_versions AS (
-            SELECT DISTINCT ON (product_id) id, version, product_id
-            FROM project_{project_name}.versions
-            WHERE version >= 0
-            ORDER BY product_id, version DESC
-        )
-    """
+    sql_cte.extend(
+        [
+            f"""
+            latest_versions AS (
+                SELECT DISTINCT ON (product_id) id, version, product_id
+                FROM project_{project_name}.versions
+                WHERE version >= 0
+                ORDER BY product_id, version DESC
+            )
+            """,
+            f"""
+            done_statuses AS (
+                SELECT name from project_{project_name}.statuses
+                WHERE data->>'state' = 'done'
+            )
+            """,
+            f"""
+            latest_done_versions AS (
+                SELECT DISTINCT ON (v.product_id) v.id, v.version, v.product_id
+                FROM project_{project_name}.versions v
+                JOIN done_statuses ds
+                ON v.status = ds.name
+                WHERE v.version >= 0
+                ORDER BY v.product_id, v.version DESC
+            )
+            """,
+            f"""
+            hero_versions AS (
+                SELECT version.id id, hero_version.id AS hero_version_id
+                FROM project_{project_name}.versions AS version
+                JOIN project_{project_name}.versions AS hero_version
+                ON hero_version.product_id = version.product_id
+                AND hero_version.version < 0
+                AND ABS(hero_version.version) = version.version
+            )
+            """,
+        ]
+    )
+
+    # Map versions to their hero versions
+
+    sql_joins.append(
+        """
+        LEFT JOIN hero_versions
+        ON hero_versions.id = versions.id
+        """
+    )
+    sql_columns.append("hero_versions.hero_version_id AS hero_version_id")
+
+    sql_joins.append(
+        """
+        LEFT JOIN latest_versions AS lv
+        ON lv.id = versions.id
+        """
+    )
+    sql_columns.append("lv IS NOT NULL AS is_latest")
+
+    sql_joins.append(
+        """
+        LEFT JOIN latest_done_versions AS ldv
+        ON ldv.id = versions.id
+        """
+    )
+    sql_columns.append("ldv IS NOT NULL AS is_latest_done")
+
+    #
+    # Filtering by latest / hero versions
+    # (deprecated part)
+    #
 
     if latest_only:
-        sql_cte.append(cte_latest)
-        sql_joins.append(
-            """
-            INNER JOIN latest_versions AS lv
-            ON lv.id = versions.id
-            """
-        )
+        sql_conditions.append("lv.id IS NOT NULL")
 
     elif hero_only:
         # This returns actual (negative) hero versions only
@@ -314,16 +362,61 @@ async def get_versions(
         # Same as above, but include latest if no hero exists
         # This is provided mainly for backward compatibility and the pipeline
         # The frontend uses new featuredVersion filter instead
-        sql_cte.append(cte_latest)
-        sql_joins.append(
-            """
-            LEFT JOIN latest_versions AS lv
-            ON lv.product_id = versions.product_id
+
+        sql_conditions.append("(versions.version < 0 OR lv IS NOT NULL)")
+
+    #
+    # Filtering by featured versions
+    #
+
+    if featured_only is not None:
+        if not featured_only:
+            return VersionsConnection()
+
+        # for every product, select only one version based on the order
+        # of flags in featured_only.
+
+        where_clauses = []
+        order_clause = "CASE "
+        for idx, flag in enumerate(featured_only):
+            if flag not in ("hero", "latestDone", "latest"):
+                raise BadRequestException(
+                    "Invalid featuredOnly value: "
+                    f"'{flag}'. Must be one of 'hero', 'latestDone', 'latest'."
+                )
+            if flag == "hero":
+                where_clauses.append("hv.id IS NOT NULL")
+                order_clause += f"WHEN hv.id IS NOT NULL THEN {idx} "
+            elif flag == "latestDone":
+                where_clauses.append("ldv.id IS NOT NULL")
+                order_clause += f"WHEN ldv.id IS NOT NULL THEN {idx} "
+            elif flag == "latest":
+                where_clauses.append("lv.id IS NOT NULL")
+                order_clause += f"WHEN lv.id IS NOT NULL THEN {idx} "
+
+        order_clause += f"ELSE {len(featured_only)} END"
+
+        sql_cte.append(
+            f"""
+            featured_versions AS (
+                SELECT DISTINCT ON (versions.product_id) versions.id
+                FROM project_{project_name}.versions AS versions
+                LEFT JOIN latest_versions AS lv
+                ON lv.id = versions.id
+                LEFT JOIN latest_done_versions AS ldv
+                ON ldv.id = versions.id
+                LEFT JOIN hero_versions AS hv
+                ON hv.id = versions.id
+                WHERE {' OR '.join(where_clauses)}
+                ORDER BY versions.product_id, {order_clause}
+            )
             """
         )
-        sql_conditions.append(
+
+        sql_joins.append(
             """
-            (versions.version < 0 OR lv.id = versions.id)
+            INNER JOIN featured_versions AS fv
+            ON fv.id = versions.id
             """
         )
 
@@ -519,10 +612,10 @@ async def get_versions(
         {ordering}
     """
 
-    # print()
-    # print("Versions query:")
-    # print(query)
-    # print()
+    print()
+    print("Versions query:")
+    print(query)
+    print()
 
     return await resolve(
         VersionsConnection,
