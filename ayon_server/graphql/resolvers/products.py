@@ -564,6 +564,28 @@ async def get_products(
             attr_name = sort_by[7:]
             attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
             order_by.insert(0, attr_case)
+        elif sort_by == "version":
+            # count by product version count
+            sql_cte.append(
+                f"""
+                product_version_counts AS (
+                    SELECT
+                        product_id,
+                        COUNT(*) AS version_count
+                    FROM project_{project_name}.versions
+                    WHERE version >= 0
+                    GROUP BY product_id
+                )
+                """
+            )
+            sql_joins.append(
+                """
+                LEFT JOIN product_version_counts AS pvc
+                ON pvc.product_id = products.id
+                """
+            )
+            order_by.insert(0, "COALESCE(pvc.version_count, 0)")
+
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 
