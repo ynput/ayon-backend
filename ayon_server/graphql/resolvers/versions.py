@@ -41,6 +41,7 @@ SORT_OPTIONS = {
     "path": "hierarchy.path || '/' || products.name || '/' || versions.version::text",
     "productType": "products.product_type",
     "productName": "products.name",
+    "folderName": "folders.name",
 }
 
 
