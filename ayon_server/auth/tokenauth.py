@@ -1,5 +1,6 @@
 from typing import Any
 
+import jinja2
 from fastapi import Request
 
 from ayon_server.auth.session import Session
@@ -20,7 +21,7 @@ from .models import LoginResponseModel
 
 LINK_RENEWAL_TEMPLATE = """
 <p>
-Hello {full_name},
+Hello {{full_name}},
 </p>
 
 <p>
@@ -29,7 +30,7 @@ Please use the following link to log in again:
 </p>
 
 <p>
-<a clicktracking=off href="{invite_link}">Login to ayon</a>
+<a clicktracking=off href="{{invite_link}}">Login to ayon</a>
 </p>
 """
 
@@ -75,13 +76,17 @@ async def send_invite_email(
 
     ctx = {
         "full_name": full_name or "User",
+        "email": email,
         "project_name": project_name or "the project",
         "invite_link": f"{base_url}/login/_token?q={token}",
         "redirect_url": redirect_url or "the ayon homepage",
     }
     if context:
         ctx.update(context)
-    body = body_template.format(**ctx)
+
+    template = jinja2.Template(body_template)
+    body = template.render(**ctx)
+
     await send_mail([email], subject, html=body)
 
 
