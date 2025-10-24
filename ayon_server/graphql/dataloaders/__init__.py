@@ -187,27 +187,27 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
         )
 
         SELECT
-            v.*,
+            versions.*,
             hero_versions.hero_version_id AS hero_version_id,
             hierarchy.path AS _folder_path,
-            p.name AS _product_name,
-
-            EXISTS (
-                SELECT 1 FROM reviewables WHERE entity_id = v.id
-            ) AS has_reviewables
+            products.name AS _product_name,
+            reviewables.entity_id IS NOT NULL AS has_reviewables
         FROM
-            project_{project_name}.versions AS v
+            project_{project_name}.versions AS versions
 
-        JOIN project_{project_name}.products AS p
-        ON p.id = v.product_id
+        JOIN project_{project_name}.products AS products
+        ON products.id = versions.product_id
 
         JOIN project_{project_name}.hierarchy AS hierarchy
-        ON hierarchy.id = p.folder_id
+        ON hierarchy.id = products.folder_id
 
         LEFT JOIN hero_versions
         ON hero_versions.id = versions.id
 
-        WHERE v.id IN {SQLTool.id_array([k[1] for k in keys])}
+        LEFT JOIN reviewables
+        ON reviewables.entity_id = versions.id
+
+        WHERE versions.id IN {SQLTool.id_array([k[1] for k in keys])}
         """
 
     async for record in Postgres.iterate(query):
