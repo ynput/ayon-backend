@@ -80,15 +80,18 @@ class FolderEntity(ProjectLevelEntity):
             # ensure path starts with / but does not end with /
             record["path"] = f"/{path.strip('/')}"
         attrib: dict[str, Any] = {}
+        inherited_attrib: dict[str, Any] = {}
 
         for key, value in record.get("project_attrib", {}).items():
             if key in attribute_library.inheritable_attributes():
                 attrib[key] = value
+                inherited_attrib[key] = value
 
         if (ia := record["inherited_attrib"]) is not None:
             for key, value in ia.items():
                 if key in attribute_library.inheritable_attributes():
                     attrib[key] = value
+                    inherited_attrib[key] = value
 
         elif record["parent_id"] is not None:
             logger.warning(
@@ -96,7 +99,7 @@ class FolderEntity(ProjectLevelEntity):
                 "this shouldn't happen"
             )
         attrib.update(record["attrib"])
-        return {**record, "attrib": attrib}
+        return {**record, "attrib": attrib, "inherited_attrib": inherited_attrib}
 
     async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         async with Postgres.transaction():
