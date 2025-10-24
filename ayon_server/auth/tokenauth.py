@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import Request
 
 from ayon_server.auth.session import Session
@@ -50,6 +52,7 @@ async def send_invite_email(
     is_guest: bool = True,
     project_name: str | None = None,
     redirect_url: str | None = None,
+    context: dict[str, Any] | None = None,
 ) -> None:
     if not await is_mailing_enabled():
         raise InvalidSettingsException(
@@ -69,13 +72,16 @@ async def send_invite_email(
     await enc_data.set_nonce(ttl=3600 * 24)
 
     subject = subject or "Invitation to Ayon instance"
-    body = body_template.format(
-        full_name=full_name or "User",
-        project_name=project_name or "the project",
-        invite_link=f"{base_url}/login/_token?q={token}",
-        redirect_url=redirect_url or "the ayon homepage",
-    )
 
+    ctx = {
+        "full_name": full_name or "User",
+        "project_name": project_name or "the project",
+        "invite_link": f"{base_url}/login/_token?q={token}",
+        "redirect_url": redirect_url or "the ayon homepage",
+    }
+    if context:
+        ctx.update(context)
+    body = body_template.format(**ctx)
     await send_mail([email], subject, html=body)
 
 
