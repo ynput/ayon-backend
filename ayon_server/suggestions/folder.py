@@ -1,8 +1,10 @@
 from collections import defaultdict
 
-from ayon_server.entities import FolderEntity
+from ayon_server.entities import FolderEntity, UserEntity
+from ayon_server.entities.project import ProjectEntity
 from ayon_server.lib.postgres import Postgres
 
+from .common import get_relevant_users_cte
 from .models import (
     FolderSuggestionItem,
     SuggestionType,
@@ -12,7 +14,8 @@ from .models import (
 
 
 async def get_folder_suggestions(
-    user: str,
+    project: ProjectEntity,
+    user: UserEntity,
     folder: FolderEntity,
 ) -> dict[str, list[SuggestionType]]:
     """
@@ -26,15 +29,10 @@ async def get_folder_suggestions(
     item: SuggestionType
 
     # get users:
+    relevant_users_cte = await get_relevant_users_cte(project, user)
 
     query = f"""
-        WITH relevant_users AS (
-            SELECT name FROM public.users
-            WHERE data->>'isAdmin' = 'true'
-            OR data->>'isManager' = 'true'
-            OR data->'accessGroups'->'{project_name}' IS NOT NULL
-        )
-
+        WITH {relevant_users_cte}
         SELECT
             u.name as name,
             u.attrib->>'fullName' as label,
