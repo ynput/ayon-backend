@@ -169,13 +169,15 @@ async def delete_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
     list_id: str,
+    sender: Sender,
+    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete entity list from the database"""
 
     async with Postgres.transaction():
         entity_list = await EntityList.load(project_name, list_id, user=user)
         await entity_list.ensure_can_admin()
-        await entity_list.delete()
+        await entity_list.delete(sender=sender, sender_type=sender_type)
 
     return EmptyResponse()
 
