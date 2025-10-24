@@ -79,7 +79,7 @@ async def send_invite_email(
         "email": email,
         "project_name": project_name or "the project",
         "invite_link": f"{base_url}/login/_token?q={token}",
-        "redirect_url": redirect_url or "the ayon homepage",
+        "redirect_url": redirect_url or "/",
     }
     if context:
         ctx.update(context)
