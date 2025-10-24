@@ -73,7 +73,7 @@ def create_pagination(
 
     for i, c in enumerate(order_by):
         cursor_arr.append(f"{c} AS cursor_{i}")
-        ordering_arr.append(f"{c} {'DESC' if last else ''}")
+        ordering_arr.append(f"{c} {'DESC NULLS LAST' if last else 'ASC NULLS FIRST'}")
 
     # Okay. I know this looks like something a 5YO would write, but hear me out.
     # We don't need to support more than two cursors. Hopefully.
