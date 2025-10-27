@@ -121,8 +121,8 @@ class BaseEntity:
                 self.own_attrib.remove(attr)
             # Revert the attrib value to the value inherited from parent
             # (if available)
-            if key in self.inherited_attrib:
-                setattr(self._payload.attrib, attr, self.inherited_attrib[attr])
+            if attr in self.inherited_attrib:
+                setattr(self._payload.attrib, attr, self.inherited_attrib[attr])  # type: ignore
 
     @property
     def payload(self) -> BaseModel:
