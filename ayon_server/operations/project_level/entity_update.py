@@ -106,6 +106,10 @@ async def update_project_level_entity(
     assert operation.data is not None, "data is required for update"
     assert operation.entity_id is not None, "entity_id is required for update"
 
+    # We use slightly different ACL logic if only the thumbnail_id is being updated.
+    thumbnail_only = len(operation.data) == 1 and (
+        "thumbnailId" in operation.data or "thumbnail_id" in operation.data
+    )
     entity = await entity_class.load(project_name, operation.entity_id)
 
     hooks = OperationHooks.hooks()
@@ -127,10 +131,6 @@ async def update_project_level_entity(
     # in the database update query.
 
     update_payload_dict = payload.dict(exclude_unset=True, by_alias=False)
-
-    # We use slightly different ACL logic if only the thumbnail_id is being updated.
-
-    thumbnail_only = len(operation.data) == 1 and "thumbnail_id" in update_payload_dict
 
     if user:
         await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)
