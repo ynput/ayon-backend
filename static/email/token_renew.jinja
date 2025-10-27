@@ -1,0 +1,58 @@
+{% extends "base.jinja" %}
+
+{% block content %}
+  <tr>
+    <td align="center" style="padding:24px 20px 0 20px;">
+      <p style="margin:0; font-size:14px;">
+        Hi <strong>{{ full_name }}</strong>
+      </p>
+      <p style="margin:6px 0 0 0; font-size:14px;">
+        Your guest access to AYON has been renewed, use the automatic sign in button below.
+      </p>
+    </td>
+  </tr>
+
+  <!-- Button -->
+  <tr>
+    <td align="center" style="padding:20px;">
+      <a
+        href="{{ invite_link }}"
+        clicktracking="off"
+        style="
+          background-color:#16d4a7;
+          color:#000000;
+          font-weight:bold;
+          font-size:14px;
+          text-decoration:none;
+          padding:12px 24px;
+          border-radius:4px;
+          display:inline-block;
+        "
+        >Join the review session</a
+      >
+    </td>
+  </tr>
+{% endblock %}
+
+{% block footer %}
+  <tr>
+    <td
+      align="center"
+      style="padding:30px 20px 20px 20px; border-top:1px solid #eeeeee;"
+    >
+      <img
+        src="https://static.ynput.team/AYON_blackG_dot.png"
+        alt="AYON Logo"
+        style="width:85px; margin-bottom:10px;"
+      />
+      <p style="margin:0; font-size:12px; color:#777;">
+        You are receiving this email because your previous
+        AYON guest session expired or has been signed out.
+      </p>
+      <p style="margin:10px 0 0 0; font-size:12px; color:#777;">
+        This secure link is personalised for <strong>{{ email }}</strong>. 
+        The link is unique to you and forwarding it will invalidate it.
+      </p>
+    </td>
+  </tr>
+{% endblock %}

@@ -1,6 +1,5 @@
 from typing import Any
 
-import jinja2
 from fastapi import Request
 
 from ayon_server.auth.session import Session
@@ -11,28 +10,13 @@ from ayon_server.exceptions import (
     UnauthorizedException,
 )
 from ayon_server.helpers.crypto import decrypt_json_urlsafe, encrypt_json_urlsafe
-from ayon_server.helpers.email import is_mailing_enabled, send_mail
+from ayon_server.helpers.email import EmailTemplate, is_mailing_enabled, send_mail
 from ayon_server.helpers.guest_users import GuestUsers
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import OPModel
 from ayon_server.utils import server_url_from_request, slugify
 
 from .models import LoginResponseModel
-
-LINK_RENEWAL_TEMPLATE = """
-<p>
-Hello {{full_name}},
-</p>
-
-<p>
-the invite link you used to log in to Ayon has expired.
-Please use the following link to log in again:
-</p>
-
-<p>
-<a clicktracking=off href="{{invite_link}}">Login to ayon</a>
-</p>
-"""
 
 
 class TokenPayload(OPModel):
@@ -84,8 +68,10 @@ async def send_invite_email(
     if context:
         ctx.update(context)
 
-    template = jinja2.Template(body_template)
-    body = template.render(**ctx)
+    # template = jinja2.Template(body_template)
+    # body = template.render(**ctx)
+    template = EmailTemplate()
+    body = template.render(body_template, ctx)
 
     await send_mail([email], subject, html=body)
 
@@ -100,16 +86,37 @@ async def send_extend_email(original_payload: TokenPayload, base_url: str) -> No
     This is done automatically, when an expired link is used.
     """
 
-    await send_invite_email(
+    if not await is_mailing_enabled():
+        raise InvalidSettingsException(
+            "Mailing is not enabled. Please check the server settings."
+        )
+
+    payload = TokenPayload(
         email=original_payload.email,
-        base_url=base_url,
-        body_template=LINK_RENEWAL_TEMPLATE,
-        subject="Ayon access link renewal",
         full_name=original_payload.full_name,
         is_guest=original_payload.is_guest,
         project_name=original_payload.project_name,
         redirect_url=original_payload.redirect_url,
     )
+
+    enc_data = await encrypt_json_urlsafe(payload.dict(exclude_none=True))
+    token = enc_data.token
+    await enc_data.set_nonce(ttl=3600 * 24)
+
+    subject = "Ayon access link renewal"
+
+    ctx = {
+        "full_name": original_payload.full_name or "User",
+        "email": original_payload.email,
+        "project_name": original_payload.project_name or "the project",
+        "invite_link": f"{base_url}/login/_token?q={token}",
+        "redirect_url": original_payload.redirect_url or "/",
+    }
+
+    template = EmailTemplate()
+    body = template.render_template("token_renew.jinja", ctx)
+
+    await send_mail([original_payload.email], subject, html=body)
 
 
 async def create_guest_user_session(
