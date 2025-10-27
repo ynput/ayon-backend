@@ -111,6 +111,7 @@ async def update_project_level_entity(
     hooks = OperationHooks.hooks()
     if hooks:
         temp_entity = entity_class(project_name, entity.payload.dict())
+        temp_entity.inherited_attrib = entity.inherited_attrib.copy()
         temp_payload = entity_class.model.patch_model(**operation.data)
         temp_entity.patch(temp_payload, user=user)
 

@@ -44,17 +44,19 @@ class TaskEntity(ProjectLevelEntity):
     @staticmethod
     def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
         attrib: dict[str, Any] = {}
+        inhereited_attrib: dict[str, Any] = {}
         if (ia := record["inherited_attrib"]) is not None:
             for key, value in ia.items():
                 if key in attribute_library.inheritable_attributes():
                     attrib[key] = value
+                    inhereited_attrib[key] = value
         elif record["parent_id"] is not None:
             logger.warning(
                 f"Task {record['id']} does not have inherited attributes."
                 "this shouldn't happen"
             )
         attrib |= record["attrib"]
-        payload = {**record, "attrib": attrib}
+        payload = {**record, "attrib": attrib, "inherited_attrib": inhereited_attrib}
 
         folder_path = payload.pop("folder_path", None)
         folder_path = folder_path.strip("/")
