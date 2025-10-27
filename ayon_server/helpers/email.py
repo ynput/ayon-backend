@@ -187,13 +187,14 @@ async def send_mail(
 
 class EmailTemplate:
     def __init__(self) -> None:
+        # TODO: async rendering
         self.env = jinja2.Environment(loader=jinja2.FileSystemLoader("static/email"))
 
-    def render(self, template: str, context: dict[str, Any]) -> str:
+    async def render(self, template: str, context: dict[str, Any]) -> str:
         # Render the template string
         template_obj = self.env.from_string(template)
         return template_obj.render(context)
 
-    def render_template(self, template_name: str, context: dict[str, Any]) -> str:
+    async def render_template(self, template_name: str, context: dict[str, Any]) -> str:
         template = self.env.get_template(template_name)
         return template.render(context)

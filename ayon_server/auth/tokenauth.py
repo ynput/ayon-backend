@@ -67,7 +67,7 @@ async def send_invite_email(
         ctx.update(context)
 
     template = EmailTemplate()
-    body = template.render(body_template, ctx)
+    body = await template.render(body_template, ctx)
     subject = subject or "Invitation to Ayon instance"
     await send_mail([email], subject, html=body)
 
@@ -98,7 +98,7 @@ async def send_extend_email(payload: TokenPayload, base_url: str) -> None:
     }
 
     template = EmailTemplate()
-    body = template.render_template("token_renew.jinja", ctx)
+    body = await template.render_template("token_renew.jinja", ctx)
     subject = payload.subject or "Ayon access link renewal"
     await send_mail([payload.email], subject, html=body)
 
