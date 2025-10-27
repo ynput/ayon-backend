@@ -457,11 +457,11 @@ async def get_products(
             "name",
             "folder_id",
             "product_type",
+            "status",
             "attrib",
             "data",
-            "active",
-            "status",
             "tags",
+            "active",
             "created_at",
             "updated_at",
         ]
@@ -485,16 +485,17 @@ async def get_products(
         if version_filter:
             column_whitelist = [
                 "id",
-                "product_id",
                 "version",
+                "product_id",
+                "task_id",
+                "author",
+                "status",
                 "attrib",
                 "data",
-                "status",
                 "tags",
+                "active",
                 "created_at",
                 "updated_at",
-                "task_type",
-                "assignees",
             ]
 
             fdata = json.loads(version_filter)
@@ -503,10 +504,7 @@ async def get_products(
                 fq,
                 column_whitelist=column_whitelist,
                 table_prefix="versions",
-                column_map={
-                    "task_type": "tasks.task_type",
-                    "assignees": "tasks.assignees",
-                },
+                column_map={},
             )
             if fcond:
                 version_cond = f"{fcond}"
@@ -514,13 +512,15 @@ async def get_products(
         if task_filter:
             column_whitelist = [
                 "id",
+                "name",
+                "label",
                 "task_type",
                 "assignees",
-                "attrib",
-                "active",
-                "data",
                 "status",
+                "attrib",
+                "data",
                 "tags",
+                "active",
                 "created_at",
                 "updated_at",
             ]
