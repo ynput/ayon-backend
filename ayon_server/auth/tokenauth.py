@@ -22,6 +22,7 @@ from .models import LoginResponseModel
 class TokenPayload(OPModel):
     email: str
     is_guest: bool = True
+    subject: str | None = None
     project_name: str | None = None
     full_name: str | None = None
     redirect_url: str | None = None
@@ -40,9 +41,7 @@ async def send_invite_email(
     context: dict[str, Any] | None = None,
 ) -> None:
     if not await is_mailing_enabled():
-        raise InvalidSettingsException(
-            "Mailing is not enabled. Please check the server settings."
-        )
+        raise InvalidSettingsException("Mailing is not enabled.")
 
     payload = TokenPayload(
         email=email,
@@ -50,13 +49,12 @@ async def send_invite_email(
         is_guest=is_guest,
         project_name=project_name,
         redirect_url=redirect_url,
+        subject=subject,
     )
 
     enc_data = await encrypt_json_urlsafe(payload.dict(exclude_none=True))
     token = enc_data.token
     await enc_data.set_nonce(ttl=3600 * 24)
-
-    subject = subject or "Invitation to Ayon instance"
 
     ctx = {
         "full_name": full_name or "User",
@@ -68,15 +66,13 @@ async def send_invite_email(
     if context:
         ctx.update(context)
 
-    # template = jinja2.Template(body_template)
-    # body = template.render(**ctx)
     template = EmailTemplate()
     body = template.render(body_template, ctx)
-
+    subject = subject or "Invitation to Ayon instance"
     await send_mail([email], subject, html=body)
 
 
-async def send_extend_email(original_payload: TokenPayload, base_url: str) -> None:
+async def send_extend_email(payload: TokenPayload, base_url: str) -> None:
     """Send an email to the user to extend their invite link.
 
     When a link is used for the first time to log in, it is invalidated.
@@ -87,36 +83,24 @@ async def send_extend_email(original_payload: TokenPayload, base_url: str) -> No
     """
 
     if not await is_mailing_enabled():
-        raise InvalidSettingsException(
-            "Mailing is not enabled. Please check the server settings."
-        )
-
-    payload = TokenPayload(
-        email=original_payload.email,
-        full_name=original_payload.full_name,
-        is_guest=original_payload.is_guest,
-        project_name=original_payload.project_name,
-        redirect_url=original_payload.redirect_url,
-    )
+        raise InvalidSettingsException("Mailing is not enabled.")
 
     enc_data = await encrypt_json_urlsafe(payload.dict(exclude_none=True))
     token = enc_data.token
     await enc_data.set_nonce(ttl=3600 * 24)
 
-    subject = "Ayon access link renewal"
-
     ctx = {
-        "full_name": original_payload.full_name or "User",
-        "email": original_payload.email,
-        "project_name": original_payload.project_name or "the project",
+        "full_name": payload.full_name or "User",
+        "email": payload.email,
+        "project_name": payload.project_name or "the project",
         "invite_link": f"{base_url}/login/_token?q={token}",
-        "redirect_url": original_payload.redirect_url or "/",
+        "redirect_url": payload.redirect_url or "/",
     }
 
     template = EmailTemplate()
     body = template.render_template("token_renew.jinja", ctx)
-
-    await send_mail([original_payload.email], subject, html=body)
+    subject = payload.subject or "Ayon access link renewal"
+    await send_mail([payload.email], subject, html=body)
 
 
 async def create_guest_user_session(
@@ -131,13 +115,8 @@ async def create_guest_user_session(
     user = UserEntity(
         payload={
             "name": name,
-            "attrib": {
-                "email": email,
-                "fullName": full_name,
-            },
-            "data": {
-                "isGuest": True,
-            },
+            "attrib": {"email": email, "fullName": full_name},
+            "data": {"isGuest": True},
         }
     )
     session = await Session.create(user, request=request)
@@ -179,12 +158,7 @@ async def handle_token_auth_callback(
 
     if not await enc_data.validate_nonce():
         logger.debug(f"Token for guest user {payload.email} expired")
-
-        await send_extend_email(
-            original_payload=payload,
-            base_url=server_url_from_request(request),
-        )
-
+        await send_extend_email(payload, base_url=server_url_from_request(request))
         raise UnauthorizedException(
             "Your email link already expired or was used before. "
             "We're sending you a new one."
