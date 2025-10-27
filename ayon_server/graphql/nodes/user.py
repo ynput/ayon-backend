@@ -95,6 +95,12 @@ async def user_from_record(
     if not current_user.is_manager:
         attrib = {k: v for k, v in attrib.items() if k in ("fullName")}
 
+    user_project_list = context.get("user_project_list", [])
+    if user_project_list:
+        for ag in list(access_groups.keys()):
+            if ag not in user_project_list:
+                del access_groups[ag]
+
     return UserNode(
         name=name,
         active=record["active"],

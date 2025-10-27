@@ -1,5 +1,6 @@
 from typing import Annotated
 
+from ayon_server.config import ayonconfig
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import UsersConnection
 from ayon_server.graphql.edges import UserEdge
@@ -65,6 +66,7 @@ async def get_users(
     user = info.context["user"]
     if project_name is None and projects is None:
         user.check_permissions("studio.list_all_users")
+
     if user.is_guest:
         # TODO: allow listing users assigned to the same project?
         return UsersConnection(edges=[])
@@ -98,18 +100,27 @@ async def get_users(
         projects = []
     if project_name and project_name not in projects:
         projects.append(project_name)
-    if not projects:
-        validate_name_list(projects)
+
+    info.context["user_project_list"] = projects
 
     if projects:
+        validate_name_list(projects)
+
         cnd1 = "users.data->>'isAdmin' = 'true'"
         cnd2 = "users.data->>'isManager' = 'true'"
-        cnd3 = f"""(
-            SELECT COUNT(*)
-            FROM jsonb_object_keys(users.data->'accessGroups') keys
-            WHERE keys IN ({', '.join([f"'{project}'" for project in projects])})
-        ) > 0"""
-        cnd = f"({cnd1} OR {cnd2} OR {cnd3})"
+
+        cnd3l = []
+        for pname in projects:
+            xlist = ""
+            if ayonconfig.limit_user_visibility and not user.is_manager:
+                user_groups = user.data.get("accessGroups", {}).get(pname, [])
+                ug_arr = SQLTool.array(user_groups, curly=True)
+                xlist = f" AND (users.data->'accessGroups'->'{pname}' ?| {ug_arr})"
+            cnd3l.append(f"(users.data->'accessGroups' ? '{pname}' {xlist})")
+
+        cnd3 = " OR ".join(cnd3l)
+
+        cnd = f"({cnd1} OR {cnd2} OR ({cnd3}))"
         sql_conditions.append(cnd)
 
     #
