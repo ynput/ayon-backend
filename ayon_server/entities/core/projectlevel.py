@@ -88,12 +88,14 @@ class ProjectLevelEntity(BaseEntity):
             if key not in payload:
                 continue  # there are optional keys too
             parsed[key] = payload[key]
-        return cls(
+        result = cls(
             project_name,
             parsed,
             exists=True,
             own_attrib=own_attrib,
         )
+        result.inherited_attrib = payload.get("inherited_attrib", {})
+        return result
 
     def replace(self, replace_data: BaseModel) -> None:
         """Replace the entity payload with new data."""

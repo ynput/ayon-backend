@@ -2,6 +2,7 @@ from typing import Literal, cast
 
 from ayon_server.api.dependencies import AllowGuests, CurrentUser, ProjectName
 from ayon_server.entities import FolderEntity, TaskEntity, VersionEntity
+from ayon_server.entities.project import ProjectEntity
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.suggestions.folder import get_folder_suggestions
 from ayon_server.suggestions.models import (
@@ -48,14 +49,16 @@ async def suggest_entity_mention(
     entity = await entity_class.load(project_name, request.entity_id)
     await entity.ensure_read_access(user)
 
+    project = await ProjectEntity.load(project_name)
+
     res: dict[str, list[SuggestionType]]
 
     if request.entity_type == "folder":
-        res = await get_folder_suggestions(user.name, cast(FolderEntity, entity))
+        res = await get_folder_suggestions(project, user, cast(FolderEntity, entity))
     elif request.entity_type == "task":
-        res = await get_task_suggestions(user.name, cast(TaskEntity, entity))
+        res = await get_task_suggestions(project, user, cast(TaskEntity, entity))
     elif request.entity_type == "version":
-        res = await get_version_suggestions(user.name, cast(VersionEntity, entity))
+        res = await get_version_suggestions(project, user, cast(VersionEntity, entity))
     else:
         raise ValueError("Unrecognized entity type")
 

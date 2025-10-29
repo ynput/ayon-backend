@@ -37,6 +37,7 @@ SORT_OPTIONS = {
     "path": "hierarchy.path || '/' || products.name",
     "productType": "products.product_type",
     "productBaseType": "products.product_base_type",
+    "folderName": "folders.name",
     "createdAt": "products.created_at",
     "updatedAt": "products.updated_at",
     "tags": "array_to_string(products.tags, '')",
@@ -129,18 +130,6 @@ async def get_products(
 
     sql_columns = [
         "products.*",
-        # "products.id AS id",
-        # "products.name AS name",
-        # "products.folder_id AS folder_id",
-        # "products.product_type AS product_type",
-        # "products.attrib AS attrib",
-        # "products.data AS data",
-        # "products.status AS status",
-        # "products.tags AS tags",
-        # "products.active AS active",
-        # "products.created_at AS created_at",
-        # "products.updated_at AS updated_at",
-        # "products.creation_order AS creation_order",
         "folders.id AS _folder_id",
         "folders.name AS _folder_name",
         "folders.label AS _folder_label",
@@ -328,33 +317,55 @@ async def get_products(
     if ff_field := fields.find_field("featuredVersion"):
         req_order = ff_field.arguments.get("order") or [
             "hero",
-            "latestApproved",
+            "latestDone",
             "latest",
         ]
+
+        sql_cte.append(
+            f"""
+            reviewables AS (
+                SELECT entity_id FROM project_{project_name}.activity_feed
+                WHERE entity_type = 'version'
+                AND activity_type = 'reviewable'
+            )
+            """
+        )
 
         if "hero" in req_order:
             sql_cte.append(
                 f"""
                 hero_versions AS (
-                    SELECT DISTINCT ON (product_id) *
-                    FROM project_{project_name}.versions
-                    WHERE version < 0
-                    ORDER BY product_id, created_at DESC
+                    SELECT
+                        distinct on (versions.product_id)
+                        versions.*,
+                        hero_versions.id AS hero_version_id,
+                        rv.entity_id IS NOT NULL AS has_reviewables
+                    FROM project_{project_name}.versions AS versions
+
+                    JOIN project_{project_name}.versions AS hero_versions
+                    ON hero_versions.product_id = versions.product_id
+                    AND hero_versions.version < 0
+                    AND ABS(hero_versions.version) = versions.version
+
+                    LEFT JOIN reviewables AS rv
+                    ON versions.id = rv.entity_id
+
+                    ORDER BY versions.product_id, versions.version DESC
                 )
                 """
             )
             sql_joins.append(
                 """
                 LEFT JOIN hero_versions AS ff_hero
-                ON products.id = ff_hero.product_id
+                ON ff_hero.product_id = products.id
                 """
             )
             sql_columns.append("to_jsonb(ff_hero.*) as _hero_version_data")
 
-        if "latestApproved" in req_order:
+        if "latestDone" in req_order:
             sql_cte.append(
                 f"""
-                approved_statuses AS (
+                done_statuses AS (
                     SELECT name from project_{project_name}.statuses
                     WHERE data->>'state' = 'done'
                 )
@@ -363,33 +374,47 @@ async def get_products(
 
             sql_cte.append(
                 f"""
-                latest_approved_versions AS (
-                    SELECT DISTINCT ON (v.product_id) v.*
-                    FROM project_{project_name}.versions v
-                    JOIN approved_statuses AS s
-                    ON v.status = s.name
-                    ORDER BY v.product_id, v.version DESC
+                latest_done_versions AS (
+                    SELECT
+                        DISTINCT ON (versions.product_id)
+                        versions.*,
+                        rv.entity_id IS NOT NULL AS has_reviewables
+                    FROM project_{project_name}.versions
+
+                    JOIN done_statuses AS s
+                    ON versions.status = s.name
+
+                    LEFT JOIN reviewables AS rv
+                    ON versions.id = rv.entity_id
+
+                    ORDER BY versions.product_id, versions.version DESC
                 )
                 """
             )
             sql_joins.append(
                 """
-                LEFT JOIN latest_approved_versions AS ff_latest_approved
-                ON products.id = ff_latest_approved.product_id
+                LEFT JOIN latest_done_versions AS ff_latest_done
+                ON products.id = ff_latest_done.product_id
                 """
             )
             sql_columns.append(
-                "to_jsonb(ff_latest_approved.*) as _latest_approved_version_data"
+                "to_jsonb(ff_latest_done.*) as _latest_done_version_data"
             )
 
         if "latest" in req_order:
             sql_cte.append(
                 f"""
                 latest_versions AS (
-                    SELECT DISTINCT ON (product_id) *
+                    SELECT
+                        DISTINCT ON (versions.product_id) versions.*,
+                        rv.entity_id IS NOT NULL AS has_reviewables
                     FROM project_{project_name}.versions
-                    WHERE version >= 0
-                    ORDER BY product_id, version DESC
+
+                    LEFT JOIN reviewables AS rv
+                    ON versions.id = rv.entity_id
+
+                    WHERE versions.version >= 0
+                    ORDER BY versions.product_id, versions.version DESC
                 )
                 """
             )
@@ -444,11 +469,11 @@ async def get_products(
             "name",
             "folder_id",
             "product_type",
+            "status",
             "attrib",
             "data",
-            "active",
-            "status",
             "tags",
+            "active",
             "created_at",
             "updated_at",
         ]
@@ -472,16 +497,17 @@ async def get_products(
         if version_filter:
             column_whitelist = [
                 "id",
-                "product_id",
                 "version",
+                "product_id",
+                "task_id",
+                "author",
+                "status",
                 "attrib",
                 "data",
-                "status",
                 "tags",
+                "active",
                 "created_at",
                 "updated_at",
-                "task_type",
-                "assignees",
             ]
 
             fdata = json.loads(version_filter)
@@ -490,10 +516,7 @@ async def get_products(
                 fq,
                 column_whitelist=column_whitelist,
                 table_prefix="versions",
-                column_map={
-                    "task_type": "tasks.task_type",
-                    "assignees": "tasks.assignees",
-                },
+                column_map={},
             )
             if fcond:
                 version_cond = f"{fcond}"
@@ -501,13 +524,15 @@ async def get_products(
         if task_filter:
             column_whitelist = [
                 "id",
+                "name",
+                "label",
                 "task_type",
                 "assignees",
-                "attrib",
-                "active",
-                "data",
                 "status",
+                "attrib",
+                "data",
                 "tags",
+                "active",
                 "created_at",
                 "updated_at",
             ]
@@ -570,6 +595,28 @@ async def get_products(
             attr_name = sort_by[7:]
             attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
             order_by.insert(0, attr_case)
+        elif sort_by == "version":
+            # count by product version count
+            sql_cte.append(
+                f"""
+                product_version_counts AS (
+                    SELECT
+                        product_id,
+                        COUNT(*) AS version_count
+                    FROM project_{project_name}.versions
+                    WHERE version >= 0
+                    GROUP BY product_id
+                )
+                """
+            )
+            sql_joins.append(
+                """
+                LEFT JOIN product_version_counts AS pvc
+                ON pvc.product_id = products.id
+                """
+            )
+            order_by.insert(0, "COALESCE(pvc.version_count, 0)")
+
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
 

@@ -4,10 +4,11 @@ import ssl
 from concurrent.futures import ThreadPoolExecutor
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import TYPE_CHECKING, Literal, Union
+from typing import TYPE_CHECKING, Any, Literal, Union
 
 import aiocache
 import httpx
+import jinja2
 from pydantic import BaseModel, Field
 
 from ayon_server.config import ayonconfig
@@ -182,3 +183,18 @@ async def send_mail(
 
     elif mailing_enabled == "api":
         await send_api_email(recipient_list, subject, text, html)
+
+
+class EmailTemplate:
+    def __init__(self) -> None:
+        # TODO: async rendering
+        self.env = jinja2.Environment(loader=jinja2.FileSystemLoader("static/email"))
+
+    async def render(self, template: str, context: dict[str, Any]) -> str:
+        # Render the template string
+        template_obj = self.env.from_string(template)
+        return template_obj.render(context)
+
+    async def render_template(self, template_name: str, context: dict[str, Any]) -> str:
+        template = self.env.get_template(template_name)
+        return template.render(context)

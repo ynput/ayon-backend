@@ -21,6 +21,7 @@ class BaseEntity:
     exists: bool = False
     project_name: str | None = None
     own_attrib: list[str] = []
+    inherited_attrib: dict[str, Any] = {}
     _payload: BaseModel
 
     def __repr__(self):
@@ -64,7 +65,7 @@ class BaseEntity:
         """Apply a patch to the entity."""
 
         pdata = patch_data.dict(exclude_unset=True)
-        pattr = pdata.pop("attrib", {})
+        pattr = pdata.pop("attrib", {})  # attributes to be patched
 
         if user is not None and hasattr(self, "project_name"):
             if not (user.is_manager):
@@ -101,14 +102,27 @@ class BaseEntity:
                                 f" field in {self.project_name}"
                             )
 
+        # list of attributes that will need to be set to inherited
+        # after applying the patch
+        inherit_list = set()
+
         if pattr:
             for key in pattr:
                 if pattr.get(key) is None:
+                    inherit_list.add(key)
                     continue
                 if key in self.own_attrib:
                     continue
                 self.own_attrib.append(key)
         self._payload = apply_patch(self._payload, patch_data)
+
+        for attr in inherit_list:
+            if attr in self.own_attrib:
+                self.own_attrib.remove(attr)
+            # Revert the attrib value to the value inherited from parent
+            # (if available)
+            if attr in self.inherited_attrib:
+                setattr(self._payload.attrib, attr, self.inherited_attrib[attr])  # type: ignore
 
     @property
     def payload(self) -> BaseModel:
