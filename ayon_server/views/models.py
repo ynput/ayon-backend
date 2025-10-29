@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
@@ -11,7 +11,14 @@ from ayon_server.utils import create_uuid
 #
 
 ViewScopes = Literal["project", "studio"]
-ViewType = Literal["overview", "taskProgress", "lists", "reviews", "versions"]
+ViewType = Literal[
+    "overview",
+    "taskProgress",
+    "lists",
+    "reviews",
+    "versions",
+    "reports",
+]
 
 FViewScope = Annotated[
     ViewScopes,
@@ -166,6 +173,19 @@ class VersionsSettings(OPModel):
     columns: FColumnList
 
 
+class ReportsSettings(OPModel):
+    widgets: Annotated[
+        list[dict[str, Any]],
+        Field(title="List of report widgets", default_factory=list),
+    ]
+    date_format: str | None = None
+
+
 ViewSettingsModel = (
-    OverviewSettings | TaskProgressSettings | ListsSettings | VersionsSettings
+    OverviewSettings
+    | TaskProgressSettings
+    | ListsSettings
+    | VersionsSettings
+    | ReportsSettings
+    | ReviewsSettings
 )
