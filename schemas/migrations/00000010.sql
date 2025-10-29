@@ -30,13 +30,12 @@ FOR rec IN
     AND tc.constraint_type = 'FOREIGN KEY'
   LOOP
     RAISE WARNING 'Removing product type reference from %.%', rec.project_schema, rec.table_name;
-    -- TODO: Uncomment once we are sure
-    -- EXECUTE format(
-    --   'ALTER TABLE %I.%I DROP CONSTRAINT %I;',
-    --   rec.project_schema,
-    --   rec.table_name,
-    --   rec.constraint_name
-    -- );
+    EXECUTE format(
+      'ALTER TABLE %I.%I DROP CONSTRAINT %I;',
+      rec.project_schema,
+      rec.table_name,
+      rec.constraint_name
+    );
   END LOOP;
 END $$;
 
@@ -61,8 +60,7 @@ BEGIN
         BEGIN
           RAISE WARNING 'Adding product_base_type to %.%', rec.table_schema, rec.table_name;
           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.table_schema);
-          -- TODO: Uncomment once we are sure
-          -- EXECUTE 'ALTER TABLE ' || quote_ident(rec.table_name) || ' ADD COLUMN IF NOT EXISTS product_base_type VARCHAR;';
+          EXECUTE 'ALTER TABLE ' || quote_ident(rec.table_name) || ' ADD COLUMN IF NOT EXISTS product_base_type VARCHAR;';
         EXCEPTION
           WHEN OTHERS THEN
              RAISE WARNING 'Skipping schema % due to error: %', rec.table_schema, SQLERRM;
@@ -97,9 +95,8 @@ BEGIN
         BEGIN
           RAISE WARNING 'Adding created_by and updated_by to %.%', rec.table_schema, rec.table_name;
           EXECUTE 'SET LOCAL search_path TO ' || quote_ident(rec.table_schema);
-          -- TODO: Uncomment once we are sure
-          -- EXECUTE 'ALTER TABLE ' || quote_ident(rec.table_name) || ' ADD COLUMN IF NOT EXISTS created_by VARCHAR;';
-          -- EXECUTE 'ALTER TABLE ' || quote_ident(rec.table_name) || ' ADD COLUMN IF NOT EXISTS updated_by VARCHAR;';
+          EXECUTE 'ALTER TABLE ' || quote_ident(rec.table_name) || ' ADD COLUMN IF NOT EXISTS created_by VARCHAR;';
+          EXECUTE 'ALTER TABLE ' || quote_ident(rec.table_name) || ' ADD COLUMN IF NOT EXISTS updated_by VARCHAR;';
         EXCEPTION
           WHEN OTHERS THEN
              RAISE WARNING 'Skipping schema % due to error: %', rec.table_schema, SQLERRM;

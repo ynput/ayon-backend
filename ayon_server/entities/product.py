@@ -93,9 +93,9 @@ class ProductEntity(ProjectLevelEntity):
         self._payload.product_type = value  # type: ignore
 
     @property
-    def product_base_type(self) -> str:
+    def product_base_type(self) -> str | None:
         return self._payload.product_base_type  # type: ignore
 
     @product_base_type.setter
-    def product_base_type(self, value: str):
+    def product_base_type(self, value: str | None):
         self._payload.product_base_type = value  # type: ignore
