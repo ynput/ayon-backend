@@ -38,6 +38,10 @@ class VersionNode(BaseNode):
     author: str | None = None
     data: str | None = None
     path: str | None = None
+    hero_version_id: str | None = None
+    featured_version_type: str | None = None
+    is_latest: bool = False
+    is_latest_done: bool = False
 
     _folder_path: strawberry.Private[str | None] = None
 
@@ -140,6 +144,10 @@ async def version_from_record(
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        hero_version_id=record.get("hero_version_id"),
+        featured_version_type=record.get("featured_version_type"),
+        is_latest=record.get("is_latest", False),
+        is_latest_done=record.get("is_latest_done", False),
         _folder_path=folder_path,
         _attrib=record["attrib"] or {},
         _user=current_user,

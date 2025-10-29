@@ -25,11 +25,11 @@ def decode_cursor(cursor: str | None) -> tuple[list[str], list[str]]:
                     vals.append(f"'{c}'::timestamptz")
                     casts.append("::timestamptz")
                 else:
-                    val = c.replace("'", "''")
+                    val = c.replace("'", "''") if c else ""
                     vals.append(f"'{val}'::text")
                     casts.append("::text")
             else:
-                vals.append(f"{c}::numeric")
+                vals.append(f"{c or 0}::numeric")
                 casts.append("::numeric")
         return vals, casts
     except Exception as e:
@@ -71,9 +71,23 @@ def create_pagination(
     decoded_cursor, casts = decode_cursor(before or after)
     operator = "<" if before else ">"
 
+    keys = []
+    for i, cast in enumerate(casts):
+        ob = order_by[i]
+        if "->" in ob:
+            if cast == "::numeric":
+                keys.append(f"COALESCE({ob}, '0'::jsonb){cast}")
+            else:
+                keys.append(f"COALESCE({ob}, ''::jsonb){cast}")
+        else:
+            if cast == "::numeric":
+                keys.append(f"COALESCE({ob}, 0){cast}")
+            else:
+                keys.append(f"COALESCE({ob}, ''){cast}")
+
     for i, c in enumerate(order_by):
         cursor_arr.append(f"{c} AS cursor_{i}")
-        ordering_arr.append(f"{c} {'DESC' if last else ''}")
+        ordering_arr.append(f"{c} {'DESC NULLS LAST' if last else 'ASC NULLS FIRST'}")
 
     # Okay. I know this looks like something a 5YO would write, but hear me out.
     # We don't need to support more than two cursors. Hopefully.
@@ -83,19 +97,17 @@ def create_pagination(
 
     if len(decoded_cursor) == 1:
         conditions = f"""
-        ({order_by[0]}){casts[0]} {operator} {decoded_cursor[0]}
+        ({keys[0]} {operator} {decoded_cursor[0]})
         """
     elif len(decoded_cursor) == 2:
         conditions = f"""
-(
-    ({order_by[0]}){casts[0]} {operator} {decoded_cursor[0]}
-    OR (
-        ({order_by[0]}){casts[0]} = {decoded_cursor[0]}
-        AND
-        ({order_by[1]}){casts[1]} {operator} {decoded_cursor[1]}
-    )
-)
-"""
+        (
+            {keys[0]} {operator} {decoded_cursor[0]}
+        OR (
+            {keys[0]} = {decoded_cursor[0]}
+            AND {keys[1]} {operator} {decoded_cursor[1]}
+           )
+        )"""
     else:
         conditions = ""
 

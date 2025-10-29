@@ -154,7 +154,7 @@ class ReviewsSettings(ListsSettings):
 class VersionsSettings(OPModel):
     show_products: bool = False
     row_height: int | None = None
-    show_grid: bool = False
+    show_grid: bool = True
     grid_height: int | None = None
     featured_version_order: list[str] | None = None
     slicer_type: str | None = None
