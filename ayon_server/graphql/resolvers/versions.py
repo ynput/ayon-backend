@@ -94,6 +94,10 @@ async def get_versions(
         bool,
         argdesc("DEPRECATED List hero versions. If hero does not exist, list latest"),
     ] = False,
+    has_reviewables: Annotated[
+        bool | None,
+        argdesc("Filter versions that have reviewables"),
+    ] = None,
     featured_only: Annotated[
         list[str] | None,
         argdesc(
@@ -164,7 +168,7 @@ async def get_versions(
         "products.name AS _product_name",
     ]
 
-    if fields.any_endswith("hasReviewables"):
+    if fields.any_endswith("hasReviewables") or (has_reviewables is not None):
         sql_cte.append(
             f"""
             reviewables AS (
@@ -182,6 +186,16 @@ async def get_versions(
             ) AS has_reviewables
             """
         )
+
+        if has_reviewables is not None:
+            if has_reviewables:
+                sql_conditions.append(
+                    "EXISTS (SELECT 1 FROM reviewables WHERE entity_id = versions.id)"
+                )
+            else:
+                sql_conditions.append(
+                    "NOT EXISTS (SELECT 1 FROM reviewables WHERE entity_id = versions.id)"  # noqa 501
+                )
 
     #
     # Direct, version-specific filtering
