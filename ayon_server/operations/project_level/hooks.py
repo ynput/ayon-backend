@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.logging import logger
+from ayon_server.utils.hashing import create_uuid
 
 from .models import OperationModel
 
@@ -51,15 +52,26 @@ class OperationHooks:
     Handling Hook result is not yet implemented.
     """
 
-    _hooks: list[HookType] = []
+    _hooks: dict[str, HookType] = {}
 
     @classmethod
-    def register(cls, hook: HookType) -> None:
+    def register(cls, hook: HookType) -> str:
         # Get the function name for better logging
+        token = create_uuid()
         hook_name = getattr(hook, "__name__", str(hook))
         logger.debug(f"Registering operation hook '{hook_name}'")
-        cls._hooks.append(hook)
+        cls._hooks[token] = hook
+        return token
+
+    @classmethod
+    def unregister(cls, token: str) -> None:
+        if token in cls._hooks:
+            hook = cls._hooks.pop(token)
+            hook_name = getattr(hook, "__name__", str(hook))
+            logger.debug(f"Unregistered operation hook '{hook_name}'")
+        else:
+            logger.warning(f"Attempted to unregister unknown operation hook '{token}'")
 
     @classmethod
     def hooks(cls) -> Iterable[HookType]:
-        return cls._hooks
+        return cls._hooks.values()
