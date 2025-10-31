@@ -57,9 +57,9 @@ class OperationHooks:
     @classmethod
     def register(cls, hook: HookType) -> str:
         # Get the function name for better logging
-        token = create_uuid()
         hook_name = getattr(hook, "__name__", str(hook))
         logger.debug(f"Registering operation hook '{hook_name}'")
+        token = create_uuid()
         cls._hooks[token] = hook
         return token
 
