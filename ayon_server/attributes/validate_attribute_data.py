@@ -23,6 +23,9 @@ def validate_attribute_data(name: str, fdef: AttributeData) -> None:
     This function will raise a ValueError if the attribute data is invalid.
     """
 
+    if not name.isidentifier():
+        raise BadRequestException(f"Attribute name '{name}' is not a valid identifier.")
+
     field = {}
     for k in (
         "gt",
