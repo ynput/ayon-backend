@@ -229,10 +229,20 @@ async def get_tags_groups(
 async def get_product_type_groups(
     project_name: str,
 ) -> list[EntityGroup]:
-    """Get product type groups based on product types."""
+    """
+    Retrieve product groups based on product types for the given project.
 
-    groups: list[EntityGroup] = []
+    For each product type, returns a group containing:
+        - value: the product type name
+        - label: the product type name
+        - icon: the icon from the anatomy configuration for this type
+        - color: the color from the anatomy configuration for this type
+        - count: the number of products of this type
 
+    Icon and color are sourced from the project's anatomy configuration.
+    This differs from other grouping functions (e.g., by tags or status)
+    by grouping specifically on product type and enriching with anatomy metadata.
+    """
     anatomy = await get_project_anatomy(project_name)
     mapping = {}
     for pt in anatomy.product_base_types.definitions:
