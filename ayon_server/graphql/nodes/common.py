@@ -20,6 +20,11 @@ class ProductType(BaseEdge):
 
 
 @strawberry.type
+class ProductBaseType(BaseEdge):
+    name: str = strawberry.field()
+
+
+@strawberry.type
 class LinkEdge(BaseEdge):
     id: str = strawberry.field()
     project_name: str = strawberry.field()

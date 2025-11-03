@@ -36,6 +36,7 @@ SORT_OPTIONS = {
     "name": "products.name",
     "path": "hierarchy.path || '/' || products.name",
     "productType": "products.product_type",
+    "productBaseType": "products.product_base_type",
     "folderName": "folders.name",
     "createdAt": "products.created_at",
     "updatedAt": "products.updated_at",
@@ -79,6 +80,9 @@ async def get_products(
     product_types: Annotated[
         list[str] | None,
         argdesc("List of product types to filter by"),
+    ] = None,
+    product_base_types: Annotated[
+        list[str] | None, argdesc("List of base types")
     ] = None,
     statuses: Annotated[
         list[str] | None,
@@ -222,6 +226,14 @@ async def get_products(
         validate_type_name_list(product_types)
         sql_conditions.append(
             f"products.product_type IN {SQLTool.array(product_types)}"
+        )
+
+    if product_base_types is not None:
+        if not product_base_types:
+            return ProductsConnection()
+        validate_name_list(product_base_types)
+        sql_conditions.append(
+            f"products.product_base_type IN {SQLTool.array(product_base_types)}"
         )
 
     if statuses is not None:
