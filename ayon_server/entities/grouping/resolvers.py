@@ -2,6 +2,7 @@ from typing import Literal
 
 from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.exceptions import BadRequestException
+from ayon_server.helpers.anatomy import get_project_anatomy
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
@@ -219,6 +220,42 @@ async def get_tags_groups(
             label=row["value"],
             icon=row["icon"],
             color=row["color"],
+            count=row["count"],
+        )
+        groups.append(group)
+    return groups
+
+
+async def get_product_type_groups(
+    project_name: str,
+) -> list[EntityGroup]:
+    """Get product type groups based on product types."""
+
+    groups: list[EntityGroup] = []
+
+    anatomy = await get_project_anatomy(project_name)
+    mapping = {}
+    for pt in anatomy.product_base_types.definitions:
+        mapping[pt.name] = {
+            "icon": pt.icon,
+            "color": pt.color,
+        }
+
+    query = f"""
+        SELECT count(*) AS count, product_type AS value
+        FROM project_{project_name}.products
+        GROUP BY product_type
+    """
+
+    result = await Postgres.fetch(query)
+    for row in result:
+        group = EntityGroup(
+            value=row["value"],
+            label=row["value"],
+            icon=mapping.get(row["value"], {}).get("icon")
+            or anatomy.product_base_types.default.icon,
+            color=mapping.get(row["value"], {}).get("color")
+            or anatomy.product_base_types.default.color,
             count=row["count"],
         )
         groups.append(group)

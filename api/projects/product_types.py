@@ -1,9 +1,9 @@
 from typing import Annotated
 
 from ayon_server.api.dependencies import CurrentUser, ProjectName
+from ayon_server.helpers.anatomy import get_project_anatomy
 from ayon_server.types import Field, OPModel
 
-from .anatomy import _get_project_anatomy
 from .router import router
 
 
@@ -39,7 +39,7 @@ async def get_product_types(
     """Retrieve a project statistics by its name."""
 
     user.check_permissions("project.access", project_name)
-    anatomy = await _get_project_anatomy(project_name)
+    anatomy = await get_project_anatomy(project_name)
 
     default = DefaultProductType(
         color=anatomy.product_base_types.default.color,
