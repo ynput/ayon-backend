@@ -4,6 +4,7 @@ import asyncio
 from typing import Any
 
 from ayon_server.addons.library import AddonLibrary
+from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.helpers.migrate_addon_settings import migrate_addon_settings
@@ -130,4 +131,35 @@ async def migrate_settings(
             )
 
     if events:
+        asyncio.create_task(_dispatch_events(events, user_name))
+
+
+async def migrate_server_addon_settings(
+    addon_name: str,
+    source_version: str,
+    target_version: str,
+    *,
+    user: UserEntity | None = None,
+) -> None:
+    try:
+        source_addon = AddonLibrary.addon(addon_name, source_version)
+        target_addon = AddonLibrary.addon(addon_name, target_version)
+    except NotFoundException as e:
+        logger.warning(f"Unable to migrate server addon settings: {e}")
+        return
+
+    logger.info(
+        f"Migrating server addon settings for {addon_name} "
+        f"from {source_version} to {target_version}"
+    )
+
+    events = await migrate_addon_settings(
+        source_addon,
+        target_addon,
+        source_variant="production",
+        target_variant="production",
+        with_projects=True,
+    )
+    if events:
+        user_name = user.name if user else None
         asyncio.create_task(_dispatch_events(events, user_name))

@@ -28,6 +28,13 @@ class BaseSettingsModel(BaseModel):
         json_dumps = json_dumps
 
 
+def unwrap_annotated(tp) -> tuple[Any, list[Any] | None]:
+    if get_origin(tp) is Annotated:
+        actual_type, *metadata = get_args(tp)
+        return actual_type, metadata
+    return tp, None
+
+
 def migrate_settings_overrides(
     old_data: dict[str, Any],
     new_model_class: type[BaseSettingsModel],
@@ -48,18 +55,21 @@ def migrate_settings_overrides(
             # Construct the key path for nested fields
             key_path = f"{parent_key}.{key}" if parent_key else key
             field_type = new_model_class.__fields__[key]
+
+            outer_type, _ = unwrap_annotated(field_type.outer_type_)
+
             if inspect.isclass(field_type.type_) and issubclass(
                 field_type.type_, BaseSettingsModel
             ):
                 if (
-                    isinstance(field_type.outer_type_, GenericAlias)
-                    and field_type.outer_type_.__origin__ == list
+                    isinstance(outer_type, GenericAlias)
+                    and outer_type.__origin__ == list
                     and isinstance(value, list)
                 ):
                     new_data[key] = [
                         migrate_settings_overrides(
                             v,
-                            field_type.outer_type_.__args__[0],
+                            outer_type.__args__[0],
                             {},
                             custom_conversions,
                             key_path,
@@ -73,7 +83,7 @@ def migrate_settings_overrides(
 
                     new_data[key] = migrate_settings_overrides(
                         value,
-                        field_type.outer_type_,
+                        outer_type,
                         defaults.get(key, {}),
                         custom_conversions,
                         key_path,
@@ -83,7 +93,7 @@ def migrate_settings_overrides(
                     logger.warning(f"Unsupported type for {key_path} model: {sval}")
             else:
                 try:
-                    validated_value = parse_obj_as(field_type.outer_type_, value)
+                    validated_value = parse_obj_as(outer_type, value)
                     new_data[key] = validated_value
                 except ValidationError:
                     logger.warning(f"Failed to validate {key} with value {value}")
