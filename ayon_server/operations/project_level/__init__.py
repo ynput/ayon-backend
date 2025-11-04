@@ -201,11 +201,11 @@ async def _process_operations(
                 break
 
         except ValidationError as e:
-            logger.debug(
-                f"{op_tag} failed: {e}",
+            with logger.contextualize(
                 project=project_name,
                 operation_id=operation.id,
-            )
+            ):
+                logger.debug(f"{op_tag} Validation error: {e.errors()}")
             result.append(
                 OperationResponseModel(
                     success=False,
