@@ -1,8 +1,9 @@
 from collections import defaultdict
 
-from ayon_server.entities import TaskEntity
+from ayon_server.entities import ProjectEntity, TaskEntity, UserEntity
 from ayon_server.lib.postgres import Postgres
 
+from .common import get_relevant_users_cte
 from .models import (
     FolderSuggestionItem,
     ProductSuggestionItem,
@@ -14,7 +15,9 @@ from .models import (
 
 
 async def get_task_suggestions(
-    user: str, task: TaskEntity
+    project: ProjectEntity,
+    user: UserEntity,
+    task: TaskEntity,
 ) -> dict[str, list[SuggestionType]]:
     """
     Assignees: Every assignee in the project, sorted by assignees first.
@@ -29,13 +32,10 @@ async def get_task_suggestions(
 
     # get users:
 
+    relevant_users_cte = await get_relevant_users_cte(project, user)
+
     query = f"""
-        WITH relevant_users AS (
-            SELECT name FROM public.users
-            WHERE data->>'isAdmin' = 'true'
-            OR data->>'isManager' = 'true'
-            OR data->'accessGroups'->'{project_name}' IS NOT NULL
-        )
+        WITH {relevant_users_cte}
 
         SELECT
             u.name as name,

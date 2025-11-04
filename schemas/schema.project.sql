@@ -173,10 +173,10 @@ CREATE TABLE folders(
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_by VARCHAR,
-    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
@@ -243,10 +243,10 @@ CREATE TABLE tasks(
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
-    created_by VARCHAR,
-    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
@@ -265,22 +265,24 @@ CREATE TABLE products(
     name VARCHAR NOT NULL,
 
     folder_id UUID NOT NULL REFERENCES folders(id),
-    product_type VARCHAR NOT NULL REFERENCES public.product_types(name) ON UPDATE CASCADE,
+    product_type VARCHAR NOT NULL,
+    product_base_type VARCHAR NULL,
 
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
-    created_by VARCHAR,
-    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
 CREATE INDEX product_parent_idx ON products(folder_id);
 CREATE INDEX product_type_idx ON products(product_type);
+CREATE INDEX product_base_type_idx ON products(product_base_type);
 CREATE UNIQUE INDEX product_creation_order_idx ON products(creation_order);
 CREATE UNIQUE INDEX product_unique_name_parent ON products (folder_id, LOWER(name)) WHERE (active IS TRUE);
 
@@ -302,10 +304,10 @@ CREATE TABLE versions(
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
-    created_by VARCHAR,
-    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
@@ -346,10 +348,10 @@ CREATE TABLE representations(
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
-    created_by VARCHAR,
-    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
@@ -463,11 +465,27 @@ CREATE TABLE IF NOT EXISTS custom_roots(
 -- Entity lists --
 ------------------
 
+CREATE TABLE entity_list_folders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    label VARCHAR NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    parent_id UUID REFERENCES entity_list_folders(id) ON DELETE CASCADE,
+    owner VARCHAR,
+    access JSONB DEFAULT '{}'::JSONB,
+    data JSONB DEFAULT '{}'::JSONB
+);
+
+CREATE UNIQUE INDEX uq_entity_list_folder_parent_label ON entity_list_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
+
+
+-- Entity lists and items
+
 
 CREATE TABLE entity_lists(
   id UUID NOT NULL PRIMARY KEY,
   entity_list_type VARCHAR NOT NULL,
   entity_type VARCHAR NOT NULL,
+  entity_list_folder_id UUID REFERENCES entity_list_folders(id) ON DELETE SET NULL,
   label VARCHAR NOT NULL,
   owner VARCHAR,
 

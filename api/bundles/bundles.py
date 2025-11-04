@@ -19,7 +19,7 @@ from ayon_server.utils import RequestCoalescer
 
 from .actions import promote_bundle
 from .check_bundle import CheckBundleResponseModel, check_bundle
-from .migration import migrate_settings
+from .migration import migrate_server_addon_settings, migrate_settings
 from .models import AddonDevelopmentItem, BundleModel, BundlePatchModel, ListBundleModel
 from .router import router
 
@@ -333,6 +333,9 @@ async def update_bundle(
         # Can be patched for both dev and non-dev bundles
         # But when patching a non-dev bundle, only server addons can be patched
 
+        # Tuple of addon_name, previous_version, new_version
+        server_bundle_migrations = []
+
         if patch.addons is not None:
             library = AddonLibrary.getinstance()
             addons = {**bundle.addons}
@@ -342,6 +345,20 @@ async def update_bundle(
                     logger.warning(f"Addon {addon_name} does not exist, ignoring")
                     continue
                 is_server = addon_definition.addon_type == "server"
+
+                # Automatically migrate server addon settings
+                if is_server and addon_name in addons:
+                    original_version = addons[addon_name]
+                    new_version = addon_version
+                    if (
+                        original_version
+                        and new_version
+                        and original_version != new_version
+                    ):
+                        server_bundle_migrations.append(
+                            (addon_name, addons[addon_name], addon_version)
+                        )
+
                 if not bundle.is_dev and not is_server:
                     pass
 
@@ -436,6 +453,17 @@ async def update_bundle(
     if build:
         # TODO
         pass
+
+    if bundle.is_production and server_bundle_migrations:
+        for addon_name, previous_version, new_version in server_bundle_migrations:
+            if not (previous_version and new_version):
+                continue
+            await migrate_server_addon_settings(
+                addon_name,
+                previous_version,
+                new_version,
+                user=user if user else None,
+            )
 
     return EmptyResponse(status_code=204)
 

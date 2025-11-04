@@ -38,7 +38,7 @@ class EntityListItemEdge(BaseEdge):
 
     cursor: str | None = strawberry.field(default=None)
 
-    _entity: BaseNode | None = strawberry.field(default=None)
+    _entity: BaseNode | BaseNode | None = strawberry.field(default=None)
     _forbidden: bool = strawberry.field(default=False)
     _data: strawberry.Private[dict[str, Any]]
     _attrib: strawberry.Private[dict[str, Any]]  # actual attrib data
@@ -47,6 +47,9 @@ class EntityListItemEdge(BaseEdge):
     @strawberry.field()
     def all_attrib(self) -> str:
         """All attributes field is a JSON string."""
+        if self._entity is None:
+            return "{}"
+
         own_attrib: dict[str, Any] = {}
         inherited_attrib: dict[str, Any] = {}
         project_attrib: dict[str, Any] = {}
@@ -63,6 +66,7 @@ class EntityListItemEdge(BaseEdge):
 
         return json_dumps(
             process_attrib_data(
+                self.entity_type,
                 own_attrib,
                 user=self._user,
                 project_name=self.project_name,
@@ -82,7 +86,7 @@ class EntityListItemEdge(BaseEdge):
         return json_dumps(self._data or {})
 
     @strawberry.field(description="Item node")
-    async def node(self, info: Info) -> "BaseNode | None":
+    async def node(self, info: Info) -> "BaseNode | BaseNode | None":
         if self._forbidden:
             return None
         if self._entity:
@@ -114,7 +118,7 @@ class EntityListItemEdge(BaseEdge):
         record: dict[str, Any],
         context: dict[str, Any],
     ) -> "EntityListItemEdge":
-        entity: BaseNode | None = None
+        entity: BaseNode | BaseNode | None = None
         vdict = {}
         for k, v in record.items():
             if k.startswith("_entity_"):
@@ -170,8 +174,9 @@ class EntityListNode:
     project_name: str = strawberry.field()
 
     id: str = strawberry.field()
-    entity_list_type: str = strawberry.field()
     entity_type: str = strawberry.field()
+    entity_list_type: str = strawberry.field()
+    entity_list_folder_id: str | None = strawberry.field(default=None)
     label: str = strawberry.field()
 
     access: str = strawberry.field(default="{}")  # JSON string of access dict
@@ -262,6 +267,9 @@ async def entity_list_from_record(
 ) -> EntityListNode:
     data = record.get("data", {})
     user = context.get("user")
+
+    entity_list_folder_id = record.get("entity_list_folder_id")
+
     if user:
         await EntityAccessHelper.check(
             user,
@@ -276,6 +284,7 @@ async def entity_list_from_record(
         project_name=project_name,
         id=record["id"],
         entity_list_type=record["entity_list_type"],
+        entity_list_folder_id=entity_list_folder_id,
         entity_type=record["entity_type"],
         label=record["label"],
         access=json_dumps(record.get("access") or {}),

@@ -18,7 +18,7 @@ class ProductionBundle(OPModel):
         title="Launcher version",
         example="1.0.0",
     )
-    dependency_packages: dict[str, str] = Field(
+    dependency_packages: dict[str, str | None] = Field(
         default_factory=dict,
         title="Dependency packages",
         example={

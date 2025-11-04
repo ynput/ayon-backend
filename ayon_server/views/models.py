@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import Field
 
@@ -11,7 +11,14 @@ from ayon_server.utils import create_uuid
 #
 
 ViewScopes = Literal["project", "studio"]
-ViewType = Literal["overview", "taskProgress", "lists", "reviews"]
+ViewType = Literal[
+    "overview",
+    "taskProgress",
+    "lists",
+    "reviews",
+    "versions",
+    "reports",
+]
 
 FViewScope = Annotated[
     ViewScopes,
@@ -125,6 +132,7 @@ FColumnList = Annotated[
 
 class OverviewSettings(OPModel):
     show_hierarchy: bool = True
+    row_height: int | None = None
     group_by: str | None = None
     show_empty_groups: bool = False
     sort_by: str | None = None
@@ -139,6 +147,7 @@ class TaskProgressSettings(OPModel):
 
 
 class ListsSettings(OPModel):
+    row_height: int | None = None
     sort_by: str | None = None
     sort_desc: bool = False
     filter: QueryFilter | None = None
@@ -149,4 +158,34 @@ class ReviewsSettings(ListsSettings):
     pass
 
 
-ViewSettingsModel = OverviewSettings | TaskProgressSettings | ListsSettings
+class VersionsSettings(OPModel):
+    show_products: bool = False
+    row_height: int | None = None
+    show_grid: bool = True
+    grid_height: int | None = None
+    featured_version_order: list[str] | None = None
+    slicer_type: str | None = None
+    group_by: str | None = None
+    show_empty_groups: bool = False
+    sort_by: str | None = None
+    sort_desc: bool = False
+    filter: QueryFilter | None = None
+    columns: FColumnList
+
+
+class ReportsSettings(OPModel):
+    widgets: Annotated[
+        list[dict[str, Any]],
+        Field(title="List of report widgets", default_factory=list),
+    ]
+    date_format: str | None = None
+
+
+ViewSettingsModel = (
+    OverviewSettings
+    | TaskProgressSettings
+    | ListsSettings
+    | VersionsSettings
+    | ReportsSettings
+    | ReviewsSettings
+)

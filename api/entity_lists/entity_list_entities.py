@@ -13,7 +13,7 @@ class EntityListEnities(OPModel):
     entity_ids: Annotated[list[str], Field(title="Entity IDs")]
 
 
-@router.get("/{list_id}/entities")
+@router.get("/lists/{list_id}/entities")
 async def get_list_entities(
     user: CurrentUser,
     project_name: ProjectName,

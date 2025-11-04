@@ -113,7 +113,9 @@ def log_exception(
             traceback_msg += f"{filepath}:{frame.lineno}\n"
             traceback_msg += f"{frame.line}\n\n"
 
-    message = f"{message}" or f"Unhandled {formatted}"
+    if message is None:
+        message = f"Unhandled exception: {formatted}"
+
     extras = kwargs.copy()
     extras["traceback"] = traceback_msg.strip()
 

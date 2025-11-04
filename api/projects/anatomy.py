@@ -3,23 +3,12 @@ from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
 from ayon_server.events.patch import build_project_change_events
+from ayon_server.helpers.anatomy import get_project_anatomy as _get_project_anatomy
 from ayon_server.helpers.deploy_project import anatomy_to_project_data
-from ayon_server.helpers.extract_anatomy import extract_project_anatomy
-from ayon_server.lib.redis import Redis
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.utils import RequestCoalescer
 
 from .router import router
-
-
-async def _get_project_anatomy(project_name: ProjectName) -> Anatomy:
-    if cached_data := await Redis.get_json("project-anatomy", project_name):
-        return Anatomy(**cached_data)
-
-    project = await ProjectEntity.load(project_name)
-    anatomy = extract_project_anatomy(project)
-    await Redis.set_json("project-anatomy", project_name, anatomy.dict(), ttl=3600)
-    return anatomy
 
 
 @router.get("/projects/{project_name}/anatomy")

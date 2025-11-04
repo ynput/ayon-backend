@@ -6,8 +6,8 @@ from ayon_server.api.clientinfo import get_real_ip
 from ayon_server.auth.session import Session, SessionModel
 from ayon_server.auth.utils import (
     create_password,
-    ensure_password_complexity,
     hash_password,
+    validate_password,
 )
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
@@ -110,8 +110,7 @@ class PasswordAuth:
     @classmethod
     async def change_password(cls, name: str, password: str) -> None:
         """Change password for a user."""
-        if not ensure_password_complexity(password):
-            raise ValueError("Password does not meet complexity requirements")
+        validate_password(password)
 
         result = await Postgres.fetch(
             "SELECT data FROM public.users WHERE name = $1", name

@@ -7,6 +7,7 @@ from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
 
+from .hooks import OperationHooks
 from .models import OperationModel
 
 
@@ -105,7 +106,21 @@ async def update_project_level_entity(
     assert operation.data is not None, "data is required for update"
     assert operation.entity_id is not None, "entity_id is required for update"
 
+    # We use slightly different ACL logic if only the thumbnail_id is being updated.
+    thumbnail_only = len(operation.data) == 1 and (
+        "thumbnailId" in operation.data or "thumbnail_id" in operation.data
+    )
     entity = await entity_class.load(project_name, operation.entity_id)
+
+    hooks = OperationHooks.hooks()
+    if hooks:
+        temp_entity = entity_class(project_name, entity.payload.dict())
+        temp_entity.inherited_attrib = entity.inherited_attrib.copy()
+        temp_payload = entity_class.model.patch_model(**operation.data)
+        temp_entity.patch(temp_payload, user=user)
+
+        for hook in hooks:
+            await hook(operation, temp_entity, user)
 
     # Casting the payload to the model class is used to validate the data
     payload = entity_class.model.patch_model(**operation.data)
@@ -116,10 +131,6 @@ async def update_project_level_entity(
     # in the database update query.
 
     update_payload_dict = payload.dict(exclude_unset=True, by_alias=False)
-
-    # We use slightly different ACL logic if only the thumbnail_id is being updated.
-
-    thumbnail_only = len(operation.data) == 1 and "thumbnail_id" in update_payload_dict
 
     if user:
         await entity.ensure_update_access(user, thumbnail_only=thumbnail_only)

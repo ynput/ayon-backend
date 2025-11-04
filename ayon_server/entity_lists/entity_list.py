@@ -64,10 +64,15 @@ class EntityList:
     def entity_list_type(self) -> str:
         return self._payload.entity_list_type
 
+    @property
+    def entity_list_folder_id(self) -> str | None:
+        return self._payload.entity_list_folder_id
+
     async def ensure_access_level(
         self,
         user: UserEntity | None = None,
         level: int = 0,
+        default_open: bool = True,
     ) -> None:
         _user = user or self._user
         if not _user:
@@ -78,6 +83,7 @@ class EntityList:
             access=self._payload.access,
             level=level,
             owner=self._payload.owner,
+            default_open=default_open,
         )
 
     async def ensure_can_read(self, user: UserEntity | None = None) -> None:
@@ -103,7 +109,7 @@ class EntityList:
     async def ensure_can_admin(self, user: UserEntity | None = None) -> None:
         """Check if the user has permission to admin the entity list."""
         try:
-            await self.ensure_access_level(user=user, level=40)
+            await self.ensure_access_level(user=user, level=30)
         except ForbiddenException as e:
             raise ForbiddenException(
                 f"Cannot admin entity list {self._payload.label}"
@@ -118,6 +124,7 @@ class EntityList:
         *,
         id: str | None = None,
         entity_list_type: str = "generic",
+        entity_list_folder_id: str | None = None,
         template: dict[str, Any] | None = None,
         access: dict[str, Any] | None = None,
         attrib: dict[str, Any] | None = None,
@@ -139,6 +146,7 @@ class EntityList:
             id=id or create_uuid(),
             entity_type=entity_type,
             entity_list_type=entity_list_type,
+            entity_list_folder_id=entity_list_folder_id,
             label=label,
             tags=tags or [],
             attrib=attrib or {},
@@ -163,6 +171,7 @@ class EntityList:
         project_name: str,
         id: str,
         user: UserEntity | None = None,
+        with_items: bool = True,
         conn: Any = None,  # deprecated
     ) -> "EntityList":
         """Load the entity list from the database."""
@@ -173,17 +182,18 @@ class EntityList:
             res = await Postgres.fetchrow(query, id)
             if not res:
                 raise NotFoundException(f"Entity list {id} not found")
-
-            item_query = """
-                SELECT * FROM entity_list_items
-                WHERE entity_list_id = $1 ORDER BY position
-            """
-
             items = []
-            stmt = await Postgres.prepare(item_query)
-            async for row in stmt.cursor(res["id"]):
-                item = EntityListItemModel(**row)
-                items.append(item)
+
+            if with_items:
+                item_query = """
+                    SELECT * FROM entity_list_items
+                    WHERE entity_list_id = $1 ORDER BY position
+                """
+
+                stmt = await Postgres.prepare(item_query)
+                async for row in stmt.cursor(res["id"]):
+                    item = EntityListItemModel(**row)
+                    items.append(item)
 
         access_level = EntityAccessHelper.MANAGE
         if user:
@@ -196,7 +206,7 @@ class EntityList:
                     level=access_level,
                     owner=res["owner"],
                     project=project,
-                    default_open=False,
+                    default_open=True,
                 )
             except ForbiddenException as e:
                 access_level = e.extra.get("access_level", 10)
@@ -353,6 +363,7 @@ class EntityList:
         summary = {
             "id": self._payload.id,
             "entity_list_type": self._payload.entity_list_type,
+            "entity_list_folder_id": self._payload.entity_list_folder_id,
             "entity_type": self._payload.entity_type,
             "label": self._payload.label,
             "count": len(self._payload.items),

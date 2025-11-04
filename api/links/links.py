@@ -297,8 +297,7 @@ async def create_entity_link(
     logger.debug(
         f"Created {link_type_name} link between "
         f"{input_type} {post_data.input} and "
-        f"{output_type} {post_data.output}.",
-        user=user.name,
+        f"{output_type} {post_data.output}."
     )
 
     return EntityIdResponse(id=link_id)

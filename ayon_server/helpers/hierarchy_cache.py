@@ -52,7 +52,7 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
             ea.attrib as all_attrib,
             ea.path as path,
             COUNT (tasks.id) AS task_count,
-            array_agg(tasks.name) AS task_names,
+            array_agg(DISTINCT tasks.name) AS task_names,
             (fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions,
             (r.folder_id IS NOT NULL)::BOOLEAN AS has_reviewables
 
@@ -76,11 +76,8 @@ async def rebuild_hierarchy_cache(project_name: str) -> list[dict[str, Any]]:
     result = []
     ids_with_children = set()
     async with Postgres.transaction():
-        # Ensure the hierarchy view is up to date
-        await Postgres.execute(
-            f"REFRESH MATERIALIZED VIEW project_{project_name}.hierarchy"
-        )
-
+        # Since this is ALWAYS called after rebuild_inherited_attributes,
+        # we don't need to refresh materialized views here.
         stmt = await Postgres.prepare(query)
         async for row in stmt.cursor():
             result.append(

@@ -66,7 +66,7 @@ class EventModel(OPModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
     @classmethod
-    def from_row(cls, row):
+    def from_row(cls, row: dict[str, Any]) -> "EventModel":
         return cls(
             id=row["id"],
             hash=row["hash"],

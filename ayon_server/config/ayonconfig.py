@@ -306,6 +306,18 @@ class AyonConfig(BaseModel):
         description="Project files CDN resolver URL",
     )
 
+    # Temporary / workarounds
+
+    limit_user_visibility: bool = Field(
+        default=False,
+        description=(
+            "Limit user resolver for normal users to list "
+            "only users within the same access groups. "
+            "This is a temporary soultion that will be replaced with "
+            "a new flag in the permissinon model in the future."
+        ),
+    )
+
 
 #
 # Load configuration from environment variables

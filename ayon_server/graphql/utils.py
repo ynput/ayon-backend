@@ -13,6 +13,7 @@ T = TypeVar("T")
 
 
 def process_attrib_data(
+    entity_type: str,
     own_attrib: dict[str, Any],
     *,
     user: UserEntity,
@@ -48,20 +49,26 @@ def process_attrib_data(
                 attr_limit.append(k)
 
     data = own_attrib or {}
-    if inherited_attrib is not None:
-        for key in attribute_library.inheritable_attributes():
-            if data.get(key) is not None:
-                continue
-            if key in inherited_attrib:
-                data[key] = inherited_attrib[key]
+    if entity_type in {"folder", "task"}:
+        # Apply inherited and project attributes for folders and tasks
+        # (other entities do not inherit attributes)
+        if inherited_attrib is not None:
+            for key in attribute_library.inheritable_attributes():
+                if data.get(key) is not None:
+                    continue
+                if key in inherited_attrib:
+                    data[key] = inherited_attrib[key]
 
-    project_attrib = {**attribute_library.project_defaults, **(project_attrib or {})}
-    if project_attrib:
-        for key in attribute_library.inheritable_attributes():
-            if data.get(key) is not None:
-                continue
-            if key in project_attrib:
-                data[key] = project_attrib[key]
+        project_attrib = {
+            **attribute_library.project_defaults,
+            **(project_attrib or {}),
+        }
+        if project_attrib:
+            for key in attribute_library.inheritable_attributes():
+                if data.get(key) is not None:
+                    continue
+                if key in project_attrib:
+                    data[key] = project_attrib[key]
 
     if not data:
         return {}
@@ -72,9 +79,9 @@ def process_attrib_data(
             continue
 
         try:
-            attr = attribute_library.by_name(key)
+            attr = attribute_library.by_name_scoped(entity_type, key)
         except KeyError:
-            # If the attribute is not defined in the library, skip it
+            # Attribute not defined for this entity type
             continue
 
         if attr["type"] == "datetime":
@@ -90,6 +97,7 @@ def process_attrib_data(
 
 
 def parse_attrib_data(
+    entity_type: str,
     target_type: type[T],
     own_attrib: dict[str, Any],
     *,
@@ -100,16 +108,13 @@ def parse_attrib_data(
 ) -> T:
     """ACL agnostic attribute list parser"""
 
-    result = {
-        key: value
-        for key, value in process_attrib_data(
-            own_attrib,
-            user=user,
-            project_name=project_name,
-            inherited_attrib=inherited_attrib,
-            project_attrib=project_attrib,
-        ).items()
-        if key in target_type.__dataclass_fields__.keys()  # type: ignore
-    }
+    result = process_attrib_data(
+        entity_type,
+        own_attrib,
+        user=user,
+        project_name=project_name,
+        inherited_attrib=inherited_attrib,
+        project_attrib=project_attrib,
+    )
 
     return target_type(**result)

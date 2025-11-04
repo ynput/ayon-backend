@@ -8,6 +8,8 @@ from typing import Any, NewType
 
 from ayon_server.exceptions import AyonException
 from ayon_server.lib.postgres import Postgres
+
+# from ayon_server.logging import logger
 from ayon_server.utils import SQLTool
 
 KeyType = NewType("KeyType", tuple[str, str])
@@ -27,24 +29,14 @@ async def folder_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     values must be the same!
     """
 
+    # logger.trace(f"Using folder_loader for {len(keys)} keys")
+
     result_dict: dict[KeyType, Any] = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
     query = f"""
         SELECT
-            folders.id AS id,
-            folders.name AS name,
-            folders.label AS label,
-            folders.active AS active,
-            folders.folder_type AS folder_type,
-            folders.parent_id AS parent_id,
-            folders.thumbnail_id AS thumbnail_id,
-            folders.attrib AS attrib,
-            folders.status AS status,
-            folders.tags AS tags,
-            folders.created_at AS created_at,
-            folders.updated_at AS updated_at,
-            folders.data as data,
+            folders.*,
             hierarchy.path AS path,
             pr.attrib AS project_attributes,
             ex.attrib AS inherited_attributes
@@ -79,6 +71,8 @@ async def product_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     values must be the same!
     """
 
+    # logger.trace(f"Using product_loader for {len(keys)} keys")
+
     result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
@@ -104,26 +98,14 @@ async def task_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     values must be the same!
     """
 
+    # logger.trace(f"Using task_loader for {len(keys)} keys")
+
     result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
     query = f"""
         SELECT
-            tasks.id AS id,
-            tasks.name AS name,
-            tasks.label AS label,
-            tasks.folder_id AS folder_id,
-            tasks.task_type AS task_type,
-            tasks.thumbnail_id AS thumbnail_id,
-            tasks.assignees AS assignees,
-            tasks.attrib AS attrib,
-            tasks.data AS data,
-            tasks.active AS active,
-            tasks.status AS status,
-            tasks.tags AS tags,
-            tasks.created_at AS created_at,
-            tasks.updated_at AS updated_at,
-            tasks.creation_order AS creation_order,
+            tasks.*,
             pf.attrib AS parent_folder_attrib,
             hierarchy.path AS _folder_path
         FROM project_{project_name}.tasks as tasks
@@ -148,6 +130,8 @@ async def workfile_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     keys must be a list of tuples (project_name, workfile_id) and project_name
     values must be the same!
     """
+
+    # logger.trace(f"Using workfile_loader for {len(keys)} keys")
 
     # TODO: query parent tasks?
 
@@ -182,6 +166,8 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     values must be the same!
     """
 
+    # logger.trace(f"Using version_loader for {len(keys)} keys")
+
     result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
@@ -190,39 +176,39 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
             SELECT entity_id FROM project_{project_name}.activity_feed
             WHERE entity_type = 'version'
             AND activity_type = 'reviewable'
+        ),
+
+        hero_versions AS (
+            SELECT version.id id, hero_version.id AS hero_version_id
+            FROM project_{project_name}.versions AS version
+            JOIN project_{project_name}.versions AS hero_version
+            ON hero_version.product_id = version.product_id
+            AND hero_version.version < 0
+            AND ABS(hero_version.version) = version.version
         )
 
         SELECT
-            v.id AS id,
-            v.version AS version,
-            v.product_id AS product_id,
-            v.thumbnail_id AS thumbnail_id,
-            v.task_id AS task_id,
-            v.author AS author,
-            v.attrib AS attrib,
-            v.data AS data,
-            v.active AS active,
-            v.status AS status,
-            v.tags AS tags,
-            v.created_at AS created_at,
-            v.updated_at AS updated_at,
-
+            versions.*,
+            hero_versions.hero_version_id AS hero_version_id,
             hierarchy.path AS _folder_path,
-            p.name AS _product_name,
-
-            EXISTS (
-                SELECT 1 FROM reviewables WHERE entity_id = v.id
-            ) AS has_reviewables
+            products.name AS _product_name,
+            reviewables.entity_id IS NOT NULL AS has_reviewables
         FROM
-            project_{project_name}.versions AS v
+            project_{project_name}.versions AS versions
 
-        JOIN project_{project_name}.products AS p
-        ON p.id = v.product_id
+        JOIN project_{project_name}.products AS products
+        ON products.id = versions.product_id
 
         JOIN project_{project_name}.hierarchy AS hierarchy
-        ON hierarchy.id = p.folder_id
+        ON hierarchy.id = products.folder_id
 
-        WHERE v.id IN {SQLTool.id_array([k[1] for k in keys])}
+        LEFT JOIN hero_versions
+        ON hero_versions.id = versions.id
+
+        LEFT JOIN reviewables
+        ON reviewables.entity_id = versions.id
+
+        WHERE versions.id IN {SQLTool.id_array([k[1] for k in keys])}
         """
 
     async for record in Postgres.iterate(query):
@@ -234,6 +220,8 @@ async def version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
 async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     """Load a list of latest versions of given products"""
 
+    # logger.trace(f"Using latest_version_loader for {len(keys)} keys")
+
     result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
 
@@ -242,22 +230,20 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
             SELECT entity_id FROM project_{project_name}.activity_feed
             WHERE entity_type = 'version'
             AND activity_type = 'reviewable'
+        ),
+
+        hero_versions AS (
+            SELECT version.id id, hero_version.id AS hero_version_id
+            FROM project_{project_name}.versions AS version
+            JOIN project_{project_name}.versions AS hero_version
+            ON hero_version.product_id = version.product_id
+            AND hero_version.version < 0
+            AND ABS(hero_version.version) = version.version
         )
 
         SELECT
-            v.id AS id,
-            v.version AS version,
-            v.product_id AS product_id,
-            v.thumbnail_id AS thumbnail_id,
-            v.task_id AS task_id,
-            v.author AS author,
-            v.attrib AS attrib,
-            v.data AS data,
-            v.active AS active,
-            v.status AS status,
-            v.tags AS tags,
-            v.created_at AS created_at,
-            v.updated_at AS updated_at,
+            v.*,
+            hero_versions.hero_version_id AS hero_version_id,
             hierarchy.path AS _folder_path,
             p.name AS _product_name,
             EXISTS (
@@ -271,6 +257,9 @@ async def latest_version_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
 
         JOIN project_{project_name}.hierarchy AS hierarchy
         ON hierarchy.id = p.folder_id
+
+        LEFT JOIN hero_versions
+        ON hero_versions.id = v.id
 
         WHERE v.id IN (
             SELECT l.ids[array_upper(l.ids, 1)]
@@ -290,6 +279,8 @@ async def representation_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
     keys must be a list of tuples (project_name, representation_id) and project_name
     values must be the same!
     """
+
+    # logger.trace(f"Using representation_loader for {len(keys)} keys")
 
     result_dict = dict.fromkeys(keys)
     project_name = get_project_name(keys)
@@ -324,6 +315,8 @@ async def representation_loader(keys: list[KeyType]) -> list[dict[str, Any] | No
 
 async def user_loader(keys: list[str]) -> list[dict[str, Any] | None]:
     """Load a list of user records by their names."""
+
+    # logger.trace(f"Using user_loader for {len(keys)} keys")
 
     result_dict = dict.fromkeys(keys)
     query = f"SELECT * FROM public.users WHERE name IN {SQLTool.array(keys)}"

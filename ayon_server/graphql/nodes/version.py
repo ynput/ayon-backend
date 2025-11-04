@@ -4,11 +4,9 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import VersionEntity
-from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.representations import get_representations
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -28,6 +26,7 @@ class VersionAttribType:
 
 @strawberry.type
 class VersionNode(BaseNode):
+    entity_type: strawberry.Private[str] = "version"
     version: int
     product_id: str
     status: str
@@ -39,9 +38,11 @@ class VersionNode(BaseNode):
     author: str | None = None
     data: str | None = None
     path: str | None = None
+    hero_version_id: str | None = None
+    featured_version_type: str | None = None
+    is_latest: bool = False
+    is_latest_done: bool = False
 
-    _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
     _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
@@ -73,22 +74,7 @@ class VersionNode(BaseNode):
 
     @strawberry.field
     def attrib(self) -> VersionAttribType:
-        return parse_attrib_data(
-            VersionAttribType,
-            self._attrib,
-            user=self._user,
-            project_name=self.project_name,
-        )
-
-    @strawberry.field
-    def all_attrib(self) -> str:
-        return json_dumps(
-            process_attrib_data(
-                self._attrib,
-                user=self._user,
-                project_name=self.project_name,
-            )
-        )
+        return VersionAttribType(**self.processed_attrib())
 
     @strawberry.field()
     def parents(self) -> list[str]:
@@ -158,6 +144,10 @@ async def version_from_record(
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        hero_version_id=record.get("hero_version_id"),
+        featured_version_type=record.get("featured_version_type"),
+        is_latest=record.get("is_latest", False),
+        is_latest_done=record.get("is_latest_done", False),
         _folder_path=folder_path,
         _attrib=record["attrib"] or {},
         _user=current_user,

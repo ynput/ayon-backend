@@ -1,7 +1,6 @@
-from typing import NoReturn
+from typing import Any, NoReturn
 
 from ayon_server.access.utils import ensure_entity_access
-from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
@@ -9,6 +8,32 @@ from ayon_server.exceptions import (
 )
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
+
+BASE_GET_QUERY = """
+    SELECT
+        entity.id as id,
+        entity.version as version,
+        entity.product_id as product_id,
+        entity.task_id as task_id,
+        entity.thumbnail_id as thumbnail_id,
+        entity.author as author,
+        entity.attrib as attrib,
+        entity.data as data,
+        entity.active as active,
+        entity.status as status,
+        entity.tags as tags,
+        entity.created_at as created_at,
+        entity.updated_at as updated_at,
+        entity.created_by as created_by,
+        entity.updated_by as updated_by,
+
+        p.name as product_name,
+        hierarchy.path as folder_path
+
+    FROM project_{project_name}.versions entity
+    JOIN project_{project_name}.products p ON entity.product_id = p.id
+    JOIN project_{project_name}.hierarchy hierarchy ON p.folder_id = hierarchy.id
+"""
 
 
 def version_name(version: int) -> str:
@@ -20,54 +45,17 @@ def version_name(version: int) -> str:
 class VersionEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "version"
     model = ModelSet("version", attribute_library["version"])
+    base_get_query = BASE_GET_QUERY
 
-    @classmethod
-    async def load(
-        cls,
-        project_name: str,
-        entity_id: str,
-        for_update: bool = False,
-        **kwargs,
-    ):
-        query = f"""
-            SELECT
-                v.id as id,
-                v.version as version,
-                v.product_id as product_id,
-                v.task_id as task_id,
-                v.thumbnail_id as thumbnail_id,
-                v.author as author,
-
-                v.attrib as attrib,
-                v.data as data,
-                v.active as active,
-                v.status as status,
-                v.tags as tags,
-                v.created_at as created_at,
-                v.updated_at as updated_at,
-                v.created_by as created_by,
-                v.updated_by as updated_by,
-
-                p.name as product_name,
-                h.path as folder_path
-
-            FROM project_{project_name}.versions v
-            JOIN project_{project_name}.products p ON v.product_id = p.id
-            JOIN project_{project_name}.hierarchy h ON p.folder_id = h.id
-            WHERE v.id=$1
-            {'FOR UPDATE NOWAIT' if for_update else ''}
-            """
-
-        record = await query_entity_data(query, entity_id)
-
+    @staticmethod
+    def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
         hierarchy_path = record.pop("folder_path", None)
         product_name = record.pop("product_name", None)
         if hierarchy_path and product_name:
             hierarchy_path = hierarchy_path.strip("/")
             vname = version_name(record["version"])
             record["path"] = f"/{hierarchy_path}/{product_name}/{vname}"
-
-        return cls.from_record(project_name, record)
+        return record
 
     async def pre_save(self, insert: bool) -> None:
         if self.version < 0:

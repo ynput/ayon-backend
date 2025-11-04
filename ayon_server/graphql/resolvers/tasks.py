@@ -24,10 +24,6 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
-from ayon_server.graphql.resolvers.pagination import (
-    create_pagination,
-    get_attrib_sort_case,
-)
 from ayon_server.graphql.types import Info
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import (
@@ -38,6 +34,13 @@ from ayon_server.types import (
     validate_user_name_list,
 )
 from ayon_server.utils import SQLTool, slugify
+
+from .pagination import create_pagination
+from .sorting import (
+    get_attrib_sort_case,
+    get_status_sort_case,
+    get_task_types_sort_case,
+)
 
 SORT_OPTIONS = {
     "name": "tasks.name",
@@ -93,27 +96,6 @@ async def create_task_acl(
                 full_access.add(p)
 
     return full_access, assigned_access
-
-
-async def get_task_types_sort_case(project_name: str) -> str:
-    """
-    Get a SQL CASE expression to sort by task types
-    in the order they are defined in the project anatomy.
-    """
-
-    # Load task types to create a sorter
-    # this is fast as ProjectEntity is cached
-    task_type_names = [
-        r["name"] for r in (await ProjectEntity.load(project_name)).task_types
-    ]
-    if not task_type_names:
-        return "tasks.task_type"
-    case = "CASE"
-    for i, task_type_name in enumerate(task_type_names):
-        case += f" WHEN tasks.task_type = '{task_type_name}' THEN {i}"
-    case += f" ELSE {i+1}"
-    case += " END"
-    return case
 
 
 async def get_tasks(
@@ -172,7 +154,7 @@ async def get_tasks(
             "Empty list will return tasks with any tags."
         ),
     ] = None,
-    includeFolderChildren: Annotated[
+    include_folder_children: Annotated[
         bool,
         argdesc("Include tasks in child folders when folderIds is used"),
     ] = False,
@@ -189,6 +171,7 @@ async def get_tasks(
         return TasksConnection(edges=[])
 
     project_name = root.project_name
+    project = await ProjectEntity.load(project_name)
     fields = FieldInfo(info, ["tasks.edges.node", "task"])
     use_folder_query = False
 
@@ -257,7 +240,7 @@ async def get_tasks(
         if not folder_ids:
             return TasksConnection()
 
-        if includeFolderChildren:
+        if include_folder_children:
             use_folder_query = True
             sql_cte.append(
                 f"""
@@ -490,8 +473,11 @@ async def get_tasks(
     order_by = []
     if sort_by is not None:
         if sort_by == "taskType":
-            task_type_case = await get_task_types_sort_case(project_name)
+            task_type_case = get_task_types_sort_case(project)
             order_by.append(task_type_case)
+        elif sort_by == "status":
+            status_type_case = get_status_sort_case(project, "tasks.status")
+            order_by.append(status_type_case)
         elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by == "path":

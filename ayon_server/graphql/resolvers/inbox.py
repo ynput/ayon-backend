@@ -32,6 +32,11 @@ async def get_inbox(
     user = info.context["user"]
     if user.is_guest:
         return ActivitiesConnection(edges=[])
+    elif not user.is_manager:
+        # create a map, of {project_name: list of accessible categories}
+        # that will be populated (and used) in the resolve function
+        # to filter out inaccessible activities
+        info.context["inboxAccessibleCategories"] = {}
 
     sql_conditions = []
     subquery_conds = []

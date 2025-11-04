@@ -53,6 +53,7 @@ class UserNode:
     @strawberry.field
     def attrib(self) -> UserAttribType:
         return parse_attrib_data(
+            "user",
             UserAttribType,
             self._attrib,
             user=self._user,
@@ -60,7 +61,13 @@ class UserNode:
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(process_attrib_data(self._attrib, user=self._user))
+        return json_dumps(
+            process_attrib_data(
+                "user",
+                self._attrib,
+                user=self._user,
+            )
+        )
 
     @strawberry.field
     async def tasks(self, info: Info, project_name: str) -> "TasksConnection":
@@ -87,6 +94,12 @@ async def user_from_record(
     attrib = record.get("attrib", {})
     if not current_user.is_manager:
         attrib = {k: v for k, v in attrib.items() if k in ("fullName")}
+
+    user_project_list = context.get("user_project_list", [])
+    if user_project_list:
+        for ag in list(access_groups.keys()):
+            if ag not in user_project_list:
+                del access_groups[ag]
 
     return UserNode(
         name=name,

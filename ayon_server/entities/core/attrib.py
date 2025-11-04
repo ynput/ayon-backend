@@ -39,10 +39,11 @@ class AttributeLibrary:
 
     def initial_load_thread(self) -> None:
         if Postgres.pool is not None:
-            logger.error(
-                "Postgres pool exist during attribute load. " "This should not happen.",
-                nodb=True,
-            )
+            with logger.contextualize(nodb=True):
+                logger.error(
+                    "Postgres pool exist during attribute load. "
+                    "This should not happen."
+                )
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(self.load(True))
@@ -137,6 +138,14 @@ class AttributeLibrary:
                 if attr["name"] == name:
                     return attr
         raise KeyError(f"Attribute {name} not found")
+
+    @functools.cache
+    def by_name_scoped(self, entity_type: str, name: str) -> dict[str, Any]:
+        """Return attribute definition by name for a specific entity type."""
+        for attr in self.data[entity_type]:
+            if attr["name"] == name:
+                return attr
+        raise KeyError(f"Attribute {name} not found for entity type {entity_type}")
 
 
 attribute_library = AttributeLibrary()

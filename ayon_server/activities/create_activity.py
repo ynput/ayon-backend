@@ -10,6 +10,7 @@ __all__ = ["create_activity"]
 import datetime
 from typing import Any
 
+from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.activities.models import (
     DO_NOT_TRACK_ACTIVITIES,
     ActivityReferenceModel,
@@ -24,7 +25,9 @@ from ayon_server.activities.utils import (
     process_activity_files,
 )
 from ayon_server.activities.watchers.watcher_list import get_watcher_list
+from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
+from ayon_server.entities.project import ProjectEntity
 from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
@@ -307,12 +310,33 @@ async def create_activity(
 
         notify_important: list[str] = []
         notify_normal: list[str] = []
+        _prj: ProjectEntity | None = None
         for ref in references:
             if ref.entity_type != "user":
                 continue
             assert ref.entity_name is not None, "This should have been checked before"
             if ref.reference_type == "author":
                 continue
+
+            if category := data.get("category"):
+                if _prj is None:
+                    _prj = await ProjectEntity.load(project_name)
+                _usr = await UserEntity.load(ref.entity_name)
+                accessible_categories = (
+                    await ActivityCategories.get_accessible_categories(
+                        _usr,
+                        project=_prj,
+                    )
+                )
+                if category not in accessible_categories:
+                    # Just for debugging purposes
+                    # logger.trace(
+                    #     f"Not notifying user {ref.entity_name} "
+                    #     f"about activity {activity_id} "
+                    #     f"due to inaccessible category '{category}'"
+                    # )
+                    continue
+
             if (
                 ref.reference_type in ["mention", "watching"]
                 and activity_type != "status.change"
