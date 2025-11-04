@@ -258,6 +258,7 @@ async def get_product_type_groups(
     """
 
     result = await Postgres.fetch(query)
+    groups = []
     for row in result:
         group = EntityGroup(
             value=row["value"],
