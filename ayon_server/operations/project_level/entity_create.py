@@ -50,11 +50,6 @@ async def create_project_level_entity(
         if payload_dict["id"] == payload_dict.get("parent_id"):
             raise BadRequestException("Folder cannot be its own parent")
 
-    if user and not payload_dict.get("created_by"):
-        payload_dict["created_by"] = user.name
-    if not payload_dict.get("updated_by"):
-        payload_dict["updated_by"] = payload_dict["created_by"]
-
     #
     # Create the entity and events
     #

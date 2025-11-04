@@ -154,6 +154,7 @@ class FolderEntity(ProjectLevelEntity):
                     *SQLTool.insert(
                         f"project_{self.project_name}.{self.entity_type}s",
                         created_by=kwargs.get("user_name"),
+                        updated_by=kwargs.get("user_name"),
                         **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
                     )
                 )

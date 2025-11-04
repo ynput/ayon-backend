@@ -189,16 +189,16 @@ class ModelSet:
                 "type": "string",
                 "title": "Created by",
                 "description": f"Who created the {self.entity_name}",
-                "example": "In progress",
-                "required": "moe",
+                "example": "Moe",
+                "required": False,
             },
             {
                 "name": "updated_by",
                 "type": "string",
                 "title": "Updated by",
                 "description": f"Who last updated the {self.entity_name}",
-                "example": "In progress",
-                "required": "homer",
+                "example": "Homer",
+                "required": False,
             },
         ]
 
