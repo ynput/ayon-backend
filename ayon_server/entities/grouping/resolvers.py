@@ -2,6 +2,7 @@ from typing import Literal
 
 from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.exceptions import BadRequestException
+from ayon_server.helpers.anatomy import get_project_anatomy
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
@@ -219,6 +220,53 @@ async def get_tags_groups(
             label=row["value"],
             icon=row["icon"],
             color=row["color"],
+            count=row["count"],
+        )
+        groups.append(group)
+    return groups
+
+
+async def get_product_type_groups(
+    project_name: str,
+) -> list[EntityGroup]:
+    """
+    Retrieve product groups based on product types for the given project.
+
+    For each product type, returns a group containing:
+        - value: the product type name
+        - label: the product type name
+        - icon: the icon from the anatomy configuration for this type
+        - color: the color from the anatomy configuration for this type
+        - count: the number of products of this type
+
+    Icon and color are sourced from the project's anatomy configuration.
+    This differs from other grouping functions (e.g., by tags or status)
+    by grouping specifically on product type and enriching with anatomy metadata.
+    """
+    anatomy = await get_project_anatomy(project_name)
+    mapping = {}
+    for pt in anatomy.product_base_types.definitions:
+        mapping[pt.name] = {
+            "icon": pt.icon,
+            "color": pt.color,
+        }
+
+    query = f"""
+        SELECT count(*) AS count, product_type AS value
+        FROM project_{project_name}.products
+        GROUP BY product_type
+    """
+
+    result = await Postgres.fetch(query)
+    groups = []
+    for row in result:
+        group = EntityGroup(
+            value=row["value"],
+            label=row["value"],
+            icon=mapping.get(row["value"], {}).get("icon")
+            or anatomy.product_base_types.default.icon,
+            color=mapping.get(row["value"], {}).get("color")
+            or anatomy.product_base_types.default.color,
             count=row["count"],
         )
         groups.append(group)
