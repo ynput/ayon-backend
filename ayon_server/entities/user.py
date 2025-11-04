@@ -410,6 +410,21 @@ class UserEntity(TopLevelEntity):
 
         await send_mail([recipient], subject, text, html)
 
+    async def get_ui_exposure_level(self) -> int:
+        """Get UI exposure level for the user."""
+        if self.is_admin:
+            default_level = 900
+        elif self.is_manager:
+            default_level = 700
+        elif self.is_guest:
+            default_level = 100
+        else:
+            default_level = 500
+        requested_level = self.data.get("uiExposureLevel")
+        if requested_level is not None:
+            return min(requested_level, default_level)
+        return default_level
+
     def get_teams(self, project: "ProjectEntity") -> set[str]:
         """Get teams the user is part of in a given project."""
         if self._teams is None:
