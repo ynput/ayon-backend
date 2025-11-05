@@ -2,8 +2,9 @@ from typing import Any
 
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import BadRequestException, ForbiddenException
 
+from .hooks import OperationHooks
 from .models import OperationModel
 
 
@@ -12,13 +13,28 @@ async def create_project_level_entity(
     project_name: str,
     operation: OperationModel,
     user: UserEntity | None,
-) -> tuple[ProjectLevelEntity, list[dict[str, Any]], int]:
+) -> tuple[str, list[dict[str, Any]], int]:
     assert operation.data is not None, "data is required for create"
 
+    hooks = OperationHooks.hooks()
+    if hooks:
+        # create a temporary entity to pass to hooks
+        # this won't be saved
+        temp_payload = entity_class.model.post_model(**operation.data)
+        if operation.entity_id is not None:
+            temp_payload.id = operation.entity_id  # type: ignore
+        temp_entity = entity_class(project_name, temp_payload.dict())
+        for hook in hooks:
+            await hook(operation, temp_entity, user)
+
+    #
+    # Prepare the payload
+    #
+
     payload = entity_class.model.post_model(**operation.data)
-    payload_dict = payload.dict()
     if operation.entity_id is not None:
-        payload_dict["id"] = operation.entity_id
+        payload.id = operation.entity_id  # type: ignore
+    payload_dict = payload.dict()
 
     #
     # Sanity checks
@@ -36,6 +52,10 @@ async def create_project_level_entity(
         if not payload_dict.get("updated_by"):
             payload_dict["updated_by"] = payload_dict["created_by"]
 
+    elif operation.entity_type == "folder":
+        if payload_dict["id"] == payload_dict.get("parent_id"):
+            raise BadRequestException("Folder cannot be its own parent")
+
     #
     # Create the entity and events
     #
@@ -43,6 +63,7 @@ async def create_project_level_entity(
     entity = entity_class(project_name, payload_dict)
     if user:
         await entity.ensure_create_access(user)
+
     description = f"{operation.entity_type.capitalize()} {entity.name} created"
     events = [
         {
@@ -54,4 +75,4 @@ async def create_project_level_entity(
         }
     ]
     await entity.save(auto_commit=False)
-    return entity, events, 201
+    return entity.id, events, 201

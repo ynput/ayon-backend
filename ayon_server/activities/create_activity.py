@@ -10,6 +10,7 @@ __all__ = ["create_activity"]
 import datetime
 from typing import Any
 
+from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.activities.models import (
     DO_NOT_TRACK_ACTIVITIES,
     ActivityReferenceModel,
@@ -24,7 +25,9 @@ from ayon_server.activities.utils import (
     process_activity_files,
 )
 from ayon_server.activities.watchers.watcher_list import get_watcher_list
+from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
+from ayon_server.entities.project import ProjectEntity
 from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
@@ -47,6 +50,7 @@ async def create_activity(
     timestamp: datetime.datetime | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
+    bump_entity_updated_at: bool = False,
 ) -> str:
     """Create an activity.
 
@@ -122,6 +126,9 @@ async def create_activity(
             )
         )
         data["author"] = user_name
+
+    if "@external" in body:
+        data["category"] = "external"
 
     references.update(extract_mentions(body))
     if activity_type not in ["watch"]:
@@ -237,16 +244,27 @@ async def create_activity(
             ) from e
 
         # bump entity updated_at timestamp
+        #
+        # by default, this is not called - this is to avoid updates
+        # of entities that just have been updated by operations etc.
+        # we bump the updated_at timestamp only when the activity was
+        # explicitly created by the user using [POST] /activities or
+        # by uploading a file / reviewable
+        #
+        # If we try to bump the timestamp inside a transaction,
+        # (e.g. during the operations list execution, we may still
+        # be in a transaction where the row is locked for update.
 
-        await Postgres.execute(
-            f"""
-            UPDATE project_{project_name}.{entity_type}s
-            SET updated_at = $1
-            WHERE id = $2
-            """,
-            timestamp,
-            entity_id,
-        )
+        if bump_entity_updated_at:
+            await Postgres.execute(
+                f"""
+                UPDATE project_{project_name}.{entity_type}s
+                SET updated_at = $1
+                WHERE id = $2
+                """,
+                timestamp,
+                entity_id,
+            )
 
         # Publishing reviewables must invalidate the hierarchy cache
 
@@ -292,12 +310,33 @@ async def create_activity(
 
         notify_important: list[str] = []
         notify_normal: list[str] = []
+        _prj: ProjectEntity | None = None
         for ref in references:
             if ref.entity_type != "user":
                 continue
             assert ref.entity_name is not None, "This should have been checked before"
             if ref.reference_type == "author":
                 continue
+
+            if category := data.get("category"):
+                if _prj is None:
+                    _prj = await ProjectEntity.load(project_name)
+                _usr = await UserEntity.load(ref.entity_name)
+                accessible_categories = (
+                    await ActivityCategories.get_accessible_categories(
+                        _usr,
+                        project=_prj,
+                    )
+                )
+                if category not in accessible_categories:
+                    # Just for debugging purposes
+                    # logger.trace(
+                    #     f"Not notifying user {ref.entity_name} "
+                    #     f"about activity {activity_id} "
+                    #     f"due to inaccessible category '{category}'"
+                    # )
+                    continue
+
             if (
                 ref.reference_type in ["mention", "watching"]
                 and activity_type != "status.change"

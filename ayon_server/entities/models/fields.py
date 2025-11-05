@@ -101,6 +101,16 @@ project_fields = [
     },
 ]
 
+user_fields = [
+    {
+        "name": "ui_exposure_level",
+        "type": "integer",
+        "title": "UI Exposure Level",
+        "example": 100,
+        "dynamic": True,
+    },
+]
+
 
 folder_fields = [
     {
@@ -146,6 +156,13 @@ folder_fields = [
         "type": "string",
         "title": "Path",
         "example": "/assets/characters/xenomorph",
+        "dynamic": True,
+    },
+    {
+        "name": "has_versions",
+        "type": "boolean",
+        "title": "Has versions",
+        "example": True,
         "dynamic": True,
     },
 ]
@@ -197,6 +214,13 @@ task_fields = [
         "regex": ENTITY_ID_REGEX,
         "example": ENTITY_ID_EXAMPLE,
     },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modeling",
+        "dynamic": True,
+    },
 ]
 
 
@@ -223,9 +247,25 @@ product_fields = [
         "type": "string",
         "required": True,
         "title": "Product type",
-        "description": "Product ",
+        "description": "Product type",
+        "regex": NAME_REGEX,
+        "example": "modelMain",
+    },
+    {
+        "name": "product_base_type",
+        "type": "string",
+        "required": False,
+        "title": "Product base type",
+        "description": "Product base type",
         "regex": NAME_REGEX,
         "example": "model",
+    },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain",
+        "dynamic": True,
     },
 ]
 
@@ -271,6 +311,13 @@ version_fields = [
         "regex": USER_NAME_REGEX,
         "example": "john_doe",
     },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain/v003",
+        "dynamic": True,
+    },
 ]
 
 
@@ -311,6 +358,13 @@ representation_fields = [
             },
             "ayon.2d.Image.v1": {},
         },
+    },
+    {
+        "name": "path",
+        "type": "string",
+        "title": "Path",
+        "example": "/assets/characters/xenomorph/modelMain/v003/ma",
+        "dynamic": True,
     },
 ]
 

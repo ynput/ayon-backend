@@ -4,6 +4,7 @@ from typing import Literal
 from fastapi import APIRouter, Query, Request, Response
 
 from ayon_server.api.dependencies import (
+    AllowGuests,
     CurrentUser,
     FolderID,
     NoTraces,
@@ -235,7 +236,8 @@ async def create_folder_thumbnail(
 
 
 @router.get(
-    "/projects/{project_name}/folders/{folder_id}/thumbnail", dependencies=[NoTraces]
+    "/projects/{project_name}/folders/{folder_id}/thumbnail",
+    dependencies=[NoTraces, AllowGuests],
 )
 async def get_folder_thumbnail(
     user: CurrentUser,
@@ -263,13 +265,29 @@ async def get_folder_thumbnail(
             ORDER BY f.id, a.created_at DESC
         )
         SELECT
-            fo.*,
+            entity.*,
             r.reviewable_id AS reviewable_id,
-            r.version_thumbnail_id AS version_thumbnail_id
-        FROM project_{project_name}.folders fo
+            r.version_thumbnail_id AS version_thumbnail_id,
+
+            hierarchy.path as path,
+            ia.attrib AS inherited_attrib,
+            p.attrib AS project_attrib
+
+        FROM project_{project_name}.folders entity
+
+        INNER JOIN project_{project_name}.hierarchy as hierarchy
+        ON entity.id = hierarchy.id
+
+        LEFT JOIN project_{project_name}.exported_attributes as ia
+        ON entity.parent_id = ia.folder_id
+
+        INNER JOIN public.projects as p
+        ON p.name ILIKE '{project_name}'
+
         LEFT JOIN reviewables r
-        ON r.folder_id = fo.id
-        WHERE fo.id = $1
+        ON r.folder_id = entity.id
+
+        WHERE entity.id = $1
     """
 
     res = await Postgres.fetchrow(query, folder_id)
@@ -348,7 +366,7 @@ async def create_version_thumbnail(
 
 @router.get(
     "/projects/{project_name}/versions/{version_id}/thumbnail",
-    dependencies=[NoTraces],
+    dependencies=[NoTraces, AllowGuests],
 )
 async def get_version_thumbnail(
     user: CurrentUser,
@@ -444,7 +462,7 @@ async def create_workfile_thumbnail(
 
 @router.get(
     "/projects/{project_name}/workfiles/{workfile_id}/thumbnail",
-    dependencies=[NoTraces],
+    dependencies=[NoTraces, AllowGuests],
 )
 async def get_workfile_thumbnail(
     user: CurrentUser,
@@ -497,7 +515,8 @@ async def create_task_thumbnail(
 
 
 @router.get(
-    "/projects/{project_name}/tasks/{task_id}/thumbnail", dependencies=[NoTraces]
+    "/projects/{project_name}/tasks/{task_id}/thumbnail",
+    dependencies=[NoTraces, AllowGuests],
 )
 async def get_task_thumbnail(
     user: CurrentUser,
@@ -523,13 +542,22 @@ async def get_task_thumbnail(
             ORDER BY v.id, a.created_at DESC
         )
         SELECT
-            t.*,
+            entity.*,
             r.reviewable_id AS reviewable_id,
-            r.version_thumbnail_id AS version_thumbnail_id
-        FROM project_{project_name}.tasks t
+            r.version_thumbnail_id AS version_thumbnail_id,
+            ia.attrib AS inherited_attrib,
+            hierarchy.path as folder_path
+        FROM project_{project_name}.tasks entity
+
+        JOIN project_{project_name}.hierarchy as hierarchy
+            ON entity.folder_id = hierarchy.id
+        LEFT JOIN
+            project_{project_name}.exported_attributes as ia
+            ON entity.folder_id = ia.folder_id
+
         LEFT JOIN reviewables r
-        ON r.task_id = t.id
-        WHERE t.id = $1
+        ON r.task_id = entity.id
+        WHERE entity.id = $1
     """
 
     res = await Postgres.fetchrow(query, task_id)

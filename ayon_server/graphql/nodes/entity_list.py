@@ -3,9 +3,12 @@ from typing import Any
 
 import strawberry
 
-from ayon_server.exceptions import AyonException
+from ayon_server.entities.user import UserEntity
+from ayon_server.exceptions import AyonException, ForbiddenException
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
+from ayon_server.graphql.utils import process_attrib_data
+from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
 
@@ -35,24 +38,42 @@ class EntityListItemEdge(BaseEdge):
 
     cursor: str | None = strawberry.field(default=None)
 
-    _entity: BaseNode | None = strawberry.field(default=None)
+    _entity: BaseNode | BaseNode | None = strawberry.field(default=None)
     _forbidden: bool = strawberry.field(default=False)
     _data: strawberry.Private[dict[str, Any]]
     _attrib: strawberry.Private[dict[str, Any]]  # actual attrib data
+    _user: strawberry.Private[UserEntity]
 
     @strawberry.field()
     def all_attrib(self) -> str:
         """All attributes field is a JSON string."""
-        all_attrib: dict[str, Any] = {}
+        if self._entity is None:
+            return "{}"
+
+        own_attrib: dict[str, Any] = {}
+        inherited_attrib: dict[str, Any] = {}
+        project_attrib: dict[str, Any] = {}
+
         if self._entity:
             if hasattr(self._entity, "_project_attrib"):
-                all_attrib.update(self._entity._project_attrib or {})
+                project_attrib = self._entity._project_attrib or {}
             if hasattr(self._entity, "_inherited_attrib"):
-                all_attrib.update(self._entity._inherited_attrib or {})
+                inherited_attrib = self._entity._inherited_attrib or {}
             if hasattr(self._entity, "_attrib"):
-                all_attrib.update(self._entity._attrib or {})
-        all_attrib.update(self._attrib or {})
-        return json_dumps(all_attrib)
+                own_attrib = self._entity._attrib or {}
+
+        own_attrib.update(self._attrib or {})
+
+        return json_dumps(
+            process_attrib_data(
+                self.entity_type,
+                own_attrib,
+                user=self._user,
+                project_name=self.project_name,
+                inherited_attrib=inherited_attrib,
+                project_attrib=project_attrib,
+            )
+        )
 
     @strawberry.field()
     def own_attrib(self) -> list[str]:
@@ -65,7 +86,7 @@ class EntityListItemEdge(BaseEdge):
         return json_dumps(self._data or {})
 
     @strawberry.field(description="Item node")
-    async def node(self, info: Info) -> "BaseNode | None":
+    async def node(self, info: Info) -> "BaseNode | BaseNode | None":
         if self._forbidden:
             return None
         if self._entity:
@@ -88,16 +109,16 @@ class EntityListItemEdge(BaseEdge):
         else:
             raise AyonException("Unknown entity type in entity list item.")
         record = await loader.load((self.project_name, self.entity_id))
-        return parser(self.project_name, record, info.context)
+        return await parser(self.project_name, record, info.context)
 
     @classmethod
-    def from_record(
+    async def from_record(
         cls,
         project_name: str,
         record: dict[str, Any],
         context: dict[str, Any],
     ) -> "EntityListItemEdge":
-        entity: BaseNode | None = None
+        entity: BaseNode | BaseNode | None = None
         vdict = {}
         for k, v in record.items():
             if k.startswith("_entity_"):
@@ -108,7 +129,7 @@ class EntityListItemEdge(BaseEdge):
             getter_name = f"{context['entity_type']}_from_record"
             if getter := context.get(getter_name):
                 # logger.trace(f"Using {getter_name} to get entity")
-                entity = getter(project_name, vdict, context)
+                entity = await getter(project_name, vdict, context)
 
         folder_path = record.get("folder_path", "")
         node_access_forbidden = False
@@ -134,6 +155,7 @@ class EntityListItemEdge(BaseEdge):
             _attrib=record["attrib"],
             _entity=entity,
             _forbidden=node_access_forbidden,
+            _user=context["user"],
         )
 
 
@@ -152,13 +174,13 @@ class EntityListNode:
     project_name: str = strawberry.field()
 
     id: str = strawberry.field()
-    entity_list_type: str = strawberry.field()
     entity_type: str = strawberry.field()
+    entity_list_type: str = strawberry.field()
+    entity_list_folder_id: str | None = strawberry.field(default=None)
     label: str = strawberry.field()
 
-    # TODO
-    # access
-    # attrib
+    access: str = strawberry.field(default="{}")  # JSON string of access dict
+    all_attrib: str = strawberry.field(default="{}")  # JSON string of all attrib keys
 
     tags: list[str] = strawberry.field(default_factory=list)
 
@@ -172,6 +194,7 @@ class EntityListNode:
     updated_by: str | None = strawberry.field(default=None)
 
     _data: strawberry.Private[dict[str, Any]]
+    _access: strawberry.Private[dict[str, Any]]  # access data
 
     @strawberry.field()
     def count(self) -> int:
@@ -216,21 +239,56 @@ class EntityListNode:
             accessible_only=accessible_only,
         )
 
+    @strawberry.field
+    async def access_level(
+        self,
+        info: Info,
+    ) -> int:
+        user = info.context["user"]
+        access_level = EntityAccessHelper.MANAGE
+        try:
+            await EntityAccessHelper.check(
+                user,
+                access=self._access,
+                level=EntityAccessHelper.MANAGE,
+                owner=self.owner,
+                project=info.context.get("project"),
+                default_open=True,
+            )
+        except ForbiddenException as e:
+            access_level = e.extra.get("access_level", 10)
+        return access_level
 
-def entity_list_from_record(
+
+async def entity_list_from_record(
     project_name: str,
     record: dict[str, Any],
     context: dict[str, Any],
 ) -> EntityListNode:
     data = record.get("data", {})
+    user = context.get("user")
+
+    entity_list_folder_id = record.get("entity_list_folder_id")
+
+    if user:
+        await EntityAccessHelper.check(
+            user,
+            access=record.get("access"),
+            level=EntityAccessHelper.READ,
+            owner=record.get("owner"),
+            project=context.get("project"),
+            default_open=True,
+        )
+
     return EntityListNode(
         project_name=project_name,
         id=record["id"],
         entity_list_type=record["entity_list_type"],
+        entity_list_folder_id=entity_list_folder_id,
         entity_type=record["entity_type"],
         label=record["label"],
-        # access
-        # attrib
+        access=json_dumps(record.get("access") or {}),
+        all_attrib=json_dumps(record.get("attrib") or {}),
         tags=record["tags"] or [],
         owner=record["owner"],
         active=record["active"],
@@ -239,6 +297,7 @@ def entity_list_from_record(
         created_by=record["created_by"],
         updated_by=record["updated_by"],
         _data=data,
+        _access=record.get("access") or {},
     )
 
 

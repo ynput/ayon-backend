@@ -71,3 +71,12 @@ class VersionSuggestionItem(SuggestionItem):
         if values["version"] < 0:
             return "HERO"
         return f"v{values['version']:03d}"
+
+
+SuggestionType = (
+    UserSuggestionItem
+    | TaskSuggestionItem
+    | FolderSuggestionItem
+    | VersionSuggestionItem
+    | ProductSuggestionItem
+)

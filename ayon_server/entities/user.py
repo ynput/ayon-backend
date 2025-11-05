@@ -8,16 +8,16 @@ from ayon_server.access.access_groups import AccessGroups
 from ayon_server.access.permissions import Permissions
 from ayon_server.auth.utils import (
     create_password,
-    ensure_password_complexity,
     hash_password,
+    validate_password,
 )
 from ayon_server.constraints import Constraints
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
+from ayon_server.entities.project import ProjectEntity
 from ayon_server.exceptions import (
     ConstraintViolationException,
     ForbiddenException,
-    LowPasswordComplexityException,
     NotFoundException,
     ServiceUnavailableException,
 )
@@ -32,11 +32,13 @@ from ayon_server.utils import SQLTool, dict_exclude
 if TYPE_CHECKING:
     from ayon_server.api.clientinfo import ClientInfo
     from ayon_server.auth.session import SessionModel
+    from ayon_server.entities.project import ProjectEntity
 
 
 class SessionInfo:
     is_api_key: bool = False
     client_info: Optional["ClientInfo"] = None
+    token: str | None = None
 
     def __init__(self, session: "SessionModel") -> None:
         self.is_api_key = session.is_api_key
@@ -58,6 +60,7 @@ class UserEntity(TopLevelEntity):
     # project_name[access_type]: [path1, path2, ...]
     path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
     save_hooks: list[Callable[["UserEntity"], Awaitable[None]]] = []
+    _teams: set[str] | None = None
 
     #
     # Load
@@ -313,11 +316,35 @@ class UserEntity(TopLevelEntity):
             raise ForbiddenException(f"You are not allowed to modify{pdef} {perm_name}")
 
     def check_project_access(self, project_name: str) -> None:
+        # This method is deprecated and is replaced by ensure_project_access.
+        # (which is async and can handle guest users)
         if self.is_manager:
             return
+
+        if self.is_guest:
+            raise ForbiddenException(
+                "Guest users cannot access projects directly. "
+                "Use the guest user management API."
+            )
+
         access_groups = [k.lower() for k in self.data.get("accessGroups", {})]
         if project_name.lower() not in access_groups:
             raise ForbiddenException("No access group assigned on this project")
+
+    async def ensure_project_access(self, project_name: str) -> None:
+        if self.is_manager:
+            return
+
+        if self.is_guest:
+            project = await ProjectEntity.load(project_name)
+            guest_users = project.data.get("guestUsers", {})
+            if self.attrib.email not in guest_users:
+                raise ForbiddenException("You are not invited to this project")
+
+        else:
+            access_groups = [k.lower() for k in self.data.get("accessGroups", {})]
+            if project_name.lower() not in access_groups:
+                raise ForbiddenException("No access group assigned on this project")
 
     def permissions(self, project_name: str | None = None) -> Permissions:
         """Return user permissions on a given project."""
@@ -347,8 +374,8 @@ class UserEntity(TopLevelEntity):
             self.data.pop("password", None)
             return
 
-        if complexity_check and not ensure_password_complexity(password):
-            raise LowPasswordComplexityException
+        if complexity_check:
+            validate_password(password)
         hashed_password = create_password(password)
         self.data["password"] = hashed_password
 
@@ -382,3 +409,36 @@ class UserEntity(TopLevelEntity):
             recipient = f"{self.attrib.fullName} <{recipient}>"
 
         await send_mail([recipient], subject, text, html)
+
+    @staticmethod
+    async def parse_exposure_level(user: "UserEntity") -> int:
+        if user.is_admin:
+            default_level = 900
+        elif user.is_manager:
+            default_level = 700
+        elif user.is_guest:
+            default_level = 100
+        else:
+            default_level = 500
+        requested_level = user.data.get("uiExposureLevel")
+        if requested_level is not None:
+            return min(requested_level, default_level)
+        return default_level
+
+    async def get_ui_exposure_level(self) -> int:
+        """Get UI exposure level for the user."""
+        return await self.parse_exposure_level(self)
+
+    def get_teams(self, project: "ProjectEntity") -> set[str]:
+        """Get teams the user is part of in a given project."""
+        if self._teams is None:
+            result = set()
+            teams = project.data.get("teams", [])
+            for team in teams:
+                members = team.get("members", [])
+                for member in members:
+                    if member.get("name") == self.name:
+                        result.add(team["name"])
+                        break
+            self._teams = result
+        return self._teams

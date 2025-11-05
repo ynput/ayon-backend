@@ -1,12 +1,23 @@
 import json
 from typing import Annotated
 
+from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import attribute_library
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.graphql.connections import FoldersConnection
 from ayon_server.graphql.edges import FolderEdge
 from ayon_server.graphql.nodes.folder import FolderNode
-from ayon_server.graphql.resolvers.common import (
+from ayon_server.graphql.types import Info
+from ayon_server.sqlfilter import QueryFilter, build_filter
+from ayon_server.types import (
+    validate_name,
+    validate_name_list,
+    validate_status_list,
+    validate_type_name_list,
+)
+from ayon_server.utils import EntityID, SQLTool, slugify
+
+from .common import (
     ARGAfter,
     ARGBefore,
     ARGFirst,
@@ -21,20 +32,15 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
     sortdesc,
 )
-from ayon_server.graphql.resolvers.pagination import create_pagination
-from ayon_server.graphql.types import Info
-from ayon_server.sqlfilter import QueryFilter, build_filter
-from ayon_server.types import (
-    validate_name,
-    validate_name_list,
-    validate_status_list,
-    validate_type_name_list,
+from .pagination import create_pagination
+from .sorting import (
+    get_attrib_sort_case,
+    get_folder_types_sort_case,
+    get_status_sort_case,
 )
-from ayon_server.utils import EntityID, SQLTool
 
 SORT_OPTIONS = {
     "name": "folders.name",
-    "status": "folders.status",
     "createdAt": "folders.created_at",
     "updatedAt": "folders.updated_at",
     "folderType": "folders.folder_type",
@@ -92,13 +98,18 @@ async def get_folders(
         bool | None, argdesc("Whether to filter by folders with tasks")
     ] = None,
     has_links: ARGHasLinks = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> FoldersConnection:
     """Return a list of folders."""
 
     project_name = root.project_name
+    project = await ProjectEntity.load(project_name)
     fields = FieldInfo(info, ["folders.edges.node", "folder"])
+
+    if info.context["user"].is_guest:
+        return FoldersConnection(edges=[])
 
     #
     # SQL
@@ -120,6 +131,7 @@ async def get_folders(
         "folders.updated_at AS updated_at",
         "folders.creation_order AS creation_order",
         "folders.data AS data",
+        "hierarchy.path AS path",
         "pr.attrib AS project_attributes",
         "ex.attrib AS inherited_attributes",
     ]
@@ -133,16 +145,14 @@ async def get_folders(
         INNER JOIN public.projects AS pr
         ON pr.name ILIKE '{project_name}'
         """,
+        f"""
+        INNER JOIN project_{project_name}.hierarchy AS hierarchy
+        ON folders.id = hierarchy.id
+        """,
     ]
-    sql_group_by = ["folders.id", "pr.attrib", "ex.attrib"]
+    sql_group_by = ["folders.id", "pr.attrib", "ex.attrib", "hierarchy.path"]
     sql_conditions = []
     sql_having = []
-
-    use_hierarchy = (
-        (paths is not None)
-        or (path_ex is not None)
-        or fields.has_any("path", "parents")
-    )
 
     access_list = await create_folder_access_list(root, info)
 
@@ -150,7 +160,6 @@ async def get_folders(
         sql_conditions.append(
             f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
         )
-        use_hierarchy = True
 
     # We need to use children-join
     if (has_children is not None) or fields.has_any("childount", "hasChildren"):
@@ -180,17 +189,6 @@ async def get_folders(
             """
         )
 
-    # We need to join hierarchy view
-    if use_hierarchy:
-        sql_columns.append("hierarchy.path AS path")
-        sql_group_by.append("hierarchy.path")
-        sql_joins.append(
-            f"""
-            INNER JOIN project_{project_name}.hierarchy AS hierarchy
-            ON folders.id = hierarchy.id
-            """
-        )
-
     if fields.any_endswith("hasReviewables"):
         sql_cte.append(
             f"""
@@ -207,13 +205,52 @@ async def get_folders(
             """
         )
 
-        sql_columns.append(
+        sql_columns.append("(r.folder_id IS NOT NULL)::BOOLEAN AS has_reviewables")
+
+        sql_joins.append(
             """
-            EXISTS (
-            SELECT 1 FROM reviewables WHERE folder_id = folders.id
-            ) AS has_reviewables
+            LEFT JOIN reviewables r
+            ON r.folder_id = folders.id
             """
         )
+
+        sql_group_by.append("r.folder_id")
+
+    if fields.any_endswith("hasVersions"):
+        sql_columns.append("(fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions")
+
+        sql_cte.extend(
+            [
+                f"""
+            folder_closure AS (
+                SELECT id AS ancestor_id, id AS descendant_id
+                FROM project_{project_name}.folders
+                UNION ALL
+                SELECT fc.ancestor_id, f.id AS descendant_id
+                FROM folder_closure fc
+                JOIN project_{project_name}.folders f
+                ON f.parent_id = fc.descendant_id
+            )
+            """,
+                f"""
+            folder_with_versions AS (
+                SELECT DISTINCT fc.ancestor_id
+                FROM folder_closure fc
+                JOIN project_{project_name}.products p ON p.folder_id = fc.descendant_id
+                JOIN project_{project_name}.versions v ON v.product_id = p.id
+            )
+            """,
+            ]
+        )
+
+        sql_joins.append(
+            """
+            LEFT JOIN folder_with_versions fwv
+            ON fwv.ancestor_id = folders.id
+            """
+        )
+
+        sql_group_by.append("fwv.ancestor_id")
 
     #
     # Conditions
@@ -295,12 +332,11 @@ async def get_folders(
     if paths is not None:
         if not paths:
             return FoldersConnection()
-        # TODO: sanitize
-        paths = [p.strip("/") for p in paths]
+        paths = [p.strip("/").replace("'", "''") for p in paths]
         sql_conditions.append(f"hierarchy.path IN {SQLTool.array(paths)}")
 
     if path_ex is not None:
-        # TODO: sanitize
+        path_ex = path_ex.replace("'", "''")
         sql_conditions.append(f"'/' || hierarchy.path ~ '{path_ex}'")
 
     if attributes:
@@ -324,6 +360,16 @@ async def get_folders(
             )
         """
         sql_conditions.append(cond)
+
+    if search:
+        terms = slugify(search, make_set=True)
+        for term in terms:
+            term = term.replace("'", "''")
+            sql_conditions.append(
+                f"(folders.name ILIKE '%{term}%' OR "
+                f"folders.label ILIKE '%{term}%' OR "
+                f"hierarchy.path ILIKE '%{term}%')"
+            )
 
     #
     # Filter
@@ -360,15 +406,36 @@ async def get_folders(
     # Pagination
     #
 
-    order_by = ["folders.creation_order"]
+    order_by = []
 
     if sort_by is not None:
-        if sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
+        if sort_by == "folderType":
+            folder_type_case = get_folder_types_sort_case(project)
+            order_by.append(folder_type_case)
+        elif sort_by == "status":
+            status_type_case = get_status_sort_case(project, "folders.status")
+            order_by.append(status_type_case)
+        elif sort_by in SORT_OPTIONS:
+            order_by.append(SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
-            order_by.insert(0, f"folders.attrib->>'{sort_by[7:]}'")
+            attr_name = sort_by[7:]
+            exp = "(ex.attrib || folders.attrib)"
+            attr_case = await get_attrib_sort_case(attr_name, exp)
+            order_by.append(attr_case)
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
+
+    if not order_by:
+        # If no sorting specified, use creation order to have stable sorting
+        # as the requester doesn't care about the order in this case.
+        order_by.append("folders.creation_order")
+
+    elif len(order_by) < 2:
+        # If a single sort criteria is specified, add a secondary sort by name
+        # to have stable sorting when multiple items have the same value
+        # In this case we don't want to use creation order as secondary sort,
+        # because sorting is mainly invoked from the GUI and path makes more sense
+        order_by.append("hierarchy.path")
 
     ordering, paging_conds, cursor = create_pagination(
         order_by,
@@ -385,7 +452,7 @@ async def get_folders(
 
     if sql_cte:
         cte = ", ".join(sql_cte)
-        cte = f"WITH {cte}"
+        cte = f"WITH RECURSIVE {cte}"
     else:
         cte = ""
 
@@ -399,6 +466,10 @@ async def get_folders(
         {SQLTool.conditions(sql_having).replace("WHERE", "HAVING", 1)}
         {ordering}
     """
+    # Keep it here for debugging :)
+    # from ayon_server.logging import logger
+
+    # logger.debug(f"Folder query\n{query}")
 
     return await resolve(
         FoldersConnection,

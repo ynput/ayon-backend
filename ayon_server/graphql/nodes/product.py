@@ -1,14 +1,13 @@
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import ProductEntity
-from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -42,14 +41,20 @@ class ProductAttribType:
 
 @strawberry.type
 class ProductNode(BaseNode):
+    entity_type: strawberry.Private[str] = "product"
     folder_id: str
     product_type: str
+    product_base_type: str | None
     status: str
     tags: list[str]
     data: str | None
+    path: str | None = None
 
-    _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
+    _folder_path: strawberry.Private[str | None] = None
+
+    _hero_version_data: strawberry.Private[dict[str, Any] | None] = None
+    _latest_done_version_data: strawberry.Private[dict[str, Any] | None] = None
+    _latest_version_data: strawberry.Private[dict[str, Any] | None] = None
 
     # GraphQL specifics
 
@@ -78,7 +83,7 @@ class ProductNode(BaseNode):
         record = await info.context["folder_loader"].load(
             (self.project_name, self.folder_id)
         )
-        return info.context["folder_from_record"](
+        return await info.context["folder_from_record"](
             self.project_name, record, info.context
         )
 
@@ -87,33 +92,82 @@ class ProductNode(BaseNode):
         record = await info.context["latest_version_loader"].load(
             (self.project_name, self.id)
         )
-        return (
-            info.context["version_from_record"](self.project_name, record, info.context)
-            if record
-            else None
+        if record is None:
+            return None
+
+        return await info.context["version_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field
     def attrib(self) -> ProductAttribType:
-        return parse_attrib_data(
-            ProductAttribType,
-            self._attrib,
-            user=self._user,
-            project_name=self.project_name,
-        )
+        return ProductAttribType(**self.processed_attrib())
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
 
     @strawberry.field
-    def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+    async def featured_version(
+        self,
+        info: Info,
+        order: list[str] | None = None,
+    ) -> VersionNode | None:
+        """Return the featured version of the product.
+
+        Order may contain ["latestDone", "hero", "latest"]
+        which is the order of preference for the featured version.
+
+        This array is optional, if not provided, this exact order is used.
+
+        This node may be null if no versions are available.
+        """
+
+        if order is None:
+            order = ["latestDone", "hero", "latest"]
+
+        for item in order:
+            if item == "hero" and self._hero_version_data:
+                data = self._hero_version_data
+                data["featured_version_type"] = "hero"
+            elif item == "latestDone" and self._latest_done_version_data:
+                data = self._latest_done_version_data
+                data["featured_version_type"] = "latestDone"
+            elif item == "latest" and self._latest_version_data:
+                data = self._latest_version_data
+                data["featured_version_type"] = "latest"
+            else:
+                continue
+
+            data["_folder_path"] = self._folder_path
+            data["_product_name"] = self.name
+            data["id"] = data["id"].replace("-", "")
+            data["hero_version_id"] = (
+                data["hero_version_id"].replace("-", "")
+                if data.get("hero_version_id")
+                else None
+            )
+            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+
+            return await info.context["version_from_record"](
+                self.project_name, data, info.context
+            )
+
+        return None
 
 
-def product_from_record(
+async def product_from_record(
     project_name: str,
     record: dict[str, Any],
     context: dict[str, Any],
 ) -> ProductNode:
     """Construct a product node from a DB row."""
 
+    folder = None
     if context:
         folder_data = {}
         for key, value in record.items():
@@ -121,13 +175,15 @@ def product_from_record(
                 key = key.removeprefix("_folder_")
                 folder_data[key] = value
 
-        folder = (
-            context["folder_from_record"](project_name, folder_data, context=context)
-            if folder_data
-            else None
-        )
-    else:
-        folder = None
+        if folder_data.get("id"):
+            try:
+                cfun = context["folder_from_record"]
+                if folder_data is None:
+                    folder = None
+                else:
+                    folder = await cfun(project_name, folder_data, context=context)
+            except KeyError:
+                pass
 
     vlist = []
     version_ids = record.get("version_ids", [])
@@ -138,12 +194,19 @@ def product_from_record(
 
     data = record.get("data", {})
 
+    path = None
+    folder_path = None
+    if record.get("_folder_path"):
+        folder_path = "/" + record["_folder_path"].strip("/")
+        path = f"{folder_path}/{record['name']}"
+
     return ProductNode(
         project_name=project_name,
         id=record["id"],
         name=record["name"],
         folder_id=record["folder_id"],
         product_type=record["product_type"],
+        product_base_type=record.get("product_base_type"),
         status=record["status"],
         tags=record["tags"],
         data=json_dumps(data) if data else None,
@@ -151,9 +214,14 @@ def product_from_record(
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         version_list=vlist,
+        path=path,
         _folder=folder,
+        _folder_path=folder_path,
         _attrib=record["attrib"] or {},
         _user=context["user"],
+        _hero_version_data=record.get("_hero_version_data"),
+        _latest_done_version_data=record.get("_latest_done_version_data"),
+        _latest_version_data=record.get("_latest_version_data"),
     )
 
 

@@ -1,21 +1,23 @@
 from collections import defaultdict
 
-from ayon_server.entities import FolderEntity
+from ayon_server.entities import FolderEntity, UserEntity
+from ayon_server.entities.project import ProjectEntity
 from ayon_server.lib.postgres import Postgres
 
+from .common import get_relevant_users_cte
 from .models import (
     FolderSuggestionItem,
+    SuggestionType,
     TaskSuggestionItem,
     UserSuggestionItem,
 )
 
-SUGGESTION_TYPE = UserSuggestionItem | TaskSuggestionItem
-
 
 async def get_folder_suggestions(
-    user: str,
+    project: ProjectEntity,
+    user: UserEntity,
     folder: FolderEntity,
-) -> dict[str, list[SUGGESTION_TYPE]]:
+) -> dict[str, list[SuggestionType]]:
     """
     Assignees: Every assignee in the project
     Versions: Disabled - what versions would you want to see on a folder?
@@ -23,19 +25,14 @@ async def get_folder_suggestions(
     """
 
     project_name = folder.project_name
-    result: defaultdict[str, list[SUGGESTION_TYPE]] = defaultdict(list)
-    item: SUGGESTION_TYPE
+    result: defaultdict[str, list[SuggestionType]] = defaultdict(list)
+    item: SuggestionType
 
     # get users:
+    relevant_users_cte = await get_relevant_users_cte(project, user)
 
     query = f"""
-        WITH relevant_users AS (
-            SELECT name FROM public.users
-            WHERE data->>'isAdmin' = 'true'
-            OR data->>'isManager' = 'true'
-            OR data->'accessGroups'->'{project_name}' IS NOT NULL
-        )
-
+        WITH {relevant_users_cte}
         SELECT
             u.name as name,
             u.attrib->>'fullName' as label,

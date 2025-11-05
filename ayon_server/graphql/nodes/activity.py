@@ -4,8 +4,10 @@ from typing import TYPE_CHECKING, Any, Optional
 import strawberry
 from strawberry import LazyType
 
+from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.types import Info
-from ayon_server.utils import json_dumps, json_loads
+from ayon_server.utils import json_dumps, json_loads, slugify
 
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.user import UserNode
@@ -52,12 +54,19 @@ class ActivityReactionNode:
 
 
 @strawberry.type
+class ActivityCategory:
+    name: str = strawberry.field()
+    color: str = strawberry.field()
+
+
+@strawberry.type
 class ActivityNode:
     project_name: str = strawberry.field()
 
     reference_id: str = strawberry.field()
     activity_id: str = strawberry.field()
     reference_type: str = strawberry.field()
+    activity_type: str = strawberry.field()
 
     entity_type: str = strawberry.field()  # TODO. use literal?
     entity_id: str | None = strawberry.field()
@@ -68,10 +77,9 @@ class ActivityNode:
     updated_at: datetime = strawberry.field()
     creation_order: int = strawberry.field()
 
-    activity_type: str = strawberry.field()
     body: str = strawberry.field()
     tags: list[str] = strawberry.field()
-    category: str | None = strawberry.field()
+    category: ActivityCategory | None = strawberry.field()
     activity_data: str = strawberry.field()
     reference_data: str = strawberry.field()
     active: bool = strawberry.field(default=True)
@@ -86,6 +94,45 @@ class ActivityNode:
         data = json_loads(self.activity_data)
         if "author" in data:
             author = data["author"]
+            if author.startswith("guest."):
+                if "project" not in info.context:
+                    # in inbox, we don't have project context
+                    record = {
+                        "name": author,
+                        "attrib": {
+                            "email": author,
+                            "fullName": author,
+                        },
+                        "active": True,
+                        "deleted": True,
+                        "created_at": "1970-01-01T00:00:00Z",
+                        "updated_at": "1970-01-01T00:00:00Z",
+                    }
+                    return await info.context["user_from_record"](
+                        None, record, info.context
+                    )
+                else:
+                    guest_users = info.context["project"].data.get("guestUsers", {})
+                    for email, payload in guest_users.items():
+                        candidate_name = slugify(f"guest.{email}", separator=".")
+                        if candidate_name != author:
+                            continue
+                        full_name = payload.get("fullName", email)
+                        record = {
+                            "name": author,
+                            "attrib": {
+                                "email": email,
+                                "fullName": full_name,
+                            },
+                            "active": True,
+                            "deleted": True,
+                            "created_at": "1970-01-01T00:00:00Z",
+                            "updated_at": "1970-01-01T00:00:00Z",
+                        }
+                        return await info.context["user_from_record"](
+                            None, record, info.context
+                        )
+
             loader = info.context["user_loader"]
             record = await loader.load(author)
             if not record:
@@ -99,7 +146,7 @@ class ActivityNode:
                     "created_at": "1970-01-01T00:00:00Z",
                     "updated_at": "1970-01-01T00:00:00Z",
                 }
-            return info.context["user_from_record"](None, record, info.context)
+            return await info.context["user_from_record"](None, record, info.context)
         return None
 
     @strawberry.field
@@ -109,7 +156,7 @@ class ActivityNode:
             assignee = data["assignee"]
             loader = info.context["user_loader"]
             record = await loader.load(assignee)
-            return info.context["user_from_record"](None, record, info.context)
+            return await info.context["user_from_record"](None, record, info.context)
         return None
 
     @strawberry.field
@@ -124,10 +171,10 @@ class ActivityNode:
 
         loader = info.context["version_loader"]
         record = await loader.load((self.project_name, version_id))
-        return (
-            info.context["version_from_record"](self.project_name, record, info.context)
-            if record
-            else None
+        if record is None:
+            return None
+        return await info.context["version_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field
@@ -173,7 +220,7 @@ def replace_reference_body(node: ActivityNode) -> ActivityNode:
     return node
 
 
-def activity_from_record(
+async def activity_from_record(
     project_name: str | None,
     record: dict[str, Any],
     context: dict[str, Any],
@@ -192,7 +239,26 @@ def activity_from_record(
     activity_data = record.pop("activity_data", {})
     reference_data = record.pop("reference_data", {})
     tags = record.pop("tags", [])
-    category = activity_data.get("category")
+    category = None
+    if category_name := activity_data.get("category"):
+        # use get here - inbox won't have categories in context
+        cdata = context.get("activity_categories", {}).get(category_name)
+        category = ActivityCategory(
+            name=category_name,
+            color=cdata.get("color") if cdata else "#999999",
+        )
+
+        if "inboxAccessibleCategories" in context:
+            # but inbox has a map of accessible categories
+            accessible_cats = context["inboxAccessibleCategories"]
+            if project_name not in accessible_cats:
+                accessible_cats[
+                    project_name
+                ] = await ActivityCategories.get_accessible_categories(
+                    context["user"], project_name=project_name
+                )
+            if category_name not in accessible_cats[project_name]:
+                raise ForbiddenException()
 
     origin_data = activity_data.get("origin")
     if origin_data:
@@ -226,16 +292,27 @@ def activity_from_record(
 
     node = ActivityNode(
         project_name=project_name,
-        activity_data=json_dumps(activity_data),
-        reference_data=json_dumps(reference_data),
-        origin=origin,
-        parents=parents,
+        reference_id=record.pop("reference_id"),
+        activity_id=record.pop("activity_id"),
+        reference_type=record.pop("reference_type"),
+        activity_type=record.pop("activity_type"),
+        entity_type=record.pop("entity_type"),
+        entity_id=record.pop("entity_id", None),
+        entity_name=record.pop("entity_name", None),
+        entity_path=record.pop("entity_path", None),
+        created_at=record.pop("created_at"),
+        updated_at=record.pop("updated_at"),
+        creation_order=record.pop("creation_order"),
+        body=body,
         tags=tags,
         category=category,
+        activity_data=json_dumps(activity_data),
+        reference_data=json_dumps(reference_data),
+        active=record.pop("active", True),
         read=reference_data.pop("read", False),
+        origin=origin,
+        parents=parents,
         reactions=reactions,
-        body=body,
-        **record,
     )
     # probably won't be used
     # node = replace_reference_body(node)

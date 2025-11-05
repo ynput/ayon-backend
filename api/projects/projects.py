@@ -1,6 +1,7 @@
 from typing import Annotated, cast
 
 from ayon_server.api.dependencies import (
+    AllowGuests,
     CurrentUser,
     NewProjectName,
     ProjectName,
@@ -20,6 +21,11 @@ from ayon_server.files import Storages
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy.folder_types import FolderType
+from ayon_server.settings.anatomy.product_base_types import (
+    DefaultProductBaseType,
+    ProductBaseType,
+    default_product_type_definitions,
+)
 from ayon_server.settings.anatomy.statuses import Status
 from ayon_server.settings.anatomy.tags import Tag
 from ayon_server.settings.anatomy.task_types import TaskType
@@ -73,10 +79,14 @@ class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
     tags: TAGS_FIELD
 
 
+default_pt_definitions = [p.dict() for p in default_product_type_definitions]
+
+
 @router.get(
     "/projects/{project_name}",
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
+    dependencies=[AllowGuests],
 )
 async def get_project(
     user: CurrentUser,
@@ -84,9 +94,27 @@ async def get_project(
 ) -> ProjectModel:
     """Retrieve a project by its name."""
 
-    user.check_project_access(project_name)
+    await user.ensure_project_access(project_name)
     coalesce = RequestCoalescer()
     project = await coalesce(ProjectEntity.load, project_name)
+
+    product_base_types_config = project.config.get("productBaseTypes", {})
+
+    product_base_types_config["default"] = DefaultProductBaseType(
+        **product_base_types_config.get("default", {})
+    ).dict()
+
+    if "definitions" not in product_base_types_config:
+        product_base_types_config["definitions"] = default_pt_definitions
+    else:
+        product_base_types_config["definitions"] = [
+            ProductBaseType(**pt).dict()
+            for pt in product_base_types_config["definitions"]
+        ]
+
+    project.config["productBaseTypes"] = product_base_types_config
+    project.config.pop("productTypes", None)  # legacy
+
     return cast(ProjectModel, project.as_user(user))
 
 
@@ -99,7 +127,7 @@ async def get_project(
 async def get_project_stats(user: CurrentUser, project_name: ProjectName):
     """Retrieve a project statistics by its name."""
 
-    user.check_project_access(project_name)
+    await user.ensure_project_access(project_name)
     counts = {}
     for entity in ["folders", "products", "versions", "representations", "tasks"]:
         res = await Postgres.fetch(

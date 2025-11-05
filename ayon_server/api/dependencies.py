@@ -4,16 +4,19 @@ import re
 from typing import Annotated, get_args
 
 from fastapi import Cookie, Depends, Header, Path, Query, Request
+from fastapi.routing import APIRoute
 
 from ayon_server.addons import AddonLibrary, BaseServerAddon
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     BadRequestException,
+    ForbiddenException,
     NotFoundException,
     UnauthorizedException,
     UnsupportedMediaException,
 )
 from ayon_server.helpers.project_list import build_project_list, get_project_list
+from ayon_server.logging import logger
 from ayon_server.types import (
     ATTRIBUTE_NAME_REGEX,
     NAME_REGEX,
@@ -28,11 +31,16 @@ from ayon_server.utils import (
 )
 
 
-def dep_no_traces():
+def dep_no_traces() -> None:
+    return None
+
+
+def dep_allow_guests() -> None:
     return None
 
 
 NoTraces = Depends(dep_no_traces)
+AllowGuests = Depends(dep_allow_guests)
 
 
 def dep_current_addon(request: Request) -> BaseServerAddon:
@@ -107,6 +115,11 @@ async def dep_thumbnail_content_type(content_type: str = Header(None)) -> str:
 ThumbnailContentType = Annotated[str, Depends(dep_thumbnail_content_type)]
 
 
+GUESTS_ROUTE_WHITELIST = [
+    "/graphql",
+]
+
+
 async def dep_current_user(request: Request) -> UserEntity:
     """Return the currently logged-in user.
 
@@ -123,6 +136,25 @@ async def dep_current_user(request: Request) -> UserEntity:
     user = request.state.user
     if not user:
         raise UnauthorizedException(request.state.unauthorized_reason or "Unauthorized")
+
+    if user.is_guest:
+        route = request.scope.get("route")
+        if isinstance(route, APIRoute):
+            if request.url.path not in GUESTS_ROUTE_WHITELIST:
+                for dependency in route.dependencies:
+                    if dependency == AllowGuests:
+                        # This route allows guest users
+                        break
+                else:
+                    # No AllowGuests dependency found, raise UnauthorizedException
+                    logger.warning(
+                        f"Guest {user.name} tried to access "
+                        f"a restricted endpoint: {request.url.path}"
+                    )
+                    raise ForbiddenException(
+                        "Guest users are not allowed to access this endpoint"
+                    )
+
     return user
 
 
@@ -134,6 +166,11 @@ async def dep_current_user_optional(request: Request) -> UserEntity | None:
         user = await dep_current_user(request=request)
     except UnauthorizedException:
         return None
+    except ForbiddenException as exc:
+        raise ForbiddenException(
+            "You are not allowed to access this endpoint. "
+            "If you think this is a mistake, please contact your administrator."
+        ) from exc
     return user
 
 
@@ -187,7 +224,7 @@ async def dep_project_name(
     to match the database record.
     """
 
-    current_user.check_project_access(project_name)
+    await current_user.ensure_project_access(project_name)
 
     project_list = await get_project_list()
 

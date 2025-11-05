@@ -9,9 +9,12 @@ from ayon_server.activities import (
     delete_activity,
     update_activity,
 )
+from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.activities.guest_access import get_guest_activity_category
 from ayon_server.activities.watchers.set_watchers import ensure_watching
 from ayon_server.api.dependencies import (
     ActivityID,
+    AllowGuests,
     CurrentUser,
     PathEntityID,
     PathProjectLevelEntityType,
@@ -20,8 +23,13 @@ from ayon_server.api.dependencies import (
     SenderType,
 )
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.exceptions import BadRequestException
+from ayon_server.entities import ProjectEntity
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+)
 from ayon_server.files import Storages
+from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.types import Field, OPModel
 
@@ -51,7 +59,11 @@ class CreateActivityResponseModel(OPModel):
     id: str = Field(..., example="123")
 
 
-@router.post("/{entity_type}/{entity_id}/activities", status_code=201)
+@router.post(
+    "/{entity_type}/{entity_id}/activities",
+    status_code=201,
+    dependencies=[AllowGuests],
+)
 async def post_project_activity(
     project_name: ProjectName,
     entity_type: PathProjectLevelEntityType,
@@ -73,10 +85,58 @@ async def post_project_activity(
         if activity.activity_type not in ["comment"]:
             raise BadRequestException("Humans can only create comments")
 
+    project = await ProjectEntity.load(project_name)
+
+    writable_categories = await ActivityCategories.get_accessible_categories(
+        user,
+        project=project,
+        level=EntityAccessHelper.UPDATE,
+    )
+
+    if user.is_guest:
+        # Guests are only allowed to comment within an entity list / review session
+        # and their comment category is defined by the entity list
+
+        entity_list_id = activity.data.get("entityList") if activity.data else None
+        list_guest_category = await get_guest_activity_category(
+            user,
+            project,
+            entity_list_id,
+        )
+
+        assert activity.data is not None  # shouldn't happen, already checked above
+        activity.data["category"] = list_guest_category
+
+        if list_guest_category not in writable_categories:
+            raise ForbiddenException("You cannot use this activity category")
+
+    elif not user.is_manager:
+        # Normal users - can comment only with their writable categories
+        # or without category (default)
+
+        activity_category = activity.data.get("category") if activity.data else None
+        if activity_category and activity_category not in writable_categories:
+            raise ForbiddenException("You cannot use this activity category")
+
+    #
+    # Load entity and check access
+    #
+
     entity_class = get_entity_class(entity_type)
     entity = await entity_class.load(project_name, entity_id)
 
-    await entity.ensure_read_access(user)  # TODO: different acl level?
+    if not user.is_guest:
+        # guest access is inferred from the entity list / review session,
+        # access, which is checked in get_guest_activity_category(),
+        await EntityAccessHelper.ensure_entity_access(
+            user,
+            entity=entity,
+            level=EntityAccessHelper.READ,
+        )
+
+    #
+    # Create activity
+    #
 
     id = await create_activity(
         entity=entity,
@@ -90,6 +150,7 @@ async def post_project_activity(
         sender=sender,
         sender_type=sender_type,
         data=activity.data,
+        bump_entity_updated_at=True,
     )
 
     if not user.is_service:
@@ -100,7 +161,7 @@ async def post_project_activity(
     return CreateActivityResponseModel(id=id)
 
 
-@router.delete("/activities/{activity_id}")
+@router.delete("/activities/{activity_id}", dependencies=[AllowGuests])
 async def delete_project_activity(
     project_name: ProjectName,
     activity_id: ActivityID,
@@ -152,7 +213,7 @@ class ActivityPatchModel(OPModel):
     data: dict[str, Any] | None = Field(None, example={"key": "value"})
 
 
-@router.patch("/activities/{activity_id}")
+@router.patch("/activities/{activity_id}", dependencies=[AllowGuests])
 async def patch_project_activity(
     project_name: ProjectName,
     activity_id: ActivityID,
@@ -169,7 +230,7 @@ async def patch_project_activity(
     and tick/untick checkboxes in the comment
     """
 
-    user.check_project_access(project_name)
+    await user.ensure_project_access(project_name)
 
     user_name = user.name
 

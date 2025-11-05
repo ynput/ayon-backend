@@ -110,6 +110,29 @@ class FieldInfo:
                     return True
         return False
 
+    def find_field(self, name: str) -> Any | None:
+        # TODO: figure out what this thing returns
+
+        # return SelectedField object that matches the name
+        # this recursively searches the selected fields
+
+        def _find_field(field, name: str) -> str | None:
+            if field.name == name:
+                return field
+            for selection in field.selections:
+                if hasattr(selection, "name"):
+                    result = _find_field(selection, name)
+                    if result is not None:
+                        return result
+            return None
+
+        for sfield in self.info.selected_fields:
+            result = _find_field(sfield, name)
+            if result is not None:
+                return result
+
+        return None
+
 
 async def create_folder_access_list(root, info) -> list[str] | None:
     user = info.context["user"]
@@ -164,7 +187,9 @@ async def resolve(
 
         if node_type is not None:
             try:
-                node = node_type.from_record(project_name, record_dict, context=context)
+                node = await node_type.from_record(
+                    project_name, record_dict, context=context
+                )
             except ForbiddenException:
                 continue
             edges.append(edge_type(node=node, cursor=cursor))
@@ -174,7 +199,9 @@ async def resolve(
             # But the actual node is created on the edge, not here
             try:
                 payload = {**record_dict, "cursor": cursor}
-                edge = edge_type.from_record(project_name, payload, context=context)
+                edge = await edge_type.from_record(
+                    project_name, payload, context=context
+                )
             except ForbiddenException:
                 continue
             edges.append(edge)

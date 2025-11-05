@@ -13,7 +13,7 @@ async def delete_project_level_entity(
     project_name: str,
     operation: OperationModel,
     user: UserEntity | None,
-) -> tuple[ProjectLevelEntity, list[dict[str, Any]], int]:
+) -> tuple[str, list[dict[str, Any]], int]:
     assert operation.entity_id is not None, "entity_id is required for delete"
     entity = await entity_class.load(project_name, operation.entity_id)
 
@@ -31,7 +31,7 @@ async def delete_project_level_entity(
     # Create events and delete the entity
     #
 
-    description = f"{operation.entity_type.capitalize()} {entity.name} deleted"
+    description = f"{operation.entity_type.capitalize()} {entity.path} deleted"
     events = [
         {
             "topic": f"entity.{operation.entity_type}.deleted",
@@ -44,4 +44,4 @@ async def delete_project_level_entity(
     if ayonconfig.audit_trail:
         events[0]["payload"] = {"entityData": entity.dict_simple()}
     await entity.delete(force=operation.force, auto_commit=False)
-    return entity, events, 204
+    return entity.id, events, 204

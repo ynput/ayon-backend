@@ -9,21 +9,19 @@ import asyncio
 import random
 from typing import Any
 
-from asyncpg.exceptions import IntegrityConstraintViolationError, LockNotAvailableError
+from asyncpg.exceptions import DeadlockDetectedError, IntegrityConstraintViolationError
 from pydantic.error_wrappers import ValidationError
 
 from ayon_server.entities import UserEntity
-from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
     ConflictException,
+    DeadlockException,
     ServiceUnavailableException,
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
-from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
-from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.postgres_exceptions import parse_postgres_exception
 from ayon_server.logging import log_traceback, logger
@@ -37,11 +35,26 @@ from .entity_update import update_project_level_entity
 from .models import OperationModel, OperationResponseModel, OperationsResponseModel
 
 
+async def _process_events(
+    events: list[dict[str, Any]],
+    *,
+    sender: str | None = None,
+    sender_type: str | None = None,
+) -> None:
+    """Process a list of events and dispatch them to the event stream."""
+    for event in events:
+        await EventStream.dispatch(
+            sender=sender,
+            sender_type=sender_type,
+            **event,
+        )
+
+
 async def _process_operation(
     project_name: str,
     user: UserEntity | None,
     operation: OperationModel,
-) -> tuple[ProjectLevelEntity, list[dict[str, Any]] | None, OperationResponseModel]:
+) -> tuple[list[dict[str, Any]] | None, OperationResponseModel]:
     """Process a single operation. Raise an exception on error."""
 
     entity_class = get_entity_class(operation.entity_type)
@@ -50,41 +63,46 @@ async def _process_operation(
     events: list[dict[str, Any]] | None = None
     status = 200
 
-    if operation.type == "create":
-        entity, events, status = await create_project_level_entity(
-            entity_class,
-            project_name,
-            operation,
-            user,
-        )
+    try:
+        if operation.type == "create":
+            entity_id, events, status = await create_project_level_entity(
+                entity_class,
+                project_name,
+                operation,
+                user,
+            )
 
-    elif operation.type == "update":
-        entity, events, status = await update_project_level_entity(
-            entity_class,
-            project_name,
-            operation,
-            user,
-        )
+        elif operation.type == "update":
+            entity_id, events, status = await update_project_level_entity(
+                entity_class,
+                project_name,
+                operation,
+                user,
+            )
 
-    elif operation.type == "delete":
-        entity, events, status = await delete_project_level_entity(
-            entity_class,
-            project_name,
-            operation,
-            user,
-        )
+        elif operation.type == "delete":
+            entity_id, events, status = await delete_project_level_entity(
+                entity_class,
+                project_name,
+                operation,
+                user,
+            )
 
-    else:
-        # This should never happen (already validated)
-        raise BadRequestException(f"Unknown operation type {operation.type}")
+        else:
+            # This should never happen (already validated)
+            raise BadRequestException(f"Unknown operation type {operation.type}")
+
+    except DeadlockDetectedError as e:
+        # Catching deadlock here, because later, we need to handle it
+        # as ayon exception
+        raise DeadlockException() from e
 
     return (
-        entity,
         events,
         OperationResponseModel(
             id=operation.id,
             type=operation.type,
-            entity_id=entity.id,
+            entity_id=entity_id,
             entity_type=operation.entity_type,
             success=True,
             status=status,
@@ -112,10 +130,10 @@ async def _process_operations(
     """
 
     result: list[OperationResponseModel] = []
-    to_commit: list[ProjectLevelEntity] = []
     events: list[dict[str, Any]] = []
+    entity_types: set[ProjectLevelEntityType] = set()
 
-    logger.debug(f"Processing {len(operations)} project {project_name} operations")
+    logger.debug(f"[OPS] {len(operations)} project {project_name} operations")
     for operation in operations:
         if operation.as_user:
             user = user_map.get(operation.as_user)
@@ -140,7 +158,7 @@ async def _process_operations(
             # to commit all operations at once.
 
             async with Postgres.transaction():
-                entity, evt, response = await _process_operation(
+                evt, response = await _process_operation(
                     project_name,
                     user,
                     operation,
@@ -148,8 +166,16 @@ async def _process_operations(
                 if evt is not None:
                     events.extend(evt)
                 result.append(response)
-                if entity.entity_type not in [e.entity_type for e in to_commit]:
-                    to_commit.append(entity)
+                entity_types.add(operation.entity_type)
+
+        except ServiceUnavailableException as e:
+            logger.debug(f"[OPS] {e}, retrying operation")
+
+            # If the entity is locked, we need to retry the entire transaction
+            # by re-raising the exception. Otherwise, the transaction will
+            # hang in an error state and we won't be able to continue
+            # anyways.
+            raise e
 
         except AyonException as e:
             logger.debug(
@@ -173,12 +199,13 @@ async def _process_operations(
                 if raise_on_error:
                     raise e
                 break
+
         except ValidationError as e:
-            logger.debug(
-                f"{op_tag} failed: {e}",
+            with logger.contextualize(
                 project=project_name,
                 operation_id=operation.id,
-            )
+            ):
+                logger.debug(f"{op_tag} Validation error: {e.errors()}")
             result.append(
                 OperationResponseModel(
                     success=False,
@@ -195,9 +222,6 @@ async def _process_operations(
                 if raise_on_error:
                     raise e
                 break
-        except LockNotAvailableError as e:
-            logger.trace("Lock not available, retrying operation")
-            raise e
 
         except IntegrityConstraintViolationError as e:
             parsed = parse_postgres_exception(e)
@@ -245,8 +269,6 @@ async def _process_operations(
 
     # Create overall success value
     success = all(op.success for op in result)
-    if success or can_fail:
-        await entity.commit()
 
     return events, OperationsResponseModel(operations=result, success=success)
 
@@ -384,7 +406,6 @@ class ProjectLevelOperations:
 
             if not operation.entity_id:
                 raise BadRequestException("entity_id is required for update/delete")
-
             key = (operation.entity_type, operation.entity_id)
             if key in affected_entities:
                 raise BadRequestException(
@@ -397,8 +418,9 @@ class ProjectLevelOperations:
 
     async def _process(
         self,
-        can_fail: bool = False,
-        raise_on_error: bool = True,
+        can_fail: bool,
+        raise_on_error: bool,
+        wait_for_events: bool,
     ) -> OperationsResponseModel:
         self._validate()
 
@@ -409,8 +431,10 @@ class ProjectLevelOperations:
 
         # Load user entities that we will use for operaratins to
         # check access permissions and to dispatch events
+
         if self.user:
             self.user_entities_map[self.user.name] = self.user
+
         for uname in self.user_entities_map:
             if not self.user_entities_map[uname]:
                 self.user_entities_map[uname] = await UserEntity.load(uname)
@@ -427,7 +451,7 @@ class ProjectLevelOperations:
         else:
             for _ in range(3):
                 try:
-                    async with Postgres.transaction():
+                    async with Postgres.transaction(force_new=True):
                         events, response = await _process_operations(
                             self.project_name,
                             self.operations,
@@ -441,12 +465,12 @@ class ProjectLevelOperations:
                         raise RollbackException()
 
                 except RollbackException:
-                    logger.trace("Operations rolled back")
+                    logger.debug("[OPS] Operations rolled back")
                     break
 
                 except ServiceUnavailableException:
                     # entity is locked by another operation,
-                    # we will retry a few times
+                    # we will retry the entire transaction
                     await asyncio.sleep(random.uniform(0.1, 0.3))
                     continue
 
@@ -454,19 +478,39 @@ class ProjectLevelOperations:
             else:
                 raise ConflictException("Entity is locked by another operation")
 
-        for event in events:
-            await EventStream.dispatch(
-                sender=self.sender,
-                sender_type=self.sender_type,
-                **event,
-            )
+        if events:
+            msg = f"[OPS] {len(events)} events dispatched"
+            affected_entity_types = {op.entity_type for op in self.operations}
+            for entity_type in affected_entity_types:
+                entity_class = get_entity_class(entity_type)
+                try:
+                    logger.trace(f"[OPS] Refreshing views for {entity_type}")
+                    await entity_class.refresh_views(self.project_name)
+                except DeadlockDetectedError:
+                    logger.debug("[OPS] View refresh deadlock. Skipping refresh.")
 
-        # TODO: remove this?
-        # This is duplicate! It is handled by calling commit() on the entity
-        if "folder" in [r.entity_type for r in self.operations]:
-            # Rebuild the hierarchy cache for folders
-            await rebuild_hierarchy_cache(self.project_name)
-            await rebuild_inherited_attributes(self.project_name)
+            if wait_for_events:
+                # If we are waiting for events, we wait for them to be dispatched
+                # before returning the response.
+                await _process_events(
+                    events,
+                    sender=self.sender,
+                    sender_type=self.sender_type,
+                )
+                logger.trace(msg, project=self.project_name)
+
+            else:
+                # Otherwise, we create a task to process the events
+                # in the background and return the response immediately.
+                logger.trace("[OPS] Dispatching events in the background")
+                task = asyncio.create_task(
+                    _process_events(
+                        events,
+                        sender=self.sender,
+                        sender_type=self.sender_type,
+                    )
+                )
+                task.add_done_callback(lambda _: logger.trace(msg))
 
         return response
 
@@ -474,6 +518,7 @@ class ProjectLevelOperations:
         self,
         can_fail: bool = False,
         raise_on_error: bool = True,
+        wait_for_events: bool = True,
     ) -> OperationsResponseModel:
         """
         Process the enqueued operations.
@@ -489,6 +534,10 @@ class ProjectLevelOperations:
         """
 
         try:
-            return await self._process(can_fail=can_fail, raise_on_error=raise_on_error)
+            return await self._process(
+                can_fail=can_fail,
+                raise_on_error=raise_on_error,
+                wait_for_events=wait_for_events,
+            )
         finally:
             self.operations = []

@@ -11,6 +11,9 @@ from ayon_server.exceptions import ForbiddenException
 if TYPE_CHECKING:
     from ayon_server.entities.user import UserEntity
 
+ALWAYS_WRITABLE_ATTRS: list[str] = []
+ALWAYS_WRITABLE_FIELDS: list[str] = ["thumbnail_id"]
+
 
 class BaseEntity:
     entity_type: str
@@ -18,6 +21,7 @@ class BaseEntity:
     exists: bool = False
     project_name: str | None = None
     own_attrib: list[str] = []
+    inherited_attrib: dict[str, Any] = {}
     _payload: BaseModel
 
     def __repr__(self):
@@ -60,7 +64,8 @@ class BaseEntity:
     def patch(self, patch_data: BaseModel, user: Optional["UserEntity"] = None) -> None:
         """Apply a patch to the entity."""
 
-        pattr = patch_data.dict(exclude_unset=True).get("attrib", {})
+        pdata = patch_data.dict(exclude_unset=True)
+        pattr = pdata.pop("attrib", {})  # attributes to be patched
 
         if user is not None and hasattr(self, "project_name"):
             if not (user.is_manager):
@@ -74,23 +79,50 @@ class BaseEntity:
                     patch_data.attrib.developerMode = None  # type: ignore
 
                 if perms.attrib_write.enabled:
+                    writable_attrs = (
+                        perms.attrib_write.attributes + ALWAYS_WRITABLE_ATTRS
+                    )
+                    writable_fields = perms.attrib_write.fields + ALWAYS_WRITABLE_FIELDS
+
                     for attr, val in pattr.items():
                         if getattr(self.attrib, attr) == val:
                             continue
-                        if attr not in perms.attrib_write.attributes:
+                        if attr not in writable_attrs:
                             raise ForbiddenException(
                                 f"You are not allowed to modify {attr}"
                                 f" attribute in {self.project_name}"
                             )
 
+                    for field_name, val in pdata.items():
+                        if getattr(self._payload, field_name, None) == val:
+                            continue
+                        if field_name not in writable_fields:
+                            raise ForbiddenException(
+                                f"You are not allowed to modify {field_name}"
+                                f" field in {self.project_name}"
+                            )
+
+        # list of attributes that will need to be set to inherited
+        # after applying the patch
+        inherit_list = set()
+
         if pattr:
             for key in pattr:
                 if pattr.get(key) is None:
+                    inherit_list.add(key)
                     continue
                 if key in self.own_attrib:
                     continue
                 self.own_attrib.append(key)
         self._payload = apply_patch(self._payload, patch_data)
+
+        for attr in inherit_list:
+            if attr in self.own_attrib:
+                self.own_attrib.remove(attr)
+            # Revert the attrib value to the value inherited from parent
+            # (if available)
+            if attr in self.inherited_attrib:
+                setattr(self._payload.attrib, attr, self.inherited_attrib[attr])  # type: ignore
 
     @property
     def payload(self) -> BaseModel:

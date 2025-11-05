@@ -11,6 +11,7 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
+    FieldInfo,
     argdesc,
     create_folder_access_list,
     get_has_links_conds,
@@ -20,7 +21,7 @@ from ayon_server.graphql.resolvers.common import (
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
 from ayon_server.types import validate_name_list, validate_status_list
-from ayon_server.utils import SQLTool
+from ayon_server.utils import SQLTool, slugify
 
 SORT_OPTIONS = {
     "name": "workfiles.name",
@@ -49,11 +50,17 @@ async def get_workfiles(
     ] = None,
     tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
     has_links: ARGHasLinks = None,
+    search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> WorkfilesConnection:
     """Return a list of workfiles."""
 
     project_name = root.project_name
+    user = info.context["user"]
+    fields = FieldInfo(info, ["workfiles.edges.node", "workfile"])
+
+    if user.is_guest:
+        return WorkfilesConnection(edges=[])
 
     #
     # SQL
@@ -83,25 +90,25 @@ async def get_workfiles(
     if ids is not None:
         if not ids:
             return WorkfilesConnection()
-        sql_conditions.append(f"id IN {SQLTool.id_array(ids)}")
+        sql_conditions.append(f"workfiles.id IN {SQLTool.id_array(ids)}")
 
     if task_ids is not None:
         if not task_ids:
             return WorkfilesConnection()
-        sql_conditions.append(f"task_id IN {SQLTool.id_array(task_ids)}")
+        sql_conditions.append(f"workfiles.task_id IN {SQLTool.id_array(task_ids)}")
     elif root.__class__.__name__ == "TaskNode":
-        sql_conditions.append(f"task_id = '{root.id}'")
+        sql_conditions.append(f"workfiles.task_id = '{root.id}'")
 
     if paths is not None:
         if not paths:
             return WorkfilesConnection()
         paths = [r.replace("'", "''") for r in paths]
-        sql_conditions.append(f"path IN {SQLTool.array(paths)}")
+        sql_conditions.append(f"workfiles.path IN {SQLTool.array(paths)}")
 
     if path_ex:
         # TODO: is this safe?
         path_ex = path_ex.replace("'", "''").replace("\\", "\\\\")
-        sql_conditions.append(f"path ~ '{path_ex}'")
+        sql_conditions.append(f"workfiles.path ~ '{path_ex}'")
 
     if has_links is not None:
         sql_conditions.extend(
@@ -112,24 +119,27 @@ async def get_workfiles(
         if not statuses:
             return WorkfilesConnection()
         validate_status_list(statuses)
-        sql_conditions.append(f"status IN {SQLTool.array(statuses)}")
+        sql_conditions.append(f"workfiles.status IN {SQLTool.array(statuses)}")
     if tags is not None:
         if not tags:
             return WorkfilesConnection()
         validate_name_list(tags)
-        sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
+        sql_conditions.append(f"workfiles.tags @> {SQLTool.array(tags, curly=True)}")
 
     access_list = await create_folder_access_list(root, info)
-    if access_list is not None:
-        sql_conditions.append(
-            f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+    if access_list is not None or search or fields.any_endswith("parents"):
+        sql_columns.extend(
+            [
+                "tasks.name AS _task_name",
+                "hierarchy.path AS _folder_path",
+            ]
         )
 
         sql_joins.extend(
             [
                 f"""
                 INNER JOIN project_{project_name}.tasks AS tasks
-                ON task.id = workfiles.task_id
+                ON tasks.id = workfiles.task_id
                 """,
                 f"""
                 INNER JOIN project_{project_name}.hierarchy AS hierarchy
@@ -137,6 +147,24 @@ async def get_workfiles(
                 """,
             ]
         )
+
+        if access_list is not None:
+            sql_conditions.append(
+                f"hierarchy.path like ANY ('{{ {','.join(access_list)} }}')"
+            )
+
+    if search:
+        terms = slugify(search, make_set=True, min_length=2)
+        for term in terms:
+            sub_conditions = []
+            term = term.replace("'", "''")  # Escape single quotes
+            sub_conditions.append(f"tasks.name ILIKE '%{term}%'")
+            sub_conditions.append(f"tasks.task_type ILIKE '%{term}%'")
+            sub_conditions.append(f"hierarchy.path ILIKE '%{term}%'")
+            sub_conditions.append(f"workfiles.path ILIKE '%{term}%'")
+
+            condition = " OR ".join(sub_conditions)
+            sql_conditions.append(f"({condition})")
 
     #
     # Pagination

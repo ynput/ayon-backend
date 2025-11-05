@@ -6,8 +6,9 @@ from strawberry import LazyType
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.user import UserEntity
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.connections import ActivitiesConnection, EntityListsConnection
-from ayon_server.graphql.nodes.common import ProductType, ThumbnailInfo
+from ayon_server.graphql.nodes.common import ProductBaseType, ProductType, ThumbnailInfo
 from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.entity_lists import get_entity_list, get_entity_lists
 from ayon_server.graphql.resolvers.folders import get_folder, get_folders
@@ -19,7 +20,7 @@ from ayon_server.graphql.resolvers.representations import (
 from ayon_server.graphql.resolvers.tasks import get_task, get_tasks
 from ayon_server.graphql.resolvers.versions import get_version, get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfile, get_workfiles
-from ayon_server.graphql.utils import parse_attrib_data
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.helpers.tags import get_used_project_tags
 from ayon_server.lib.postgres import Postgres
 from ayon_server.utils import json_dumps
@@ -131,6 +132,7 @@ class ProjectNode:
     @strawberry.field
     def attrib(self) -> ProjectAttribType:
         return parse_attrib_data(
+            "project",
             ProjectAttribType,
             self._attrib,
             user=self._user,
@@ -139,7 +141,14 @@ class ProjectNode:
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+        return json_dumps(
+            process_attrib_data(
+                "project",
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+            )
+        )
 
     entity_list: EntityListNode = strawberry.field(
         resolver=get_entity_list,
@@ -315,6 +324,22 @@ class ProjectNode:
             )
         ]
 
+    @strawberry.field(description="List of project's product base types")
+    async def product_base_types(self) -> list[ProductBaseType]:
+        return [
+            ProductBaseType(
+                name=row["name"],
+            )
+            async for row in Postgres.iterate(
+                f"""
+                SELECT DISTINCT(product_base_type) AS name
+                FROM project_{self.project_name}.products
+                WHERE product_base_type IS NOT NULL
+                ORDER BY name ASC
+            """
+            )
+        ]
+
     @strawberry.field(description="List of project's statuses")
     async def statuses(self) -> list[Status]:
         query = f"""
@@ -356,25 +381,38 @@ class ProjectNode:
         return await get_used_project_tags(self.project_name)
 
 
-def project_from_record(
+async def project_from_record(
     project_name: str | None, record: dict[str, Any], context: dict[str, Any]
 ) -> ProjectNode:
     """Construct a project node from a DB row."""
 
+    project_name = project_name or record["name"]
+    assert project_name is not None, "Project name must not be None"
+
     thumbnail = None
     user = context["user"]
-    user.check_project_access(record["name"])
+    if user.is_guest:
+        guest_users = record.get("data", {}).get("guestUsers", {})
+        if user.attrib.email not in guest_users:
+            raise ForbiddenException("You do not have access to this project.")
 
-    data = record.get("data", {})
-    config = record.get("config", None)
-    bundle_data = data.get("bundle", {})
-    if bundle_data:
-        bundle = ProjectBundleType(
-            production=bundle_data.get("production", None),
-            staging=bundle_data.get("staging", None),
-        )
-    else:
+        # guest users do not have access to project internal data
+        data = {}
+        config = None
         bundle = ProjectBundleType()
+    else:
+        user.check_project_access(record["name"])
+
+        data = record.get("data", {})
+        config = record.get("config", None)
+        bundle_data = data.get("bundle", {})
+        if bundle_data:
+            bundle = ProjectBundleType(
+                production=bundle_data.get("production", None),
+                staging=bundle_data.get("staging", None),
+            )
+        else:
+            bundle = ProjectBundleType()
 
     return ProjectNode(
         name=record["name"],

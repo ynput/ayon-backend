@@ -1,48 +1,88 @@
-from typing import NoReturn
+from typing import Any, NoReturn
 
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
-from ayon_server.exceptions import ConstraintViolationException
+from ayon_server.exceptions import (
+    ConstraintViolationException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
+
+BASE_GET_QUERY = """
+    SELECT
+        entity.id as id,
+        entity.version as version,
+        entity.product_id as product_id,
+        entity.task_id as task_id,
+        entity.thumbnail_id as thumbnail_id,
+        entity.author as author,
+        entity.attrib as attrib,
+        entity.data as data,
+        entity.active as active,
+        entity.status as status,
+        entity.tags as tags,
+        entity.created_at as created_at,
+        entity.updated_at as updated_at,
+
+        p.name as product_name,
+        hierarchy.path as folder_path
+
+    FROM project_{project_name}.versions entity
+    JOIN project_{project_name}.products p ON entity.product_id = p.id
+    JOIN project_{project_name}.hierarchy hierarchy ON p.folder_id = hierarchy.id
+"""
+
+
+def version_name(version: int) -> str:
+    if version < 0:
+        return "HERO"
+    return f"v{version:03d}"
 
 
 class VersionEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "version"
     model = ModelSet("version", attribute_library["version"])
+    base_get_query = BASE_GET_QUERY
 
-    async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
-        """Save entity to database."""
+    @staticmethod
+    def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
+        hierarchy_path = record.pop("folder_path", None)
+        product_name = record.pop("product_name", None)
+        if hierarchy_path and product_name:
+            hierarchy_path = hierarchy_path.strip("/")
+            vname = version_name(record["version"])
+            record["path"] = f"/{hierarchy_path}/{product_name}/{vname}"
+        return record
 
-        async with Postgres.transaction():
-            if self.version < 0:
-                # Ensure there is no previous hero version
-                res = await Postgres.fetch(
-                    f"""
-                    SELECT id FROM project_{self.project_name}.versions
-                    WHERE
-                        version < 0
-                    AND id != $1
-                    AND product_id = $2
-                    """,
-                    self.id,
-                    self.product_id,
-                )
-                if res:
-                    raise ConstraintViolationException("Hero version already exists.")
+    async def pre_save(self, insert: bool) -> None:
+        if self.version < 0:
+            # Ensure there is no previous hero version
+            res = await Postgres.fetchrow(
+                f"""
+                SELECT id FROM project_{self.project_name}.versions
+                WHERE
+                    version < 0
+                AND id != $1
+                AND product_id = $2
+                """,
+                self.id,
+                self.product_id,
+            )
+            if res is not None:
+                raise ConstraintViolationException("Hero version already exists.")
 
-            await super().save()
-
-            if self.task_id:
-                await Postgres.execute(
-                    f"""
-                    UPDATE project_{self.project_name}.tasks
-                    SET updated_at = NOW()
-                    WHERE id = $1
-                    """,
-                    self.task_id,
-                )
+        if self.task_id:
+            # Bump the updated_at timestamp of the task
+            # in order to re-fetch a new thumbnail
+            await Postgres.execute(
+                f"""
+                UPDATE project_{self.project_name}.tasks
+                SET updated_at = NOW()
+                WHERE id = $1
+                """,
+                self.task_id,
+            )
 
     @classmethod
     async def refresh_views(cls, project_name: str) -> None:
@@ -85,9 +125,7 @@ class VersionEntity(ProjectLevelEntity):
 
     @property
     def name(self) -> str:
-        if self.version < 0:
-            return "HERO"
-        return f"v{self.version:03d}"
+        return version_name(self.version)
 
     @name.setter
     def name(self, value: str) -> NoReturn:
@@ -133,3 +171,11 @@ class VersionEntity(ProjectLevelEntity):
     @property
     def author(self) -> str:
         return self._payload.author  # type: ignore
+
+    #
+    # Read only properties
+    #
+
+    @property
+    def path(self) -> str:
+        return self._payload.path  # type: ignore

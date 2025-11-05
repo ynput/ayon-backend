@@ -4,7 +4,13 @@ import aiocache
 from fastapi import Header, Query, Request, Response
 from fastapi.responses import FileResponse, RedirectResponse
 
-from ayon_server.api.dependencies import CurrentUser, FileID, ProjectName
+from ayon_server.api.dependencies import (
+    AllowGuests,
+    CurrentUser,
+    FileID,
+    NoTraces,
+    ProjectName,
+)
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import (
     BadRequestException,
@@ -22,17 +28,11 @@ from .router import router
 from .video import serve_video
 
 
-def check_user_access(project_name: ProjectName, user: CurrentUser) -> None:
-    if not user.is_manager:
-        if project_name not in user.data.get("accessGroups", {}):
-            raise BadRequestException("User does not have access to the project")
-
-
 class CreateFileResponseModel(OPModel):
     id: str = Field(..., example="123")
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, dependencies=[AllowGuests])
 async def upload_project_file(
     project_name: ProjectName,
     request: Request,
@@ -56,7 +56,7 @@ async def upload_project_file(
 
     """
 
-    check_user_access(project_name, user)
+    await user.ensure_project_access(project_name)
 
     if x_file_id:
         file_id = x_file_id.replace("-", "")
@@ -98,13 +98,13 @@ async def upload_project_file(
     return CreateFileResponseModel(id=file_id)
 
 
-@router.delete("/{file_id}")
+@router.delete("/{file_id}", dependencies=[AllowGuests])
 async def delete_project_file(
     project_name: ProjectName,
     file_id: FileID,
     user: CurrentUser,
 ) -> EmptyResponse:
-    check_user_access(project_name, user)
+    await user.ensure_project_access(project_name)
 
     res = await Postgres.fetch(
         f"""
@@ -144,16 +144,18 @@ async def get_file_headers(project_name: str, file_id: str) -> dict[str, str]:
         "Content-Type": data["mime"],
         "Content-Disposition": f'inline; filename="{data["filename"]}"',
     }
+    if data.get("ynputShared"):
+        headers["X-Ynput-Shared"] = "1"
     return headers
 
 
-@router.head("/{file_id}")
+@router.head("/{file_id}", dependencies=[AllowGuests, NoTraces])
 async def get_project_file_head(
     project_name: ProjectName,
     file_id: FileID,
     user: CurrentUser,
 ) -> Response:
-    check_user_access(project_name, user)
+    await user.ensure_project_access(project_name)
     headers = await get_file_headers(project_name, file_id)
     return Response(
         None,
@@ -162,7 +164,7 @@ async def get_project_file_head(
     )
 
 
-@router.get("/{file_id}", response_model=None)
+@router.get("/{file_id}", response_model=None, dependencies=[AllowGuests, NoTraces])
 async def get_project_file(
     project_name: ProjectName,
     file_id: FileID,
@@ -174,13 +176,14 @@ async def get_project_file(
     a preview of the file (if available).
     """
 
-    check_user_access(project_name, user)
+    await user.ensure_project_access(project_name)
 
     storage = await Storages.project(project_name)
     headers = await get_file_headers(project_name, file_id)
+    ynput_shared = bool(headers.get("X-Ynput-Shared"))
 
     if storage.cdn_resolver is not None:
-        return await storage.get_cdn_link(file_id)
+        return await storage.get_cdn_link(file_id, ynput_shared=ynput_shared)
 
     if storage.storage_type == "s3":
         url = await storage.get_signed_url(
@@ -195,7 +198,7 @@ async def get_project_file(
     return RedirectResponse(url=url, status_code=302)
 
 
-@router.get("/{file_id}/info", response_model=FileInfo)
+@router.get("/{file_id}/info", response_model=FileInfo, dependencies=[AllowGuests])
 async def get_project_file_info(
     project_name: ProjectName,
     file_id: FileID,
@@ -207,13 +210,17 @@ async def get_project_file_info(
     a preview of the file (if available).
     """
 
-    check_user_access(project_name, user)
+    await user.ensure_project_access(project_name)
 
     storage = await Storages.project(project_name)
     return await storage.get_file_info(file_id)
 
 
-@router.get("/{file_id}/payload", response_model=None)
+@router.get(
+    "/{file_id}/payload",
+    response_model=None,
+    dependencies=[AllowGuests, NoTraces],
+)
 async def get_project_file_payload(
     request: Request,
     project_name: ProjectName,
@@ -228,7 +235,7 @@ async def get_project_file_payload(
     if not os.path.isfile(path):
         raise NotFoundException("File not found")
 
-    check_user_access(project_name, user)
+    await user.ensure_project_access(project_name)
     headers = await get_file_headers(project_name, file_id)
 
     if headers["Content-Type"].startswith("video"):
@@ -237,7 +244,11 @@ async def get_project_file_payload(
     return FileResponse(path, headers=headers)
 
 
-@router.get("/{file_id}/thumbnail", response_model=None)
+@router.get(
+    "/{file_id}/thumbnail",
+    response_model=None,
+    dependencies=[AllowGuests, NoTraces],
+)
 async def get_project_file_thumbnail(
     project_name: ProjectName,
     file_id: FileID,
@@ -249,12 +260,16 @@ async def get_project_file_thumbnail(
     a preview of the file (if available).
     """
 
-    check_user_access(project_name, user)
+    await user.ensure_project_access(project_name)
 
     return await get_file_preview(project_name, file_id)
 
 
-@router.get("/{file_id}/still", response_model=None)
+@router.get(
+    "/{file_id}/still",
+    response_model=None,
+    dependencies=[AllowGuests, NoTraces],
+)
 async def get_project_file_still(
     project_name: ProjectName,
     file_id: FileID,
@@ -266,7 +281,7 @@ async def get_project_file_still(
     The `t` query parameter can be used to specify the time in seconds.
     """
 
-    check_user_access(project_name, user)
+    await user.ensure_project_access(project_name)
 
     storage = await Storages.project(project_name)
 

@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from ayon_server.activities.activity_categories import ActivityCategories
+from ayon_server.entities import ProjectEntity
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.edges import ActivityEdge
 from ayon_server.graphql.nodes.activity import ActivityNode
@@ -35,7 +37,31 @@ async def get_activities(
     changed_after: str | None = None,
 ) -> ActivitiesConnection:
     project_name = root.project_name
+    project = await ProjectEntity.load(project_name)
+    info.context["project"] = project
 
+    # Ensure the guest user is allowed in this project
+
+    user = info.context["user"]
+    if user.is_guest:
+        if user.attrib.email not in project.data.get("guestUsers", {}):
+            raise Exception("Guest user not allowed in this project")
+
+    # load activity categories and push them to context as
+    # a dictionary for easy access
+
+    activity_categories = await ActivityCategories.get_activity_categories(project_name)
+    info.context["activity_categories"] = {}
+    for cat in activity_categories:
+        info.context["activity_categories"][cat["name"]] = {
+            "color": cat.get("color"),
+            "name": cat.get("name"),
+        }
+
+    # SQL components
+
+    sql_cte = []
+    sql_joins = []
     sql_conditions = []
 
     if not (entity_type and entity_ids):
@@ -100,6 +126,64 @@ async def get_activities(
         validate_name_list(tags)
         sql_conditions.append(f"tags @> {SQLTool.array(tags, curly=True)}")
 
+    if user.is_guest:
+        # guest users can only see activities that are tagged with
+        # entityList they have access to AND the category matches
+        # one of the categories that are allowed to access (or NULL)
+
+        # allowed categories are stored in powerpack addon settings
+        # this is different from guestCommentCategory, that is stored per list
+        # in entityList.data and is used to determine whether user CAN comment
+        # and with which category
+
+        accessible_categories = await ActivityCategories.get_accessible_categories(
+            user,
+            project=project,
+        )
+
+        sql_cte.append(
+            f"""
+            accessible_lists AS (
+                SELECT id, data FROM project_{project_name}.entity_lists
+                WHERE COALESCE((access->'guest:{user.attrib.email}')::INTEGER, 0) > 0
+            )
+            """
+        )
+
+        sql_joins.append(
+            f"""
+            JOIN accessible_lists ON
+                (activity_data->>'entityList')::UUID = accessible_lists.id
+            AND (
+                activity_data->>'category' IS NULL
+                OR activity_data->>'category' = ANY({
+                    SQLTool.array(accessible_categories, curly=True)
+                })
+            )
+            """
+        )
+    elif not user.is_manager:
+        # normal users can see activities that match their readable categories
+        accessible_categories = await ActivityCategories.get_accessible_categories(
+            user,
+            project=project,
+        )
+        if accessible_categories:
+            sql_conditions.append(
+                f"""
+                (
+                    activity_data->>'category' IS NULL
+                    OR activity_data->>'category' = ANY({
+                        SQLTool.array(accessible_categories, curly=True)
+                    })
+                )
+                """
+            )
+        else:
+            # user has no access to any categories,
+            # so can see only activities without category
+            sql_conditions.append("activity_data->>'category' IS NULL")
+
     if categories:
         cat_conds = []
         if None in categories:
@@ -143,14 +227,24 @@ async def get_activities(
     # Build the query
     #
 
+    if sql_cte:
+        cte = ", ".join(sql_cte)
+        cte = f"WITH {cte}"
+    else:
+        cte = ""
+
     query = f"""
+        {cte}
         SELECT {cursor}, *
         FROM project_{project_name}.activity_feed
+        {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """
 
+    # Keep this here for future debugging
     # from ayon_server.logging import logger
+    #
     # logger.trace(f"Querying activities: {query}")
 
     return await resolve(

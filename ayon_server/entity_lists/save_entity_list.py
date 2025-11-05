@@ -28,6 +28,7 @@ async def _save_entity_list(
         id,
         entity_list_type,
         entity_type,
+        entity_list_folder_id,
         label,
         owner,
         access,
@@ -40,20 +41,21 @@ async def _save_entity_list(
         created_by,
         updated_by
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
     ) ON CONFLICT (id) DO UPDATE SET
         entity_list_type = $2,
         entity_type = $3,
-        label = $4,
-        owner = $5,
-        access = $6,
-        template = $7,
-        attrib = $8,
-        data = $9,
-        tags = $10,
-        active = $11,
+        entity_list_folder_id = $4,
+        label = $5,
+        owner = $6,
+        access = $7,
+        template = $8,
+        attrib = $9,
+        data = $10,
+        tags = $11,
+        active = $12,
         updated_at = NOW(),
-        updated_by = $14
+        updated_by = $15
     RETURNING xmax = 0 AS inserted;
     """
 
@@ -64,17 +66,18 @@ async def _save_entity_list(
         payload.id,  # 1
         payload.entity_list_type,  # 2
         payload.entity_type,  # 3
-        payload.label,  # 4
-        payload.owner,  # 5
-        payload.access,  # 6
-        payload.template,  # 7
-        payload.attrib,  # 8
-        payload.data,  # 9
-        payload.tags,  # 10
-        payload.active,  # 11
-        payload.created_at,  # 12
-        payload.created_by,  # 13
-        payload.updated_by,  # 14
+        payload.entity_list_folder_id,  # 4
+        payload.label,  # 5
+        payload.owner,  # 6
+        payload.access,  # 7
+        payload.template,  # 8
+        payload.attrib,  # 9
+        payload.data,  # 10
+        payload.tags,  # 11
+        payload.active,  # 12
+        payload.created_at,  # 13
+        payload.created_by,  # 14
+        payload.updated_by,  # 15
     )
     if not res:
         raise AyonException("Failed to save entity list")

@@ -89,8 +89,9 @@ async def get_anatomy_preset(preset_name: str, user: CurrentUser) -> Anatomy:
             VERSION,
         )
 
-    async for row in Postgres.iterate(*query):
-        tpl = Anatomy(**row["data"])
+    res = await Postgres.fetchrow(*query)
+    if res:
+        tpl = Anatomy(**res["data"])
         return tpl
 
     if preset_name == "__primary__":
@@ -164,14 +165,8 @@ async def unset_primary_preset(preset_name: str, user: CurrentUser) -> EmptyResp
         raise ForbiddenException("Only managers can unset primary preset.")
 
     async with Postgres.transaction():
-        await Postgres.execute(
-            """
-            UPDATE anatomy_presets
-            SET is_primary = FALSE
-            WHERE name = $1
-            """,
-            preset_name,
-        )
+        query = "UPDATE anatomy_presets SET is_primary = FALSE WHERE name = $1"
+        await Postgres.execute(query, preset_name)
     return EmptyResponse()
 
 
@@ -217,12 +212,7 @@ async def delete_anatomy_preset(preset_name: str, user: CurrentUser) -> EmptyRes
         raise ForbiddenException("Only managers can set primary preset.")
 
     async with Postgres.transaction():
-        await Postgres.execute(
-            """
-            DELETE FROM anatomy_presets
-            WHERE name = $1
-            """,
-            preset_name,
-        )
+        query = "DELETE FROM anatomy_presets WHERE name = $1"
+        await Postgres.execute(query, preset_name)
 
     return EmptyResponse()

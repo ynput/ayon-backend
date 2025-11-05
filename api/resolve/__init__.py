@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, Query
 
-from ayon_server.api.dependencies import ClientSiteID, CurrentUser
+from ayon_server.api.dependencies import AllowGuests, ClientSiteID, CurrentUser
 from ayon_server.exceptions import BadRequestException, ServiceUnavailableException
 from ayon_server.helpers.roots import get_roots_for_projects
 from ayon_server.lib.postgres import Postgres
@@ -216,7 +216,7 @@ async def resolve_entities(
         if req.workfile_name is not None:
             cols.append("w.id as workfile_id")
             joins.append("INNER JOIN workfiles AS w ON t.id = w.task_id")
-            conds.append(f"w.name = '{req.workfile_name}'")
+            conds.append(f"w.path LIKE '%/{req.workfile_name}'")
             target_entity_type = "workfile"
 
         conds.extend(get_path_conditions(req.path))
@@ -310,7 +310,7 @@ async def get_platform_for_site_id(site_id: str) -> str:
     return res[0]["platform"]
 
 
-@router.post("/resolve", response_model_exclude_none=True)
+@router.post("/resolve", response_model_exclude_none=True, dependencies=[AllowGuests])
 async def resolve_uris(
     request: ResolveRequestModel,
     site_id: ClientSiteID,

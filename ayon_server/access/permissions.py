@@ -1,5 +1,6 @@
 from typing import Any
 
+import aiocache
 from pydantic import validator
 
 from ayon_server.lib.postgres import Postgres
@@ -15,10 +16,33 @@ def get_folder_access_types():
     ]
 
 
+@aiocache.cached(ttl=300)
 async def attr_enum():
     return [
-        row["name"]
-        async for row in Postgres.iterate("SELECT name FROM public.attributes")
+        {"value": row["name"], "label": row["title"] or row["name"]}
+        async for row in Postgres.iterate(
+            """
+            SELECT name, data->'title' as title FROM public.attributes
+            ORDER BY COALESCE(data->>'title', name)
+            """
+        )
+    ]
+
+
+def top_level_fields_enum() -> list[dict[str, str]]:
+    return [
+        {"value": "name", "label": "Change entity name"},
+        {"value": "label", "label": "Change entity label"},
+        {"value": "status", "label": "Change entity status"},
+        {"value": "tags", "label": "Change entity tags"},
+        {"value": "active", "label": "Enable or disable entity"},
+        {"value": "parent_id", "label": "Move folder"},
+        {"value": "folder_type", "label": "Change folder type"},
+        {"value": "folder_id", "label": "Move task"},
+        {"value": "task_type", "label": "Change task type"},
+        {"value": "assignees", "label": "Change task assignees"},
+        {"value": "product_type", "label": "Change product type"},
+        {"value": "author", "label": "Change version author"},
     ]
 
 
@@ -69,6 +93,15 @@ class FolderAccessList(BasePermissionsModel):
 
 
 class AttributeReadAccessList(BasePermissionsModel):
+    # We cannot restrict reading top-level fields for now
+    # as they are not nullable and we need to return at least something
+    # Keeping this here for the future reference
+    # fields: list[str] = SettingsField(
+    #     title="Readable fields",
+    #     default_factory=list,
+    #     enum_resolver=top_level_fields_enum,
+    # )
+
     attributes: list[str] = SettingsField(
         title="Readable attributes",
         default_factory=list,
@@ -81,6 +114,12 @@ class AttributeWriteAccessList(BasePermissionsModel):
         title="Writable attributes",
         default_factory=list,
         enum_resolver=attr_enum,
+    )
+    fields: list[str] = SettingsField(
+        title=" ",
+        default_factory=list,
+        enum_resolver=top_level_fields_enum,
+        widget="switchbox",
     )
 
 
@@ -147,19 +186,30 @@ class ProjectManagementPermissions(BaseSettingsModel):
 # But the model used to store all the permissions is the combined one
 
 
-class StudioPermissions(BaseSettingsModel):
+class ProjectAdvancedPermissions(BaseSettingsModel):
+    show_sibling_tasks: bool = SettingsField(
+        True,
+        title="Show sibling tasks",
+        description=(
+            "If a user can access a task through the 'Assigned' permission, "
+            "enabling this will also show all sibling tasks in the same folder. "
+            "When disabled, only the assigned task is visible."
+        ),
+    )
+
+
+class Permissions(BaseSettingsModel):
+    _layout = "root"
+
     studio: StudioManagementPermissions = SettingsField(
         default_factory=StudioManagementPermissions,
         title="Studio permissions",
         scope=["studio"],
     )
 
-
-class ProjectPermissions(BaseSettingsModel):
     project: ProjectManagementPermissions = SettingsField(
         default_factory=ProjectManagementPermissions,
         title="Project permissions",
-        scope=["studio", "project"],
     )
 
     create: FolderAccessList = SettingsField(
@@ -210,14 +260,10 @@ class ProjectPermissions(BaseSettingsModel):
         description="Whitelist REST endpoints a user can access",
     )
 
-
-class Permissions(ProjectPermissions, StudioPermissions):
-    """
-    The Permissions model defines the permissions for an access group.
-    to interact with specific resources in the system.
-    """
-
-    _layout = "root"
+    advanced: ProjectAdvancedPermissions = SettingsField(
+        default_factory=lambda: ProjectAdvancedPermissions(),
+        title="Advanced access control",
+    )
 
     @classmethod
     def from_record(cls, perm_dict: dict[str, Any]) -> "Permissions":

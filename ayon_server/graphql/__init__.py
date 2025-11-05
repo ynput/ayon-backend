@@ -13,7 +13,6 @@ from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import (
     ActivitiesConnection,
     EventsConnection,
-    # InboxConnection,
     KanbanConnection,
     ProjectsConnection,
     UsersConnection,
@@ -22,6 +21,7 @@ from ayon_server.graphql.dataloaders import (
     folder_loader,
     latest_version_loader,
     product_loader,
+    representation_loader,
     task_loader,
     user_loader,
     version_loader,
@@ -48,6 +48,7 @@ from ayon_server.graphql.resolvers.users import get_user, get_users
 from ayon_server.graphql.types import Info
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
+from ayon_server.utils import json_dumps
 
 
 async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
@@ -73,6 +74,7 @@ async def graphql_get_context(user: CurrentUser) -> dict[str, Any]:
         "latest_version_loader": DataLoader(load_fn=latest_version_loader),
         "user_loader": DataLoader(load_fn=user_loader),
         "workfile_loader": DataLoader(load_fn=workfile_loader),
+        "representation_loader": DataLoader(load_fn=representation_loader),
         # Other
         "activities_resolver": get_activities,
         "links_resolver": get_links,
@@ -133,12 +135,12 @@ class Query:
             updated_at=user.updated_at,
             created_at=user.created_at,
             _attrib=user.attrib.dict(),
-            access_groups=user.data.get("accessGroups", {}),
+            access_groups=json_dumps(user.data.get("accessGroups", {})),
             is_admin=user.is_admin,
             is_manager=user.is_manager,
             is_service=user.is_service,
             is_developer=user.is_developer,
-            is_guest=False,  # TODO
+            is_guest=user.is_guest,
             user_pool=user.data.get("userPool"),
             default_access_groups=user.data.get("defaultAccessGroups", []),
             has_password=bool(user.data.get("password")),

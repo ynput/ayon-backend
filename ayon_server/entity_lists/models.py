@@ -7,10 +7,10 @@ from ayon_server.utils import create_uuid, now
 
 
 class ListAccessLevel(IntEnum):
+    NO_ACCESS = 0  # No access to the list
     READ = 10  # Can view the list and its items
-    UPDATE = 20  # Can update attributes of the list items
-    CONSTRUCT = 30  # Can add/remove items from the list or materialize new items
-    ADMIN = 40  # Can update/delete the list itself and add new users to the list
+    UPDATE = 20  # Can add/remove items from the list, but not materialize new items
+    MANAGE = 30  # Can manage list, rename, change access, etc.
 
 
 # List attributes
@@ -43,6 +43,10 @@ FListEntityType = Field(
     title="Entity type",
     description="Type of the entity that can be included in the list",
     example="task",
+)
+FFolderID = Field(
+    title="List folder ID",
+    description="ID of the folder containing the list",
 )
 FListAccess = Field(
     title="Access",
@@ -161,6 +165,7 @@ class EntityListItemPatchModel(OPModel):
 class EntityListModel(OPModel):
     id: Annotated[str, FListID]
     entity_list_type: Annotated[str, FListType]
+    entity_list_folder_id: Annotated[str | None, FFolderID] = None
     entity_type: Annotated[ProjectLevelEntityType, FListEntityType]
     label: Annotated[str, FListLabel]
     access: Annotated[dict[str, ListAccessLevel], FListAccess]
@@ -175,11 +180,15 @@ class EntityListModel(OPModel):
     created_at: Annotated[datetime, FCreatedAt]
     updated_at: Annotated[datetime, FUpdatedAt]
     active: Annotated[bool, FListActive]
+    access_level: Annotated[
+        ListAccessLevel, Field(title="Current user's access level")
+    ] = ListAccessLevel.MANAGE
 
 
 class EntityListPostModel(OPModel):
     id: Annotated[str, FListID]
     entity_list_type: Annotated[str, FListType] = "generic"
+    entity_list_folder_id: Annotated[str | None, FFolderID] = None
     entity_type: Annotated[ProjectLevelEntityType, FListEntityType]
     label: Annotated[str, FListLabel]
     access: Annotated[dict[str, ListAccessLevel], FListAccess]
@@ -196,6 +205,7 @@ class EntityListPatchModel(OPModel):
     label: Annotated[str | None, FListLabel] = None
     access: Annotated[dict[str, ListAccessLevel], FListAccess]
     attrib: Annotated[dict[str, Any], FListAttrib]
+    entity_list_folder_id: Annotated[str | None, FFolderID] = None
     data: Annotated[dict[str, Any], FListData]
     tags: Annotated[list[str], FListTags]
     owner: Annotated[str | None, FListOwner] = None

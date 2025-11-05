@@ -7,8 +7,8 @@ from strawberry import LazyType
 from ayon_server.entities import UserEntity
 from ayon_server.graphql.resolvers.tasks import get_tasks
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.utils import get_nickname, json_dumps, obscure
+from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
+from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import TasksConnection
@@ -48,11 +48,12 @@ class UserNode:
     deleted: bool = False
 
     _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
+    _user: strawberry.Private[UserEntity]  # The user making the request
 
     @strawberry.field
     def attrib(self) -> UserAttribType:
         return parse_attrib_data(
+            "user",
             UserAttribType,
             self._attrib,
             user=self._user,
@@ -60,7 +61,13 @@ class UserNode:
 
     @strawberry.field
     def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+        return json_dumps(
+            process_attrib_data(
+                "user",
+                self._attrib,
+                user=self._user,
+            )
+        )
 
     @strawberry.field
     async def tasks(self, info: Info, project_name: str) -> "TasksConnection":
@@ -68,7 +75,7 @@ class UserNode:
         return await get_tasks(root, info, assignees=[self.name])
 
 
-def user_from_record(
+async def user_from_record(
     project_name: str | None, record: dict[str, Any], context: dict[str, Any]
 ) -> UserNode:
     data = record.get("data", {})
@@ -81,22 +88,18 @@ def user_from_record(
     user_pool = data.get("userPool")
     disable_password_login = data.get("disablePasswordLogin", False)
 
+    current_user = context["user"]
+
     name = record["name"]
     attrib = record.get("attrib", {})
+    if not current_user.is_manager:
+        attrib = {k: v for k, v in attrib.items() if k in ("fullName")}
 
-    current_user = context["user"]
-    if (
-        current_user.is_guest
-        and current_user.name != name
-        and current_user.name != data.get("createdBy")
-    ):
-        if name != "admin":
-            name = get_nickname(name)
-        if email := attrib.get("email"):
-            attrib["email"] = obscure(email)
-        if attrib.get("fullName"):
-            attrib["fullName"] = name
-        attrib["avatarUrl"] = None
+    user_project_list = context.get("user_project_list", [])
+    if user_project_list:
+        for ag in list(access_groups.keys()):
+            if ag not in user_project_list:
+                del access_groups[ag]
 
     return UserNode(
         name=name,

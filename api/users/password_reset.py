@@ -37,19 +37,15 @@ class PasswordResetRequestModel(OPModel):
 
 @router.post("/passwordResetRequest")
 async def password_reset_request(request: PasswordResetRequestModel):
-    pass
-
-    async for row in Postgres.iterate(
-        "SELECT name, data FROM users WHERE LOWER(attrib->>'email') = $1",
-        request.email.lower(),
-    ):
-        user_data = row["data"]
-        break
-    else:
+    query = "SELECT name, data FROM users WHERE LOWER(attrib->>'email') = $1"
+    res = await Postgres.fetchrow(query, request.email.lower())
+    if res is None:
         logger.error(
             f"Attempted password reset using non-existent email: {request.email}"
         )
         return
+
+    user_data = res["data"]
 
     password_reset_request = user_data.get("passwordResetRequest")
     if password_reset_request:
@@ -68,7 +64,7 @@ async def password_reset_request(request: PasswordResetRequestModel):
         "token": token,
     }
 
-    user = await UserEntity.load(row["name"])
+    user = await UserEntity.load(res["name"])
     user.data["passwordResetRequest"] = password_reset_request
 
     tplvars = {
@@ -99,13 +95,13 @@ async def password_reset(request: PasswordResetModel) -> LoginResponseModel:
 
     ERROR_MESSAGE = "Invalid reset token or token has expired"
 
-    async for row in Postgres.iterate(query, request.token):
-        user_name = row["name"]
-        user_data = row["data"]
-        break
-    else:
+    res = await Postgres.fetchrow(query, request.token)
+    if res is None:
         logger.error("Attempted password reset using invalid token")
-        raise ForbiddenException("Invalid token")
+        raise ForbiddenException(ERROR_MESSAGE)
+
+    user_name = res["name"]
+    user_data = res["data"]
 
     password_reset_request = user_data.get("passwordResetRequest", {})
     password_request_time = password_reset_request.get("time", None)

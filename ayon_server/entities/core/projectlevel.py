@@ -5,23 +5,33 @@ from typing import Any
 from pydantic import BaseModel
 
 from ayon_server.access.utils import ensure_entity_access
+from ayon_server.entities.common import query_entity_data
 from ayon_server.entities.core.base import BaseEntity
 from ayon_server.exceptions import (
     AyonException,
     ConstraintViolationException,
     NotFoundException,
-    ServiceUnavailableException,
 )
 from ayon_server.helpers.entity_links import remove_entity_links
 from ayon_server.helpers.statuses import get_default_status_for_entity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
-from ayon_server.utils import SQLTool, dict_exclude
+from ayon_server.utils import EntityID, SQLTool, dict_exclude
+
+BASE_GET_QUERY = """
+    SELECT *
+    FROM project_{project_name}.{entity_type}s entity
+"""
 
 
 class ProjectLevelEntity(BaseEntity):
     entity_type: ProjectLevelEntityType
     project_name: str
+    base_get_query: str = BASE_GET_QUERY
+
+    @staticmethod
+    def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
+        return record
 
     def __init__(
         self,
@@ -68,17 +78,24 @@ class ProjectLevelEntity(BaseEntity):
         and reformats ids.
 
         """
+        # ensure payload is a dict (it might be a asyncpg.Record)
+        payload = dict(payload)
+        if own_attrib is None:
+            own_attrib = list(payload["attrib"].keys())
+        payload = cls.preprocess_record(payload)
         parsed = {}
         for key in cls.model.main_model.__fields__:
             if key not in payload:
                 continue  # there are optional keys too
             parsed[key] = payload[key]
-        return cls(
+        result = cls(
             project_name,
             parsed,
             exists=True,
             own_attrib=own_attrib,
         )
+        result.inherited_attrib = payload.get("inherited_attrib", {})
+        return result
 
     def replace(self, replace_data: BaseModel) -> None:
         """Replace the entity payload with new data."""
@@ -158,38 +175,32 @@ class ProjectLevelEntity(BaseEntity):
         for_update: bool = False,
         **kwargs,
     ):
-        """Return an entity instance based on its ID and a project name.
+        """Load a folder from the database by its project name and IDself.
 
-        Raise ValueError if project_name or base_id is not valid.
-        Raise KeyError if the folder does not exists.
-
-        Set for_update=True and pass a transaction to lock the row
-        for update.
+        This is reimplemented, because we need to select dynamic
+        attribute hierarchy.path along with the base data and
+        the attributes inherited from parent entities.
         """
 
-        query = f"""
-            SELECT  *
-            FROM project_{project_name}.{cls.entity_type}s
-            WHERE id=$1
-            {'FOR UPDATE NOWAIT' if for_update else ''}
-            """
+        if EntityID.parse(entity_id) is None:
+            raise ValueError(f"Invalid {cls.entity_type} ID specified")
 
-        try:
-            record = await Postgres.fetchrow(query, entity_id)
-        except Postgres.UndefinedTableError as e:
-            raise NotFoundException(
-                f"Project '{project_name}' does not exist or is not initialized."
-            ) from e
-        except Postgres.LockNotAvailableError as e:
-            raise ServiceUnavailableException(
-                f"Entity {cls.entity_type} {entity_id} is locked for update."
-            ) from e
-        if record is None:
-            raise NotFoundException(
-                f"{cls.entity_type.capitalize()} {entity_id} "
-                f"not found in project {project_name}"
-            )
-        return cls.from_record(project_name, record)
+        query = cls.base_get_query.format(
+            project_name=project_name,
+            entity_type=cls.entity_type,
+        )
+
+        query += f"""
+            WHERE entity.id=$1
+            {'FOR UPDATE OF entity NOWAIT' if for_update else ''}
+        """
+
+        record = await query_entity_data(query, entity_id)
+
+        return cls.from_record(
+            project_name=project_name,
+            payload=record,
+        )
 
     #
     # Save
@@ -357,6 +368,10 @@ class ProjectLevelEntity(BaseEntity):
     def tags(self, value: list[str]):
         self._payload.tags = value  # type: ignore
 
+    #
+    # Read only properties
+    #
+
     @property
     def entity_subtype(self) -> str | None:
         """Return the entity subtype.
@@ -365,3 +380,7 @@ class ProjectLevelEntity(BaseEntity):
         For other entities this is None.
         """
         return None
+
+    @property
+    def path(self) -> str:
+        return ""

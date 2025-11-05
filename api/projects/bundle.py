@@ -3,6 +3,7 @@ from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
 
 from .router import router
@@ -38,5 +39,6 @@ async def set_project_bundle(
         else:
             project.data["bundle"] = bundle_data
         await project.save()
+        await Redis.delete_ns("all-settings")
 
     return EmptyResponse()

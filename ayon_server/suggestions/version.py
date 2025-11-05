@@ -1,22 +1,24 @@
 from collections import defaultdict
 
-from ayon_server.entities import VersionEntity
+from ayon_server.entities import ProjectEntity, UserEntity, VersionEntity
 from ayon_server.lib.postgres import Postgres
 
+from .common import get_relevant_users_cte
 from .models import (
     FolderSuggestionItem,
     ProductSuggestionItem,
+    SuggestionType,
     TaskSuggestionItem,
     UserSuggestionItem,
     VersionSuggestionItem,
 )
 
-SUGGESTION_TYPE = UserSuggestionItem | VersionSuggestionItem | TaskSuggestionItem
-
 
 async def get_version_suggestions(
-    user: str, version: VersionEntity
-) -> dict[str, list[SUGGESTION_TYPE]]:
+    project: ProjectEntity,
+    user: UserEntity,
+    version: VersionEntity,
+) -> dict[str, list[SuggestionType]]:
     """
     Assignees: Every assignee in the project, sorted by author first.
     Versions: Direct sibling versions to the version.
@@ -24,20 +26,16 @@ async def get_version_suggestions(
     """
 
     project_name = version.project_name
-    result: defaultdict[str, list[SUGGESTION_TYPE]] = defaultdict(list)
-    item: SUGGESTION_TYPE
+    result: defaultdict[str, list[SuggestionType]] = defaultdict(list)
+    item: SuggestionType
     parent: ProductSuggestionItem | FolderSuggestionItem
 
     # get users:
 
-    query = f"""
-        WITH relevant_users AS (
-            SELECT name FROM public.users
-            WHERE data->>'isAdmin' = 'true'
-            OR data->>'isManager' = 'true'
-            OR data->'accessGroups'->'{project_name}' IS NOT NULL
-        )
+    relevant_users_cte = await get_relevant_users_cte(project, user)
 
+    query = f"""
+        WITH {relevant_users_cte}
         SELECT
             u.name as name,
             u.attrib->>'fullName' as full_name,

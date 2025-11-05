@@ -7,101 +7,91 @@ from ayon_server.entities.models import ModelSet
 from ayon_server.exceptions import (
     AyonException,
     ForbiddenException,
-    NotFoundException,
-    ServiceUnavailableException,
 )
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import ProjectLevelEntityType
-from ayon_server.utils import EntityID, SQLTool, dict_exclude
+from ayon_server.utils import SQLTool, dict_exclude
+
+BASE_GET_QUERY = """
+    WITH RECURSIVE folder_closure AS (
+        SELECT id AS ancestor_id, id AS descendant_id
+        FROM project_{project_name}.folders
+        UNION ALL
+        SELECT fc.ancestor_id, f.id AS descendant_id
+        FROM folder_closure fc
+        JOIN project_{project_name}.folders f
+        ON f.parent_id = fc.descendant_id
+    ),
+
+    folder_with_versions AS (
+        SELECT DISTINCT fc.ancestor_id
+        FROM folder_closure fc
+        JOIN project_{project_name}.products p ON p.folder_id = fc.descendant_id
+        JOIN project_{project_name}.versions v ON v.product_id = p.id
+    )
+
+    SELECT
+        entity.id as id,
+        entity.name as name,
+        entity.label as label,
+        entity.folder_type as folder_type,
+        entity.parent_id as parent_id,
+        entity.thumbnail_id as thumbnail_id,
+        entity.attrib as attrib,
+        entity.data as data,
+        entity.active as active,
+        entity.created_at as created_at,
+        entity.updated_at as updated_at,
+        entity.status as status,
+        entity.tags as tags,
+        hierarchy.path as path,
+        ia.attrib AS inherited_attrib,
+        p.attrib AS project_attrib,
+        (fwv.ancestor_id IS NOT NULL)::BOOLEAN AS has_versions
+
+    FROM project_{project_name}.folders as entity
+
+    INNER JOIN project_{project_name}.hierarchy as hierarchy
+    ON entity.id = hierarchy.id
+
+    LEFT JOIN project_{project_name}.exported_attributes as ia
+    ON entity.parent_id = ia.folder_id
+
+    LEFT JOIN folder_with_versions fwv
+    ON fwv.ancestor_id = entity.id
+
+    INNER JOIN public.projects as p
+    ON p.name ILIKE '{project_name}'
+"""
 
 
 class FolderEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "folder"
     model: ModelSet = ModelSet("folder", attribute_library["folder"])
+    base_get_query = BASE_GET_QUERY
 
-    @classmethod
-    async def load(
-        cls,
-        project_name: str,
-        entity_id: str,
-        for_update: bool = False,
-        **kwargs: Any,
-    ) -> "FolderEntity":
-        """Load a folder from the database by its project name and IDself.
-
-        This is reimplemented, because we need to select dynamic
-        attribute hierarchy.path along with the base data and
-        the attributes inherited from parent entities.
-        """
-
-        if EntityID.parse(entity_id) is None:
-            raise ValueError(f"Invalid {cls.entity_type} ID specified")
-
-        query = f"""
-            SELECT
-                f.id as id,
-                f.name as name,
-                f.label as label,
-                f.folder_type as folder_type,
-                f.parent_id as parent_id,
-                f.thumbnail_id as thumbnail_id,
-                f.attrib as attrib,
-                f.data as data,
-                f.active as active,
-                f.created_at as created_at,
-                f.updated_at as updated_at,
-                f.status as status,
-                f.tags as tags,
-                h.path as path,
-                ia.attrib AS inherited_attrib,
-                p.attrib AS project_attrib
-            FROM project_{project_name}.folders as f
-            INNER JOIN
-                project_{project_name}.hierarchy as h
-                ON f.id = h.id
-            LEFT JOIN
-                project_{project_name}.exported_attributes as ia
-                ON f.parent_id = ia.folder_id
-            INNER JOIN public.projects as p
-                ON p.name ILIKE $2
-            WHERE f.id=$1
-            {'FOR UPDATE OF f NOWAIT'
-                if for_update else ''
-            }
-            """
-
-        try:
-            record = await Postgres.fetchrow(query, entity_id, project_name)
-        except Postgres.UndefinedTableError:
-            raise NotFoundException(f"Project {project_name} not found")
-        except Postgres.LockNotAvailableError:
-            raise ServiceUnavailableException(
-                f"Folder {entity_id} is locked for update, try again later"
-            )
-
-        if record is None:
-            raise NotFoundException(
-                f"Folder {entity_id} not found in project {project_name}"
-            )
-
-        record = dict(record)
+    @staticmethod
+    def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
         path = record.pop("path")
         if path is not None:
             # ensure path starts with / but does not end with /
             record["path"] = f"/{path.strip('/')}"
         attrib: dict[str, Any] = {}
+        inherited_attrib: dict[str, Any] = {}
 
         for key, value in record.get("project_attrib", {}).items():
             if key in attribute_library.inheritable_attributes():
                 attrib[key] = value
+                inherited_attrib[key] = value
 
         if (ia := record["inherited_attrib"]) is not None:
             for key, value in ia.items():
                 if key in attribute_library.inheritable_attributes():
                     attrib[key] = value
+                    inherited_attrib[key] = value
 
         elif record["parent_id"] is not None:
             logger.warning(
@@ -109,13 +99,7 @@ class FolderEntity(ProjectLevelEntity):
                 "this shouldn't happen"
             )
         attrib.update(record["attrib"])
-        own_attrib = list(record["attrib"].keys())
-        payload = {**record, "attrib": attrib}
-        return cls.from_record(
-            project_name=project_name,
-            payload=payload,
-            own_attrib=own_attrib,
-        )
+        return {**record, "attrib": attrib, "inherited_attrib": inherited_attrib}
 
     async def save(self, *args, auto_commit: bool = True, **kwargs) -> None:
         async with Postgres.transaction():
@@ -187,6 +171,16 @@ class FolderEntity(ProjectLevelEntity):
         """Refresh hierarchy materialized view on folder save."""
         logger.trace(f"Refreshing folder views for project {project_name}")
 
+        # Do not change the order of these calls!
+        #
+        # Inherited attributes call:
+        #  - refreshes hierarchy materialized view
+        #  - rebuilds exported_attributes table
+        #
+        # Hierarchy cache call:
+        #  - caches the hierarchy table in Redis
+        #  - which depends on the exported_attributes table
+
         await rebuild_inherited_attributes(project_name)
         await rebuild_hierarchy_cache(project_name)
 
@@ -222,7 +216,10 @@ class FolderEntity(ProjectLevelEntity):
                 ON s.id = v.product_id
             WHERE s.folder_id = $1
             """
-        return [row["version_id"] async for row in Postgres.iterate(query, self.id)]
+        res = await Postgres.fetch(query, self.id)
+        if not res:
+            return []
+        return [row["version_id"] for row in res]
 
     async def ensure_create_access(self, user, **kwargs) -> None:
         """Check if the user has access to create a new entity.
@@ -275,6 +272,26 @@ class FolderEntity(ProjectLevelEntity):
         )
 
     #
+    # Helper methods
+    #
+
+    async def get_folder_descendant_ids(self) -> set[str]:
+        query = f"""
+            WITH RECURSIVE descendants AS (
+                SELECT id, parent_id
+                FROM project_{self.project_name}.folders
+                WHERE parent_id = $1
+                UNION
+                SELECT f.id, f.parent_id
+                FROM project_{self.project_name}.folders f
+                INNER JOIN descendants d ON f.parent_id = d.id
+            )
+            SELECT id FROM descendants;
+        """
+        rows = await Postgres.fetch(query, self.id)
+        return {row["id"] for row in rows}
+
+    #
     # Properties
     #
 
@@ -323,3 +340,8 @@ class FolderEntity(ProjectLevelEntity):
     @property
     def entity_subtype(self) -> str | None:
         return self.folder_type
+
+    @property
+    def has_versions(self) -> bool:
+        """Check if the folder has any versions."""
+        return self._payload.has_versions  # type: ignore

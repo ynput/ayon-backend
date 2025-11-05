@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import Query
 
-from ayon_server.api.dependencies import CurrentUser
+from ayon_server.api.dependencies import AllowGuests, CurrentUser
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, Field, OPModel
 from ayon_server.utils import SQLTool
@@ -43,7 +43,7 @@ class ListProjectsResponseModel(OPModel):
     )
 
 
-@router.get("/projects")
+@router.get("/projects", dependencies=[AllowGuests])
 async def list_projects(
     user: CurrentUser,
     page: int = Query(1, title="Page", ge=1),
@@ -115,7 +115,8 @@ async def list_projects(
                 code,
                 created_at,
                 updated_at,
-                active
+                active,
+                data
             FROM projects
             {SQLTool.conditions(conditions)}
             {SQLTool.order(sql_order, desc, length, offset)}
@@ -123,15 +124,24 @@ async def list_projects(
     ):
         count = row["count"]
 
-        # TODO: skipping projects based on permissions
-        # breaks the pagination. Remove pagination completely?
-        # Or rather use graphql-like approach with cursor?
+        if user.is_guest:
+            # Evaluate guest before can_list_all_projects:
+            # This is a security measure to prevent legacy
+            # guest users from seeing all projects.
+            guest_users = row["data"].get("guestUsers", {})
+            if user.attrib.email not in guest_users:
+                continue
+
         if not can_list_all_projects:
             access_groups = user.data.get("accessGroups", {})
             if not isinstance(access_groups, dict):
                 continue
             if not access_groups.get(row["name"]):
                 continue
+
+        # TODO: skipping projects based on permissions
+        # breaks the pagination. Remove pagination completely?
+        # Or rather use graphql-like approach with cursor?
 
         projects.append(
             ListProjectsItemModel(

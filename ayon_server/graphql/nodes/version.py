@@ -4,12 +4,10 @@ import strawberry
 from strawberry import LazyType
 
 from ayon_server.entities import VersionEntity
-from ayon_server.entities.user import UserEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.representations import get_representations
 from ayon_server.graphql.types import Info
-from ayon_server.graphql.utils import parse_attrib_data
-from ayon_server.utils import get_nickname, json_dumps
+from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import RepresentationsConnection
@@ -28,6 +26,7 @@ class VersionAttribType:
 
 @strawberry.type
 class VersionNode(BaseNode):
+    entity_type: strawberry.Private[str] = "version"
     version: int
     product_id: str
     status: str
@@ -38,9 +37,13 @@ class VersionNode(BaseNode):
     has_reviewables: bool = False
     author: str | None = None
     data: str | None = None
+    path: str | None = None
+    hero_version_id: str | None = None
+    featured_version_type: str | None = None
+    is_latest: bool = False
+    is_latest_done: bool = False
 
-    _attrib: strawberry.Private[dict[str, Any]]
-    _user: strawberry.Private[UserEntity]
+    _folder_path: strawberry.Private[str | None] = None
 
     # GraphQL specifics
 
@@ -54,7 +57,7 @@ class VersionNode(BaseNode):
         record = await info.context["product_loader"].load(
             (self.project_name, self.product_id)
         )
-        return info.context["product_from_record"](
+        return await info.context["product_from_record"](
             self.project_name, record, info.context
         )
 
@@ -65,20 +68,20 @@ class VersionNode(BaseNode):
         record = await info.context["task_loader"].load(
             (self.project_name, self.task_id)
         )
-        return info.context["task_from_record"](self.project_name, record, info.context)
-
-    @strawberry.field
-    def attrib(self) -> VersionAttribType:
-        return parse_attrib_data(
-            VersionAttribType,
-            self._attrib,
-            user=self._user,
-            project_name=self.project_name,
+        return await info.context["task_from_record"](
+            self.project_name, record, info.context
         )
 
     @strawberry.field
-    def all_attrib(self) -> str:
-        return json_dumps(self._attrib)
+    def attrib(self) -> VersionAttribType:
+        return VersionAttribType(**self.processed_attrib())
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        if not self.path:
+            return []
+        path = self.path.strip("/")
+        return path.split("/")[:-1] if path else []
 
 
 #
@@ -86,15 +89,13 @@ class VersionNode(BaseNode):
 #
 
 
-def version_from_record(
+async def version_from_record(
     project_name: str, record: dict[str, Any], context: dict[str, Any]
 ) -> VersionNode:
     """Construct a version node from a DB row."""
 
     current_user = context["user"]
     author = record["author"]
-    if current_user.is_guest and author is not None:
-        author = get_nickname(author)
 
     data = record.get("data") or {}
     version_no = record["version"]
@@ -118,6 +119,13 @@ def version_from_record(
             relation=thumb_data.get("relation"),
         )
 
+    path = None
+    folder_path = None
+    if record.get("_folder_path"):
+        folder_path = "/" + record["_folder_path"].strip("/")
+        product_name = record["_product_name"]
+        path = f"{folder_path}/{product_name}/{name}"
+
     return VersionNode(
         project_name=project_name,
         id=record["id"],
@@ -132,9 +140,15 @@ def version_from_record(
         author=author,
         status=record["status"],
         tags=record["tags"],
+        path=path,
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        hero_version_id=record.get("hero_version_id"),
+        featured_version_type=record.get("featured_version_type"),
+        is_latest=record.get("is_latest", False),
+        is_latest_done=record.get("is_latest_done", False),
+        _folder_path=folder_path,
         _attrib=record["attrib"] or {},
         _user=current_user,
     )

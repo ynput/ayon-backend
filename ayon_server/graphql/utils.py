@@ -12,34 +12,34 @@ ATTRIB_WHITELIST = [
 T = TypeVar("T")
 
 
-def parse_attrib_data(
-    target_type: type[T],
+def process_attrib_data(
+    entity_type: str,
     own_attrib: dict[str, Any],
+    *,
     user: UserEntity,
     project_name: str | None = None,
     inherited_attrib: dict[str, Any] | None = None,
     project_attrib: dict[str, Any] | None = None,
-) -> T:
-    """ACL agnostic attribute list parser"""
-
+) -> dict[str, Any]:
     attr_limit: list[str] | Literal["all"] = []
 
-    # List all project based on studio permission. For the future use
-    # if project_name and target_type.__name__ == "ProjectAttribType":
-    #     try:
-    #         user.check_project_access(project_name)
-    #     except ForbiddenException:
-    #         user.check_permissions("studio.create_projects")
-    #         attr_limit = []
-    #     else:
-    #         attr_limit = "all"
+    if user.is_guest:
+        # Guest users have no access to attributes
+        attr_limit = ["fullName"]
 
-    if user.is_manager:
+    elif user.is_manager:
+        # Managers and admins have access to all attributes
         attr_limit = "all"
+
     elif (perms := user.permissions(project_name)) is None:
-        attr_limit = []  # This shouldn't happen
+        # This shouldn't happen - projects shouldn't load
+        # without permissions, this would fail earlier
+        # but just in case
+        attr_limit = []
+
     elif perms.attrib_read.enabled:
         attr_limit = perms.attrib_read.attributes
+
     else:
         attr_limit = "all"
 
@@ -49,30 +49,72 @@ def parse_attrib_data(
                 attr_limit.append(k)
 
     data = own_attrib or {}
-    if inherited_attrib is not None:
-        for key in attribute_library.inheritable_attributes():
-            if data.get(key) is not None:
-                continue
-            if key in inherited_attrib:
-                data[key] = inherited_attrib[key]
+    if entity_type in {"folder", "task"}:
+        # Apply inherited and project attributes for folders and tasks
+        # (other entities do not inherit attributes)
+        if inherited_attrib is not None:
+            for key in attribute_library.inheritable_attributes():
+                if data.get(key) is not None:
+                    continue
+                if key in inherited_attrib:
+                    data[key] = inherited_attrib[key]
 
-    project_attrib = {**attribute_library.project_defaults, **(project_attrib or {})}
-    if project_attrib:
-        for key in attribute_library.inheritable_attributes():
-            if data.get(key) is not None:
-                continue
-            if key in project_attrib:
-                data[key] = project_attrib[key]
+        project_attrib = {
+            **attribute_library.project_defaults,
+            **(project_attrib or {}),
+        }
+        if project_attrib:
+            for key in attribute_library.inheritable_attributes():
+                if data.get(key) is not None:
+                    continue
+                if key in project_attrib:
+                    data[key] = project_attrib[key]
 
     if not data:
-        return target_type()
+        return {}
+
     result = {}
-    expected_keys = target_type.__dataclass_fields__.keys()  # type: ignore
-    for key in expected_keys:
-        if key in data:
-            if attr_limit == "all" or key in attr_limit:
-                value = data[key]
-                if attribute_library.by_name(key)["type"] == "datetime":
+    for key, value in data.items():
+        if not (attr_limit == "all" or key in attr_limit):
+            continue
+
+        try:
+            attr = attribute_library.by_name_scoped(entity_type, key)
+        except KeyError:
+            # Attribute not defined for this entity type
+            continue
+
+        if attr["type"] == "datetime":
+            if isinstance(value, str):
+                try:
                     value = datetime.fromisoformat(value)
-                result[key] = value
+                except ValueError:
+                    # If the value is not a valid ISO format, skip it
+                    continue
+
+        result[key] = value
+    return result
+
+
+def parse_attrib_data(
+    entity_type: str,
+    target_type: type[T],
+    own_attrib: dict[str, Any],
+    *,
+    user: UserEntity,
+    project_name: str | None = None,
+    inherited_attrib: dict[str, Any] | None = None,
+    project_attrib: dict[str, Any] | None = None,
+) -> T:
+    """ACL agnostic attribute list parser"""
+
+    result = process_attrib_data(
+        entity_type,
+        own_attrib,
+        user=user,
+        project_name=project_name,
+        inherited_attrib=inherited_attrib,
+        project_attrib=project_attrib,
+    )
+
     return target_type(**result)

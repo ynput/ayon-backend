@@ -2,9 +2,9 @@ from typing import Annotated, Any, Literal
 
 from pydantic import validator
 
+from ayon_server.enum.enum_item import EnumItem
 from ayon_server.types import (
     ATTRIBUTE_NAME_REGEX,
-    AttributeEnumItem,
     AttributeType,
     Field,
     OPModel,
@@ -17,12 +17,11 @@ class AttributeData(OPModel):
     type: Annotated[
         AttributeType,
         Field(
-            ...,
             title="Type",
             description="Type of attribute value",
             example="string",
         ),
-    ]
+    ] = "string"
 
     title: Annotated[
         str | None,
@@ -93,7 +92,7 @@ class AttributeData(OPModel):
     ] = None
 
     enum: Annotated[
-        list[AttributeEnumItem] | None,
+        list[EnumItem] | None,
         Field(
             title="Field enum",
             description="List of enum items used for displaying select widgets",
@@ -102,6 +101,24 @@ class AttributeData(OPModel):
                 {"value": "value2", "label": "Value 2"},
                 {"value": "value3", "label": "Value 3"},
             ],
+        ),
+    ] = None
+
+    enum_resolver: Annotated[
+        str | None,
+        Field(
+            title="Enum resolver",
+            description="Name of the function that provides enum values dynamically.",
+            example="folder_types",
+        ),
+    ] = None
+
+    enum_resolver_settings: Annotated[
+        dict[str, Any] | None,
+        Field(
+            title="Enum resolver settings",
+            description="Settings passed to the enum resolver function.",
+            example={"someSetting": "someValue"},
         ),
     ] = None
 
@@ -114,9 +131,7 @@ class AttributeData(OPModel):
     ] = True
 
     @validator("enum")
-    def validate_enum(
-        cls, value: list[AttributeEnumItem] | None
-    ) -> list[AttributeEnumItem] | None:
+    def validate_enum(cls, value: list[EnumItem] | None) -> list[EnumItem] | None:
         if value == []:
             return None
         return value
@@ -151,6 +166,30 @@ class AttributePutModel(OPModel):
             example=["folder", "task"],
         ),
     ]
+    data: AttributeData
+
+
+class AttributePatchModel(OPModel):
+    position: Annotated[
+        int | None,
+        Field(
+            title="Position",
+            description="Default order",
+            example=12,
+        ),
+    ] = None
+    scope: Annotated[
+        list[ProjectLevelEntityType | TopLevelEntityType | Literal["list"]] | None,
+        Field(
+            title="Scope",
+            description="List of entity types the attribute is available on",
+            example=["folder", "task"],
+        ),
+    ] = None
+    data: AttributeData | None = None
+
+
+class AttributeModel(AttributePutModel, AttributeNameModel):
     builtin: Annotated[
         bool,
         Field(
@@ -158,8 +197,3 @@ class AttributePutModel(OPModel):
             description="Is attribute builtin. Built-in attributes cannot be removed.",
         ),
     ] = False
-    data: AttributeData
-
-
-class AttributeModel(AttributePutModel, AttributeNameModel):
-    pass

@@ -1,9 +1,15 @@
 from datetime import datetime
+from typing import Any, Optional
 
 import strawberry
 
+from ayon_server.entities import UserEntity
+from ayon_server.exceptions import AyonException
 from ayon_server.graphql.connections import ActivitiesConnection
 from ayon_server.graphql.types import BaseConnection, BaseEdge, Info
+from ayon_server.graphql.utils import process_attrib_data
+from ayon_server.logging import logger
+from ayon_server.utils import json_dumps
 
 
 @strawberry.type
@@ -11,6 +17,11 @@ class ProductType(BaseEdge):
     name: str = strawberry.field()
     icon: str | None = strawberry.field(default=None)
     color: str | None = strawberry.field(default=None)
+
+
+@strawberry.type
+class ProductBaseType(BaseEdge):
+    name: str = strawberry.field()
 
 
 @strawberry.type
@@ -27,7 +38,7 @@ class LinkEdge(BaseEdge):
     cursor: str | None = strawberry.field(default=None)
 
     @strawberry.field(description="Linked node")
-    async def node(self, info: Info) -> "BaseNode":
+    async def node(self, info: Info) -> Optional["BaseNode"]:
         if self.entity_type == "folder":
             loader = info.context["folder_loader"]
             parser = info.context["folder_from_record"]
@@ -43,10 +54,31 @@ class LinkEdge(BaseEdge):
         elif self.entity_type == "representation":
             loader = info.context["representation_loader"]
             parser = info.context["representation_from_record"]
+        elif self.entity_type == "workfile":
+            loader = info.context["workfile_loader"]
+            parser = info.context["workfile_from_record"]
         else:
-            raise ValueError
+            msg = f"Unsupported entity type '{self.entity_type}' for link node"
+            logger.error(msg)
+            raise AyonException(msg)
+
         record = await loader.load((self.project_name, self.entity_id))
-        return parser(self.project_name, record, info.context)
+        if not record:
+            return None
+
+        entity_node = await parser(self.project_name, record, info.context)
+        access_checker = info.context.get("access_checker")
+        if access_checker:
+            entity_folder_path = (entity_node._folder_path or "").strip("/")
+            if entity_folder_path not in access_checker.exact_paths:
+                # We don't handle partial errors in the frontend yet,
+                # but it would probably be a good idea to do so in the future.
+                #
+                # For now we just silently hide the linked entity if access is denied.
+                #
+                # raise ForbiddenException("Access to the linked entity denied")
+                return None
+        return entity_node
 
 
 @strawberry.type
@@ -64,6 +96,7 @@ class ThumbnailInfo:
 
 @strawberry.interface
 class BaseNode:
+    entity_type: strawberry.Private[str] = "unknown"
     project_name: str = strawberry.field()
 
     id: str = strawberry.field()
@@ -72,6 +105,32 @@ class BaseNode:
     active: bool = strawberry.field()
     created_at: datetime = strawberry.field()
     updated_at: datetime = strawberry.field()
+
+    _attrib: strawberry.Private[dict[str, Any]]
+    _user: strawberry.Private[UserEntity]
+    _processed_attrib: strawberry.Private[dict[str, Any] | None] = None
+
+    def processed_attrib(self) -> dict[str, Any]:
+        if self._processed_attrib is None:
+            inherited_attrib = (
+                self._inherited_attrib if hasattr(self, "_inherited_attrib") else None
+            )
+            project_attrib = (
+                self._project_attrib if hasattr(self, "_project_attrib") else None
+            )
+            return process_attrib_data(
+                self.entity_type,
+                self._attrib,
+                user=self._user,
+                project_name=self.project_name,
+                project_attrib=project_attrib,
+                inherited_attrib=inherited_attrib,
+            )
+        return self._processed_attrib
+
+    @strawberry.field
+    def all_attrib(self) -> str:
+        return json_dumps(self.processed_attrib())
 
     @strawberry.field
     async def links(
@@ -118,3 +177,7 @@ class BaseNode:
             activity_types=activity_types,
             reference_types=reference_types,
         )
+
+    @strawberry.field()
+    def parents(self) -> list[str]:
+        return []

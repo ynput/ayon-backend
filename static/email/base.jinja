@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AYON</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f5f5f5; font-family:Arial, sans-serif; color:#373737;" >
+    <table
+      width="100%"
+      border="0"
+      cellspacing="0"
+      cellpadding="0"
+      style="background-color:#f5f5f5; padding:20px 0;"
+    >
+      <tr>
+        <td align="center">
+          <table
+            width="600"
+            border="0"
+            cellspacing="0"
+            cellpadding="0"
+            style="background-color:#ffffff; border-collapse:collapse;"
+          >
+            {% block header %}
+            <tr>
+              <td
+                align="center"
+                style="background-color:#1C2026; height:104px; padding:17px 0;"
+              >
+                <img
+                  src="https://static.ynput.team/AYON_whiteG_dot.png"
+                  alt="AYON Logo"
+                  style="height:70px;"
+                />
+              </td>
+            </tr>
+            {% endblock %}
+
+            {% block content %}
+            {% endblock %}
+
+            {% block footer %}
+            {% endblock %}
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+

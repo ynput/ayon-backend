@@ -1,16 +1,36 @@
+from typing import Any
+
 from ayon_server.access.utils import ensure_entity_access
 from ayon_server.entities.core import ProjectLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import ProjectLevelEntityType
 
+BASE_GET_QUERY = """
+    SELECT
+        entity.*,
+        hierarchy.path as folder_path
+    FROM project_{project_name}.products entity
+    JOIN project_{project_name}.hierarchy hierarchy
+        ON entity.folder_id = hierarchy.id
+"""
+
 
 class ProductEntity(ProjectLevelEntity):
     entity_type: ProjectLevelEntityType = "product"
     model = ModelSet("product", attribute_library["product"])
+    base_get_query = BASE_GET_QUERY
+
+    @staticmethod
+    def preprocess_record(record: dict[str, Any]) -> dict[str, Any]:
+        hierarchy_path = record.pop("folder_path", None)
+        if hierarchy_path:
+            hierarchy_path = hierarchy_path.strip("/")
+            record["path"] = f"/{hierarchy_path}/{record['name']}"
+        return record
 
     #
-    # Properties
+    # Access Control
     #
 
     async def pre_save(self, insert: bool) -> None:
@@ -48,6 +68,10 @@ class ProductEntity(ProjectLevelEntity):
             "publish",
         )
 
+    #
+    # Properties
+    #
+
     @property
     def folder_id(self) -> str:
         return self._payload.folder_id  # type: ignore
@@ -67,3 +91,11 @@ class ProductEntity(ProjectLevelEntity):
     @product_type.setter
     def product_type(self, value: str):
         self._payload.product_type = value  # type: ignore
+
+    @property
+    def product_base_type(self) -> str | None:
+        return self._payload.product_base_type  # type: ignore
+
+    @product_base_type.setter
+    def product_base_type(self, value: str | None):
+        self._payload.product_base_type = value  # type: ignore
