@@ -358,5 +358,10 @@ async def get_site_info(
         if server_config.authentication.hide_password_auth:
             additional_info["hide_password_auth"] = True
 
-    user_payload = current_user.payload if (current_user is not None) else None
+    user_payload = None
+    if current_user:
+        user_payload = current_user.payload
+        if not current_user.is_service:
+            user_payload.ui_exposure_level = await current_user.get_ui_exposure_level()
+
     return InfoResponseModel(user=user_payload, **additional_info)
