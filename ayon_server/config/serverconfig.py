@@ -1,8 +1,18 @@
 from typing import Annotated, Any
 
+from ayon_server.enum.enum_item import EnumItem
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.settings import BaseSettingsModel, SettingsField
+
+
+def get_frontend_flags_enum() -> list[str]:
+    return [
+        EnumItem(
+            value="enable-legacy-version-browser",
+            label="Enable legacy version browser page",
+        ),
+    ]
 
 
 class CustomizationModel(BaseSettingsModel):
@@ -32,6 +42,18 @@ class CustomizationModel(BaseSettingsModel):
             widget="textarea",
         ),
     ] = ""
+
+    frontend_flags: Annotated[
+        list[str],
+        SettingsField(
+            title="Frontend Flags",
+            description="A list of flags that will be passed to the frontend. "
+            "These can be used to enable or disable frontend features.",
+            default_factory=list,
+            enum_resolver=get_frontend_flags_enum,
+            widget="switchbox",
+        ),
+    ]
 
 
 class AuthenticationModel(BaseSettingsModel):
@@ -93,7 +115,7 @@ class ServerConfigModel(BaseSettingsModel):
         CustomizationModel,
         SettingsField(
             title="Customization",
-            description="Customization options for the login page",
+            description="Customization options for the web interface",
             default_factory=CustomizationModel,
         ),
     ]
