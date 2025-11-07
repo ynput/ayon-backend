@@ -6,7 +6,7 @@ from ayon_server.lib.redis import Redis
 from ayon_server.settings import BaseSettingsModel, SettingsField
 
 
-def get_frontend_flags_enum() -> list[str]:
+def get_frontend_flags_enum() -> list[EnumItem]:
     return [
         EnumItem(
             value="enable-legacy-version-browser",
@@ -116,7 +116,7 @@ class ServerConfigModel(BaseSettingsModel):
         SettingsField(
             title="Customization",
             description="Customization options for the web interface",
-            default_factory=CustomizationModel,
+            default_factory=lambda: CustomizationModel(frontend_flags=[]),
         ),
     ]
 
@@ -125,7 +125,7 @@ class ServerConfigModel(BaseSettingsModel):
         SettingsField(
             title="Authentication",
             description="Settings related to user authentication",
-            default_factory=AuthenticationModel,
+            default_factory=lambda: AuthenticationModel(),
         ),
     ]
 
@@ -133,7 +133,7 @@ class ServerConfigModel(BaseSettingsModel):
         ProjectOptionsModel,
         SettingsField(
             title="Project Options",
-            default_factory=ProjectOptionsModel,
+            default_factory=lambda: ProjectOptionsModel(),
         ),
     ]
 
@@ -142,7 +142,7 @@ class ServerConfigModel(BaseSettingsModel):
         SettingsField(
             title="Changelog Settings",
             description="Settings for the changelog feature",
-            default_factory=ChangelogSettingsModel,
+            default_factory=lambda: ChangelogSettingsModel(),
         ),
     ]
 
