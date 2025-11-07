@@ -13,7 +13,10 @@ from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 
 
-async def ayon_init(extensions: bool = True):
+async def ayon_init(
+    extensions: bool = True,
+    enum_registry: bool = True,
+):
     """Initialize ayon for use with server or stand-alone tools
 
     This connects to the database and installs the event hooks.
@@ -62,6 +65,7 @@ async def ayon_init(extensions: bool = True):
             all_nodes=all_nodes,
         )
 
-    EnumRegistry.initialize()
+    if enum_registry:
+        EnumRegistry.initialize()
     ActivityFeedEventHook.install(EventStream)
     await build_project_list()
