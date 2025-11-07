@@ -362,6 +362,6 @@ async def get_site_info(
     if current_user:
         user_payload = current_user.payload
         if not current_user.is_service:
-            user_payload.ui_exposure_level = await current_user.get_ui_exposure_level()
+            user_payload.ui_exposure_level = await current_user.get_ui_exposure_level()  # type: ignore
 
     return InfoResponseModel(user=user_payload, **additional_info)
