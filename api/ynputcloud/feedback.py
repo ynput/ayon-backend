@@ -77,7 +77,7 @@ async def get_feedback_verification(
     user: CurrentUser,
     force: Annotated[bool, "Force refresh of the feedback verification"] = False,
 ) -> UserVerificationResponse:
-    """Generate a feedback token for the user"""
+    """Verify feedback availability for the user and return verification data."""
 
     if user.is_guest:
         return UserVerificationResponse(
