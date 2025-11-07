@@ -45,7 +45,6 @@ async def _get_feedback_verification(
         url = f"{ayonconfig.ynput_cloud_api_url}/api/v2/feedback"
         async with httpx.AsyncClient(headers=headers) as client:
             res = await client.post(url, json=payload)
-            print(res.text)
             res.raise_for_status()
             data = res.json()
             await Redis.set_json(
