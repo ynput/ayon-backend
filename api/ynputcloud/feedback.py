@@ -75,7 +75,7 @@ async def _get_feedback_verification(
 @router.get("/feedback")
 async def get_feedback_verification(
     user: CurrentUser,
-    force: Annotated[bool, "Force refresh of the token"] = False,
+    force: Annotated[bool, "Force refresh of the feedback verification"] = False,
 ) -> UserVerificationResponse:
     """Generate a feedback token for the user"""
 
