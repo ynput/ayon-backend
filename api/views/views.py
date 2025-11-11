@@ -122,6 +122,9 @@ async def list_views(
         res = project_views + studio_views
         for row in res:
             access_level = EntityAccessHelper.MANAGE
+            if row["label"] == "__base__":
+                continue
+
             if row["visibility"] == "public":
                 try:
                     await EntityAccessHelper.check(
@@ -223,7 +226,15 @@ async def get_default_view(
             )
 
         if not row:
-            raise NotFoundException(f"Default {view_type} view not found")
+            row = await Postgres.fetchrow(
+                """
+                SELECT *, $2 AS scope FROM views
+                WHERE view_type = $1 AND label = '__base__'
+                LIMIT 1
+                """,
+                view_type,
+                "studio" if not project_name else "project",
+            )
 
         try:
             await EntityAccessHelper.check(
@@ -293,18 +304,20 @@ async def get_view(
 
         if not row:
             raise NotFoundException("View not found")
-        try:
-            await EntityAccessHelper.check(
-                current_user,
-                access=row.get("access") or {},
-                level=EntityAccessHelper.MANAGE,
-                owner=row["owner"],
-                default_open=False,
-                project=project,
-            )
-            access_level = EntityAccessHelper.MANAGE
-        except ForbiddenException as e:
-            access_level = e.extra.get("access_level", 0)
+
+        if row["label"] != "__base__":
+            try:
+                await EntityAccessHelper.check(
+                    current_user,
+                    access=row.get("access") or {},
+                    level=EntityAccessHelper.MANAGE,
+                    owner=row["owner"],
+                    default_open=False,
+                    project=project,
+                )
+                access_level = EntityAccessHelper.MANAGE
+            except ForbiddenException as e:
+                access_level = e.extra.get("access_level", 0)
         return row_to_model(row, access_level=access_level)
 
 
