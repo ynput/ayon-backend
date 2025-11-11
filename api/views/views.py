@@ -1,3 +1,4 @@
+import uuid
 from typing import Annotated, Any
 
 from fastapi import Path, Query, Request
@@ -122,8 +123,6 @@ async def list_views(
         res = project_views + studio_views
         for row in res:
             access_level = EntityAccessHelper.MANAGE
-            if row["label"] == "__base__":
-                continue
 
             if row["visibility"] == "public":
                 try:
@@ -236,6 +235,9 @@ async def get_default_view(
                 "studio" if not project_name else "project",
             )
 
+        if not row:
+            raise NotFoundException("Default view not found")
+
         try:
             await EntityAccessHelper.check(
                 user,
@@ -334,6 +336,11 @@ async def create_view(
     # we need to match the view settings model explicitly,
     # so we extract the settings from the request body
 
+    if payload.label == "__base__":
+        payload.id = uuid.uuid5(uuid.NAMESPACE_DNS, f"base-{view_type}").hex
+        if not current_user.is_manager:
+            raise ForbiddenException("The '__base__' view label is reserved.")
+
     _json = await request.json()
     payload_class = get_post_model_class(view_type)
     payload = payload_class(**_json)
@@ -385,6 +392,9 @@ async def update_view(
     _json = await request.json()
     payload_class = get_patch_model_class(view_type)
     payload = payload_class(**_json)
+
+    if payload.label == "__base__":
+        raise ForbiddenException("The '__base__' view label cannot be modified.")
 
     if project_name:
         project = await ProjectEntity.load(project_name)
