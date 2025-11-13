@@ -1,5 +1,6 @@
 from typing import Any
 
+from ayon_server.config import ayonconfig
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.lib.postgres import Postgres
@@ -21,11 +22,17 @@ class UsersEnumResolver(BaseEnumResolver):
         result: list[EnumItem] = []
 
         project_name = context.get("project_name")
-        user = context.get("user")
-        if user and not user.is_manager and not project_name:
+        current_user = context.get("user")
+        if current_user and not current_user.is_manager and not project_name:
             # Non-managers can only query users within a project
             # they have access to.
             return []
+
+        skip_if_not_ag = None
+        if ayonconfig.limit_user_visibility and current_user:
+            skip_if_not_ag = current_user.data.get("accessGroups", {}).get(
+                project_name, []
+            )
 
         async with Postgres.transaction():
             stmt = await Postgres.prepare(query)
@@ -39,6 +46,10 @@ class UsersEnumResolver(BaseEnumResolver):
                     ags = udata.get("accessGroups", {}).get(project_name, [])
                     if not ags:
                         continue
+
+                    if skip_if_not_ag is not None:
+                        if not set(ags).intersection(set(skip_if_not_ag)):
+                            continue
 
                 item = EnumItem(
                     value=name,
