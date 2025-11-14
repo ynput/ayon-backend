@@ -85,6 +85,7 @@ class InfoResponseModel(OPModel):
 
     sites: list[SiteInfo] | None = Field(None, title="List of sites")
     sso_options: list[SSOOption] | None = Field(None, title="SSO options")
+    frontend_flags: list[str] | None = Field(None, title="Frontend flags")
     extras: str | None = Field(None)
 
 
@@ -303,6 +304,7 @@ async def get_site_info(
     coalesce = RequestCoalescer()
 
     additional_info = {}
+    server_config = await get_server_config()
 
     if current_user:
         site_id = request.headers.get("x-ayon-site-id")
@@ -310,6 +312,7 @@ async def get_site_info(
         site_hostname = request.headers.get("x-ayon-hostname")
         site_version = request.headers.get("x-ayon-version")
         sso_options = await get_sso_options(request)
+        frontend_flags = server_config.customization.frontend_flags
 
         additional_info = await coalesce(
             get_additional_info,
@@ -323,6 +326,7 @@ async def get_site_info(
         )
 
         additional_info["sso_options"] = sso_options
+        additional_info["frontend_flags"] = frontend_flags
 
         if current_user.is_admin and not current_user.is_service:
             if not await is_onboarding_finished():
@@ -335,7 +339,6 @@ async def get_site_info(
             "no_admin_user": (not has_admin_user) or None,
             "password_recovery_available": bool(await is_mailing_enabled()),
         }
-        server_config = await get_server_config()
         customization = server_config.customization
 
         if customization.motd:
@@ -358,5 +361,10 @@ async def get_site_info(
         if server_config.authentication.hide_password_auth:
             additional_info["hide_password_auth"] = True
 
-    user_payload = current_user.payload if (current_user is not None) else None
+    user_payload = None
+    if current_user:
+        user_payload = current_user.payload
+        if not current_user.is_service:
+            user_payload.ui_exposure_level = await current_user.get_ui_exposure_level()  # type: ignore
+
     return InfoResponseModel(user=user_payload, **additional_info)

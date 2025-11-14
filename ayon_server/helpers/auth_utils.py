@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Literal, Union
+from typing import TYPE_CHECKING, Any, Literal, Union
 
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.types import OPModel
@@ -17,6 +17,7 @@ class UserPoolModel(OPModel):
     exp: int
     max: int
     used: int
+    meta: dict[str, Any] | None = None
 
 
 class AuthUtils:

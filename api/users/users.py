@@ -45,7 +45,10 @@ async def get_current_user(
     This is used for a profile page as well as as an initial check to ensure
     the user is still logged in.
     """
-    return user.payload
+
+    payload = user.payload
+    payload.ui_exposure_level = await user.get_ui_exposure_level()  # type: ignore
+    return payload
 
 
 #

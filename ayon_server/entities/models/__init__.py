@@ -12,6 +12,7 @@ from ayon_server.entities.models.fields import (
     project_fields,
     representation_fields,
     task_fields,
+    user_fields,
     version_fields,
     workfile_fields,
 )
@@ -25,7 +26,7 @@ from ayon_server.types import (
 
 FIELD_LISTS: dict[str, list[Any]] = {
     "project": project_fields,
-    "user": [],
+    "user": user_fields,
     "folder": folder_fields,
     "task": task_fields,
     "product": product_fields,

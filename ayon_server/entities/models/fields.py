@@ -101,6 +101,16 @@ project_fields = [
     },
 ]
 
+user_fields = [
+    {
+        "name": "ui_exposure_level",
+        "type": "integer",
+        "title": "UI Exposure Level",
+        "example": 100,
+        "dynamic": True,
+    },
+]
+
 
 folder_fields = [
     {

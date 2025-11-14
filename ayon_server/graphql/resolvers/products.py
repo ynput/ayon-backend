@@ -508,6 +508,8 @@ async def get_products(
                 "active",
                 "created_at",
                 "updated_at",
+                # virtual
+                "product_type",
             ]
 
             fdata = json.loads(version_filter)
@@ -516,7 +518,9 @@ async def get_products(
                 fq,
                 column_whitelist=column_whitelist,
                 table_prefix="versions",
-                column_map={},
+                column_map={
+                    "product_type": "products.product_type",
+                },
             )
             if fcond:
                 version_cond = f"{fcond}"
@@ -566,6 +570,8 @@ async def get_products(
                 filtered_versions AS (
                     SELECT DISTINCT product_id
                     FROM project_{project_name}.versions
+                    JOIN project_{project_name}.products
+                    ON versions.product_id = products.id
                     {tjoin}
                     {vtcondstr}
 
