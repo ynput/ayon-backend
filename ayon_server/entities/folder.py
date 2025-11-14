@@ -45,6 +45,8 @@ BASE_GET_QUERY = """
         entity.active as active,
         entity.created_at as created_at,
         entity.updated_at as updated_at,
+        entity.created_by as created_by,
+        entity.updated_by as updated_by,
         entity.status as status,
         entity.tags as tags,
         hierarchy.path as path,
@@ -142,6 +144,7 @@ class FolderEntity(ProjectLevelEntity):
                         data=self.data,
                         active=self.active,
                         updated_at=datetime.now(),
+                        updated_by=kwargs.get("user_name"),
                     )
                 )
 
@@ -150,6 +153,8 @@ class FolderEntity(ProjectLevelEntity):
                 await Postgres.execute(
                     *SQLTool.insert(
                         f"project_{self.project_name}.{self.entity_type}s",
+                        created_by=kwargs.get("user_name"),
+                        updated_by=kwargs.get("user_name"),
                         **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
                     )
                 )

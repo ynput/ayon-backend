@@ -46,12 +46,6 @@ async def create_project_level_entity(
         if user and not user.is_admin and payload_dict["author"] != user.name:
             raise ForbiddenException("Only admins can create versions for other users")
 
-    elif operation.entity_type == "workfile":
-        if user and not payload_dict.get("created_by"):
-            payload_dict["created_by"] = user.name
-        if not payload_dict.get("updated_by"):
-            payload_dict["updated_by"] = payload_dict["created_by"]
-
     elif operation.entity_type == "folder":
         if payload_dict["id"] == payload_dict.get("parent_id"):
             raise BadRequestException("Folder cannot be its own parent")
@@ -74,5 +68,5 @@ async def create_project_level_entity(
             "user": user.name if user else None,
         }
     ]
-    await entity.save(auto_commit=False)
+    await entity.save(auto_commit=False, user_name=user.name if user else None)
     return entity.id, events, 201

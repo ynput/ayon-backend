@@ -148,6 +148,8 @@ async def folder_from_record(
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        created_by=record.get("created_by"),
+        updated_by=record.get("updated_by"),
         child_count=record.get("child_count", 0),
         product_count=record.get("product_count", 0),
         task_count=record.get("task_count", 0),

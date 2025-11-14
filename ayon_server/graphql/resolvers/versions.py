@@ -37,6 +37,8 @@ SORT_OPTIONS = {
     "version": "versions.version",
     "createdAt": "versions.created_at",
     "updatedAt": "versions.updated_at",
+    "createdBy": "versions.created_by",
+    "updatedBy": "versions.updated_by",
     "tags": "array_to_string(versions.tags, '')",
     "path": "hierarchy.path || '/' || products.name || '/' || versions.version::text",
     "productType": "products.product_type",
@@ -515,6 +517,8 @@ async def get_versions(
             "active",
             "created_at",
             "updated_at",
+            "created_by",
+            "updated_by",
             # virtual
             "product_type",
             "task_type",
@@ -548,6 +552,8 @@ async def get_versions(
             "active",
             "created_at",
             "updated_at",
+            "created_by",
+            "updated_by",
         ]
 
         fdata = json.loads(product_filter)
@@ -573,6 +579,8 @@ async def get_versions(
             "active",
             "created_at",
             "updated_at",
+            "created_by",
+            "updated_by",
         ]
 
         fdata = json.loads(task_filter)

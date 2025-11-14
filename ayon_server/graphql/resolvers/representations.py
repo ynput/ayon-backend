@@ -60,21 +60,7 @@ async def get_representations(
     # Conditions
     #
 
-    sql_columns = [
-        "representations.id AS id",
-        "representations.name AS name",
-        "representations.version_id AS version_id",
-        "representations.attrib AS attrib",
-        "representations.status AS status",
-        "representations.tags AS tags",
-        "representations.active AS active",
-        "representations.created_at AS created_at",
-        "representations.updated_at AS updated_at",
-        "representations.creation_order AS creation_order",
-        "representations.files AS files",  # TODO: query conditionally
-        "representations.data AS data",
-        "representations.traits AS traits",
-    ]
+    sql_columns = ["representations.*"]
 
     sql_joins = []
     sql_conditions = []

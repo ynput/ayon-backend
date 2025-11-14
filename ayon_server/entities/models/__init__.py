@@ -185,6 +185,22 @@ class ModelSet:
                 "factory": "list",
                 "example": ["flabadob", "blip", "blop", "blup"],
             },
+            {
+                "name": "created_by",
+                "type": "string",
+                "title": "Created by",
+                "description": f"Who created the {self.entity_name}",
+                "example": "Moe",
+                "required": False,
+            },
+            {
+                "name": "updated_by",
+                "type": "string",
+                "title": "Updated by",
+                "description": f"Who last updated the {self.entity_name}",
+                "example": "Homer",
+                "required": False,
+            },
         ]
 
     def _generate_entity_model(self) -> type[BaseModel]:

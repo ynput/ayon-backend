@@ -370,9 +370,6 @@ CREATE TABLE workfiles(
 
     thumbnail_id UUID REFERENCES thumbnails(id) ON DELETE SET NULL,
 
-    created_by VARCHAR,
-    updated_by VARCHAR,
-
     attrib JSONB NOT NULL DEFAULT '{}'::JSONB,
     data JSONB NOT NULL DEFAULT '{}'::JSONB,
     active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -380,6 +377,8 @@ CREATE TABLE workfiles(
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
