@@ -375,10 +375,10 @@ CREATE TABLE workfiles(
     active BOOLEAN NOT NULL DEFAULT TRUE,
     status VARCHAR NOT NULL REFERENCES statuses(name) ON UPDATE CASCADE,
     tags VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[],
-    created_by VARCHAR,
-    updated_by VARCHAR,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by VARCHAR,
+    updated_by VARCHAR,
     creation_order SERIAL NOT NULL
 );
 
