@@ -119,6 +119,8 @@ async def representation_from_record(
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        created_by=record.get("created_by"),
+        updated_by=record.get("updated_by"),
         context=json_dumps(data.get("context", {})),
         files=parse_files(record.get("files", [])),
         traits=json_dumps(record["traits"]) if record["traits"] else None,

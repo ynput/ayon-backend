@@ -38,8 +38,11 @@ SORT_OPTIONS = {
     "productType": "products.product_type",
     "productBaseType": "products.product_base_type",
     "folderName": "folders.name",
+    "status": "products.status",
     "createdAt": "products.created_at",
     "updatedAt": "products.updated_at",
+    "createdBy": "products.created_by",
+    "updatedBy": "products.updated_by",
     "tags": "array_to_string(products.tags, '')",
 }
 
@@ -469,6 +472,7 @@ async def get_products(
             "name",
             "folder_id",
             "product_type",
+            "product_base_type",
             "status",
             "attrib",
             "data",
@@ -476,6 +480,8 @@ async def get_products(
             "active",
             "created_at",
             "updated_at",
+            "created_by",
+            "updated_by",
         ]
         fdata = json.loads(filter)
         fq = QueryFilter(**fdata)
@@ -510,6 +516,7 @@ async def get_products(
                 "updated_at",
                 # virtual
                 "product_type",
+                "product_base_type",
             ]
 
             fdata = json.loads(version_filter)
@@ -520,6 +527,7 @@ async def get_products(
                 table_prefix="versions",
                 column_map={
                     "product_type": "products.product_type",
+                    "product_base_type": "products.product_base_type",
                 },
             )
             if fcond:
@@ -539,6 +547,8 @@ async def get_products(
                 "active",
                 "created_at",
                 "updated_at",
+                "created_by",
+                "updated_by",
             ]
 
             fdata = json.loads(task_filter)

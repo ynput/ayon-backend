@@ -144,6 +144,8 @@ async def version_from_record(
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        created_by=record.get("created_by"),
+        updated_by=record.get("updated_by"),
         hero_version_id=record.get("hero_version_id"),
         featured_version_type=record.get("featured_version_type"),
         is_latest=record.get("is_latest", False),

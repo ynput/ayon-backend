@@ -66,22 +66,7 @@ async def get_workfiles(
     # SQL
     #
 
-    sql_columns = [
-        "workfiles.id AS id",
-        "workfiles.path AS path",
-        "workfiles.task_id AS task_id",
-        "workfiles.thumbnail_id AS thumbnail_id",
-        "workfiles.created_by AS created_by",
-        "workfiles.updated_by AS updated_by",
-        "workfiles.attrib AS attrib",
-        "workfiles.data AS data",
-        "workfiles.status AS status",
-        "workfiles.tags AS tags",
-        "workfiles.active AS active",
-        "workfiles.created_at AS created_at",
-        "workfiles.updated_at AS updated_at",
-        "workfiles.creation_order AS creation_order",
-    ]
+    sql_columns = ["workfiles.*"]
 
     # sql_joins = []
     sql_conditions = []

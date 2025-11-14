@@ -103,6 +103,9 @@ class BaseNode:
 
     name: str = strawberry.field(default="")
     active: bool = strawberry.field()
+
+    created_by: str | None = strawberry.field(default=None)
+    updated_by: str | None = strawberry.field(default=None)
     created_at: datetime = strawberry.field()
     updated_at: datetime = strawberry.field()
 

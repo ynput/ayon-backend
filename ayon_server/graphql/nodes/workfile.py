@@ -26,8 +26,6 @@ class WorkfileNode(BaseNode):
     task_id: str | None
     thumbnail_id: str | None
     thumbnail: ThumbnailInfo | None = None
-    created_by: str | None
-    updated_by: str | None
     status: str
     data: str | None
     tags: list[str]
@@ -92,14 +90,14 @@ async def workfile_from_record(
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
         thumbnail=thumbnail,
-        created_by=record["created_by"],
-        updated_by=record["updated_by"],
         active=record["active"],
         status=record["status"],
         tags=record["tags"],
         data=json_dumps(data) if data else None,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        created_by=record["created_by"],
+        updated_by=record["updated_by"],
         _attrib=record["attrib"] or {},
         _user=context["user"],
         _parents=parents,

@@ -213,6 +213,8 @@ async def product_from_record(
         active=record["active"],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        created_by=record.get("created_by"),
+        updated_by=record.get("updated_by"),
         version_list=vlist,
         path=path,
         _folder=folder,
