@@ -3,6 +3,7 @@ from typing import Any
 import aiocache
 from pydantic import validator
 
+from ayon_server.enum import EnumRegistry
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, SettingsField
 from ayon_server.utils import json_dumps
@@ -125,6 +126,12 @@ class AttributeWriteAccessList(BasePermissionsModel):
 
 class EndpointsAccessList(BasePermissionsModel):
     endpoints: list[str] = SettingsField(default_factory=list)
+
+
+class ActionsAccessList(BasePermissionsModel):
+    actions: list[str] = SettingsField(
+        default_factory=list, enum_resolver=lambda: EnumRegistry.resolve("actions")
+    )
 
 
 # Model for studio management permissions
