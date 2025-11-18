@@ -174,6 +174,37 @@ async def get_working_view(
 DEFAULT_VIEW_NS = "default-view"
 
 
+@router.get("/{view_type}/base")
+async def get_base_view(
+    user: CurrentUser,
+    view_type: PViewType,
+    project_name: QProjectName = None,
+) -> ViewModel:
+    """Return the base view for the given type."""
+
+    async with Postgres.transaction():
+        if project_name:
+            await Postgres.set_project_schema(project_name)
+
+        query = """
+            SELECT *, $2 AS scope FROM views
+            WHERE view_type = $1 AND label = '__base__'
+            LIMIT 1
+        """
+
+        row = await Postgres.fetchrow(
+            query,
+            view_type,
+            "studio" if not project_name else "project",
+        )
+
+        if not row:
+            raise NotFoundException("Base view not found")
+
+        return row_to_model(row, access_level=0)
+
+
+
 @router.get("/{view_type}/default")
 async def get_default_view(
     user: CurrentUser,
