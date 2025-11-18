@@ -11,14 +11,7 @@ from ayon_server.utils import create_uuid
 #
 
 ViewScopes = Literal["project", "studio"]
-ViewType = Literal[
-    "overview",
-    "taskProgress",
-    "lists",
-    "reviews",
-    "versions",
-    "reports",
-]
+ViewType = Literal["overview", "taskProgress", "lists", "reviews" "versions"] | str
 
 FViewScope = Annotated[
     ViewScopes,
@@ -138,11 +131,13 @@ class OverviewSettings(OPModel):
     sort_by: str | None = None
     sort_desc: bool = False
     filter: QueryFilter | None = None
+    slice_type: str | None = None
     columns: FColumnList
 
 
 class TaskProgressSettings(OPModel):
     filter: QueryFilter | None = None
+    slice_type: str | None = None
     columns: FColumnList
 
 
@@ -173,19 +168,11 @@ class VersionsSettings(OPModel):
     columns: FColumnList
 
 
-class ReportsSettings(OPModel):
-    widgets: Annotated[
-        list[dict[str, Any]],
-        Field(title="List of report widgets", default_factory=list),
-    ]
-    date_format: str | None = None
-
-
 ViewSettingsModel = (
     OverviewSettings
     | TaskProgressSettings
     | ListsSettings
     | VersionsSettings
-    | ReportsSettings
     | ReviewsSettings
+    | dict[str, Any]
 )

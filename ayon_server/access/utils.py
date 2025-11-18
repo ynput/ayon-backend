@@ -43,6 +43,7 @@ async def parse_permset(
     project_name: str,
     access_type: "AccessType",
     permset: "FolderAccessList",
+    no_parents: bool = False,
 ) -> list[str] | None:
     """Convert a permission set to a list of paths"""
     if not permset.enabled:
@@ -61,7 +62,7 @@ async def parse_permset(
             for path in path_to_paths(
                 perm.path,
                 # Read access implies reading parent folders
-                include_parents=access_type == "read",
+                include_parents=access_type == "read" and not no_parents,
             ):
                 fpaths.add(path)
 
@@ -69,7 +70,7 @@ async def parse_permset(
             assert perm.path is not None, "Path is required for children access"
             for path in path_to_paths(
                 perm.path,
-                include_parents=access_type == "read",
+                include_parents=access_type == "read" and not no_parents,
                 include_self=False,
             ):
                 fpaths.add(path)
@@ -89,7 +90,7 @@ async def parse_permset(
             async for record in Postgres.iterate(query):
                 for path in path_to_paths(
                     record["path"],
-                    include_parents=access_type == "read",
+                    include_parents=access_type == "read" and not no_parents,
                 ):
                     fpaths.add(path)
     folder_list = list(fpaths)
@@ -105,6 +106,7 @@ async def folder_access_list(
     user: "UserEntity",
     project_name: str,
     access_type: "AccessType" = "read",
+    no_parents: bool = False,
 ) -> list[str] | None:
     """Return a list of paths user has access to
 
@@ -149,7 +151,13 @@ async def folder_access_list(
 
     permset = perms.__getattribute__(access_type)
 
-    path_list = await parse_permset(user, project_name, access_type, permset)
+    path_list = await parse_permset(
+        user,
+        project_name,
+        access_type,
+        permset,
+        no_parents=no_parents,
+    )
     if path_list is None:
         return None
 

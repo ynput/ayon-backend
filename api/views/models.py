@@ -12,7 +12,6 @@ from ayon_server.views.models import (
     FViewWorking,
     ListsSettings,
     OverviewSettings,
-    ReportsSettings,
     ReviewsSettings,
     TaskProgressSettings,
     VersionsSettings,
@@ -86,11 +85,11 @@ class VersionsViewModel(BaseViewModel):
     settings: VersionsSettings
 
 
-class ReportsViewModel(BaseViewModel):
+class GenericViewModel(BaseViewModel):
     """Reports view model."""
 
     view_type: Literal["reports"] = "reports"
-    settings: ReportsSettings
+    settings: dict[str, Any]
 
 
 #
@@ -140,11 +139,9 @@ class VersionsViewPostModel(BaseViewPostModel):
     settings: VersionsSettings
 
 
-class ReportsViewPostModel(BaseViewPostModel):
-    """Reports view post model."""
-
+class GenericViewPostModel(BaseViewPostModel):
     _view_type: Literal["reports"] = "reports"
-    settings: ReportsSettings
+    settings: dict[str, Any]
 
 
 #
@@ -193,11 +190,11 @@ class VersionsViewPatchModel(BaseViewPatchModel):
     settings: VersionsSettings | None = None
 
 
-class ReportsViewPatchModel(BaseViewPatchModel):
+class GenericViewPatchModel(BaseViewPatchModel):
     """Reports view post model."""
 
     _view_type: Literal["reports"] = "reports"
-    settings: ReportsSettings | None = None
+    settings: dict[str, Any] | None = None
 
 
 #
@@ -211,7 +208,7 @@ ViewModel = Annotated[
     | ListsViewModel
     | ReviewsViewModel
     | VersionsViewModel
-    | ReportsViewModel,
+    | GenericViewModel,
     Field(
         discriminator="_view_type",
         title="View model",
@@ -224,7 +221,7 @@ ViewPostModel = Annotated[
     | ListsViewPostModel
     | ReviewsViewPostModel
     | VersionsViewPostModel
-    | ReportsViewPostModel,
+    | GenericViewPostModel,
     Field(
         discriminator="_view_type",
         title="View post model",
@@ -237,7 +234,7 @@ ViewPatchModel = Annotated[
     | ListsViewPatchModel
     | ReviewsViewPatchModel
     | VersionsViewPatchModel
-    | ReportsViewPatchModel,
+    | GenericViewPatchModel,
     Field(
         discriminator="_view_type",
         title="View model",
@@ -256,9 +253,8 @@ def construct_view_model(**data: Any) -> ViewModel:
         return ReviewsViewModel(**data)
     elif data.get("view_type") == "versions":
         return VersionsViewModel(**data)
-    elif data.get("view_type") == "reports":
-        return ReportsViewModel(**data)
-    raise ValueError("Invalid view type provided")
+    else:
+        return GenericViewModel(**data)
 
 
 def get_post_model_class(view_type: str) -> type[ViewPostModel]:
@@ -272,9 +268,8 @@ def get_post_model_class(view_type: str) -> type[ViewPostModel]:
         return ReviewsViewPostModel
     elif view_type == "versions":
         return VersionsViewPostModel
-    elif view_type == "reports":
-        return ReportsViewPostModel
-    raise ValueError("Invalid view type provided")
+    else:
+        return GenericViewPostModel
 
 
 def get_patch_model_class(view_type: str) -> type[ViewPatchModel]:
@@ -288,6 +283,5 @@ def get_patch_model_class(view_type: str) -> type[ViewPatchModel]:
         return ReviewsViewPatchModel
     elif view_type == "versions":
         return VersionsViewPatchModel
-    elif view_type == "reports":
-        return ReportsViewPatchModel
-    raise ValueError("Invalid view type provided")
+    else:
+        return GenericViewPatchModel
