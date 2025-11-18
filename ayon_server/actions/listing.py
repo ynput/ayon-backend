@@ -274,6 +274,13 @@ async def get_simple_actions(
     actions = []
     variant, addons = await get_relevant_addons(variant, user)
     project_name = context.project_name
+
+    action_whitelist: list[str] | None = None
+    if not user.is_manager:
+        perms = user.permissions(context.project_name)
+        if perms.actions.enabled:
+            action_whitelist = perms.actions.actions
+
     for addon in addons:
         simple_actions = await SimpleActionCache.get(addon, project_name, variant)
         for action in simple_actions:
@@ -281,6 +288,9 @@ async def get_simple_actions(
                 continue
 
             if action.manager_only and not user.is_manager:
+                continue
+
+            if action_whitelist is not None and action.name not in action_whitelist:
                 continue
 
             if await evaluate_simple_action(action, context):
