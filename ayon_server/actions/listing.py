@@ -311,4 +311,3 @@ async def get_dynamic_actions(
     for addon in addons:
         actions.extend(await addon.get_dynamic_actions(context, variant))
     return AvailableActionsListModel(actions=actions)
-
