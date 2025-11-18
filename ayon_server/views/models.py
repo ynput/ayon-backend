@@ -11,16 +11,7 @@ from ayon_server.utils import create_uuid
 #
 
 ViewScopes = Literal["project", "studio"]
-ViewType = Literal[
-    "overview",
-    "taskProgress",
-    "lists",
-    "reviews",
-    "versions",
-    "reports",
-    "scheduler",
-    "planner",
-]
+ViewType = Literal["overview", "taskProgress", "lists", "reviews" "versions"] | str
 
 FViewScope = Annotated[
     ViewScopes,
@@ -175,56 +166,11 @@ class VersionsSettings(OPModel):
     columns: FColumnList
 
 
-class ReportsSettings(OPModel):
-    widgets: Annotated[
-        list[dict[str, Any]],
-        Field(title="List of report widgets", default_factory=list),
-    ]
-    date_format: str | None = None
-
-
-class RangeModel(OPModel):
-    start: int
-    end: int
-
-
-class SchedulerSettings(OPModel):
-    show_hierarchy: bool = True
-    row_height: int | None = None
-    group_by: str | None = None
-    show_empty_groups: bool = False
-    sort_by: str | None = None
-    sort_desc: bool = False
-    filter: QueryFilter | None = None
-    columns: FColumnList
-    range: RangeModel | None = None
-    color_by: str | None = None
-    show_planner: bool = False
-    scenario: str | None = None
-    panel_width: int | None = None
-
-
-class PlannerSettings(OPModel):
-    filter: QueryFilter | None = None
-    range: RangeModel | None = None
-    group_by: str | None = None
-    group_by_desc: bool = False
-    sort_by: str | None = None
-    sort_by_desc: bool = False
-    sort_by_tracks: str | None = None
-    sort_by_tracks_desc: bool = False
-    color_by: str | None = None
-    scenario: str | None = None
-    panel_width: int | None = None
-
-
 ViewSettingsModel = (
     OverviewSettings
     | TaskProgressSettings
     | ListsSettings
     | VersionsSettings
-    | ReportsSettings
     | ReviewsSettings
-    | SchedulerSettings
-    | PlannerSettings
+    | dict[str, Any]
 )

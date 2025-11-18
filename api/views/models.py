@@ -12,10 +12,7 @@ from ayon_server.views.models import (
     FViewWorking,
     ListsSettings,
     OverviewSettings,
-    PlannerSettings,
-    ReportsSettings,
     ReviewsSettings,
-    SchedulerSettings,
     TaskProgressSettings,
     VersionsSettings,
     ViewSettingsModel,
@@ -88,25 +85,11 @@ class VersionsViewModel(BaseViewModel):
     settings: VersionsSettings
 
 
-class ReportsViewModel(BaseViewModel):
+class GenericViewModel(BaseViewModel):
     """Reports view model."""
 
     view_type: Literal["reports"] = "reports"
-    settings: ReportsSettings
-
-
-class SchedulerViewModel(BaseViewModel):
-    """Scheduler view model."""
-
-    view_type: Literal["scheduler"] = "scheduler"
-    settings: SchedulerSettings
-
-
-class PlannerViewModel(BaseViewModel):
-    """Planner view model."""
-
-    view_type: Literal["planner"] = "planner"
-    settings: PlannerSettings
+    settings: dict[str, Any]
 
 
 #
@@ -156,25 +139,9 @@ class VersionsViewPostModel(BaseViewPostModel):
     settings: VersionsSettings
 
 
-class ReportsViewPostModel(BaseViewPostModel):
-    """Reports view post model."""
-
+class GenericViewPostModel(BaseViewPostModel):
     _view_type: Literal["reports"] = "reports"
-    settings: ReportsSettings
-
-
-class SchedulerViewPostModel(BaseViewPostModel):
-    """Scheduler view post model."""
-
-    _view_type: Literal["scheduler"] = "scheduler"
-    settings: SchedulerSettings
-
-
-class PlannerViewPostModel(BaseViewPostModel):
-    """Planner view post model."""
-
-    _view_type: Literal["planner"] = "planner"
-    settings: PlannerSettings
+    settings: dict[str, Any]
 
 
 #
@@ -223,25 +190,11 @@ class VersionsViewPatchModel(BaseViewPatchModel):
     settings: VersionsSettings | None = None
 
 
-class ReportsViewPatchModel(BaseViewPatchModel):
+class GenericViewPatchModel(BaseViewPatchModel):
     """Reports view post model."""
 
     _view_type: Literal["reports"] = "reports"
-    settings: ReportsSettings | None = None
-
-
-class SchedulerViewPatchModel(BaseViewPatchModel):
-    """Scheduler view post model."""
-
-    _view_type: Literal["scheduler"] = "scheduler"
-    settings: SchedulerSettings | None = None
-
-
-class PlannerViewPatchModel(BaseViewPatchModel):
-    """Planner view post model."""
-
-    _view_type: Literal["planner"] = "planner"
-    settings: PlannerSettings | None = None
+    settings: dict[str, Any] | None = None
 
 
 #
@@ -255,9 +208,7 @@ ViewModel = Annotated[
     | ListsViewModel
     | ReviewsViewModel
     | VersionsViewModel
-    | ReportsViewModel
-    | SchedulerViewModel
-    | PlannerViewModel,
+    | GenericViewModel,
     Field(
         discriminator="_view_type",
         title="View model",
@@ -270,9 +221,7 @@ ViewPostModel = Annotated[
     | ListsViewPostModel
     | ReviewsViewPostModel
     | VersionsViewPostModel
-    | ReportsViewPostModel
-    | SchedulerViewPostModel
-    | PlannerViewPostModel,
+    | GenericViewPostModel,
     Field(
         discriminator="_view_type",
         title="View post model",
@@ -285,9 +234,7 @@ ViewPatchModel = Annotated[
     | ListsViewPatchModel
     | ReviewsViewPatchModel
     | VersionsViewPatchModel
-    | ReportsViewPatchModel
-    | SchedulerViewPatchModel
-    | PlannerViewPatchModel,
+    | GenericViewPatchModel,
     Field(
         discriminator="_view_type",
         title="View model",
@@ -306,13 +253,8 @@ def construct_view_model(**data: Any) -> ViewModel:
         return ReviewsViewModel(**data)
     elif data.get("view_type") == "versions":
         return VersionsViewModel(**data)
-    elif data.get("view_type") == "reports":
-        return ReportsViewModel(**data)
-    elif data.get("view_type") == "scheduler":
-        return SchedulerViewModel(**data)
-    elif data.get("view_type") == "planner":
-        return PlannerViewModel(**data)
-    raise ValueError("Invalid view type provided")
+    else:
+        return GenericViewModel(**data)
 
 
 def get_post_model_class(view_type: str) -> type[ViewPostModel]:
@@ -326,13 +268,8 @@ def get_post_model_class(view_type: str) -> type[ViewPostModel]:
         return ReviewsViewPostModel
     elif view_type == "versions":
         return VersionsViewPostModel
-    elif view_type == "reports":
-        return ReportsViewPostModel
-    elif view_type == "scheduler":
-        return SchedulerViewPostModel
-    elif view_type == "planner":
-        return PlannerViewPostModel
-    raise ValueError("Invalid view type provided")
+    else:
+        return GenericViewPostModel
 
 
 def get_patch_model_class(view_type: str) -> type[ViewPatchModel]:
@@ -346,10 +283,5 @@ def get_patch_model_class(view_type: str) -> type[ViewPatchModel]:
         return ReviewsViewPatchModel
     elif view_type == "versions":
         return VersionsViewPatchModel
-    elif view_type == "reports":
-        return ReportsViewPatchModel
-    elif view_type == "scheduler":
-        return SchedulerViewPatchModel
-    elif view_type == "planner":
-        return PlannerViewPatchModel
-    raise ValueError("Invalid view type provided")
+    else:
+        return GenericViewPatchModel
