@@ -1,4 +1,5 @@
 import os
+from collections.abc import Callable
 
 import aiofiles
 from fastapi import Request, Response
@@ -10,10 +11,17 @@ from ayon_server.helpers.mimetypes import guess_mime_type
 from ayon_server.helpers.statistics import update_traffic_stats
 
 
-async def handle_upload(request: Request, target_path: str) -> int:
+async def handle_upload(
+    request: Request,
+    target_path: str,
+    *,
+    content_validator: Callable[[bytes], None] | None = None,
+) -> int:
     """Store raw body from the request to a file.
 
     Returns file size in bytes.
+    Content validator function can be passed to validate the first bytes of the file.
+    It should raise a ValueError if the content is invalid.
     """
 
     directory, _ = os.path.split(target_path)
@@ -25,9 +33,19 @@ async def handle_upload(request: Request, target_path: str) -> int:
             raise AyonException(f"Failed to create directory: {e}") from e
 
     i = 0
+    validation_buffer = b""
+    validated = False
     try:
         async with aiofiles.open(target_path, "wb") as f:
             async for chunk in request.stream():
+                if content_validator and not validated:
+                    validation_buffer += chunk
+                    if len(validation_buffer) > 1024:
+                        try:
+                            content_validator(validation_buffer)
+                            validated = True
+                        except ValueError as e:
+                            raise BadRequestException(f"Invalid file: {e}") from e
                 await f.write(chunk)
                 i += len(chunk)
     except Exception as e:
