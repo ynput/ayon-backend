@@ -345,6 +345,13 @@ async def create_view(
         RETURNING id;
         """
 
+        if isinstance(payload.settings, OPModel):
+            settings_dict = payload.settings.dict()
+        elif isinstance(payload.settings, dict):
+            settings_dict = payload.settings
+        else:
+            settings_dict = {}
+
         await Postgres.execute(
             query,
             payload.id,
@@ -352,7 +359,7 @@ async def create_view(
             payload.label,
             current_user.name,
             payload.working,
-            payload.settings.dict(),
+            settings_dict,
         )
 
     return EntityIdResponse(id=payload.id)

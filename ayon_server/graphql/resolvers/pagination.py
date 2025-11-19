@@ -77,11 +77,15 @@ def create_pagination(
         if "->" in ob:
             if cast == "::numeric":
                 keys.append(f"COALESCE({ob}, '0'::jsonb){cast}")
+            elif cast == "::timestamptz":
+                keys.append(f"COALESCE({ob}, '1970-01-01T00:00:00Z'::jsonb){cast}")
             else:
                 keys.append(f"COALESCE({ob}, ''::jsonb){cast}")
         else:
             if cast == "::numeric":
                 keys.append(f"COALESCE({ob}, 0){cast}")
+            elif cast == "::timestamptz":
+                keys.append(f"COALESCE({ob}, '1970-01-01T00:00:00Z'){cast}")
             else:
                 keys.append(f"COALESCE({ob}, ''){cast}")
 

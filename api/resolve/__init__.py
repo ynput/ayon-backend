@@ -6,7 +6,12 @@ from urllib.parse import parse_qs, urlparse
 from fastapi import APIRouter, Query
 
 from ayon_server.api.dependencies import AllowGuests, ClientSiteID, CurrentUser
-from ayon_server.exceptions import BadRequestException, ServiceUnavailableException
+from ayon_server.exceptions import (
+    BadRequestException,
+    NotFoundException,
+    ServiceUnavailableException,
+)
+from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.helpers.roots import get_roots_for_projects
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import NAME_REGEX, ProjectLevelEntityType
@@ -378,13 +383,24 @@ async def resolve_uris(
                 continue
 
             if parsed_uri.project_name != current_project:
-                await Postgres.set_project_schema(parsed_uri.project_name)
+                try:
+                    project_name = await normalize_project_name(parsed_uri.project_name)
+                except NotFoundException:
+                    result.append(
+                        ResolvedURIModel(
+                            uri=uri,
+                            entities=[],
+                            error=f"Project {parsed_uri.project_name} not found",
+                        )
+                    )
+                    continue
+                await Postgres.set_project_schema(project_name)
                 current_project = parsed_uri.project_name
 
             try:
                 entities = await resolve_entities(
                     parsed_uri,
-                    roots.get(current_project, {}),
+                    roots.get(project_name, {}),
                     site_id,
                     path_only=path_only,
                 )

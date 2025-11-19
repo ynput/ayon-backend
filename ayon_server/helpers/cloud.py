@@ -9,6 +9,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
+from ayon_server.version import __version__
 
 
 class YnputCloudSubscriptionModel(OPModel):
@@ -140,6 +141,7 @@ class CloudUtils:
         headers = {
             "x-ynput-cloud-instance": instance_id,
             "x-ynput-cloud-key": ynput_cloud_key,
+            "x-ynput-server-version": __version__,
         }
         return headers
 
@@ -203,6 +205,7 @@ class CloudUtils:
         headers = {
             "x-ynput-cloud-instance": instance_id,
             "x-ynput-cloud-key": instance_key,
+            "x-ynput-server-version": __version__,
         }
         try:
             async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
