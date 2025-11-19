@@ -8,6 +8,7 @@ from ayon_server.actions.context import ActionContext
 from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
 from ayon_server.actions.listing import (
     AvailableActionsListModel,
+    get_action_whitelist,
     get_dynamic_actions,
     get_simple_actions,
 )
@@ -144,6 +145,11 @@ async def execute_action(
     This endpoint is used to run an action on a context.
     This is called from the frontend when the user selects an action to run.
     """
+
+    action_whitelist = await get_action_whitelist(user, context.project_name)
+    if action_whitelist is not None:
+        if identifier not in action_whitelist:
+            raise ForbiddenException("You are not allowed to run this action")
 
     # Get access token from the Authorization header
     # to pass it to the action executor
