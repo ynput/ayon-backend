@@ -1,6 +1,7 @@
 import copy
+from typing import Annotated
 
-from fastapi import BackgroundTasks, Body
+from fastapi import BackgroundTasks, Body, Query
 
 from ayon_server.access.permissions import Permissions
 from ayon_server.api.dependencies import (
@@ -18,7 +19,7 @@ from ayon_server.exceptions import (
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback
 from ayon_server.settings.postprocess import postprocess_settings_schema
-from ayon_server.types import Field, OPModel
+from ayon_server.types import PROJECT_NAME_REGEX, Field, OPModel
 
 from .router import router
 
@@ -63,9 +64,17 @@ async def clean_up_user_access_groups() -> None:
 
 
 @router.get("/accessGroups/_schema")
-async def get_access_group_schema():
+async def get_access_group_schema(
+    project_name: Annotated[
+        str | None, Query(alias="project_name", regex=PROJECT_NAME_REGEX)
+    ] = None,
+):
+    context = {}
+    if project_name:
+        context["project_name"] = project_name
+
     schema = copy.deepcopy(Permissions.schema())
-    await postprocess_settings_schema(schema, Permissions)
+    await postprocess_settings_schema(schema, Permissions, context=context)
     return schema
 
 

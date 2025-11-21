@@ -16,6 +16,10 @@ class LinkType(BaseSettingsModel):
     def __hash__(self):
         return hash((self.link_type, self.input_type, self.output_type))
 
+    @property
+    def name(self) -> str:
+        return f"{self.link_type}|{self.input_type}|{self.output_type}"
+
 
 default_link_types = [
     LinkType(
