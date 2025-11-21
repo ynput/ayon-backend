@@ -204,7 +204,6 @@ async def get_base_view(
         return row_to_model(row, access_level=0)
 
 
-
 @router.get("/{view_type}/default")
 async def get_default_view(
     user: CurrentUser,
