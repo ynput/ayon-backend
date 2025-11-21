@@ -3,12 +3,14 @@ from typing import Any
 import aiocache
 from pydantic import validator
 
+from ayon_server.enum import EnumRegistry
+from ayon_server.enum.enum_item import EnumItem
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings import BaseSettingsModel, SettingsField
 from ayon_server.utils import json_dumps
 
 
-def get_folder_access_types():
+def _folder_access_type_enum():
     return [
         {"value": "assigned", "label": "Assigned"},
         {"value": "hierarchy", "label": "Hierarchy"},
@@ -16,20 +18,7 @@ def get_folder_access_types():
     ]
 
 
-@aiocache.cached(ttl=300)
-async def attr_enum():
-    return [
-        {"value": row["name"], "label": row["title"] or row["name"]}
-        async for row in Postgres.iterate(
-            """
-            SELECT name, data->'title' as title FROM public.attributes
-            ORDER BY COALESCE(data->>'title', name)
-            """
-        )
-    ]
-
-
-def top_level_fields_enum() -> list[dict[str, str]]:
+def _top_level_fields_enum() -> list[dict[str, str]]:
     return [
         {"value": "name", "label": "Change entity name"},
         {"value": "label", "label": "Change entity label"},
@@ -46,6 +35,24 @@ def top_level_fields_enum() -> list[dict[str, str]]:
     ]
 
 
+@aiocache.cached(ttl=300)
+async def _attr_enum():
+    return [
+        {"value": row["name"], "label": row["title"] or row["name"]}
+        async for row in Postgres.iterate(
+            """
+            SELECT name, data->'title' as title FROM public.attributes
+            ORDER BY COALESCE(data->>'title', name)
+            """
+        )
+    ]
+
+
+@aiocache.cached(ttl=300)
+async def _actions_enum() -> list[EnumItem]:
+    return await EnumRegistry.resolve("actions")
+
+
 class FolderAccess(BaseSettingsModel):
     """FolderAccess model defines a single whitelist item on accessing a folder."""
 
@@ -54,7 +61,7 @@ class FolderAccess(BaseSettingsModel):
     access_type: str = SettingsField(
         "assigned",
         title="Type",
-        enum_resolver=get_folder_access_types,
+        enum_resolver=_folder_access_type_enum,
     )
 
     path: str | None = SettingsField(
@@ -105,7 +112,7 @@ class AttributeReadAccessList(BasePermissionsModel):
     attributes: list[str] = SettingsField(
         title="Readable attributes",
         default_factory=list,
-        enum_resolver=attr_enum,
+        enum_resolver=_attr_enum,
     )
 
 
@@ -113,18 +120,25 @@ class AttributeWriteAccessList(BasePermissionsModel):
     attributes: list[str] = SettingsField(
         title="Writable attributes",
         default_factory=list,
-        enum_resolver=attr_enum,
+        enum_resolver=_attr_enum,
     )
     fields: list[str] = SettingsField(
         title=" ",
         default_factory=list,
-        enum_resolver=top_level_fields_enum,
+        enum_resolver=_top_level_fields_enum,
         widget="switchbox",
     )
 
 
 class EndpointsAccessList(BasePermissionsModel):
     endpoints: list[str] = SettingsField(default_factory=list)
+
+
+class ActionsAccessList(BasePermissionsModel):
+    actions: list[str] = SettingsField(
+        default_factory=list,
+        enum_resolver=_actions_enum,
+    )
 
 
 # Model for studio management permissions
@@ -252,6 +266,12 @@ class Permissions(BaseSettingsModel):
         default_factory=AttributeWriteAccessList,
         title="Restrict attribute update",
         description="Whitelist attributes a user can write",
+    )
+
+    actions: ActionsAccessList = SettingsField(
+        default_factory=ActionsAccessList,
+        title="Restrict actions",
+        description="Whitelist actions a user can perform",
     )
 
     endpoints: EndpointsAccessList = SettingsField(
