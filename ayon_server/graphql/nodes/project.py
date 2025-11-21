@@ -73,6 +73,7 @@ class FolderType:
     name: str
     icon: str | None = None
     short_name: str | None = None
+    color: str | None = None
 
 
 @strawberry.type
@@ -270,6 +271,7 @@ class ProjectNode:
             FolderType(
                 name=row["name"],
                 short_name=row["data"].get("shortName"),
+                color=row["data"].get("color"),
                 icon=row["data"].get("icon"),
             )
             for row in res
