@@ -43,6 +43,8 @@ SORT_OPTIONS = {
     "name": "folders.name",
     "createdAt": "folders.created_at",
     "updatedAt": "folders.updated_at",
+    "createdBy": "folders.created_by",
+    "updatedBy": "folders.updated_by",
     "folderType": "folders.folder_type",
 }
 
@@ -117,20 +119,7 @@ async def get_folders(
 
     sql_cte = []
     sql_columns = [
-        "folders.id AS id",
-        "folders.name AS name",
-        "folders.label AS label",
-        "folders.active AS active",
-        "folders.folder_type AS folder_type",
-        "folders.status AS status",
-        "folders.tags AS tags",
-        "folders.parent_id AS parent_id",
-        "folders.thumbnail_id AS thumbnail_id",
-        "folders.attrib AS attrib",
-        "folders.created_at AS created_at",
-        "folders.updated_at AS updated_at",
-        "folders.creation_order AS creation_order",
-        "folders.data AS data",
+        "folders.*",
         "hierarchy.path AS path",
         "pr.attrib AS project_attributes",
         "ex.attrib AS inherited_attributes",
@@ -389,6 +378,8 @@ async def get_folders(
             "tags",
             "created_at",
             "updated_at",
+            "created_by",
+            "updated_by",
         ]
         fdata = json.loads(filter)
         fq = QueryFilter(**fdata)

@@ -24,6 +24,8 @@ BASE_GET_QUERY = """
         entity.tags as tags,
         entity.created_at as created_at,
         entity.updated_at as updated_at,
+        entity.created_by as created_by,
+        entity.updated_by as updated_by,
 
         p.name as product_name,
         hierarchy.path as folder_path
