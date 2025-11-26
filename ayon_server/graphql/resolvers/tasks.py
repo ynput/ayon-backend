@@ -162,7 +162,9 @@ async def get_tasks(
     ] = False,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
-    folder_filter: Annotated[str | None, argdesc("Filter tasks by queryfilter on folders")] = None,
+    folder_filter: Annotated[
+        str | None, argdesc("Filter tasks by queryfilter on folders")
+    ] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
@@ -398,7 +400,6 @@ async def get_tasks(
         ):
             sql_conditions.append(fcond)
 
-
     if folder_filter:
         column_whitelist = [
             "id",
@@ -416,13 +417,13 @@ async def get_tasks(
             "created_by",
             "updated_by",
         ]
-        fdata = json.loads(filter)
+        fdata = json.loads(folder_filter)
         fq = QueryFilter(**fdata)
         if fcond := build_filter(
-                fq,
-                column_whitelist=column_whitelist,
-                table_prefix="folders",
-                column_map={ "attrib": "f_ex.attrib" },
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="folders",
+            column_map={"attrib": "f_ex.attrib"},
         ):
             sql_conditions.append(fcond)
             use_folder_query = True
