@@ -261,6 +261,9 @@ class TrieNode:
         self.children = {}
         self.is_end = False
 
+    def __repr__(self):
+        return f"TrieNode(end={self.is_end}, children={list(self.children.keys())})"
+
 
 class AccessChecker:
     """
