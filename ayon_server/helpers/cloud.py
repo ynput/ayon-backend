@@ -222,6 +222,8 @@ class CloudUtils:
                         f"Unable to connect to Ynput Cloud [ERR {res.status_code}]"
                     )
                 data = res.json()
+                if not isinstance(data, dict):
+                    raise ValueError(f"Invalid response from Ynput Cloud: {res.text}")
                 data["connected"] = True
         except Exception as e:
             logger.warning(f"Unable to connect to Ynput Cloud. Error: {e}")

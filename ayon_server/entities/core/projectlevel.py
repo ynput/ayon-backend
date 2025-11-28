@@ -241,6 +241,7 @@ class ProjectLevelEntity(BaseEntity):
                 )
                 fields["attrib"] = attrib
                 fields["updated_at"] = datetime.now()
+                fields["updated_by"] = kwargs.get("user_name", None)
 
                 await self.pre_save(False)
                 await Postgres.execute(
@@ -258,6 +259,8 @@ class ProjectLevelEntity(BaseEntity):
                     self.model.dynamic_fields,
                 )
                 fields["attrib"] = attrib
+                fields["created_by"] = kwargs.get("user_name", None)
+                fields["updated_by"] = kwargs.get("user_name", None)
 
                 await self.pre_save(True)
                 await Postgres.execute(
@@ -384,3 +387,11 @@ class ProjectLevelEntity(BaseEntity):
     @property
     def path(self) -> str:
         return ""
+
+    @property
+    def created_by(self) -> str | None:
+        return self._payload.created_by  # type: ignore
+
+    @property
+    def updated_by(self) -> str | None:
+        return self._payload.updated_by  # type: ignore

@@ -44,11 +44,13 @@ from .sorting import (
 
 SORT_OPTIONS = {
     "name": "tasks.name",
+    "taskType": "tasks.task_type",
+    "assignees": "array_to_string(tasks.assignees, '')",
     "status": "tasks.status",
     "createdAt": "tasks.created_at",
     "updatedAt": "tasks.updated_at",
-    "taskType": "tasks.task_type",
-    "assignees": "array_to_string(tasks.assignees, '')",
+    "createdBy": "tasks.created_by",
+    "updatedBy": "tasks.updated_by",
 }
 
 
@@ -160,6 +162,9 @@ async def get_tasks(
     ] = False,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
     filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
+    folder_filter: Annotated[
+        str | None, argdesc("Filter tasks by queryfilter on folders")
+    ] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> TasksConnection:
     """Return a list of tasks."""
@@ -183,21 +188,7 @@ async def get_tasks(
     sql_conditions = []
 
     sql_columns = [
-        "tasks.id AS id",
-        "tasks.name AS name",
-        "tasks.label AS label",
-        "tasks.folder_id AS folder_id",
-        "tasks.task_type AS task_type",
-        "tasks.thumbnail_id AS thumbnail_id",
-        "tasks.assignees AS assignees",
-        "tasks.attrib AS attrib",
-        "tasks.data AS data",
-        "tasks.status AS status",
-        "tasks.tags AS tags",
-        "tasks.active AS active",
-        "tasks.created_at AS created_at",
-        "tasks.updated_at AS updated_at",
-        "tasks.creation_order AS creation_order",
+        "tasks.*",
         "hierarchy.path AS _folder_path",
         "f_ex.attrib as parent_folder_attrib",
     ]
@@ -382,7 +373,6 @@ async def get_tasks(
             "active",
             "assignees",
             "attrib",
-            "created_at",
             "folder_id",
             "id",
             "label",
@@ -391,7 +381,10 @@ async def get_tasks(
             "tags",
             "task_type",
             "thumbnail_id",
+            "created_at",
             "updated_at",
+            "created_by",
+            "updated_by",
         ]
         fdata = json.loads(filter)
         fq = QueryFilter(**fdata)
@@ -407,7 +400,36 @@ async def get_tasks(
         ):
             sql_conditions.append(fcond)
 
+    if folder_filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "label",
+            "folder_type",
+            "parent_id",
+            "attrib",
+            "data",
+            "active",
+            "status",
+            "tags",
+            "created_at",
+            "updated_at",
+            "created_by",
+            "updated_by",
+        ]
+        fdata = json.loads(folder_filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="folders",
+            column_map={"attrib": "f_ex.attrib"},
+        ):
+            sql_conditions.append(fcond)
+            use_folder_query = True
+
     if search:
+        use_folder_query = True
         terms = slugify(search, make_set=True)
         # isn't it nice that slugify effectively prevents sql injections?
         for term in terms:
@@ -425,7 +447,7 @@ async def get_tasks(
     #
 
     # Do we need the parent folder data?
-    if use_folder_query or search or "folder" in fields:
+    if use_folder_query or "folder" in fields:
         sql_columns.extend(
             [
                 "folders.id AS _folder_id",

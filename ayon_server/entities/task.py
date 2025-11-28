@@ -23,6 +23,8 @@ BASE_GET_QUERY = """
         entity.active as active,
         entity.created_at as created_at,
         entity.updated_at as updated_at,
+        entity.created_by as created_by,
+        entity.updated_by as updated_by,
         entity.status as status,
         entity.tags as tags,
         ia.attrib AS inherited_attrib,

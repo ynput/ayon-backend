@@ -20,6 +20,7 @@ class BaseAuxTable(TypedDict):
 class FolderTypeDict(BaseAuxTable):
     shortName: NotRequired[str]
     icon: NotRequired[str]
+    color: NotRequired[str]
 
 
 class TaskTypeDict(BaseAuxTable):

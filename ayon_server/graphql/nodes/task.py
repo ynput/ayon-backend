@@ -160,6 +160,8 @@ async def task_from_record(
         path=path,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
+        created_by=record.get("created_by"),
+        updated_by=record.get("updated_by"),
         _folder=folder,
         _attrib=record["attrib"],
         _inherited_attrib=record["parent_folder_attrib"],

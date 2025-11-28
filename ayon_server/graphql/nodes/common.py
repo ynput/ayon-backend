@@ -70,13 +70,8 @@ class LinkEdge(BaseEdge):
         access_checker = info.context.get("access_checker")
         if access_checker:
             entity_folder_path = (entity_node._folder_path or "").strip("/")
-            if entity_folder_path not in access_checker.exact_paths:
-                # We don't handle partial errors in the frontend yet,
-                # but it would probably be a good idea to do so in the future.
-                #
-                # For now we just silently hide the linked entity if access is denied.
-                #
-                # raise ForbiddenException("Access to the linked entity denied")
+            if not access_checker[entity_folder_path]:
+                # No access to the folder containing the linked entity
                 return None
         return entity_node
 
@@ -103,6 +98,9 @@ class BaseNode:
 
     name: str = strawberry.field(default="")
     active: bool = strawberry.field()
+
+    created_by: str | None = strawberry.field(default=None)
+    updated_by: str | None = strawberry.field(default=None)
     created_at: datetime = strawberry.field()
     updated_at: datetime = strawberry.field()
 

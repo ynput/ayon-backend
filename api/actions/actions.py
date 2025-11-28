@@ -6,6 +6,12 @@ from fastapi import Path, Query, Request
 from ayon_server.actions.config import ActionConfig
 from ayon_server.actions.context import ActionContext
 from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
+from ayon_server.actions.listing import (
+    AvailableActionsListModel,
+    get_action_whitelist,
+    get_dynamic_actions,
+    get_simple_actions,
+)
 from ayon_server.actions.manifest import BaseActionManifest
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import AllowGuests, CurrentUser, Sender, SenderType
@@ -13,7 +19,6 @@ from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import Field, OPModel
 
-from .listing import AvailableActionsListModel, get_dynamic_actions, get_simple_actions
 from .router import router
 
 ActionListMode = Literal["simple", "dynamic", "all"]
@@ -140,6 +145,11 @@ async def execute_action(
     This endpoint is used to run an action on a context.
     This is called from the frontend when the user selects an action to run.
     """
+
+    action_whitelist = await get_action_whitelist(user, context.project_name)
+    if action_whitelist is not None:
+        if identifier not in action_whitelist:
+            raise ForbiddenException("You are not allowed to run this action")
 
     # Get access token from the Authorization header
     # to pass it to the action executor
