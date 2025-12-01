@@ -5,6 +5,7 @@ from .aux_model import BaseAuxModel
 
 class FolderType(BaseAuxModel):
     shortName: str = SettingsField("", title="Short name")
+    color: str = SettingsField("#cccccc", title="Color", widget="color")
     icon: str = SettingsField("folder", title="Icon", widget="icon")
 
 
