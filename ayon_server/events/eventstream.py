@@ -200,7 +200,8 @@ class EventStream:
             with logger.contextualize(**ctx):
                 logger.debug(f"[EVENT CREATE] {event.topic}{p}")
 
-        for topic, handlers in cls.local_hooks.items():
+        hooks = list(cls.local_hooks.items())
+        for topic, handlers in hooks:
             do_handle = False
             if topic == event.topic:
                 do_handle = True
