@@ -40,7 +40,7 @@ SORT_OPTIONS = {
     "createdBy": "versions.created_by",
     "updatedBy": "versions.updated_by",
     "tags": "array_to_string(versions.tags, '')",
-    "path": "hierarchy.path || '/' || products.name || '/' || versions.version::text",
+    "path": "hierarchy.path || '/' || products.name || '/' || LPAD(versions.version::text, 5, '0')",  # noqa 501
     "productType": "products.product_type",
     "productName": "products.name",
     "folderName": "folders.name",
