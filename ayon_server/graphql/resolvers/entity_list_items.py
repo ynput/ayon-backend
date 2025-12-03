@@ -132,6 +132,13 @@ async def get_entity_list_items(
             )
     else:
         info.context["entity_type"] = entity_type
+
+    # Get attribute definition for the entity list
+    attrs = root._data.get("attributes") or []
+    info.context["list_attributes"] = {
+        attr["name"]: attr["data"].get("type", "string") for attr in attrs
+    }
+
     fields = FieldInfo(info, None)
 
     #
