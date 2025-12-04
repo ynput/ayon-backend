@@ -53,6 +53,13 @@ async def _actions_enum() -> list[EnumItem]:
     return await EnumRegistry.resolve("actions")
 
 
+async def _link_types_enum(project_name: str | None = None) -> list[EnumItem]:
+    return await EnumRegistry.resolve(
+        "linkTypes",
+        context={"project_name": project_name},
+    )
+
+
 class FolderAccess(BaseSettingsModel):
     """FolderAccess model defines a single whitelist item on accessing a folder."""
 
@@ -138,6 +145,13 @@ class ActionsAccessList(BasePermissionsModel):
     actions: list[str] = SettingsField(
         default_factory=list,
         enum_resolver=_actions_enum,
+    )
+
+
+class EntityLinksAccessList(BasePermissionsModel):
+    link_types: list[str] = SettingsField(
+        default_factory=list,
+        enum_resolver=_link_types_enum,
     )
 
 
@@ -272,6 +286,12 @@ class Permissions(BaseSettingsModel):
         default_factory=ActionsAccessList,
         title="Restrict actions",
         description="Whitelist actions a user can perform",
+    )
+
+    links: EntityLinksAccessList = SettingsField(
+        default_factory=EntityLinksAccessList,
+        title="Restrict entity links creation",
+        description="Whitelist link types a user can create between entities",
     )
 
     endpoints: EndpointsAccessList = SettingsField(

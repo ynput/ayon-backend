@@ -222,6 +222,13 @@ async def create_entity_link(
     if link_type is None:
         raise BadRequestException("Link type is not specified")
 
+    if not user.is_manager:
+        perms = user.permissions(project_name)
+        if perms.links.enabled and link_type not in perms.links.link_types:
+            raise ForbiddenException(
+                "You do not have permission to create this link type."
+            )
+
     if len(link_type.split("|")) != 3:
         msg = "Link type must be in the format 'name|input_type|output_type'"
         raise BadRequestException(msg)

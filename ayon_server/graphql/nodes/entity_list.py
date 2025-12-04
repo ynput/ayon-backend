@@ -45,7 +45,7 @@ class EntityListItemEdge(BaseEdge):
     _user: strawberry.Private[UserEntity]
 
     @strawberry.field()
-    def all_attrib(self) -> str:
+    def all_attrib(self, info: Info) -> str:
         """All attributes field is a JSON string."""
         if self._entity is None:
             return "{}"
@@ -72,13 +72,15 @@ class EntityListItemEdge(BaseEdge):
                 project_name=self.project_name,
                 inherited_attrib=inherited_attrib,
                 project_attrib=project_attrib,
+                list_attribute_config=info.context.get("list_attributes"),
             )
         )
 
     @strawberry.field()
-    def own_attrib(self) -> list[str]:
+    def own_attrib(self, info: Info) -> list[str]:
         """Own attributes field is a JSON string."""
-        return list(self._attrib.keys())
+        configured_keys = info.context.get("list_attributes") or {}
+        return [key for key in self._attrib.keys() if key in configured_keys]
 
     @strawberry.field()
     def data(self) -> str:

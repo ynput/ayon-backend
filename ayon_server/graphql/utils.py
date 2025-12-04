@@ -20,6 +20,7 @@ def process_attrib_data(
     project_name: str | None = None,
     inherited_attrib: dict[str, Any] | None = None,
     project_attrib: dict[str, Any] | None = None,
+    list_attribute_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     attr_limit: list[str] | Literal["all"] = []
 
@@ -78,13 +79,17 @@ def process_attrib_data(
         if not (attr_limit == "all" or key in attr_limit):
             continue
 
-        try:
-            attr = attribute_library.by_name_scoped(entity_type, key)
-        except KeyError:
-            # Attribute not defined for this entity type
-            continue
+        if list_attribute_config and key in own_attrib and key in list_attribute_config:
+            attr_type = list_attribute_config[key]
+        else:
+            try:
+                attr = attribute_library.by_name_scoped(entity_type, key)
+            except KeyError:
+                # Attribute not defined for this entity type
+                continue
+            attr_type = attr["type"]
 
-        if attr["type"] == "datetime":
+        if attr_type == "datetime":
             if isinstance(value, str):
                 try:
                     value = datetime.fromisoformat(value)
@@ -93,6 +98,7 @@ def process_attrib_data(
                     continue
 
         result[key] = value
+
     return result
 
 
