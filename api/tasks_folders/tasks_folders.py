@@ -58,7 +58,7 @@ ALLOWED_KEYS = [
 ]
 
 
-@router.post("/projects/{project_name}/tasksFolders")
+@router.post("/projects/{project_name}/tasksFolders", deprecated=True)
 async def query_tasks_folders(
     user: CurrentUser,
     project_name: ProjectName,
