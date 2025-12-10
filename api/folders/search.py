@@ -2,7 +2,6 @@ from typing import Annotated
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.api.dependencies import CurrentUser, ProjectName
-from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import Field, OPModel
@@ -110,22 +109,13 @@ async def search_folders(
         task_conditions = []
 
         if payload.task_filter:
-            try:
-                filter = build_filter(
-                    payload.task_filter,
-                    table_prefix="tasks",
-                    column_whitelist=TASK_ALLOWED_KEYS,
-                    column_map={"attrib": "(ex.attrib || tasks.attrib)"},
-                )
-            except ValueError as e:
-                raise BadRequestException(str(e))
-
-            if filter is not None:
-                task_conditions.append(filter)
-            else:
-                raise BadRequestException(
-                    "Task filter provided but could not be parsed"
-                )
+            if tcond := build_filter(
+                payload.task_filter,
+                table_prefix="tasks",
+                column_whitelist=TASK_ALLOWED_KEYS,
+                column_map={"attrib": "(ex.attrib || tasks.attrib)"},
+            ):
+                task_conditions.append(tcond)
 
         if payload.task_search:
             terms = slugify(payload.task_search, make_set=True)
@@ -162,8 +152,6 @@ async def search_folders(
     #
 
     if payload.folder_filter:
-        pass
-
         if fcond := build_filter(
             payload.folder_filter,
             column_whitelist=FOLDER_ALLOWED_FIELDS,
