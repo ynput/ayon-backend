@@ -157,22 +157,12 @@ async def delete_project_folder(
     user: CurrentUser,
     folder_id: FolderID,
 ) -> EmptyResponse:
-    async with Postgres.transaction():
-        res = await Postgres.fetchrow(
-            "SELECT owner FROM project_folders WHERE id = $1", folder_id
-        )
-
-        if not res:
-            raise NotFoundException("Project folder not found")
-
-        if not user.is_admin:
-            raise ForbiddenException("You don't have permission to delete this folder")
-
-        await Postgres.execute(
-            "DELETE FROM project_folders WHERE id = $1",
-            folder_id,
-        )
-
+    if not user.is_admin:
+        raise ForbiddenException("You don't have permission to delete project folders")
+    await Postgres.execute(
+        "DELETE FROM project_folders WHERE id = $1",
+        folder_id,
+    )
     return EmptyResponse()
 
 
@@ -237,8 +227,6 @@ async def assign_projects_to_folder(
 
     for project_name_input in payload.project_names:
         project_name = await normalize_project_name(project_name_input)
-
-        # ensure id is valid (32 hex characters)
 
         folder_id = EntityID.parse(payload.folder_id, allow_nulls=True)
 
