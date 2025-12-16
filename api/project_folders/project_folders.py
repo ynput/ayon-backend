@@ -238,6 +238,10 @@ async def assign_projects_to_folder(
     for project_name_input in payload.project_names:
         project_name = await normalize_project_name(project_name_input)
 
+        # ensure id is valid (32 hex characters)
+
+        folder_id = EntityID.parse(payload.folder_id, allow_nulls=True)
+
         await Postgres.execute(
             """
             UPDATE projects
@@ -249,6 +253,7 @@ async def assign_projects_to_folder(
             WHERE name = $1
             """,
             project_name,
+            folder_id,
         )
         await Redis.delete("project-data", project_name)
 
