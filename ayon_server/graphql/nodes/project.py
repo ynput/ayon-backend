@@ -118,6 +118,7 @@ class ProjectNode:
     name: str = strawberry.field()
     project_name: str = strawberry.field()
     code: str = strawberry.field()
+    project_folder: str | None = strawberry.field()
     data: str | None
     config: str | None
     active: bool
@@ -426,6 +427,7 @@ async def project_from_record(
         data=json_dumps(data) if data else None,
         config=json_dumps(config) if config else None,
         bundle=bundle,
+        project_folder=record.get("project_folder", None),
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         _user=context["user"],

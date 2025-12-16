@@ -17,6 +17,7 @@ class ListProjectsItemModel(OPModel):
     name: str = Field(..., title="Project name")
     code: str = Field(..., title="Project code")
     active: bool = Field(..., title="Project is active")
+    project_folder: str | None = Field(None, title="Project folder id")
     createdAt: datetime = Field(..., title="Creation time")
     updatedAt: datetime = Field(..., title="Last modified time")
 
@@ -150,6 +151,7 @@ async def list_projects(
                 createdAt=row["created_at"],
                 updatedAt=row["updated_at"],
                 active=row.get("active", True),
+                project_folder=row["data"].get("projectFolder"),
             )
         )
 
