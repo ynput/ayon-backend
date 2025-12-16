@@ -10,7 +10,9 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
 from ayon_server.utils.entity_id import EntityID
 from ayon_server.utils.utils import dict_patch
@@ -203,5 +205,51 @@ async def set_entity_list_folders_order(
                 folder_id,
                 position,
             )
+
+    return EmptyResponse()
+
+
+class AssignProjectRequest(OPModel):
+    folder_id: Annotated[str | None, FFolderID] = None
+    project_names: Annotated[
+        list[str],
+        Field(
+            title="List of project names to assign to the folder",
+            min_items=1,
+        ),
+    ]
+
+
+@router.post("/projectFolders/assign")
+async def assign_projects_to_folder(
+    user: CurrentUser,
+    payload: AssignProjectRequest,
+) -> EmptyResponse:
+    """Assign one or more projects to a project folder.
+
+    To remove projects from folders, set `folder_id` to `null`.
+    Only users with manager privileges can perform this action.
+    """
+    if not user.is_manager:
+        raise ForbiddenException(
+            "You don't have permission to assign projects to folders"
+        )
+
+    for project_name_input in payload.project_names:
+        project_name = await normalize_project_name(project_name_input)
+
+        await Postgres.execute(
+            """
+            UPDATE projects
+            SET data = jsonb_set(
+                COALESCE(data, '{}'::jsonb),
+                '{projectFolder}',
+                to_jsonb($2::text)
+            )
+            WHERE name = $1
+            """,
+            project_name,
+        )
+        await Redis.delete("project-data", project_name)
 
     return EmptyResponse()
