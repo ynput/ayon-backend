@@ -18,6 +18,7 @@ class ListProjectsItemModel(OPModel):
     code: Annotated[str, Field(title="Project code")]
     active: Annotated[bool, Field(title="Project is active")] = True
     library: Annotated[bool, Field(title="Project is a library project")] = False
+    pinned: Annotated[bool, Field(title="Project is pinned")] = False
     project_folder: Annotated[str | None, Field(title="Project folder id")] = None
     created_at: Annotated[datetime, Field(title="Creation time")]
     updated_at: Annotated[datetime, Field(title="Last modified time")]
@@ -119,6 +120,8 @@ async def list_projects(
     projects = []
     conditions = []
 
+    pinned = user.data.get("frontendPreferences", {}).get("pinnedProjects", [])
+
     if library is not None:
         conditions.append(f"library IS {'TRUE' if library else 'FALSE'}")
     if active is not None:
@@ -189,6 +192,7 @@ async def list_projects(
                 active=row.get("active", True),
                 project_folder=row["data"].get("projectFolder"),
                 library=row.get("library", False),
+                pinned=row["name"] in pinned,
             )
         )
 
