@@ -1,7 +1,7 @@
 """[GET] /projects (List projects)"""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import Query
 
@@ -14,67 +14,102 @@ from .router import router
 
 
 class ListProjectsItemModel(OPModel):
-    name: str = Field(..., title="Project name")
-    code: str = Field(..., title="Project code")
-    active: bool = Field(..., title="Project is active")
-    project_folder: str | None = Field(None, title="Project folder id")
-    createdAt: datetime = Field(..., title="Creation time")
-    updatedAt: datetime = Field(..., title="Last modified time")
+    name: Annotated[str, Field(title="Project name")]
+    code: Annotated[str, Field(title="Project code")]
+    active: Annotated[bool, Field(title="Project is active")] = True
+    library: Annotated[bool, Field(title="Project is a library project")] = False
+    project_folder: Annotated[str | None, Field(title="Project folder id")] = None
+    created_at: Annotated[datetime, Field(title="Creation time")]
+    updated_at: Annotated[datetime, Field(title="Last modified time")]
 
 
 class ListProjectsResponseModel(OPModel):
-    detail: str = Field("OK", example="Showing LENGTH of COUNT projects")
-    count: int = Field(
-        0,
-        description="Total count of projects (regardless the pagination)",
-        example=1,
-    )
-    projects: list[ListProjectsItemModel] = Field(
-        [],
-        description="List of projects",
-        example=[
-            ListProjectsItemModel(
-                name="Example project",
-                code="ex",
-                createdAt=datetime.now(),
-                updatedAt=datetime.now(),
-                active=True,
-            )
-        ],
-    )
+    detail: Annotated[
+        str,
+        Field(
+            example="Showing LENGTH of COUNT projects",
+        ),
+    ] = "OK"
+    count: Annotated[
+        int,
+        Field(
+            description="Total count of projects (regardless the pagination)",
+            example=1,
+        ),
+    ] = 0
+    projects: Annotated[
+        list[ListProjectsItemModel],
+        Field(
+            description="List of projects",
+            default_factory=list,
+            example=[
+                ListProjectsItemModel(
+                    name="Example project",
+                    code="ex",
+                    created_at=datetime.now(),
+                    updated_at=datetime.now(),
+                    active=True,
+                )
+            ],
+        ),
+    ]
 
 
 @router.get("/projects", dependencies=[AllowGuests])
 async def list_projects(
     user: CurrentUser,
-    page: int = Query(1, title="Page", ge=1),
-    length: int | None = Query(
-        None,
-        title="Records per page",
-        description="If not provided, the result will not be limited",
-    ),
-    library: bool | None = Query(
-        None,
-        title="Show library projects",
-        description="If not provided, return projects regardless the flag",
-    ),
-    active: bool | None = Query(
-        None,
-        title="Show active projects",
-        description="If not provided, return projects regardless the flag",
-    ),
-    order: Literal["name", "createdAt", "updatedAt"] | None = Query(
-        None, title="Attribute to order the list by"
-    ),
-    desc: bool = Query(False, title="Sort in descending order"),
-    name: str | None = Query(
-        None,
-        title="Filter by name",
-        description="""Limit the result to project with the matching name,
+    page: Annotated[
+        int,
+        Query(
+            title="Page",
+            description="Page number, starting from 1",
+            ge=1,
+        ),
+    ] = 1,
+    length: Annotated[
+        int | None,
+        Query(
+            title="Records per page",
+            description="If not provided, the result will not be limited",
+        ),
+    ] = None,
+    library: Annotated[
+        bool | None,
+        Query(
+            title="Show library projects",
+            description="If not provided, return projects regardless the flag",
+        ),
+    ] = None,
+    active: Annotated[
+        bool | None,
+        Query(
+            title="Show active projects",
+            description="If not provided, return projects regardless the flag",
+        ),
+    ] = None,
+    order: Annotated[
+        Literal["name", "createdAt", "updatedAt"] | None,
+        Query(
+            title="Order by",
+            description="Attribute to order the list by",
+        ),
+    ] = None,
+    desc: Annotated[
+        bool,
+        Query(
+            title="Sort in descending order",
+        ),
+    ] = False,
+    name: Annotated[
+        str | None,
+        Query(
+            title="Filter by name",
+            description="""Limit the result to project with the matching name,
         or its part. % character may be used as a wildcard""",
-        example="forest",
-        regex=NAME_REGEX,
-    ),
+            example="forest",
+            regex=NAME_REGEX,
+        ),
+    ] = None,
 ) -> ListProjectsResponseModel:
     """
     Return a list of available projects.
@@ -114,6 +149,7 @@ async def list_projects(
                 COUNT(name) OVER () AS count,
                 name,
                 code,
+                library,
                 created_at,
                 updated_at,
                 active,
@@ -148,17 +184,22 @@ async def list_projects(
             ListProjectsItemModel(
                 name=row["name"],
                 code=row["code"],
-                createdAt=row["created_at"],
-                updatedAt=row["updated_at"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
                 active=row.get("active", True),
                 project_folder=row["data"].get("projectFolder"),
+                library=row.get("library", False),
             )
         )
 
     if not projects:
         # No project is found (this includes the case
         # where the page is out of range)
-        return ListProjectsResponseModel(detail="No projects", count=count)
+        return ListProjectsResponseModel(
+            detail="No projects",
+            count=count,
+            projects=[],
+        )
 
     return ListProjectsResponseModel(
         detail=f"Showing {len(projects)} of {count} projects",
