@@ -97,7 +97,7 @@ async def create_project_folder(
             """
             INSERT INTO project_folders
             (id, label, parent_id, data)
-            VALUES ($1, $2, $3, $4,)
+            VALUES ($1, $2, $3, $4)
             """,
             payload.id,
             payload.label,
