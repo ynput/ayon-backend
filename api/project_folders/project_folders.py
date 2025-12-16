@@ -85,7 +85,7 @@ async def get_project_folders(user: CurrentUser) -> ProjectFoldersResponseModel:
 
 
 @router.post("/projectFolders")
-async def create_entity_list_folder(
+async def create_project_folder(
     user: CurrentUser,
     payload: ProjectFolderPostModel,
 ) -> EntityIdResponse:
@@ -176,7 +176,7 @@ async def delete_project_folder(
     return EmptyResponse()
 
 
-class EntityListFolderOrderModel(OPModel):
+class ProjectFolderOrderModel(OPModel):
     order: Annotated[
         list[str],
         Field(
@@ -187,9 +187,9 @@ class EntityListFolderOrderModel(OPModel):
 
 
 @router.post("/projectFolders/order")
-async def set_entity_list_folders_order(
+async def set_project_folders_order(
     user: CurrentUser,
-    payload: EntityListFolderOrderModel,
+    payload: ProjectFolderOrderModel,
 ) -> EmptyResponse:
     if not user.is_admin:
         raise ForbiddenException("You don't have permission to reorder project folders")
@@ -198,7 +198,7 @@ async def set_entity_list_folders_order(
         for position, folder_id in enumerate(payload.order):
             await Postgres.execute(
                 """
-                UPDATE entity_list_folders
+                UPDATE project_folders
                 SET position = $2
                 WHERE id = $1
                 """,
