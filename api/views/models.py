@@ -88,7 +88,7 @@ class VersionsViewModel(BaseViewModel):
 class GenericViewModel(BaseViewModel):
     """Reports view model."""
 
-    view_type: Literal["reports"] = "reports"
+    view_type: str
     settings: dict[str, Any]
 
 
