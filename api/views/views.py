@@ -373,6 +373,8 @@ async def create_view(
 
     _json = await request.json()
     payload_class = get_post_model_class(view_type)
+    if "view_type" not in _json:
+        _json["view_type"] = view_type
     payload = payload_class(**_json)
 
     async with Postgres.transaction():
@@ -427,6 +429,8 @@ async def update_view(
     """Update a view in the database."""
 
     _json = await request.json()
+    if "view_type" not in _json:
+        _json["view_type"] = view_type
     payload_class = get_patch_model_class(view_type)
     payload = payload_class(**_json)
 
