@@ -503,9 +503,9 @@ async def get_folders(
         {ordering}
     """
     # Keep it here for debugging :)
-    from ayon_server.logging import logger
-
-    logger.debug(f"Folder query\n{query}")
+    # from ayon_server.logging import logger
+    #
+    # logger.debug(f"Folder query\n{query}")
 
     return await resolve(
         FoldersConnection,
