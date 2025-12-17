@@ -16,3 +16,4 @@ venv/
 cspell*
 mise.toml
 test_*
+static/graphiql/lib/
