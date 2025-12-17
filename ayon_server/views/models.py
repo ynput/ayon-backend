@@ -131,6 +131,7 @@ class OverviewSettings(OPModel):
     sort_by: str | None = None
     sort_desc: bool = False
     filter: QueryFilter | None = None
+    folder_filter: QueryFilter | None = None
     slice_type: str | None = None
     columns: FColumnList
 
