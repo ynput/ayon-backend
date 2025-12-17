@@ -455,7 +455,7 @@ async def get_folders(
             order_by.append(SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
             attr_name = sort_by[7:]
-            exp = "(ex.attrib || folders.attrib)"
+            exp = "(coalesce(ex.attrib, '{}'::JSONB) || folders.attrib)"
             attr_case = await get_attrib_sort_case(attr_name, exp)
             order_by.append(attr_case)
         else:
@@ -503,8 +503,9 @@ async def get_folders(
         {ordering}
     """
     # Keep it here for debugging :)
-    # from ayon_server.logging import logger
-    # logger.debug(f"Folder query\n{query}")
+    from ayon_server.logging import logger
+
+    logger.debug(f"Folder query\n{query}")
 
     return await resolve(
         FoldersConnection,
