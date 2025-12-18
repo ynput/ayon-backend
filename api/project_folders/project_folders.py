@@ -230,19 +230,29 @@ async def assign_projects_to_folder(
 
         folder_id = EntityID.parse(payload.folder_id, allow_nulls=True)
 
-        await Postgres.execute(
-            """
-            UPDATE projects
-            SET data = jsonb_set(
-                COALESCE(data, '{}'::jsonb),
-                '{projectFolder}',
-                to_jsonb($2::text)
+        if folder_id is None:
+            await Postgres.execute(
+                """
+                UPDATE projects
+                SET data = data - 'projectFolder'
+                WHERE name = $1
+                """,
+                project_name,
             )
-            WHERE name = $1
-            """,
-            project_name,
-            folder_id,
-        )
+        else:
+            await Postgres.execute(
+                """
+                UPDATE projects
+                SET data = jsonb_set(
+                    COALESCE(data, '{}'::jsonb),
+                    '{projectFolder}',
+                    to_jsonb($2::text)
+                )
+                WHERE name = $1
+                """,
+                project_name,
+                folder_id,
+            )
         await Redis.delete("project-data", project_name)
 
     return EmptyResponse()
