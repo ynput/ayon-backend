@@ -184,7 +184,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
 
         if isinstance(value, str):
             if path[0] == "id" or path[0].endswith("_id"):
-                safe_value = EntityID.parse(cast(str, value))
+                safe_value = EntityID.parse(value)
             else:
                 safe_value = value.replace("'", "''")
                 safe_value = f"'{value}'"
