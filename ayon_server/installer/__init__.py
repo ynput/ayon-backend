@@ -5,6 +5,10 @@ from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.events import EventStream
 from ayon_server.installer.addons import install_addon_from_url, unpack_addon
 from ayon_server.installer.dependency_packages import download_dependency_package
+from ayon_server.installer.hotreload import (
+    notify_clients_addon_reload,
+    trigger_hotreload,
+)
 from ayon_server.installer.installers import download_installer
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback, logger
@@ -26,21 +30,40 @@ class TooManyRetries(Exception):
 async def handle_need_restart(installer: "BackgroundInstaller") -> None:
     await asyncio.sleep(1)
     if installer.event_queue.empty() and installer.restart_needed:
-        await require_server_restart(
-            None, "Restart the server to apply the addon changes."
+        # Try hot-reload first
+        event_id = installer.current_event_id
+        reload_success = await trigger_hotreload(
+            mode="addon",
+            event_id=event_id,
         )
+
+        if reload_success:
+            # Hot-reload succeeded, notify clients
+            await notify_clients_addon_reload(event_id=event_id)
+            logger.info("Addon installed successfully with hot-reload", event_id=event_id)
+        else:
+            # Hot-reload failed, fall back to requiring restart
+            await require_server_restart(
+                None, "Restart the server to apply the addon changes."
+            )
+            logger.warning(
+                "Hot-reload failed, server restart required",
+                event_id=event_id,
+            )
 
 
 class BackgroundInstaller(BackgroundWorker):
     def initialize(self) -> None:
         self.event_queue: asyncio.Queue[str] = asyncio.Queue()
         self.restart_needed: bool = False
+        self.current_event_id: str | None = None
 
     async def enqueue(self, event_id: str) -> None:
         logger.debug("Background installer: enqueuing event", event_id=event_id)
         await self.event_queue.put(event_id)
 
     async def process_event(self, event_id: str) -> None:
+        self.current_event_id = event_id
         res = await Postgres().fetch(
             " SELECT topic, status, summary, retries FROM events WHERE id = $1 ",
             event_id,
