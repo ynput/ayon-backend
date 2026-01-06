@@ -119,7 +119,7 @@ async def get_reload_status() -> ReloadStatusModel:
     - Debugging addon installation issues
     """
     manager = get_hotreload_manager()
-    status = manager.get_status()
+    status = await manager.get_status()
 
     return ReloadStatusModel(
         last_reload=status["last_reload"],

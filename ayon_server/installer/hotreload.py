@@ -34,10 +34,16 @@ import psutil
 
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.events import EventStream
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 
 if TYPE_CHECKING:
     from typing import Callable
+
+# Redis keys for persisting reload statistics
+REDIS_NAMESPACE = "hotreload"
+REDIS_KEY_LAST_RELOAD = "last_reload"
+REDIS_KEY_RELOAD_COUNT = "reload_count"
 
 __all__ = [
     "trigger_hotreload",
@@ -61,6 +67,89 @@ RELOAD_VERIFICATION_INTERVAL = 0.5
 RELOAD_SCRIPT_ENV_VAR = "AYON_RELOAD_SCRIPT"
 SERVER_TYPE_ENV_VAR = "AYON_SERVER_TYPE"
 DEFAULT_SERVER_TYPE = "gunicorn"
+
+
+# =============================================================================
+# Redis Persistence Helpers
+# =============================================================================
+
+
+async def _persist_reload_stats(reload_time: datetime) -> None:
+    """
+    Persist reload statistics to Redis.
+
+    This ensures reload stats survive worker restarts since the SIGHUP
+    signal causes gunicorn to spawn new workers with fresh memory.
+
+    Args:
+        reload_time: The timestamp of the reload operation.
+    """
+    try:
+        # Get current count and increment
+        count_str = await Redis.get(REDIS_NAMESPACE, REDIS_KEY_RELOAD_COUNT)
+        current_count = int(count_str) if count_str else 0
+        new_count = current_count + 1
+
+        # Store updated stats
+        await Redis.set(
+            REDIS_NAMESPACE,
+            REDIS_KEY_RELOAD_COUNT,
+            str(new_count),
+        )
+        await Redis.set(
+            REDIS_NAMESPACE,
+            REDIS_KEY_LAST_RELOAD,
+            reload_time.isoformat(),
+        )
+        logger.debug(
+            "Hot-reload: Persisted reload stats to Redis",
+            reload_count=new_count,
+            last_reload=reload_time.isoformat(),
+        )
+    except Exception as err:
+        logger.warning(
+            "Hot-reload: Failed to persist reload stats to Redis",
+            error=str(err),
+        )
+
+
+async def _get_persisted_reload_stats() -> dict:
+    """
+    Get reload statistics from Redis.
+
+    Returns:
+        Dictionary with last_reload timestamp and reload_count.
+    """
+    try:
+        last_reload_str = await Redis.get(REDIS_NAMESPACE, REDIS_KEY_LAST_RELOAD)
+        count_str = await Redis.get(REDIS_NAMESPACE, REDIS_KEY_RELOAD_COUNT)
+
+        last_reload = None
+        if last_reload_str:
+            # Decode bytes to string if needed
+            if isinstance(last_reload_str, bytes):
+                last_reload_str = last_reload_str.decode("utf-8")
+            last_reload = last_reload_str
+
+        reload_count = 0
+        if count_str:
+            if isinstance(count_str, bytes):
+                count_str = count_str.decode("utf-8")
+            reload_count = int(count_str)
+
+        return {
+            "last_reload": last_reload,
+            "reload_count": reload_count,
+        }
+    except Exception as err:
+        logger.warning(
+            "Hot-reload: Failed to get reload stats from Redis",
+            error=str(err),
+        )
+        return {
+            "last_reload": None,
+            "reload_count": 0,
+        }
 
 
 # =============================================================================
@@ -473,6 +562,9 @@ async def trigger_hotreload(
                 # Still return True since the signal was sent successfully
                 # The server may still be reloading
 
+        # Persist reload statistics to Redis (survives worker restarts)
+        await _persist_reload_stats(reload_start)
+
         return reload_success
 
     except (ProcessLookupError, PermissionError) as err:
@@ -672,18 +764,21 @@ class HotReloadManager:
 
         return result
 
-    def get_status(self) -> dict:
+    async def get_status(self) -> dict:
         """
         Get the current status of the hot-reload manager.
+
+        Reads persisted stats from Redis to survive worker restarts.
 
         Returns:
             Dictionary with status information.
         """
+        # Get persisted stats from Redis
+        redis_stats = await _get_persisted_reload_stats()
+
         return {
-            "last_reload": (
-                self.last_reload.isoformat() if self.last_reload else None
-            ),
-            "reload_count": self.reload_count,
+            "last_reload": redis_stats["last_reload"],
+            "reload_count": redis_stats["reload_count"],
             "callbacks_registered": len(self.callbacks),
         }
 
