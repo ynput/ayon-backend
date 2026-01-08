@@ -289,6 +289,9 @@ class ProjectLevelOperations:
         self.operations: list[OperationModel] = []
         self.user_entities_map: dict[str, UserEntity | None] = {}
 
+    def __len__(self) -> int:
+        return len(self.operations)
+
     def append(self, operation: OperationModel) -> None:
         """Append an operation to the list.
 

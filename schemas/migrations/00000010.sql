@@ -91,6 +91,7 @@ BEGIN
       'representations'
     )
     GROUP BY t.table_schema, t.table_name
+    HAVING COUNT(c.column_name) < 2
     LOOP
         BEGIN
           RAISE WARNING 'Adding created_by and updated_by to %.%', rec.table_schema, rec.table_name;

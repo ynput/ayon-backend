@@ -101,7 +101,8 @@ async def get_folders(
     ] = None,
     has_links: ARGHasLinks = None,
     search: Annotated[str | None, argdesc("Fuzzy text search filter")] = None,
-    filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
+    filter: Annotated[str | None, argdesc("Filter folders using QueryFilter")] = None,
+    task_filter: Annotated[str | None, argdesc("Fitler folders by tasks")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
 ) -> FoldersConnection:
     """Return a list of folders."""
@@ -393,6 +394,50 @@ async def get_folders(
         ):
             sql_conditions.append(fcond)
 
+    if task_filter:
+        column_whitelist = [
+            "id",
+            "name",
+            "label",
+            "task_type",
+            "assignees",
+            "status",
+            "attrib",
+            "data",
+            "tags",
+            "active",
+            "created_at",
+            "updated_at",
+            "created_by",
+            "updated_by",
+        ]
+
+        fdate = json.loads(task_filter)
+        fq = QueryFilter(**fdate)
+        tfilter = build_filter(
+            fq,
+            column_whitelist=column_whitelist,
+            table_prefix="tasks",
+        )
+
+        if tfilter:
+            sql_cte.append(
+                f"""
+                filtered_tasks AS (
+                    SELECT DISTINCT folder_id
+                    FROM project_{project_name}.tasks
+                    WHERE {tfilter}
+                )
+                """
+            )
+
+            sql_joins.append(
+                """
+                INNER JOIN filtered_tasks ft
+                ON ft.folder_id = folders.id
+                """
+            )
+
     #
     # Pagination
     #
@@ -410,7 +455,7 @@ async def get_folders(
             order_by.append(SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
             attr_name = sort_by[7:]
-            exp = "(ex.attrib || folders.attrib)"
+            exp = "(coalesce(ex.attrib, '{}'::JSONB) || folders.attrib)"
             attr_case = await get_attrib_sort_case(attr_name, exp)
             order_by.append(attr_case)
         else:
@@ -459,7 +504,7 @@ async def get_folders(
     """
     # Keep it here for debugging :)
     # from ayon_server.logging import logger
-
+    #
     # logger.debug(f"Folder query\n{query}")
 
     return await resolve(

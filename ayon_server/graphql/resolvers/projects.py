@@ -58,6 +58,7 @@ async def get_projects(
         "active",
         "created_at",
         "updated_at",
+        "data->'projectFolder' AS project_folder",
     ]
 
     if fields.has_any("config"):

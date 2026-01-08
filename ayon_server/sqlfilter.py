@@ -1,11 +1,12 @@
 import json
 import re
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal, Union, cast
 
 from pydantic import StrictBool, StrictFloat, StrictInt, StrictStr, validator
 
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
+from ayon_server.utils.entity_id import EntityID
 
 ValueType = (
     StrictStr
@@ -182,8 +183,11 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
             column = f"{column}_name"
 
         if isinstance(value, str):
-            safe_value = value.replace("'", "''")
-            safe_value = f"'{value}'"
+            if path[0] == "id" or path[0].endswith("_id"):
+                safe_value = EntityID.parse(value)
+            else:
+                safe_value = value.replace("'", "''")
+                safe_value = f"'{value}'"
 
         elif isinstance(value, int | float):
             cast_type = "integer" if isinstance(value, int) else "number"
@@ -282,7 +286,17 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                     return f"EXISTS (SELECT 1 FROM jsonb_array_elements({column}))"
                 return f"array_length({column}, 1) IS NOT NULL"
 
-        if all(isinstance(v, str) for v in value):
+        if path[0] == "id" or path[0].endswith("_id"):
+            # IDs are always UUIDs
+            # Let postgres cast them and validate
+            escaped_list = [EntityID.parse(cast(str, v)) for v in value]
+
+            arr_value = (
+                "array[" + ", ".join([f"'{v}'::UUID" for v in escaped_list]) + "]"
+            )
+            cast_type = "uuid"
+
+        elif all(isinstance(v, str) for v in value):
             escaped_list = [v.replace("'", "''") for v in value]  # type: ignore
             if len(path) > 1:
                 # crawling a json, so we need to quote the values

@@ -26,13 +26,6 @@ class YnputCloudInfoModel(OPModel):
         ),
     ]
 
-    connected: Annotated[
-        bool,
-        Field(
-            description="Is the instance connected to Ynput Cloud?",
-        ),
-    ] = False
-
     instance_name: Annotated[
         str | None,
         Field(
@@ -40,12 +33,14 @@ class YnputCloudInfoModel(OPModel):
             example="ayon-staging",
         ),
     ] = None
+
     org_id: Annotated[
         str | None,
         Field(
             description="Organization ID",
         ),
     ] = None
+
     org_name: Annotated[
         str | None,
         Field(
@@ -53,25 +48,27 @@ class YnputCloudInfoModel(OPModel):
             example="Ynput",
         ),
     ] = None
+
     org_title: Annotated[
         str | None,
         Field(
             description="Name of the organization",
             example="Ynput",
+            deprecated=True,
         ),
     ] = None
-
-    collect_saturated_metrics: Annotated[
-        bool,
-        Field(
-            description="Collect saturated metrics",
-        ),
-    ] = False
 
     managed: Annotated[
         bool,
         Field(
             description="Is the instance managed by Ynput Cloud?",
+        ),
+    ] = False
+
+    collect_saturated_metrics: Annotated[
+        bool,
+        Field(
+            description="Collect saturated metrics",
         ),
     ] = False
 
@@ -82,6 +79,13 @@ class YnputCloudInfoModel(OPModel):
             description="List of subscriptions",
         ),
     ]
+
+    connected: Annotated[
+        bool,
+        Field(
+            description="Is the instance connected to Ynput Cloud?",
+        ),
+    ] = False
 
 
 class CloudUtils:

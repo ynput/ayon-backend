@@ -31,7 +31,6 @@ def _top_level_fields_enum() -> list[dict[str, str]]:
         {"value": "task_type", "label": "Change task type"},
         {"value": "assignees", "label": "Change task assignees"},
         {"value": "product_type", "label": "Change product type"},
-        {"value": "author", "label": "Change version author"},
     ]
 
 

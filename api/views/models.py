@@ -88,7 +88,7 @@ class VersionsViewModel(BaseViewModel):
 class GenericViewModel(BaseViewModel):
     """Reports view model."""
 
-    view_type: Literal["reports"] = "reports"
+    view_type: str
     settings: dict[str, Any]
 
 
@@ -107,40 +107,40 @@ class BaseViewPostModel(OPModel):
 class OverviewViewPostModel(BaseViewPostModel):
     """Overview view post model."""
 
-    _view_type: Literal["overview"] = "overview"
+    view_type: Literal["overview"] = "overview"
     settings: OverviewSettings
 
 
 class TaskProgressViewPostModel(BaseViewPostModel):
     """Task progress view post model."""
 
-    _view_type: Literal["taskProgress"] = "taskProgress"
+    view_type: Literal["taskProgress"] = "taskProgress"
     settings: TaskProgressSettings
 
 
 class ListsViewPostModel(BaseViewPostModel):
     """Lists view post model."""
 
-    _view_type: Literal["lists"] = "lists"
+    view_type: Literal["lists"] = "lists"
     settings: ListsSettings
 
 
 class ReviewsViewPostModel(BaseViewPostModel):
     """Reviews view post model."""
 
-    _view_type: Literal["reviews"] = "reviews"
+    view_type: Literal["reviews"] = "reviews"
     settings: ReviewsSettings
 
 
 class VersionsViewPostModel(BaseViewPostModel):
     """Versions view post model."""
 
-    _view_type: Literal["versions"] = "versions"
+    view_type: Literal["versions"] = "versions"
     settings: VersionsSettings
 
 
 class GenericViewPostModel(BaseViewPostModel):
-    _view_type: Literal["reports"] = "reports"
+    view_type: str
     settings: dict[str, Any]
 
 
@@ -158,42 +158,42 @@ class BaseViewPatchModel(OPModel):
 class OverviewViewPatchModel(BaseViewPatchModel):
     """Overview view post model."""
 
-    _view_type: Literal["overview"] = "overview"
+    view_type: Literal["overview"] = "overview"
     settings: OverviewSettings | None = None
 
 
 class TaskProgressViewPatchModel(BaseViewPatchModel):
     """Task progress view post model."""
 
-    _view_type: Literal["taskProgress"] = "taskProgress"
+    view_type: Literal["taskProgress"] = "taskProgress"
     settings: TaskProgressSettings | None = None
 
 
 class ListsViewPatchModel(BaseViewPatchModel):
     """Lists view post model."""
 
-    _view_type: Literal["lists"] = "lists"
+    view_type: Literal["lists"] = "lists"
     settings: ListsSettings | None = None
 
 
 class ReviewsViewPatchModel(BaseViewPatchModel):
     """Reviews view post model."""
 
-    _view_type: Literal["reviews"] = "reviews"
+    view_type: Literal["reviews"] = "reviews"
     settings: ReviewsSettings | None = None
 
 
 class VersionsViewPatchModel(BaseViewPatchModel):
     """Versions view post model."""
 
-    _view_type: Literal["versions"] = "versions"
+    view_type: Literal["versions"] = "versions"
     settings: VersionsSettings | None = None
 
 
 class GenericViewPatchModel(BaseViewPatchModel):
     """Reports view post model."""
 
-    _view_type: Literal["reports"] = "reports"
+    view_type: str
     settings: dict[str, Any] | None = None
 
 
@@ -210,7 +210,7 @@ ViewModel = Annotated[
     | VersionsViewModel
     | GenericViewModel,
     Field(
-        discriminator="_view_type",
+        discriminator="view_type",
         title="View model",
     ),
 ]
@@ -223,7 +223,7 @@ ViewPostModel = Annotated[
     | VersionsViewPostModel
     | GenericViewPostModel,
     Field(
-        discriminator="_view_type",
+        discriminator="view_type",
         title="View post model",
     ),
 ]
@@ -236,7 +236,7 @@ ViewPatchModel = Annotated[
     | VersionsViewPatchModel
     | GenericViewPatchModel,
     Field(
-        discriminator="_view_type",
+        discriminator="view_type",
         title="View model",
     ),
 ]

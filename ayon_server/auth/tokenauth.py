@@ -69,6 +69,8 @@ async def send_invite_email(
     template = EmailTemplate()
     body = await template.render(body_template, ctx)
     subject = subject or "Invitation to Ayon instance"
+
+    logger.debug(f"Sending guest invite to {email}: redirect to {redirect_url}")
     await send_mail([email], subject, html=body)
 
 
@@ -100,6 +102,10 @@ async def send_extend_email(payload: TokenPayload, base_url: str) -> None:
     template = EmailTemplate()
     body = await template.render_template("token_renew.jinja", ctx)
     subject = payload.subject or "Ayon access link renewal"
+    logger.debug(
+        f"Sending guest exted email to {payload.email}: "
+        "redirect to {payload.redirect_url}"
+    )
     await send_mail([payload.email], subject, html=body)
 
 
@@ -121,6 +127,7 @@ async def create_guest_user_session(
     )
     session = await Session.create(user, request=request)
 
+    logger.debug(f"Guest user {email} logged in (redirect to {redirect_url})")
     return LoginResponseModel(
         detail=f"Guest user {email} logged in",
         token=session.token,
