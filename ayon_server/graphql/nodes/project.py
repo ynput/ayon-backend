@@ -23,6 +23,9 @@ from ayon_server.graphql.resolvers.workfiles import get_workfile, get_workfiles
 from ayon_server.graphql.utils import parse_attrib_data, process_attrib_data
 from ayon_server.helpers.tags import get_used_project_tags
 from ayon_server.lib.postgres import Postgres
+from ayon_server.settings.anatomy.product_base_types import (
+    enrich_project_config_with_product_base_types,
+)
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -407,7 +410,9 @@ async def project_from_record(
         user.check_project_access(record["name"])
 
         data = record.get("data", {})
-        config = record.get("config", None)
+        config = record.get("config", {})
+        enrich_project_config_with_product_base_types(config)
+
         bundle_data = data.get("bundle", {})
         if bundle_data:
             bundle = ProjectBundleType(
