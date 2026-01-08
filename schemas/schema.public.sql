@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS public.projects(
 CREATE UNIQUE INDEX IF NOT EXISTS projectname_idx ON public.projects(LOWER(name));
 CREATE UNIQUE INDEX IF NOT EXISTS projectcode_idx ON public.projects(LOWER(code));
 
-CREATE TABLE project_folders (
+CREATE TABLE IF NOT EXISTS project_folders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     label VARCHAR NOT NULL,
     position INTEGER NOT NULL DEFAULT 0,
@@ -43,7 +43,8 @@ CREATE TABLE project_folders (
     data JSONB DEFAULT '{}'::JSONB
 );
 
-CREATE UNIQUE INDEX uq_project_folder_parent_label ON project_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_project_folder_parent_label 
+  ON project_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
 
 -- Users
 
