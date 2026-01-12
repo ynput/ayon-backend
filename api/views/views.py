@@ -236,15 +236,7 @@ async def get_default_view(
     """
 
     async with Postgres.transaction():
-        row = await Postgres.fetchrow(
-            query,
-            view_id,
-            view_type,
-            user.name,
-            "studio",
-        )
-
-        if not row and project_name:
+        if project_name:
             await Postgres.set_project_schema(project_name)
             row = await Postgres.fetchrow(
                 query,
@@ -252,6 +244,15 @@ async def get_default_view(
                 view_type,
                 user.name,
                 "project",
+            )
+
+        if not row:
+            row = await Postgres.fetchrow(
+                query,
+                view_id,
+                view_type,
+                user.name,
+                "studio",
             )
 
         if not row:
