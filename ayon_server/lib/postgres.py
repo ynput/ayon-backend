@@ -247,6 +247,15 @@ class Postgres:
             await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
 
     @classmethod
+    async def set_public_schema(cls) -> None:
+        """Set the search path to the public schema."""
+        async with cls.acquire() as conn:
+            assert (
+                conn.is_in_transaction()
+            ), "Cannot set public schema outside of a transaction"
+            await conn.execute("SET LOCAL search_path TO public")
+
+    @classmethod
     async def iterate(
         cls,
         query: str,
