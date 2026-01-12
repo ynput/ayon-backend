@@ -85,9 +85,8 @@ async def get_project_metrics(
     saturated: bool = False,
     system: bool = False,
 ) -> ProjectMetrics:
-    result: dict[str, Any] = {
-        "nickname": project.nickname,
-    }
+    nickname = project.name if saturated else project.nickname
+    result: dict[str, Any] = {"nickname": nickname}
 
     for entity_type in [
         "folder",
