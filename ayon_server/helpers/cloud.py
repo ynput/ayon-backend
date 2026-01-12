@@ -3,7 +3,6 @@ from typing import Annotated, Any
 
 import httpx
 
-from ayon_server.addons.library import AddonLibrary
 from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
@@ -105,6 +104,7 @@ class CloudUtils:
 
         # If ynputcloud addon is active, we don't need to have local admin
         # as the auth is handled by Ynput Cloud.
+        from ayon_server.addons.library import AddonLibrary
 
         library = AddonLibrary.getinstance()
         if library.get_addon_by_variant("ynputcloud", "production"):
