@@ -247,6 +247,7 @@ async def get_default_view(
             )
 
         if not row:
+            await Postgres.set_public_schema()
             row = await Postgres.fetchrow(
                 query,
                 view_id,
@@ -256,6 +257,7 @@ async def get_default_view(
             )
 
         if not row:
+            await Postgres.set_public_schema()
             row = await Postgres.fetchrow(
                 """
                 SELECT *, $2 AS scope FROM views
