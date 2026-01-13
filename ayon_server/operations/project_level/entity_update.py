@@ -9,6 +9,7 @@ from ayon_server.lib.postgres import Postgres
 
 from .hooks import OperationHooks
 from .models import OperationModel
+from .validation import validate_subtasks
 
 
 def build_update_query(
@@ -137,6 +138,11 @@ async def update_project_level_entity(
 
     if operation.entity_type == "folder":
         await sanitize_folder_update(entity, operation, update_payload_dict)
+    elif operation.entity_type == "task":
+        subtasks = update_payload_dict.get("data", {}).get("subtasks", [])
+        if subtasks:
+            subtasks = validate_subtasks(subtasks)
+            update_payload_dict["data"]["subtasks"] = subtasks
 
     # Build events for every change
     # Do this before applying the patch, to the entity to detect the changes

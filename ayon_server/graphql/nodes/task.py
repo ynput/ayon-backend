@@ -30,7 +30,7 @@ class TaskAttribType:
 class SubTaskNode:
     id: str
     name: str
-    label: str | None = None
+    label: str
     description: str | None = None
     start_date: datetime.datetime | None = None
     end_date: datetime.datetime | None = None
@@ -156,7 +156,7 @@ async def task_from_record(
                 SubTaskNode(
                     id=subtask_record["id"],
                     name=subtask_record["name"],
-                    label=subtask_record.get("label"),
+                    label=subtask_record["label"],
                     description=subtask_record.get("description"),
                     start_date=datetime.datetime.fromisoformat(start_date_iso)
                     if start_date_iso
