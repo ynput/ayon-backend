@@ -1,7 +1,7 @@
 import datetime
 from typing import Annotated, Any
 
-from pydantic import Field, validator
+from pydantic import Field, root_validator
 
 from ayon_server.types import NAME_REGEX, OPModel
 from ayon_server.utils import EntityID, slugify
@@ -19,15 +19,15 @@ class Subtask(OPModel):
     ]
     label: Annotated[str, Field(title="Subtask label", example="Modeling")]
 
-    @validator("name", pre=True, always=True)
-    def validate_name(cls, v: str | None, values: dict[str, Any]) -> str:
-        _ = v
+    @root_validator(pre=True)
+    def validate_name(cls, values: dict[str, Any]) -> dict[str, Any]:
         value = values.get("name", "").strip()
         if not value:
             value = slugify(values.get("label", "").strip(), separator="_")
         if not value:
             raise ValueError("Subtask name/label cannot be empty")
-        return value
+        values["name"] = value
+        return values
 
     description: Annotated[
         str | None,
