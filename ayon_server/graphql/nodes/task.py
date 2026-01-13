@@ -1,3 +1,4 @@
+import datetime
 from typing import TYPE_CHECKING, Any
 
 import strawberry
@@ -8,6 +9,7 @@ from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.types import Info
+from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
@@ -25,6 +27,18 @@ class TaskAttribType:
 
 
 @strawberry.type
+class SubTaskNode:
+    id: str
+    name: str
+    label: str | None = None
+    description: str | None = None
+    start_date: datetime.datetime | None = None
+    end_date: datetime.datetime | None = None
+    assignees: list[str] = strawberry.field(default_factory=list)
+    is_done: bool = False
+
+
+@strawberry.type
 class TaskNode(BaseNode):
     entity_type: strawberry.Private[str] = "task"
     label: str | None
@@ -38,6 +52,7 @@ class TaskNode(BaseNode):
     tags: list[str]
     data: str | None
     path: str | None = None
+    subtasks: list[SubTaskNode] = strawberry.field(default_factory=list)
 
     _inherited_attrib: strawberry.Private[dict[str, Any]]
     _folder_path: strawberry.Private[str | None] = None
@@ -125,6 +140,43 @@ async def task_from_record(
         has_reviewables = record["has_reviewables"]
     else:
         has_reviewables = False
+
+    #
+    # Handle subtasks
+    #
+
+    subtasks: list[SubTaskNode] = []
+    _sdata = (record.get("subtasks") or {}).get("subtasks") or []
+    for subtask_record in _sdata:
+        start_date_iso = subtask_record.get("start_date")
+        end_date_iso = subtask_record.get("end_date")
+
+        try:
+            subtasks.append(
+                SubTaskNode(
+                    id=subtask_record["id"],
+                    name=subtask_record["name"],
+                    label=subtask_record.get("label"),
+                    description=subtask_record.get("description"),
+                    start_date=datetime.datetime.fromisoformat(start_date_iso)
+                    if start_date_iso
+                    else None,
+                    end_date=datetime.datetime.fromisoformat(end_date_iso)
+                    if end_date_iso
+                    else None,
+                    assignees=subtask_record.get("assignees") or [],
+                    is_done=subtask_record.get("is_done") or False,
+                )
+            )
+        except Exception:
+            logger.warning(
+                f"Failed to parse subtask {subtask_record.get('id')} "
+                f"of task {record['id']}"
+            )
+
+    #
+    # Handle thumbnail
+    #
 
     thumbnail = None
     if record["thumbnail_id"]:
