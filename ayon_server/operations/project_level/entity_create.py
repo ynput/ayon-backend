@@ -6,7 +6,7 @@ from ayon_server.exceptions import BadRequestException, ForbiddenException
 
 from .hooks import OperationHooks
 from .models import OperationModel
-from .validation import validate_subtasks
+from .validation import validate_task
 
 
 async def create_project_level_entity(
@@ -52,10 +52,7 @@ async def create_project_level_entity(
             raise BadRequestException("Folder cannot be its own parent")
 
     elif operation.entity_type == "task":
-        subtasks = payload_dict.get("data", {}).get("subtasks", [])
-        if subtasks:
-            subtasks = validate_subtasks(subtasks)
-            payload_dict["data"]["subtasks"] = subtasks
+        validate_task(payload_dict)
 
     #
     # Create the entity and events

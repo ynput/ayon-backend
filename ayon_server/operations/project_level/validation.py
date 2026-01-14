@@ -55,26 +55,42 @@ class Subtask(OPModel):
     ] = None
 
 
-def validate_subtasks(
-    subtasks: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    result = []
-    for subtask in subtasks:
-        _subtask_obj = Subtask(**subtask)
-        result.append(_subtask_obj.dict(exclude_none=True))
+def validate_task(payload_dict: dict[str, Any]) -> None:
+    subtasks = payload_dict.get("data", {}).get("subtasks", [])
 
-    # ensure unique IDs
-    ids = set()
-    for subtask in result:
-        if subtask["id"] in ids:
-            raise ValueError(f"Duplicate subtask ID {subtask['id']}")
-        ids.add(subtask["id"])
+    if subtasks:
+        result = []
+        # min_start = None
+        # max_end = None
+        for subtask in subtasks:
+            _subtask_obj = Subtask(**subtask)
+            # if _subtask_obj.start_date:
+            #     if min_start is None or _subtask_obj.start_date < min_start:
+            #         min_start = _subtask_obj.start_date
+            # if _subtask_obj.end_date:
+            #     if max_end is None or _subtask_obj.end_date > max_end:
+            #         max_end = _subtask_obj.end_date
+            result.append(_subtask_obj.dict(exclude_none=True))
 
-    # ensure unique names
-    names = set()
-    for subtask in result:
-        if subtask["name"] in names:
-            raise ValueError(f"Duplicate subtask name {subtask['name']}")
-        names.add(subtask["name"])
+        # ensure unique IDs
+        ids = set()
+        for subtask in result:
+            if subtask["id"] in ids:
+                raise ValueError(f"Duplicate subtask ID {subtask['id']}")
+            ids.add(subtask["id"])
 
-    return result
+        # ensure unique names
+        names = set()
+        for subtask in result:
+            if subtask["name"] in names:
+                raise ValueError(f"Duplicate subtask name {subtask['name']}")
+            names.add(subtask["name"])
+
+        # payload_dict["data"]["subtasks"] = result
+        # if min_start:
+        #     payload_dict["attrib"]["startDate"] = min_start
+        # if max_end:
+        #     payload_dict["attrib"]["endDate"] = max_end
+        #
+        # if not payload_dict["data"].get("subtaskSyncId"):
+        #     payload_dict["data"]["subtaskSyncId"] = None
