@@ -43,6 +43,8 @@ def handle_ayon_exception(request: Request, exc: AyonException) -> JSONResponse:
 
     if exc.status == 500:
         logger.error(f"{exc}")
+    elif exc.status == 404:
+        logger.trace(f"{exc}")
     else:
         logger.debug(f"{exc}")
 
