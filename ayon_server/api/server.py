@@ -15,14 +15,14 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 
 # okay. now the rest
 from ayon_server.api.auth import AuthMiddleware
-from ayon_server.api.dependencies import CurrentUserOptional
+from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional
 from ayon_server.api.lifespan import lifespan
 from ayon_server.api.logging import LoggingMiddleware
 from ayon_server.api.messaging import messaging
 from ayon_server.api.metadata import app_meta
 from ayon_server.background.log_collector import log_collector
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.logging import log_traceback, logger
 
@@ -76,7 +76,7 @@ async def openapi(user: CurrentUserOptional) -> dict[str, Any]:
 
 
 @app.get("/docs/redoc.standalone.js", include_in_schema=False)
-async def redocs_static_js() -> FileResponse:
+async def redocs_static_js(_: CurrentUser) -> FileResponse:
     """Serve Redoc static JS file"""
     return FileResponse(
         pathlib.Path("static/redoc.standalone.js"),
@@ -195,14 +195,18 @@ app.include_router(
 
 
 @app.get("/graphiql", include_in_schema=False)
-def graphiql_root() -> FileResponse:
+def graphiql_root(_: CurrentUser) -> FileResponse:
     return FileResponse(pathlib.Path("static/graphiql/index.html"))
 
 
 @app.get("/graphiql/{path:path}", include_in_schema=False)
-def explorer(path: str) -> FileResponse:
-    logger.debug(f"Serving GraphiQL interface: {path}")
-    return FileResponse(pathlib.Path("static/graphiql/") / path)
+def explorer(path: str, _: CurrentUser) -> FileResponse:
+    if path != "index.html" and not path.startswith("lib/"):
+        raise ForbiddenException("Access to this resource is forbidden")
+    full_path = pathlib.Path("static/graphiql/") / path
+    if not full_path.exists():
+        raise NotFoundException("File not found")
+    return FileResponse(full_path)
 
 
 #
