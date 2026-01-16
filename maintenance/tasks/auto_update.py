@@ -16,6 +16,8 @@ from maintenance.maintenance_task import StudioMaintenanceTask
 
 
 async def get_required_addons() -> list[dict[str, str]]:
+    if ayonconfig.offline_mode:
+        return []
     url = f"{ayonconfig.ynput_cloud_api_url}/api/v1/me"
     headers = await CloudUtils.get_api_headers()
     headers["X-Ayon-Version"] = ayon_version
