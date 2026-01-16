@@ -195,10 +195,14 @@ app.include_router(
 
 
 @app.get("/graphiql", include_in_schema=False)
-def explorer() -> HTMLResponse:
-    page = pathlib.Path("static/graphiql.html").read_text()
-    page = page.replace("{{ SUBSCRIPTION_ENABLED }}", "false")  # TODO
-    return HTMLResponse(page, 200)
+def graphiql_root() -> FileResponse:
+    return FileResponse(pathlib.Path("static/graphiql/index.html"))
+
+
+@app.get("/graphiql/{path:path}", include_in_schema=False)
+def explorer(path: str) -> FileResponse:
+    logger.debug(f"Serving GraphiQL interface: {path}")
+    return FileResponse(pathlib.Path("static/graphiql/") / path)
 
 
 #
