@@ -8,6 +8,13 @@ from ayon_server.utils import EntityID, slugify
 
 
 class Subtask(OPModel):
+    """Validation model used to define and validate individual task subtasks.
+
+    This model represents a single subtask entry within a task payload and is
+    used by task validation routines to ensure that subtask identifiers,
+    names, labels, and optional scheduling metadata are well-formed and
+    consistent.
+    """
     id: Annotated[str, Field(**EntityID.META, default_factory=EntityID.create)]
     name: Annotated[
         str,
