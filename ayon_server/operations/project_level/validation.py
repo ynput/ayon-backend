@@ -98,7 +98,7 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
     Args:
         payload_dict: A dictionary representing the task payload, expected to
             contain a ``"data"`` key with optional ``"subtasks"`` and
-            ``"subtaskSyncId"`` entries.
+            ``"subtaskSyncID"`` entries.
 
     Raises:
         ValueError: If any subtask is invalid according to :class:`Subtask`
@@ -134,4 +134,4 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
         payload_dict["data"]["subtasks"] = result
 
         if "subtaskSyncId" not in payload_dict["data"]:
-            payload_dict["data"]["subtaskSyncId"] = time.time()
+            payload_dict["data"]["subtaskSyncID"] = time.time()
