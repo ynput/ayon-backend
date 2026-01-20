@@ -63,6 +63,27 @@ class Subtask(OPModel):
 
 
 def validate_task(payload_dict: dict[str, Any]) -> None:
+    """Validate and normalize task subtasks in the given payload.
+
+    This function inspects the ``data.subtasks`` list in ``payload_dict``, uses
+    the :class:`Subtask` model to validate and normalize each subtask entry,
+    and enforces uniqueness of subtask ``id`` and ``name`` values. If the
+    list is empty or missing, the ``subtasks`` key is removed from the
+    ``data`` mapping. Additionally, if ``data.subtaskSyncId`` is falsy or
+    missing, it is set explicitly to ``None``.
+
+    The input ``payload_dict`` is mutated in place; the function does not
+    return a value.
+
+    Args:
+        payload_dict: A dictionary representing the task payload, expected to
+            contain a ``"data"`` key with optional ``"subtasks"`` and
+            ``"subtaskSyncId"`` entries.
+
+    Raises:
+        ValueError: If any subtask is invalid according to :class:`Subtask`
+            validation, or if there are duplicate subtask IDs or names.
+    """
     subtasks = payload_dict.get("data", {}).get("subtasks", [])
 
     if subtasks:
