@@ -18,6 +18,7 @@ class Subtask(OPModel):
     """
 
     id: Annotated[str, Field(**EntityID.META, default_factory=EntityID.create)]
+
     name: Annotated[
         str,
         Field(
@@ -63,6 +64,23 @@ class Subtask(OPModel):
         ),
     ] = None
 
+    assignees: Annotated[
+        list[str],
+        Field(
+            title="Subtask assignees",
+            example=["user1", "user2"],
+            default_factory=list,
+        ),
+    ]
+
+    is_done: Annotated[
+        bool,
+        Field(
+            title="Is subtask done",
+            example=False,
+        ),
+    ] = False
+
 
 def validate_task(payload_dict: dict[str, Any]) -> None:
     """Validate and normalize task subtasks in the given payload.
@@ -100,7 +118,7 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
         result = []
         for subtask in subtasks:
             _subtask_obj = Subtask(**subtask)
-            result.append(_subtask_obj.dict(exclude_none=True))
+            result.append(_subtask_obj.dict(exclude_none=True, exclude_unset=True))
 
         # ensure unique IDs and names
         ids = set()
