@@ -28,6 +28,12 @@ class TaskAttribType:
 
 @strawberry.type
 class SubTaskNode:
+    """GraphQL node representing a subtask of a task.
+
+    Exposes basic subtask metadata including its identifier, human-readable
+    name and label, optional description, scheduling dates, assigned users,
+    and completion status.
+    """
     id: str
     name: str
     label: str
