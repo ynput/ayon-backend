@@ -94,7 +94,7 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
         # nothing to validate
         return
 
-    subtasks = payload_dict.get("subtasks", [])
+    subtasks = payload_dict["data"].get("subtasks", [])
 
     if subtasks:
         result = []
