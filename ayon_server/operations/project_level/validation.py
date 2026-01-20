@@ -1,4 +1,5 @@
 import datetime
+import time
 from typing import Annotated, Any
 
 from pydantic import Field, root_validator
@@ -15,6 +16,7 @@ class Subtask(OPModel):
     names, labels, and optional scheduling metadata are well-formed and
     consistent.
     """
+
     id: Annotated[str, Field(**EntityID.META, default_factory=EntityID.create)]
     name: Annotated[
         str,
@@ -84,7 +86,15 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
         ValueError: If any subtask is invalid according to :class:`Subtask`
             validation, or if there are duplicate subtask IDs or names.
     """
-    subtasks = payload_dict.get("data", {}).get("subtasks", [])
+    if "data" not in payload_dict:
+        # nothing in data, so neither subtasks or subtaskSyncId
+        return
+
+    if "subtasks" not in payload_dict["data"]:
+        # nothing to validate
+        return
+
+    subtasks = payload_dict.get("subtasks", [])
 
     if subtasks:
         result = []
@@ -102,8 +112,8 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
                 raise ValueError(f"Duplicate subtask name {subtask['name']}")
             ids.add(subtask["id"])
             names.add(subtask["name"])
-    else:
-        payload_dict.get("data", {}).pop("subtasks", None)
 
-    if not payload_dict.get("data", {}).get("subtaskSyncId"):
-        payload_dict.get("data", {})["subtaskSyncId"] = None
+        payload_dict["data"]["subtasks"] = result
+
+        if "subtaskSyncId" not in payload_dict["data"]:
+            payload_dict["data"]["subtaskSyncId"] = time.time()

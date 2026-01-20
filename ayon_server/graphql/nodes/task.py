@@ -34,6 +34,7 @@ class SubTaskNode:
     name and label, optional description, scheduling dates, assigned users,
     and completion status.
     """
+
     id: str
     name: str
     label: str
