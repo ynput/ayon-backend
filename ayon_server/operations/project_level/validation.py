@@ -73,20 +73,16 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
             _subtask_obj = Subtask(**subtask)
             result.append(_subtask_obj.dict(exclude_none=True))
 
-        # ensure unique IDs
+        # ensure unique IDs and names
         ids = set()
+        names = set()
         for subtask in result:
             if subtask["id"] in ids:
                 raise ValueError(f"Duplicate subtask ID {subtask['id']}")
-            ids.add(subtask["id"])
-
-        # ensure unique names
-        names = set()
-        for subtask in result:
             if subtask["name"] in names:
                 raise ValueError(f"Duplicate subtask name {subtask['name']}")
+            ids.add(subtask["id"])
             names.add(subtask["name"])
-
     else:
         payload_dict.get("data", {}).pop("subtasks", None)
 
