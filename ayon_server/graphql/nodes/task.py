@@ -153,7 +153,7 @@ async def task_from_record(
     #
 
     subtasks: list[SubTaskNode] = []
-    _sdata = (record.get("data") or {}).get("subtasks") or []
+    _sdata = data.get("subtasks") or []
     for subtask_record in _sdata:
         start_date_iso = subtask_record.get("start_date")
         end_date_iso = subtask_record.get("end_date")
