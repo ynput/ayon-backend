@@ -88,8 +88,6 @@ def validate_task(payload_dict: dict[str, Any]) -> None:
 
     if subtasks:
         result = []
-        # min_start = None
-        # max_end = None
         for subtask in subtasks:
             _subtask_obj = Subtask(**subtask)
             result.append(_subtask_obj.dict(exclude_none=True))
