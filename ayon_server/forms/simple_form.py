@@ -1,3 +1,4 @@
+from base64 import b64encode
 from typing import Any, Literal, NotRequired, TypedDict
 
 from pydantic import StrictBool, StrictFloat, StrictInt, StrictStr
@@ -29,6 +30,11 @@ class FormSelectOption(TypedDict):
     badges: NotRequired[list[str]]
 
 
+class FormFileData(TypedDict):
+    filename: str
+    payload: str  # base64 encoded
+
+
 ValueType = (
     StrictStr
     | StrictInt
@@ -37,6 +43,7 @@ ValueType = (
     | list[StrictStr]
     | list[StrictInt]
     | list[StrictFloat]
+    | FormFileData
 )
 
 
@@ -232,6 +239,29 @@ class SimpleForm(list[SimpleFormField]):
         }
         if value is not None:
             field["value"] = value
+        self.append(field)
+        return self
+
+    def file(
+        self,
+        name: str,
+        label: str | None = None,
+        value: bytes | None = None,
+        filename: str | None = None,
+    ) -> "SimpleForm":
+        field: SimpleFormField = {
+            "type": "file",
+            "name": name,
+        }
+        if label is not None:
+            field["label"] = label
+        if value is not None:
+            if not filename:
+                raise ValueError("Filename must be provided when value is set.")
+            field["value"] = {
+                "payload": b64encode(value).decode("utf-8"),
+                "filename": filename,
+            }
         self.append(field)
         return self
 
