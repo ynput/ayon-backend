@@ -33,6 +33,7 @@ class FormSelectOption(TypedDict):
 class FormFileData(TypedDict):
     filename: str
     payload: str  # base64 encoded
+    download: NotRequired[bool]
 
 
 ValueType = (
@@ -60,6 +61,7 @@ class SimpleFormField(TypedDict):
     highlight: NotRequired[SimpleFormHighlightType]
     min: NotRequired[int | float]
     max: NotRequired[int | float]
+    valid_extensions: NotRequired[list[str]]
 
 
 def normalize_options(
@@ -248,20 +250,38 @@ class SimpleForm(list[SimpleFormField]):
         label: str | None = None,
         value: bytes | None = None,
         filename: str | None = None,
+        valid_extensions: list[str] | None = None,
     ) -> "SimpleForm":
+        """Add file input / file download field to the form.
+
+        When `value` is provided, the field will be used to
+        download a file with the given filename.
+
+        When `value` is not provided, the field will be used to
+        upload a file. In this case, `valid_extensions` can be provided
+        to restrict the allowed file types.
+        """
+
         field: SimpleFormField = {
             "type": "file",
             "name": name,
         }
         if label is not None:
             field["label"] = label
+
         if value is not None:
             if not filename:
                 raise ValueError("Filename must be provided when value is set.")
             field["value"] = {
                 "payload": b64encode(value).decode("utf-8"),
                 "filename": filename,
+                "download": True,
             }
+
+        elif valid_extensions is not None:
+            # for file uploads, we can specify valid extensions
+            field["valid_extensions"] = valid_extensions
+
         self.append(field)
         return self
 
