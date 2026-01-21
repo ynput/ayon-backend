@@ -202,8 +202,7 @@ class TemplatePartResult:
 
         else:
             raise TypeError(
-                f'Cannot add data from "{type(other)}"'
-                f' to "{self.__class__.__name__}"'
+                f'Cannot add data from "{type(other)}" to "{self.__class__.__name__}"'
             )
 
     @property

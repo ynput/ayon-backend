@@ -94,9 +94,9 @@ class SQLTool:
         keys = list(kwargs.keys())
         command = f"""
             INSERT INTO {table}
-            ({', '.join(keys)})
+            ({", ".join(keys)})
             VALUES
-            ({ ', '.join([f'${i+1}' for i, _ in enumerate(keys)]) })
+            ({", ".join([f"${i + 1}" for i, _ in enumerate(keys)])})
             """
         result: list[Any] = [command]
         for key in keys:
@@ -124,7 +124,7 @@ class SQLTool:
         keys = list(kwargs.keys())
         command = f"""
             UPDATE {table}
-            SET {', '.join([f'{key} = ${i+1}' for i, key in enumerate(keys)])}
+            SET {", ".join([f"{key} = ${i + 1}" for i, key in enumerate(keys)])}
             {conditions}
             """
 

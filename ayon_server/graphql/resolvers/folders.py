@@ -273,7 +273,7 @@ async def get_folders(
             lconds.append(f"folders.parent_id IN {SQLTool.id_array(list(pids_set))}")
 
         if lconds:
-            sql_conditions.append(f"({ ' OR '.join(lconds) })")
+            sql_conditions.append(f"({' OR '.join(lconds)})")
 
     if folder_types is not None:
         if not folder_types:

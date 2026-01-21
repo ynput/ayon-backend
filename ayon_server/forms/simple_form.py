@@ -11,6 +11,7 @@ SimpleFormFieldType = Literal[
     "integer",
     "float",
     "label",
+    "file",
 ]
 
 SimpleFormHighlightType = Literal[

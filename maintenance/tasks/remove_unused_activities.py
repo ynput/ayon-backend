@@ -75,8 +75,7 @@ async def clear_activities(project_name: str) -> None:
 
         if count:
             logger.debug(
-                f"Deleted {count} orphaned "
-                f"{entity_type} activities from {project_name}"
+                f"Deleted {count} orphaned {entity_type} activities from {project_name}"
             )
 
 

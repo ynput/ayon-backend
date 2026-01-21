@@ -56,7 +56,7 @@ async def create_initial_bundle(bundle_data: dict[str, Any]):
         if addon_name and addon_version:
             log_name = f"{addon_name} {addon_version}"
         else:  # If name and version is not provided, use the index
-            log_name = f"{i+1} of {len(addons)}"
+            log_name = f"{i + 1} of {len(addons)}"
 
         if addon_url := addon.get("url"):
             # Do not use helpers.download_addon here, as we need

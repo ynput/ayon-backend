@@ -62,7 +62,7 @@ class ProjectEntity(TopLevelEntity):
                 SELECT  *
                 FROM public.projects
                 WHERE name ILIKE $1
-                {'FOR UPDATE NOWAIT' if for_update else ''}
+                {"FOR UPDATE NOWAIT" if for_update else ""}
                 """,
                 name,
             )
@@ -77,7 +77,7 @@ class ProjectEntity(TopLevelEntity):
                 SELECT name, data
                 FROM project_{project_name}.folder_types
                 ORDER BY position
-                {'FOR UPDATE' if for_update else ''}
+                {"FOR UPDATE" if for_update else ""}
                 """
             ):
                 folder_types.append({"name": name, **data})
@@ -89,7 +89,7 @@ class ProjectEntity(TopLevelEntity):
                 SELECT name, data
                 FROM project_{project_name}.task_types
                 ORDER BY position
-                {'FOR UPDATE' if for_update else ''}
+                {"FOR UPDATE" if for_update else ""}
                 """
             ):
                 task_types.append({"name": name, **data})
@@ -100,7 +100,7 @@ class ProjectEntity(TopLevelEntity):
                 f"""
                 SELECT name, link_type, input_type, output_type, data
                 FROM project_{project_name}.link_types
-                {'FOR UPDATE' if for_update else ''}
+                {"FOR UPDATE" if for_update else ""}
                 """
             ):
                 link_types.append(dict(row))
@@ -112,7 +112,7 @@ class ProjectEntity(TopLevelEntity):
                 SELECT name, data
                 FROM project_{project_name}.statuses
                 ORDER BY position
-                {'FOR UPDATE' if for_update else ''}
+                {"FOR UPDATE" if for_update else ""}
                 """
             ):
                 statuses.append({"name": name, **data})
@@ -124,7 +124,7 @@ class ProjectEntity(TopLevelEntity):
                 SELECT name, data
                 FROM project_{project_name}.tags
                 ORDER BY position
-                {'FOR UPDATE' if for_update else ''}
+                {"FOR UPDATE" if for_update else ""}
                 """
             ):
                 tags.append({"name": name, **data})

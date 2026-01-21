@@ -58,7 +58,7 @@ async def create_video_thumbnail(
                 cmd.extend(
                     [
                         "-filter:v",
-                        f"scale={size[0] or -1 }:{size[1] or -1}",
+                        f"scale={size[0] or -1}:{size[1] or -1}",
                     ]
                 )
 

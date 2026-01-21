@@ -91,9 +91,9 @@ class NewUserModel(UserEntity.model.post_model):  # type: ignore
 def validate_user_data(data: dict[str, Any]) -> None:
     try:
         if default_access_groups := data.get("defaultAccessGroups"):
-            assert isinstance(
-                default_access_groups, list
-            ), "defaultAccessGroups must be a list"
+            assert isinstance(default_access_groups, list), (
+                "defaultAccessGroups must be a list"
+            )
             assert all(
                 isinstance(access_group, str) for access_group in default_access_groups
             ), "defaultAccessGroups must be a list of str"
@@ -104,9 +104,9 @@ def validate_user_data(data: dict[str, Any]) -> None:
             for project, ag_list in access_groups.items():
                 assert isinstance(project, str), "project name must be a string"
                 assert isinstance(ag_list, list), "access group list must be a list"
-                assert all(
-                    isinstance(ag, str) for ag in ag_list
-                ), "acces group list must be a list of str"
+                assert all(isinstance(ag, str) for ag in ag_list), (
+                    "acces group list must be a list of str"
+                )
                 if not ag_list:
                     ag_to_remove.append(project)
             for project in ag_to_remove:

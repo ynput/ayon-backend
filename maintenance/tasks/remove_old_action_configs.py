@@ -27,7 +27,7 @@ async def clear_action_configs_by_projects() -> None:
         AND last_used < EXTRACT(EPOCH FROM NOW()) - 60 * 60 * 24 * 30
     """
 
-    msg = f"Removing old action configs for projects: " f"{','.join(project_names)}"
+    msg = f"Removing old action configs for projects: {','.join(project_names)}"
 
     logger.info(msg)
     await Postgres.execute(query, list(project_names))
@@ -58,7 +58,7 @@ async def clear_action_configs_by_users() -> None:
         AND last_used < EXTRACT(EPOCH FROM NOW()) - 60 * 60 * 24 * 30
     """
 
-    msg = f"Removing old action configs for users: " f"{','.join(user_names)}"
+    msg = f"Removing old action configs for users: {','.join(user_names)}"
     logger.info(msg)
 
     await Postgres.execute(query, list(user_names))

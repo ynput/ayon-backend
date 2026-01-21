@@ -89,7 +89,7 @@ class UserEntity(TopLevelEntity):
 
         query = f"""
             SELECT * FROM public.users WHERE name = $1
-            {'FOR UPDATE' if for_update else ''}
+            {"FOR UPDATE" if for_update else ""}
             """
 
         try:

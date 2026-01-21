@@ -1,3 +1,5 @@
+import base64
+import functools
 from typing import Annotated, Any, Literal
 
 from pydantic import validator
@@ -6,7 +8,9 @@ from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.get_entity_class import get_entity_class
+from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
+from ayon_server.utils.hashing import create_uuid
 
 ActionEntityType = Literal[
     "project",
@@ -80,6 +84,44 @@ class ActionContext(OPModel):
             example={"key": "value"},
         ),
     ] = None
+
+    @functools.cache
+    def _get_file_bytes(self, key: str) -> bytes | None:
+        """Get file bytes from form data."""
+        if not self.form_data:
+            return None
+
+        file_encoded = self.form_data.get(key)
+        if not file_encoded:
+            return None
+
+        message_bytes = base64.b64decode(file_encoded)
+        return message_bytes
+
+    def get_file_bytes(self, key: str) -> bytes | None:
+        """Get file bytes from form data."""
+        return self._get_file_bytes(key)
+
+    async def cache_file_bytes(self, key: str) -> str:
+        """
+        Store file bytes from form data in Redis and return the key.
+        so it can be used later by actions.
+        """
+
+        cache_key = create_uuid()
+        payload = self.get_file_bytes(key)
+        await Redis.set(
+            "action-file-bytes",
+            cache_key,
+            payload or b"",
+            ttl=3600,
+        )
+        return cache_key
+
+    async def get_cached_file_bytes(self, cache_key: str) -> bytes | None:
+        """Retrieve cached file bytes from Redis using the cache key."""
+        payload = await Redis.get("action-file-bytes", cache_key)
+        return payload
 
     #
     # Sanity checks

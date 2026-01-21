@@ -50,7 +50,7 @@ async def remove_dead_links(project_name: str) -> None:
                 WHERE link_type = $1
                 AND NOT EXISTS (
                     SELECT 1
-                    FROM project_{project_name}.{link_type['input_type']}s t
+                    FROM project_{project_name}.{link_type["input_type"]}s t
                     WHERE t.id = links.input_id
                 )
                 RETURNING *
@@ -68,7 +68,7 @@ async def remove_dead_links(project_name: str) -> None:
                 WHERE link_type = $1
                 AND NOT EXISTS (
                     SELECT 1
-                    FROM project_{project_name}.{link_type['output_type']}s t
+                    FROM project_{project_name}.{link_type["output_type"]}s t
                     WHERE t.id = links.output_id
                 )
                 RETURNING *
