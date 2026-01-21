@@ -41,8 +41,7 @@ class AttributeLibrary:
         if Postgres.pool is not None:
             with logger.contextualize(nodb=True):
                 logger.error(
-                    "Postgres pool exist during attribute load. "
-                    "This should not happen."
+                    "Postgres pool exist during attribute load. This should not happen."
                 )
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

@@ -200,7 +200,7 @@ async def get_project_activity(
     project_name: ProjectName,
     days: int = Query(50, description="Number of days to retrieve activity for"),
 ) -> ActivityResponseModel:
-    activity = {k: 0 for k in get_midnight_dates(days)}
+    activity = dict.fromkeys(get_midnight_dates(days), 0)
 
     query = """
         SELECT

@@ -13,9 +13,9 @@ async def promote_bundle(bundle: BundleModel, user: UserEntity):
     That includes copying staging settings to production.
     """
 
-    assert (
-        await Postgres.is_in_transaction()
-    ), "promote_bundle function must be called within a transaction"
+    assert await Postgres.is_in_transaction(), (
+        "promote_bundle function must be called within a transaction"
+    )
 
     if not user.is_admin:
         raise ForbiddenException("Only admins can promote bundles")

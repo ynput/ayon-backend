@@ -31,7 +31,7 @@ def path_to_paths(
     result = [f'"{path}/%"']
     if include_parents:
         for i in range(len(pelms)):
-            result.append(f"\"{'/'.join(pelms[0:i+1])}\"")
+            result.append(f'"{"/".join(pelms[0 : i + 1])}"')
     if include_self:
         slf = "/".join(pelms)
         result.append(f'"{slf}"')

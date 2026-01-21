@@ -423,7 +423,7 @@ async def get_versions(
                 ON ldv.id = versions.id
                 LEFT JOIN hero_versions AS hv
                 ON hv.id = versions.id
-                WHERE {' OR '.join(where_clauses)}
+                WHERE {" OR ".join(where_clauses)}
                 ORDER BY versions.product_id, {order_clause}
             )
             """

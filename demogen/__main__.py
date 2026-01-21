@@ -18,7 +18,7 @@ def create_color() -> str:
     color = [random.randint(0, 255) for _ in range(3)]
     if sum(color) < 400:
         color = [255 - x for x in color]
-    return f'#{"".join([f"{x:02x}" for x in color])}'
+    return f"#{''.join([f'{x:02x}' for x in color])}"
 
 
 def generate_tags() -> list[Tag]:

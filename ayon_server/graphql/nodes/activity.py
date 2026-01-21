@@ -204,9 +204,7 @@ def replace_reference_body(node: ActivityNode) -> ActivityNode:
         return node  # should not happen
 
     if node.reference_type == "mention":
-        node.body = (
-            f"mentioned in a {node.activity_type} " f"on {node.origin.markdownlink}"
-        )
+        node.body = f"mentioned in a {node.activity_type} on {node.origin.markdownlink}"
         return node
 
     if node.reference_type == "relation":
