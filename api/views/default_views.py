@@ -106,7 +106,7 @@ async def _get_view_row(
     if project_name:
         query_parts.append(f"""
             SELECT *, 'project' AS scope, 1 AS priority
-            FROM "project_{project_name}".views
+            FROM project_{project_name}.views
             WHERE id = $1
         """)
 
@@ -121,7 +121,7 @@ async def _get_view_row(
     if project_name:
         query_parts.append(f"""
             SELECT *, 'project' AS scope, 3 AS priority
-            FROM "project_{project_name}".views
+            FROM project_{project_name}.views
             WHERE view_type = $2 AND owner = $3 AND working = true
         """)
     else:
