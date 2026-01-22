@@ -23,7 +23,7 @@ async def set_user_default_view(
     await Redis.set(DEFAULT_VIEW_NS, key, view_id)
 
 
-async def _get_view_row(
+async def _get_view_row_2(
     view_type: str,
     user_name: str,
     default_view_id: str | None = None,
@@ -90,6 +90,70 @@ async def _get_view_row(
 
     if not row:
         raise NotFoundException("Default view not found")
+    return dict(row)
+
+
+async def _get_view_row(
+    view_type: str,
+    user_name: str,
+    default_view_id: str | None = None,
+    project_name: str | None = None,
+) -> dict[str, Any]:
+    query_parts = []
+    params = [default_view_id, view_type, user_name]
+
+    # 1. Highest Priority: Explicit ID in Project Schema
+    if project_name:
+        query_parts.append(f"""
+            SELECT *, 'project' AS scope, 1 AS priority
+            FROM "project_{project_name}".views
+            WHERE id = $1
+        """)
+
+    # 2. Second Priority: Explicit ID in Public Schema
+    query_parts.append("""
+        SELECT *, 'studio' AS scope, 2 AS priority
+        FROM public.views
+        WHERE id = $1
+    """)
+
+    # 3. Third Priority: Working View (Project or Public)
+    if project_name:
+        query_parts.append(f"""
+            SELECT *, 'project' AS scope, 3 AS priority
+            FROM "project_{project_name}".views
+            WHERE view_type = $2 AND owner = $3 AND working = true
+        """)
+    else:
+        query_parts.append("""
+            SELECT *, 'studio' AS scope, 4 AS priority
+            FROM public.views
+            WHERE view_type = $2 AND owner = $3 AND working = true
+        """)
+
+    # 4. Lowest Priority: Base View in Public
+    query_parts.append("""
+        SELECT *, 'studio' AS scope, 5 AS priority
+        FROM public.views
+        WHERE view_type = $2 AND label = '__base__'
+    """)
+
+    # Combine everything
+    final_query = f"""
+        WITH candidates AS (
+            {" UNION ALL ".join(query_parts)}
+        )
+        SELECT * FROM candidates
+        WHERE id IS NOT NULL
+        ORDER BY priority ASC
+        LIMIT 1
+    """
+
+    row = await Postgres.fetchrow(final_query, *params)
+
+    if not row:
+        raise NotFoundException("Default view not found")
+
     return dict(row)
 
 
