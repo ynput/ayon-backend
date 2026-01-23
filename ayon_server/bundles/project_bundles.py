@@ -16,6 +16,19 @@ def get_project_bundle_name(
     return f"__project__{project_name}__{variant}"
 
 
+async def has_project_bundle(
+    project_name: str, variant: Literal["production", "staging"]
+) -> bool:
+    """Check if the project uses a project bundle for the given variant"""
+
+    query = """
+        SELECT 1 FROM public.projects
+        WHERE name = $1 AND data->'bundle'->>$2 IS NOT NULL
+    """
+    result = await Postgres.fetchrow(query, project_name, variant)
+    return result is not None
+
+
 async def process_addon_settings(
     addon_name: str,
     addon_version: str,
