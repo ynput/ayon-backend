@@ -44,6 +44,8 @@ async def process_addon_settings(
     project_settings = await addon.get_project_settings(project_name, variant)
     # TODO: load original overrides so, we can create a change event
 
+    project_settings_dict = project_settings.dict() if project_settings else {}
+
     # Save the entire object as project settings overrides
 
     update_query = """
@@ -58,7 +60,7 @@ async def process_addon_settings(
         addon_name,
         addon_version,
         variant,
-        project_settings,
+        project_settings_dict,
     )
 
 
@@ -83,8 +85,6 @@ async def freeze_project_bundle(
     dependency_packages = dependency_packages or {}
 
     bundle_name = get_project_bundle_name(project_name, variant)
-    is_production = variant == "production"
-    is_staging = variant == "staging"
 
     bundle_data = {
         "addons": addons,
@@ -94,11 +94,12 @@ async def freeze_project_bundle(
     }
 
     query = """
-        INSERT INTO public.bundles (name, is_production, is_staging, data)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO public.bundles (name, is_production, is_staging, is_dev, data)
+        VALUES ($1, FALSE, FALSE, FALSE, $2)
         ON CONFLICT (name) DO UPDATE SET
-            is_production = EXCLUDED.is_production,
-            is_staging = EXCLUDED.is_staging,
+            is_production = FALSE,
+            is_staging = FALSE,
+            is_dev = FALSE,
             data = EXCLUDED.data
     """
 
@@ -114,8 +115,6 @@ async def freeze_project_bundle(
         await Postgres.execute(
             query,
             bundle_name,
-            is_production,
-            is_staging,
             bundle_data,
         )
 

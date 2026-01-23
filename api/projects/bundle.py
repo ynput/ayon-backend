@@ -79,7 +79,7 @@ class SetProjectBundleRequest(OPModel):
 
     installer_version: Annotated[
         str | None,
-        Field(None, title="Installer Version"),
+        Field(title="Installer Version"),
     ] = None
 
     dependency_packages: Annotated[
