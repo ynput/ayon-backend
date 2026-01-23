@@ -5,6 +5,7 @@ from ayon_server.entities import ProjectEntity
 from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.types import Platform
 
 
@@ -17,9 +18,14 @@ def get_project_bundle_name(
 
 
 async def has_project_bundle(
-    project_name: str, variant: Literal["production", "staging"]
+    project_name: str,
+    variant: Literal["production", "staging"],
 ) -> bool:
-    """Check if the project uses a project bundle for the given variant"""
+    """Check if the project uses a project bundle for the given variant
+
+    This is used by settings edit endpoint to determine if settings
+    should contain the entire model or just overrides.
+    """
 
     query = """
         SELECT 1 FROM public.projects
@@ -151,6 +157,9 @@ async def freeze_project_bundle(
         bundle_info[variant] = bundle_name
         project.data["bundle"] = bundle_info
         await project.save()
+        logger.info("Project bundle frozen")
+
+    await Redis.delete_ns("all-settings")
 
 
 async def unfreeze_project_bundle(

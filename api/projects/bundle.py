@@ -61,7 +61,7 @@ async def set_project_bundles(
 
 BundleVariant = Annotated[
     Literal["production", "staging"],
-    Query(title="Bundle Variant"),
+    Query(title="Bundle Variant", alias="variant"),
 ]
 
 
@@ -96,7 +96,7 @@ async def set_project_bundle(
     sender_type: SenderType,
     payload: SetProjectBundleRequest,
     variant: BundleVariant = "production",
-) -> EmptyResponse:
+) -> None:
     """Set project bundle"""
     if not user.is_manager:
         raise ForbiddenException("Only managers can set project bundle")
@@ -116,19 +116,17 @@ async def set_project_bundle(
 async def unset_project_bundle(
     user: CurrentUser,
     project_name: ProjectName,
-    variant: Literal["production", "staging"],
     sender: Sender,
     sender_type: SenderType,
-) -> EmptyResponse:
+    variant: BundleVariant = "production",
+) -> None:
     """Unset project bundle"""
     if not user.is_manager:
         raise ForbiddenException("Only managers can unset project bundle")
 
     _ = sender, sender_type
 
-    await unfreeze_project_bundle(
+    return await unfreeze_project_bundle(
         project_name,
         variant=variant,
     )
-
-    return EmptyResponse()

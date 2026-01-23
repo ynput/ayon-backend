@@ -55,7 +55,9 @@ async def get_addon_list_for_settings(
     # Studio bundle name and list of addons from the studio bundle
 
     bundle_name = brow[0]["name"]
-    addons: dict[str, str] = brow[0]["addons"]  # {addon_name: addon_version}
+    addons: dict[str, str] = {
+        k: v for k, v in brow[0]["addons"].items() if v is not None
+    }
     logger.trace(f"Got studio bundle {bundle_name}")
 
     # Check if there's a project bundle available
