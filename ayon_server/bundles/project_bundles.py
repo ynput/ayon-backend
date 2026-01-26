@@ -49,6 +49,9 @@ async def process_addon_settings(
     # raise an exception, so the entire transaction is rolled back.
     #
 
+    if addon_version == "__inherit__":
+        return
+
     # if addon is not found, it raises NotFoundException,
     addon = AddonLibrary.addon(addon_name, addon_version)
 

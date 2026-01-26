@@ -243,6 +243,7 @@ async def _get_all_settings(
         logger.trace(f"Settings object generated in {elapsed_time:.02f} seconds")
 
         result = AllSettingsResponseModel(
+            project_name=project_name,
             bundle_name=addon_list["bundle_name"],
             addons=addon_result,
             inherited_addons=list(addon_list.get("inherited_addons", set())),

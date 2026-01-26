@@ -130,6 +130,15 @@ class AddonSettingsItemModel(OPModel):
 
 
 class AllSettingsResponseModel(OPModel):
+    project_name: Annotated[
+        str | None,
+        Field(
+            title="Project name",
+            regex=NAME_REGEX,
+            description="If specified, indicates that the settings are for a project",
+        ),
+    ] = None
+
     bundle_name: Annotated[
         str,
         Field(
