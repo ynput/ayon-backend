@@ -48,6 +48,7 @@ async def get_current_user(
 
     payload = user.payload
     payload.ui_exposure_level = await user.get_ui_exposure_level()  # type: ignore
+    payload.data.pop("supportToken", None)
     return payload
 
 
