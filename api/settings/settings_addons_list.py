@@ -13,6 +13,7 @@ class AddonListForSettings(TypedDict):
     inherited_addons: list[str]
     bundle_name: str
     project_name: str | None
+    is_project_bundle: bool
 
 
 async def get_addon_list_for_settings(
@@ -161,4 +162,5 @@ async def get_addon_list_for_settings(
         inherited_addons=list(inherited_addons) if project_bundle_name else [],
         bundle_name=project_bundle_name or studio_bundle_name,
         project_name=project_name,
+        is_project_bundle=bool(project_bundle_name),
     )

@@ -232,6 +232,8 @@ async def _get_all_settings(
                     else None,
                     settings=settings.dict() if (settings and not summary) else {},
                     site_settings=site_settings,
+                    is_project_bundle=addon_list["is_project_bundle"]
+                    and (addon_name not in addon_list.get("inherited_addons", [])),
                 )
             )
 

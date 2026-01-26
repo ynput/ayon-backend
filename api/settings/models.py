@@ -128,6 +128,14 @@ class AddonSettingsItemModel(OPModel):
         ),
     ] = None
 
+    is_project_bundle: Annotated[
+        bool,
+        Field(
+            title="Is project bundle",
+            description="Indicates if the addon is part of the project bundle",
+        ),
+    ] = False
+
 
 class AllSettingsResponseModel(OPModel):
     project_name: Annotated[
