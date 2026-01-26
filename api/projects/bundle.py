@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated, Literal
 
 from fastapi import Query
@@ -13,6 +14,10 @@ from ayon_server.bundles.project_bundles import (
 from ayon_server.entities import ProjectEntity
 from ayon_server.enum import EnumItem
 from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.installer.common import (
+    list_dependency_packages,
+    list_installer_versions,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel, Platform
@@ -82,7 +87,7 @@ class AddonMetadata(OPModel):
     ]
 
 
-class ProjectBundleModel(OPModel):
+class ProjectBundle(OPModel):
     addons: Annotated[
         dict[str, str | None],
         Field(
@@ -109,6 +114,16 @@ class ProjectBundleModel(OPModel):
         Field(title="Addon Metadata", default_factory=list),
     ]
 
+    installer_options: Annotated[
+        list[str],
+        Field(title="Installer Options", default_factory=list),
+    ]
+
+    dependency_package_options: Annotated[
+        dict[Platform, list[str]],
+        Field(title="Dependency Package Options", default_factory=dict),
+    ]
+
 
 @router.post("/projects/{project_name}/bundle")
 async def set_project_bundle(
@@ -116,7 +131,7 @@ async def set_project_bundle(
     project_name: ProjectName,
     sender: Sender,
     sender_type: SenderType,
-    payload: ProjectBundleModel,
+    payload: ProjectBundle,
     variant: BundleVariant = "production",
 ) -> None:
     """Set project bundle"""
@@ -163,17 +178,9 @@ async def unset_project_bundle(
 #
 
 
-@router.get("/projects/{project_name}/bundle")
-async def get_project_bundle_info(
-    user: CurrentUser,
-    project_name: ProjectName,
-    variant: BundleVariant = "production",
-) -> ProjectBundleModel:
-    """Get project bundle information"""
-
-    if not user.is_manager:
-        raise ForbiddenException("Only managers can get project bundle information")
-
+async def _get_project_bundle_addon_info(
+    project_name: str, variant: str
+) -> ProjectBundle:
     #
     # Get the base bundle
     #
@@ -188,6 +195,8 @@ async def get_project_bundle_info(
         raise NotFoundException(f"{variant} bundle is not set")
 
     base_addons = bundle_record["data"].get("addons", {})
+    dependency_packages = bundle_record["data"].get("dependency_packages", {})
+    installer_version = bundle_record["data"].get("installer_version")
 
     #
     # Get the project bundle if exists
@@ -210,6 +219,11 @@ async def get_project_bundle_info(
     project_addons: dict[str, str | None] | None = None
     if project_bundle_record:
         project_addons = project_bundle_record["data"].get("addons", {})
+        # always overwrite dependency packages and installer version from project bundle
+        dependency_packages = project_bundle_record["data"].get(
+            "dependency_packages", {}
+        )
+        installer_version = project_bundle_record["data"].get("installer_version")
 
     addons = {}
     addon_metadata: list[AddonMetadata] = []
@@ -257,7 +271,45 @@ async def get_project_bundle_info(
             )
         )
 
-    return ProjectBundleModel(
+    return ProjectBundle(
         addons=addons,
         addon_metadata=addon_metadata,
+        installer_version=installer_version,
+        dependency_packages=dependency_packages,
+        installer_options=[],
+        dependency_package_options={},
+    )
+
+
+@router.get("/projects/{project_name}/bundle")
+async def get_project_bundle_info(
+    user: CurrentUser,
+    project_name: ProjectName,
+    variant: BundleVariant = "production",
+) -> ProjectBundle:
+    """Get project bundle information"""
+
+    if not user.is_manager:
+        raise ForbiddenException("Only managers can get project bundle information")
+
+    async with asyncio.TaskGroup() as tg:
+        task_addon_info = tg.create_task(
+            _get_project_bundle_addon_info(project_name, variant)
+        )
+        task_installer_versions = tg.create_task(list_installer_versions())
+        task_dependency_packages = tg.create_task(list_dependency_packages())
+
+    result = task_addon_info.result()
+    result.installer_options = task_installer_versions.result()
+    result.dependency_package_options = task_dependency_packages.result()
+
+    return result
+
+    return ProjectBundle(
+        addons=result.addons,
+        addon_metadata=result.addon_metadata,
+        installer_version=result.installer_version,
+        dependency_packages=result.dependency_packages,
+        installer_options=task_installer_versions.result(),
+        dependency_package_options=task_dependency_packages.result(),
     )
