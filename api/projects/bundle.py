@@ -304,12 +304,3 @@ async def get_project_bundle_info(
     result.dependency_package_options = task_dependency_packages.result()
 
     return result
-
-    return ProjectBundle(
-        addons=result.addons,
-        addon_metadata=result.addon_metadata,
-        installer_version=result.installer_version,
-        dependency_packages=result.dependency_packages,
-        installer_options=task_installer_versions.result(),
-        dependency_package_options=task_dependency_packages.result(),
-    )
