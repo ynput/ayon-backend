@@ -7,7 +7,7 @@ from pydantic.error_wrappers import ValidationError
 from ayon_server.addons import AddonLibrary
 from ayon_server.api.dependencies import CurrentUser, ProjectName, SiteID
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.bundles.project_bundles import has_project_bundle
+from ayon_server.bundles.project_bundles import has_project_bundle_addon
 from ayon_server.config import ayonconfig
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
@@ -192,9 +192,13 @@ async def set_addon_project_settings(
             write=True,
         )
 
-        if variant in ("production", "staging") and await has_project_bundle(
-            project_name, variant
-        ):
+        is_project_bundle_addon = await has_project_bundle_addon(
+            project_name,
+            addon_name,
+            variant=variant,
+        )
+
+        if variant in ("production", "staging") and is_project_bundle_addon:
             # If the addon uses a project bundle, we cannot process the overrides
             # and we're storing the entire model
             data = payload
@@ -269,7 +273,13 @@ async def delete_addon_project_overrides(
     variant: str = Query("production"),
 ):
     if variant in ("production", "staging") and site_id is None:
-        if await has_project_bundle(project_name, variant):
+        is_project_bundle_addon = await has_project_bundle_addon(
+            project_name,
+            addon_name,
+            variant=variant,
+        )
+
+        if is_project_bundle_addon:
             raise BadRequestException(
                 "Cannot modify overrides when a project bundle is frozen. "
                 "Please unfreeze the bundle first."
@@ -322,7 +332,13 @@ async def modify_project_overrides(
     # Project site settings
 
     if variant in ("production", "staging") and site_id is None:
-        if await has_project_bundle(project_name, variant):
+        is_project_bundle_addon = await has_project_bundle_addon(
+            project_name,
+            addon_name,
+            variant=variant,
+        )
+
+        if is_project_bundle_addon:
             raise BadRequestException(
                 "Cannot modify overrides when a project bundle is frozen. "
                 "Please unfreeze the bundle first."

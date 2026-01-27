@@ -1,11 +1,16 @@
-from typing import Literal
+import copy
+from typing import Any, Literal
 
+from ayon_server.addons.addon import BaseServerAddon
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.entities import ProjectEntity
+from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
+from ayon_server.settings.common import BaseSettingsModel
+from ayon_server.settings.set_addon_settings import set_addon_settings
 from ayon_server.types import Platform
 
 
@@ -35,12 +40,60 @@ async def has_project_bundle(
     return result is not None
 
 
+async def get_studio_bundle_addons(
+    variant: Literal["production", "staging"],
+) -> dict[str, str]:
+    """Get the addons for the studio bundle for the given variant"""
+
+    if variant == "production":
+        query = "SELECT data FROM public.bundles WHERE is_production"
+    else:
+        query = "SELECT data FROM public.bundles WHERE is_staging"
+
+    row = await Postgres.fetchrow(query)
+    if not row:
+        return {}
+    return row["data"].get("addons", {})
+
+
+async def get_project_bundle_addons(project_name: str, variant: str) -> dict[str, str]:
+    query = """
+        SELECT b.data FROM public.projects p
+        JOIN public.bundles b
+        ON b.name = p.data->'bundle'->>$2
+        WHERE p.name = $1
+    """
+    row = await Postgres.fetchrow(query, project_name, variant)
+    if not row:
+        return {}
+
+    return row["data"].get("addons", {})
+
+
+async def has_project_bundle_addon(
+    project_name: str,
+    addon_name: str,
+    *,
+    variant: str = "production",
+) -> bool:
+    """Checks if the addon is a part of the project bundle for the given project"""
+    addons = await get_project_bundle_addons(project_name, variant)
+
+    if not (version := addons.get(addon_name)):
+        return False
+
+    if version in ("__inherit__", "__disabled__"):
+        return False
+
+    return True
+
+
 async def process_addon_settings(
     addon_name: str,
     addon_version: str,
     project_name: str,
     variant: Literal["production", "staging"],
-) -> None:
+) -> dict[str, Any] | None:
     """Process addon settings for the given project and variant."""
 
     #
@@ -50,7 +103,7 @@ async def process_addon_settings(
     #
 
     if addon_version == "__inherit__":
-        return
+        return None
 
     # if addon is not found, it raises NotFoundException,
     addon = AddonLibrary.addon(addon_name, addon_version)
@@ -70,19 +123,13 @@ async def process_addon_settings(
 
     # Save the entire object as project settings overrides
 
-    update_query = """
-        INSERT INTO settings (addon_name, addon_version, variant, data)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (addon_name, addon_version, variant) DO UPDATE SET
-            data = EXCLUDED.data
-    """
-
-    await Postgres.execute(
-        update_query,
+    return await set_addon_settings(
         addon_name,
         addon_version,
-        variant,
         project_settings_dict,
+        project_name=project_name,
+        variant=variant,
+        send_event=False,
     )
 
 
@@ -125,6 +172,7 @@ async def freeze_project_bundle(
             data = EXCLUDED.data
     """
 
+    events = []
     async with Postgres.transaction():
         # set project schema explicitly,
         # all operations that use public schema in this transaction
@@ -146,12 +194,15 @@ async def freeze_project_bundle(
             if addon_version is None:
                 continue
 
-            await process_addon_settings(
+            e = await process_addon_settings(
                 addon_name,
                 addon_version,
                 project_name,
                 variant,
             )
+
+            if e:
+                events.append(e)
 
         # Save bundle reference to project data
 
@@ -162,7 +213,68 @@ async def freeze_project_bundle(
         await project.save()
         logger.info("Project bundle frozen")
 
+    for event in events:
+        await EventStream.dispatch(**event)
     await Redis.delete_ns("all-settings")
+
+
+async def _remove_studio_overrides_from_project_addon(
+    addon: BaseServerAddon,
+    project_name: str,
+    variant: Literal["production", "staging"],
+) -> dict[str, Any] | None:
+    """Remove studio overrides from project addon settings
+
+    Returns an event dict if changes were made, None otherwise.
+
+    THIS MUST RUN INSIDE A TRANSACTION THAT SETS THE PROJECT SCHEMA!
+    """
+
+    overrides = await addon.get_project_overrides(project_name, variant)
+    old_overrides = copy.deepcopy(overrides)
+
+    settings_model = addon.get_settings_model()
+    if not (settings_model and overrides):
+        return None
+
+    def crawl(override_obj: dict[str, Any], model: type[BaseSettingsModel]) -> None:
+        dict_keys = list(override_obj.keys())
+        for key in dict_keys:
+            field = model.__fields__.get(key)
+            if not field:
+                continue
+
+            scopes = field.field_info.extra.get("scope", ["studio", "project"])
+            if "project" not in scopes:
+                # Field is not project-overridable, remove it
+                override_obj.pop(key)
+                continue
+
+            field_type = field.type_
+
+            if issubclass(field_type, BaseSettingsModel):
+                if isinstance(override_obj[key], dict):
+                    crawl(override_obj[key], field_type)
+
+            else:
+                # Naive types
+                default_value = field.get_default()
+                if override_obj[key] == default_value:
+                    override_obj.pop(key)
+
+    crawl(overrides, settings_model)
+
+    if overrides == old_overrides:
+        return None
+
+    return await set_addon_settings(
+        addon.name,
+        addon.version,
+        overrides,
+        project_name=project_name,
+        variant=variant,
+        send_event=False,
+    )
 
 
 async def unfreeze_project_bundle(
@@ -176,7 +288,64 @@ async def unfreeze_project_bundle(
     """
     bundle_name = get_project_bundle_name(project_name, variant)
 
+    events = []
     async with Postgres.transaction():
+        project_bundle_addons = await get_project_bundle_addons(project_name, variant)
+        studio_bundle_addons = await get_studio_bundle_addons(variant)
+
+        # From every not-inherited addon in the project bundle,
+        # remove studio settings from project overrides
+
+        for addon_name, addon_version in project_bundle_addons.items():
+            if not addon_version:
+                continue
+
+            if addon_version in ("__inherit__", "__disabled__"):
+                continue
+
+            try:
+                addon = AddonLibrary.addon(addon_name, addon_version)
+            except Exception:
+                continue
+
+            res = await _remove_studio_overrides_from_project_addon(
+                addon,
+                project_name,
+                variant,
+            )
+
+            if res:
+                events.append(res)
+
+            studio_addon_version = studio_bundle_addons.get(addon_name)
+            if not studio_addon_version:
+                continue
+
+            if studio_addon_version == addon_version:
+                # no need to migrate, same version
+                continue
+
+            # Migrate the project settings to studio bundle addon versions
+            # Refetch the overrides, but use migration logic
+
+            new_overrides = await addon.get_project_overrides(
+                project_name,
+                variant,
+                as_version=studio_addon_version,
+            )
+
+            event = await set_addon_settings(
+                addon.name,
+                studio_addon_version,
+                new_overrides,
+                project_name=project_name,
+                variant=variant,
+                send_event=False,
+            )
+
+            if event:
+                events.append(event)
+
         #
         # Unset project bundle in project data
         #
@@ -197,4 +366,6 @@ async def unfreeze_project_bundle(
         delete_query = "DELETE FROM bundles WHERE name = $1"
         await Postgres.execute(delete_query, bundle_name)
 
+    for event in events:
+        await EventStream.dispatch(**event)
     await Redis.delete_ns("all-settings")
