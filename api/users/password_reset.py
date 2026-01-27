@@ -1,3 +1,4 @@
+import secrets
 import time
 
 from ayon_server.auth.models import LoginResponseModel
@@ -7,7 +8,6 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
-from ayon_server.utils import create_hash
 
 from .router import router
 
@@ -58,7 +58,7 @@ async def password_reset_request(request: PasswordResetRequestModel):
             msg = "Attempted password reset too soon after previous attempt"
             raise ForbiddenException(msg)
 
-    token = create_hash()
+    token = secrets.token_urlsafe(32)
     password_reset_request = {
         "time": time.time(),
         "token": token,
