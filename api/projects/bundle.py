@@ -233,7 +233,6 @@ async def _get_project_bundle_addon_info(
         base_version_label = base_version or "DISABLED"
 
         if not addon_definition.project_can_override_addon_version:
-            print("Skipping", addon_name)
             continue
 
         if project_addons is not None:
@@ -246,22 +245,38 @@ async def _get_project_bundle_addon_info(
             else:
                 addons[addon_name] = addon_version
 
+        else:
+            # no project bundle, we show studio versions as default
+            v = base_addons.get(addon_name)
+            if not v:
+                addons[addon_name] = "__disable__"
+            else:
+                try:
+                    a = AddonLibrary.addon(addon_name, v)
+                    if a.project_can_override_addon_version:
+                        addons[addon_name] = v
+                    else:
+                        addons[addon_name] = "__inherit__"
+                except NotFoundException:
+                    addons[addon_name] = "__disable__"
+
         options = [
             EnumItem(value="__inherit__", label=f"Inherit ({base_version_label})"),
             EnumItem(value="__disable__", label="Disable"),
         ]
 
-        available_versions = sorted(
-            addon_definition.versions.keys(),
-            reverse=True,
-        )
-        for version in available_versions:
-            options.append(
-                EnumItem(
-                    value=version,
-                    label=version,
+        available_versions = []
+        for version in addon_definition.versions.values():
+            if version.project_can_override_addon_version:
+                available_versions.append(
+                    EnumItem(
+                        value=version.version,
+                        label=version.version,
+                    )
                 )
-            )
+
+        available_versions.sort(key=lambda x: x.value, reverse=True)
+        options.extend(available_versions)
 
         addon_metadata.append(
             AddonMetadata(
