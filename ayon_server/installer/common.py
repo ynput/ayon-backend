@@ -44,9 +44,12 @@ def _list_dependency_packages() -> dict[Platform, list[str]]:
 
     desktop_dir = get_desktop_dir("dependency_packages", for_writing=False)
 
-    result: dict[Platform, list[str]] = {}
+    result: dict[Platform, list[str]] = {
+        "windows": [],
+        "linux": [],
+        "darwin": [],
+    }
     for mname in iter_names("dependency_packages"):
-        print("Processing", mname)
         mpath = os.path.join(desktop_dir, mname + ".json")
         with open(mpath) as f:
             try:
@@ -56,8 +59,6 @@ def _list_dependency_packages() -> dict[Platform, list[str]]:
 
         platform = data["platform"]
         filename = data["filename"]
-        if platform not in result:
-            result[platform] = []
         result[platform].append(filename)
 
     for platform in result:
@@ -77,7 +78,6 @@ def _list_installer_versions() -> list[str]:
 
     result = set()
     for mname in iter_names("installers"):
-        print("Processing", mname)
         mpath = os.path.join(desktop_dir, mname + ".json")
         with open(mpath) as f:
             try:
