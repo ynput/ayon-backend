@@ -59,7 +59,7 @@ async def get_entity_folder_path(
         query = f"""
         SELECT folders.path as path
         FROM hierarchy as folders
-        {' '.join(joins)}
+        {" ".join(joins)}
         WHERE {entity_type}s.id = $1
         """
         res = await Postgres.fetchrow(query, entity_id)

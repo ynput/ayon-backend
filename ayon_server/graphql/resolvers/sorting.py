@@ -15,7 +15,7 @@ def get_task_types_sort_case(project: ProjectEntity) -> str:
     case = "CASE"
     for i, task_type_name in enumerate(task_type_names):
         case += f" WHEN tasks.task_type = '{task_type_name}' THEN {i}"
-    case += f" ELSE {i+1}"
+    case += f" ELSE {i + 1}"
     case += " END"
     return case
 
@@ -32,7 +32,7 @@ def get_folder_types_sort_case(project: ProjectEntity) -> str:
     case = "CASE"
     for i, folder_type_name in enumerate(folder_type_names):
         case += f" WHEN folders.folder_type = '{folder_type_name}' THEN {i}"
-    case += f" ELSE {i+1}"
+    case += f" ELSE {i + 1}"
     case += " END"
     return case
 
@@ -49,7 +49,7 @@ def get_status_sort_case(project: ProjectEntity, exp: str) -> str:
     case = "CASE"
     for i, status_name in enumerate(status_names):
         case += f" WHEN {exp} = '{status_name}' THEN {i}"
-    case += f" ELSE {i+1}"
+    case += f" ELSE {i + 1}"
     case += " END"
     return case
 
@@ -69,6 +69,6 @@ async def get_attrib_sort_case(attr: str, exp: str) -> str:
     for i, eval in enumerate(enum):
         e = eval["value"]
         case += f" WHEN {exp}->>'{attr}' = '{e}' THEN {i}"
-    case += f" ELSE {i+1}"
+    case += f" ELSE {i + 1}"
     case += " END"
     return case

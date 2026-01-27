@@ -93,7 +93,7 @@ async def create_activity(
         data["parents"] = await get_parents_from_entity(entity)
     except Postgres.UndefinedTableError as e:
         raise NotFoundException(
-            "Unable to get references. " f"Project {project_name} no longer exists"
+            f"Unable to get references. Project {project_name} no longer exists"
         ) from e
 
     if activity_type == "comment" and is_body_with_checklist(body):
@@ -152,7 +152,7 @@ async def create_activity(
             references.update(await get_references_from_entity(entity))
         except Postgres.UndefinedTableError as e:
             raise NotFoundException(
-                "Unable to get references. " f"Project {project_name} no longer exists"
+                f"Unable to get references. Project {project_name} no longer exists"
             ) from e
 
     #
@@ -190,7 +190,7 @@ async def create_activity(
             )
         except Postgres.UndefinedTableError as e:
             raise NotFoundException(
-                "Unable to create activity. " f"Project {project_name} no longer exists"
+                f"Unable to create activity. Project {project_name} no longer exists"
             ) from e
 
         if files is not None:
@@ -208,8 +208,7 @@ async def create_activity(
                 )
             except Postgres.UndefinedTableError as e:
                 raise NotFoundException(
-                    "Unable to update files. "
-                    f"Project {project_name} no longer exists"
+                    f"Unable to update files. Project {project_name} no longer exists"
                 ) from e
 
         st_ref = await Postgres.prepare(
@@ -239,8 +238,7 @@ async def create_activity(
             )
         except Postgres.UndefinedTableError as e:
             raise NotFoundException(
-                "Unable to create references. "
-                f"Project {project_name} no longer exists"
+                f"Unable to create references. Project {project_name} no longer exists"
             ) from e
 
         # bump entity updated_at timestamp

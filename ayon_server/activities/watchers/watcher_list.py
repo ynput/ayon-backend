@@ -30,7 +30,7 @@ async def build_watcher_list(entity: ProjectLevelEntity) -> list[str]:
         res = await Postgres.fetch(query, entity.entity_type, entity.id)
     except Postgres.UndefinedTableError:
         logger.debug(
-            "Unable to get watchers. " f"Project {entity.project_name} no longer exists"
+            f"Unable to get watchers. Project {entity.project_name} no longer exists"
         )
         return []
 

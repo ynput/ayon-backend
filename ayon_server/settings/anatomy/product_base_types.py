@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.settings_field import SettingsField
@@ -73,3 +73,25 @@ class ProductBaseTypes(BaseSettingsModel):
             default_factory=lambda: default_product_type_definitions,
         ),
     ]
+
+
+def enrich_project_config_with_product_base_types(config: dict[str, Any]) -> None:
+    """Enrich project config with product base types settings."""
+
+    product_base_types_config = config.get("productBaseTypes", {})
+    default_pt_definitions = [p.dict() for p in default_product_type_definitions]
+
+    product_base_types_config["default"] = DefaultProductBaseType(
+        **product_base_types_config.get("default", {})
+    ).dict()
+
+    if "definitions" not in product_base_types_config:
+        product_base_types_config["definitions"] = default_pt_definitions
+    else:
+        product_base_types_config["definitions"] = [
+            ProductBaseType(**pt).dict()
+            for pt in product_base_types_config["definitions"]
+        ]
+
+    config["productBaseTypes"] = product_base_types_config
+    config.pop("productTypes", None)  # legacy

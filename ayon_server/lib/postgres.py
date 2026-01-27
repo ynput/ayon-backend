@@ -40,9 +40,9 @@ def get_pg_connection_info() -> DBConnectionInfo:
     host = result.hostname
     port = result.port or 5432
     database = result.path[1:]  # Remove the leading '/'
-    assert (
-        user and password and host and database and port
-    ), "Postgres connection string is not valid"
+    assert user and password and host and database and port, (
+        "Postgres connection string is not valid"
+    )
 
     return DBConnectionInfo(
         user=user,
@@ -232,19 +232,28 @@ class Postgres:
     ) -> "PreparedStatement":  # type: ignore[type-arg]
         """Prepare a statement"""
         async with cls.acquire() as connection:
-            assert (
-                connection.is_in_transaction()
-            ), "Cannot prepare statement outside of a transaction"
+            assert connection.is_in_transaction(), (
+                "Cannot prepare statement outside of a transaction"
+            )
             return await connection.prepare(query, *args, timeout=timeout)
 
     @classmethod
     async def set_project_schema(cls, project_name: str) -> None:
         """Set the search path to the project schema."""
         async with cls.acquire() as conn:
-            assert (
-                conn.is_in_transaction()
-            ), "Cannot set project schema outside of a transaction"
+            assert conn.is_in_transaction(), (
+                "Cannot set project schema outside of a transaction"
+            )
             await conn.execute(f"SET LOCAL search_path TO project_{project_name}")
+
+    @classmethod
+    async def set_public_schema(cls) -> None:
+        """Set the search path to the public schema."""
+        async with cls.acquire() as conn:
+            assert conn.is_in_transaction(), (
+                "Cannot set public schema outside of a transaction"
+            )
+            await conn.execute("SET LOCAL search_path TO public")
 
     @classmethod
     async def iterate(

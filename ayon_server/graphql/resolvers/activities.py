@@ -157,8 +157,8 @@ async def get_activities(
             AND (
                 activity_data->>'category' IS NULL
                 OR activity_data->>'category' = ANY({
-                    SQLTool.array(accessible_categories, curly=True)
-                })
+                SQLTool.array(accessible_categories, curly=True)
+            })
             )
             """
         )
@@ -174,8 +174,8 @@ async def get_activities(
                 (
                     activity_data->>'category' IS NULL
                     OR activity_data->>'category' = ANY({
-                        SQLTool.array(accessible_categories, curly=True)
-                    })
+                    SQLTool.array(accessible_categories, curly=True)
+                })
                 )
                 """
             )

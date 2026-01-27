@@ -96,7 +96,7 @@ async def query_entities(
             project_{project_name}.version_list l
             ON s.id = l.product_id
         {SQLTool.conditions(conditions)}
-        {'ORDER BY RANDOM()' if limit is not None else ''}
+        {"ORDER BY RANDOM()" if limit is not None else ""}
     """
 
     used: list[str] = []  # faster that trying to find out, how to distinct

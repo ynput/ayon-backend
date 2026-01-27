@@ -1,3 +1,4 @@
+import base64
 from typing import Annotated, Any, Literal
 
 from pydantic import validator
@@ -6,7 +7,9 @@ from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.exceptions import NotFoundException
 from ayon_server.helpers.get_entity_class import get_entity_class
+from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
+from ayon_server.utils.hashing import create_uuid
 
 ActionEntityType = Literal[
     "project",
@@ -18,6 +21,66 @@ ActionEntityType = Literal[
     "representation",
     "workfile",
 ]
+
+
+class FormFile:
+    payload: str
+    filename: str
+    cache_key: str | None
+
+    def __init__(
+        self,
+        payload: str,
+        filename: str,
+        cache_key: str | None = None,
+    ) -> None:
+        self.filename = filename
+        self.payload = payload
+        self.cache_key = cache_key
+
+    def get_bytes(self) -> bytes:
+        return base64.b64decode(self.payload)
+
+    def dump(self) -> dict[str, Any]:
+        return {
+            "filename": self.filename,
+            "payload": self.payload,
+        }
+
+    async def save_to_cache(self) -> str:
+        if not self.cache_key:
+            self.cache_key = create_uuid()
+        await Redis.set_json(
+            "action-file",
+            self.cache_key,
+            self.dump(),
+            ttl=3600,
+        )
+        return self.cache_key
+
+    @classmethod
+    async def from_cache(cls, cache_key: str) -> "FormFile":
+        data = await Redis.get_json("action-file", cache_key)
+        if not data:
+            raise ValueError(f"No cached file found for cache key '{cache_key}'")
+        return cls(
+            payload=data["payload"],
+            filename=data["filename"],
+            cache_key=cache_key,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FormFile":
+        payload = data.get("payload")
+        filename = data.get("filename")
+        if not (payload and filename):
+            raise ValueError("Invalid file data")
+
+        return cls(
+            payload=payload,
+            filename=filename,
+            cache_key=None,
+        )
 
 
 class ActionContext(OPModel):
@@ -80,6 +143,31 @@ class ActionContext(OPModel):
             example={"key": "value"},
         ),
     ] = None
+
+    async def get_form_file(self, key: str, *, cache: bool = False) -> FormFile:
+        """Get file bytes from form data.
+
+        If a form contains a file input, this function can be used to
+        retrieve the file bytes and additional metadata.
+
+        Optionally, the file can be cached in Redis for later retrieval
+        using a cache key (which will be included in FormFile object returned).
+        """
+        if not self.form_data:
+            raise ValueError("No form data provided")
+
+        file_data = self.form_data.get(key)
+        if not file_data:
+            raise ValueError(f"No file found in form data for key '{key}'")
+
+        result = FormFile.from_dict(file_data)
+        if cache:
+            await result.save_to_cache()
+        return result
+
+    async def get_cached_file(self, cache_key: str) -> FormFile:
+        """Retrieve cached file bytes from Redis using the cache key."""
+        return await FormFile.from_cache(cache_key)
 
     #
     # Sanity checks
