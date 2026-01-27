@@ -57,9 +57,10 @@ def _list_dependency_packages() -> dict[Platform, list[str]]:
             except Exception:
                 continue
 
-        platform = data["platform"]
-        filename = data["filename"]
-        result[platform].append(filename)
+        platform = data.get("platform")
+        filename = data.get("filename")
+        if platform and filename and platform in result:
+            result[platform].append(filename)
 
     for platform in result:
         result[platform].sort(reverse=True)

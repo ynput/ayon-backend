@@ -82,7 +82,7 @@ async def has_project_bundle_addon(
     if not (version := addons.get(addon_name)):
         return False
 
-    if version in ("__inherit__", "__disabled__"):
+    if version in ("__inherit__", "__disable__"):
         return False
 
     return True
@@ -250,17 +250,14 @@ async def _remove_studio_overrides_from_project_addon(
                 override_obj.pop(key)
                 continue
 
-            field_type = field.type_
+            try:
+                field_type = field.type_
 
-            if issubclass(field_type, BaseSettingsModel):
-                if isinstance(override_obj[key], dict):
-                    crawl(override_obj[key], field_type)
-
-            else:
-                # Naive types
-                default_value = field.get_default()
-                if override_obj[key] == default_value:
-                    override_obj.pop(key)
+                if issubclass(field_type, BaseSettingsModel):
+                    if isinstance(override_obj[key], dict):
+                        crawl(override_obj[key], field_type)
+            except Exception:
+                pass
 
     crawl(overrides, settings_model)
 
@@ -363,7 +360,7 @@ async def unfreeze_project_bundle(
         # Remove the bundle
         #
 
-        delete_query = "DELETE FROM bundles WHERE name = $1"
+        delete_query = "DELETE FROM public.bundles WHERE name = $1"
         await Postgres.execute(delete_query, bundle_name)
 
     for event in events:
