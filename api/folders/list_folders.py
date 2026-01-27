@@ -205,16 +205,16 @@ async def get_folder_list(
             media_type="application/json",
         )
 
-    start_time = time.monotonic()
+    start_time = time.perf_counter()
     access_checker = AccessChecker()
     await access_checker.load(user, project_name, "read")
 
-    elapsed_time = time.monotonic() - start_time
+    elapsed_time = time.perf_counter() - start_time
     logger.trace(f"Loaded folder access list in {elapsed_time:.3f} seconds")
 
-    start_time = time.monotonic()
+    start_time = time.perf_counter()
     entities = await folder_list_loader.get_folder_list(project_name)
-    elapsed_time = time.monotonic() - start_time
+    elapsed_time = time.perf_counter() - start_time
     ent_count = len(entities)
     me = f"{ent_count} folders {'with' if attrib else 'without'} attr of {project_name}"
     detail = f"{me} fetched in {elapsed_time:.3f} seconds"
