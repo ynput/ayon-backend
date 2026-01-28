@@ -152,15 +152,23 @@ class ProjectEntity(TopLevelEntity):
     # Save
     #
 
+    @classmethod
+    async def refresh_views(cls) -> None:
+        await build_project_list()
+
+    async def commit(self):
+        """Post-update commit."""
+        await Redis.delete("project-anatomy", self.name)
+        await Redis.delete("project-data", self.name)
+        await self.refresh_views()
+
     async def save(self, *args, **kwargs) -> bool:
         """Save the project to the database."""
         async with Postgres.transaction():
             try:
                 return await self._save()
             finally:
-                await Redis.delete("project-anatomy", self.name)
-                await Redis.delete("project-data", self.name)
-                await build_project_list()
+                await self.commit()
 
     async def _save(self) -> bool:
         assert self.folder_types, "Project must have at least one folder type"

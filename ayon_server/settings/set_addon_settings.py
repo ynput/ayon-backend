@@ -141,7 +141,8 @@ async def set_addon_settings(
     user_name: str | None = None,
     site_id: str | None = None,
     variant: str = "production",
-) -> None:
+    send_event: bool = True,
+) -> dict[str, Any] | None:
     """Save addon settings to the database.
 
     This saves given addon settings to the database and triggers settings.changed event
@@ -152,6 +153,8 @@ async def set_addon_settings(
 
     If `project_name` is specified, the settings will be saved for the project,
     otherwise they will be saved for the studio.
+
+    Returns a payload for an event that contains original and new values.
     """
 
     # Make sure we are not setting settings for a non-existent addon
@@ -222,27 +225,32 @@ async def set_addon_settings(
     if site_id:
         summary["site_id"] = site_id
 
-    await EventStream.dispatch(
-        topic="settings.changed",
-        description=description,
-        summary=summary,
-        user=user_name,
-        project=project_name,
-        payload=payload,
-    )
+    event: dict[str, Any] = {
+        "topic": "settings.changed",
+        "description": description,
+        "summary": summary,
+        "user": user_name,
+        "project": project_name,
+        "payload": payload,
+    }
 
-    # Call Addon.on_settings_changed
-    # This is actually deprecated and should be removed in the future
-    # since it won't affect all replicas of the addon
+    if send_event:
+        await EventStream.dispatch(**event)
 
-    new_settings = await load_settings_from_context(context)
-    if original_settings and new_settings:
-        addon = AddonLibrary.addon(addon_name, addon_version)
-        await addon.on_settings_changed(
-            original_settings,
-            new_settings,
-            variant=variant,
-            project_name=project_name,
-            user_name=user_name,
-            site_id=site_id,
-        )
+        # Call Addon.on_settings_changed
+        # This is actually deprecated and should be removed in the future
+        # since it won't affect all replicas of the addon
+
+        new_settings = await load_settings_from_context(context)
+        if original_settings and new_settings:
+            addon = AddonLibrary.addon(addon_name, addon_version)
+            await addon.on_settings_changed(
+                original_settings,
+                new_settings,
+                variant=variant,
+                project_name=project_name,
+                user_name=user_name,
+                site_id=site_id,
+            )
+
+    return event
