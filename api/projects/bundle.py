@@ -267,13 +267,16 @@ async def _get_project_bundle_addon_info(
 
         available_versions = []
         for version in addon_definition.versions.values():
-            if version.project_can_override_addon_version:
-                available_versions.append(
-                    EnumItem(
-                        value=version.version,
-                        label=version.version,
-                    )
+            enum_item = EnumItem(
+                value=version.version,
+                label=version.version,
+            )
+            if not version.project_can_override_addon_version:
+                enum_item.disabled = True
+                enum_item.disabled_message = (
+                    "This version cannot be used in project bundles."
                 )
+            available_versions.append(enum_item)
 
         available_versions.sort(key=lambda x: x.value, reverse=True)
         options.extend(available_versions)
