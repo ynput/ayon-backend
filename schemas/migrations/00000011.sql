@@ -23,6 +23,14 @@ BEGIN
         UPDATE products SET product_base_type = product_type
           WHERE product_base_type IS NULL;
 
+
+        -- TODO. In 1.15.0, we will enable this constraint after ensuring all existing rows are populated.
+        -- We leave it commented out for now, to allow server downgrades from 1.14.x to 1.13.x without issues.
+
+        -- ALTER TABLE products
+        --   ALTER COLUMN product_base_type SET NOT NULL;
+
+
       EXCEPTION
         WHEN OTHERS THEN 
            RAISE WARNING 'Skipping product base types validation in % due to error: %', rec.nspname, SQLERRM;
