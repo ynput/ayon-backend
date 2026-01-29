@@ -106,9 +106,9 @@ class BaseServerAddon:
                 setattr(self, key, kwargs[key])
 
         # ensure name and version are set
-        assert (
-            self.name and self.version
-        ), f"Addon {addon_dir} is missing name or version"
+        assert self.name and self.version, (
+            f"Addon {addon_dir} is missing name or version"
+        )
 
         self.definition = definition
         self.addon_dir = addon_dir

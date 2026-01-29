@@ -11,7 +11,7 @@ from ayon_server.utils import create_uuid
 #
 
 ViewScopes = Literal["project", "studio"]
-ViewType = Literal["overview", "taskProgress", "lists", "reviews" "versions"] | str
+ViewType = Literal["overview", "taskProgress", "lists", "reviewsversions"] | str
 
 FViewScope = Annotated[
     ViewScopes,

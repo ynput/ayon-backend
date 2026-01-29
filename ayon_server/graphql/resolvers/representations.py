@@ -206,9 +206,9 @@ async def get_representations(
     #
 
     query = f"""
-        SELECT {cursor}, {', '.join(sql_columns)}
+        SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.representations
-        {' '.join(sql_joins)}
+        {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
     """

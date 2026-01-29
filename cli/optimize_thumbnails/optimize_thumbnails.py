@@ -132,9 +132,7 @@ async def optimize_thumbnails(
     logger.info(f"Took {elapsed_time:.2f} seconds to optimize thumbnails")
 
     if vacuum:
-        logger.info(
-            "Vacuuming the database to reclaim space..." " This may take a while."
-        )
+        logger.info("Vacuuming the database to reclaim space... This may take a while.")
 
         start_time = time.monotonic()
         await Postgres.execute("VACUUM FULL")

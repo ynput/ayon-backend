@@ -165,7 +165,7 @@ async def handle_request_validation_error(
         traceback_msg += f"{loc}: {error['msg']}\n"
 
     detail = (
-        f"Request validation error in " f"[{request.method.upper()}] {request.url.path}"
+        f"Request validation error in [{request.method.upper()}] {request.url.path}"
     )
 
     extras["traceback"] = traceback_msg.strip()

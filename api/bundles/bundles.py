@@ -103,9 +103,9 @@ async def _create_new_bundle(
     sender: str | None = None,
     sender_type: str | None = None,
 ):
-    assert (
-        await Postgres.is_in_transaction()
-    ), "_create_new_bundle must be called in a transaction"
+    assert await Postgres.is_in_transaction(), (
+        "_create_new_bundle must be called in a transaction"
+    )
 
     # Clear constrained values if they are being updated
     if bundle.is_production:

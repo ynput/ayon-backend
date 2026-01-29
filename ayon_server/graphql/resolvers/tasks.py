@@ -373,6 +373,7 @@ async def get_tasks(
             "active",
             "assignees",
             "attrib",
+            "data",
             "folder_id",
             "id",
             "label",

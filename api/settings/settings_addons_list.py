@@ -102,9 +102,9 @@ async def get_addon_list_for_settings(
             addons[addon_name] = addon_version
             inherited_addons.remove(addon_name)
 
-    assert (
-        bundle_name is not None
-    ), "Bundle name is None"  # won't happen, keep pyright happy
+    assert bundle_name is not None, (
+        "Bundle name is None"
+    )  # won't happen, keep pyright happy
 
     return AddonListForSettings(
         addons=addons,

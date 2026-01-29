@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import Path, Query, Request
 
@@ -9,19 +9,20 @@ from ayon_server.entities.project import ProjectEntity
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.lib.postgres import Postgres
-from ayon_server.lib.redis import Redis
 from ayon_server.types import NAME_REGEX, PROJECT_NAME_REGEX, Field, OPModel
 from ayon_server.utils import create_uuid
 
+from .default_views import get_user_default_view, set_user_default_view
 from .models import (
     ViewListItemModel,
     ViewListModel,
     ViewModel,
     ViewPatchModel,
     ViewPostModel,
-    construct_view_model,
     get_patch_model_class,
     get_post_model_class,
+    row_to_list_item,
+    row_to_model,
 )
 from .router import router
 
@@ -58,37 +59,6 @@ QProjectName = Annotated[
         regex=PROJECT_NAME_REGEX,
     ),
 ]
-
-
-def row_to_list_item(row: dict[str, Any], access_level: int) -> ViewListItemModel:
-    """Convert a database row to a ViewListItemModel."""
-    return ViewListItemModel(
-        id=row["id"],
-        scope=row["scope"],
-        label=row["label"],
-        position=row.get("position", 0),
-        owner=row["owner"],
-        visibility=row.get("visibility", "private"),
-        working=row.get("working", False),
-        access_level=access_level,
-    )
-
-
-def row_to_model(row: dict[str, Any], access_level: int) -> ViewModel:
-    """Convert a database row to a ViewModel."""
-    return construct_view_model(
-        id=row["id"],
-        view_type=row["view_type"],
-        scope=row["scope"],
-        label=row["label"],
-        position=row.get("position", 0),
-        owner=row["owner"],
-        visibility=row.get("visibility", "private"),
-        access=row.get("access", {}),
-        working=row.get("working", False),
-        settings=row.get("data", {}),
-        access_level=access_level,
-    )
 
 
 @router.get("/{view_type}")
@@ -171,9 +141,6 @@ async def get_working_view(
         return row_to_model(row, access_level=30)
 
 
-DEFAULT_VIEW_NS = "default-view"
-
-
 @router.get("/{view_type}/base")
 async def get_base_view(
     user: CurrentUser,
@@ -215,75 +182,11 @@ async def get_default_view(
     If no default view is set, it will return the working view of the user.
     If no working view is set, raise 404
     """
-
-    project = None
-
-    key = f"{user.name}:{view_type}:{project_name or '_'}"
-    view_id_bytes = await Redis.get(DEFAULT_VIEW_NS, key)
-    if view_id_bytes is None:
-        view_id = None
-    else:
-        view_id = view_id_bytes.decode("utf-8")
-        if project_name:
-            project = await ProjectEntity.load(project_name)
-
-    query = """
-        SELECT *, $4 AS scope FROM views
-        WHERE id = $1
-        OR (view_type = $2 AND owner = $3 AND working)
-        ORDER BY working ASC
-        LIMIT 1
-    """
-
-    async with Postgres.transaction():
-        if project_name:
-            await Postgres.set_project_schema(project_name)
-            row = await Postgres.fetchrow(
-                query,
-                view_id,
-                view_type,
-                user.name,
-                "project",
-            )
-
-        if not row:
-            await Postgres.set_public_schema()
-            row = await Postgres.fetchrow(
-                query,
-                view_id,
-                view_type,
-                user.name,
-                "studio",
-            )
-
-        if not row:
-            await Postgres.set_public_schema()
-            row = await Postgres.fetchrow(
-                """
-                SELECT *, $2 AS scope FROM views
-                WHERE view_type = $1 AND label = '__base__'
-                LIMIT 1
-                """,
-                view_type,
-                "studio" if not project_name else "project",
-            )
-
-        if not row:
-            raise NotFoundException("Default view not found")
-
-        try:
-            await EntityAccessHelper.check(
-                user,
-                access=row.get("access"),
-                level=EntityAccessHelper.MANAGE,
-                owner=row["owner"],
-                default_open=False,
-                project=project,
-            )
-            access_level = EntityAccessHelper.MANAGE
-        except ForbiddenException as e:
-            access_level = e.extra.get("access_level", 0)
-        return row_to_model(row, access_level=access_level)
+    return await get_user_default_view(
+        user=user,
+        view_type=view_type,
+        project_name=project_name,
+    )
 
 
 class SetDefaultViewRequestModel(OPModel):
@@ -299,8 +202,12 @@ async def set_default_view(
 ) -> None:
     """Set the default view for the user and view type."""
 
-    key = f"{user.name}:{view_type}:{project_name or '_'}"
-    await Redis.set(DEFAULT_VIEW_NS, key, payload.view_id)
+    await set_user_default_view(
+        user,
+        view_type,
+        payload.view_id,
+        project_name=project_name,
+    )
 
 
 @router.get("/{view_type}/{view_id}")

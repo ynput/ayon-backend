@@ -285,3 +285,34 @@ def get_patch_model_class(view_type: str) -> type[ViewPatchModel]:
         return VersionsViewPatchModel
     else:
         return GenericViewPatchModel
+
+
+def row_to_list_item(row: dict[str, Any], access_level: int) -> ViewListItemModel:
+    """Convert a database row to a ViewListItemModel."""
+    return ViewListItemModel(
+        id=row["id"],
+        scope=row["scope"],
+        label=row["label"],
+        position=row.get("position", 0),
+        owner=row["owner"],
+        visibility=row.get("visibility", "private"),
+        working=row.get("working", False),
+        access_level=access_level,
+    )
+
+
+def row_to_model(row: dict[str, Any], access_level: int) -> ViewModel:
+    """Convert a database row to a ViewModel."""
+    return construct_view_model(
+        id=row["id"],
+        view_type=row["view_type"],
+        scope=row["scope"],
+        label=row["label"],
+        position=row.get("position", 0),
+        owner=row["owner"],
+        visibility=row.get("visibility", "private"),
+        access=row.get("access", {}),
+        working=row.get("working", False),
+        settings=row.get("data", {}),
+        access_level=access_level,
+    )

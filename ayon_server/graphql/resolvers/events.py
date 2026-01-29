@@ -109,7 +109,7 @@ async def get_events(
                 continue
 
             lconds.append(
-                f"""({' OR '.join([f"{col} LIKE '%{elm}%'" for col in search_cols])})"""
+                f"""({" OR ".join([f"{col} LIKE '%{elm}%'" for col in search_cols])})"""
             )
 
         if lconds:
