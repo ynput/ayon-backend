@@ -201,13 +201,12 @@ def graphiql_root(_: CurrentUser) -> FileResponse:
 
 @app.get("/graphiql/{path:path}", include_in_schema=False)
 def explorer(path: str, _: CurrentUser) -> FileResponse:
-    if path != "index.html" and not path.startswith("lib/"):
-        raise ForbiddenException("Access to this resource is forbidden")
     base_path = pathlib.Path("static/graphiql").resolve()
     full_path = (base_path / path).resolve()
-    if base_path not in full_path.parents:
+
+    if not full_path.is_relative_to(base_path):
         raise ForbiddenException("Access to this resource is forbidden")
-    if not full_path.exists():
+    elif not full_path.exists():
         raise NotFoundException("File not found")
     return FileResponse(full_path)
 
