@@ -205,7 +205,7 @@ def explorer(path: str, _: CurrentUser) -> FileResponse:
         raise ForbiddenException("Access to this resource is forbidden")
     base_path = pathlib.Path("static/graphiql").resolve()
     full_path = (base_path / path).resolve()
-    if base_path not in full_path.parents and full_path != base_path:
+    if base_path not in full_path.parents:
         raise ForbiddenException("Access to this resource is forbidden")
     if not full_path.exists():
         raise NotFoundException("File not found")
