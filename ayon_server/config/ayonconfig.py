@@ -215,6 +215,10 @@ class AyonConfig(BaseModel):
         "to connect to external services",
     )
 
+    offline_mode: bool = Field(
+        False, description="Do not attempt to reach external services"
+    )
+
     ynput_cloud_api_url: str | None = Field(
         "https://im.ynput.cloud",
         description="YnputConnect URL",
