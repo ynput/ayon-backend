@@ -15,6 +15,7 @@ from ayon_server.constraints import Constraints
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.entities.project import ProjectEntity
+from ayon_server.events import EventStream
 from ayon_server.exceptions import (
     ConstraintViolationException,
     ForbiddenException,
@@ -61,6 +62,7 @@ class UserEntity(TopLevelEntity):
     path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
     save_hooks: list[Callable[["UserEntity"], Awaitable[None]]] = []
     _teams: set[str] | None = None
+    _events: list[dict[str, Any]]
 
     #
     # Load
@@ -76,6 +78,7 @@ class UserEntity(TopLevelEntity):
         self.was_active = self.active and self.exists
         self.was_service = self.is_service and self.exists
         self.original_email = self.attrib.email
+        self._events = []
 
     @classmethod
     async def load(
@@ -141,7 +144,6 @@ class UserEntity(TopLevelEntity):
                 self.data.pop("userPool", None)
 
             if self.attrib.email and (self.attrib.email != self.original_email):
-                logger.info(f"Email changed for user {self.name}")
                 # Email changed, we need to check if it's unique
                 # We cannot use DB index here.
                 res = await Postgres.fetch(
@@ -186,6 +188,15 @@ class UserEntity(TopLevelEntity):
                         **data,
                     )
                 )
+
+                for event in self._events:
+                    await EventStream.dispatch(
+                        user=kwargs.get("user", None),
+                        sender=kwargs.get("sender", None),
+                        sender_type=kwargs.get("sender_type", None),
+                        **event,
+                    )
+
             else:
                 await Postgres.execute(
                     *SQLTool.insert(
@@ -195,6 +206,16 @@ class UserEntity(TopLevelEntity):
                 )
                 await Redis.delete("user.avatar", self.name)
                 self.exists = True
+
+                await EventStream.dispatch(
+                    topic="entity.user.created",
+                    payload={"entityData": self.dict_simple()},
+                    summary={"entityName": self.name},
+                    description=f"User {self.name} created",
+                    user=kwargs.get("user", None),
+                    sender=kwargs.get("sender", None),
+                    sender_type=kwargs.get("sender_type", None),
+                )
 
             if run_hooks:
                 for hook in self.save_hooks:
@@ -238,6 +259,16 @@ class UserEntity(TopLevelEntity):
                     await Postgres.execute(query)
                 except Postgres.UndefinedTableError:
                     continue
+
+        await EventStream.dispatch(
+            topic="entity.user.deleted",
+            payload={"entityData": self.dict_simple()},
+            summary={"entityName": self.name},
+            description=f"User {self.name} deleted",
+            user=kwargs.get("user", None),
+            sender=kwargs.get("sender", None),
+            sender_type=kwargs.get("sender_type", None),
+        )
 
         return res[0]["count"]
 
@@ -378,6 +409,14 @@ class UserEntity(TopLevelEntity):
             validate_password(password)
         hashed_password = create_password(password)
         self.data["password"] = hashed_password
+        self._events.append(
+            {
+                "topic": "entity.user.password_changed",
+                "payload": {},
+                "summary": {"entityName": self.name},
+                "description": f"Password changed for user {self.name}",
+            }
+        )
 
     def set_api_key(self, api_key: str | None) -> None:
         """Set user api key."""
@@ -392,6 +431,14 @@ class UserEntity(TopLevelEntity):
 
         self.data["apiKey"] = hash_password(api_key)
         self.data["apiKeyPreview"] = api_key_preview
+        self._events.append(
+            {
+                "topic": "entity.user.api_key_changed",
+                "payload": {},
+                "summary": {"entityName": self.name},
+                "description": f"API key changed for user {self.name}",
+            }
+        )
 
     async def send_mail(
         self,
