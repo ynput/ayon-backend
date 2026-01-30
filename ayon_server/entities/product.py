@@ -35,6 +35,10 @@ class ProductEntity(ProjectLevelEntity):
 
     async def pre_save(self, insert: bool) -> None:
         """Hook called before saving the entity to the database."""
+
+        if self.product_base_type is None:
+            self.product_base_type = self.product_type
+
         await Postgres.execute(
             """
             INSERT INTO public.product_types (name)
