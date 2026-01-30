@@ -2,6 +2,8 @@ import secrets
 import time
 from typing import Annotated
 
+from fastapi import Request
+
 from ayon_server.auth.models import LoginResponseModel
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
@@ -10,6 +12,7 @@ from ayon_server.helpers.email import EmailTemplate
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
+from ayon_server.utils.server import server_url_from_request
 
 from .router import router
 
@@ -18,16 +21,16 @@ TOKEN_TTL = 3600
 
 class PasswordResetRequestModel(OPModel):
     email: Annotated[str, Field(title="Email", example="you@somewhere.com")]
-    url: Annotated[str, Field(title="Password reset URL")]
+    # url: Annotated[str, Field(title="Password reset URL")]
 
 
 @router.post("/passwordResetRequest")
-async def password_reset_request(request: PasswordResetRequestModel):
+async def password_reset_request(payload: PasswordResetRequestModel, request: Request):
     query = "SELECT name, data FROM users WHERE LOWER(attrib->>'email') = $1"
-    res = await Postgres.fetchrow(query, request.email.lower())
+    res = await Postgres.fetchrow(query, payload.email.lower())
     if res is None:
         logger.error(
-            f"Attempted password reset using non-existent email: {request.email}"
+            f"Attempted password reset using non-existent email: {payload.email}"
         )
         return
 
@@ -39,7 +42,7 @@ async def password_reset_request(request: PasswordResetRequestModel):
         if password_request_time and (time.time() - password_request_time) < 600:
             logger.error(
                 "Attempted password reset too soon "
-                f"after previous attempt for {request.email}"
+                f"after previous attempt for {payload.email}"
             )
             msg = "Attempted password reset too soon after previous attempt"
             raise ForbiddenException(msg)
@@ -52,10 +55,10 @@ async def password_reset_request(request: PasswordResetRequestModel):
 
     user = await UserEntity.load(res["name"])
     user.data["passwordResetRequest"] = password_reset_request
+    server_url = server_url_from_request(request)
 
     tplvars = {
-        "token": token,
-        "reset_url": request.url,
+        "reset_url": f"{server_url}/passwordReset?token={token}",
         "full_name": user.attrib.fullName or user.name,
     }
 
@@ -68,7 +71,7 @@ async def password_reset_request(request: PasswordResetRequestModel):
         subject=subject,
         html=body,
     )
-    logger.info(f"Sent password reset email to {request.email}")
+    logger.info(f"Sent password reset email to {payload.email}")
 
 
 class PasswordResetModel(OPModel):
