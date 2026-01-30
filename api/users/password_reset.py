@@ -1,10 +1,12 @@
 import secrets
 import time
+from typing import Annotated
 
 from ayon_server.auth.models import LoginResponseModel
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.helpers.email import EmailTemplate
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
@@ -12,27 +14,11 @@ from ayon_server.types import Field, OPModel
 from .router import router
 
 TOKEN_TTL = 3600
-PASSWORD_RESET_EMAIL_TEMPLATE_PLAIN = """
-Hello {name},
-it seems that you have requested a password reset for your account for Ayon.
-Please follow this link to reset your password:
-
-{reset_url}?token={token}
-"""
-
-PASSWORD_RESET_EMAIL_TEMPLATE_HTML = """
-<p>Hello, {name}</p>
-
-<p>it seems that you have requested a password reset for your account for Ayon.
-Please follow this link to reset your password:</p>
-
-<p><a href="{reset_url}?token={token}">Reset password</a></p>
-"""
 
 
 class PasswordResetRequestModel(OPModel):
-    email: str = Field(..., title="Email", example="you@somewhere.com")
-    url: str = Field(...)
+    email: Annotated[str, Field(title="Email", example="you@somewhere.com")]
+    url: Annotated[str, Field(title="Password reset URL")]
 
 
 @router.post("/passwordResetRequest")
@@ -70,14 +56,17 @@ async def password_reset_request(request: PasswordResetRequestModel):
     tplvars = {
         "token": token,
         "reset_url": request.url,
-        "name": user.attrib.fullName or user.name,
+        "full_name": user.attrib.fullName or user.name,
     }
+
+    template = EmailTemplate()
+    body = await template.render_template("password_reset.jinja", tplvars)
+    subject = "Ayon password reset request"
 
     await user.save()
     await user.send_mail(
-        "Ayon password reset",
-        text=PASSWORD_RESET_EMAIL_TEMPLATE_PLAIN.format(**tplvars),
-        html=PASSWORD_RESET_EMAIL_TEMPLATE_HTML.format(**tplvars),
+        subject=subject,
+        html=body,
     )
     logger.info(f"Sent password reset email to {request.email}")
 
