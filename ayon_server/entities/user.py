@@ -52,7 +52,6 @@ class UserEntity(TopLevelEntity):
     entity_type: str = "user"
     model = ModelSet("user", attribute_library["user"], has_id=False)
     was_active: bool = False
-    original_email: str | None = None
     session: SessionInfo | None = None
 
     # Cache for path access lists
@@ -61,6 +60,10 @@ class UserEntity(TopLevelEntity):
     path_access_cache: dict[str, dict[AccessType, list[str]]] | None = None
     save_hooks: list[Callable[["UserEntity"], Awaitable[None]]] = []
     _teams: set[str] | None = None
+
+    _original_email: str | None = None
+    _original_avatar_url: str | None = None
+    _original_full_name: str | None = None
 
     #
     # Load
@@ -75,7 +78,11 @@ class UserEntity(TopLevelEntity):
         super().__init__(payload, exists, validate)
         self.was_active = self.active and self.exists
         self.was_service = self.is_service and self.exists
-        self.original_email = self.attrib.email
+
+        # initial values, to detect changes
+        self._original_email = self.attrib.email
+        self._original_full_name = self.attrib.fullName
+        self._original_avatar_url = self.attrib.avatarUrl
 
     @classmethod
     async def load(
@@ -140,7 +147,7 @@ class UserEntity(TopLevelEntity):
             if not self.active:
                 self.data.pop("userPool", None)
 
-            if self.attrib.email and (self.attrib.email != self.original_email):
+            if self.attrib.email and (self.attrib.email != self._original_email):
                 logger.info(f"Email changed for user {self.name}")
                 # Email changed, we need to check if it's unique
                 # We cannot use DB index here.
@@ -193,8 +200,13 @@ class UserEntity(TopLevelEntity):
                         **dict_exclude(self.dict(exclude_none=True), ["own_attrib"]),
                     )
                 )
-                await Redis.delete("user.avatar", self.name)
                 self.exists = True
+
+            if (
+                self._original_avatar_url != self.attrib.avatarUrl
+                or self._original_full_name != self.attrib.fullName
+            ):
+                await Redis.delete("user.avatar", self.name)
 
             if run_hooks:
                 for hook in self.save_hooks:
