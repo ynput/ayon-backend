@@ -57,10 +57,10 @@ def _make_cache_key(
 
         key = key_template.format(**format_args)
 
-    except Exception:
+    except Exception as e:
         logger.warning(
             f"Could not format cache key for {func.__name__}. "
-            "Falling back to default key generation. Error: {e}"
+            f"Falling back to default key generation. Error: {e}"
         )
 
         sig = inspect.signature(func)
