@@ -168,7 +168,12 @@ def build_pl_entity_change_events(
             **common_data,
         }
 
-        old_attributes = original_entity.attrib.dict()
+        old_attributes = {
+            k: v
+            for k, v in original_entity.attrib.dict().items()
+            if k in original_entity.own_attrib
+        }
+
         for key in list(old_attributes.keys()):
             if key not in new_attributes:
                 old_attributes.pop(key)
