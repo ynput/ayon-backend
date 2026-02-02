@@ -8,21 +8,21 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.docs import get_redoc_html
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 from fastapi.websockets import WebSocket, WebSocketDisconnect
 
 # okay. now the rest
 from ayon_server.api.auth import AuthMiddleware
-from ayon_server.api.dependencies import CurrentUserOptional
+from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional
 from ayon_server.api.lifespan import lifespan
 from ayon_server.api.logging import LoggingMiddleware
 from ayon_server.api.messaging import messaging
 from ayon_server.api.metadata import app_meta
 from ayon_server.background.log_collector import log_collector
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.logging import log_traceback, logger
 
@@ -75,6 +75,14 @@ async def openapi(user: CurrentUserOptional) -> dict[str, Any]:
     )
 
 
+@app.get("/docs/redoc.standalone.js", include_in_schema=False)
+async def redocs_static_js(_: CurrentUser) -> FileResponse:
+    """Serve Redoc static JS file"""
+    return FileResponse(
+        pathlib.Path("static/redoc.standalone.js"),
+    )
+
+
 @app.get("/docs", include_in_schema=False)
 async def docs(user: CurrentUserOptional) -> HTMLResponse:
     """Return the OpenAPI documentation page"""
@@ -94,6 +102,7 @@ async def docs(user: CurrentUserOptional) -> HTMLResponse:
     return get_redoc_html(
         openapi_url="/openapi.json",
         title=app_meta["title"],
+        redoc_js_url="/docs/redoc.standalone.js",
     )
 
 
@@ -186,10 +195,20 @@ app.include_router(
 
 
 @app.get("/graphiql", include_in_schema=False)
-def explorer() -> HTMLResponse:
-    page = pathlib.Path("static/graphiql.html").read_text()
-    page = page.replace("{{ SUBSCRIPTION_ENABLED }}", "false")  # TODO
-    return HTMLResponse(page, 200)
+def graphiql_root(_: CurrentUser) -> FileResponse:
+    return FileResponse(pathlib.Path("static/graphiql/index.html"))
+
+
+@app.get("/graphiql/{path:path}", include_in_schema=False)
+def explorer(path: str, _: CurrentUser) -> FileResponse:
+    base_path = pathlib.Path("static/graphiql").resolve()
+    full_path = (base_path / path).resolve()
+
+    if not full_path.is_relative_to(base_path):
+        raise ForbiddenException("Access to this resource is forbidden")
+    elif not full_path.exists():
+        raise NotFoundException("File not found")
+    return FileResponse(full_path)
 
 
 #
