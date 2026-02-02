@@ -273,15 +273,12 @@ async def get_additional_info(
     }
 
 
+@Redis.cached("global", "onboardingFinished")
 async def is_onboarding_finished() -> bool:
-    r = await Redis.get("global", "onboardingFinished")
-    if r is None:
-        query = "SELECT * FROM config where key = 'onboardingFinished'"
-        rdb = await Postgres.fetch(query)
-        if rdb:
-            await Redis.set("global", "onboardingFinished", "1")
-            return True
-    elif r:
+    """Check if the onboarding process has been finished"""
+    query = "SELECT * FROM config where key = 'onboardingFinished'"
+    rdb = await Postgres.fetch(query)
+    if rdb:
         return True
     return False
 

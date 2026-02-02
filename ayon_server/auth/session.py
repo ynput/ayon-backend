@@ -1,6 +1,7 @@
 __all__ = ["Session"]
 
 import asyncio
+import secrets
 import time
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -16,7 +17,7 @@ from ayon_server.helpers.auth_utils import AuthUtils
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import OPModel
-from ayon_server.utils import create_hash, json_dumps, json_loads
+from ayon_server.utils import json_dumps, json_loads
 
 
 class SessionModel(OPModel):
@@ -116,7 +117,7 @@ class Session:
         """Create a new session for a given user."""
         is_service = bool(token)
         if token is None:
-            token = create_hash()
+            token = secrets.token_hex(32)
         client_info = get_client_info(request) if request else None
 
         if user.exists and not user.data.get("isGuest", False):

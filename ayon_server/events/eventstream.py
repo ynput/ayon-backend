@@ -211,7 +211,8 @@ class EventStream:
             if not do_handle:
                 continue
 
-            for handler in handlers.values():
+            handler_funcs = list(handlers.values())
+            for handler in handler_funcs:
                 try:
                     await handler(event)
                 except Exception:
