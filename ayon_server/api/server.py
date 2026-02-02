@@ -206,7 +206,7 @@ def explorer(path: str, _: CurrentUser) -> FileResponse:
 
     if not full_path.is_relative_to(base_path):
         raise ForbiddenException("Access to this resource is forbidden")
-    elif not full_path.exists():
+    elif not full_path.is_file():
         raise NotFoundException("File not found")
     return FileResponse(full_path)
 
