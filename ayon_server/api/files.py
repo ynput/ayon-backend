@@ -1,6 +1,7 @@
 import os
 import pathlib
 from contextlib import suppress
+from typing import Any
 
 import aiofiles
 from fastapi import Request, Response
@@ -12,7 +13,12 @@ from ayon_server.helpers.mimetypes import guess_mime_type
 from ayon_server.helpers.statistics import update_traffic_stats
 
 
-async def handle_upload(request: Request, target_path: str | pathlib.Path) -> int:
+async def handle_upload(
+    request: Request,
+    target_path: str | pathlib.Path,
+    *,
+    root_dir: str | pathlib.Path | None = None,
+) -> int:
     """Store raw body from the request to a file.
 
     Important:
@@ -22,7 +28,14 @@ async def handle_upload(request: Request, target_path: str | pathlib.Path) -> in
     target path.
     """
 
-    target_path = pathlib.Path(target_path).resolve()
+    if root_dir is not None:
+        root_path = pathlib.Path(root_dir).resolve()
+        target_path = (root_path / target_path).resolve()
+        if not target_path.is_relative_to(root_path):
+            raise NotFoundException("Invalid file path")
+    else:
+        target_path = pathlib.Path(target_path).resolve()
+
     directory = target_path.parent
 
     if not directory.exists():
@@ -60,9 +73,9 @@ async def handle_upload(request: Request, target_path: str | pathlib.Path) -> in
 
 async def handle_download(
     path: str | pathlib.Path,
-    media_type: str = "application/octet-stream",
+    media_type: str | None = None,
     filename: str | None = None,
-    content_disposition_type: str = "attachment",
+    content_disposition_type: str | None = "attachment",
     root_dir: str | pathlib.Path | None = None,
 ) -> FileResponse:
     """Serve a file from the given path.
@@ -77,11 +90,13 @@ async def handle_download(
     validated to be under the root.
     """
 
-    requested_path = pathlib.Path(path).resolve()
     if root_dir is not None:
         root_path = pathlib.Path(root_dir).resolve()
+        requested_path = (root_path / path).resolve()
         if not requested_path.is_relative_to(root_path):
-            raise NotFoundException("Invalid file path")
+            raise NotFoundException(f"Invalid file path {requested_path}")
+    else:
+        requested_path = pathlib.Path(path).resolve()
 
     if not requested_path.is_file():
         raise NotFoundException("File not found")
@@ -89,12 +104,17 @@ async def handle_download(
     filename = requested_path.name if filename is None else filename
     filesize = requested_path.stat().st_size
 
+    kwargs: dict[str, Any] = {}
+    if media_type:
+        kwargs["media_type"] = media_type
+    if content_disposition_type:
+        kwargs["content_disposition_type"] = content_disposition_type
+
     return FileResponse(
-        path,
-        media_type=media_type,
+        requested_path,
         filename=filename,
-        content_disposition_type=content_disposition_type,
         background=BackgroundTask(update_traffic_stats, "egress", filesize),
+        **kwargs,
     )
 
 
