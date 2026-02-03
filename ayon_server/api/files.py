@@ -102,7 +102,7 @@ async def handle_download(
         root_path = pathlib.Path(root_dir).resolve()
         requested_path = (root_path / raw_path).resolve()
         if not requested_path.is_relative_to(root_path):
-            raise NotFoundException(f"Invalid file path {requested_path}")
+            raise NotFoundException("Invalid file path")
     else:
         requested_path = raw_path.resolve()
 
