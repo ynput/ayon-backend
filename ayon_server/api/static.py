@@ -23,30 +23,20 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
     if it is a subpath of the root directory.
     """
     root_path = pathlib.Path(root_dir).resolve()
+
+    requested_path = pathlib.PurePosixPath(path)
+    if requested_path.is_absolute() or ".." in requested_path.parts:
+        raise NotFoundException("Invalid file path")
+
     requested_path = (root_path / path).resolve()
     if not requested_path.is_relative_to(root_path):
         raise NotFoundException("Invalid file path")
 
-    if not str(requested_path).startswith(str(root_path) + os.sep):
-        # This is an extra check to stop Copilot security checks from triggering
-        # false positives about path traversal. both paths are already resolved.
-        # and is_relative_to should be sufficient, but Copilot doen't understand that.
-        #
-        # >>> from pathlib import Path
-        # >>> import os
-        # >>> os.getcwd()
-        # '/home/martas'
-        # >>> root = "/home/martas"
-        # >>> path = "../../etc/passwd"
-        # >>> root_path = Path(root).resolve()
-        # >>> requested_path = (root_path / path).resolve()
-        # >>> requested_path
-        # PosixPath('/etc/passwd')
-        # >>> assert requested_path.is_relative_to(root_path)
-        # Traceback (most recent call last):
-        #   File "<stdin>", line 1, in <module>
-        # AssertionError
-        #
+    root_str = str(root_path)
+    if not (
+        str(requested_path).startswith(root_str + os.sep)
+        or str(requested_path) == root_str
+    ):
         raise NotFoundException("Invalid file path")
 
     if not requested_path.is_file():
