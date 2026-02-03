@@ -57,7 +57,7 @@ def get_pg_connection_info() -> DBConnectionInfo:
 # Context variable to store the current connection
 #
 
-_current_connection: ContextVar["PoolConnectionProxy | None"] = ContextVar(
+_current_connection: ContextVar["Connection | None"] = ContextVar(
     "_current_connection", default=None
 )
 
@@ -229,7 +229,7 @@ class Postgres:
     @classmethod
     async def prepare(
         cls, query: str, *args: Any, timeout: float = 60
-    ) -> "PreparedStatement":
+    ) -> "PreparedStatement[Any]":
         """Prepare a statement"""
         async with cls.acquire() as connection:
             assert connection.is_in_transaction(), (

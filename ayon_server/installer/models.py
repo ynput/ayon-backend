@@ -26,7 +26,7 @@ class SourceModel(OPModel):
         str | None,
         Field(
             title="Download URL",
-            description="URL to download the file from. Only used if type is url",
+            description="URL to download the file from. Only used if type is http",
             example="https://example.com/file.zip",
         ),
     ] = None

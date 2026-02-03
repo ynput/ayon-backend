@@ -81,7 +81,7 @@ async def handle_download(
     """Serve a file from the given path.
 
     Important: path must be validated before calling this function!
-    File existence is checked here, but since we need to be able any file
+    File existence is checked here, but since we need to be able to serve any file
     and there's no single root directory, we cannot do path validation,
     if only the path is given. It is a responsibility of the caller to ensure
     that the path is safe to serve.
