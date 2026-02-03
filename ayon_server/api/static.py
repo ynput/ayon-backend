@@ -16,22 +16,58 @@ addon_static_router = APIRouter(prefix="/addons", include_in_schema=False)
 def serve_static_file(root_dir: str, path: str) -> FileResponse:
     """Serve a static file from the given root directory.
 
-    Since the path is provided by the user, we need to ensure
-    that it does not escape the given root directory.
+    root_dir is provided by the server and is not user-controlled,
+    when user reaches this point, we can safelly assume they can access
+    any file under root_dir. However, we still need to validate the path
+    to prevent directory traversal attacks.
+
+    This function is over-engineered, because any shortcut
+    (like using Pathlib's relative_to) is catched by CodeQL robot,
+    that raises false security warnings. So we do this checks manually,
+    and verbosely, so it keeps its metal mouth shut.
     """
 
+    # Get the absolute path to root dir. Againt. User has access to
+    # root_dir, and everything under it.
     root_path = pathlib.Path(root_dir).resolve()
-    requested_path = root_path.joinpath(path).resolve()
 
-    is_safe = str(requested_path).startswith(str(root_path) + os.sep)
+    # Split requested path to chunks and validate each chunk
 
-    if not is_safe:
+    path_parts = path.split("/")  # this is URL, so we split by "/"
+    for part in path_parts:
+        # No empty parts allowed (this wouldn't happen with FastAPI,
+        # but CodeQL doesn't know that)
+
+        if not part.strip():
+            raise NotFoundException("Invalid file path")
+
+        # very explicitly forbid "." and ".." parts,
+        # because they are used for directory traversal
+
+        if part in [".", ".."]:
+            raise NotFoundException("Invalid file path")
+
+        if os.path.sep in part:
+            raise NotFoundException("Invalid file path")
+
+        if os.path.altsep and os.path.altsep in part:
+            raise NotFoundException("Invalid file path")
+
+    # Now we can safely create the full requested path
+
+    requested_path = pathlib.Path(root_path, *path_parts).resolve()
+
+    # To be extra extra safe, we check that the requested path
+    # is releative to the root path (normally, this would be enough)
+
+    if not requested_path.is_relative_to(root_path):
         raise NotFoundException("Invalid file path")
+
+    # And check if the file actually exists
 
     if not requested_path.is_file():
         raise NotFoundException("File not found")
 
-    # Pass a plain string path to FileResponse after all validation checks.
     return FileResponse(requested_path)
 
 
