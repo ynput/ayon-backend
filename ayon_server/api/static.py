@@ -58,7 +58,7 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
     requested_path = pathlib.Path(root_path, *path_parts).resolve()
 
     # To be extra extra safe, we check that the requested path
-    # is releative to the root path (normally, this would be enough)
+    # is relative to the root path (normally, this would be enough)
 
     if not requested_path.is_relative_to(root_path):
         raise NotFoundException("Invalid file path")
