@@ -97,7 +97,7 @@ async def get_server_config_file(user: CurrentUser, file_type: ServerFileType):
         raise BadRequestException("No file set for this type.")
 
     base_dir = server_files[file_type]["directory"]
-    await handle_download(
+    return await handle_download(
         file_name,
         root_dir=base_dir,
         content_disposition_type=None,

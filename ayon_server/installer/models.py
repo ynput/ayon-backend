@@ -19,7 +19,7 @@ class SourceModel(OPModel):
             title="Source type",
             description="If set to server, the file is stored on the server. "
             "If set to http, the file is downloaded from the specified URL.",
-            example="url",
+            example="http",
         ),
     ]
     url: Annotated[
@@ -33,7 +33,7 @@ class SourceModel(OPModel):
 
     @validator("type", pre=True)
     def validate_type(cls, value: Any):
-        # if type is "url", change it to "http"
+        # if type is "url", change it to "http" (legacy)
         if value == "url":
             return "http"
         return value
@@ -44,7 +44,6 @@ SOURCES_META = Field(
     title="Sources",
     description="List of sources to download the file from. "
     "Server source is added automatically by the server if the file is uploaded.",
-    example=[{"type": "url"}],
 )
 
 

@@ -109,7 +109,9 @@ async def handle_download(
     if not requested_path.is_file():
         raise NotFoundException("File not found")
 
-    filename = requested_path.name if filename is None else filename
+    filename = None
+    if content_disposition_type == "attachment":
+        filename = requested_path.name if filename is None else filename
     filesize = requested_path.stat().st_size
 
     kwargs: dict[str, Any] = {}
