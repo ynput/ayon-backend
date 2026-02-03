@@ -17,7 +17,7 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
     """Serve a static file from the given root directory.
 
     root_dir is provided by the server and is not user-controlled,
-    when user reaches this point, we can safelly assume they can access
+    when user reaches this point, we can safely assume they can access
     any file under root_dir. However, we still need to validate the path
     to prevent directory traversal attacks.
 
