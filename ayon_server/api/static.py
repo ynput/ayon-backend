@@ -22,7 +22,7 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
     to prevent directory traversal attacks.
 
     This function is over-engineered, because any shortcut
-    (like using Pathlib's relative_to) is catched by CodeQL robot,
+    (like using Pathlib's relative_to) is caught by CodeQL robot,
     that raises false security warnings. So we do this checks manually,
     and verbosely, so it keeps its metal mouth shut.
     """
