@@ -17,17 +17,17 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
     """Serve a static file from the given root directory.
 
     root_dir is provided by the server and is not user-controlled,
-    when user reaches this point, we can safelly assume they can access
+    when user reaches this point, we can safely assume they can access
     any file under root_dir. However, we still need to validate the path
     to prevent directory traversal attacks.
 
     This function is over-engineered, because any shortcut
-    (like using Pathlib's relative_to) is catched by CodeQL robot,
+    (like using Pathlib's relative_to) is caught by CodeQL robot,
     that raises false security warnings. So we do this checks manually,
     and verbosely, so it keeps its metal mouth shut.
     """
 
-    # Get the absolute path to root dir. Againt. User has access to
+    # Get the absolute path to root dir. Again. User has access to
     # root_dir, and everything under it.
     root_path = pathlib.Path(root_dir).resolve()
 
@@ -58,7 +58,7 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
     requested_path = pathlib.Path(root_path, *path_parts).resolve()
 
     # To be extra extra safe, we check that the requested path
-    # is releative to the root path (normally, this would be enough)
+    # is relative to the root path (normally, this would be enough)
 
     if not requested_path.is_relative_to(root_path):
         raise NotFoundException("Invalid file path")
