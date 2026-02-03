@@ -22,19 +22,19 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
     This is done by resolving the absolute path and checking
     that it is a subpath of the root directory.
     """
+    # Resolve the root directory once to an absolute path.
     root_path = pathlib.Path(root_dir).resolve()
 
-    # Normalize the requested path relative to the root directory and ensure
-    # that the final resolved path stays within root_path. Using resolve with
-    # strict=False allows normalization of paths that do not yet exist.
+    # Construct the requested path relative to the root directory and
+    # normalize it. Using resolve(strict=False) here normalizes ".."
+    # segments without requiring the file to exist.
     requested_path = (root_path / pathlib.Path(path)).resolve(strict=False)
 
     # Ensure the requested path is inside the root directory. At this point
-    # requested_path has been normalized, so a successful relative_to() call
-    # guarantees that it cannot escape root_path via ".." segments.
-    try:
-        requested_path.relative_to(root_path)
-    except ValueError:
+    # requested_path has been normalized, so checking that root_path is one
+    # of its parents (or equal to it) guarantees that it cannot escape
+    # root_path via ".." segments or absolute paths.
+    if root_path != requested_path and root_path not in requested_path.parents:
         raise NotFoundException("Invalid file path")
 
     if not requested_path.is_file():
