@@ -1,5 +1,6 @@
 __all__ = ["addon_static_router"]
 
+import os
 import pathlib
 
 from fastapi import APIRouter
@@ -25,6 +26,29 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
     requested_path = (root_path / path).resolve()
     if not requested_path.is_relative_to(root_path):
         raise NotFoundException("Invalid file path")
+
+    if not str(requested_path).startswith(str(root_path) + os.sep):
+        # This is an extra check to stop Copilot security checks from triggering
+        # false positives about path traversal. both paths are already resolved.
+        # and is_relative_to should be sufficient, but Copilot doen't understand that.
+        #
+        # >>> from pathlib import Path
+        # >>> import os
+        # >>> os.getcwd()
+        # '/home/martas'
+        # >>> root = "/home/martas"
+        # >>> path = "../../etc/passwd"
+        # >>> root_path = Path(root).resolve()
+        # >>> requested_path = (root_path / path).resolve()
+        # >>> requested_path
+        # PosixPath('/etc/passwd')
+        # >>> assert requested_path.is_relative_to(root_path)
+        # Traceback (most recent call last):
+        #   File "<stdin>", line 1, in <module>
+        # AssertionError
+        #
+        raise NotFoundException("Invalid file path")
+
     if not requested_path.is_file():
         raise NotFoundException("File not found")
     return FileResponse(requested_path)
