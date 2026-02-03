@@ -90,13 +90,21 @@ async def handle_download(
     validated to be under the root.
     """
 
+    # Normalize the incoming path early
+    raw_path = pathlib.Path(path)
+
     if root_dir is not None:
+        # When a root directory is provided, only allow relative paths
+        # without any parent-directory traversal components.
+        if raw_path.is_absolute() or ".." in raw_path.parts:
+            raise NotFoundException("Invalid file path")
+
         root_path = pathlib.Path(root_dir).resolve()
-        requested_path = (root_path / path).resolve()
+        requested_path = (root_path / raw_path).resolve()
         if not requested_path.is_relative_to(root_path):
             raise NotFoundException(f"Invalid file path {requested_path}")
     else:
-        requested_path = pathlib.Path(path).resolve()
+        requested_path = raw_path.resolve()
 
     if not requested_path.is_file():
         raise NotFoundException("File not found")
