@@ -197,7 +197,7 @@ app.include_router(
 
 @app.get("/graphiql", include_in_schema=False)
 def graphiql_root(_: CurrentUser) -> FileResponse:
-    return FileResponse(pathlib.Path("static/graphiql/index.html"))
+    return serve_static_file("static/graphiql", "index.html")
 
 
 @app.get("/graphiql/{path:path}", include_in_schema=False)

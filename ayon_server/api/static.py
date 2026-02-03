@@ -1,6 +1,5 @@
 __all__ = ["addon_static_router"]
 
-import os
 import pathlib
 
 from fastapi import APIRouter
