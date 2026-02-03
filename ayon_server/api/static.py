@@ -1,6 +1,6 @@
 __all__ = ["addon_static_router"]
 
-import os
+import pathlib
 
 from fastapi import APIRouter
 from fastapi.responses import FileResponse
@@ -12,8 +12,26 @@ from ayon_server.exceptions import NotFoundException
 addon_static_router = APIRouter(prefix="/addons", include_in_schema=False)
 
 
+def serve_static_file(root_dir: str, path: str) -> FileResponse:
+    """Serve a static file from the given root directory.
+
+    Since the path is provided by the user, we need to ensure
+    that it does not escape the given root directory.
+
+    That is done by resolving the absolute path and checking
+    if it is a subpath of the root directory.
+    """
+    root_path = pathlib.Path(root_dir).resolve()
+    requested_path = (root_path / path).resolve()
+    if not requested_path.is_relative_to(root_path):
+        raise NotFoundException("Invalid file path")
+    if not requested_path.is_file():
+        raise NotFoundException("File not found")
+    return FileResponse(requested_path)
+
+
 @addon_static_router.get("/{addon_name}/{addon_version}/private/{path:path}")
-async def get_private_addon_file(
+def get_private_addon_file(
     _: CurrentUser, addon_name: str, addon_version: str, path: str
 ):
     # AddonLibrary.addon will raise 404 if the addon is not found
@@ -23,31 +41,22 @@ async def get_private_addon_file(
     if private_dir is None:
         raise NotFoundException("Addon does not have a private directory")
 
-    file_path = os.path.join(private_dir, path)
-    if not os.path.isfile(file_path):
-        raise NotFoundException("File not found")
-
-    return FileResponse(file_path)
+    return serve_static_file(private_dir, path)
 
 
 @addon_static_router.get("/{addon_name}/{addon_version}/public/{path:path}")
-async def get_public_addon_file(addon_name: str, addon_version: str, path: str):
+def get_public_addon_file(addon_name: str, addon_version: str, path: str):
     # AddonLibrary.addon will raise 404 if the addon is not found
     addon = AddonLibrary.addon(addon_name, addon_version)
 
     public_dir = addon.get_public_dir()
     if public_dir is None:
         raise NotFoundException("Addon does not have a public directory")
-
-    file_path = os.path.join(public_dir, path)
-    if not os.path.isfile(file_path):
-        raise NotFoundException("File not found")
-
-    return FileResponse(file_path)
+    return serve_static_file(public_dir, path)
 
 
 @addon_static_router.get("/{addon_name}/{addon_version}/frontend/{path:path}")
-async def get_frontend_addon_file(addon_name: str, addon_version: str, path: str):
+def get_frontend_addon_file(addon_name: str, addon_version: str, path: str):
     if path == "":
         path = "index.html"
 
@@ -57,9 +66,4 @@ async def get_frontend_addon_file(addon_name: str, addon_version: str, path: str
     frontend_dir = addon.get_frontend_dir()
     if frontend_dir is None:
         raise NotFoundException("Addon does not have a frontend directory")
-
-    file_path = os.path.join(frontend_dir, path)
-    if not os.path.isfile(file_path):
-        raise NotFoundException("File not found")
-
-    return FileResponse(file_path)
+    return serve_static_file(frontend_dir, path)

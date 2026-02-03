@@ -20,9 +20,10 @@ from ayon_server.api.lifespan import lifespan
 from ayon_server.api.logging import LoggingMiddleware
 from ayon_server.api.messaging import messaging
 from ayon_server.api.metadata import app_meta
+from ayon_server.api.static import serve_static_file
 from ayon_server.background.log_collector import log_collector
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import ForbiddenException, NotFoundException
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.logging import log_traceback, logger
 
@@ -200,15 +201,8 @@ def graphiql_root(_: CurrentUser) -> FileResponse:
 
 
 @app.get("/graphiql/{path:path}", include_in_schema=False)
-def explorer(path: str, _: CurrentUser) -> FileResponse:
-    base_path = pathlib.Path("static/graphiql").resolve()
-    full_path = (base_path / path).resolve()
-
-    if not full_path.is_relative_to(base_path):
-        raise ForbiddenException("Access to this resource is forbidden")
-    elif not full_path.is_file():
-        raise NotFoundException("File not found")
-    return FileResponse(full_path)
+async def explorer(path: str, _: CurrentUser) -> FileResponse:
+    return serve_static_file("static/graphiql", path)
 
 
 #
