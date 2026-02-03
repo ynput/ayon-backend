@@ -1,5 +1,6 @@
 __all__ = ["addon_static_router"]
 
+import os
 import pathlib
 
 from fastapi import APIRouter
@@ -17,30 +18,21 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
 
     Since the path is provided by the user, we need to ensure
     that it does not escape the given root directory.
-
-    This is done by resolving the absolute path and checking
-    that it is a subpath of the root directory.
     """
-    # Resolve the root directory once to an absolute path.
+
     root_path = pathlib.Path(root_dir).resolve()
+    requested_path = root_path.joinpath(path).resolve()
 
-    # Construct the requested path relative to the root directory and
-    # normalize it. Using resolve(strict=False) here normalizes ".."
-    # segments without requiring the file to exist.
-    requested_path = (root_path / pathlib.Path(path)).resolve(strict=False)
+    is_safe = str(requested_path).startswith(str(root_path) + os.sep)
 
-    # Ensure the requested path is inside the root directory. At this point
-    # requested_path has been normalized, so checking that root_path is one
-    # of its parents (or equal to it) guarantees that it cannot escape
-    # root_path via ".." segments or absolute paths.
-    if root_path != requested_path and root_path not in requested_path.parents:
+    if not is_safe:
         raise NotFoundException("Invalid file path")
 
     if not requested_path.is_file():
         raise NotFoundException("File not found")
 
     # Pass a plain string path to FileResponse after all validation checks.
-    return FileResponse(str(requested_path))
+    return FileResponse(requested_path)
 
 
 @addon_static_router.get("/{addon_name}/{addon_version}/private/{path:path}")
