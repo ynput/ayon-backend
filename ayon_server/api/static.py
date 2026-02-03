@@ -27,7 +27,7 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
     and verbosely, so it keeps its metal mouth shut.
     """
 
-    # Get the absolute path to root dir. Againt. User has access to
+    # Get the absolute path to root dir. Again. User has access to
     # root_dir, and everything under it.
     root_path = pathlib.Path(root_dir).resolve()
 
