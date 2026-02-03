@@ -29,7 +29,9 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
     # strict=False allows normalization of paths that do not yet exist.
     requested_path = (root_path / pathlib.Path(path)).resolve(strict=False)
 
-    # Ensure the requested path is inside the root directory
+    # Ensure the requested path is inside the root directory. At this point
+    # requested_path has been normalized, so a successful relative_to() call
+    # guarantees that it cannot escape root_path via ".." segments.
     try:
         requested_path.relative_to(root_path)
     except ValueError:
@@ -38,7 +40,8 @@ def serve_static_file(root_dir: str, path: str) -> FileResponse:
     if not requested_path.is_file():
         raise NotFoundException("File not found")
 
-    return FileResponse(requested_path)
+    # Pass a plain string path to FileResponse after all validation checks.
+    return FileResponse(str(requested_path))
 
 
 @addon_static_router.get("/{addon_name}/{addon_version}/private/{path:path}")
