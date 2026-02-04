@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import validator
 
@@ -13,23 +13,27 @@ from ayon_server.types import Field, OPModel, Platform
 
 
 class SourceModel(OPModel):
-    type: Literal["server", "http"] = Field(
-        ...,
-        title="Source type",
-        description="If set to server, the file is stored on the server. "
-        "If set to http, the file is downloaded from the specified URL.",
-        example="url",
-    )
-    url: str | None = Field(
-        None,
-        title="Download URL",
-        description="URL to download the file from. Only used if type is url",
-        example="https://example.com/file.zip",
-    )
+    type: Annotated[
+        Literal["server", "http"],
+        Field(
+            title="Source type",
+            description="If set to server, the file is stored on the server. "
+            "If set to http, the file is downloaded from the specified URL.",
+            example="http",
+        ),
+    ]
+    url: Annotated[
+        str | None,
+        Field(
+            title="Download URL",
+            description="URL to download the file from. Only used if type is http",
+            example="https://example.com/file.zip",
+        ),
+    ] = None
 
     @validator("type", pre=True)
     def validate_type(cls, value: Any):
-        # if type is "url", change it to "http"
+        # if type is "url", change it to "http" (legacy)
         if value == "url":
             return "http"
         return value
@@ -40,12 +44,19 @@ SOURCES_META = Field(
     title="Sources",
     description="List of sources to download the file from. "
     "Server source is added automatically by the server if the file is uploaded.",
-    example=[{"type": "url"}],
 )
 
 
 class BasePackageModel(OPModel):
-    filename: str
+    filename: Annotated[
+        str,
+        Field(
+            title="Filename",
+            regex=r"^[\w\-. ]+$",
+            description="Name of the package file",
+            example="ayon_installer_1.2.3_windows.exe",
+        ),
+    ]
     platform: Platform
     size: int | None = None
     checksum: str | None = None
@@ -58,48 +69,66 @@ class SourcesPatchModel(OPModel):
 
 
 class DependencyPackageManifest(BasePackageModel):
-    installer_version: str = Field(
-        ...,
-        title="Installer version",
-        description="Version of the Ayon installer this package is created with",
-        example="1.2.3",
-    )
-    source_addons: dict[str, str | None] = Field(
-        default_factory=dict,
-        title="Source addons",
-        description="mapping of addon_name:addon_version used to create the package",
-        example={"ftrack": "1.2.3", "maya": "2.4"},
-    )
-    python_modules: dict[str, str | dict[str, str]] = Field(
-        default_factory=dict,
-        title="Python modules",
-        description="mapping of module_name:module_version used to create the package",
-        example={"requests": "2.25.1", "pydantic": "1.8.2"},
-    )
+    installer_version: Annotated[
+        str,
+        Field(
+            title="Installer version",
+            description="Version of the Ayon installer this package is created with",
+            example="1.2.3",
+        ),
+    ]
+    source_addons: Annotated[
+        dict[str, str | None],
+        Field(
+            default_factory=dict,
+            title="Source addons",
+            description="mapping of addon_name:version used to create the package",
+            example={"ftrack": "1.2.3", "maya": "2.4"},
+        ),
+    ]
+    python_modules: Annotated[
+        dict[str, str | dict[str, str]],
+        Field(
+            default_factory=dict,
+            title="Python modules",
+            description="mapping of module_name:version used to create the package",
+            example={"requests": "2.25.1", "pydantic": "1.8.2"},
+        ),
+    ]
 
 
 class InstallerManifest(BasePackageModel):
-    version: str = Field(
-        ...,
-        title="Version",
-        description="Version of the installer",
-        example="1.2.3",
-    )
-    python_version: str = Field(
-        ...,
-        title="Python version",
-        description="Version of Python that the installer is created with",
-        example="3.11",
-    )
-    python_modules: dict[str, str | dict[str, str]] = Field(
-        default_factory=dict,
-        title="Python modules",
-        description="mapping of module name:version used to create the installer",
-        example={"requests": "2.25.1", "pydantic": "1.8.2"},
-    )
-    runtime_python_modules: dict[str, str] = Field(
-        default_factory=dict,
-        title="Runtime Python modules",
-        description="mapping of module_name:module_version used to run the installer",
-        example={"requests": "2.25.1", "pydantic": "1.8.2"},
-    )
+    version: Annotated[
+        str,
+        Field(
+            title="Version",
+            description="Version of the installer",
+            example="1.2.3",
+        ),
+    ]
+    python_version: Annotated[
+        str,
+        Field(
+            title="Python version",
+            description="Version of Python that the installer is created with",
+            example="3.11",
+        ),
+    ]
+    python_modules: Annotated[
+        dict[str, str | dict[str, str]],
+        Field(
+            default_factory=dict,
+            title="Python modules",
+            description="mapping of module name:version used to create the installer",
+            example={"requests": "2.25.1", "pydantic": "1.8.2"},
+        ),
+    ]
+    runtime_python_modules: Annotated[
+        dict[str, str],
+        Field(
+            default_factory=dict,
+            title="Runtime Python modules",
+            description="mapping of module_name:version used to run the installer",
+            example={"requests": "2.25.1", "pydantic": "1.8.2"},
+        ),
+    ]

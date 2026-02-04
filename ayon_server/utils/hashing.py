@@ -10,14 +10,17 @@ from .json import json_dumps
 
 
 def hash_data(data: Any) -> str:
-    """Create a SHA-256 hash from arbitrary (json-serializable) data."""
+    """Create a SHA-256 hash from arbitrary (json-serializable) data.
+
+    This is used to generate consistent hashes from data structures.
+    """
     if isinstance(data, int | float | bool | dict | list | tuple):
         data = json_dumps(data)
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
 def create_hash() -> str:
-    """Create a pseudo-random hash (used as and access token)."""
+    """Create a pseudo-random hash"""
     return hash_data([time.time(), random.random()])
 
 

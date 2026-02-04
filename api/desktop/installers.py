@@ -220,8 +220,7 @@ async def create_installer(
 @router.get("/installers/{filename}")
 async def download_installer_file(user: CurrentUser, filename: str):
     installers_dir = get_desktop_dir("installers", for_writing=False)
-    file_path = os.path.join(installers_dir, filename)
-    return await handle_download(file_path)
+    return await handle_download(filename, root_dir=installers_dir)
 
 
 @router.put("/installers/{filename}", status_code=204)

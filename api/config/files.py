@@ -1,11 +1,9 @@
-import os
 from typing import Any, Literal
 
 from fastapi import Header, Path, Request
-from fastapi.responses import FileResponse
 
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.api.files import handle_upload
+from ayon_server.api.files import handle_download, handle_upload
 from ayon_server.config.serverconfig import get_server_config, save_server_config_data
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 
@@ -68,8 +66,8 @@ async def upload_server_config_file(
     if content_type.lower() not in server_files[file_type]["mime_types"]:
         raise BadRequestException("Invalid content type.")
 
-    target_path = os.path.join(server_files[file_type]["directory"], x_file_name)
-    await handle_upload(request, target_path)
+    base_dir = server_files[file_type]["directory"]
+    await handle_upload(request, x_file_name, root_dir=base_dir)
 
     config = await get_server_config()
     config_data = config.dict()
@@ -98,5 +96,9 @@ async def get_server_config_file(user: CurrentUser, file_type: ServerFileType):
     if not file_name:
         raise BadRequestException("No file set for this type.")
 
-    target_path = os.path.join(server_files[file_type]["directory"], file_name)
-    return FileResponse(target_path)
+    base_dir = server_files[file_type]["directory"]
+    return await handle_download(
+        file_name,
+        root_dir=base_dir,
+        content_disposition_type=None,
+    )
