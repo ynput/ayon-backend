@@ -41,8 +41,8 @@ async def get_market_data(
                 f"{ayonconfig.ynput_cloud_api_url}/api/{api_version}/{endpoint}",
                 headers=headers,
             )
-    except httpx.ConnectError:
-        raise ServiceUnavailableException("Unable to reach AYON Market")
+    except httpx.ConnectError as e:
+        raise ServiceUnavailableException("Unable to reach AYON Market") from e
 
     if res.status_code == 401:
         raise ForbiddenException("Unauthorized instance")

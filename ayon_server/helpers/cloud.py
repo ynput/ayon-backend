@@ -91,9 +91,13 @@ class YnputCloudInfoModel(OPModel):
         ),
     ] = False
 
-    offline_mode: Annotated[bool, Field(description="AYON is in offline mode")] = (
-        ayonconfig.offline_mode
-    )
+    offline_mode: Annotated[
+        bool,
+        Field(
+            description="AYON is in offline mode",
+            default_factory=lambda: ayonconfig.offline_mode,
+        ),
+    ]
 
 
 class CloudUtils:
@@ -219,7 +223,11 @@ class CloudUtils:
         try:
             ynput_cloud_key = await cls.get_ynput_cloud_key()
         except (ServiceUnavailableException, ForbiddenException):
-            return YnputCloudInfoModel(instance_id=instance_id, subscriptions=[])
+            return YnputCloudInfoModel(
+                instance_id=instance_id,
+                subscriptions=[],
+                offline_mode=ayonconfig.offline_mode,
+            )
 
         data = await Redis.get_json("global", "cloudinfo")
         if (not data) or data.get("fetched_at", 0) < time.time() - 600 or force:

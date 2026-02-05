@@ -83,6 +83,7 @@ class InfoResponseModel(OPModel):
     extras: str | None = Field(None)
 
     disable_changelog: bool | None = Field(
+        None,
         title="Disable changelog",
         description="If set, the changelog will not be shown to the user",
     )

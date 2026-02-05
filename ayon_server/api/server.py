@@ -77,8 +77,20 @@ async def openapi(user: CurrentUserOptional) -> dict[str, Any]:
 
 
 @app.get("/docs/redoc.standalone.js", include_in_schema=False)
-async def redocs_static_js(_: CurrentUser) -> FileResponse:
+async def redocs_static_js(user: CurrentUserOptional) -> FileResponse:
     """Serve Redoc static JS file"""
+
+    if ayonconfig.disable_rest_docs:
+        raise ForbiddenException("OpenAPI documentation is disabled")
+
+    if ayonconfig.openapi_require_authentication:
+        if user is None:
+            raise ForbiddenException(
+                "You must be logged in to access API documentation"
+            )
+        if not user.is_manager:
+            raise ForbiddenException("You are not allowed to access API documentation")
+
     return FileResponse(
         pathlib.Path("static/redoc.standalone.js"),
     )
