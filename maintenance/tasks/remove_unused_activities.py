@@ -75,7 +75,7 @@ async def clear_activities(project_name: str) -> None:
         except TimeoutError:
             logger.warning(
                 f"Timeout while removing orphaned {entity_type} "
-                "activities from {project_name}"
+                f"activities from {project_name}"
             )
             continue
         except Exception as e:
