@@ -574,12 +574,9 @@ SenderType = Annotated[str | None, Depends(dep_sender_type)]
 async def dep_x_file_name(
     x_file_name: str = Header(..., title="File name"),
 ) -> str:
-    # TODO: this is currently blocked by the review drawovers, because they rely
-    # on the file name to be able to contain path separators.
-    # if "/" in x_file_name or "\\" in x_file_name:
-    #     raise BadRequestException(
-    #     "Invalid file name: path separators are not allowed."
-    #     )
+    # TODO: Currently blocked by review drawovers, which rely on file names
+    # being allowed to contain path separators. In the future, we may need
+    # to reject file names containing "/" or "\\" to prevent path traversal.
     return x_file_name
 
 
