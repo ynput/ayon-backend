@@ -1,4 +1,4 @@
-from fastapi import Header, Query, Request
+from fastapi import Query, Request
 
 from ayon_server.api.dependencies import (
     CurrentUser,
@@ -6,10 +6,15 @@ from ayon_server.api.dependencies import (
     Sender,
     SenderType,
     VersionID,
+    XContentType,
+    XFileName,
 )
 from ayon_server.entities.version import VersionEntity
 from ayon_server.files import Storages
-from ayon_server.reviewables.create_reviewable import create_reviewable
+from ayon_server.reviewables.create_reviewable import (
+    check_valid_mime,
+    create_reviewable,
+)
 from ayon_server.reviewables.models import ReviewableModel
 from ayon_server.utils import create_uuid
 
@@ -24,9 +29,9 @@ async def upload_reviewable(
     version_id: VersionID,
     sender: Sender,
     sender_type: SenderType,
+    x_file_name: XFileName,
+    content_type: XContentType,
     label: str | None = Query(None, description="Label", alias="label"),
-    content_type: str = Header(...),
-    x_file_name: str = Header(...),
 ) -> ReviewableModel:
     """Uploads a reviewable for a given version."""
 
@@ -34,9 +39,17 @@ async def upload_reviewable(
     await version.ensure_create_access(user)
 
     file_id = create_uuid()
+    check_valid_mime(content_type)
+
+    content_disposition = f'inline; filename="{x_file_name}"'
 
     storage = await Storages.project(project_name)
-    file_size = await storage.handle_upload(request, file_id)
+    file_size = await storage.handle_upload(
+        request,
+        file_id,
+        content_type=content_type,
+        content_disposition=content_disposition,
+    )
 
     return await create_reviewable(
         version,
