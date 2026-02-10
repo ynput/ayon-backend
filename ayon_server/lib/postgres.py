@@ -57,7 +57,7 @@ def get_pg_connection_info() -> DBConnectionInfo:
 # Context variable to store the current connection
 #
 
-_current_connection: ContextVar["PoolConnectionProxy | None"] = ContextVar(  # type: ignore[type-arg]
+_current_connection: ContextVar["Connection | None"] = ContextVar(
     "_current_connection", default=None
 )
 
@@ -73,7 +73,7 @@ class Postgres:
     """
 
     shutting_down: bool = False
-    pool: asyncpg.pool.Pool | None = None  # type: ignore[type-arg]
+    pool: asyncpg.pool.Pool | None = None
 
     # Shorthand for asyncpg exceptions
     # so we when we need to catch them, we don't need to import them
@@ -229,7 +229,7 @@ class Postgres:
     @classmethod
     async def prepare(
         cls, query: str, *args: Any, timeout: float = 60
-    ) -> "PreparedStatement":  # type: ignore[type-arg]
+    ) -> "PreparedStatement[Any]":
         """Prepare a statement"""
         async with cls.acquire() as connection:
             assert connection.is_in_transaction(), (

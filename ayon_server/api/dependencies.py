@@ -569,3 +569,47 @@ async def dep_sender_type(
 
 
 SenderType = Annotated[str | None, Depends(dep_sender_type)]
+
+
+async def dep_x_file_name(
+    x_file_name: str = Header(..., title="File name"),
+) -> str:
+    # TODO: Currently blocked by review drawovers, which rely on file names
+    # being allowed to contain path separators. In the future, we may need
+    # to reject file names containing "/" or "\\" to prevent path traversal.
+    return x_file_name
+
+
+XFileName = Annotated[str, Depends(dep_x_file_name)]
+
+
+async def dep_x_file_id(
+    x_file_id: str = Header(..., title="File ID", **EntityID.META),
+) -> str:
+    return x_file_id
+
+
+XFileID = Annotated[str, Depends(dep_x_file_id)]
+
+
+async def dep_x_activity_id(
+    x_activity_id: str = Header(..., title="Activity ID", **EntityID.META),
+) -> str:
+    return x_activity_id
+
+
+XActivityID = Annotated[str, Depends(dep_x_activity_id)]
+
+
+async def dep_x_content_type(
+    content_type: str = Header(..., title="Content type"),
+) -> str:
+    parts = content_type.split("/")
+    if len(parts) != 2 or not all(parts):
+        raise BadRequestException("Invalid content type")
+    if not re.match(r"^[a-z0-9!#$&^_.+-]+$", parts[0], re.IGNORECASE):
+        raise BadRequestException("Invalid content type")
+    return content_type
+
+
+XContentType = Annotated[str, Depends(dep_x_content_type)]

@@ -70,7 +70,21 @@ async def clear_activities(project_name: str) -> None:
             SELECT count(*) as deleted FROM deleted_activities
         """
 
-        res = await Postgres.fetch(query, timeout=10)
+        try:
+            res = await Postgres.fetch(query, timeout=60)
+        except TimeoutError:
+            logger.warning(
+                f"Timeout while removing orphaned {entity_type} "
+                f"activities from {project_name}"
+            )
+            continue
+        except Exception as e:
+            logger.error(
+                f"Error while removing orphaned {entity_type} "
+                f"activities from {project_name}: {e}"
+            )
+            continue
+
         count = res[0]["deleted"]
 
         if count:

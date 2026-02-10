@@ -4,7 +4,11 @@ from typing import Annotated, Any
 import httpx
 
 from ayon_server.config import ayonconfig
-from ayon_server.exceptions import AyonException, ForbiddenException
+from ayon_server.exceptions import (
+    AyonException,
+    ForbiddenException,
+    ServiceUnavailableException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -87,6 +91,14 @@ class YnputCloudInfoModel(OPModel):
         ),
     ] = False
 
+    offline_mode: Annotated[
+        bool,
+        Field(
+            description="AYON is in offline mode",
+            default_factory=lambda: ayonconfig.offline_mode,
+        ),
+    ]
+
 
 class CloudUtils:
     instance_id: str | None = None
@@ -132,6 +144,10 @@ class CloudUtils:
     @classmethod
     async def get_ynput_cloud_key(cls) -> str:
         """Get the Ynput Cloud key"""
+
+        if ayonconfig.offline_mode:
+            raise ServiceUnavailableException("AYON is in offline mode")
+
         ckey = await Redis.get("global", "ynput_cloud_key")
 
         if not ckey:
@@ -150,6 +166,9 @@ class CloudUtils:
 
     @classmethod
     async def get_api_headers(cls) -> dict[str, str]:
+        if ayonconfig.offline_mode:
+            raise ServiceUnavailableException("AYON is in offline mode")
+
         instance_id = await cls.get_instance_id()
         ynput_cloud_key = await cls.get_ynput_cloud_key()
         headers = {
@@ -203,8 +222,13 @@ class CloudUtils:
         instance_id = await cls.get_instance_id()
         try:
             ynput_cloud_key = await cls.get_ynput_cloud_key()
-        except Exception:
-            return YnputCloudInfoModel(instance_id=instance_id, subscriptions=[])
+        except (ServiceUnavailableException, ForbiddenException):
+            return YnputCloudInfoModel(
+                instance_id=instance_id,
+                subscriptions=[],
+                offline_mode=ayonconfig.offline_mode,
+            )
+
         data = await Redis.get_json("global", "cloudinfo")
         if (not data) or data.get("fetched_at", 0) < time.time() - 600 or force:
             return await cls.request_cloud_info(instance_id, ynput_cloud_key)
@@ -222,6 +246,9 @@ class CloudUtils:
             "x-ynput-server-version": __version__,
         }
         try:
+            if ayonconfig.offline_mode:
+                raise ServiceUnavailableException()
+
             async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
                 res = await client.get(
                     f"{ayonconfig.ynput_cloud_api_url}/api/v1/me",
@@ -239,6 +266,13 @@ class CloudUtils:
                 if not isinstance(data, dict):
                     raise ValueError(f"Invalid response from Ynput Cloud: {res.text}")
                 data["connected"] = True
+
+        except ServiceUnavailableException:
+            data = {
+                "instance_id": instance_id,
+                "connected": False,
+            }
+
         except Exception as e:
             logger.warning(f"Unable to connect to Ynput Cloud. Error: {e}")
             data = {

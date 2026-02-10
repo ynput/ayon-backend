@@ -11,12 +11,12 @@ class BaseMaintenanceTask:
 class StudioMaintenanceTask(BaseMaintenanceTask):
     task_type = "studio"
 
-    async def main(self):
+    async def main(self) -> None:
         pass
 
 
 class ProjectMaintenanceTask(BaseMaintenanceTask):
     task_type = "project"
 
-    async def main(self, project_name: str):
+    async def main(self, project_name: str) -> None:
         pass

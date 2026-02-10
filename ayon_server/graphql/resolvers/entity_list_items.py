@@ -1,11 +1,11 @@
 import functools
 import json
-from typing import Any
 
 from graphql.pyutils import camel_to_snake
 
 from ayon_server.access.utils import AccessChecker
 from ayon_server.entities.models.fields import (
+    FieldDefinitionDict,
     folder_fields,
     product_fields,
     representation_fields,
@@ -81,7 +81,7 @@ ITEM_SORT_OPTIONS = {
 
 @functools.cache
 def cols_for_entity(entity_type: str) -> list[str]:
-    fields: list[Any]
+    fields: list[FieldDefinitionDict]
     if entity_type == "folder":
         fields = folder_fields
     elif entity_type == "task":

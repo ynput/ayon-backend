@@ -39,7 +39,7 @@ async def _get_all_settings(
     summary: bool,
     semaphore: asyncio.Semaphore,
 ) -> AllSettingsResponseModel:
-    start_time = time.monotonic()
+    start_time = time.perf_counter()
     cache_key = hash_data(
         (
             bundle_name,
@@ -75,7 +75,7 @@ async def _get_all_settings(
         site_id=site_id,
     )
 
-    elapsed_time = time.monotonic() - start_time
+    elapsed_time = time.perf_counter() - start_time
     logger.trace(f"Settings preloaded in {elapsed_time:.02f} seconds")
 
     #
@@ -83,7 +83,7 @@ async def _get_all_settings(
     #
 
     async with semaphore:
-        start_time = time.monotonic()
+        start_time = time.perf_counter()
         addon_result = []
         for addon_name, addon_version in addon_list["addons"].items():
             if addon_version is None:
@@ -241,7 +241,7 @@ async def _get_all_settings(
 
         addon_result.sort(key=lambda x: x.title.lower())
 
-        elapsed_time = time.monotonic() - start_time
+        elapsed_time = time.perf_counter() - start_time
         logger.trace(f"Settings object generated in {elapsed_time:.02f} seconds")
 
         result = AllSettingsResponseModel(

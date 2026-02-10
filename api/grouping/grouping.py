@@ -1,4 +1,4 @@
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 
 from fastapi import Path, Query
 
@@ -104,8 +104,8 @@ async def get_entity_groups(
     elif key in ("status", "task_type", "folder_type"):
         groups = await get_status_or_type_groups(
             project_name,
-            entity_type=cast(ProjectLevelEntityType, entity_type),
-            key=key,  # type: ignore[arg-type]
+            entity_type=entity_type,
+            key=cast(Literal["status", "task_type", "folder_type"], key),
         )
 
     elif key == "product_type":
@@ -114,7 +114,7 @@ async def get_entity_groups(
     elif key == "tags":
         groups = await get_tags_groups(
             project_name,
-            entity_type=cast(ProjectLevelEntityType, entity_type),
+            entity_type=entity_type,
         )
 
     elif key.startswith("attrib."):
