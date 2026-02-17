@@ -223,6 +223,6 @@ class AyonSchema(strawberry.Schema):
 
 router: GraphQLRouter[Any, Any] = GraphQLRouter(
     schema=AyonSchema(query=Query),
-    graphiql=False,
+    graphql_ide=None,
     context_getter=graphql_get_context,
 )

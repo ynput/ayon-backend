@@ -89,9 +89,9 @@ class InfoResponseModel(OPModel):
     )
     disable_feedback: bool | None = Field(
         title="Disable feedback",
-        default_factory=lambda: ayonconfig.offline_mode
-        or ayonconfig.disable_feedback
-        or None,
+        default_factory=lambda: (
+            ayonconfig.offline_mode or ayonconfig.disable_feedback or None
+        ),
     )
     offline_mode: bool | None = Field(
         title="Offline mode",

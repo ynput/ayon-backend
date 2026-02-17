@@ -12,8 +12,6 @@ __all__ = [
 import hashlib
 import json
 import os
-
-from collections.abc import Generator
 from typing import Annotated, Any
 
 from fastapi import Path
