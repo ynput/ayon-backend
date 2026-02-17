@@ -115,7 +115,7 @@ async def process_addon_settings(
         )
 
     if not addon.get_settings_model():
-        return
+        return None
 
     # Get the "full" project settings (studio settings + overrides)
 
