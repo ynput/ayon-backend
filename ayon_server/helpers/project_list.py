@@ -5,7 +5,7 @@ from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import OPModel
-from ayon_server.utils import get_nickname, json_dumps, json_loads
+from ayon_server.utils import get_nickname
 
 
 class ProjectListItem(OPModel):
@@ -44,18 +44,16 @@ async def build_project_list() -> list[ProjectListItem]:
         # No projects table, return an empty list
         pass
     else:
-        await Redis.set("global", "project-list", json_dumps(result))
+        await Redis.set_json("global", "project-list", result)
     return [ProjectListItem(**item) for item in result]
 
 
 async def get_project_list() -> list[ProjectListItem]:
-    project_list = await Redis.get("global", "project-list")
-    if project_list is None:
-        project_list = await build_project_list()
-        return project_list
+    project_list_data = await Redis.get_json("global", "project-list")
+    if project_list_data is None:
+        return await build_project_list()
     else:
-        project_list = json_loads(project_list)
-        return [ProjectListItem(**item) for item in project_list]
+        return [ProjectListItem(**item) for item in project_list_data]
 
 
 async def get_project_info(project_name: str) -> ProjectListItem:

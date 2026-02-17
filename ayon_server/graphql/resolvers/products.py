@@ -38,6 +38,7 @@ SORT_OPTIONS = {
     "productType": "products.product_type",
     "productBaseType": "products.product_base_type",
     "folderName": "folders.name",
+    "folderType": "folders.folder_type",
     "status": "products.status",
     "createdAt": "products.created_at",
     "updatedAt": "products.updated_at",

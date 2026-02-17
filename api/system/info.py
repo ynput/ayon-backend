@@ -67,12 +67,6 @@ class InfoResponseModel(OPModel):
         title="Onboarding",
     )
 
-    disable_changelog: bool | None = Field(
-        None,
-        title="Disable changelog",
-        description="If set, the changelog will not be shown to the user",
-    )
-
     hide_password_auth: bool | None = Field(
         None,
         title="Hide password authentication",
@@ -87,6 +81,22 @@ class InfoResponseModel(OPModel):
     sso_options: list[SSOOption] | None = Field(None, title="SSO options")
     frontend_flags: list[str] | None = Field(None, title="Frontend flags")
     extras: str | None = Field(None)
+
+    disable_changelog: bool | None = Field(
+        None,
+        title="Disable changelog",
+        description="If set, the changelog will not be shown to the user",
+    )
+    disable_feedback: bool | None = Field(
+        title="Disable feedback",
+        default_factory=lambda: (
+            ayonconfig.offline_mode or ayonconfig.disable_feedback or None
+        ),
+    )
+    offline_mode: bool | None = Field(
+        title="Offline mode",
+        default_factory=lambda: ayonconfig.offline_mode or None,
+    )
 
 
 # Get all SSO options from the active addons
@@ -258,21 +268,18 @@ async def get_additional_info(
         "attributes": attr_list,
         "sites": sites,
         "extras": extras,
-        "disable_changelog": not (
-            is_admin or server_config.changelog.show_changelog_to_users
-        ),
+        "disable_changelog": ayonconfig.offline_mode
+        or ayonconfig.disable_feedback
+        or not (is_admin or server_config.changelog.show_changelog_to_users),
     }
 
 
+@Redis.cached("global", "onboardingFinished")
 async def is_onboarding_finished() -> bool:
-    r = await Redis.get("global", "onboardingFinished")
-    if r is None:
-        query = "SELECT * FROM config where key = 'onboardingFinished'"
-        rdb = await Postgres.fetch(query)
-        if rdb:
-            await Redis.set("global", "onboardingFinished", "1")
-            return True
-    elif r:
+    """Check if the onboarding process has been finished"""
+    query = "SELECT * FROM config where key = 'onboardingFinished'"
+    rdb = await Postgres.fetch(query)
+    if rdb:
         return True
     return False
 

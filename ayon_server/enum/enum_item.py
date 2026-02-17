@@ -56,6 +56,24 @@ class EnumItem(OPModel):
         ),
     ] = None
 
+    disabled: Annotated[
+        bool,
+        Field(
+            title="Is disabled",
+            description="Enum item is visible, but not selectable",
+            example=False,
+        ),
+    ] = False
+
+    disabled_message: Annotated[
+        str | None,
+        Field(
+            title="Disabled message",
+            description="Message to show when the option is disabled",
+            example="This option is not available",
+        ),
+    ] = None
+
     @validator("label", pre=True, always=True)
     def set_label(cls, v: str | None, values: dict[str, Any]) -> str:
         if v is None and "value" in values:

@@ -6,16 +6,18 @@ __all__ = [
     "save_json_file",
     "iter_names",
     "InstallResponseModel",
+    "FileNameInPath",
 ]
 
 import hashlib
 import json
 import os
-from collections.abc import Generator
-from typing import Any
+from typing import Annotated, Any
+
+from fastapi import Path
 
 from ayon_server.exceptions import AyonException
-from ayon_server.installer.common import get_desktop_dir
+from ayon_server.installer.common import get_desktop_dir, iter_names
 from ayon_server.types import Field, OPModel
 
 
@@ -53,19 +55,8 @@ def save_json_file(*args, data: Any) -> None:
         raise AyonException(f"Failed to save file {path}: {e}")
 
 
-def iter_names(directory: str) -> Generator[str, None, None]:
-    """Iterate over package names in a directory."""
-
-    root = get_desktop_dir(directory, for_writing=False)
-    if not os.path.isdir(root):
-        return
-    for filename in os.listdir(root):
-        if not os.path.isfile(os.path.join(root, filename)):
-            continue
-        if not filename.endswith(".json"):
-            continue
-        yield filename[:-5]
-
-
 class InstallResponseModel(OPModel):
     event_id: str | None = Field(None, title="Event ID")
+
+
+FileNameInPath = Annotated[str, Path(title="File name", regex=r"^[\w\-. ]+$")]

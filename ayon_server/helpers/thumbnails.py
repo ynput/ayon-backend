@@ -122,7 +122,7 @@ async def process_thumbnail(
                 # Adjustments for specific formats
                 if target_format == "JPEG":
                     if img.mode != "RGB":
-                        img = img.convert("RGB")
+                        img = img.convert("RGB")  # type: ignore[assignment]
                     img.save(
                         img_byte_arr, format=target_format, optimize=True, quality=85
                     )

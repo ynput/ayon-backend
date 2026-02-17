@@ -44,6 +44,9 @@ SORT_OPTIONS = {
     "productType": "products.product_type",
     "productName": "products.name",
     "folderName": "folders.name",
+    "folderType": "folders.folder_type",
+    "taskName": "tasks.name",
+    "taskType": "tasks.task_type",
 }
 
 

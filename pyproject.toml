@@ -1,43 +1,43 @@
 [project]
 name = "ayon-server"
-version = "1.13.10"
+version = "1.14.1"
 description = ""
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 
 dependencies = [
-  "aiocache >=0.12.2",
-  "aiofiles >=23.2.1",
-  "aioshutil >=1.3",
-  "asyncpg >=0.29.0",
+  "aiocache >=0.12.3",
+  "aiofiles >=25.1.0",
+  "aioshutil >=1.6",
+  "asyncpg >=0.31.0",
   "boto3 >=1.35.22",
   "codenamize >=1.2.3",
-  "cryptography >=44.0.0",
-  "email-validator >=1.1.3",
-  "fastapi >=0.115",
-  "geoip2 >=4.8.0",
+  "cryptography >=46.0.5",
+  "email-validator >=2.3.0",
+  "fastapi ==0.125.0", # Higher versions require Pydantic v2
+  "geoip2 >=5.2.0",
   "granian >=1.1.1",
-  "gunicorn >=23.0",
-  "httpx >=0.26",
+  "gunicorn >=25.1.0",
+  "httpx >=0.28.1",
   "jinja2>=3.1.6",
   "loguru>=0.7.3",
-  "orjson >=3.8.6",
-  "pillow >=10.3.0",
-  "psutil >=5.9.4",
-  "pydantic ==1.10.25", # 1.10.18 is the last 1.x version
+  "orjson >=3.11.7",
+  "pillow >=12.1.1",
+  "psutil >=7.2.2",
+  "pydantic ==1.10.25", # 1.10.25 is the last 1.x version
   "pyjwt ==2.9.0", # Do not upgrade before migrating to string only subs
-  "pyyaml >=6.0.1",
-  "redis >=5.0.1",
-  "rich >=13.4.2",
-  "semver >=3.0.1",
-  "shortuuid >=1.0.11",
-  "strawberry-graphql[fastapi] >=0.243.0",
+  "pyyaml >=6.0.3",
+  "redis >=7.2.0",
+  "rich >=14.3.2",
+  "semver >=3.0.4",
+  "shortuuid >=1.0.13",
+  "strawberry-graphql[fastapi] >=0.294.0",
   "toml >=0.10.2",
-  "typer >=0.12.5",
-  "unidecode>=1.3.8",
+  "typer >=0.24.0",
+  "unidecode>=1.4.0",
   "user-agents >=2.2.0",
-  "uvicorn[standard] >=0.25",
   "oauthlib[signedtoken] >=3.3.1"
+  "uvicorn[standard] >=0.41.0",
 ]
 
 [dependency-groups]

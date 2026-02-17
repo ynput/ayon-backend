@@ -257,6 +257,8 @@ class OAuthServer:
                 return await self._handle_authorization_code_grant(form_data)
             elif grant_type == "refresh_token":
                 return await self._handle_refresh_token_grant(form_data)
+            elif grant_type == "client_credentials":
+                return await self._handle_client_credentials_grant(form_data)
             else:
                 return {"error": "unsupported_grant_type"}, "", 400
 
@@ -422,6 +424,61 @@ class OAuthServer:
 
         return response, "", 200
 
+    async def _handle_client_credentials_grant(
+            self, form_data: dict) -> tuple[dict[str, Any], str, int]:
+        """Handle client credentials grant.
+        
+        This grant type is used for service-to-service authentication
+        where no user context is needed.
+        """
+        client_id = form_data.get('client_id', [None])[0]
+        client_secret = form_data.get('client_secret', [None])[0]
+        scope = form_data.get('scope', ['read'])[0]
+
+        if not client_id or not client_secret:
+            return {"error": "invalid_request"}, "", 400
+
+        # Verify client
+        client = await OAuthStorage.get_client(client_id)
+        if not client:
+            return {"error": "invalid_client"}, "", 401
+
+        # Verify client secret
+       
+        if client.client_secret != client_secret:
+            return {"error": "invalid_client_secret"}, "", 401
+
+        # Verify client supports client_credentials grant
+        if "client_credentials" not in client.grant_types:
+            return {
+                "error": "unauthorized_client",
+                "error_description": (
+                    "Client not authorized for client_credentials grant"
+                )
+            }, "", 400
+
+        # Generate access token
+        access_token = generate_token()
+        expires_in = 3600  # 1 hour
+
+        # Save access token (no user_name for client credentials)
+        await OAuthStorage.save_access_token(
+            access_token=access_token,
+            client_id=client_id,
+            user_name="",  # No user context for client credentials
+            scope=scope,
+            expires_in=expires_in
+        )
+
+        response = {
+            "access_token": access_token,
+            "token_type": "Bearer",
+            "expires_in": expires_in,
+            "scope": scope
+        }
+
+        return response, "", 200
+
     async def introspect_token(self, token: str) -> dict[str, Any]:
         """Introspect a token."""
         token_data = await OAuthStorage.get_access_token(token)
@@ -429,13 +486,19 @@ class OAuthServer:
         if not token_data:
             return {"active": False}
 
-        return {
+        result = {
             "active": True,
             "client_id": token_data["client_id"],
-            "username": token_data["user_name"],
             "scope": token_data.get("scope", "read"),
             "token_type": "Bearer",
             "exp": int(token_data["expires_at"]),
             "iat": int(token_data["created_at"]),
-            "sub": token_data["user_name"]
         }
+
+        # Add user info only if present (not present for client_credentials)
+        user_name = token_data.get("user_name")
+        if user_name:
+            result["username"] = user_name
+            result["sub"] = user_name
+
+        return result

@@ -21,6 +21,11 @@ async def get_market_data(
 ) -> dict[str, Any]:
     """Get data from the market API"""
 
+    if ayonconfig.offline_mode:
+        raise ServiceUnavailableException(
+            "AYON server is in offline mode. Marketplace is not available"
+        )
+
     endpoint = "/".join(args)
 
     try:
@@ -30,11 +35,14 @@ async def get_market_data(
 
     headers["X-Ayon-Version"] = ayon_version
 
-    async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
-        res = await client.get(
-            f"{ayonconfig.ynput_cloud_api_url}/api/{api_version}/{endpoint}",
-            headers=headers,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=ayonconfig.http_timeout) as client:
+            res = await client.get(
+                f"{ayonconfig.ynput_cloud_api_url}/api/{api_version}/{endpoint}",
+                headers=headers,
+            )
+    except httpx.ConnectError as e:
+        raise ServiceUnavailableException("Unable to reach AYON Market") from e
 
     if res.status_code == 401:
         raise ForbiddenException("Unauthorized instance")

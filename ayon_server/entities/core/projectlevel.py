@@ -234,6 +234,7 @@ class ProjectLevelEntity(BaseEntity):
                         attrib[key] = value
 
             if self.exists:
+                await self.pre_save(False)
                 # Update existing entity
                 fields = dict_exclude(
                     self.dict(),
@@ -243,7 +244,6 @@ class ProjectLevelEntity(BaseEntity):
                 fields["updated_at"] = datetime.now()
                 fields["updated_by"] = kwargs.get("user_name", None)
 
-                await self.pre_save(False)
                 await Postgres.execute(
                     *SQLTool.update(
                         f"project_{self.project_name}.{self.entity_type}s",
@@ -253,6 +253,7 @@ class ProjectLevelEntity(BaseEntity):
                 )
 
             else:
+                await self.pre_save(True)
                 # Create a new entity
                 fields = dict_exclude(
                     self.dict(exclude_none=True),
@@ -262,7 +263,6 @@ class ProjectLevelEntity(BaseEntity):
                 fields["created_by"] = kwargs.get("user_name", None)
                 fields["updated_by"] = kwargs.get("user_name", None)
 
-                await self.pre_save(True)
                 await Postgres.execute(
                     *SQLTool.insert(
                         f"project_{self.project_name}.{self.entity_type}s",

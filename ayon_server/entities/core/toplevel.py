@@ -68,3 +68,16 @@ class TopLevelEntity(BaseEntity):
     @updated_by.setter
     def updated_by(self, value: str) -> None:
         self._payload.data["updatedBy"] = value  # type: ignore
+
+    async def commit(self):
+        """Post-update commit."""
+        await self.refresh_views()
+
+    @classmethod
+    async def refresh_views(cls) -> None:
+        """Refresh the views for the entity type in the given project.
+
+        This method should be overridden in subclasses to refresh.
+        and should be called from commit() method after the entity is saved.
+        """
+        pass
