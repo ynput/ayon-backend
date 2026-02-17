@@ -114,6 +114,9 @@ async def process_addon_settings(
             f"does not allow project overrides"
         )
 
+    if not addon.get_settings_model():
+        return
+
     # Get the "full" project settings (studio settings + overrides)
 
     project_settings = await addon.get_project_settings(project_name, variant)
@@ -325,23 +328,34 @@ async def unfreeze_project_bundle(
             # Migrate the project settings to studio bundle addon versions
             # Refetch the overrides, but use migration logic
 
-            new_overrides = await addon.get_project_overrides(
-                project_name,
-                variant,
-                as_version=studio_addon_version,
-            )
+            try:
+                studio_addon = AddonLibrary.addon(addon_name, studio_addon_version)
+            except Exception:
+                logger.warning(
+                    f"Studio addon {addon_name} {studio_addon_version} not found, "
+                    f"skipping migration of project overrides for this addon"
+                )
+                continue
 
-            event = await set_addon_settings(
-                addon.name,
-                studio_addon_version,
-                new_overrides,
-                project_name=project_name,
-                variant=variant,
-                send_event=False,
-            )
+            if addon.get_settings_model() and studio_addon.get_settings_model():
+                logger.trace(f"Migrating project overrides for addon {addon_name}")
+                new_overrides = await addon.get_project_overrides(
+                    project_name,
+                    variant,
+                    as_version=studio_addon_version,
+                )
 
-            if event:
-                events.append(event)
+                event = await set_addon_settings(
+                    addon.name,
+                    studio_addon_version,
+                    new_overrides,
+                    project_name=project_name,
+                    variant=variant,
+                    send_event=False,
+                )
+
+                if event:
+                    events.append(event)
 
         #
         # Unset project bundle in project data
