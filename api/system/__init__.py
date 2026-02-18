@@ -7,15 +7,15 @@ __all__ = [
     "dbimport",
 ]
 
-from fastapi import Response
-
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.system import clear_server_restart_required, require_server_restart
 from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.installer.hotreload import get_hotreload_manager
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
+from fastapi import Response
 
 from . import dbimport, frontend_modules, info, metrics, secrets, sites
 from .router import router
@@ -86,3 +86,43 @@ async def set_restart_required(
 
     if not user.is_admin:
         raise ForbiddenException("Only administrators can set server restart required")
+
+
+class ReloadStatusModel(OPModel):
+    """Model for hot-reload status information."""
+
+    last_reload: str | None = Field(
+        None,
+        description="ISO timestamp of the last successful hot-reload",
+    )
+    reload_count: int = Field(
+        0,
+        description="Total number of successful hot-reloads since server start",
+    )
+    callbacks_registered: int = Field(
+        0,
+        description="Number of reload callbacks registered",
+    )
+
+
+@router.get("/health/reload")
+async def get_reload_status() -> ReloadStatusModel:
+    """Get hot-reload status information.
+
+    This endpoint provides information about the hot-reload subsystem,
+    including when the last reload occurred and how many reloads have
+    been performed since server start.
+
+    This is useful for:
+    - Monitoring reload activity
+    - Verifying that hot-reloads are working
+    - Debugging addon installation issues
+    """
+    manager = get_hotreload_manager()
+    status = await manager.get_status()
+
+    return ReloadStatusModel(
+        last_reload=status["last_reload"],
+        reload_count=status["reload_count"],
+        callbacks_registered=status["callbacks_registered"],
+    )
