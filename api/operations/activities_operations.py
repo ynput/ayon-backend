@@ -235,7 +235,7 @@ async def process_activity_operation(
                 project_name,
                 operation.activity_id,
                 user_name=user.name,
-                is_admin=user.is_admin,
+                is_manager=user.is_manager,
                 sender=sender,
                 sender_type=sender_type,
             )
