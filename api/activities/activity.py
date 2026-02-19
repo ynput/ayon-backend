@@ -172,7 +172,7 @@ async def delete_project_activity(
 ) -> EmptyResponse:
     """Delete an activity.
 
-    Only the author or an administrator of the activity can delete it.
+    Only the author or an administrator or manager of the activity can delete it.
     """
 
     await delete_activity(
@@ -180,6 +180,7 @@ async def delete_project_activity(
         activity_id,
         user_name=user.name,
         is_admin=user.is_admin,
+        is_manager=user.is_manager,
         sender=sender,
         sender_type=sender_type,
     )

@@ -15,6 +15,7 @@ async def delete_activity(
     *,
     user_name: str | None = None,
     is_admin: bool = False,
+    is_manager: bool = False,
     sender: str | None = None,
     sender_type: str | None = None,
 ) -> None:
@@ -42,7 +43,7 @@ async def delete_activity(
         if not res:
             raise NotFoundException("Activity not found")
 
-        if user_name and not is_admin:
+        if user_name and not is_admin and not is_manager:
             data = res[0]["data"]
             if "author" in data and data["author"] != user_name:
                 raise ForbiddenException("You are not the author of this activity")
