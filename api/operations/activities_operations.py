@@ -234,8 +234,7 @@ async def process_activity_operation(
             await delete_activity(
                 project_name,
                 operation.activity_id,
-                user_name=user.name,
-                is_manager=user.is_manager,
+                user=user,
                 sender=sender,
                 sender_type=sender_type,
             )

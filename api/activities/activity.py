@@ -178,8 +178,7 @@ async def delete_project_activity(
     await delete_activity(
         project_name,
         activity_id,
-        user_name=user.name,
-        is_manager=user.is_manager,
+        user=user,
         sender=sender,
         sender_type=sender_type,
     )

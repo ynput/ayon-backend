@@ -1,5 +1,6 @@
 """Delete an existing activity."""
 
+from ayon_server.entities import UserEntity
 from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -13,15 +14,14 @@ async def delete_activity(
     project_name: str,
     activity_id: str,
     *,
-    user_name: str | None = None,
-    is_manager: bool = False,
+    user: UserEntity | None = None,
     sender: str | None = None,
     sender_type: str | None = None,
 ) -> None:
     """Delete an activity.
 
-    if user_name is provided, the activity is deleted
-    only if the user is the author.
+    if user is provided, the activity is deleted
+    only if the user is the author or a manager or an admin.
 
     If the activity has files, they are unlinked from the activity,
     and their updated_at field is set to the current time.
@@ -42,9 +42,9 @@ async def delete_activity(
         if not res:
             raise NotFoundException("Activity not found")
 
-        if user_name and not is_manager:
+        if user and user.name and not user.is_manager:
             data = res[0]["data"]
-            if "author" in data and data["author"] != user_name:
+            if "author" in data and data["author"] != user.name:
                 raise ForbiddenException("You are not the author of this activity")
         activity_type = res[0]["activity_type"]
 
@@ -97,7 +97,7 @@ async def delete_activity(
             description=f"Deleted {activity_type} activity",
             summary=summary,
             store=activity_type not in DO_NOT_TRACK_ACTIVITIES,
-            user=user_name,
+            user=user.name if user else None,
             sender=sender,
             sender_type=sender_type,
         )
