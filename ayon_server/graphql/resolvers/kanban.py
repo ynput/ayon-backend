@@ -13,6 +13,7 @@ from ayon_server.graphql.resolvers.common import (
 )
 from ayon_server.graphql.types import Info
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.types import validate_name_list, validate_user_name_list
 from ayon_server.utils import SQLTool
 
@@ -33,32 +34,42 @@ async def get_accessible_users(user: UserEntity) -> dict[str, set[str]] | None:
 
     if user.is_manager:
         return None  # No restrictions for managers
+    result = {}
 
-    if ayonconfig.limit_user_visibility and not user.is_manager:
-        agcond = "WHERE a.access_groups <@ m.access_groups"
+    if ayonconfig.limit_user_visibility:
+        agcond = """WHERE (
+            a.access_groups <@ m.access_groups
+            OR a.access_groups @> m.access_groups
+            OR a.project_name = '__all__'
+        )"""
     else:
         agcond = ""
 
-    result = {}
-
     query = f"""
         WITH all_user_access AS (
-        SELECT
-            name as user_name,
-            jsonb_object_keys(data->'accessGroups') AS project_name
-        from users
+            SELECT
+                name as user_name,
+                jsonb_object_keys(data->'accessGroups') AS project_name
+            from users
         ),
 
         all_user_ag AS (
-        SELECT
-            u.name user_name,
-            a.project_name,
-            u.data->'accessGroups'->a.project_name as access_groups
-        FROM
-            users u
-        JOIN all_user_access a
-            ON u.name = a.user_name
-            AND jsonb_array_length(u.data->'accessGroups'->a.project_name) > 0
+            SELECT
+                u.name user_name,
+                CASE WHEN
+                    (u.data->>'isAdmin' = 'true' OR u.data->>'isManager' = 'true')
+                    THEN '__all__'
+                ELSE a.project_name
+                END AS project_name,
+
+                u.data->'accessGroups'->a.project_name as access_groups
+
+            FROM users u
+            LEFT JOIN all_user_access a ON u.name = a.user_name
+
+            WHERE
+                jsonb_array_length(u.data->'accessGroups'->a.project_name) > 0
+                OR u.data->>'isAdmin' = 'true' OR u.data->>'isManager' = 'true'
         ),
 
         my_access AS (
@@ -81,21 +92,18 @@ async def get_accessible_users(user: UserEntity) -> dict[str, set[str]] | None:
             GROUP BY u.name, a.project_name, u.data->'accessGroups'->a.project_name
         )
 
-
         SELECT
             a.user_name,
-            a.project_name,
-            a.access_groups
+            a.project_name
         FROM all_user_ag a
-        JOIN my_ag m ON a.project_name = m.project_name
+        JOIN my_ag m ON (a.project_name = m.project_name OR a.project_name = '__all__')
         {agcond}
-        order by a.user_name, a.project_name;
+        ORDER BY a.user_name, a.project_name;
     """
 
     async for row in Postgres.iterate(query, user.name):
         user_name = row["user_name"]
         project_name = row["project_name"]
-        ## access_groups = row["access_groups"]
 
         if project_name not in result:
             result[project_name] = set()
@@ -190,11 +198,6 @@ async def get_kanban(
         c = f"t.id IN {SQLTool.id_array(task_ids)}"
         sub_query_conds.append(c)
 
-    if assignees_any:
-        # assignees list is already sanitized at this point
-        c = f"t.assignees && {SQLTool.array(assignees_any, curly=True)}"
-        sub_query_conds.append(c)
-
     umap = await get_accessible_users(user)
 
     union_queries = []
@@ -208,18 +211,21 @@ async def get_kanban(
         if umap is None:
             if assignees_any:
                 # assignees list is already sanitized at this point
-                ucond = (
-                    f"t.assignees && {SQLTool.array(assignees_any, curly=True)} AND "
-                )
+                ucond = f"t.assignees && {SQLTool.array(assignees_any, curly=True)}"
         else:
             users = umap.get(project_name, set())
+            users = users.union(umap.get("__all__", set()))
             if assignees_any:
                 users = users.intersection(assignees_any)
             if users:
-                ucond = f"t.assignees && {SQLTool.array(list(users), curly=True)} AND "
+                ucond = f"t.assignees && {SQLTool.array(list(users), curly=True)}"
             else:
                 # No accessible users, skip this project
                 continue
+
+        sq_conds = sub_query_conds.copy()
+        if ucond:
+            sq_conds.append(ucond)
 
         uq = f"""
             SELECT
@@ -255,13 +261,19 @@ async def get_kanban(
                 FROM {project_schema}.tasks t
                 JOIN {project_schema}.folders f ON f.id = t.folder_id
                 JOIN {project_schema}.exported_attributes h ON h.folder_id = f.id
-                WHERE {ucond}
-                {SQLTool.conditions(sub_query_conds, add_where=False)}
+                {SQLTool.conditions(sq_conds)}
         """
         union_queries.append(uq)
 
-    unions = " UNION ALL ".join(union_queries)
+    if not union_queries:
+        # This should not normally happen, but if it does,
+        # return an empty result instead of an error
+        logger.warning(
+            "No union queries generated for Kanban fetch, returning empty result"
+        )
+        return KanbanConnection(edges=[])
 
+    unions = " UNION ALL ".join(union_queries)
     cursor = "updated_at"
 
     query = f"""
