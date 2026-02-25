@@ -173,7 +173,6 @@ async def get_kanban(
         project_data.append(row)
 
     if not user.is_manager:
-        assignees_any = [user.name]
         project_data = [p for p in project_data if user_has_access(user, p["name"])]
 
     elif assignees_any:
