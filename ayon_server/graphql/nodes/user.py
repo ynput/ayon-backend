@@ -1,8 +1,7 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
 
 from ayon_server.entities import UserEntity
 from ayon_server.graphql.resolvers.tasks import get_tasks
@@ -13,7 +12,7 @@ from ayon_server.utils import json_dumps
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import TasksConnection
 else:
-    TasksConnection = LazyType["TasksConnection", "..connections"]
+    TasksConnection = Annotated["TasksConnection", strawberry.lazy("..connections")]
 
 
 @UserEntity.strawberry_attrib()
@@ -70,7 +69,7 @@ class UserNode:
         )
 
     @strawberry.field
-    async def tasks(self, info: Info, project_name: str) -> "TasksConnection":
+    async def tasks(self, info: Info, project_name: str) -> TasksConnection:
         root = FakeRoot(project_name)
         return await get_tasks(root, info, assignees=[self.name])
 
