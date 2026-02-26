@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 import strawberry
+from strawberry.scalars import JSON
 
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import AyonException
@@ -36,6 +37,7 @@ class LinkEdge(BaseEdge):
     description: str = strawberry.field(default="")
     author: str | None = strawberry.field(default=None)
     cursor: str | None = strawberry.field(default=None)
+    data: JSON | None = strawberry.field(default=None)
 
     @strawberry.field(description="Linked node")
     async def node(self, info: Info) -> Optional["BaseNode"]:
