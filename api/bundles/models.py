@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import validator
 
+from ayon_server.logging import logger
 from ayon_server.types import NAME_REGEX, SEMVER_REGEX, Field, OPModel, Platform
 from ayon_server.utils import camelize
 
@@ -66,12 +67,16 @@ class BundleModel(BaseBundleModel):
             if version is None:
                 continue
             if version.lower() == "none":
+                value[addon_name] = None
+                continue
+            if version in ["__inherit__", "__disable__"]:
                 continue
             if not re.match(SEMVER_REGEX, version):
-                raise ValueError(
+                logger.warning(
                     f"Version '{version}' for addon '{addon_name}'"
                     f"is not a valid semantic version."
                 )
+        return value
 
     installer_version: str | None = Field(None, example="1.2.3")
     dependency_packages: dict[Platform, str | None] = Field(
@@ -109,12 +114,16 @@ class BundlePatchModel(BaseBundleModel):
             if version is None:
                 continue
             if version.lower() == "none":
+                value[addon_name] = None
+                continue
+            if version in ["__inherit__", "__disable__"]:
                 continue
             if not re.match(SEMVER_REGEX, version):
                 raise ValueError(
                     f"Version '{version}' for addon '{addon_name}'"
                     f"is not a valid semantic version."
                 )
+        return value
 
     installer_version: str | None = Field(None, example="1.2.3")
     dependency_packages: dict[Platform, str | None] | None = Field(
