@@ -166,7 +166,7 @@ async def update_existing_event(
                 raise ForbiddenException("Not allowed to update status of this event")
 
     if not user.is_manager:
-        if event_user == user.name:
+        if event_user != user.name:
             raise ForbiddenException("Not allowed to update this event")
         if payload.user and payload.user != user.name:
             raise ForbiddenException("Not allowed to change user of this event")
