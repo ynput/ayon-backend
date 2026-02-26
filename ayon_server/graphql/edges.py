@@ -1,106 +1,91 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import strawberry
-from strawberry import LazyType
 
 from ayon_server.graphql.types import BaseEdge
 
 if TYPE_CHECKING:
-    from ayon_server.graphql.nodes.activity import ActivityNode
-    from ayon_server.graphql.nodes.entity_list import EntityListNode
-    from ayon_server.graphql.nodes.event import EventNode
-    from ayon_server.graphql.nodes.folder import FolderNode
-    from ayon_server.graphql.nodes.kanban import KanbanNode
-    from ayon_server.graphql.nodes.product import ProductNode
-    from ayon_server.graphql.nodes.project import ProjectNode
-    from ayon_server.graphql.nodes.representation import RepresentationNode
-    from ayon_server.graphql.nodes.task import TaskNode
-    from ayon_server.graphql.nodes.user import UserNode
-    from ayon_server.graphql.nodes.version import VersionNode
-    from ayon_server.graphql.nodes.workfile import WorkfileNode
-else:
-    ActivityNode = LazyType["ActivityNode", ".nodes.activity"]
-    BaseNode = LazyType["BaseNode", ".nodes.common"]
-    EntityListNode = LazyType["EntityListNode", ".nodes.entity_list"]
-    EventNode = LazyType["EventNode", ".nodes.event"]
-    FolderNode = LazyType["FolderNode", ".nodes.folder"]
-    KanbanNode = LazyType["KanbanNode", ".nodes.kanban"]
-    ProductNode = LazyType["ProductNode", ".nodes.product"]
-    ProjectNode = LazyType["ProjectNode", ".nodes.project"]
-    RepresentationNode = LazyType["RepresentationNode", ".nodes.representation"]
-    TaskNode = LazyType["TaskNode", ".nodes.task"]
-    UserNode = LazyType["UserNode", ".nodes.user"]
-    VersionNode = LazyType["VersionNode", ".nodes.version"]
-    WorkfileNode = LazyType["WorkfileNode", ".nodes.workfile"]
+    from .nodes.activity import ActivityNode
+    from .nodes.entity_list import EntityListNode
+    from .nodes.event import EventNode
+    from .nodes.folder import FolderNode
+    from .nodes.kanban import KanbanNode
+    from .nodes.product import ProductNode
+    from .nodes.project import ProjectNode
+    from .nodes.representation import RepresentationNode
+    from .nodes.task import TaskNode
+    from .nodes.user import UserNode
+    from .nodes.version import VersionNode
+    from .nodes.workfile import WorkfileNode
 
 
 @strawberry.type
 class ProjectEdge(BaseEdge):
-    node: ProjectNode = strawberry.field(description="The project node")
+    node: Annotated["ProjectNode", strawberry.lazy(".nodes.project")]
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class UserEdge(BaseEdge):
-    node: UserNode = strawberry.field(description="The user node")
+    node: Annotated["UserNode", strawberry.lazy(".nodes.user")]
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class FolderEdge(BaseEdge):
-    node: FolderNode = strawberry.field(description="The folder node")
+    node: Annotated["FolderNode", strawberry.lazy(".nodes.folder")]
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class TaskEdge(BaseEdge):
-    node: TaskNode = strawberry.field(description="The task node")
+    node: Annotated["TaskNode", strawberry.lazy(".nodes.task")]
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class ProductEdge(BaseEdge):
-    node: ProductNode = strawberry.field(description="Product node")
+    node: Annotated["ProductNode", strawberry.lazy(".nodes.product")]
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class VersionEdge(BaseEdge):
-    node: VersionNode = strawberry.field(description="Version node")
+    node: Annotated["VersionNode", strawberry.lazy(".nodes.version")]
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class RepresentationEdge(BaseEdge):
-    node: RepresentationNode = strawberry.field(description="Representation node")
+    node: Annotated["RepresentationNode", strawberry.lazy(".nodes.representation")]
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class WorkfileEdge(BaseEdge):
-    node: WorkfileNode = strawberry.field(description="Workfile node")
+    node: Annotated["WorkfileNode", strawberry.lazy(".nodes.workfile")]
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class EventEdge(BaseEdge):
-    node: EventNode = strawberry.field(description="Event node")
+    node: Annotated["EventNode", strawberry.lazy(".nodes.event")]
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class ActivityEdge(BaseEdge):
-    node: ActivityNode = strawberry.field(description="The activity node")
+    node: Annotated["ActivityNode", strawberry.lazy(".nodes.activity")]
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class KanbanEdge(BaseEdge):
-    node: KanbanNode = strawberry.field(description="The kanban node")
+    node: Annotated["KanbanNode", strawberry.lazy(".nodes.kanban")]
     cursor: str | None = strawberry.field(default=None)
 
 
 @strawberry.type
 class EntityListEdge(BaseEdge):
-    node: EntityListNode = strawberry.field(description="The entity list node")
+    node: Annotated["EntityListNode", strawberry.lazy(".nodes.entity_list")]
     cursor: str | None = strawberry.field(default=None)

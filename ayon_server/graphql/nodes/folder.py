@@ -1,7 +1,6 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
 
 from ayon_server.entities import FolderEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
@@ -13,8 +12,10 @@ from ayon_server.utils import json_dumps
 if TYPE_CHECKING:
     from ayon_server.graphql.connections import ProductsConnection, TasksConnection
 else:
-    ProductsConnection = LazyType["ProductsConnection", "..connections"]
-    TasksConnection = LazyType["TasksConnection", "..connections"]
+    ProductsConnection = Annotated[
+        "ProductsConnection", strawberry.lazy("..connections")
+    ]
+    TasksConnection = Annotated["TasksConnection", strawberry.lazy("..connections")]
 
 
 @FolderEntity.strawberry_attrib()
@@ -82,7 +83,7 @@ class FolderNode(BaseNode):
         return path.split("/")[:-1] if path else []
 
     @strawberry.field
-    async def parent(self, info: Info) -> Optional["FolderNode"]:
+    async def parent(self, info: Info) -> "FolderNode | None":
         if not self.parent_id:
             return None
         record = await info.context["folder_loader"].load(

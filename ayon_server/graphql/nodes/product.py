@@ -1,8 +1,7 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
 
 from ayon_server.entities import ProductEntity
 from ayon_server.graphql.nodes.common import BaseNode
@@ -15,9 +14,11 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.folder import FolderNode
     from ayon_server.graphql.nodes.version import VersionNode
 else:
-    FolderNode = LazyType["FolderNode", ".folder"]
-    VersionNode = LazyType["VersionNode", ".version"]
-    VersionsConnection = LazyType["VersionsConnection", "..connections"]
+    VersionsConnection = Annotated[
+        "VersionsConnection", strawberry.lazy("..connections")
+    ]
+    FolderNode = Annotated["FolderNode", strawberry.lazy(".folder")]
+    VersionNode = Annotated["VersionNode", strawberry.lazy(".version")]
 
 
 @strawberry.type

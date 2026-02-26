@@ -1,8 +1,7 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.user import UserEntity
@@ -29,7 +28,7 @@ from ayon_server.settings.anatomy.product_base_types import (
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
-    from ayon_server.graphql.connections import (
+    from ..connections import (
         EntityListsConnection,
         FoldersConnection,
         ProductsConnection,
@@ -38,29 +37,42 @@ if TYPE_CHECKING:
         VersionsConnection,
         WorkfilesConnection,
     )
-    from ayon_server.graphql.nodes.entity_list import EntityListNode
-    from ayon_server.graphql.nodes.folder import FolderNode
-    from ayon_server.graphql.nodes.product import ProductNode
-    from ayon_server.graphql.nodes.representation import RepresentationNode
-    from ayon_server.graphql.nodes.task import TaskNode
-    from ayon_server.graphql.nodes.version import VersionNode
-    from ayon_server.graphql.nodes.workfile import WorkfileNode
-else:
-    EntityListConnection = LazyType["EntityListConnection", "..connections"]
-    FoldersConnection = LazyType["FoldersConnection", "..connections"]
-    RepresentationsConnection = LazyType["RepresentationsConnection", "..connections"]
-    ProductsConnection = LazyType["ProductsConnection", "..connections"]
-    TasksConnection = LazyType["TasksConnection", "..connections"]
-    VersionsConnection = LazyType["VersionsConnection", "..connections"]
-    WorkfilesConnection = LazyType["WorkfilesConnection", "..connections"]
+    from .entity_list import EntityListNode
+    from .folder import FolderNode
+    from .product import ProductNode
+    from .representation import RepresentationNode
+    from .task import TaskNode
+    from .version import VersionNode
+    from .workfile import WorkfileNode
 
-    EntityListNode = LazyType["EntityListNode", ".entity_list"]
-    FolderNode = LazyType["FolderNode", ".folder"]
-    RepresentationNode = LazyType["RepresentationNode", ".representation"]
-    ProductNode = LazyType["ProductNode", ".product"]
-    TaskNode = LazyType["TaskNode", ".task"]
-    VersionNode = LazyType["VersionNode", ".version"]
-    WorkfileNode = LazyType["WorkfileNode", ".workfile"]
+else:
+    EntityListNode = Annotated["EntityListNode", strawberry.lazy(".entity_list")]
+    FolderNode = Annotated["FolderNode", strawberry.lazy(".folder")]
+    RepresentationNode = Annotated[
+        "RepresentationNode", strawberry.lazy(".representation")
+    ]
+    ProductNode = Annotated["ProductNode", strawberry.lazy(".product")]
+    TaskNode = Annotated["TaskNode", strawberry.lazy(".task")]
+    VersionNode = Annotated["VersionNode", strawberry.lazy(".version")]
+    WorkfileNode = Annotated["WorkfileNode", strawberry.lazy(".workfile")]
+
+    EntityListConnection = Annotated[
+        "EntityListsConnection", strawberry.lazy("..connections")
+    ]
+    FoldersConnection = Annotated["FoldersConnection", strawberry.lazy("..connections")]
+    ProductsConnection = Annotated[
+        "ProductsConnection", strawberry.lazy("..connections")
+    ]
+    RepresentationsConnection = Annotated[
+        "RepresentationsConnection", strawberry.lazy("..connections")
+    ]
+    TasksConnection = Annotated["TasksConnection", strawberry.lazy("..connections")]
+    VersionsConnection = Annotated[
+        "VersionsConnection", strawberry.lazy("..connections")
+    ]
+    WorkfilesConnection = Annotated[
+        "WorkfilesConnection", strawberry.lazy("..connections")
+    ]
 
 
 @strawberry.type
