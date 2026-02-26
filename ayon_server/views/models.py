@@ -152,7 +152,7 @@ class ListsSettings(OPModel):
 
 
 class ReviewsSettings(ListsSettings):
-    pass
+    grid_height: int | None = None
 
 
 class VersionsSettings(OPModel):
