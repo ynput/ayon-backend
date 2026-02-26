@@ -37,7 +37,7 @@ class LinkEdge(BaseEdge):
     description: str = strawberry.field(default="")
     author: str | None = strawberry.field(default=None)
     cursor: str | None = strawberry.field(default=None)
-    data: JSON | None = strawberry.field(default=None)
+    data: JSON = strawberry.field(default_factory=dict)
 
     @strawberry.field(description="Linked node")
     async def node(self, info: Info) -> Optional["BaseNode"]:
