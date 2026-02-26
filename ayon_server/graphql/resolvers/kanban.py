@@ -3,6 +3,7 @@
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.entities.core.attrib import attribute_library
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.connections import KanbanConnection
 from ayon_server.graphql.edges import KanbanEdge
 from ayon_server.graphql.nodes.kanban import KanbanNode
@@ -144,7 +145,6 @@ async def get_kanban(
         If the invoking user is a manager, tasks assigned
         to the specified users are listed.
         If not provided, all tasks are listed regardless of assignees.
-        For non-managers, this is always set to [user.name].
 
     task_ids : list[str], optional
         If set, return explicit tasks by their IDs.
@@ -213,10 +213,23 @@ async def get_kanban(
                 # assignees list is already sanitized at this point
                 ucond = f"t.assignees && {SQLTool.array(assignees_any, curly=True)}"
         else:
-            users = umap.get(project_name, set())
-            users = users.union(umap.get("__all__", set()))
-            if assignees_any:
-                users = users.intersection(assignees_any)
+            try:
+                project_permissions = user.permissions(project_name)
+            except ForbiddenException:
+                continue
+
+            if project_permissions.read.enabled:
+                # user has restricted read access.
+                # limit assignees to themselves
+
+                users = [user.name]
+
+            else:
+                users = umap.get(project_name, set())
+                users = users.union(umap.get("__all__", set()))
+                if assignees_any:
+                    users = users.intersection(assignees_any)
+
             if users:
                 ucond = f"t.assignees && {SQLTool.array(list(users), curly=True)}"
             else:
