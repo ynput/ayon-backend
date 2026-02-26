@@ -104,19 +104,26 @@ async def get_activities(
     if activity_types is not None:
         validate_name_list(activity_types)
 
+        at_conds = []
         if "checklist" in activity_types:
-            if "comment" not in activity_types:
-                # comments include checklist items so we don't need to query both
-                sql_conditions.append(
-                    """(
-                        activity_type = 'comment'
-                        AND activity_data->>'hasChecklist' IS NOT NULL
-                    )"""
-                )
+            # checklist is not an actual activity type, so we exclude it
+            # from the IN condition and add an extra condition for it
             activity_types.remove("checklist")
 
+            if "comment" not in activity_types:
+                # we want checklists, but not generic comments
+                # if "comment" is included, all comments are included,
+                # including those with checklists, so no need to add extra condition
+
+                at_conds.append(
+                    "(activity_type = 'comment' AND activity_data->>'hasChecklist' IS NOT NULL)"  # noqa: E501
+                )
+
         if activity_types:
-            sql_conditions.append(f"activity_type IN {SQLTool.array(activity_types)}")
+            at_conds.append(f"activity_type IN {SQLTool.array(activity_types)}")
+
+        if at_conds:
+            sql_conditions.append(f"({' OR '.join(at_conds)})")
 
     if reference_types is not None:
         validate_name_list(reference_types)
