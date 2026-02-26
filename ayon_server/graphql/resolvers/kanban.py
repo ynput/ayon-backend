@@ -35,7 +35,7 @@ async def get_accessible_users(user: UserEntity) -> dict[str, set[str]] | None:
 
     if user.is_manager:
         return None  # No restrictions for managers
-    result = {}
+    result: dict[str, set[str]] = {}
 
     if ayonconfig.limit_user_visibility:
         agcond = """WHERE (
@@ -222,7 +222,7 @@ async def get_kanban(
                 # user has restricted read access.
                 # limit assignees to themselves
 
-                users = [user.name]
+                users = {user.name}
 
             else:
                 users = umap.get(project_name, set())
