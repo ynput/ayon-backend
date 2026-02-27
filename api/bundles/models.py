@@ -1,7 +1,11 @@
+import re
 from datetime import datetime
 from typing import Any
 
-from ayon_server.types import NAME_REGEX, Field, OPModel, Platform
+from pydantic import validator
+
+from ayon_server.logging import logger
+from ayon_server.types import NAME_REGEX, SEMVER_REGEX, Field, OPModel, Platform
 from ayon_server.utils import camelize
 
 dependency_packages_meta: dict[str, Any] = {
@@ -54,6 +58,26 @@ class BundleModel(BaseBundleModel):
         title="Addons",
         example={"ftrack": "1.2.3"},
     )
+
+    @validator("addons")
+    def validate_addons(
+        cls, value: dict[str, str | None]
+    ) -> dict[str, str | None] | None:
+        for addon_name, version in value.items():
+            if version is None:
+                continue
+            if version.lower() == "none":
+                value[addon_name] = None
+                continue
+            if version in ["__inherit__", "__disable__"]:
+                continue
+            if not re.match(SEMVER_REGEX, version):
+                logger.warning(
+                    f"Version '{version}' for addon '{addon_name}'"
+                    f"is not a valid semantic version."
+                )
+        return value
+
     installer_version: str | None = Field(None, example="1.2.3")
     dependency_packages: dict[Platform, str | None] = Field(
         default_factory=dict,
@@ -79,6 +103,28 @@ class BundlePatchModel(BaseBundleModel):
         title="Addons",
         example={"ftrack": None, "kitsu": "1.2.3"},
     )
+
+    @validator("addons")
+    def validate_addons(
+        cls, value: dict[str, str | None] | None
+    ) -> dict[str, str | None] | None:
+        if value is None:
+            return value
+        for addon_name, version in value.items():
+            if version is None:
+                continue
+            if version.lower() == "none":
+                value[addon_name] = None
+                continue
+            if version in ["__inherit__", "__disable__"]:
+                continue
+            if not re.match(SEMVER_REGEX, version):
+                raise ValueError(
+                    f"Version '{version}' for addon '{addon_name}'"
+                    f"is not a valid semantic version."
+                )
+        return value
+
     installer_version: str | None = Field(None, example="1.2.3")
     dependency_packages: dict[Platform, str | None] | None = Field(
         None,
