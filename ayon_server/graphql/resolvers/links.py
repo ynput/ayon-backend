@@ -92,6 +92,7 @@ async def get_links(
                 cursor=link_id,
                 description=description,
                 author=row["author"],
+                data=row["data"],
             )
         )
 
