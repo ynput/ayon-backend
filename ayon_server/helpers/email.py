@@ -12,6 +12,7 @@ import jinja2
 from pydantic import BaseModel, Field
 
 from ayon_server.config import ayonconfig
+from ayon_server.config.serverconfig import get_server_config
 from ayon_server.exceptions import AyonException
 from ayon_server.helpers.cloud import CloudUtils
 from ayon_server.logging import log_traceback, logger
@@ -185,16 +186,53 @@ async def send_mail(
         await send_api_email(recipient_list, subject, text, html)
 
 
+async def get_studio_logo_url(base_url: str | None) -> str:
+    file_name = ""
+    if base_url:
+        config = await get_server_config()
+        customization = config.customization
+        file_name = customization.studio_logo
+    if not file_name:
+        return "https://static.ynput.team/AYON_whiteG_dot.png"
+    return f"{base_url}/static/customization/{file_name}"
+
+
 class EmailTemplate:
     def __init__(self) -> None:
         # TODO: async rendering
         self.env = jinja2.Environment(loader=jinja2.FileSystemLoader("static/email"))
 
-    async def render(self, template: str, context: dict[str, Any]) -> str:
+    async def render(
+        self,
+        template: str,
+        context: dict[str, Any] | None = None,
+        base_url: str | None = None,
+    ) -> str:
+        if context is None:
+            context = {}
         # Render the template string
         template_obj = self.env.from_string(template)
-        return template_obj.render(context)
 
-    async def render_template(self, template_name: str, context: dict[str, Any]) -> str:
+        full_context = {
+            "base_url": base_url,
+            "studio_logo_url": await get_studio_logo_url(base_url),
+            **context,
+        }
+
+        return template_obj.render(full_context)
+
+    async def render_template(
+        self,
+        template_name: str,
+        context: dict[str, Any] | None = None,
+        base_url: str | None = None,
+    ) -> str:
+        if context is None:
+            context = {}
         template = self.env.get_template(template_name)
-        return template.render(context)
+        full_context = {
+            "base_url": base_url,
+            "studio_logo_url": await get_studio_logo_url(base_url),
+            **context,
+        }
+        return template.render(full_context)
