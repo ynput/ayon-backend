@@ -300,7 +300,7 @@ async def unfreeze_project_bundle(
             if not addon_version:
                 continue
 
-            if addon_version in ("__inherit__", "__disabled__"):
+            if addon_version in ("__inherit__", "__disable__"):
                 continue
 
             try:

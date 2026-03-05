@@ -1,8 +1,7 @@
 import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
 
 from ayon_server.entities import TaskEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
@@ -13,12 +12,16 @@ from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
 
 if TYPE_CHECKING:
-    from ayon_server.graphql.connections import VersionsConnection, WorkfilesConnection
-    from ayon_server.graphql.nodes.folder import FolderNode
+    from ..connections import VersionsConnection, WorkfilesConnection
+    from .folder import FolderNode
 else:
-    FolderNode = LazyType["FolderNode", ".folder"]
-    VersionsConnection = LazyType["VersionsConnection", "..connections"]
-    WorkfilesConnection = LazyType["WorkfilesConnection", "..connections"]
+    FolderNode = Annotated["FolderNode", strawberry.lazy(".folder")]
+    VersionsConnection = Annotated[
+        "VersionsConnection", strawberry.lazy("..connections")
+    ]
+    WorkfilesConnection = Annotated[
+        "WorkfilesConnection", strawberry.lazy("..connections")
+    ]
 
 
 @TaskEntity.strawberry_attrib()
@@ -66,12 +69,12 @@ class TaskNode(BaseNode):
 
     # GraphQL specifics
 
-    versions: "VersionsConnection" = strawberry.field(
+    versions: VersionsConnection = strawberry.field(
         resolver=get_versions,
         description=get_versions.__doc__,
     )
 
-    workfiles: "WorkfilesConnection" = strawberry.field(
+    workfiles: WorkfilesConnection = strawberry.field(
         resolver=get_workfiles,
         description=get_workfiles.__doc__,
     )

@@ -130,8 +130,8 @@ class BaseEntity:
 
     @classmethod
     def strawberry_attrib(cls):
-        fields = list(cls.model.attrib_model.__fields__.keys())
-        return pydantic_type(model=cls.model.attrib_model, fields=fields)
+        # fields = list(cls.model.attrib_model.__fields__.keys())
+        return pydantic_type(model=cls.model.attrib_model, all_fields=True)
 
     #
     # DB

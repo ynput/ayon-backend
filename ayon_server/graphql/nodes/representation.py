@@ -1,7 +1,6 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
 
 from ayon_server.entities import RepresentationEntity
 from ayon_server.graphql.nodes.common import BaseNode
@@ -11,7 +10,7 @@ from ayon_server.utils import get_base_name, json_dumps
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.version import VersionNode
 else:
-    VersionNode = LazyType["VersionNode", ".version"]
+    VersionNode = Annotated["VersionNode", strawberry.lazy(".version")]
 
 
 @strawberry.type

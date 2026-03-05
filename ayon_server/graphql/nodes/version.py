@@ -1,8 +1,8 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
 
+# from strawberry import LazyType
 from ayon_server.entities import VersionEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.representations import get_representations
@@ -14,9 +14,12 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.product import ProductNode
     from ayon_server.graphql.nodes.task import TaskNode
 else:
-    RepresentationsConnection = LazyType["RepresentationsConnection", "..connections"]
-    ProductNode = LazyType["ProductNode", ".product"]
-    TaskNode = LazyType["TaskNode", ".task"]
+    RepresentationsConnection = Annotated[
+        "RepresentationsConnection",
+        strawberry.lazy("..connections"),
+    ]
+    ProductNode = Annotated["ProductNode", strawberry.lazy(".product")]
+    TaskNode = Annotated["TaskNode", strawberry.lazy(".task")]
 
 
 @VersionEntity.strawberry_attrib()
@@ -47,7 +50,7 @@ class VersionNode(BaseNode):
 
     # GraphQL specifics
 
-    representations: "RepresentationsConnection" = strawberry.field(
+    representations: RepresentationsConnection = strawberry.field(
         resolver=get_representations,
         description=get_representations.__doc__,
     )

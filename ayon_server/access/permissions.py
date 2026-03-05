@@ -30,7 +30,9 @@ def _top_level_fields_enum() -> list[dict[str, str]]:
         {"value": "folder_id", "label": "Move task"},
         {"value": "task_type", "label": "Change task type"},
         {"value": "assignees", "label": "Change task assignees"},
+        {"value": "product_base_type", "label": "Change product base type"},
         {"value": "product_type", "label": "Change product type"},
+        {"value": "data", "label": "Change additional data"},
     ]
 
 

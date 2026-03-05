@@ -1,7 +1,6 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
 
 from ayon_server.entities import WorkfileEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
@@ -11,7 +10,7 @@ from ayon_server.utils import json_dumps
 if TYPE_CHECKING:
     from ayon_server.graphql.nodes.task import TaskNode
 else:
-    TaskNode = LazyType["TaskNode", ".task"]
+    TaskNode = Annotated["TaskNode", strawberry.lazy(".task")]
 
 
 @WorkfileEntity.strawberry_attrib()

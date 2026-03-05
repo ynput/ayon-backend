@@ -26,6 +26,14 @@ async def get_addon_list_for_settings(
     # Get the studio bundle first
     #
 
+    if (
+        not project_bundle_name
+        and bundle_name
+        and bundle_name.startswith("__project__")
+    ):
+        project_bundle_name = bundle_name
+        bundle_name = None
+
     if variant not in ("production", "staging"):
         # Dev bundle
         query = [

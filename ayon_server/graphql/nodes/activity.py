@@ -1,8 +1,7 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
-from strawberry import LazyType
 
 from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.exceptions import ForbiddenException
@@ -13,8 +12,8 @@ if TYPE_CHECKING:
     from ayon_server.graphql.nodes.user import UserNode
     from ayon_server.graphql.nodes.version import VersionNode
 else:
-    UserNode = LazyType["UserNode", ".user"]
-    VersionNode = LazyType["VersionNode", ".version"]
+    UserNode = Annotated["UserNode", strawberry.lazy(".user")]
+    VersionNode = Annotated["VersionNode", strawberry.lazy(".version")]
 
 
 @strawberry.type
@@ -160,7 +159,7 @@ class ActivityNode:
         return None
 
     @strawberry.field
-    async def version(self, info: Info) -> Optional["VersionNode"]:
+    async def version(self, info: Info) -> VersionNode | None:
         if self.activity_type not in ["version.publish", "reviewable"]:
             return None
 
