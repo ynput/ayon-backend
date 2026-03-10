@@ -14,6 +14,7 @@ ActivityType = Literal[
     "version.publish",
 ]
 
+
 ActivityReferenceType = Literal[
     "origin",
     "mention",

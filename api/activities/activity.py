@@ -145,7 +145,7 @@ async def post_project_activity(
         body=activity.body,
         tags=activity.tags,
         files=activity.files,
-        user_name=user.name,
+        user=user,
         timestamp=activity.timestamp,
         sender=sender,
         sender_type=sender_type,
