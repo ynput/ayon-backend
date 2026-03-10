@@ -177,7 +177,7 @@ async def process_activity_operation(
                 activity_type=activity.activity_type,
                 body=activity.body,
                 files=activity.files,
-                user_name=user.name,
+                user=user,
                 timestamp=activity.timestamp,
                 sender=sender,
                 sender_type=sender_type,
