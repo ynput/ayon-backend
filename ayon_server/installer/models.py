@@ -52,7 +52,7 @@ class BasePackageModel(OPModel):
         str,
         Field(
             title="Filename",
-            regex=r"^[\w\-. ]+$",
+            regex=r"^[\w\-+._]+$",
             description="Name of the package file",
             example="ayon_installer_1.2.3_windows.exe",
         ),
