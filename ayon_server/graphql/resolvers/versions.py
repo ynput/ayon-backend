@@ -526,6 +526,7 @@ async def get_versions(
             "product_type",
             "task_type",
             "folder_type",
+            "hero_version_id",
         ]
 
         fdata = json.loads(filter)
@@ -538,6 +539,7 @@ async def get_versions(
                 "product_type": "products.product_type",
                 "task_type": "tasks.task_type",
                 "folder_type": "folders.folder_type",
+                "hero_version_id": "hero_versions.hero_version_id",
             },
         ):
             sql_conditions.append(fcond)
