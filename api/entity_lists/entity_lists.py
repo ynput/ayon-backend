@@ -5,6 +5,7 @@ from fastapi import Query
 from ayon_server.api.dependencies import (
     AllowGuests,
     CurrentUser,
+    EntityListID,
     ProjectName,
     Sender,
     SenderType,
@@ -78,11 +79,11 @@ async def create_entity_list(
         return await entity_list.save(sender=sender, sender_type=sender_type)
 
 
-@router.patch("/lists/{list_id}")
+@router.patch("/lists/{entity_list_id}")
 async def update_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
-    list_id: str,
+    entity_list_id: EntityListID,
     payload: EntityListPatchModel,
     sender: Sender,
     sender_type: SenderType,
@@ -90,7 +91,7 @@ async def update_entity_list(
     """Update entity list metadata"""
 
     async with Postgres.transaction():
-        entity_list = await EntityList.load(project_name, list_id, user=user)
+        entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
 
         payload_dict = payload.dict(exclude_unset=True)
@@ -113,11 +114,11 @@ def dict_keep_keys(d: dict[str, Any], *keys: str) -> dict[str, Any]:
     return {k: v for k, v in d.items() if k in keys}
 
 
-@router.get("/lists/{list_id}", dependencies=[AllowGuests])
+@router.get("/lists/{entity_list_id}", dependencies=[AllowGuests])
 async def get_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
-    list_id: str,
+    entity_list_id: EntityListID,
     metadata_only: bool = Query(False, description="When true, only return metadata"),
 ) -> EntityListModel:
     """Get entity list
@@ -134,7 +135,7 @@ async def get_entity_list(
 
     entity_list = await EntityList.load(
         project_name,
-        list_id,
+        entity_list_id,
         user=user,
         with_items=not metadata_only,
     )
@@ -164,36 +165,36 @@ async def get_entity_list(
     return payload
 
 
-@router.delete("/lists/{list_id}")
+@router.delete("/lists/{entity_list_id}")
 async def delete_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
-    list_id: str,
+    entity_list_id: EntityListID,
     sender: Sender,
     sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete entity list from the database"""
 
     async with Postgres.transaction():
-        entity_list = await EntityList.load(project_name, list_id, user=user)
+        entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
         await entity_list.delete(sender=sender, sender_type=sender_type)
 
     return EmptyResponse()
 
 
-@router.post("/lists/{list_id}/materialize")
+@router.post("/lists/{entity_list_id}/materialize")
 async def materialize_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
-    list_id: str,
+    entity_list_id: EntityListID,
     sender: Sender,
     sender_type: SenderType,
 ) -> EntityListSummary:
     """Materialize an entity list."""
 
     async with Postgres.transaction():
-        entity_list = await EntityList.load(project_name, list_id, user=user)
+        entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
         await entity_list.materialize()
         return await entity_list.save(sender=sender, sender_type=sender_type)

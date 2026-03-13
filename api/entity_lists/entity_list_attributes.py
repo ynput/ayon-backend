@@ -12,16 +12,16 @@ class EntityListAttributeDefinition(AttributeNameModel):
     data: AttributeData
 
 
-@router.get("/lists/{list_id}/attributes", response_model_exclude_unset=True)
+@router.get("/lists/{entity_list_id}/attributes", response_model_exclude_unset=True)
 async def get_entity_list_attributes_definition(
     user: CurrentUser,
     project_name: ProjectName,
-    list_id: str,
+    entity_list_id: str,
 ) -> list[EntityListAttributeDefinition]:
     """Return a list of custom attributes for the entity list."""
 
     query = f"SELECT data FROM project_{project_name}.entity_lists WHERE id = $1"
-    res = await Postgres.fetchrow(query, list_id)
+    res = await Postgres.fetchrow(query, entity_list_id)
     if not res:
         raise NotFoundException("Entity list not found")
     adata = res["data"].get("attributes", [])
@@ -35,18 +35,20 @@ async def get_entity_list_attributes_definition(
         try:
             attr_definition = EntityListAttributeDefinition(**attr_definition)
         except Exception:
-            logger.warning(f"Invalid attribute definition for entity list {list_id}")
+            logger.warning(
+                f"Invalid attribute definition for entity list {entity_list_id}"
+            )
             continue
         result.append(attr_definition)
 
     return result
 
 
-@router.put("/lists/{list_id}/attributes")
+@router.put("/lists/{entity_list_id}/attributes")
 async def set_entity_list_attributes_definition(
     user: CurrentUser,
     project_name: ProjectName,
-    list_id: str,
+    entity_list_id: str,
     payload: list[EntityListAttributeDefinition],
 ) -> None:
     """Set the custom attributes for the entity list."""
@@ -65,11 +67,11 @@ async def set_entity_list_attributes_definition(
         validate_attribute_data(attr_definition.name, attr_definition.data)
         payload_list.append(attr_definition.dict(exclude_unset=True, exclude_none=True))
 
-    logger.debug(f"Setting attributes for entity list {list_id}: {payload_list}")
+    logger.debug(f"Setting attributes for entity list {entity_list_id}: {payload_list}")
 
     query = f"""
         UPDATE project_{project_name}.entity_lists
         SET data = jsonb_set(data, '{{attributes}}', $1)
         WHERE id = $2
     """
-    await Postgres.execute(query, payload_list, list_id)
+    await Postgres.execute(query, payload_list, entity_list_id)

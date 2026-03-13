@@ -432,6 +432,26 @@ async def dep_activity_id(
 ActivityID = Annotated[str, Depends(dep_activity_id)]
 
 
+async def dep_entity_list_id(
+    entity_list_id: str = Path(..., title="Entity list ID", **EntityID.META),
+) -> str:
+    """Validate and return an entity list id specified in an endpoint path."""
+    return entity_list_id
+
+
+EntityListID = Annotated[str, Depends(dep_entity_list_id)]
+
+
+async def dep_entity_list_item_id(
+    entity_list_item_id: str = Path(..., title="Entity list item ID", **EntityID.META),
+) -> str:
+    """Validate and return an entity list item id specified in an endpoint path."""
+    return entity_list_item_id
+
+
+EntityListItemID = Annotated[str, Depends(dep_entity_list_item_id)]
+
+
 async def dep_file_id(
     file_id: str = Path(..., title="File ID", **EntityID.META),
 ) -> str:
