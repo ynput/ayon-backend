@@ -55,6 +55,15 @@ class AyonConfig(BaseModel):
         description="Absolute path to the directory containing the addons.",
     )
 
+    launcher_storage_dir: str = Field(
+        default="/storage",
+        description=(
+            "Path to the launcher storage root. "
+            "Desktop installers and dependency packages are expected in its "
+            "'desktop' subdirectory."
+        ),
+    )
+
     frontend_dir: str = Field(
         default="/frontend",
         description="Path to the directory containing the frontend files.",
