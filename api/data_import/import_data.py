@@ -8,6 +8,7 @@ from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
 
+from .export_data import EntityType
 from .models import (
     UserExportImportModel,
     EntityExportImport,
@@ -47,7 +48,7 @@ HIERARCHY_ENTITY_CLASSES: dict = {
 
 @router.post("/import/{entity_type}")
 async def import_data(
-    entity_type: str,
+    entity_type: EntityType,
     user: CurrentUser,
     file_bytes: bytes,
     skip_errors: bool = False,

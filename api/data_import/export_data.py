@@ -1,6 +1,6 @@
 import csv
 import os
-from typing import Any, Optional, Tuple
+from typing import Any, Literal, Optional, Tuple
 
 from fastapi import HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, Response
@@ -14,9 +14,13 @@ from .models import EXPORTABLE_ENTITIES
 from .router import router
 
 
+# Type alias for exportable entity types
+EntityType = Literal["user", "folder", "task", "hierarchy"]
+
+
 @router.get("/export/{entity_type}/fields")
 async def export_fields(
-    entity_type: str,
+    entity_type: EntityType,
 ) -> Optional[list[dict[str, Any]]]:
     """Get exportable fields for an entity type."""
 
@@ -33,7 +37,7 @@ async def export_fields(
 
 @router.post("/export/{entity_type}")
 async def export(
-    entity_type: str,
+    entity_type: EntityType,
     user: CurrentUser,
     background_tasks: BackgroundTasks,
     project_name: Optional[str] = None,
