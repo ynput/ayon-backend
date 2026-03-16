@@ -1,5 +1,6 @@
 import csv
 import os
+import tempfile
 from typing import Any, Literal, Optional, Tuple
 
 from fastapi import HTTPException, BackgroundTasks
@@ -7,7 +8,6 @@ from fastapi.responses import FileResponse, Response
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import ForbiddenException
-from ayon_server.files import Storages
 
 from .models import EXPORTABLE_ENTITIES
 
@@ -55,10 +55,7 @@ async def export(
             detail=f"Entity type '{entity_type}' not implemented"
         )
 
-    project_storage = await Storages.project(project_name)
-    storage_dir = await project_storage.get_root()
-    storage_dir = os.path.join(storage_dir, "data_import/exports")
-    os.makedirs(storage_dir, exist_ok=True)
+    storage_dir = tempfile.mkdtemp(prefix="ayon_export_")
 
     if entity_type == "user":
         user.check_permissions("studio.list_all_users")
@@ -79,7 +76,7 @@ async def export(
         writer.writerows(rows)
 
     if background_tasks:
-        background_tasks.add_task(_cleanup_file, export_path)
+        background_tasks.add_task(_cleanup_file, export_path, storage_dir)
 
     return FileResponse(
         export_path,
@@ -88,10 +85,12 @@ async def export(
     )
 
 
-def _cleanup_file(file_path: str) -> None:
-    """Delete a file after the response is sent."""
+def _cleanup_file(file_path: str, temp_dir: str) -> None:
+    """Delete a file and its parent temp directory after the response is sent."""
     try:
         if os.path.exists(file_path):
             os.remove(file_path)
+        if os.path.exists(temp_dir):
+            os.rmdir(temp_dir)
     except Exception as e:
         pass  # Silent fail for cleanup
