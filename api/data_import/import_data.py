@@ -4,7 +4,10 @@ from typing import Any, Optional
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
-from ayon_server.exceptions import ForbiddenException
+from ayon_server.exceptions import (
+    ForbiddenException,
+    NotFoundException
+)
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
 
@@ -300,7 +303,7 @@ async def _get_entity_id_by_path(
     project_name: str,
     path: str,
     is_task: bool = False
-) -> Optional[str]:
+) -> str:
     """Get folder or task id by its path."""
     folder_path = path
     task_name = None
@@ -332,3 +335,7 @@ async def _get_entity_id_by_path(
 
     if ret:
         return ret["id"]
+
+    raise NotFoundException(
+        f"Entity with path '{path}' not found in the database"
+    )
