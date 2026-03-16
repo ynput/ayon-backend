@@ -115,7 +115,7 @@ class EntityExportImport(BaseModel):
                 default = field.default if not required else None
             elif isinstance(field, FieldInfo):
                 # Handle FieldInfo directly (e.g., from _calculated_fields)
-                name = getattr(field, "name") or getattr(field, "title")
+                name = getattr(field, "name", None) or getattr(field, "title")
                 if not name:
                     # Skip FieldInfo without a name
                     continue
