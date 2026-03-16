@@ -1,6 +1,8 @@
 import csv
 import io
-from typing import Any, Optional
+from typing import Any, Annotated
+
+import fastapi
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
@@ -51,7 +53,8 @@ HIERARCHY_ENTITY_CLASSES: dict = {
 
 @router.post("/import/{entity_type}")
 async def import_data(
-    entity_type: EntityType,
+    entity_type: Annotated[
+        EntityType, fastapi.Path(title="Import entity type")],
     user: CurrentUser,
     file_bytes: bytes,
     skip_errors: bool = False,
