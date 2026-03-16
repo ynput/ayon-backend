@@ -1,0 +1,84 @@
+import csv
+import os
+from typing import Any, Optional, Tuple
+
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse, Response
+
+from ayon_server.api.dependencies import CurrentUser
+
+from .models import EXPORTABLE_ENTITIES
+
+from .router import router
+
+# Storage directory for exported files
+STORAGE_DIR = "/storage/addons/powerpack/data_import/exports"  # TODO: make configurable
+
+
+@router.get("/export/{entity_type}/fields")
+async def export_fields(
+    entity_type: str,
+) -> Optional[list[dict[str, Any]]]:
+    """Get exportable fields for an entity type."""
+
+    # Validate entity type exists
+    if entity_type not in EXPORTABLE_ENTITIES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Entity type '{entity_type}' not implemented"
+        )
+
+    model = EXPORTABLE_ENTITIES[entity_type]
+    return model.fields()
+
+
+@router.post("/export/{entity_type}")
+async def export(
+    entity_type: str,
+    user: CurrentUser,
+    project_name: Optional[str] = None,
+    field_names: Optional[list[str]] = None,
+    entity_ids: Optional[Tuple[str, list[str]]] = None,
+) -> Response:
+    """Export entity data as CSV."""
+
+    # Validate entity type exists
+    if entity_type not in EXPORTABLE_ENTITIES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Entity type '{entity_type}' not implemented"
+        )
+    os.makedirs(STORAGE_DIR, exist_ok=True)
+
+    if entity_type == "user":
+        user.check_permissions("studio.list_all_users")
+    elif entity_type in ["folder", "task"]:
+        user.check_permissions("project.access", project_name)
+
+    model_cls = EXPORTABLE_ENTITIES[entity_type]
+    rows = await model_cls().get_all_items(
+        field_names,
+        True,
+        project_name=project_name,
+        entity_ids=entity_ids
+    )
+
+    export_path = os.path.join(STORAGE_DIR, f"{entity_type}_export.csv")
+    with open(export_path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerows(rows)
+
+    return FileResponse(
+        export_path,
+        media_type="text/csv",
+        filename=f"{entity_type}_export.csv"
+    )
+
+
+def _cleanup_file(file_path: str) -> None:
+    """Delete a file after the response is sent."""
+    try:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    except Exception as e:
+        pass  # Silent fail for cleanup
