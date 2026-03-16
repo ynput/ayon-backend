@@ -2,7 +2,7 @@ import csv
 import os
 from typing import Any, Optional, Tuple
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import HTTPException
 from fastapi.responses import FileResponse, Response
 
 from ayon_server.api.dependencies import CurrentUser
