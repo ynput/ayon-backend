@@ -2,7 +2,7 @@ import csv
 import os
 from typing import Any, Optional, Tuple
 
-from fastapi import HTTPException
+from fastapi import HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, Response
 
 from ayon_server.api.dependencies import CurrentUser
@@ -34,6 +34,7 @@ async def export_fields(
 async def export(
     entity_type: str,
     user: CurrentUser,
+    background_tasks: BackgroundTasks,
     project_name: Optional[str] = None,
     field_names: Optional[list[str]] = None,
     entity_ids: Optional[Tuple[str, list[str]]] = None,
@@ -69,6 +70,9 @@ async def export(
     with open(export_path, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerows(rows)
+
+    if background_tasks:
+        background_tasks.add_task(_cleanup_file, export_path)
 
     return FileResponse(
         export_path,
