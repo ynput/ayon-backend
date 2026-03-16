@@ -8,13 +8,17 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.api.system import require_server_restart
 from ayon_server.exceptions import AyonException, ForbiddenException, NotFoundException
+from ayon_server.installer.hotreload import (
+    notify_clients_addon_reload,
+    trigger_hotreload,
+)
+from ayon_server.logging import logger
 
-# from ayon_server.lib.postgres import Postgres
 from .router import router
 
 
 async def delete_addon_directory(addon_name: str, addon_version: str | None = None):
-    """Delete an addon or addon version"""
+    """Delete an addon or addon version."""
     library = AddonLibrary.getinstance()
     addon_definition = library.get(addon_name)
     if addon_definition is None:
@@ -45,7 +49,26 @@ async def delete_addon_directory(addon_name: str, addon_version: str | None = No
         except Exception as e:
             raise AyonException(f"Failed to delete {addon_name} directory: {e}")
         library.data.pop(addon_name, None)
-    await require_server_restart(None, "Restart the server to apply the addon changes.")
+
+    # Try hot-reload first, fall back to requiring server restart
+    reload_success = await trigger_hotreload(mode="addon")
+
+    if reload_success:
+        await notify_clients_addon_reload()
+        logger.info(
+            "Addon deleted successfully with hot-reload",
+            addon_name=addon_name,
+            addon_version=addon_version,
+        )
+    else:
+        await require_server_restart(
+            None, "Restart the server to apply the addon changes."
+        )
+        logger.warning(
+            "Hot-reload failed after addon deletion, server restart required",
+            addon_name=addon_name,
+            addon_version=addon_version,
+        )
 
 
 @router.delete("/{addon_name}")
