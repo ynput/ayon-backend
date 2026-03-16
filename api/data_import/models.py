@@ -1,7 +1,4 @@
 """Data models for data import/export functionality."""
-
-from __future__ import annotations
-
 from typing import Any, Dict, List, Tuple, Optional, Set
 from pydantic import BaseModel
 from pydantic.fields import ModelField, FieldInfo
