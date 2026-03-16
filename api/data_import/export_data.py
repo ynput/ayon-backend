@@ -6,13 +6,11 @@ from fastapi import HTTPException
 from fastapi.responses import FileResponse, Response
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.files import Storages
 
 from .models import EXPORTABLE_ENTITIES
 
 from .router import router
-
-# Storage directory for exported files
-STORAGE_DIR = "/storage/addons/powerpack/data_import/exports"  # TODO: make configurable
 
 
 @router.get("/export/{entity_type}/fields")
@@ -48,7 +46,11 @@ async def export(
             status_code=404,
             detail=f"Entity type '{entity_type}' not implemented"
         )
-    os.makedirs(STORAGE_DIR, exist_ok=True)
+
+    project_storage = await Storages.project(project_name)
+    storage_dir = await project_storage.get_root()
+    storage_dir = os.path.join(storage_dir, "data_import/exports")
+    os.makedirs(storage_dir, exist_ok=True)
 
     if entity_type == "user":
         user.check_permissions("studio.list_all_users")
@@ -63,7 +65,7 @@ async def export(
         entity_ids=entity_ids
     )
 
-    export_path = os.path.join(STORAGE_DIR, f"{entity_type}_export.csv")
+    export_path = os.path.join(storage_dir, f"{entity_type}_export.csv")
     with open(export_path, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerows(rows)
