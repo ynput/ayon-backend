@@ -14,7 +14,8 @@ from .models import (
     FolderExportImportModel,
     TaskExportImportModel,
     FolderTaskExportImportModel,
-    ExistingItemStrategy
+    ExistingItemStrategy,
+    ExistingStrategyType,
 )
 from .router import router
 
@@ -50,7 +51,7 @@ async def import_data(
     user: CurrentUser,
     file_bytes: bytes,
     skip_errors: bool = False,
-    existing_strategy: str = ExistingItemStrategy.SKIP,
+    existing_strategy: ExistingStrategyType = ExistingItemStrategy.SKIP,
     project_name: str = None,
     folder_id: str = None,
 ) -> int:

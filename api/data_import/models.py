@@ -1,17 +1,23 @@
 """Data models for data import/export functionality."""
-from typing import Any, Dict, List, Tuple, Optional, Set
+
+from enum import Enum
+from typing import Any, Dict, List, Tuple, Optional, Set, Literal
+
 from pydantic import BaseModel
 from pydantic.fields import ModelField, FieldInfo
-
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.lib.postgres import Postgres
 
 
-class ExistingItemStrategy:
+class ExistingItemStrategy(str, Enum):
     """Strategy for handling existing items during import."""
     SKIP = "skip"
     UPDATE = "update"
     FAIL = "fail"
+
+
+# Type alias for existing strategy values
+ExistingStrategyType = Literal["skip", "update", "fail"]
 
 
 class EntityExportImport(BaseModel):
