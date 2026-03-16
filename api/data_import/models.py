@@ -8,7 +8,6 @@ from pydantic.fields import ModelField, FieldInfo
 
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import OPModel
 
 
 class ExistingItemStrategy:
