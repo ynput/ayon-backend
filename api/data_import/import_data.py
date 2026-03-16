@@ -2,7 +2,9 @@ import csv
 import io
 from typing import Any, Optional
 
+from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
 
@@ -45,6 +47,7 @@ HIERARCHY_ENTITY_CLASSES: dict = {
 @router.post("/import/{entity_type}")
 async def import_data(
     entity_type: str,
+    user: CurrentUser,
     file_bytes: bytes,
     skip_errors: bool = False,
     existing_strategy: str = ExistingItemStrategy.SKIP,
@@ -56,6 +59,9 @@ async def import_data(
     Parses the CSV file and creates/updates users based on the data.
     Expected CSV columns: name, email, full_name, is_admin, etc.
     """
+    if not user.is_manager:
+        raise ForbiddenException("You must be a manager")
+
     header, rows = _parse_csv_rows(file_bytes)
 
     imported = 0

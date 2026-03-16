@@ -6,6 +6,7 @@ from fastapi import HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, Response
 
 from ayon_server.api.dependencies import CurrentUser
+from ayon_server.exceptions import ForbiddenException
 from ayon_server.files import Storages
 
 from .models import EXPORTABLE_ENTITIES
@@ -40,6 +41,8 @@ async def export(
     entity_ids: Optional[Tuple[str, list[str]]] = None,
 ) -> Response:
     """Export entity data as CSV."""
+    if not user.is_manager:
+        raise ForbiddenException("You must be a manager")
 
     # Validate entity type exists
     if entity_type not in EXPORTABLE_ENTITIES:
