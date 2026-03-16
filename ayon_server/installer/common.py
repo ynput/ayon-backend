@@ -14,7 +14,7 @@ def get_desktop_dir(*args: str, for_writing: bool = True) -> str:
     args: path to the directory relative to the desktop directory
     """
 
-    root = os.path.join(ayonconfig.launcher_storage_dir, "desktop")
+    root = os.path.join(ayonconfig.storage_dir, "desktop")
     directory = os.path.join(root, *args)
     if not os.path.isdir(directory):
         if for_writing:
