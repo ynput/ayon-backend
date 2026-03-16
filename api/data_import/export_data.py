@@ -22,7 +22,7 @@ EntityType = Literal["user", "folder", "task", "hierarchy"]
 @router.get("/export/{entity_type}/fields")
 async def export_fields(
     entity_type:  Annotated[
-        EntityType, fastapi.Path(title="Import entity type")],,
+        EntityType, fastapi.Path(title="Import entity type")],
 ) -> Optional[list[dict[str, Any]]]:
     """Get exportable fields for an entity type."""
 
