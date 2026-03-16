@@ -322,7 +322,9 @@ async def _get_entity_id_by_path(
         folder_path
     )
     if not ret:
-        return
+        raise NotFoundException(
+            f"Entity with path '{path}' not found in the database"
+        )
 
     if is_task:
         query = f"""
@@ -335,6 +337,10 @@ async def _get_entity_id_by_path(
             ret["id"],
             task_name
         )
+        if not ret:
+            raise NotFoundException(
+                f"Entity with path '{path}' not found in the database"
+            )
 
     if ret:
         return ret["id"]
