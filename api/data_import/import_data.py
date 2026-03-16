@@ -3,6 +3,7 @@ import io
 from typing import Any, Optional
 
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
+from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
 
 from .models import (
@@ -59,7 +60,11 @@ async def import_data(
 
     imported = 0
 
-    entity_cls = _get_entity_class(entity_type)
+    try:
+        entity_cls = get_entity_class(entity_type)
+    except ValueError:
+        if entity_type != "hierarchy":
+            raise ValueError(f"Unknown entity type: {entity_type}")
     model_cls = IMPORTABLE_ENTITIES[entity_type]
 
     hierarchy_existing_identifiers: dict = {}
@@ -195,23 +200,6 @@ async def import_data(
         imported += 1
 
     return imported
-
-
-def _get_entity_class(entity_type: str) -> type:
-    """Get the entity class for a given entity type.
-
-    Args:
-        entity_type: The type of entity (user, folder, task)
-
-    Returns:
-        The corresponding entity class
-
-    Raises:
-        ValueError: If the entity type is not recognized
-    """
-    if entity_type not in ENTITY_TYPE_TO_ENTITY_CLASS:
-        raise ValueError(f"Unknown entity type: {entity_type}")
-    return ENTITY_TYPE_TO_ENTITY_CLASS[entity_type]
 
 
 def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]:
