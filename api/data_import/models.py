@@ -3,7 +3,6 @@
 from enum import Enum
 from typing import Any, Dict, List, Tuple, Optional, Set, Literal
 
-from pydantic import BaseModel
 from pydantic.fields import ModelField, FieldInfo
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.lib.postgres import Postgres
@@ -20,7 +19,7 @@ class ExistingItemStrategy(str, Enum):
 ExistingStrategyType = Literal["skip", "update", "fail"]
 
 
-class EntityExportImport(BaseModel):
+class EntityExportImport:
     """Base model for exporting and importing entities.
 
     Subclasses can configure the following class attributes:
