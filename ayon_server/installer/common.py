@@ -2,6 +2,7 @@ import asyncio
 import os
 from collections.abc import Generator
 
+from ayon_server.config import ayonconfig
 from ayon_server.exceptions import AyonException
 from ayon_server.types import Platform
 from ayon_server.utils.json import json_loads
@@ -13,8 +14,7 @@ def get_desktop_dir(*args: str, for_writing: bool = True) -> str:
     args: path to the directory relative to the desktop directory
     """
 
-    # TODO: Make this configurable
-    root = "/storage/desktop"
+    root = os.path.join(ayonconfig.storage_dir, "desktop")
     directory = os.path.join(root, *args)
     if not os.path.isdir(directory):
         if for_writing:
