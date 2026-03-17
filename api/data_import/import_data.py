@@ -62,7 +62,7 @@ async def import_data(
     existing_strategy: ExistingStrategyType = ExistingItemStrategy.SKIP,
     project_name: str = None,
     folder_id: str = None,
-) -> int:
+    preview: bool  = False
 ) -> ImportStatus:
     """Process CSV file and import users to the database.
 
@@ -206,11 +206,12 @@ async def import_data(
             if  entity_cls != UserEntity:
                 kwargs["project_name"] = project_name
             new_entity = entity_cls(**kwargs)
-            await new_entity.save()
+            await new_entity.save(auto_commit=(not preview))
             if original_id:
                 originals_and_new[original_id] = new_entity.id
             if path:
                 path_to_ids[path] = new_entity.id
+
             if exists:
                 import_status.updated += 1
             else:
