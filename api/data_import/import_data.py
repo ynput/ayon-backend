@@ -85,6 +85,7 @@ async def import_data(
 
     hierarchy_existing_identifiers: dict = {}
     hierarchy_required_fields: dict = {}
+    required_fields = []
 
     # For non-hierarchy types, get fields and existing identifiers upfront
     if entity_type != "hierarchy":
