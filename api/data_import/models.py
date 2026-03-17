@@ -80,7 +80,7 @@ class EntityExportImport:
         
         return [
             value
-            for value in cls._entity_model.model.main_model.__fields__.values()
+            for value in _get_model_fields(cls._entity_model.model.main_model).values()
             if value.name not in ["attrib", "data", "own_attrib"] and
                value.name not in cls._entity_model.model.dynamic_fields
         ]
@@ -92,7 +92,7 @@ class EntityExportImport:
             return []
         
         result: List[ModelField] = []
-        for f in cls._entity_model.model.attrib_model.__fields__.values():
+        for f in _get_model_fields(cls._entity_model.model.attrib_model).values():
             # Create a copy with prefixed name
             new_field = ModelField(
                 name=f"attrib.{f.name}",
@@ -123,7 +123,6 @@ class EntityExportImport:
                 cls.main(),
                 cls.attrib(),
                 cls.data(),
-                cls.__fields__.values(),
                 cls._calculated_fields
             ]
             for field in source
@@ -528,6 +527,17 @@ def _get_field_value(row: dict[str, Any], field_name: str) -> Any:
             else None)
     else:
         return row.get(field_name)
+
+
+def _get_model_fields(model: type[BaseModel]) -> dict:
+    """Get fields from a Pydantic model, compatible with both v1 and v2.
+
+    Pydantic v2 uses 'model_fields' while v1 uses '__fields__'.
+    This helper provides compatibility with both versions.
+    """
+    if hasattr(model, 'model_fields'):
+        return model.model_fields
+    return model.__fields__
 
 
 # Aliases for backward compatibility
