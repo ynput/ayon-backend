@@ -3,6 +3,7 @@
 from enum import Enum
 from typing import Any, Dict, List, Tuple, Optional, Set, Literal
 
+from pydantic import BaseModel, Field
 from pydantic.fields import ModelField, FieldInfo
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.lib.postgres import Postgres
@@ -19,12 +20,13 @@ class ExistingItemStrategy(str, Enum):
 ExistingStrategyType = Literal["skip", "update", "fail"]
 
 
-class ImportStatus:
+class ImportStatus(BaseModel):
+    """Status model for tracking import results."""
     created: int = 0
     updated: int = 0
     skipped: int = 0
     failed: int = 0
-    failed_items: List[Dict[str, Any]] = []  # List of items that failed with error details
+    failed_items: List[Dict[str, Any]] = Field(default_factory=list)  # List of items that failed with error details
 
 
 class EntityExportImport:
