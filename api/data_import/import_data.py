@@ -2,7 +2,7 @@ import csv
 import io
 from typing import Any, Annotated
 
-import fastapi
+from fastapi import Path, Request
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
@@ -12,6 +12,8 @@ from ayon_server.exceptions import (
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
+from ayon_server.utils import create_uuid
 
 from .export_data import EntityType
 from .models import (
@@ -23,9 +25,18 @@ from .models import (
     ExistingItemStrategy,
     ExistingStrategyType,
     ImportStatus,
+    ImportUpload,
 )
 from .router import router
 
+REDIS_NS = "csv.import"
+
+mime_to_ext = {
+    "text/csv": ".csv",
+    "application/vnd.ms-excel": ".csv",
+    "application/csv": ".csv",
+    "text/x-csv": ".csv"
+}
 
 IMPORTABLE_ENTITIES  = {
     "user": UserExportImportModel,
@@ -52,10 +63,29 @@ HIERARCHY_ENTITY_CLASSES: dict = {
 }
 
 
+@router.put("/import/upload")
+async def upload_file(
+    user: CurrentUser,
+    request: Request,
+) -> ImportUpload:
+    """Uploads csv file to Redis for next requests to be use it."""
+    if not user.is_manager:
+        raise ForbiddenException("You must be a manager")
+
+    mime = request.headers.get("Content-Type")
+    if mime not in mime_to_ext:
+        raise NotFoundException("Invalid avatar format")
+    csv_bytes = await request.body()
+    file_id = create_uuid()
+    await Redis.set(REDIS_NS, file_id, csv_bytes, ttl=30*60)
+
+    return ImportUpload(id=file_id)
+
+
 @router.post("/import/{entity_type}")
 async def import_data(
     entity_type: Annotated[
-        EntityType, fastapi.Path(title="Import entity type")],
+        EntityType, Path(title="Import entity type")],
     user: CurrentUser,
     file_bytes: bytes,
     skip_errors: bool = False,
@@ -113,11 +143,12 @@ async def import_data(
         if entity_type == "hierarchy":
             item_type = row.get("item_type")
             if item_type not in HIERARCHY_MODEL_CLASSES:
+                import_status.failed_items[row.get("name", "unknown")] = f"Invalid item_type '{item_type}'"
                 if skip_errors:
                     import_status.skipped += 1
-                    import_status.failed_items[row.get("name", "unknown")] = f"Invalid item_type '{item_type}'"
                     continue
-                raise ValueError(f"Invalid item_type '{item_type}' in row: {row}")
+                import_status.failed += 1
+                return import_status
             model_cls = HIERARCHY_MODEL_CLASSES[item_type]
             entity_cls = HIERARCHY_ENTITY_CLASSES[item_type]
             required_fields = hierarchy_required_fields[item_type]
@@ -153,12 +184,13 @@ async def import_data(
             item_exists = identifier in existing_identifiers
 
         if item_exists:
+            import_status.failed_items[row.get("name", "unknown")] = "Item already exists"
             if existing_strategy == ExistingItemStrategy.SKIP:
                 import_status.skipped += 1
-                import_status.failed_items[row.get("name", "unknown")] = "Item already exists"
                 continue
             elif existing_strategy == ExistingItemStrategy.FAIL:
-                raise ValueError(f"User already exists: {identifier}")
+                import_status.failed += 1
+                return import_status
             elif existing_strategy ==ExistingItemStrategy.UPDATE:
                 exists = True
 
@@ -219,11 +251,12 @@ async def import_data(
                 import_status.created += 1
         except Exception as exp:
             error_msg = f"Error saving entity {identifier}: {exp}"
+            import_status.failed_items[row.get("name", "unknown")] = error_msg
             if skip_errors:
-                import_status.failed += 1
-                import_status.failed_items[row.get("name", "unknown")] = error_msg
+                import_status.skipped += 1
                 continue
-            raise exp
+            import_status.failed += 1
+            return import_status
 
     return import_status
 
