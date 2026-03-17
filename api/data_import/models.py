@@ -19,6 +19,14 @@ class ExistingItemStrategy(str, Enum):
 ExistingStrategyType = Literal["skip", "update", "fail"]
 
 
+class ImportStatus:
+    created: int = 0
+    updated: int = 0
+    skipped: int = 0
+    failed: int = 0
+    failed_items: List[Dict[str, Any]] = []  # List of items that failed with error details
+
+
 class EntityExportImport:
     """Base model for exporting and importing entities.
 

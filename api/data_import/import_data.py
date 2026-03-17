@@ -22,6 +22,7 @@ from .models import (
     FolderTaskExportImportModel,
     ExistingItemStrategy,
     ExistingStrategyType,
+    ImportStatus,
 )
 from .router import router
 
@@ -62,6 +63,7 @@ async def import_data(
     project_name: str = None,
     folder_id: str = None,
 ) -> int:
+) -> ImportStatus:
     """Process CSV file and import users to the database.
 
     Parses the CSV file and creates/updates users based on the data.
@@ -72,7 +74,7 @@ async def import_data(
 
     header, rows = _parse_csv_rows(file_bytes)
 
-    imported = 0
+    import_status = ImportStatus()
 
     try:
         entity_cls = get_entity_class(entity_type)
@@ -111,6 +113,8 @@ async def import_data(
             item_type = row.get("item_type")
             if item_type not in HIERARCHY_MODEL_CLASSES:
                 if skip_errors:
+                    import_status.skipped += 1
+                    import_status.failed_items[row.get("name", "unknown")] = f"Invalid item_type '{item_type}'"
                     continue
                 raise ValueError(f"Invalid item_type '{item_type}' in row: {row}")
             model_cls = HIERARCHY_MODEL_CLASSES[item_type]
@@ -149,6 +153,8 @@ async def import_data(
 
         if item_exists:
             if existing_strategy == ExistingItemStrategy.SKIP:
+                import_status.skipped += 1
+                import_status.failed_items[row.get("name", "unknown")] = "Item already exists"
                 continue
             elif existing_strategy == ExistingItemStrategy.FAIL:
                 raise ValueError(f"User already exists: {identifier}")
@@ -205,15 +211,19 @@ async def import_data(
                 originals_and_new[original_id] = new_entity.id
             if path:
                 path_to_ids[path] = new_entity.id
+            if exists:
+                import_status.updated += 1
+            else:
+                import_status.created += 1
         except Exception as exp:
             error_msg = f"Error saving entity {identifier}: {exp}"
             if skip_errors:
+                import_status.failed += 1
+                import_status.failed_items[row.get("name", "unknown")] = error_msg
                 continue
             raise exp
 
-        imported += 1
-
-    return imported
+    return import_status
 
 
 def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]:
