@@ -87,7 +87,7 @@ async def import_data(
     entity_type: Annotated[
         EntityType, Path(title="Import entity type")],
     user: CurrentUser,
-    file_bytes: bytes,
+    file_id: str,
     skip_errors: bool = False,
     existing_strategy: ExistingStrategyType = ExistingItemStrategy.SKIP,
     project_name: str = None,
@@ -101,6 +101,10 @@ async def import_data(
     """
     if not user.is_manager:
         raise ForbiddenException("You must be a manager")
+
+    file_bytes = await Redis.get(REDIS_NS, file_id)
+    if not file_bytes:
+        raise ValueError(f"No file {file_id} found.")
 
     header, rows = _parse_csv_rows(file_bytes)
 
