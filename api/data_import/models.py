@@ -207,8 +207,12 @@ class EntityExportImport:
         return cls._data_fields
 
     @classmethod
-    async def fields(cls) -> List[ImportableColumn]:
-        """Return model fields (public) plus fields derived from `_attrib`."""
+    async def fields(cls, project_name: str = None) -> List[ImportableColumn]:
+        """Return model fields (public) plus fields derived from `_attrib`.
+
+        Args:
+            project_name: Project name for resolving project-specific enums.
+        """
         result: List[ImportableColumn] = []
 
         # Model fields (exclude private fields starting with underscore)
@@ -282,7 +286,9 @@ class EntityExportImport:
             }
             enum_items = None
             try:
-                enum_items = await EnumRegistry.resolve(name)
+                enum_items = await EnumRegistry.resolve(
+                    name, project_name=project_name
+                )
             except BadRequestException:
                 pass
 
@@ -439,8 +445,12 @@ class FolderTaskExportImportModel(EntityExportImport):
     _calculated_fields = [FieldInfo(default="", title="Path", name="path")]
 
     @classmethod
-    async def fields(cls) -> List[ImportableColumn]:
-        """Return task fields including folder_path."""
+    async def fields(cls, project_name: str = None) -> List[ImportableColumn]:
+        """Return task fields including folder_path.
+
+        Args:
+            project_name: Project name for resolving project-specific fields and enums.
+        """
         if cls._entity_model is None:
             return []
 
@@ -457,8 +467,10 @@ class FolderTaskExportImportModel(EntityExportImport):
         ]
 
         # Get fields from both models
-        folder_fields = await  FolderExportImportModel.fields()
-        task_fields = await  TaskExportImportModel.fields()
+        folder_fields = await FolderExportImportModel.fields(
+            project_name=project_name)
+        task_fields = await TaskExportImportModel.fields(
+            project_name=project_name)
 
         # Combine and deduplicate by field name
         seen_names: Set[str] = {"item_type"}

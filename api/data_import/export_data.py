@@ -21,10 +21,16 @@ EntityType = Literal["user", "folder", "task", "hierarchy"]
 
 @router.get("/export/{entity_type}/fields")
 async def export_fields(
-    entity_type:  Annotated[
+    entity_type: Annotated[
         EntityType, fastapi.Path(title="Import entity type")],
+    project_name: Optional[str] = None,
 ) -> Optional[list[ImportableColumn]]:
-    """Get exportable fields for an entity type."""
+    """Get exportable fields for an entity type.
+
+    Args:
+        entity_type: The type of entity (user, folder, task, hierarchy)
+        project_name: Project name for resolving project-specific enums.
+    """
 
     # Validate entity type exists
     if entity_type not in EXPORTABLE_ENTITIES:
@@ -34,7 +40,7 @@ async def export_fields(
         )
 
     model = EXPORTABLE_ENTITIES[entity_type]
-    return await model.fields()
+    return await model.fields(project_name=project_name)
 
 
 @router.post("/export/{entity_type}")
