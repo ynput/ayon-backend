@@ -15,9 +15,9 @@ from ayon_server.enum import EnumItem, EnumRegistry
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 
-# Enums provided for backawards compatibility. alreaty implemented
-# in enumregistry, but these functions are used in settings and other places and
-# must not be broken.
+# Enums retained for backward compatibility. They are already implemented
+# via EnumRegistry, but these functions are used in settings and other places and
+# must not be removed or changed in a breaking way.
 
 
 async def folder_types_enum(project_name: str | None = None) -> list[EnumItem]:
