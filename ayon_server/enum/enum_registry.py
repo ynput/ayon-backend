@@ -61,13 +61,13 @@ class EnumRegistry:
         **context: Any,
     ) -> list[EnumItem]:
 
-        elms = enum_name.split(".")
-        if len(elms) > 1:
-            key, name = elms
+        if "." in enum_name:
+            key, name = enum_name.split(".", 1)
         else:
-            key, name = elms[0], None
+            key, name = enum_name, None
 
         try:
+            resolver = cls.resolvers[key]
             resolver = cls.resolvers[key]
         except KeyError:
             raise BadRequestException(f"Unknown enum resolver '{key}'")
