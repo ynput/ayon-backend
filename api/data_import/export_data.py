@@ -1,7 +1,7 @@
 import csv
 import os
 import tempfile
-from typing import Any, Literal, Optional, Tuple, Annotated
+from typing import Literal, Optional, Tuple, Annotated
 
 import fastapi
 from fastapi import HTTPException, BackgroundTasks
