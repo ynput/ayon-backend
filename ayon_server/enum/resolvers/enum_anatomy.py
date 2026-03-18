@@ -27,6 +27,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                 for folder_type in anatomy.folder_types
             ]
 
+        project_name = await normalize_project_name(project_name)
         result: list[EnumItem] = []
         async with Postgres.transaction():
             await Postgres.set_project_schema(project_name)
@@ -104,6 +105,7 @@ class StatusesEnumResolver(BaseEnumResolver):
                 for status in anatomy.statuses
             ]
 
+        project_name = await normalize_project_name(project_name)
         result: list[EnumItem] = []
         async with Postgres.transaction():
             await Postgres.set_project_schema(project_name)
