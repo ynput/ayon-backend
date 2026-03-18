@@ -44,10 +44,12 @@ class EnumRegistry:
 
     @classmethod
     async def get_accepted_params(cls, enum_name: str) -> dict[str, type]:
+        key = enum_name.split(".")[0]
         try:
-            resolver = cls.resolvers[enum_name]
+            resolver = cls.resolvers[key]
         except KeyError:
-            raise BadRequestException(f"Unknown enum resolver '{enum_name}'")
+            raise BadRequestException(f"Unknown enum resolver '{key}'")
+
         return await resolver.get_accepted_params()
 
     @classmethod
@@ -58,14 +60,23 @@ class EnumRegistry:
         context: dict[str, Any] | None = None,
         user: "UserEntity | None" = None,
     ) -> list[EnumItem]:
+
+        elms = enum_name.split(".")
+        if len(elms) > 1:
+            key, name = elms
+        else:
+            key, name = elms[0], None
+
         try:
-            resolver = cls.resolvers[enum_name]
+            resolver = cls.resolvers[key]
         except KeyError:
-            raise BadRequestException(f"Unknown enum resolver '{enum_name}'")
+            raise BadRequestException(f"Unknown enum resolver '{key}'")
 
         context = context or {}
         if user is not None:
             context["user"] = user
+        if name is not None:
+            context["name"] = name
 
         enum = await resolver.resolve(context)
         return enum

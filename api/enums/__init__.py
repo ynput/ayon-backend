@@ -21,7 +21,10 @@ async def get_enum(
     request: Request,
     enum_name: Annotated[
         str,
-        Path(description="Name of the enum", regex="^[a-zA-Z_][a-zA-Z0-9_]*$"),
+        Path(
+            description="Name of the enum",
+            regex=r"^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?$",
+        ),
     ],
     current_user: CurrentUser,
 ) -> list[EnumItem]:
