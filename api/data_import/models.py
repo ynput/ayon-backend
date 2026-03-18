@@ -1,14 +1,29 @@
 """Data models for data import/export functionality."""
 
+import re
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Tuple, Optional, Set, Literal
+from typing import Any, Dict, List, Tuple, Optional, Set, Literal, Annotated, get_origin, get_args, Union
 
 from pydantic import BaseModel
 from pydantic.fields import ModelField, FieldInfo
 
-from ayon_server.types import Field, OPModel
+from ayon_server.enum import EnumItem
+from ayon_server.types import Field, OPModel, AttributeType
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.lib.postgres import Postgres
+
+
+# Mapping from Python types to AttributeType strings
+PYTHON_TYPE_TO_ATTR_TYPE: dict[type, str] = {
+    str: "string",
+    int: "integer",
+    float: "float",
+    bool: "boolean",
+    datetime: "datetime",
+    list: "list_of_any",
+    dict: "dict",
+}
 
 
 class ExistingItemStrategy(str, Enum):
@@ -20,6 +35,81 @@ class ExistingItemStrategy(str, Enum):
 
 # Type alias for existing strategy values
 ExistingStrategyType = Literal["skip", "update", "fail"]
+
+# How to handle errors when importing data for this column.
+# - "skip": skip the row if there is an error in this column.
+# - "abort": abort the entire import if there is an error in this column.
+# - "default": use a default value if there is an error in this column.
+# - TBD: for status, can we use something to "create" a missing value on the fly?
+ErrorHandlingMode = Literal["skip", "abort", "default"]
+
+
+class ImportableColumn(OPModel):
+    key: Annotated[
+        str,
+        Field(
+            description=(
+                "The key of the column, such as `name`, `attrib.priority`, etc."
+            )
+        ),
+    ]
+
+    label: Annotated[
+        str,
+        Field(
+            description=(
+                "The label of the column, such as `Name`, `Priority`, etc. "
+                "This is used for display purposes only."
+            )
+        ),
+    ]
+
+    required: Annotated[
+        bool,
+        Field(
+            description="If value in field is required"
+        )
+    ]
+
+    value_type: Annotated[
+        AttributeType,
+        Field(
+            description=(
+                "The type of the value in this column. This is used to determine "
+                "how to parse the value. "
+                "For example: `name` column has type `string`, `assignees`"
+                " `list_of_strings` etc."
+            )
+        ),
+    ]
+
+    default_value: Annotated[
+        str,
+        Field(
+            description="If value in field is required"
+        )
+    ]
+
+    enum_items: Annotated[
+        list[EnumItem] | None,
+        Field(
+            description=(
+                "A list of possible enum items for this column (if set)"
+            )
+        ),
+    ]
+
+    error_handling_modes: Annotated[
+        list[ErrorHandlingMode],
+        Field(
+            description=(
+                "A list of possible error handling modes for this column. "
+                "Every column can have different available modes: "
+                "For example: `name` column cannot use `default`, because "
+                "default name cannot be generated."
+            )
+        ),
+    ]
 
 
 class ImportStatus(OPModel):
@@ -112,9 +202,9 @@ class EntityExportImport:
         return cls._data_fields
 
     @classmethod
-    def fields(cls) -> List[Dict[str, Any]]:
+    def fields(cls) -> List[ImportableColumn]:
         """Return model fields (public) plus fields derived from `_attrib`."""
-        result: List[Dict[str, Any]] = []
+        result: List[ImportableColumn] = []
 
         # Model fields (exclude private fields starting with underscore)
         all_fields = [
@@ -157,14 +247,34 @@ class EntityExportImport:
             if name.startswith("_"):
                 continue
 
-            field_dict: Dict[str, Any] = {
-                "name": name,
-                "type": str(annotation),
-                "required": required,
-            }
-
+            # Get the label - use title if available, otherwise capitalize the name
+            label = name
+            if field_info and field_info.title:
+                label = field_info.title
+            
+            # Convert annotation to valid AttributeType
+            value_type = _get_attr_type_from_annotation(annotation)
+            
+            # Determine default value handling
+            default_value = ""
             if not required and default is not None:
-                field_dict["default"] = default
+                default_value = str(default) if default else ""
+            
+            # Determine error handling modes based on field requirements
+            # - "skip" and "abort" are always available
+            # - "default" is only available for non-required fields
+            error_handling_modes: List[str] = ["skip", "abort"]
+            if not required:
+                error_handling_modes.append("default")
+
+            field_dict: Dict[str, Any] = {
+                "key": name,
+                "label": label,
+                "value_type": value_type,
+                "required": required,
+                "default_value": default_value,
+                "error_handling_modes": error_handling_modes,
+            }
 
             if field_info:
                 if field_info.description:
@@ -172,7 +282,9 @@ class EntityExportImport:
                 if field_info.title:
                     field_dict["title"] = field_info.title
 
-            result.append(field_dict)
+            column_info = ImportableColumn(**field_dict)
+
+            result.append(column_info)
 
         return result
 
@@ -313,19 +425,21 @@ class FolderTaskExportImportModel(EntityExportImport):
     _calculated_fields = [FieldInfo(default="", title="Path", name="path")]
 
     @classmethod
-    def fields(cls) -> List[Dict[str, Any]]:
+    def fields(cls) -> List[ImportableColumn]:
         """Return task fields including folder_path."""
         if cls._entity_model is None:
             return []
 
         # Add entity_type field at first position
-        result: List[Dict[str, Any]] = [
-            {
-                "name": "item_type",
-                "type": "str",
-                "required": True,
-                "default": "task",
-            }
+        result: List[ImportableColumn] = [
+            ImportableColumn(
+                key="item_type",
+                label="Item Type",
+                value_type="string",
+                required=True,
+                default_value="task",
+                error_handling_modes=["skip", "abort"],
+            )
         ]
 
         # Get fields from both models
@@ -335,14 +449,12 @@ class FolderTaskExportImportModel(EntityExportImport):
         # Combine and deduplicate by field name
         seen_names: Set[str] = {"item_type"}
         for field in folder_fields + task_fields:
-            if isinstance(field, dict) and field.get("name"):
-                field_name = field["name"]
-                if field_name in cls._process_required_fields:
+            if field.key in cls._process_required_fields:
                     # Ensure required fields are included even if not in field_names
-                    field["required"] = True
-                if field_name not in seen_names:
-                    seen_names.add(field_name)
-                    result.append(field)
+                    field.required = True
+            if field.key not in seen_names:
+                seen_names.add(field.key)
+                result.append(field)
         return result
 
     @classmethod
@@ -538,6 +650,55 @@ def _get_model_fields(model: type[BaseModel]) -> dict:
     if hasattr(model, 'model_fields'):
         return model.model_fields
     return model.__fields__
+
+
+def _get_attr_type_from_annotation(annotation: Any) -> str:
+    """Convert a Python type annotation to an AttributeType string.
+
+    Args:
+        annotation: The Python type annotation (e.g., str, Optional[int], list[str])
+
+    Returns:
+        A valid AttributeType string (e.g., "string", "integer", "list_of_strings")
+    """
+    # Get the origin type (e.g., list for list[str])
+    origin = get_origin(annotation)
+
+    # Handle Optional (which is Union with None)
+    if origin is Union:
+        args = get_args(annotation)
+        # Filter out NoneType to get the actual type
+        non_none_args = [arg for arg in args if arg is not type(None)]
+        if len(non_none_args) == 1:
+            # Single non-None type, recursively check it
+            return _get_attr_type_from_annotation(non_none_args[0])
+
+    # Handle List types
+    if origin is list:
+        args = get_args(annotation)
+        if args:
+            elem_type = args[0]
+            if elem_type is str:
+                return "list_of_strings"
+            elif elem_type is int:
+                return "list_of_integers"
+            elif elem_type is Any:
+                return "list_of_any"
+            else:
+                return "list_of_submodels"
+        return "list_of_any"
+
+    # Handle basic types
+    if annotation in PYTHON_TYPE_TO_ATTR_TYPE:
+        return PYTHON_TYPE_TO_ATTR_TYPE[annotation]
+
+    # Check if it's a direct type in our mapping
+    for py_type, attr_type in PYTHON_TYPE_TO_ATTR_TYPE.items():
+        if annotation == py_type or annotation == Optional[py_type]:
+            return attr_type
+
+    # Default fallback
+    return "string"
 
 
 # Aliases for backward compatibility

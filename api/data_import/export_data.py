@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, Response
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import ForbiddenException
 
-from .models import EXPORTABLE_ENTITIES
+from .models import EXPORTABLE_ENTITIES, ImportableColumn
 
 from .router import router
 
@@ -23,7 +23,7 @@ EntityType = Literal["user", "folder", "task", "hierarchy"]
 async def export_fields(
     entity_type:  Annotated[
         EntityType, fastapi.Path(title="Import entity type")],
-) -> Optional[list[dict[str, Any]]]:
+) -> Optional[list[ImportableColumn]]:
     """Get exportable fields for an entity type."""
 
     # Validate entity type exists
