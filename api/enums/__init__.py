@@ -59,5 +59,5 @@ async def get_enum(
     return await EnumRegistry.resolve(
         enum_name,
         user=current_user,
-        context=context,
+        **context,
     )

@@ -57,8 +57,8 @@ class EnumRegistry:
         cls,
         enum_name: str,
         *,
-        context: dict[str, Any] | None = None,
         user: "UserEntity | None" = None,
+        **context: Any,
     ) -> list[EnumItem]:
 
         elms = enum_name.split(".")
