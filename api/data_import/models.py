@@ -23,18 +23,12 @@ from ayon_server.enum import EnumItem
 from ayon_server.types import Field, OPModel, AttributeType
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.lib.postgres import Postgres
+from ayon_server.entities.models.generator import FIELD_TYPES
 
 
-# Mapping from Python types to AttributeType strings
-PYTHON_TYPE_TO_ATTR_TYPE: dict[type, str] = {
-    str: "string",
-    int: "integer",
-    float: "float",
-    bool: "boolean",
-    datetime: "datetime",
-    list: "list_of_any",
-    dict: "dict",
-}
+# Create reverse mapping: Python type -> AttributeType string
+# This inverts FIELD_TYPES which maps AttributeType -> Python type
+TYPE_TO_ATTR_TYPE: dict[type, str] = {v: k for k, v in FIELD_TYPES.items()}
 
 
 class ExistingItemStrategy(str, Enum):
@@ -699,12 +693,12 @@ def _get_attr_type_from_annotation(annotation: Any) -> str:
                 return "list_of_submodels"
         return "list_of_any"
 
-    # Handle basic types
-    if annotation in PYTHON_TYPE_TO_ATTR_TYPE:
-        return PYTHON_TYPE_TO_ATTR_TYPE[annotation]
+    # Handle basic types using the reverse mapping from FIELD_TYPES
+    if annotation in TYPE_TO_ATTR_TYPE:
+        return TYPE_TO_ATTR_TYPE[annotation]
 
-    # Check if it's a direct type in our mapping
-    for py_type, attr_type in PYTHON_TYPE_TO_ATTR_TYPE.items():
+    # Check if it's a direct type in our mapping (including Optional versions)
+    for py_type, attr_type in TYPE_TO_ATTR_TYPE.items():
         if annotation == py_type or annotation == Optional[py_type]:
             return attr_type
 
