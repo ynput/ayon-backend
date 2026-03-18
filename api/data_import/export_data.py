@@ -34,7 +34,7 @@ async def export_fields(
         )
 
     model = EXPORTABLE_ENTITIES[entity_type]
-    return model.fields()
+    return await model.fields()
 
 
 @router.post("/export/{entity_type}")

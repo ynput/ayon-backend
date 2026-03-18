@@ -123,7 +123,7 @@ async def import_data(
 
     # For non-hierarchy types, get fields and existing identifiers upfront
     if entity_type != "hierarchy":
-        fields = model_cls.fields()
+        fields = await model_cls.fields()
         required_fields = [f.key for f in fields if f.required]
         existing_identifiers = await _get_existing_identifiers(
             model_cls, project_name
@@ -131,7 +131,7 @@ async def import_data(
     else:
         # For hierarchy, pre-fetch existing identifiers for both folder and task
         for item_type, model_cls in HIERARCHY_MODEL_CLASSES.items():
-            fields = model_cls.fields()
+            fields = await model_cls.fields()
             hierarchy_required_fields[item_type] = [
                 f.key for f in fields if f.required
             ]

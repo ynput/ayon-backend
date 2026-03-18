@@ -18,7 +18,8 @@ from typing import (
 from pydantic import BaseModel
 from pydantic.fields import ModelField, FieldInfo
 
-from ayon_server.enum import EnumItem
+from ayon_server.enum import EnumItem, EnumRegistry
+from ayon_server.exceptions import BadRequestException
 from ayon_server.types import Field, OPModel, AttributeType
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.lib.postgres import Postgres
@@ -206,7 +207,7 @@ class EntityExportImport:
         return cls._data_fields
 
     @classmethod
-    def fields(cls) -> List[ImportableColumn]:
+    async def fields(cls) -> List[ImportableColumn]:
         """Return model fields (public) plus fields derived from `_attrib`."""
         result: List[ImportableColumn] = []
 
@@ -279,6 +280,15 @@ class EntityExportImport:
                 "default_value": default_value,
                 "error_handling_modes": error_handling_modes,
             }
+            enum_items = None
+            try:
+                enum_items = await EnumRegistry.resolve(name)
+            except BadRequestException:
+                pass
+
+            if enum_items:
+                print(f"name::{name} - {enum_items}")
+                field_dict["enum_items"] = enum_items
 
             if field_info:
                 if field_info.description:
@@ -312,7 +322,7 @@ class EntityExportImport:
             List of entity dictionaries or CSV rows (including header)
         """
         if field_names is None:
-            fields = cls.fields()
+            fields = await  cls.fields()
             field_names = [
                 field["name"] for field in fields
             ]
@@ -429,7 +439,7 @@ class FolderTaskExportImportModel(EntityExportImport):
     _calculated_fields = [FieldInfo(default="", title="Path", name="path")]
 
     @classmethod
-    def fields(cls) -> List[ImportableColumn]:
+    async def fields(cls) -> List[ImportableColumn]:
         """Return task fields including folder_path."""
         if cls._entity_model is None:
             return []
@@ -447,8 +457,8 @@ class FolderTaskExportImportModel(EntityExportImport):
         ]
 
         # Get fields from both models
-        folder_fields = FolderExportImportModel.fields()
-        task_fields = TaskExportImportModel.fields()
+        folder_fields = await  FolderExportImportModel.fields()
+        task_fields = await  TaskExportImportModel.fields()
 
         # Combine and deduplicate by field name
         seen_names: Set[str] = {"item_type"}
@@ -476,7 +486,7 @@ class FolderTaskExportImportModel(EntityExportImport):
         should be under Folder with id X.
         """
         if field_names is None:
-            fields = cls.fields()
+            fields = await  cls.fields()
             field_names = [field["name"] for field in fields]
 
         # Get folders and tasks sequentially (as dictionaries, not CSV)
