@@ -64,7 +64,7 @@ async def _actions_enum() -> list[EnumItem]:
 async def _link_types_enum(project_name: str | None = None) -> list[EnumItem]:
     return await EnumRegistry.resolve(
         "linkTypes",
-        context={"project_name": project_name},
+        project_name=project_name,
     )
 
 
