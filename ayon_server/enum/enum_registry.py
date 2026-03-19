@@ -49,7 +49,6 @@ class EnumRegistry:
             resolver = cls.resolvers[key]
         except KeyError:
             raise BadRequestException(f"Unknown enum resolver '{key}'")
-
         return await resolver.get_accepted_params()
 
     @classmethod
@@ -67,7 +66,6 @@ class EnumRegistry:
             key, name = enum_name, None
 
         try:
-            resolver = cls.resolvers[key]
             resolver = cls.resolvers[key]
         except KeyError:
             raise BadRequestException(f"Unknown enum resolver '{key}'")

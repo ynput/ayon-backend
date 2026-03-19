@@ -187,7 +187,7 @@ async def send_mail(
 
 
 async def get_studio_logo_url(base_url: str | None) -> str:
-    file_name = ""
+    file_name: str | None = None
     if base_url:
         config = await get_server_config()
         customization = config.customization
