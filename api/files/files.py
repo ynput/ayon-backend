@@ -10,9 +10,9 @@ from ayon_server.api.dependencies import (
     FileID,
     NoTraces,
     ProjectName,
-    XActivityID,
+    XActivityIDOptional,
     XContentType,
-    XFileID,
+    XFileIDOptional,
     XFileName,
 )
 from ayon_server.api.responses import EmptyResponse
@@ -43,8 +43,8 @@ async def upload_project_file(
     user: CurrentUser,
     x_file_name: XFileName,
     content_type: XContentType,
-    x_file_id: XFileID | None = None,
-    x_activity_id: XActivityID | None = None,
+    x_file_id: XFileIDOptional = None,
+    x_activity_id: XActivityIDOptional = None,
 ) -> CreateFileResponseModel:
     """Handle uploading a file to a project.
 
