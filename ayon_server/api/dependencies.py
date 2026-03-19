@@ -603,22 +603,23 @@ async def dep_x_file_name(
 XFileName = Annotated[str, Depends(dep_x_file_name)]
 
 
-async def dep_x_file_id(
-    x_file_id: str = Header(..., title="File ID", **EntityID.META),
-) -> str:
-    return x_file_id
+XFileIDOptional = Annotated[
+    str | None,
+    Header(
+        alias="X-File-ID",
+        title="File ID",
+        **EntityID.META,
+    ),
+]
 
-
-XFileID = Annotated[str, Depends(dep_x_file_id)]
-
-
-async def dep_x_activity_id(
-    x_activity_id: str = Header(..., title="Activity ID", **EntityID.META),
-) -> str:
-    return x_activity_id
-
-
-XActivityID = Annotated[str, Depends(dep_x_activity_id)]
+XActivityIDOptional = Annotated[
+    str | None,
+    Header(
+        alias="X-Activity-ID",
+        title="Activity ID",
+        **EntityID.META,
+    ),
+]
 
 
 async def dep_x_content_type(

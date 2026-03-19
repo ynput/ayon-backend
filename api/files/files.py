@@ -10,9 +10,9 @@ from ayon_server.api.dependencies import (
     FileID,
     NoTraces,
     ProjectName,
-    XActivityID,
+    XActivityIDOptional,
     XContentType,
-    XFileID,
+    XFileIDOptional,
     XFileName,
 )
 from ayon_server.api.responses import EmptyResponse
@@ -24,6 +24,7 @@ from ayon_server.exceptions import (
 from ayon_server.files import Storages, create_project_file_record
 from ayon_server.helpers.preview import create_video_thumbnail, get_file_preview
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.models.file_info import FileInfo
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import create_uuid
@@ -43,8 +44,8 @@ async def upload_project_file(
     user: CurrentUser,
     x_file_name: XFileName,
     content_type: XContentType,
-    x_file_id: XFileID | None = None,
-    x_activity_id: XActivityID | None = None,
+    x_file_id: XFileIDOptional = None,
+    x_activity_id: XActivityIDOptional = None,
 ) -> CreateFileResponseModel:
     """Handle uploading a file to a project.
 
@@ -61,6 +62,12 @@ async def upload_project_file(
     """
 
     await user.ensure_project_access(project_name)
+
+    logger.debug(f"Request headers: {request.headers}")
+
+    logger.debug(f"Request file id: {x_file_id}")
+    logger.debug(f"Request content type: {content_type}")
+    logger.debug(f"Request file name: {x_file_name}")
 
     if x_file_id:
         file_id = x_file_id.replace("-", "")
