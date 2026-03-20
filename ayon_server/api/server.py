@@ -2,7 +2,7 @@ import importlib
 import os
 import pathlib
 import sys
-from typing import Any
+from typing import Any, TypedDict
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -26,6 +26,7 @@ from ayon_server.config import ayonconfig
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql import router as graphql_router
 from ayon_server.logging import log_traceback, logger
+from ayon_server.oauth import JWTTokenManager
 
 #
 # We just need the log collector to be initialized.
@@ -248,6 +249,62 @@ async def ws_endpoint(websocket: WebSocket) -> None:
         except KeyError:
             pass
 
+#
+# OpenID Connect Discovery
+#
+
+class OpenIDResponse(TypedDict):
+        issuer: str
+        authorization_endpoint: str
+        token_endpoint: str
+        userinfo_endpoint: str
+        introspection_endpoint: str
+        jwks_uri: str
+        jwt_endpoint: str
+        jwt_exchange_endpoint: str
+        jwt_validation_endpoint: str
+        response_types_supported: list[str]
+        grant_types_supported: list[str]
+        subject_types_supported: list[str]
+        id_token_signing_alg_values_supported: list[str]
+        scopes_supported: list[str]
+        token_endpoint_auth_methods_supported: list[str]
+        code_challenge_methods_supported: list[str]
+
+
+@app.get("/.well-known/openid_configuration")
+async def openid_configuration(request: Request) -> OpenIDResponse:
+    """OpenID Connect Discovery endpoint."""
+
+    base_url = f"{request.url.scheme}://{request.url.netloc}"
+
+    return {
+        "issuer": base_url,
+        "authorization_endpoint": f"{base_url}/api/oauth/authorize",
+        "token_endpoint": f"{base_url}/api/oauth/token",
+        "userinfo_endpoint": f"{base_url}/api/oauth/userinfo",
+        "introspection_endpoint": f"{base_url}/api/oauth/introspect",
+        "jwks_uri": f"{base_url}/.well-known/jwks.json",
+        "jwt_endpoint": f"{base_url}/api/oauth/jwt",
+        "jwt_exchange_endpoint": f"{base_url}/api/oauth/jwt/exchange",
+        "jwt_validation_endpoint": f"{base_url}/api/oauth/validate",
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code", "refresh_token"],
+        "subject_types_supported": ["public"],
+        "id_token_signing_alg_values_supported": ["HS256"],
+        "scopes_supported": ["openid", "profile", "email", "read", "write"],
+        "token_endpoint_auth_methods_supported": [
+            "client_secret_basic",
+            "client_secret_post"
+        ],
+        "code_challenge_methods_supported": ["S256", "plain"],
+    }
+
+
+@app.get("/.well-known/jwks.json")
+async def jwks_endpoint() -> dict[str, Any]:
+    """JSON Web Key Set endpoint for token verification."""
+    return JWTTokenManager.get_jwks()
 
 #
 # REST endpoints
