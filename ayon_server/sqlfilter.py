@@ -187,7 +187,7 @@ def build_condition(c: QueryCondition, **kwargs) -> str:
                 safe_value = EntityID.parse(value)
             else:
                 safe_value = value.replace("'", "''")
-                safe_value = f"'{value}'"
+            safe_value = f"'{value}'"
 
         elif isinstance(value, int | float):
             cast_type = "integer" if isinstance(value, int) else "number"
