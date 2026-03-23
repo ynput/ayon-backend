@@ -4,7 +4,7 @@ from ayon_server.config import ayonconfig
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.lib.postgres import Postgres
-from ayon_server.suggestions.models import UserSuggestionItem
+from ayon_server.suggestions.models import TeamSuggestionItem
 from ayon_server.utils.sqltool import SQLTool
 
 
@@ -23,7 +23,7 @@ async def get_relevant_users_cte(project: ProjectEntity, user: UserEntity) -> st
     )
     """
 
-async def get_team_names(project_name: str) -> List[UserSuggestionItem]:
+async def get_team_names(project_name: str) -> List[TeamSuggestionItem]:
     query = f"""
         SELECT DISTINCT
             team_element->>'name' AS name
@@ -39,9 +39,8 @@ async def get_team_names(project_name: str) -> List[UserSuggestionItem]:
     """
     results = []
     async for row in Postgres.iterate(query):
-        item = UserSuggestionItem(
+        item = TeamSuggestionItem(
             name=row["name"],
-            full_name=row["name"],
             relevance=0,
         )
         results.append(item)
