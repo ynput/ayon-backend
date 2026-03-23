@@ -74,7 +74,7 @@ class BundleModel(BaseBundleModel):
             if not re.match(SEMVER_REGEX, version):
                 logger.warning(
                     f"Version '{version}' for addon '{addon_name}'"
-                    f"is not a valid semantic version."
+                    " is not a valid semantic version."
                 )
         return value
 
@@ -121,7 +121,7 @@ class BundlePatchModel(BaseBundleModel):
             if not re.match(SEMVER_REGEX, version):
                 raise ValueError(
                     f"Version '{version}' for addon '{addon_name}'"
-                    f"is not a valid semantic version."
+                    " is not a valid semantic version."
                 )
         return value
 
