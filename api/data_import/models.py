@@ -361,7 +361,6 @@ class EntityExportImport:
                 pass
 
             if enum_items:
-                print(f"name::{name} - {enum_items}")
                 field_dict["enum_items"] = enum_items
 
             if field_info:
