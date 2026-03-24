@@ -27,6 +27,7 @@ from .models import (
     ImportStatus,
     ImportUpload,
     ColumnMapping,
+    ImportableColumn,
 )
 from .router import router
 
@@ -229,19 +230,21 @@ async def import_data(
             if folder_id:
                 payload[model_cls.parent_column_name()] = folder_id
 
-        try:
-            kwargs = {
-                "payload": payload,
-                "exists": exists
-            }
-            if  entity_cls != UserEntity:
-                kwargs["project_name"] = project_name
-            new_entity = entity_cls(**kwargs)
-            await new_entity.save(auto_commit=(not preview))
-            if original_id:
-                originals_and_new[original_id] = new_entity.id
-            if path:
-                path_to_ids[path] = new_entity.id
+                fields = await model_cls.fields(project_name=project_name)
+                _create_payload(header, payload, row,fields, column_mapping)
+
+                kwargs = {
+                    "payload": payload,
+                    "exists": exists
+                }
+                if  entity_cls != UserEntity:
+                    kwargs["project_name"] = project_name
+                new_entity = entity_cls(**kwargs)
+                await new_entity.save(auto_commit=(not preview))
+                if original_id:
+                    originals_and_new[original_id] = new_entity.id
+                if path:
+                    path_to_ids[path] = new_entity.id
 
                 if exists:
                     import_status.updated += 1
@@ -283,21 +286,80 @@ def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]
 
 
 def _create_payload(
-    header: [str], payload: dict[str,str], row: dict[str, Any]
+    header: [str],
+    payload: dict[str,str],
+    row: dict[str, Any],
+    fields: List[ImportableColumn],
+    column_mapping: List[ColumnMapping]
 ) -> None:
     """Prepare the payload with main columns and attributes columns."""
+    source_mapping_by_key = {
+        mapping.source_key: mapping
+        for mapping in column_mapping
+    }
+    importable_column_by_key = {
+        importable_column.key: importable_column
+        for importable_column in fields
+    }
+
     for column_name in header:
-        value = row.get(column_name)
-        value = None if value == "" else value
-        if "." in column_name:
-            main, key = column_name.split(".", 1)
-            if main not in payload:
-                payload[main] = {}
-            payload[main][key] = value
-            if key.startswith("is"):  # temporary hack for boolean fields
-                payload[main][key] = _to_bool(value=payload[main][key])
-        else:
-            payload[column_name] = value
+        mapping = source_mapping_by_key.get(column_name)
+        if not mapping:
+            continue
+
+        error_handling_mode = mapping.error_handling_mode
+        try:
+            print(f"mapping::{mapping}")
+            value_mapping = {
+                value_mapping.source or "dummy" : value_mapping
+                for value_mapping in mapping.values_mapping
+            }
+            print(f"value_mapping::{value_mapping}")
+            value = row.get(column_name) or "dummy"
+            replacement_mapping = value_mapping.get(value)
+            replacement_mapping_action = None
+            print(f"replacement_mapping::{replacement_mapping}")
+            if replacement_mapping:
+                value = replacement_mapping.target
+                replacement_mapping_action = replacement_mapping.action
+
+            importable_column = importable_column_by_key.get(column_name)
+            if not importable_column:
+                raise ValueError(f"Unknown column '{column_name}'")
+
+            print(f"importable_column::{importable_column}")
+            if importable_column.enum_items:
+                found_enum_item = False
+                for enum_item in importable_column.enum_items:
+                    if value == enum_item.value:
+                        found_enum_item = True
+                        break
+
+                if not found_enum_item:
+                    if replacement_mapping_action == "create":
+                        raise NotImplementedError(
+                            "Creation of new enum items not yet implemented"
+                        )
+                    else:
+                        raise ValueError(
+                            f"Import contains not matching enum value '{value}'"
+                        )
+
+            if "." in column_name:
+                main, key = column_name.split(".", 1)
+                if main not in payload:
+                    payload[main] = {}
+                payload[main][key] = value
+                if key.startswith("is"):  # temporary hack for boolean fields
+                    payload[main][key] = _to_bool(value=payload[main][key])
+            else:
+                payload[column_name] = value
+        except Exception as exp:
+            row_id = row[list(row.keys())[0]]  # try to describe row
+            error_msg = f"Row '{row_id}' failed with '{exp}''"
+            print(error_msg)
+            if error_handling_mode != "skip":
+                raise ValueError(error_msg)
 
 
 async def _has_all_required(
