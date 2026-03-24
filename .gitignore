@@ -1,4 +1,5 @@
 __pycache__
+ayon_server.egg-info/
 
 .pytest_cache
 .mypy_cache
