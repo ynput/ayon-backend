@@ -243,11 +243,14 @@ async def import_data(
                 entity_id = path_to_ids.get(parent_path)
                 if entity_id is None:
                     # try to resolve from existing items in the database
-                    entity_id = await _get_entity_id_by_path(
-                        project_name,
-                        parent_path,
-                        False
-                    )
+                    try:
+                        entity_id = await _get_entity_id_by_path(
+                            project_name,
+                            parent_path,
+                            False
+                        )
+                    except NotFoundException:
+                        pass
 
                 if entity_id:
                     path_to_ids[parent_path] = entity_id
