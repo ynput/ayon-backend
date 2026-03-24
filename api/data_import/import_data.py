@@ -151,29 +151,6 @@ async def import_data(
 
         identifier = None
         item_exists = False
-        if "path" in row and row["path"]:
-            path = row["path"]
-            entity_id = path_to_ids.get(path)
-            if not entity_id:
-                # try to resolve from existing items in the database
-                is_task = entity_cls == TaskEntity
-                entity_id = await _get_entity_id_by_path(
-                    project_name,
-                    path,
-                    is_task
-                )
-                if entity_id:
-                        item_exists = True
-                        path_to_ids[path] = entity_id  # cache
-            else:
-                item_exists = True
-        else:
-            # assumes that unique ids are main columns (not attrib.* or data.*)
-            identifier = tuple(
-                row.get(field) for field in model_cls.unique_fields()
-            )
-            item_exists = identifier in existing_identifiers
-
         try:
             if entity_type == "hierarchy":
                 item_type = row.get("item_type")
