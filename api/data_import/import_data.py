@@ -90,14 +90,9 @@ async def import_data(
     file_id: str,
     skip_errors: bool = False,
     existing_strategy: ExistingStrategyType = ExistingItemStrategy.SKIP,
-    file_id: str,  # pointer to file stored in Redis
-    skip_errors: bool = False,  # what to do if row fails
-    existing_strategy: ExistingStrategyType = ExistingItemStrategy.SKIP,  # what to do if item found in target
     project_name: str = None,
     folder_id: str = None,
     preview: bool  = False
-    folder_id: str = None,    # limit import to specific folder
-    preview: bool  = False,  # do not commit to db if True
 ) -> ImportStatus:
     """Process CSV file and import users to the database.
 
