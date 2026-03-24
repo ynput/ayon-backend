@@ -141,12 +141,7 @@ class ColumnValueMapping(OPModel):
             description="Only map or create missing"
         )
     ]
-    user_resolved: Annotated[
-        bool,
-        Field(
-            description="?"
-        )
-    ]
+
 
 class ColumnMapping(OPModel):
     """User configured mapping of source csv column to target db column"""
