@@ -226,9 +226,9 @@ async def import_data(
                     path_to_ids[parent_path] = entity_id
                     payload[model_cls.parent_column_name()] = entity_id
 
-            # for tasks
-            if folder_id:
-                payload[model_cls.parent_column_name()] = folder_id
+                # for tasks
+                if folder_id:
+                    payload[model_cls.parent_column_name()] = folder_id
 
                 fields = await model_cls.fields(project_name=project_name)
                 _create_payload(header, payload, row,fields, column_mapping)
