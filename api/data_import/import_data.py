@@ -1,6 +1,6 @@
 import csv
 import io
-from typing import Any, Annotated
+from typing import Any, Annotated, List
 
 from fastapi import Path, Request
 
@@ -26,6 +26,7 @@ from .models import (
     ExistingStrategyType,
     ImportStatus,
     ImportUpload,
+    ColumnMapping,
 )
 from .router import router
 
@@ -88,6 +89,7 @@ async def import_data(
         EntityType, Path(title="Import entity type")],
     user: CurrentUser,
     file_id: str,  # pointer to file stored in Redis
+    column_mapping: List[ColumnMapping],
     skip_errors: bool = False,  # what to do if row fails
     existing_strategy: ExistingStrategyType = ExistingItemStrategy.SKIP,  # what to do if item found in target
     project_name: str = None,
