@@ -143,26 +143,10 @@ async def import_data(
 
     originals_and_new = {}
     path_to_ids = {}
+    unprocessed = len(rows)
     for row in rows:
         exists = False
         payload = {}
-        if entity_type == "hierarchy":
-            item_type = row.get("item_type")
-            if item_type not in HIERARCHY_MODEL_CLASSES:
-                import_status.failed_items[row.get("name", "unknown")] = f"Invalid item_type '{item_type}'"
-                if skip_errors:
-                    import_status.skipped += 1
-                    continue
-                import_status.failed += 1
-                return import_status
-            model_cls = HIERARCHY_MODEL_CLASSES[item_type]
-            entity_cls = HIERARCHY_ENTITY_CLASSES[item_type]
-            required_fields = hierarchy_required_fields[item_type]
-            existing_identifiers = hierarchy_existing_identifiers[item_type]
-
-        has_required = await _has_all_required(required_fields, row, skip_errors)
-        if not has_required:
-            continue
 
         identifier = None
         item_exists = False
@@ -189,53 +173,61 @@ async def import_data(
             )
             item_exists = identifier in existing_identifiers
 
-        if item_exists:
-            import_status.failed_items[row.get("name", "unknown")] = "Item already exists"
-            if existing_strategy == ExistingItemStrategy.SKIP:
-                import_status.skipped += 1
-                continue
-            elif existing_strategy == ExistingItemStrategy.FAIL:
-                import_status.failed += 1
-                return import_status
-            elif existing_strategy ==ExistingItemStrategy.UPDATE:
-                exists = True
+        try:
+            if entity_type == "hierarchy":
+                item_type = row.get("item_type")
+                if item_type not in HIERARCHY_MODEL_CLASSES:
+                    error_msg = f"Invalid item_type '{item_type}'"
+                    raise ValueError(error_msg)
+                model_cls = HIERARCHY_MODEL_CLASSES[item_type]
+                entity_cls = HIERARCHY_ENTITY_CLASSES[item_type]
+                required_fields = hierarchy_required_fields[item_type]
+                existing_identifiers = hierarchy_existing_identifiers[item_type]
 
-        path = None
-        original_id = row.get("id")
-        parent_id = row.get("parent_id")
-        if parent_id and parent_id in originals_and_new:
-            row["parent_id"] = originals_and_new[parent_id]
-        elif parent_id and parent_id not in existing_identifiers:
-            # reset parent_id if it doesn't exist in the current import batch or
-            # in the existing items
-            row["parent_id"] = None
-        elif "path" in row and row["path"]:
-            # if path is provided, we can try to resolve parent_id from the path
-            path  = row.pop("path")
-            path_parts = path.split("/")
-            if len(path_parts) > 1:
-                parent_path = "/".join(path_parts[:-1])
-            else:
-                parent_path = ""
+            has_required = await _has_all_required(required_fields, row, skip_errors)
+            if not has_required:
+                raise ValueError("Not all required values present")
 
-            entity_id = path_to_ids.get(parent_path)
-            if entity_id is None:
-                # try to resolve from existing items in the database
-                entity_id = await _get_entity_id_by_path(
-                    project_name,
-                    parent_path,
-                    False
-                )
+            if item_exists:
+                if existing_strategy ==ExistingItemStrategy.UPDATE:
+                    exists = True
+                else:
+                    raise ValueError("Item already exists...")
 
-            if entity_id:
-                path_to_ids[parent_path] = entity_id
-                payload[model_cls.parent_column_name()] = entity_id
+            path = None
+            original_id = row.get("id")
+            parent_id = row.get("parent_id")
+            if parent_id and parent_id in originals_and_new:
+                row["parent_id"] = originals_and_new[parent_id]
+            elif parent_id and parent_id not in existing_identifiers:
+                # reset parent_id if it doesn't exist in the current import batch or
+                # in the existing items
+                row["parent_id"] = None
+            elif "path" in row and row["path"]:
+                # if path is provided, we can try to resolve parent_id from the path
+                path  = row.pop("path")
+                path_parts = path.split("/")
+                if len(path_parts) > 1:
+                    parent_path = "/".join(path_parts[:-1])
+                else:
+                    parent_path = ""
 
-        _create_payload(header, payload, row)
+                entity_id = path_to_ids.get(parent_path)
+                if entity_id is None:
+                    # try to resolve from existing items in the database
+                    entity_id = await _get_entity_id_by_path(
+                        project_name,
+                        parent_path,
+                        False
+                    )
 
-        # for tasks
-        if folder_id:
-            payload[model_cls.parent_column_name()] = folder_id
+                if entity_id:
+                    path_to_ids[parent_path] = entity_id
+                    payload[model_cls.parent_column_name()] = entity_id
+
+            # for tasks
+            if folder_id:
+                payload[model_cls.parent_column_name()] = folder_id
 
         try:
             kwargs = {
@@ -251,17 +243,23 @@ async def import_data(
             if path:
                 path_to_ids[path] = new_entity.id
 
-            if exists:
-                import_status.updated += 1
-            else:
-                import_status.created += 1
+                if exists:
+                    import_status.updated += 1
+                else:
+                    import_status.created += 1
+
+                unprocessed -= 1
         except Exception as exp:
             error_msg = f"Error saving entity {identifier}: {exp}"
             import_status.failed_items[row.get("name", "unknown")] = error_msg
+
+            unprocessed -= 1
             if skip_errors:
                 import_status.skipped += 1
                 continue
             import_status.failed += 1
+            import_status.skipped += unprocessed
+
             return import_status
 
     return import_status
