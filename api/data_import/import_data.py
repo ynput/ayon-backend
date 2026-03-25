@@ -116,7 +116,8 @@ async def upload_file(
         raise NotFoundException("Invalid avatar format")
     csv_bytes = await request.body()
     file_id = create_uuid()
-    await Redis.set(REDIS_NS, file_id, csv_bytes, ttl=30*60)
+    ttl_seconds = 30 * 60  # 30 minutes
+    await Redis.set(REDIS_NS, file_id, csv_bytes, ttl=ttl_seconds)
 
     return ImportUpload(id=file_id)
 
