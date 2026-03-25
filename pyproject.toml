@@ -39,6 +39,16 @@ dependencies = [
   "uvicorn[standard] >=0.41.0",
 ]
 
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["ayon_server*"]
+
+[tool.setuptools.package-data]
+ayon_server = ["py.typed"]
+
 [dependency-groups]
 dev = [
   "asyncpg-stubs >=0.29.1",
