@@ -1,4 +1,5 @@
 import contextlib
+import re
 from collections.abc import AsyncIterator
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -7,6 +8,9 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ayon_server.entities.user import UserEntity
+from ayon_server.types import NAME_REGEX
+
+_NAME_PATTERN = re.compile(NAME_REGEX)
 
 
 @dataclass
@@ -64,9 +68,20 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
         context = RequestContext(
             user=user,
-            sender=request.headers.get("X-Sender"),
-            sender_type=request.headers.get("X-Sender-Type"),
+            sender=self._validated_header(request.headers.get("X-Sender")),
+            sender_type=self._validated_header(
+                request.headers.get("X-Sender-Type"), default="api"
+            ),
         )
         async with request_context_manager(context):
             response = await call_next(request)
         return response
+
+    @staticmethod
+    def _validated_header(value: str | None, default: str | None = None) -> str | None:
+        """Return value if it matches NAME_REGEX, else return default."""
+        if value is None:
+            return default
+        if _NAME_PATTERN.match(value):
+            return value
+        return default
