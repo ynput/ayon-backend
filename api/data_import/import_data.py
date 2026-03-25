@@ -228,32 +228,6 @@ async def import_data(
                 raise ValueError("Not all required values present")
 
             path = None
-            if "path" in row and row["path"]:
-                path = row["path"]
-                entity_id = path_to_ids.get(path)
-                if not entity_id:
-                    # try to resolve from existing items in the database
-                    is_task = entity_cls == TaskEntity
-                    try:
-                        entity_id = await _get_entity_id_by_path(
-                            project_name,
-                            path,
-                            is_task
-                        )
-                    except NotFoundException:
-                        logger.debug(f"Couldn't find entity for '{path}'")
-
-                    if entity_id:
-                        item_exists = True
-                        path_to_ids[path] = entity_id  # cache
-                else:
-                    item_exists = True
-            else:
-                # assumes that unique ids are main columns (not attrib.* or data.*)
-                identifier = tuple(
-                    row.get(field) for field in model_cls.unique_fields()
-                )
-                item_exists = identifier in existing_identifiers
             entity_id = _resolve_entity_id(
                 row=row,
                 path_to_ids=path_to_ids,
@@ -488,15 +462,6 @@ async def _get_existing_identifiers(
     return existing_identifiers
 
 
-def _to_bool(value: Any) -> bool:
-    """Convert a value to boolean."""
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.lower() in ("1", "true", "yes", "on")
-    if isinstance(value, (int, float)):
-        return value != 0
-    return False
 def _resolve_entity_id(
     row: dict[str, Any],
     path_to_ids: dict[str, str],
@@ -553,6 +518,25 @@ def _resolve_entity_id(
     return None
 
 
+def _resolve_parent_id(
+    row: dict[str, Any],
+    originals_and_new: dict[str, str],
+    existing_identifiers: set[tuple],
+    path_to_ids: dict[str, str],
+    model_cls,
+    project_name: str,
+    folder_id: str | None,
+) -> str | None:
+    """Resolve the parent ID for a CSV row.
+
+    Args:
+        row: CSV row data
+        originals_and_new: Mapping of original IDs to new IDs
+        existing_identifiers: Set of existing identifiers
+        path_to_ids: Cache of path -> entity_id mappings
+        model_cls: The entity model class
+        project_name: Project name
+        folder_id: Fixed folder ID for tasks
 
 
 def _detect_delimiter(content: str) -> str:
@@ -622,6 +606,19 @@ async def _get_entity_id_by_path(
     return result["id"]
 
 
-    raise NotFoundException(
-        f"Entity with path '{path}' not found in the database"
-    )
+def _to_bool(value: Any) -> bool:
+    """Convert a value to boolean.
+
+    Args:
+        value: Value to convert (bool, str, int, float, or other)
+
+    Returns:
+        Boolean representation of the value
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in ("1", "true", "yes", "on")
+    if isinstance(value, (int, float)):
+        return value != 0
+    return False
