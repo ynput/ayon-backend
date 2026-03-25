@@ -39,7 +39,14 @@ def import_module(name: str, path: str) -> ModuleType:
     try:
         spec = importlib.util.spec_from_file_location(name, path)
         if spec is None or spec.loader is None:
-            raise ImportError(f"Could not load spec for {name}")
+        try:
+            spec.loader.exec_module(module)
+        except Exception:
+            # Remove partially initialized module to avoid leaving a broken
+            # module object in sys.modules if exec_module fails.
+            if sys.modules.get(name) is module:
+                del sys.modules[name]
+            raise
 
         module = importlib.util.module_from_spec(spec)
 
