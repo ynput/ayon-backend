@@ -256,7 +256,7 @@ class EventStream:
 
         if sender_type is not None:
             new_data["sender_type"] = sender_type
-        elif request_context is not None:
+        elif request_context.sender_type is not None:
             new_data["sender_type"] = request_context.sender_type
 
         if user is not None:
