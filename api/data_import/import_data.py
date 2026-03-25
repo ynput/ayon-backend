@@ -230,6 +230,9 @@ async def import_data(
                 raise ValueError("Not all required values present")
 
             path = None
+            if "path" in row and row["path"]:
+                path = row["path"]
+
             entity_id = await _resolve_entity_id(
                 row=row,
                 path_to_ids=path_to_ids,
