@@ -382,7 +382,7 @@ def _create_payload(
     # Process each CSV column
     for column_name in header:
         mapping = source_mapping_by_key.get(column_name)
-        if not mapping:
+        if not mapping or mapping.action == "skip":
             # No mapping defined for this column - skip it
             continue
 
@@ -402,6 +402,9 @@ def _create_payload(
 
             # Apply value replacement if defined
             if replacement_mapping:
+                if replacement_mapping.action == "skip":
+                    continue
+
                 value = replacement_mapping.target
                 replacement_mapping_action = replacement_mapping.action
 

@@ -137,9 +137,9 @@ class ColumnValueMapping(OPModel):
         ),
     ]
     action: Annotated[
-        Literal["map", "create"],
+        Literal["map", "skip", "create"],
         Field(
-            description="Only map or create missing"
+            description="Map, skip or create missing"
         )
     ]
 
@@ -165,9 +165,9 @@ class ColumnMapping(OPModel):
     ]
 
     action: Annotated[
-        Literal["map", "create"],
+        Literal["map", "skip"],
         Field(
-            description="If value in field is required"
+            description="Map or skip whole column"
         )
     ]
 
