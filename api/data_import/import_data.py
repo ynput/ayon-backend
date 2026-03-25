@@ -2,11 +2,12 @@ import csv
 import io
 from typing import Any, Annotated, List
 
-from fastapi import Path, Request
+from fastapi import Path, Request, Body
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.exceptions import (
+    BadRequestException,
     ForbiddenException,
     NotFoundException
 )
@@ -71,6 +72,7 @@ HIERARCHY_ENTITY_CLASSES: dict = {
 async def upload_file(
     user: CurrentUser,
     request: Request,
+    csv: Annotated[str, Body()],
 ) -> ImportUpload:
     """Uploads csv file to Redis for next requests to be use it."""
     if not user.is_manager:
@@ -78,10 +80,10 @@ async def upload_file(
 
     mime = request.headers.get("Content-Type")
     if mime not in mime_to_ext:
-        raise NotFoundException("Invalid avatar format")
-    csv_bytes = await request.body()
+        raise BadRequestException("Invalid content type")
+
     file_id = create_uuid()
-    await Redis.set(REDIS_NS, file_id, csv_bytes, ttl=30*60)
+    await Redis.set(REDIS_NS, file_id, csv, ttl=30*60)
 
     return ImportUpload(id=file_id)
 
