@@ -12,6 +12,7 @@ from ayon_server.exceptions import (
     NotFoundException
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
+from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -66,6 +67,8 @@ HIERARCHY_ENTITY_CLASSES: dict = {
     "folder": FolderEntity,
     "task": TaskEntity,
 }
+
+SENDER_TYPE = "data_import"
 
 
 @router.put("/import/upload")
@@ -144,6 +147,13 @@ async def import_data(
             hierarchy_existing_identifiers[item_type] = await _get_existing_identifiers(
                 model_cls, project_name
             )
+
+    operations: ProjectLevelOperations = ProjectLevelOperations(
+        project_name,
+        user=user,
+        sender=f"{SENDER_TYPE}-status-propagation",
+        sender_type=SENDER_TYPE,
+    )
 
     originals_and_new = {}
     path_to_ids = {}
@@ -252,23 +262,29 @@ async def import_data(
                 fields = await model_cls.fields(project_name=project_name)
                 _create_payload(header, payload, row,fields, column_mapping)
 
-                kwargs = {
-                    "payload": payload,
-                    "exists": exists
-                }
                 if  entity_cls != UserEntity:
-                    kwargs["project_name"] = project_name
-                new_entity = entity_cls(**kwargs)
-                await new_entity.save(auto_commit=(not preview))
-                if original_id:
-                    originals_and_new[original_id] = new_entity.id
-                if path:
-                    path_to_ids[path] = new_entity.id
-
+                    payload["project_name"] = project_name
+                logger.info(f"enity_id:: '{entity_id}:{item_type} -> {payload} ")
                 if exists:
+                    operations.update(
+                        item_type,
+                        entity_id,
+                        **payload
+                    )
                     import_status.updated += 1
                 else:
+                    entity_id = create_uuid()
+                    operations.create(
+                        item_type,
+                        entity_id=entity_id,
+                        **payload
+                    )
                     import_status.created += 1
+
+                if original_id:
+                    originals_and_new[original_id] = entity_id
+                if path:
+                    path_to_ids[path] = entity_id
 
                 unprocessed -= 1
         except Exception as exp:
@@ -283,6 +299,11 @@ async def import_data(
             import_status.skipped += unprocessed
 
             return import_status
+
+    if not preview:
+        response = await operations.process()
+        if not response.success:
+            logger.error(f"Failed to import data", exc_info=True)
 
     return import_status
 
