@@ -210,6 +210,8 @@ async def import_data(
 
         identifier = None
         item_exists = False
+        item_type = entity_type
+
         try:
             if entity_type == "hierarchy":
                 item_type = row.get("item_type")
@@ -220,8 +222,6 @@ async def import_data(
                 entity_cls = HIERARCHY_ENTITY_CLASSES[item_type]
                 required_fields = hierarchy_required_fields[item_type]
                 existing_identifiers = hierarchy_existing_identifiers[item_type]
-            else:
-                item_type = entity_type
 
             has_required = await _has_all_required(required_fields, row, skip_errors)
             if not has_required:
