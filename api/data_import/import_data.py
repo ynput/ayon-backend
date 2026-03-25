@@ -265,24 +265,6 @@ async def import_data(
                 fields = await model_cls.fields(project_name=project_name)
                 _create_payload(header, payload, row,fields, column_mapping)
 
-                if  entity_cls != UserEntity:
-                    payload["project_name"] = project_name
-                logger.info(f"enity_id:: '{entity_id}:{item_type} -> {payload} ")
-                if exists:
-                    operations.update(
-                        item_type,
-                        entity_id,
-                        **payload
-                    )
-                    import_status.updated += 1
-                else:
-                    entity_id = create_uuid()
-                    operations.create(
-                        item_type,
-                        entity_id=entity_id,
-                        **payload
-                    )
-                    import_status.created += 1
             # Add project_name for non-user entities
             if entity_cls != UserEntity:
                 payload["project_name"] = project_name
@@ -347,6 +329,23 @@ def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]
     header = reader.fieldnames or []
     rows = list(reader)
     return header, rows
+
+
+def _detect_delimiter(content: str) -> str:
+    """Detect if CSV uses comma or semicolon as delimiter.
+
+    Args:
+        content: CSV file content as string
+
+    Returns:
+        Delimiter character (',' or ';')
+    """
+    first_line = content.split("\n")[0]
+    comma_count = first_line.count(",")
+    semicolon_count = first_line.count(";")
+    if semicolon_count > comma_count:
+        return ";"
+    return ","
 
 
 def _create_payload(
