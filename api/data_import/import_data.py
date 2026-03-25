@@ -10,11 +10,12 @@ import io
 import traceback
 from typing import Any, Annotated, List
 
-from fastapi import Path, Request
+from fastapi import Path, Request, Body
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.exceptions import (
+    BadRequestException,
     ForbiddenException,
     NotFoundException
 )
@@ -90,6 +91,7 @@ SENDER_TYPE = "data_import"
 async def upload_file(
     user: CurrentUser,
     request: Request,
+    csv: Annotated[str, Body()],
 ) -> ImportUpload:
     """Upload a CSV file to Redis for subsequent import operations.
 
@@ -99,6 +101,7 @@ async def upload_file(
     Args:
         user: Current authenticated user (must be a manager)
         request: HTTP request containing the CSV file
+        csv: bytes of csv file from body
 
     Returns:
         ImportUpload: Object containing the file ID for use in import
@@ -113,11 +116,10 @@ async def upload_file(
 
     mime = request.headers.get("Content-Type")
     if mime not in SUPPORTED_MIME_TYPES:
-        raise NotFoundException("Invalid avatar format")
-    csv_bytes = await request.body()
+        raise BadRequestException("Invalid content type")
     file_id = create_uuid()
     ttl_seconds = 30 * 60  # 30 minutes
-    await Redis.set(REDIS_NS, file_id, csv_bytes, ttl=ttl_seconds)
+    await Redis.set(REDIS_NS, file_id, csv, ttl=ttl_seconds)
 
     return ImportUpload(id=file_id)
 
