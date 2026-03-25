@@ -204,10 +204,10 @@ async def import_data(
     originals_and_new = {}
     path_to_ids = {}
     unprocessed = len(rows)
+
     for row in rows:
         exists = False
         payload = {}
-
         identifier = None
         item_exists = False
         item_type = entity_type
