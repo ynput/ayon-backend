@@ -193,6 +193,7 @@ class ImportStatus(OPModel):
     skipped: int = 0
     failed: int = 0
     failed_items: Dict[str, Any] = Field(default_factory=dict)  # Dict of items that failed with error details (name -> error message)
+    preview: bool = False  # if import was run in regular or dry run mode
 
 
 class ImportUpload(OPModel):
