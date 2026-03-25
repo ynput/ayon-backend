@@ -200,7 +200,8 @@ async def import_data(
                 if existing_strategy ==ExistingItemStrategy.UPDATE:
                     exists = True
                 else:
-                    raise ValueError("Item already exists...")
+                    identifier = path or identifier
+                    raise ValueError(f"Item '{identifier}' already exists.")
 
             path = None
             original_id = row.get("id")
