@@ -230,7 +230,7 @@ async def import_data(
                 raise ValueError("Not all required values present")
 
             path = None
-            entity_id = _resolve_entity_id(
+            entity_id = await _resolve_entity_id(
                 row=row,
                 path_to_ids=path_to_ids,
                 existing_identifiers=existing_identifiers,
@@ -248,7 +248,7 @@ async def import_data(
                     raise ValueError(f"Item '{identifier}' already exists.")
 
             original_id = row.get("id")
-            parent_id = _resolve_parent_id(
+            parent_id = await _resolve_parent_id(
                 row=row,
                 originals_and_new=originals_and_new,
                 existing_identifiers=existing_identifiers,
@@ -544,7 +544,7 @@ async def _get_existing_identifiers(
     return existing_identifiers
 
 
-def _resolve_entity_id(
+async def _resolve_entity_id(
     row: dict[str, Any],
     path_to_ids: dict[str, str],
     existing_identifiers: set[tuple],
@@ -579,7 +579,7 @@ def _resolve_entity_id(
         # Look up in database
         is_task = entity_cls == TaskEntity
         try:
-            entity_id = _get_entity_id_by_path(
+            entity_id = await _get_entity_id_by_path(
                 project_name,
                 path,
                 is_task
@@ -600,7 +600,7 @@ def _resolve_entity_id(
     return None
 
 
-def _resolve_parent_id(
+async def _resolve_parent_id(
     row: dict[str, Any],
     originals_and_new: dict[str, str],
     existing_identifiers: set[tuple],
@@ -648,7 +648,7 @@ def _resolve_parent_id(
         parent_id = path_to_ids.get(parent_path)
         if parent_id is None:
             try:
-                parent_id = _get_entity_id_by_path(
+                parent_id = await _get_entity_id_by_path(
                     project_name,
                     parent_path,
                     False  # Not a task
