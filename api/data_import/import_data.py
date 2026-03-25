@@ -1,7 +1,6 @@
 import csv
 import io
 from typing import Any, Annotated, List
-import logging
 
 from fastapi import Path, Request
 
@@ -14,6 +13,7 @@ from ayon_server.exceptions import (
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.utils import create_uuid
 
 from .export_data import EntityType
@@ -32,7 +32,6 @@ from .models import (
 )
 from .router import router
 
-logger = logging.getLogger(__name__)
 
 REDIS_NS = "csv.import"
 
@@ -182,7 +181,7 @@ async def import_data(
                             is_task
                         )
                     except NotFoundException:
-                        pass
+                        logger.debug(f"Couldn't find entity for '{path}'")
 
                     if entity_id:
                         item_exists = True

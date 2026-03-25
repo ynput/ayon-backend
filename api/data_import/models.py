@@ -23,6 +23,7 @@ from ayon_server.exceptions import BadRequestException
 from ayon_server.types import Field, OPModel, AttributeType
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 from ayon_server.entities.models.generator import FIELD_TYPES
 
 
@@ -358,7 +359,7 @@ class EntityExportImport:
                     name, project_name=project_name
                 )
             except BadRequestException:
-                pass
+                logger.debug(f"Cannot find enum for '{name}'")
 
             if enum_items:
                 field_dict["enum_items"] = enum_items
