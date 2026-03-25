@@ -90,8 +90,8 @@ class EventStream:
         event = EventModel(
             id=event_id,
             hash=hash,
-            sender=request_context.sender,
-            sender_type=request_context.sender_type,
+            sender=sender or request_context.sender,
+            sender_type=sender_type or request_context.sender_type,
             topic=topic,
             project=project,
             user=user,
@@ -187,8 +187,8 @@ class EventStream:
                     "summary": event.summary,
                     "status": event.status,
                     "progress": progress,
-                    "sender": sender,
-                    "senderType": sender_type,
+                    "sender": event.sender,
+                    "senderType": event.sender_type,
                     "store": store,  # useful to allow querying details
                     "recipients": recipients,
                     "createdAt": event.created_at,
