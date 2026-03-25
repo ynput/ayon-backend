@@ -283,13 +283,35 @@ async def import_data(
                         **payload
                     )
                     import_status.created += 1
+            # Add project_name for non-user entities
+            if entity_cls != UserEntity:
+                payload["project_name"] = project_name
 
-                if original_id:
-                    originals_and_new[original_id] = entity_id
-                if path:
-                    path_to_ids[path] = entity_id
+            logger.debug(f"entity_id:: '{entity_id}:{item_type} -> {payload} ")
 
-                unprocessed -= 1
+            if exists:
+                operations.update(
+                    item_type,
+                    entity_id,
+                    **payload
+                )
+                import_status.updated += 1
+            else:
+                entity_id = create_uuid()
+                operations.create(
+                    item_type,
+                    entity_id=entity_id,
+                    **payload
+                )
+                import_status.created += 1
+
+            if original_id:
+                originals_and_new[original_id] = entity_id
+            if path:
+                path_to_ids[path] = entity_id
+
+            unprocessed -= 1
+
         except Exception as exp:
             error_msg = f"{exp}"
             import_status.failed_items[row.get("name", "unknown")] = error_msg
@@ -300,7 +322,6 @@ async def import_data(
                 continue
             import_status.failed += 1
             import_status.skipped += unprocessed
-
             return import_status
 
     if not preview:
