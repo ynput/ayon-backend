@@ -135,10 +135,24 @@ async def import_data(
     folder_id: str = None,    # limit import to specific folder
     preview: bool  = False,  # do not commit to db if True
 ) -> ImportStatus:
-    """Process CSV file and import users to the database.
+    """Process CSV file and import entities to the database.
 
-    Parses the CSV file and creates/updates users based on the data.
-    Expected CSV columns: name, email, full_name, is_admin, etc.
+    Parses the CSV file and creates/updates entities based on the data.
+    Supports importing users, folders, tasks, or hierarchies (combined).
+
+    Args:
+        entity_type: Type of entity to import (user, folder, task, hierarchy)
+        user: Current authenticated user (must be a manager)
+        file_id: ID of the uploaded CSV file in Redis
+        column_mapping: List of column mappings (source -> target)
+        skip_errors: Whether to skip rows with errors
+        existing_strategy: How to handle existing items (skip, update, fail)
+        project_name: Project name for folder/task imports
+        folder_id: Limit import to specific folder
+        preview: If True, don't commit to database
+
+    Returns:
+        ImportStatus: Summary of import results
     """
     if not user.is_manager:
         raise ForbiddenException("You must be a manager")
