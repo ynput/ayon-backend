@@ -24,8 +24,6 @@ async def create_entity_list_item(
     user: CurrentUser,
     project_name: ProjectName,
     entity_list_id: EntityListID,
-    sender: Sender,
-    sender_type: SenderType,
     payload: EntityListItemPostModel,
 ) -> None:
     async with Postgres.transaction():
@@ -41,7 +39,7 @@ async def create_entity_list_item(
             data=payload.data,
             tags=payload.tags,
         )
-        await entity_list.save(sender=sender, sender_type=sender_type)
+        await entity_list.save()
 
 
 @router.patch("/lists/{entity_list_id}/items/{entity_list_item_id}")

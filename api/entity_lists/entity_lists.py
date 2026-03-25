@@ -7,8 +7,6 @@ from ayon_server.api.dependencies import (
     CurrentUser,
     EntityListID,
     ProjectName,
-    Sender,
-    SenderType,
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entity_lists.entity_list import EntityList
@@ -30,8 +28,6 @@ async def create_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
     payload: EntityListPostModel,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EntityListSummary:
     """Create a new entity list.
 
@@ -76,7 +72,7 @@ async def create_entity_list(
                 tags=item.tags,
             )
 
-        return await entity_list.save(sender=sender, sender_type=sender_type)
+        return await entity_list.save()
 
 
 @router.patch("/lists/{entity_list_id}")
@@ -85,8 +81,6 @@ async def update_entity_list(
     project_name: ProjectName,
     entity_list_id: EntityListID,
     payload: EntityListPatchModel,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Update entity list metadata"""
 
@@ -105,7 +99,7 @@ async def update_entity_list(
             else:
                 setattr(entity_list.payload, key, value)
 
-        await entity_list.save(sender=sender, sender_type=sender_type)
+        await entity_list.save()
 
     return EmptyResponse()
 
@@ -170,15 +164,13 @@ async def delete_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
     entity_list_id: EntityListID,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete entity list from the database"""
 
     async with Postgres.transaction():
         entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
-        await entity_list.delete(sender=sender, sender_type=sender_type)
+        await entity_list.delete()
 
     return EmptyResponse()
 
@@ -188,8 +180,6 @@ async def materialize_entity_list(
     user: CurrentUser,
     project_name: ProjectName,
     entity_list_id: EntityListID,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EntityListSummary:
     """Materialize an entity list."""
 
@@ -197,4 +187,4 @@ async def materialize_entity_list(
         entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
         await entity_list.materialize()
-        return await entity_list.save(sender=sender, sender_type=sender_type)
+        return await entity_list.save()
