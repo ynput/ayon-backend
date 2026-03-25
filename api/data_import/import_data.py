@@ -1,3 +1,10 @@
+"""
+Data import functionality for CSV files.
+
+This module provides endpoints for uploading CSV files and importing
+their data into the AYON system as users, folders, tasks, or hierarchies.
+"""
+
 import csv
 import io
 import traceback
@@ -35,22 +42,27 @@ from .models import (
 from .router import router
 
 
+# Redis namespace for storing uploaded CSV files
 REDIS_NS = "csv.import"
 
-mime_to_ext = {
+# Supported MIME types for CSV file uploads
+# Maps MIME type to file extension
+SUPPORTED_MIME_TYPES = {
     "text/csv": ".csv",
     "application/vnd.ms-excel": ".csv",
     "application/csv": ".csv",
     "text/x-csv": ".csv"
 }
 
-IMPORTABLE_ENTITIES  = {
+# Model classes for each importable entity type
+IMPORTABLE_ENTITIES: dict = {
     "user": UserExportImportModel,
     "folder": FolderExportImportModel,
     "task": TaskExportImportModel,
     "hierarchy": FolderTaskExportImportModel,
 }
 
+# Entity classes for each entity type
 ENTITY_TYPE_TO_ENTITY_CLASS: dict = {
     "user": UserEntity,
     "folder": FolderEntity,
@@ -58,16 +70,19 @@ ENTITY_TYPE_TO_ENTITY_CLASS: dict = {
     "hierarchy": None
 }
 
+# Model classes for hierarchy import (folder and task)
 HIERARCHY_MODEL_CLASSES: dict = {
     "folder": FolderExportImportModel,
     "task": TaskExportImportModel,
 }
 
+# Entity classes for hierarchy import (folder and task)
 HIERARCHY_ENTITY_CLASSES: dict = {
     "folder": FolderEntity,
     "task": TaskEntity,
 }
 
+# Sender type for operations status propagation
 SENDER_TYPE = "data_import"
 
 
@@ -76,12 +91,28 @@ async def upload_file(
     user: CurrentUser,
     request: Request,
 ) -> ImportUpload:
-    """Uploads csv file to Redis for next requests to be use it."""
+    """Upload a CSV file to Redis for subsequent import operations.
+
+    The uploaded file is stored in Redis with a unique ID that can be
+    used in the import endpoint to process the file.
+
+    Args:
+        user: Current authenticated user (must be a manager)
+        request: HTTP request containing the CSV file
+
+    Returns:
+        ImportUpload: Object containing the file ID for use in import
+
+    Raises:
+        ForbiddenException: If user is not a manager
+        NotFoundException: If file format is not supported
+    """
+    # Verify user has manager privileges
     if not user.is_manager:
         raise ForbiddenException("You must be a manager")
 
     mime = request.headers.get("Content-Type")
-    if mime not in mime_to_ext:
+    if mime not in SUPPORTED_MIME_TYPES:
         raise NotFoundException("Invalid avatar format")
     csv_bytes = await request.body()
     file_id = create_uuid()
