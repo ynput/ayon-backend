@@ -233,11 +233,11 @@ async def import_data(
                 else:
                     parent_path = ""
 
-                entity_id = path_to_ids.get(parent_path)
-                if entity_id is None:
+                parent_id = path_to_ids.get(parent_path)
+                if parent_id is None:
                     # try to resolve from existing items in the database
                     try:
-                        entity_id = await _get_entity_id_by_path(
+                        parent_id = await _get_entity_id_by_path(
                             project_name,
                             parent_path,
                             False
@@ -251,9 +251,9 @@ async def import_data(
                             project_name,
                         )
 
-                if entity_id:
-                    path_to_ids[parent_path] = entity_id
-                    payload[model_cls.parent_column_name()] = entity_id
+                if parent_id:
+                    path_to_ids[parent_path] = parent_id
+                    payload[model_cls.parent_column_name()] = parent_id
 
                 # for tasks
                 if folder_id:
