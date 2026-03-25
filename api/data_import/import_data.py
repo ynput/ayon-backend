@@ -246,43 +246,17 @@ async def import_data(
                     raise ValueError(f"Item '{identifier}' already exists.")
 
             original_id = row.get("id")
-            parent_id = row.get("parent_id")
-            if parent_id and parent_id in originals_and_new:
-                row["parent_id"] = originals_and_new[parent_id]
-            elif parent_id and parent_id not in existing_identifiers:
-                # reset parent_id if it doesn't exist in the current import batch or
-                # in the existing items
-                row["parent_id"] = None
-            elif "path" in row and row["path"]:
-                # if path is provided, we can try to resolve parent_id from the path
-                path  = row.pop("path")
-                path_parts = path.split("/")
-                if len(path_parts) > 1:
-                    parent_path = "/".join(path_parts[:-1])
-                else:
-                    parent_path = ""
-
-                parent_id = path_to_ids.get(parent_path)
-                if parent_id is None:
-                    # try to resolve from existing items in the database
-                    try:
-                        parent_id = await _get_entity_id_by_path(
-                            project_name,
-                            parent_path,
-                            False
-                        )
-                    except NotFoundException:
-                        # Parent path does not exist in the database; proceed without a parent.
-                        logger.debug(
-                            "Parent path '%s' not found in project '%s' during CSV import; "
-                            "continuing without assigning a parent.",
-                            parent_path,
-                            project_name,
-                        )
-
-                if parent_id:
-                    path_to_ids[parent_path] = parent_id
-                    payload[model_cls.parent_column_name()] = parent_id
+            parent_id = _resolve_parent_id(
+                row=row,
+                originals_and_new=originals_and_new,
+                existing_identifiers=existing_identifiers,
+                path_to_ids=path_to_ids,
+                model_cls=model_cls,
+                project_name=project_name,
+                folder_id=folder_id,
+            )
+            if parent_id:
+                payload[model_cls.parent_column_name()] = parent_id
 
                 # for tasks
                 if folder_id:
@@ -538,15 +512,56 @@ def _resolve_parent_id(
         project_name: Project name
         folder_id: Fixed folder ID for tasks
 
+    Returns:
+        Parent ID if resolved, None otherwise
+    """
+    original_id = row.get("id")
+    parent_id = row.get("parent_id")
 
-def _detect_delimiter(content: str) -> str:
-    """Detect if CSV uses comma or semicolon as delimiter."""
-    first_line = content.split("\n")[0]
-    comma_count = first_line.count(",")
-    semicolon_count = first_line.count(";")
-    if semicolon_count > comma_count:
-        return ";"
-    return ","
+    # Try to resolve from current import batch
+    if parent_id and parent_id in originals_and_new:
+        return originals_and_new[parent_id]
+
+    # Check if parent exists in database
+    if parent_id and parent_id not in existing_identifiers:
+        return None
+
+    # Resolve from path if provided
+    if "path" in row and row["path"]:
+        path = row.pop("path")
+        path_parts = path.split("/")
+
+        parent_path = (
+            "/".join(path_parts[:-1])
+            if len(path_parts) > 1
+            else ""
+        )
+
+        parent_id = path_to_ids.get(parent_path)
+        if parent_id is None:
+            try:
+                parent_id = _get_entity_id_by_path(
+                    project_name,
+                    parent_path,
+                    False  # Not a task
+                )
+            except NotFoundException:
+                logger.debug(
+                    "Parent path '%s' not found in project '%s' during CSV import",
+                    parent_path,
+                    project_name,
+                )
+
+        if parent_id:
+            path_to_ids[parent_path] = parent_id
+
+        return parent_id
+
+    # Use fixed folder_id for tasks
+    if folder_id:
+        return folder_id
+
+    return None
 
 
 async def _get_entity_id_by_path(
