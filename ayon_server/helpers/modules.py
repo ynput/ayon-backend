@@ -11,7 +11,15 @@ T = TypeVar("T", bound=type)
 def import_module(name: str, path: str) -> ModuleType:
     """
     Imports a plugin module into a unique namespace to prevent collisions.
-    Example: 'my_plugin.v1_0_0.server'
+
+    The ``name`` argument is an arbitrary unique identifier used as the
+    module's namespace (i.e. the key in ``sys.modules``). It does not have
+    to be a valid dotted Python package path and may contain characters
+    like ``-`` or ``/``.
+
+    Examples:
+        - ``f"{vname}-package"`` (e.g. ``"my-addon-package"``)
+        - ``"ayon_server/enum/resolvers"``
     """
 
     server_dir = os.path.dirname(os.path.abspath(path))  # Directory containing the module
