@@ -636,7 +636,7 @@ async def _resolve_parent_id(
 
     # Resolve from path if provided
     if "path" in row and row["path"]:
-        path = row.pop("path")
+        path = row["path"]
         path_parts = path.split("/")
 
         parent_path = (
