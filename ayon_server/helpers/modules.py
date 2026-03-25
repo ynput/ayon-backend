@@ -14,11 +14,18 @@ def import_module(name: str, path: str) -> ModuleType:
     Example: 'my_plugin.v1_0_0.server'
     """
 
-    server_dir = os.path.dirname(os.path.abspath(path))  # The 'server' folder
-    base_dir = os.path.dirname(server_dir)  # The 'version' folder
+    server_dir = os.path.dirname(os.path.abspath(path))  # Directory containing the module
+    # Determine which directory should be added to sys.path:
+    # - If the module is inside a 'server' package, add its parent (the 'version' folder)
+    #   so that 'server' is importable as a top-level package.
+    # - Otherwise, add the module's own directory to avoid inserting overly broad paths.
+    if os.path.basename(server_dir) == "server":
+        base_dir = os.path.dirname(server_dir)
+    else:
+        base_dir = server_dir
 
-    # Add the dir containing the module to sys.path temporarily.
-    # This allows: 'from server.subfolder import module' in addons
+    # Add the dir containing the module (or its parent, for 'server' packages) to sys.path temporarily.
+    # This allows: 'from server.subfolder import module' in addons when appropriate.
     sys.path.insert(0, base_dir)
 
     try:
