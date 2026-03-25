@@ -156,14 +156,16 @@ async def import_data(
         item_exists = False
         try:
             if entity_type == "hierarchy":
-                entity_type = row.get("item_type")
-                if entity_type not in HIERARCHY_MODEL_CLASSES:
-                    error_msg = f"Invalid item_type '{entity_type}'"
+                item_type = row.get("item_type")
+                if item_type not in HIERARCHY_MODEL_CLASSES:
+                    error_msg = f"Invalid item_type '{item_type}'"
                     raise ValueError(error_msg)
-                model_cls = HIERARCHY_MODEL_CLASSES[entity_type]
-                entity_cls = HIERARCHY_ENTITY_CLASSES[entity_type]
-                required_fields = hierarchy_required_fields[entity_type]
-                existing_identifiers = hierarchy_existing_identifiers[entity_type]
+                model_cls = HIERARCHY_MODEL_CLASSES[item_type]
+                entity_cls = HIERARCHY_ENTITY_CLASSES[item_type]
+                required_fields = hierarchy_required_fields[item_type]
+                existing_identifiers = hierarchy_existing_identifiers[item_type]
+            else:
+                item_type = entity_type
 
             has_required = await _has_all_required(required_fields, row, skip_errors)
             if not has_required:
