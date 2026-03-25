@@ -288,7 +288,7 @@ async def import_data(
 
                 unprocessed -= 1
         except Exception as exp:
-            error_msg = f"Error saving entity {identifier}: {exp}"
+            error_msg = f"{exp}"
             import_status.failed_items[row.get("name", "unknown")] = error_msg
             logger.warning(f"{error_msg} - {traceback.format_exc(limit=5)}")
             unprocessed -= 1
