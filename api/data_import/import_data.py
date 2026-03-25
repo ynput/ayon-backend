@@ -1,6 +1,7 @@
 import csv
 import io
 from typing import Any, Annotated, List
+import logging
 
 from fastapi import Path, Request
 
@@ -30,6 +31,8 @@ from .models import (
     ImportableColumn,
 )
 from .router import router
+
+logger = logging.getLogger(__name__)
 
 REDIS_NS = "csv.import"
 
@@ -227,7 +230,13 @@ async def import_data(
                             False
                         )
                     except NotFoundException:
-                        pass
+                        # Parent path does not exist in the database; proceed without a parent.
+                        logger.debug(
+                            "Parent path '%s' not found in project '%s' during CSV import; "
+                            "continuing without assigning a parent.",
+                            parent_path,
+                            project_name,
+                        )
 
                 if entity_id:
                     path_to_ids[parent_path] = entity_id
