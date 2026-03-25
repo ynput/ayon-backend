@@ -169,6 +169,7 @@ async def import_data(
             if not has_required:
                 raise ValueError("Not all required values present")
 
+            path = None
             if "path" in row and row["path"]:
                 path = row["path"]
                 entity_id = path_to_ids.get(path)
@@ -203,7 +204,6 @@ async def import_data(
                     identifier = path or identifier
                     raise ValueError(f"Item '{identifier}' already exists.")
 
-            path = None
             original_id = row.get("id")
             parent_id = row.get("parent_id")
             if parent_id and parent_id in originals_and_new:
