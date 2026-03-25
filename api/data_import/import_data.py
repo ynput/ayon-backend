@@ -655,9 +655,8 @@ async def _resolve_parent_id(
                 )
             except NotFoundException:
                 logger.debug(
-                    "Parent path '%s' not found in project '%s' during CSV import",
-                    parent_path,
-                    project_name,
+                    f"Parent path '{parent_path}' not found in "
+                    f"project '{project_name}' during CSV import",
                 )
 
         if parent_id:
