@@ -11,42 +11,24 @@ T = TypeVar("T", bound=type)
 def import_module(name: str, path: str) -> ModuleType:
     """
     Imports a plugin module into a unique namespace to prevent collisions.
-
-    The ``name`` argument is an arbitrary unique identifier used as the
-    module's namespace (i.e. the key in ``sys.modules``). It does not have
-    to be a valid dotted Python package path and may contain characters
-    like ``-`` or ``/``.
-
-    Examples:
-        - ``f"{vname}-package"`` (e.g. ``"my-addon-package"``)
-        - ``"ayon_server/enum/resolvers"``
+    Example: 'my_plugin.v1_0_0.server'
     """
 
-    server_dir = os.path.dirname(os.path.abspath(path))  # Directory containing the module
-    # Determine which directory should be added to sys.path:
-    # - If the module is inside a 'server' package, add its parent (the 'version' folder)
-    #   so that 'server' is importable as a top-level package.
-    # - Otherwise, add the module's own directory to avoid inserting overly broad paths.
+    server_dir = os.path.dirname(os.path.abspath(path))
     if os.path.basename(server_dir) == "server":
         base_dir = os.path.dirname(server_dir)
     else:
         base_dir = server_dir
 
-    # Add the dir containing the module (or its parent, for 'server' packages) to sys.path temporarily.
+    # Add the dir containing the module (or its parent, for 'server' packages)
+    # to sys.path temporarily.
     # This allows: 'from server.subfolder import module' in addons when appropriate.
     sys.path.insert(0, base_dir)
 
     try:
         spec = importlib.util.spec_from_file_location(name, path)
         if spec is None or spec.loader is None:
-        try:
-            spec.loader.exec_module(module)
-        except Exception:
-            # Remove partially initialized module to avoid leaving a broken
-            # module object in sys.modules if exec_module fails.
-            if sys.modules.get(name) is module:
-                del sys.modules[name]
-            raise
+            raise ImportError(f"Could not load spec for {name}")
 
         module = importlib.util.module_from_spec(spec)
 
