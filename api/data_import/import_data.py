@@ -349,13 +349,22 @@ def _detect_delimiter(content: str) -> str:
 
 
 def _create_payload(
-    header: [str],
-    payload: dict[str,str],
+    header: list[str],
+    payload: dict[str, Any],
     row: dict[str, Any],
     fields: List[ImportableColumn],
     column_mapping: List[ColumnMapping]
 ) -> None:
-    """Prepare the payload with main columns and attributes columns."""
+    """Prepare the payload with main columns and attributes columns.
+
+    Args:
+        header: CSV column headers
+        payload: Dictionary to populate with converted values
+        row: CSV row data
+        fields: Available importable columns
+        column_mapping: User-defined column mappings
+    """
+    # Create lookup dictionaries for efficient access
     source_mapping_by_key = {
         mapping.source_key: mapping
         for mapping in column_mapping
@@ -365,33 +374,39 @@ def _create_payload(
         for importable_column in fields
     }
 
+    # Process each CSV column
     for column_name in header:
         mapping = source_mapping_by_key.get(column_name)
         if not mapping:
+            # No mapping defined for this column - skip it
             continue
 
         error_handling_mode = mapping.error_handling_mode
+
         try:
-            print(f"mapping::{mapping}")
+            # Build value mapping dictionary
             value_mapping = {
-                value_mapping.source or "dummy" : value_mapping
+                value_mapping.source or "dummy": value_mapping
                 for value_mapping in mapping.values_mapping
             }
-            print(f"value_mapping::{value_mapping}")
+
+            # Get the value from the row
             value = row.get(column_name) or "dummy"
             replacement_mapping = value_mapping.get(value)
             replacement_mapping_action = None
-            print(f"replacement_mapping::{replacement_mapping}")
+
+            # Apply value replacement if defined
             if replacement_mapping:
                 value = replacement_mapping.target
                 replacement_mapping_action = replacement_mapping.action
 
+            # Get the target column definition
             importable_column = importable_column_by_key.get(column_name)
             if not importable_column:
                 logger.debug(f"Unknown column '{column_name}'")
                 continue
 
-            print(f"importable_column::{importable_column}")
+            # Validate enum values if applicable
             if importable_column.enum_items:
                 found_enum_item = False
                 for enum_item in importable_column.enum_items:
