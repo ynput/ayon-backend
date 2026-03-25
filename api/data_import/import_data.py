@@ -711,7 +711,7 @@ async def _get_entity_id_by_path(
 
     # For tasks, also query for the task
     if is_task:
-        query = """
+        query = f"""
             SELECT id
             FROM project_{project_name}.tasks
             WHERE folder_id = $1 AND name = $2
