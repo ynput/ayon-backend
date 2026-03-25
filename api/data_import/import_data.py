@@ -491,43 +491,57 @@ async def _get_entity_id_by_path(
     path: str,
     is_task: bool = False
 ) -> str:
-    """Get folder or task id by its path."""
+    """Get folder or task id by its path.
+
+    Args:
+        project_name: Project name
+        path: Entity path (folder path or "folder_path/task_name" for tasks)
+        is_task: Whether to look for a task
+
+    Returns:
+        Entity ID
+
+    Raises:
+        NotFoundException: If entity not found
+    """
     folder_path = path
     task_name = None
+
     if is_task:
         folder_path, task_name = path.rsplit("/", 1)
+
+    # Query for folder
     query = f"""
-        SELECT h.id, h.path 
-        FROM project_{project_name}.hierarchy h 
-        WHERE h.path = $1 
+        SELECT h.id, h.path
+        FROM project_{project_name}.hierarchy h
+        WHERE h.path = $1
     """
-    ret =  await Postgres.fetchrow(
-        query,
-        folder_path
-    )
-    if not ret:
+    result = await Postgres.fetchrow(query, folder_path)
+
+    if not result:
         raise NotFoundException(
             f"Entity with path '{path}' not found in the database"
         )
 
+    # For tasks, also query for the task
     if is_task:
-        query = f"""
+        query = """
             SELECT id
             FROM project_{project_name}.tasks
             WHERE folder_id = $1 AND name = $2
         """
-        ret =  await Postgres.fetchrow(
+        result = await Postgres.fetchrow(
             query,
-            ret["id"],
+            result["id"],
             task_name
         )
-        if not ret:
+        if not result:
             raise NotFoundException(
                 f"Entity with path '{path}' not found in the database"
             )
 
-    if ret:
-        return ret["id"]
+    return result["id"]
+
 
     raise NotFoundException(
         f"Entity with path '{path}' not found in the database"
