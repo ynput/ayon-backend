@@ -239,7 +239,7 @@ async def import_data(
             item_exists = entity_id is not None
 
             if item_exists:
-                if existing_strategy ==ExistingItemStrategy.UPDATE:
+                if existing_strategy == ExistingItemStrategy.UPDATE:
                     exists = True
                 else:
                     identifier = path or identifier
@@ -262,8 +262,8 @@ async def import_data(
             if folder_id:
                 payload[model_cls.parent_column_name()] = folder_id
 
-                fields = await model_cls.fields(project_name=project_name)
-                _create_payload(header, payload, row,fields, column_mapping)
+            fields = await model_cls.fields(project_name=project_name)
+            _create_payload(header, payload, row, fields, column_mapping)
 
             # Add project_name for non-user entities
             if entity_cls != UserEntity:
@@ -408,21 +408,41 @@ def _create_payload(
 
             # Validate enum values if applicable
             if importable_column.enum_items:
-                found_enum_item = False
-                for enum_item in importable_column.enum_items:
-                    if value == enum_item.value:
-                        found_enum_item = True
-                        break
+                _validate_enum_value(
+                    value,
+                    importable_column.enum_items,
+                    replacement_mapping_action
+                )
 
-                if not found_enum_item:
-                    if replacement_mapping_action == "create":
-                        raise NotImplementedError(
-                            "Creation of new enum items not yet implemented"
-                        )
-                    else:
-                        raise ValueError(
-                            f"Import contains not matching enum value '{value}'"
-                        )
+def _validate_enum_value(
+    value: str,
+    enum_items: list,
+    replacement_action: str | None
+) -> None:
+    """Validate that a value matches an allowed enum value.
+
+    Args:
+        value: The value to validate
+        enum_items: List of allowed enum items
+        replacement_action: Action to take if value not found
+
+    Raises:
+        ValueError: If value is not in enum and not handled by 'create' action
+        NotImplementedError: If 'create' action is not yet implemented
+    """
+    found_enum_item = any(
+        item.value == value for item in enum_items
+    )
+
+    if not found_enum_item:
+        if replacement_action == "create":
+            raise NotImplementedError(
+                "Creation of new enum items not yet implemented"
+            )
+        else:
+            raise ValueError(
+                f"Import contains not matching enum value '{value}'"
+            )
 
             if "." in column_name:
                 main, key = column_name.split(".", 1)
@@ -442,14 +462,30 @@ def _create_payload(
 
 
 async def _has_all_required(
-    required_fields: list[str], row: dict[str, Any], skip_errors: bool
+    required_fields: list[str],
+    row: dict[str, Any],
+    skip_errors: bool
 ) -> bool:
-    """Check if the row has all required fields."""
+    """Check if the row has all required fields.
+
+    Args:
+        required_fields: List of required field names
+        row: CSV row data
+        skip_errors: Whether to return False instead of raising error
+
+    Returns:
+        True if all required fields are present, False if skip_errors=True
+
+    Raises:
+        ValueError: If a required field is missing and skip_errors=False
+    """
     for req_field in required_fields:
         if req_field not in row or not row[req_field]:
             if skip_errors:
                 return False
-            raise ValueError(f"Missing required field '{req_field}' in row: {row}")
+            raise ValueError(
+                f"Missing required field '{req_field}' in row: {row}"
+            )
     return True
 
 
@@ -457,17 +493,23 @@ async def _get_existing_identifiers(
     model: EntityExportImport,
     project_name: str = None
 ) -> set[tuple]:
+    """Get existing entity identifiers from the database.
+
+    Args:
+        model: The entity model class
+        project_name: Project name for project-specific tables
+
+    Returns:
+        Set of tuples representing unique identifiers
+    """
     existing_items = await model.get_all_items(
         field_names=model.unique_fields(),
         project_name=project_name
     )
-    existing_identifiers = set()
-    for existing_row in existing_items:
-        existing_identifiers.add(
-            tuple(
-                existing_row[field] for field in model.unique_fields()
-            )
-        )
+    existing_identifiers = {
+        tuple(item[field] for field in model.unique_fields())
+        for item in existing_items
+    }
     return existing_identifiers
 
 
