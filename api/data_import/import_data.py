@@ -254,6 +254,15 @@ async def import_data(
                     row.get(field) for field in model_cls.unique_fields()
                 )
                 item_exists = identifier in existing_identifiers
+            entity_id = _resolve_entity_id(
+                row=row,
+                path_to_ids=path_to_ids,
+                existing_identifiers=existing_identifiers,
+                model_cls=model_cls,
+                entity_cls=entity_cls,
+                project_name=project_name,
+            )
+            item_exists = entity_id is not None
 
             if item_exists:
                 if existing_strategy ==ExistingItemStrategy.UPDATE:
@@ -488,6 +497,62 @@ def _to_bool(value: Any) -> bool:
     if isinstance(value, (int, float)):
         return value != 0
     return False
+def _resolve_entity_id(
+    row: dict[str, Any],
+    path_to_ids: dict[str, str],
+    existing_identifiers: set[tuple],
+    model_cls,
+    entity_cls,
+    project_name: str,
+) -> str | None:
+    """Resolve the entity ID for a CSV row.
+
+    Checks if the entity already exists by path or unique fields.
+
+    Args:
+        row: CSV row data
+        path_to_ids: Cache of path -> entity_id mappings
+        existing_identifiers: Set of existing unique identifiers
+        model_cls: The entity model class
+        entity_cls: The entity class
+        project_name: Project name
+
+    Returns:
+        Entity ID if found, None otherwise
+    """
+    # Check by path first
+    if "path" in row and row["path"]:
+        path = row["path"]
+
+        # Check in-memory cache
+        entity_id = path_to_ids.get(path)
+        if entity_id:
+            return entity_id
+
+        # Look up in database
+        is_task = entity_cls == TaskEntity
+        try:
+            entity_id = _get_entity_id_by_path(
+                project_name,
+                path,
+                is_task
+            )
+            if entity_id:
+                path_to_ids[path] = entity_id  # Cache it
+                return entity_id
+        except NotFoundException:
+            logger.debug(f"Couldn't find entity for path '{path}'")
+
+    # Check by unique fields
+    identifier = tuple(
+        row.get(field) for field in model_cls.unique_fields()
+    )
+    if identifier in existing_identifiers:
+        return identifier  # Return the identifier tuple
+
+    return None
+
+
 
 
 def _detect_delimiter(content: str) -> str:
