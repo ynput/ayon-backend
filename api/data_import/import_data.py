@@ -341,7 +341,8 @@ def _create_payload(
 
             importable_column = importable_column_by_key.get(column_name)
             if not importable_column:
-                raise ValueError(f"Unknown column '{column_name}'")
+                logger.debug(f"Unknown column '{column_name}'")
+                continue
 
             print(f"importable_column::{importable_column}")
             if importable_column.enum_items:
