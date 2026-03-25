@@ -414,6 +414,21 @@ def _create_payload(
                     replacement_mapping_action
                 )
 
+            # Store the value in payload
+            _add_value_to_payload(
+                payload=payload,
+                column_name=column_name,
+                value=value
+            )
+
+        except Exception as exp:
+            row_id = row.get("name", row.get(list(row.keys())[0], "unknown"))
+            error_msg = f"Row '{row_id}' failed: {exp}"
+            logger.debug(error_msg)
+            if error_handling_mode != "skip":
+                raise ValueError(error_msg)
+
+
 def _validate_enum_value(
     value: str,
     enum_items: list,
@@ -444,21 +459,35 @@ def _validate_enum_value(
                 f"Import contains not matching enum value '{value}'"
             )
 
-            if "." in column_name:
-                main, key = column_name.split(".", 1)
-                if main not in payload:
-                    payload[main] = {}
-                payload[main][key] = value
-                if key.startswith("is"):  # temporary hack for boolean fields
-                    payload[main][key] = _to_bool(value=payload[main][key])
-            else:
-                payload[column_name] = value
-        except Exception as exp:
-            row_id = row[list(row.keys())[0]]  # try to describe row
-            error_msg = f"Row '{row_id}' failed with '{exp}''"
-            print(error_msg)
-            if error_handling_mode != "skip":
-                raise ValueError(error_msg)
+
+def _add_value_to_payload(
+    payload: dict[str, Any],
+    column_name: str,
+    value: Any
+) -> None:
+    """Add a value to the payload dictionary.
+
+    Handles both simple fields and nested fields (attrib.field, data.field).
+
+    Args:
+        payload: The payload dictionary to modify
+        column_name: The target column name
+        value: The value to store
+    """
+    if "." in column_name:
+        # Handle nested fields (e.g., "attrib.priority", "data.someField")
+        main, key = column_name.split(".", 1)
+        if main not in payload:
+            payload[main] = {}
+
+        # Handle boolean fields (fields starting with "is")
+        if key.startswith("is"):
+            payload[main][key] = _to_bool(value)
+        else:
+            payload[main][key] = value
+    else:
+        # Simple field
+        payload[column_name] = value
 
 
 async def _has_all_required(
