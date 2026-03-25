@@ -199,7 +199,7 @@ async def import_data(
     operations: ProjectLevelOperations = ProjectLevelOperations(
         project_name,
         user=user,
-        sender=f"{SENDER_TYPE}-status-propagation",
+        sender=f"{SENDER_TYPE}-csv",
         sender_type=SENDER_TYPE,
     )
 
