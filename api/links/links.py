@@ -7,8 +7,6 @@ from ayon_server.api.dependencies import (
     LinkID,
     LinkType,
     ProjectName,
-    Sender,
-    SenderType,
 )
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities.models.submodels import LinkTypeModel
@@ -209,8 +207,6 @@ async def create_entity_link(
     user: CurrentUser,
     project_name: ProjectName,
     post_data: CreateLinkRequestModel,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new entity link."""
 
@@ -297,8 +293,6 @@ async def create_entity_link(
             description=event_description,
             project=project_name,
             user=user.name,
-            sender=sender,
-            sender_type=sender_type,
         )
 
     logger.debug(
@@ -320,8 +314,6 @@ async def delete_entity_link(
     user: CurrentUser,
     project_name: ProjectName,
     link_id: LinkID,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete a link.
 
@@ -362,8 +354,6 @@ async def delete_entity_link(
             ),
             project=project_name,
             user=user.name,
-            sender=sender,
-            sender_type=sender_type,
         )
 
     return EmptyResponse()

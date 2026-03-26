@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 
+from ayon_server.api.context import get_request_context
 from ayon_server.exceptions import ConstraintViolationException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
@@ -38,8 +39,6 @@ class EventStream:
         cls,
         topic: str,
         *,
-        sender: str | None = None,
-        sender_type: str | None = None,
         hash: str | None = None,
         project: str | None = None,
         user: str | None = None,
@@ -51,6 +50,8 @@ class EventStream:
         store: bool = True,
         reuse: bool = False,
         recipients: list[str] | None = None,
+        sender: str | None = None,
+        sender_type: str | None = None,
     ) -> str:
         """
 
@@ -66,6 +67,7 @@ class EventStream:
         recipients:
             list of user names to notify via websocket (None for all users)
         """
+
         if summary is None:
             summary = {}
         if payload is None:
@@ -80,11 +82,16 @@ class EventStream:
         status: str = "finished" if finished else "pending"
         progress: float = 100 if finished else 0.0
 
+        request_context = get_request_context()
+
+        if user is None and request_context.user:
+            user = request_context.user.name
+
         event = EventModel(
             id=event_id,
             hash=hash,
-            sender=sender,
-            sender_type=sender_type,
+            sender=sender or request_context.sender,
+            sender_type=sender_type or request_context.sender_type,
             topic=topic,
             project=project,
             user=user,
@@ -180,8 +187,8 @@ class EventStream:
                     "summary": event.summary,
                     "status": event.status,
                     "progress": progress,
-                    "sender": sender,
-                    "senderType": sender_type,
+                    "sender": event.sender,
+                    "senderType": event.sender_type,
                     "store": store,  # useful to allow querying details
                     "recipients": recipients,
                     "createdAt": event.created_at,
@@ -225,8 +232,6 @@ class EventStream:
         cls,
         event_id: str,
         *,
-        sender: str | None = None,
-        sender_type: str | None = None,
         project: str | None = None,
         user: str | None = None,
         status: EventStatus | None = None,
@@ -237,13 +242,28 @@ class EventStream:
         store: bool = True,
         retries: int | None = None,
         recipients: list[str] | None = None,
+        sender: str | None = None,
+        sender_type: str | None = None,
     ) -> bool:
         new_data: dict[str, Any] = {"updated_at": datetime.now()}
 
+        request_context = get_request_context()
+
         if sender is not None:
             new_data["sender"] = sender
+        elif request_context.sender is not None:
+            new_data["sender"] = request_context.sender
+
         if sender_type is not None:
             new_data["sender_type"] = sender_type
+        elif request_context.sender_type is not None:
+            new_data["sender_type"] = request_context.sender_type
+
+        if user is not None:
+            new_data["user_name"] = user
+        elif request_context.user is not None:
+            new_data["user_name"] = request_context.user.name
+
         if project is not None:
             new_data["project_name"] = project
         if status is not None:
@@ -256,8 +276,6 @@ class EventStream:
             new_data["payload"] = payload
         if retries is not None:
             new_data["retries"] = retries
-        if user is not None:
-            new_data["user_name"] = user
 
         if store:
             query = SQLTool.update(

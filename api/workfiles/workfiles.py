@@ -1,12 +1,6 @@
 from fastapi import APIRouter
 
-from ayon_server.api.dependencies import (
-    CurrentUser,
-    ProjectName,
-    Sender,
-    SenderType,
-    WorkfileID,
-)
+from ayon_server.api.dependencies import CurrentUser, ProjectName, WorkfileID
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import WorkfileEntity
 from ayon_server.operations.project_level import ProjectLevelOperations
@@ -44,8 +38,6 @@ async def create_workfile(
     post_data: WorkfileEntity.model.post_model,  # type: ignore
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new workfile.
 
@@ -57,12 +49,7 @@ async def create_workfile(
     if not post_data.updated_by:
         post_data.updated_by = post_data.created_by
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
 
     ops.create("workfile", **post_data.dict(exclude_unset=True))
     res = await ops.process(can_fail=False, raise_on_error=True)
@@ -81,17 +68,10 @@ async def update_workfile(
     user: CurrentUser,
     project_name: ProjectName,
     workfile_id: WorkfileID,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Patch (partially update) a workfile."""
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
 
     ops.update("workfile", workfile_id, **post_data.dict(exclude_unset=True))
     await ops.process(can_fail=False, raise_on_error=True)
@@ -108,17 +88,10 @@ async def delete_workfile(
     user: CurrentUser,
     project_name: ProjectName,
     workfile_id: WorkfileID,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete a workfile."""
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
     ops.delete("workfile", workfile_id)
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()

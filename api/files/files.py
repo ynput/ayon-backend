@@ -202,7 +202,7 @@ async def get_project_file(
     return RedirectResponse(url=url, status_code=302)
 
 
-@router.get("/{file_id}/info", response_model=FileInfo, dependencies=[AllowGuests])
+@router.get("/{file_id}/info", dependencies=[AllowGuests])
 async def get_project_file_info(
     project_name: ProjectName,
     file_id: FileID,
