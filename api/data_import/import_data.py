@@ -8,6 +8,7 @@ their data into the AYON system as users, folders, tasks, or hierarchies.
 import csv
 import io
 import traceback
+from datetime import datetime
 from typing import Any, Annotated, List
 
 from fastapi import Path, Request, Body
@@ -401,14 +402,19 @@ def _create_payload(
         error_handling_mode = mapping.error_handling_mode
 
         try:
+            # Get the value from the row
+            value = row.get(column_name) or "dummy"
+            # Convert value based on column type
+            if importable_column.value_type == "list_of_strings":
+                value = list(value)
+            elif importable_column.value_type == "datetime":
+                value = datetime.fromisoformat(value)
+
             # Build value mapping dictionary
             value_mapping = {
                 value_mapping.source or "dummy": value_mapping
                 for value_mapping in mapping.values_mapping
             }
-
-            # Get the value from the row
-            value = row.get(column_name) or "dummy"
             replacement_mapping = value_mapping.get(value)
             replacement_mapping_action = None
 
