@@ -17,7 +17,8 @@ from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
-    NotFoundException
+    NotFoundException,
+    ImportRowErrorException,
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.operations.project_level import ProjectLevelOperations
@@ -304,12 +305,17 @@ async def import_data(
             import_status.failed_items[row.get("name", "unknown")] = error_msg
             logger.warning(f"{error_msg} - {traceback.format_exc(limit=5)}")
             unprocessed -= 1
-            if skip_errors:
-                import_status.skipped += 1
-                continue
-            import_status.failed += 1
-            import_status.skipped += unprocessed
-            return import_status
+            # ImportRowErrorException always stops processing, regardless of skip_errors
+            should_stop = (
+                isinstance(exp, ImportRowErrorException) or
+                not skip_errors
+            )
+            if should_stop:
+                import_status.failed += 1
+                import_status.skipped += unprocessed
+                return import_status
+            import_status.skipped += 1
+            continue
 
     if not preview:
         response = await operations.process()
@@ -386,6 +392,12 @@ def _create_payload(
             # No mapping defined for this column - skip it
             continue
 
+        # Get the target column definition
+        importable_column = importable_column_by_key.get(column_name)
+        if not importable_column:
+            logger.debug(f"Unknown column '{column_name}'")
+            continue
+
         error_handling_mode = mapping.error_handling_mode
 
         try:
@@ -408,12 +420,6 @@ def _create_payload(
                 value = replacement_mapping.target
                 replacement_mapping_action = replacement_mapping.action
 
-            # Get the target column definition
-            importable_column = importable_column_by_key.get(column_name)
-            if not importable_column:
-                logger.debug(f"Unknown column '{column_name}'")
-                continue
-
             # Validate enum values if applicable
             if importable_column.enum_items:
                 _validate_enum_value(
@@ -433,8 +439,14 @@ def _create_payload(
             row_id = row.get("name", row.get(list(row.keys())[0], "unknown"))
             error_msg = f"Row '{row_id}' failed: {exp}"
             logger.debug(error_msg)
-            if error_handling_mode != "skip":
-                raise ValueError(error_msg)
+            if error_handling_mode == "abort":
+                raise ImportRowErrorException(error_msg)
+            elif error_handling_mode == "default":
+                _add_value_to_payload(
+                    payload=payload,
+                    column_name=column_name,
+                    value=importable_column.default_value
+                )
 
 
 def _validate_enum_value(
