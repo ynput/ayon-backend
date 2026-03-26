@@ -568,7 +568,7 @@ class FolderTaskExportImportModel(EntityExportImport):
         """
         if field_names is None:
             fields = await  cls.fields()
-            field_names = [field["name"] for field in fields]
+            field_names = [field.key for field in fields]
 
         # Get folders and tasks sequentially (as dictionaries, not CSV)
         folder_items: List[dict[str, Any]] = await FolderExportImportModel.get_all_items(
