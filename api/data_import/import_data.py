@@ -10,6 +10,7 @@ import io
 import traceback
 from datetime import datetime
 from typing import Any, Annotated, List
+import json
 
 from fastapi import Path, Request, Body
 
@@ -393,28 +394,23 @@ def _create_payload(
             # No mapping defined for this column - skip it
             continue
 
+        error_handling_mode = mapping.error_handling_mode
+
         # Get the target column definition
         importable_column = importable_column_by_key.get(column_name)
         if not importable_column:
             logger.debug(f"Unknown column '{column_name}'")
             continue
 
-        error_handling_mode = mapping.error_handling_mode
-
         try:
-            # Get the value from the row
-            value = row.get(column_name) or "dummy"
-            # Convert value based on column type
-            if importable_column.value_type == "list_of_strings":
-                value = list(value)
-            elif importable_column.value_type == "datetime":
-                value = datetime.fromisoformat(value)
-
             # Build value mapping dictionary
             value_mapping = {
                 value_mapping.source or "dummy": value_mapping
                 for value_mapping in mapping.values_mapping
             }
+
+            # Get the value from the row
+            value = row.get(column_name) or "dummy"
             replacement_mapping = value_mapping.get(value)
             replacement_mapping_action = None
 
@@ -425,6 +421,8 @@ def _create_payload(
 
                 value = replacement_mapping.target
                 replacement_mapping_action = replacement_mapping.action
+
+            value = _convert_value(importable_column, value)
 
             # Validate enum values if applicable
             if importable_column.enum_items:
@@ -453,6 +451,22 @@ def _create_payload(
                     column_name=column_name,
                     value=importable_column.default_value
                 )
+
+
+def _convert_value(importable_column: ImportableColumn, value: str) -> any:
+    # Convert value based on column type
+    if importable_column.value_type == "list_of_strings":
+        json_friendly = value.replace("'", '"')
+        value = json.loads(json_friendly)
+    elif importable_column.value_type == "datetime":
+        value = datetime.fromisoformat(value)
+    elif importable_column.value_type == "float":
+        value = float(value)
+    elif importable_column.value_type == "integer":
+        value = int(value)
+    elif importable_column.value_type == "boolean":
+        value = _to_bool(value)
+    return value
 
 
 def _validate_enum_value(
