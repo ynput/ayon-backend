@@ -399,7 +399,7 @@ class EntityExportImport:
         if field_names is None:
             fields = await  cls.fields()
             field_names = [
-                field["name"] for field in fields
+                field.key for field in fields
             ]
 
         # Resolve table name
