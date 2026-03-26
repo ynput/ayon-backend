@@ -172,9 +172,9 @@ class ColumnMapping(OPModel):
     ]
 
     error_handling_mode: Annotated[
-        ExistingStrategyType,
+        ErrorHandlingMode,
         Field(
-            description="If value in field is required"
+            description="Handle errors in this column. 'abort' to stop import"
         )
     ]
 
