@@ -153,7 +153,7 @@ async def post_project_activity(
         bump_entity_updated_at=True,
     )
 
-    if not user.is_service:
+    if not (user.is_service or user.is_guest):
         await ensure_watching(entity, user)
 
     background_tasks.add_task(delete_unused_files, project_name)
