@@ -458,6 +458,9 @@ def _create_payload(
 
 
 def _convert_value(importable_column: ImportableColumn, value: str) -> any:
+    if not value:
+        return value
+
     # Convert value based on column type
     if importable_column.value_type == "list_of_strings":
         json_friendly = value.replace("'", '"')
