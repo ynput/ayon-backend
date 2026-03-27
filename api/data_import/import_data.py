@@ -460,8 +460,10 @@ def _create_payload(
 def _convert_value(importable_column: ImportableColumn, value: str) -> any:
     # Convert value based on column type
     if importable_column.value_type == "list_of_strings":
+        print(f"value::{value} type {type(value)}")
         json_friendly = value.replace("'", '"')
         value = json.loads(json_friendly)
+        print(f"2 value::{value}  type {type(value)}")
     elif importable_column.value_type == "datetime":
         value = datetime.fromisoformat(value)
     elif importable_column.value_type == "float":
@@ -489,19 +491,21 @@ def _validate_enum_value(
         ValueError: If value is not in enum and not handled by 'create' action
         NotImplementedError: If 'create' action is not yet implemented
     """
-    found_enum_item = any(
-        item.value == value for item in enum_items
-    )
+    valid_values = {item.value for item in enum_items}
+    to_check = {value} if isinstance(value, str) else set(value)
 
-    if not found_enum_item:
+    # Identify exactly which values are missing
+    missing_values = to_check - valid_values
+
+    if missing_values:
+        logger.info(f"Missing enum values: {missing_values} | Action: {replacement_action}")
+
         if replacement_action == "create":
-            raise NotImplementedError(
-                "Creation of new enum items not yet implemented"
-            )
-        else:
-            raise ValueError(
-                f"Import contains not matching enum value '{value}'"
-            )
+            raise NotImplementedError("Creation of new enum items not yet implemented")
+
+        raise ValueError(
+            f"Import contains invalid enum values: {', '.join(map(str, missing_values))}"
+        )
 
 
 def _add_value_to_payload(
