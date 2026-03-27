@@ -392,12 +392,12 @@ def _create_payload(
     }
 
     # Process each CSV column
-    for column_name in header:
-        mapping = source_mapping_by_key.get(column_name)
+    for csv_column_name in header:
+        mapping = source_mapping_by_key.get(csv_column_name)
         if not mapping or mapping.action == "skip":
             # No mapping defined for this column - skip it
             continue
-
+        column_name = mapping.target_key
         error_handling_mode = mapping.error_handling_mode
 
         # Get the target column definition
