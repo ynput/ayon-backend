@@ -5,7 +5,7 @@ default:
 	uv run pre-commit install
 
 check:
-	sed -i "s/^version = \".*\"/version = \"$(VERSION)\"/" pyproject.toml
+	uv version $(VERSION)
 	uv run ruff check . --select=I --fix
 	uv run ruff format .
 	uv run ruff check . --fix
