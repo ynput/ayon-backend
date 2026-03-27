@@ -238,6 +238,19 @@ class EntityExportImport:
         return cls._parent_column_name
 
     @classmethod
+    async def create(cls, **kwargs: Any) -> str | None:
+        """Explicit create for entities without Operations
+
+        Return value to skip ordinary usage of operations.
+        """
+        return None
+
+    @classmethod
+    async def update(cls, **kwargs: Any) -> str | None:
+        """Explicit update for entities without Operations"""
+        return None
+
+    @classmethod
     def main(cls) -> List[ModelField]:
         """Return main fields from entity model"""
         if cls._entity_model is None:
