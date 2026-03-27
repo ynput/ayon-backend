@@ -170,11 +170,6 @@ async def import_data(
 
     import_status = ImportStatus()
 
-    try:
-        entity_cls = get_entity_class(entity_type)
-    except ValueError:
-        if entity_type != "hierarchy":
-            raise ValueError(f"Unknown entity type: {entity_type}")
     model_cls = IMPORTABLE_ENTITIES[entity_type]
 
     hierarchy_existing_identifiers: dict = {}
@@ -218,7 +213,9 @@ async def import_data(
         item_type = entity_type
 
         try:
-            if entity_type == "hierarchy":
+            if entity_type == "entity_list_item":
+                entity_cls = EntityListItemModel
+            elif entity_type == "hierarchy":
                 item_type = row.get("item_type")
                 if item_type not in HIERARCHY_MODEL_CLASSES:
                     error_msg = f"Invalid item_type '{item_type}'"
@@ -227,6 +224,8 @@ async def import_data(
                 entity_cls = HIERARCHY_ENTITY_CLASSES[item_type]
                 required_fields = hierarchy_required_fields[item_type]
                 existing_identifiers = hierarchy_existing_identifiers[item_type]
+            else:
+                entity_cls = get_entity_class(entity_type)
 
             has_required = await _has_all_required(required_fields, row, skip_errors)
             if not has_required:
