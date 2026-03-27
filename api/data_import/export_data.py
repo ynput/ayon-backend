@@ -16,7 +16,7 @@ from .router import router
 
 
 # Type alias for exportable entity types
-EntityType = Literal["user", "folder", "task", "hierarchy"]
+EntityType = Literal["user", "folder", "task", "hierarchy", "entity_list_item"]
 
 
 @router.get("/export/{entity_type}/fields")

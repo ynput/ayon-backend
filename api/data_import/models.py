@@ -716,6 +716,160 @@ class FolderTaskExportImportModel(EntityExportImport):
         return all_items
 
 
+class EntityListExportImportModel(EntityExportImport):
+    """Model used for exporting and importing task entities.
+
+    More explicit in fields and get_all_items as `EntityListItemModel` is not a
+    TopLevelModel (as FolderEntity for example)
+    """
+
+    _entity_model = EntityListItemModel
+    _table_name = "project_{project_name}.entity_list_items"
+    _unique_fields = []
+    _data_fields = []
+    _calculated_fields = []  # must be explicitly in fields
+    _parent_column_name = "entity_list_id"
+
+    @classmethod
+    async def fields(cls, project_name: str = None) -> List[ImportableColumn]:
+        """Return model fields (public) plus fields derived from `_attrib`.
+
+        Args:
+            project_name: Project name for resolving project-specific enums.
+        """
+        result: List[ImportableColumn] = []
+
+        result.append(ImportableColumn(
+            key="entity_list_id",
+            label="Entity List Id",
+            required=False,
+            value_type="string",
+            default_value="",
+            error_handling_modes=["abort"]
+        ))
+
+        result.append(ImportableColumn(
+            key="entity_id",
+            label="Entity Id",
+            required=False,
+            value_type="string",
+            default_value="",
+            error_handling_modes=["abort"]
+        ))
+
+        result.append(ImportableColumn(
+            key="folder_path",
+            label="Entity path",
+            required=True,
+            value_type="string",
+            default_value="",
+            error_handling_modes=["skip"]
+        ))
+
+        return result
+
+    @classmethod
+    async def get_all_items(
+        cls,
+        field_names: List[str],
+        as_csv: bool = False,
+        project_name: str = None,
+        entity_ids: Tuple[str, List[str]] = None
+    ) -> List[dict[str, Any]] | List[List[str]]:
+        """Get all entities from the database.
+
+        Args:
+            field_names: List of field names to include. Supports prefixes like
+                    'attrib.field' or 'data.field' to access nested values.
+            as_csv: If True, returns CSV-compatible rows with header
+            project_name: Project name for table resolution
+
+        Returns:
+            List of entity dictionaries or CSV rows (including header)
+        """
+        if field_names is None:
+            fields = await  cls.fields()
+            field_names = [
+                field.key for field in fields
+            ]
+
+        where = ""
+        query_values = []
+        if entity_ids:
+            id_list = entity_ids[1]
+            placeholders = ", ".join(f"${i+1}" for i in range(len(id_list)))
+            where = f"WHERE  li.entity_list_id IN ({placeholders})"
+
+        query = (
+            "SELECT li.entity_id, li.entity_list_id, "
+            "CASE "
+                "WHEN t.id IS NOT NULL THEN li.folder_path || '/' || t.name "
+                "ELSE li.folder_path "
+            "END AS folder_path "
+            f"FROM project_{project_name}.entity_list_items li "
+            f"LEFT JOIN project_{project_name}.tasks t "
+            "ON li.entity_id = t.id "
+            f"{where}"
+        )
+        rows = await Postgres.fetch(query, *query_values)
+
+        return await cls._return_items(as_csv, field_names, rows)
+
+    @classmethod
+    async def create(cls, **kwargs: Any) -> str | None:
+        project_name = kwargs["project_name"]
+        entity_list_id = kwargs["entity_list_id"]
+        user = kwargs["user"]
+        folder_path = kwargs["folder_path"]
+        preview = kwargs.get("preview")
+
+        async with Postgres.transaction():
+            entity_list = await EntityList.load(
+                project_name, entity_list_id, user=user
+            )
+            await entity_list.ensure_can_update()
+
+            # folder paths might be folders or tasks
+            try:
+                entity_id = await _get_entity_id_by_path(
+                    project_name,
+                    folder_path,
+                    is_task=False
+                )
+                entity_list._payload.entity_type = "folder"
+            except NotFoundException:
+                entity_id = await _get_entity_id_by_path(
+                    project_name,
+                    folder_path,
+                    is_task=True
+                )
+                entity_list._payload.entity_type = "task"
+
+            # check if already in list
+            for item in entity_list.items:
+                if item.entity_id == entity_id:
+                    return item.id
+
+            new_id = create_uuid()
+            await entity_list.add(
+                id=new_id,
+                entity_id=entity_id,
+            )
+            if not preview:
+                await entity_list.save(
+                    sender=f"{SENDER_TYPE}-create",
+                    sender_type=SENDER_TYPE
+                )
+
+        return new_id
+
+    @classmethod
+    async def update(cls, **kwargs: Any) -> str | None:
+        # no sense in updating list item for now
+        # currently only adding items to a list
+        return "dummy"
+
+
 def _get_field_value(row: dict[str, Any], field_name: str) -> Any:
     """Extract value from row based on field path.
 
@@ -806,4 +960,5 @@ EXPORTABLE_ENTITIES = {
     "folder": FolderExportImportModel,
     "task": TaskExportImportModel,
     "hierarchy": FolderTaskExportImportModel,
+    "entity_list_item": EntityListExportImportModel
 }

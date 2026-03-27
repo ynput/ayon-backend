@@ -16,6 +16,7 @@ from fastapi import Path, Request, Body
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
+from ayon_server.entity_lists.models import EntityListItemModel
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
@@ -43,6 +44,7 @@ from .models import (
     ImportUpload,
     ColumnMapping,
     ImportableColumn,
+    EntityListExportImportModel,
 )
 from .router import router
 
@@ -65,6 +67,7 @@ IMPORTABLE_ENTITIES: dict = {
     "folder": FolderExportImportModel,
     "task": TaskExportImportModel,
     "hierarchy": FolderTaskExportImportModel,
+    "entity_list_item": EntityListExportImportModel,
 }
 
 # Entity classes for each entity type
@@ -72,7 +75,8 @@ ENTITY_TYPE_TO_ENTITY_CLASS: dict = {
     "user": UserEntity,
     "folder": FolderEntity,
     "task": TaskEntity,
-    "hierarchy": None
+    "hierarchy": None,
+    "entity_list_item": EntityListItemModel
 }
 
 # Model classes for hierarchy import (folder and task)
