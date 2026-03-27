@@ -626,11 +626,12 @@ async def _resolve_entity_id(
             logger.debug(f"Couldn't find entity for path '{path}'")
 
     # Check by unique fields
-    identifier = tuple(
-        row.get(field) for field in model_cls.unique_fields()
-    )
-    if identifier in existing_identifiers:
-        return identifier  # Return the identifier tuple
+    if model_cls.unique_fields():
+        identifier = tuple(
+            row.get(field) for field in model_cls.unique_fields()
+        )
+        if identifier in existing_identifiers:
+            return identifier  # Return the identifier tuple
 
     return None
 
