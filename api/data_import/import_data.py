@@ -464,7 +464,9 @@ def _create_payload(
 
 def _convert_value(importable_column: ImportableColumn, value: str) -> any:
     if not value:
-        return value
+        # Return None for typed columns to avoid empty string issues
+        if importable_column.value_type not in ("string", None):
+            return None
 
     # Convert value based on column type
     if importable_column.value_type == "list_of_strings":
