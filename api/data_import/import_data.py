@@ -277,9 +277,10 @@ async def import_data(
 
             if exists:
                 entity_id = await model_cls.update(
+                # mark that model has custom update
                     user=user, preview=preview, **payload
                 )
-                if not entity_id:
+                if not custom_updated:
                     operations.update(
                         item_type,
                         entity_id,
