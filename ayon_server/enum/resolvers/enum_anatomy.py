@@ -122,3 +122,41 @@ class StatusesEnumResolver(BaseEnumResolver):
                     )
                 )
         return result
+
+
+class TagsEnumResolver(BaseEnumResolver):
+    name = "tags"
+
+    async def get_accepted_params(self) -> dict[str, type]:
+        return {"project_name": str}
+
+    async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
+        print(f"resolve::{context}")
+        project_name = context.get("project_name")
+        if not project_name:
+            anatomy = await get_primary_anatomy_preset()
+            return [
+                EnumItem(
+                    value=tag.name,
+                    label=tag.name,
+                    color=tag.color,
+                )
+                for tag in anatomy.tags
+            ]
+
+        project_name = await normalize_project_name(project_name)
+        result: list[EnumItem] = []
+        async with Postgres.transaction():
+            await Postgres.set_project_schema(project_name)
+            stmt = await Postgres.prepare(
+                "SELECT name, data FROM tags ORDER BY position"
+            )
+            async for row in stmt.cursor():
+                result.append(
+                    EnumItem(
+                        value=row["name"],
+                        label=row["name"],
+                        color=row["data"].get("color"),
+                    )
+                )
+        return result
