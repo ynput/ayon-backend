@@ -209,7 +209,6 @@ async def import_data(
         exists = False
         payload = {}
         identifier = None
-        item_exists = False
         item_type = entity_type
 
         try:
@@ -227,9 +226,7 @@ async def import_data(
             else:
                 entity_cls = get_entity_class(entity_type)
 
-            has_required = await _has_all_required(required_fields, row, skip_errors)
-            if not has_required:
-                raise ValueError("Not all required values present")
+            await _check_all_required(required_fields, row)
 
             path = None
             if "path" in row and row["path"]:
@@ -243,9 +240,8 @@ async def import_data(
                 entity_cls=entity_cls,
                 project_name=project_name,
             )
-            item_exists = entity_id is not None
 
-            if item_exists:
+            if entity_id:
                 if existing_strategy == ExistingItemStrategy.UPDATE:
                     exists = True
                 else:
@@ -529,32 +525,25 @@ def _add_value_to_payload(
         payload[column_name] = value
 
 
-async def _has_all_required(
+async def _check_all_required(
     required_fields: list[str],
     row: dict[str, Any],
-    skip_errors: bool
-) -> bool:
+) -> None:
     """Check if the row has all required fields.
 
     Args:
         required_fields: List of required field names
         row: CSV row data
-        skip_errors: Whether to return False instead of raising error
-
-    Returns:
-        True if all required fields are present, False if skip_errors=True
 
     Raises:
         ValueError: If a required field is missing and skip_errors=False
     """
     for req_field in required_fields:
         if req_field not in row or not row[req_field]:
-            if skip_errors:
-                return False
+            logger.debug(f"Missing {req_field}")
             raise ValueError(
                 f"Missing required field '{req_field}' in row: {row}"
             )
-    return True
 
 
 async def _get_existing_identifiers(
