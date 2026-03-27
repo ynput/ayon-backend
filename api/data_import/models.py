@@ -441,6 +441,10 @@ class EntityExportImport:
             f"{where} ORDER BY name")
         rows = await Postgres.fetch(query, *query_values)
 
+        return await cls._return_items(as_csv, field_names, rows)
+
+    @classmethod
+    async def _return_items(cls, as_csv, field_names, rows):
         if as_csv:
             # Create CSV rows with header
             csv_rows = [field_names]  # Header row
