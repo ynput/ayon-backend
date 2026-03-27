@@ -228,7 +228,7 @@ class BaseServerAddon:
             }
         )
 
-    def get_openapi(self) -> dict[str, Any] | None:
+    def get_openapi(self) -> dict[str, Any]:
 
         if ayonconfig.disable_rest_docs:
             raise ForbiddenException("OpenAPI documentation is disabled")
@@ -239,12 +239,12 @@ class BaseServerAddon:
 
             if user is None:
                 raise ForbiddenException(
-                    "You must be logged in to access API documentation"
+                    "You must be logged in to access addon OpenAPI schema"
                 )
 
             if not user.is_manager:
                 raise ForbiddenException(
-                    "You are not allowed to access API documentation"
+                    "You are not allowed to access addon OpenAPI schema"
                 )
 
         prefix = f"/api/addons/{self.name}/{self.version}"
