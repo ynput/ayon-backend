@@ -11,6 +11,8 @@ except ModuleNotFoundError:
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
+from fastapi import FastAPI
+
 from ayon_server.actions.config import get_action_config, set_action_config
 from ayon_server.actions.context import ActionContext
 from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
@@ -219,6 +221,37 @@ class BaseServerAddon:
                 "description": description or handler.__doc__ or "",
             }
         )
+
+    def get_openapi(self) -> dict[str, Any] | None:
+        prefix = f"/api/addons/{self.name}/{self.version}"
+        temp_app = FastAPI(
+            title=self.definition.friendly_name,
+            version=self.version,
+        )
+        for endpoint in self.endpoints:
+            path = endpoint["path"].lstrip("/")
+            path = f"{prefix}/{path}"
+            temp_app.add_api_route(
+                path,
+                endpoint["handler"],
+                methods=[endpoint["method"]],
+                name=endpoint["name"],
+                description=endpoint["description"],
+                operation_id=endpoint["name"],
+            )
+
+        def generate_unique_id(route):
+            return route.name
+
+        for router in self.routers:
+            temp_app.include_router(
+                router,
+                prefix=prefix,
+                generate_unique_id_function=generate_unique_id,
+            )
+
+        router_openapi = temp_app.openapi()
+        return router_openapi
 
     async def get_frontend_scopes(self) -> FrontendScopes:
         return self.frontend_scopes
