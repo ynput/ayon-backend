@@ -409,8 +409,8 @@ def _create_payload(
         try:
             # Build value mapping dictionary
             value_mapping = {
-                value_mapping.source or "dummy": value_mapping
-                for value_mapping in mapping.values_mapping
+                (vm.source or ""): vm
+                for vm in mapping.values_mapping
             }
 
             # Get the value from the row
