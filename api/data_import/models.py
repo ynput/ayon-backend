@@ -376,7 +376,7 @@ class EntityExportImport:
                     name, project_name=project_name
                 )
             except BadRequestException:
-                logger.debug(f"Cannot find enum for '{name}'")
+                pass
 
             if enum_items:
                 field_dict["enum_items"] = enum_items
