@@ -96,6 +96,7 @@ async def upload_file(
     user: CurrentUser,
     request: Request,
     csv: Annotated[str, Body()],
+    ttl: int | None = None,
 ) -> ImportUpload:
     """Upload a CSV file to Redis for subsequent import operations.
 
@@ -106,6 +107,8 @@ async def upload_file(
         user: Current authenticated user (must be a manager)
         request: HTTP request containing the CSV file
         csv: bytes of csv file from body
+        ttl: Optional time-to-live in seconds for the uploaded file.
+             If not provided, defaults to 30 minutes.
 
     Returns:
         ImportUpload: Object containing the file ID for use in import
@@ -122,7 +125,7 @@ async def upload_file(
     if mime not in SUPPORTED_MIME_TYPES:
         raise BadRequestException("Invalid content type")
     file_id = create_uuid()
-    ttl_seconds = 30 * 60  # 30 minutes
+    ttl_seconds = ttl if ttl is not None else 30 * 60  # 30 minutes default
     await Redis.set(REDIS_NS, file_id, csv, ttl=ttl_seconds)
 
     return ImportUpload(id=file_id)
