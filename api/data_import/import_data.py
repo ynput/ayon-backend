@@ -128,9 +128,9 @@ async def upload_file(
     return ImportUpload(id=file_id)
 
 
-@router.post("/import/{entity_type}")
+@router.post("/import/{import_type}")
 async def import_data(
-    entity_type: Annotated[
+    import_type: Annotated[
         EntityType, Path(title="Import entity type")],
     user: CurrentUser,
     file_id: str,  # pointer to file stored in Redis
@@ -147,7 +147,7 @@ async def import_data(
     Supports importing users, folders, tasks, or hierarchies (combined).
 
     Args:
-        entity_type: Type of entity to import (user, folder, task, hierarchy)
+        import_type: Type of entity to import (user, folder, task, hierarchy)
         user: Current authenticated user (must be a manager)
         file_id: ID of the uploaded CSV file in Redis
         column_mapping: List of column mappings (source -> target)
@@ -171,14 +171,14 @@ async def import_data(
 
     import_status = ImportStatus()
 
-    model_cls = IMPORTABLE_ENTITIES[entity_type]
+    model_cls = IMPORTABLE_ENTITIES[import_type]
 
     hierarchy_existing_identifiers: dict = {}
     hierarchy_required_fields: dict = {}
     required_fields = []
 
     # For non-hierarchy types, get fields and existing identifiers upfront
-    if entity_type != "hierarchy":
+    if import_type != "hierarchy":
         fields = await model_cls.fields(project_name=project_name)
         required_fields = [f.key for f in fields if f.required]
         existing_identifiers = await _get_existing_identifiers(
@@ -186,12 +186,12 @@ async def import_data(
         )
     else:
         # For hierarchy, pre-fetch existing identifiers for both folder and task
-        for item_type, model_cls in HIERARCHY_MODEL_CLASSES.items():
+        for entity_type, model_cls in HIERARCHY_MODEL_CLASSES.items():
             fields = await model_cls.fields(project_name=project_name)
-            hierarchy_required_fields[item_type] = [
+            hierarchy_required_fields[entity_type] = [
                 f.key for f in fields if f.required
             ]
-            hierarchy_existing_identifiers[item_type] = await _get_existing_identifiers(
+            hierarchy_existing_identifiers[entity_type] = await _get_existing_identifiers(
                 model_cls, project_name
             )
 
@@ -210,22 +210,21 @@ async def import_data(
         exists = False
         payload = {}
         identifier = None
-        item_type = entity_type
 
         try:
-            if entity_type == "entity_list_item":
+            if import_type == "entity_list_item":
                 entity_cls = EntityListItemModel
-            elif entity_type == "hierarchy":
-                item_type = row.get("item_type")
-                if item_type not in HIERARCHY_MODEL_CLASSES:
-                    error_msg = f"Invalid item_type '{item_type}'"
+            elif import_type == "hierarchy":
+                entity_type = row.get("entity_type")
+                if entity_type not in HIERARCHY_MODEL_CLASSES:
+                    error_msg = f"Invalid entity_type '{entity_type}'"
                     raise ValueError(error_msg)
-                model_cls = HIERARCHY_MODEL_CLASSES[item_type]
-                entity_cls = HIERARCHY_ENTITY_CLASSES[item_type]
-                required_fields = hierarchy_required_fields[item_type]
-                existing_identifiers = hierarchy_existing_identifiers[item_type]
+                model_cls = HIERARCHY_MODEL_CLASSES[entity_type]
+                entity_cls = HIERARCHY_ENTITY_CLASSES[entity_type]
+                required_fields = hierarchy_required_fields[entity_type]
+                existing_identifiers = hierarchy_existing_identifiers[entity_type]
             else:
-                entity_cls = get_entity_class(entity_type)
+                entity_cls = get_entity_class(import_type)
 
             await _check_all_required(required_fields, row)
 
@@ -273,16 +272,16 @@ async def import_data(
             if entity_cls != UserEntity:
                 payload["project_name"] = project_name
 
-            logger.debug(f"entity_id:: '{entity_id}:{item_type} -> {payload} ")
+            logger.debug(f"entity_id:: '{entity_id}:{entity_type} -> {payload} ")
 
             if exists:
-                entity_id = await model_cls.update(
                 # mark that model has custom update
+                custom_updated = await model_cls.update(
                     user=user, preview=preview, **payload
                 )
                 if not custom_updated:
                     operations.update(
-                        item_type,
+                        entity_type,
                         entity_id,
                         **payload
                     )
@@ -294,7 +293,7 @@ async def import_data(
                 if not entity_id:
                     entity_id = create_uuid()
                     operations.create(
-                        item_type,
+                        entity_type,
                         entity_id=entity_id,
                         **payload
                     )

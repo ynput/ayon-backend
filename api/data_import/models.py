@@ -544,16 +544,7 @@ class FolderTaskExportImportModel(EntityExportImport):
             return []
 
         # Add entity_type field at first position
-        result: List[ImportableColumn] = [
-            ImportableColumn(
-                key="item_type",
-                label="Item Type",
-                value_type="string",
-                required=True,
-                default_value="task",
-                error_handling_modes=["skip", "abort"],
-            )
-        ]
+        result: List[ImportableColumn] = []
 
         # Get fields from both models
         folder_fields = await FolderExportImportModel.fields(
@@ -562,7 +553,7 @@ class FolderTaskExportImportModel(EntityExportImport):
             project_name=project_name)
 
         # Combine and deduplicate by field name
-        seen_names: Set[str] = {"item_type"}
+        seen_names: Set[str] = {"entity_type"}
         for field in folder_fields + task_fields:
             if field.key in cls._process_required_fields:
                     # Ensure required fields are included even if not in field_names
@@ -612,9 +603,9 @@ class FolderTaskExportImportModel(EntityExportImport):
 
         # Add entity_type to each item
         for folder in folder_items:
-            folder["item_type"] = "folder"
+            folder["entity_type"] = "folder"
         for task in task_items:
-            task["item_type"] = "task"
+            task["entity_type"] = "task"
 
         # Build lookup structures
         if "path" in field_names:
