@@ -276,19 +276,27 @@ async def import_data(
             logger.debug(f"entity_id:: '{entity_id}:{item_type} -> {payload} ")
 
             if exists:
-                operations.update(
-                    item_type,
-                    entity_id,
-                    **payload
+                entity_id = await model_cls.update(
+                    user=user, preview=preview, **payload
                 )
+                if not entity_id:
+                    operations.update(
+                        item_type,
+                        entity_id,
+                        **payload
+                    )
                 import_status.updated += 1
             else:
-                entity_id = create_uuid()
-                operations.create(
-                    item_type,
-                    entity_id=entity_id,
-                    **payload
+                entity_id = await model_cls.create(
+                    user=user, preview=preview, **payload
                 )
+                if not entity_id:
+                    entity_id = create_uuid()
+                    operations.create(
+                        item_type,
+                        entity_id=entity_id,
+                        **payload
+                    )
                 import_status.created += 1
 
             if original_id:
