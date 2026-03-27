@@ -460,10 +460,8 @@ def _create_payload(
 def _convert_value(importable_column: ImportableColumn, value: str) -> any:
     # Convert value based on column type
     if importable_column.value_type == "list_of_strings":
-        print(f"value::{value} type {type(value)}")
         json_friendly = value.replace("'", '"')
         value = json.loads(json_friendly)
-        print(f"2 value::{value}  type {type(value)}")
     elif importable_column.value_type == "datetime":
         value = datetime.fromisoformat(value)
     elif importable_column.value_type == "float":
