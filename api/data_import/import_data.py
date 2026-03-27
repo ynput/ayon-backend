@@ -455,6 +455,8 @@ def _create_payload(
                     column_name=column_name,
                     value=importable_column.default_value
                 )
+            else:
+                raise ValueError(error_msg)
 
 
 def _convert_value(importable_column: ImportableColumn, value: str) -> any:
