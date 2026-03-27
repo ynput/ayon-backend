@@ -131,7 +131,6 @@ class TagsEnumResolver(BaseEnumResolver):
         return {"project_name": str}
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
-        print(f"resolve::{context}")
         project_name = context.get("project_name")
         if not project_name:
             anatomy = await get_primary_anatomy_preset()
