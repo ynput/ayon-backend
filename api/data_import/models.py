@@ -371,9 +371,17 @@ class EntityExportImport:
                 "error_handling_modes": error_handling_modes,
             }
             enum_items = None
+
+            field_to_enum_names = {
+                "status": "statuses",
+                "folder_type": "folderTypes",
+                "task_type":  "taskTypes",
+                "link_type": "linkTypes"
+            }
+            enum_name = field_to_enum_names.get(name) or name
             try:
                 enum_items = await EnumRegistry.resolve(
-                    name, project_name=project_name
+                    enum_name, project_name=project_name
                 )
             except BadRequestException:
                 pass
