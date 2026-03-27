@@ -18,14 +18,17 @@ from typing import (
 from pydantic import BaseModel
 from pydantic.fields import ModelField, FieldInfo
 
+from api.data_import.common import _get_entity_id_by_path, SENDER_TYPE
+from ayon_server.entity_lists import EntityList
+from ayon_server.entity_lists.models import EntityListItemModel
 from ayon_server.enum import EnumItem, EnumRegistry
-from ayon_server.exceptions import BadRequestException
+from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.types import Field, OPModel, AttributeType
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.entities.models.generator import FIELD_TYPES
-
+from ayon_server.utils import create_uuid
 
 # Create reverse mapping: Python type -> AttributeType string
 # This inverts FIELD_TYPES which maps AttributeType -> Python type
