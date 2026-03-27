@@ -414,7 +414,7 @@ def _create_payload(
             }
 
             # Get the value from the row
-            value = row.get(column_name) or "dummy"
+            value = row.get(csv_column_name) or "dummy"
             replacement_mapping = value_mapping.get(value)
             replacement_mapping_action = None
 
