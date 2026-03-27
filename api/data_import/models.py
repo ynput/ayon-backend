@@ -776,7 +776,7 @@ class EntityListExportImportModel(EntityExportImport):
         result.append(ImportableColumn(
             key="folder_path",
             label="Entity path",
-            required=True,
+            required=False,
             value_type="string",
             default_value="",
             error_handling_modes=["skip"]
@@ -836,8 +836,14 @@ class EntityListExportImportModel(EntityExportImport):
         project_name = kwargs["project_name"]
         entity_list_id = kwargs["entity_list_id"]
         user = kwargs["user"]
-        folder_path = kwargs["folder_path"]
+        folder_path = kwargs.get("folder_path")
+        entity_id = kwargs.get("entity_id")
         preview = kwargs.get("preview")
+
+        if not folder_path and not entity_id:
+            raise ValueError(
+                "At least one of 'entity_id', or 'folder_path' must be provided."
+            )
 
         async with Postgres.transaction():
             entity_list = await EntityList.load(
@@ -846,20 +852,21 @@ class EntityListExportImportModel(EntityExportImport):
             await entity_list.ensure_can_update()
 
             # folder paths might be folders or tasks
-            try:
-                entity_id = await _get_entity_id_by_path(
-                    project_name,
-                    folder_path,
-                    is_task=False
-                )
-                entity_list._payload.entity_type = "folder"
-            except NotFoundException:
-                entity_id = await _get_entity_id_by_path(
-                    project_name,
-                    folder_path,
-                    is_task=True
-                )
-                entity_list._payload.entity_type = "task"
+            if not entity_id:
+                try:
+                    entity_id = await _get_entity_id_by_path(
+                        project_name,
+                        folder_path,
+                        is_task=False
+                    )
+                    entity_list._payload.entity_type = "folder"
+                except NotFoundException:
+                    entity_id = await _get_entity_id_by_path(
+                        project_name,
+                        folder_path,
+                        is_task=True
+                    )
+                    entity_list._payload.entity_type = "task"
 
             # check if already in list
             for item in entity_list.items:
