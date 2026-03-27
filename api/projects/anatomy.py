@@ -1,4 +1,4 @@
-from ayon_server.api.dependencies import CurrentUser, ProjectName, Sender, SenderType
+from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
@@ -24,8 +24,6 @@ async def set_project_anatomy(
     payload: Anatomy,
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Set a project anatomy."""
 
@@ -40,11 +38,6 @@ async def set_project_anatomy(
     await project.save()
 
     for event in events:
-        await EventStream.dispatch(
-            **event,
-            sender=sender,
-            sender_type=sender_type,
-            user=user.name,
-        )
+        await EventStream.dispatch(**event)
 
     return EmptyResponse()

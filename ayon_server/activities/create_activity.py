@@ -78,6 +78,7 @@ async def create_activity(
         user is not None
         and activity_type in ["comment", "reviewable"]
         and not user.is_manager
+        and not user.is_guest  # guest permissions are checked in the endpoint
     ):
         # Check if the user can create enity activities for the given entity
 
@@ -155,9 +156,6 @@ async def create_activity(
             )
         )
         data["author"] = user_name
-
-    if "@external" in body:
-        data["category"] = "external"
 
     references.update(extract_mentions(body))
     if activity_type not in ["watch"]:

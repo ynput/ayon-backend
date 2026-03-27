@@ -19,8 +19,6 @@ from ayon_server.api.dependencies import (
     PathEntityID,
     PathProjectLevelEntityType,
     ProjectName,
-    Sender,
-    SenderType,
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
@@ -71,8 +69,6 @@ async def post_project_activity(
     user: CurrentUser,
     activity: ProjectActivityPostModel,
     background_tasks: BackgroundTasks,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> CreateActivityResponseModel:
     """Create an activity.
 
@@ -147,13 +143,11 @@ async def post_project_activity(
         files=activity.files,
         user=user,
         timestamp=activity.timestamp,
-        sender=sender,
-        sender_type=sender_type,
         data=activity.data,
         bump_entity_updated_at=True,
     )
 
-    if not user.is_service:
+    if not (user.is_service or user.is_guest):
         await ensure_watching(entity, user)
 
     background_tasks.add_task(delete_unused_files, project_name)
@@ -167,8 +161,6 @@ async def delete_project_activity(
     activity_id: ActivityID,
     user: CurrentUser,
     background_tasks: BackgroundTasks,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete an activity.
 
@@ -180,8 +172,6 @@ async def delete_project_activity(
         activity_id,
         user_name=user.name,
         is_admin=user.is_admin,
-        sender=sender,
-        sender_type=sender_type,
     )
 
     background_tasks.add_task(delete_unused_files, project_name)
@@ -220,8 +210,6 @@ async def patch_project_activity(
     user: CurrentUser,
     activity: ActivityPatchModel,
     background_tasks: BackgroundTasks,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Edit an activity.
 
@@ -243,8 +231,6 @@ async def patch_project_activity(
         append_files=activity.append_files,
         data=activity.data,
         user_name=user_name,
-        sender=sender,
-        sender_type=sender_type,
         is_admin=user.is_admin,
     )
 

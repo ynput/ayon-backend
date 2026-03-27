@@ -1,5 +1,6 @@
 import importlib.util
 import inspect
+import os
 import sys
 from types import ModuleType
 from typing import TypeVar
@@ -8,15 +9,41 @@ T = TypeVar("T", bound=type)
 
 
 def import_module(name: str, path: str) -> ModuleType:
-    if (spec := importlib.util.spec_from_file_location(name, path)) is None:
-        raise ModuleNotFoundError(f"Module {name} not found")
-    if (module := importlib.util.module_from_spec(spec)) is None:
-        raise ImportError(f"Module {name} cannot be imported")
-    if spec.loader is None:
-        raise ImportError(f"Module {name} cannot be imported. No loader found.")
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
+    """
+    Imports a plugin module into a unique namespace to prevent collisions.
+    Example: 'my_plugin.v1_0_0.server'
+    """
+
+    server_dir = os.path.dirname(os.path.abspath(path))
+    if os.path.basename(server_dir) == "server":
+        base_dir = os.path.dirname(server_dir)
+    else:
+        base_dir = server_dir
+
+    # Add the dir containing the module (or its parent, for 'server' packages)
+    # to sys.path temporarily.
+    # This allows: 'from server.subfolder import module' in addons when appropriate.
+    sys.path.insert(0, base_dir)
+
+    try:
+        spec = importlib.util.spec_from_file_location(name, path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Could not load spec for {name}")
+
+        module = importlib.util.module_from_spec(spec)
+
+        # tell the module it belongs to our unique namespace
+        # Even if the file is physically in 'server/main.py'
+        sys.modules[name] = module
+
+        spec.loader.exec_module(module)
+        return module
+
+    finally:
+        # Clean up sys.path immediately so the next addon doesn't
+        # accidentally see this plugin's 'server' folder.
+        if base_dir in sys.path:
+            sys.path.remove(base_dir)
 
 
 def classes_from_module(superclass: T, module: ModuleType) -> list[T]:

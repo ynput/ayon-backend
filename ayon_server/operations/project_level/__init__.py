@@ -321,7 +321,7 @@ class ProjectLevelOperations:
         as_user: str | UserEntity | None = None,
         operation_id: str | None = None,
         force: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         if isinstance(as_user, UserEntity):
             self.user_entities_map[as_user.name] = as_user
@@ -349,7 +349,7 @@ class ProjectLevelOperations:
         entity_id: str | None = None,
         *,
         as_user: str | UserEntity | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """Create a project level entity."""
         self.add(

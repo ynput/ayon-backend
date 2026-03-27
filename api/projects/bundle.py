@@ -5,7 +5,7 @@ from fastapi import Query
 from pydantic import Field
 
 from ayon_server.addons.library import AddonLibrary
-from ayon_server.api.dependencies import CurrentUser, ProjectName, Sender, SenderType
+from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.bundles.project_bundles import (
     freeze_project_bundle,
@@ -35,14 +35,11 @@ async def set_project_bundles(
     user: CurrentUser,
     project_name: ProjectName,
     payload: ProjectBundleModel,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Set project bundle
 
     Deprecated: Use the freeze_project_bundle function instead.
     """
-    _ = sender, sender_type
 
     if not user.is_manager:
         raise ForbiddenException("Only managers can set project bundle")
@@ -129,16 +126,12 @@ class ProjectBundle(OPModel):
 async def set_project_bundle(
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
     payload: ProjectBundle,
     variant: BundleVariant = "production",
 ) -> None:
     """Set project bundle"""
     if not user.is_manager:
         raise ForbiddenException("Only managers can set project bundle")
-
-    _ = sender, sender_type
 
     for addon_name, addon_version in payload.addons.items():
         if addon_version == "__disable__":
@@ -157,15 +150,11 @@ async def set_project_bundle(
 async def unset_project_bundle(
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
     variant: BundleVariant = "production",
 ) -> None:
     """Unset project bundle"""
     if not user.is_manager:
         raise ForbiddenException("Only managers can unset project bundle")
-
-    _ = sender, sender_type
 
     return await unfreeze_project_bundle(
         project_name,

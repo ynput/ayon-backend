@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from ayon_server.activities.watchers.set_watchers import set_watchers
 from ayon_server.activities.watchers.watcher_list import get_watcher_list
 from ayon_server.api.dependencies import (
@@ -6,8 +8,6 @@ from ayon_server.api.dependencies import (
     PathEntityID,
     PathProjectLevelEntityType,
     ProjectName,
-    Sender,
-    SenderType,
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import ForbiddenException
@@ -18,7 +18,7 @@ from .router import router
 
 
 class WatchersModel(OPModel):
-    watchers: list[str] = Field(..., example=["user1", "user2"])
+    watchers: Annotated[list[str], Field(example=["user1", "user2"])]
 
 
 @router.get("/{entity_type}/{entity_id}/watchers", dependencies=[AllowGuests])
@@ -53,8 +53,6 @@ async def set_entity_watchers(
     entity_id: PathEntityID,
     user: CurrentUser,
     watchers: WatchersModel,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     if user.is_guest:
         # Guests cannot modify watchers
@@ -64,12 +62,6 @@ async def set_entity_watchers(
     entity = await entity_class.load(project_name, entity_id)
     await entity.ensure_update_access(user)
 
-    await set_watchers(
-        entity,
-        watchers.watchers,
-        user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    await set_watchers(entity, watchers.watchers, user)
 
     return EmptyResponse()

@@ -83,6 +83,18 @@ def init_addon_endpoints(target_app: "FastAPI") -> None:
                     ),
                 )
 
+            if addon.endpoints or addon.routers:
+                target_app.add_api_route(
+                    f"/api/addons/{addon_name}/{version}/openapi.json",
+                    addon.get_openapi,
+                    include_in_schema=False,
+                    methods=["GET"],
+                    name=f"{addon_name}_{version}_openapi",
+                    operation_id=slugify(
+                        f"{addon_name}_{version}_openapi", separator="_"
+                    ),
+                )
+
 
 def init_addon_static(target_app: "FastAPI") -> None:
     """Serve static files for addon frontends."""

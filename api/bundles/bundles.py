@@ -3,7 +3,7 @@ from typing import Any, Literal
 from fastapi import Query
 
 from ayon_server.addons import AddonLibrary
-from ayon_server.api.dependencies import AllowGuests, CurrentUser, Sender, SenderType
+from ayon_server.api.dependencies import AllowGuests, CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
@@ -100,8 +100,6 @@ async def _create_new_bundle(
     bundle: BundleModel,
     *,
     user: UserEntity | None = None,
-    sender: str | None = None,
-    sender_type: str | None = None,
 ):
     assert await Postgres.is_in_transaction(), (
         "_create_new_bundle must be called in a transaction"
@@ -161,8 +159,6 @@ async def _create_new_bundle(
 
     await EventStream.dispatch(
         "bundle.created",
-        sender=sender,
-        sender_type=sender_type,
         user=user.name if user else None,
         description=f"New{stat} bundle '{bundle.name}' created",
         summary={
@@ -187,8 +183,6 @@ async def check_bundle_compatibility(
 async def create_new_bundle(
     bundle: BundleModel,
     user: CurrentUser,
-    sender: Sender,
-    sender_type: SenderType,
     force: bool = Query(False, description="Force creation of bundle"),
 ) -> EmptyResponse:
     if not user.is_admin:
@@ -225,12 +219,7 @@ async def create_new_bundle(
                 bundle.addons.pop(addon_name)
 
     async with Postgres.transaction():
-        await _create_new_bundle(
-            bundle,
-            user=user,
-            sender=sender,
-            sender_type=sender_type,
-        )
+        await _create_new_bundle(bundle, user=user)
     if bundle.is_production or bundle.is_staging:
         await AddonLibrary.clear_addon_list_cache()
 
@@ -247,8 +236,6 @@ async def update_bundle(
     bundle_name: str,
     patch: BundlePatchModel,
     user: CurrentUser,
-    sender: Sender,
-    sender_type: SenderType,
     build: list[Platform] | None = Query(
         None,
         title="Request build",
@@ -434,9 +421,6 @@ async def update_bundle(
 
     await EventStream.dispatch(
         "bundle.updated",
-        sender=sender,
-        sender_type=sender_type,
-        user=user.name,
         description=patch.get_changes_description(bundle_name),
         summary={
             "name": bundle_name,
