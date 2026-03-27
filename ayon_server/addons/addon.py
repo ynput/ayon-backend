@@ -1,8 +1,6 @@
 import inspect
 import os
 
-from ayon_server.entities.user import UserEntity
-
 try:
     import toml
 except ModuleNotFoundError:
@@ -28,7 +26,15 @@ from ayon_server.addons.models import (
     SSOOption,
 )
 from ayon_server.addons.settings_caching import AddonSettingsCache
-from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
+from ayon_server.api.context import get_request_context
+from ayon_server.config import ayonconfig
+from ayon_server.entities.user import UserEntity
+from ayon_server.exceptions import (
+    AyonException,
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback, logger
 from ayon_server.settings import BaseSettingsModel, apply_overrides
@@ -223,6 +229,24 @@ class BaseServerAddon:
         )
 
     def get_openapi(self) -> dict[str, Any] | None:
+
+        if ayonconfig.disable_rest_docs:
+            raise ForbiddenException("OpenAPI documentation is disabled")
+
+        if ayonconfig.openapi_require_authentication:
+            ctx = get_request_context()
+            user = ctx.user
+
+            if user is None:
+                raise ForbiddenException(
+                    "You must be logged in to access API documentation"
+                )
+
+            if not user.is_manager:
+                raise ForbiddenException(
+                    "You are not allowed to access API documentation"
+                )
+
         prefix = f"/api/addons/{self.name}/{self.version}"
         temp_app = FastAPI(
             title=self.definition.friendly_name,
