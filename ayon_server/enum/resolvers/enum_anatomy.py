@@ -45,6 +45,29 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                 )
         return result
 
+    async def create_item(
+        self, item: EnumItem, project_name: str = None,**kwargs
+    ) -> str:
+        if not project_name:
+            raise ValueError("Missing project name in item data")
+
+        project_name = await normalize_project_name(project_name)
+        async with Postgres.transaction():
+            await Postgres.set_project_schema(project_name)
+            await Postgres.execute(
+                """
+                INSERT INTO folder_types (name, data, position)
+                VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM folder_types))
+                """,
+                item.value,
+                {
+                    "icon": item.icon or "folder",
+                    "color": item.color or "#808080",
+                    "name": item.value
+                },
+            )
+        return item.value
+
 
 class TaskTypesEnumResolver(BaseEnumResolver):
     name = "taskTypes"
@@ -83,6 +106,29 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                     )
                 )
         return result
+
+    async def create_item(
+        self, item: EnumItem, project_name: str = None, **kwargs
+    ) -> str:
+        if not project_name:
+            raise ValueError("Missing project name in item data")
+
+        project_name = await normalize_project_name(project_name)
+        async with Postgres.transaction():
+            await Postgres.set_project_schema(project_name)
+            await Postgres.execute(
+                """
+                INSERT INTO task_types (name, data, position)
+                VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM task_types))
+                """,
+                item.value,
+                {
+                    "icon": item.icon or "task",
+                    "color": item.color or "#808080",
+                    "name": item.value
+                },
+            )
+        return item.value
 
 
 class StatusesEnumResolver(BaseEnumResolver):
@@ -123,6 +169,29 @@ class StatusesEnumResolver(BaseEnumResolver):
                 )
         return result
 
+    async def create_item(
+        self, item: EnumItem, project_name: str = None,  **kwargs
+    ) -> str:
+        if not project_name:
+            raise ValueError("Missing project name in item data")
+
+        project_name = await normalize_project_name(project_name)
+        async with Postgres.transaction():
+            await Postgres.set_project_schema(project_name)
+            await Postgres.execute(
+                """
+                INSERT INTO statuses (name, data, position)
+                VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM statuses))
+                """,
+                item.value,
+                {
+                    "icon": item.icon or "check_circle",
+                    "color": item.color or "#808080",
+                    "name": item.value
+                },
+            )
+        return item.value
+
 
 class TagsEnumResolver(BaseEnumResolver):
     name = "tags"
@@ -159,3 +228,25 @@ class TagsEnumResolver(BaseEnumResolver):
                     )
                 )
         return result
+
+    async def create_item(
+        self, item: EnumItem, project_name: str = None, **kwargs
+    ) -> str:
+        if not project_name:
+            raise ValueError("Missing project name in item data")
+
+        project_name = await normalize_project_name(project_name)
+        async with Postgres.transaction():
+            await Postgres.set_project_schema(project_name)
+            await Postgres.execute(
+                """
+                INSERT INTO tags (name, data, position)
+                VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM tags))
+                """,
+                item.value,
+                {
+                    "color": item.color or "#808080",
+                    "name": item.value
+                },
+            )
+        return item.value
