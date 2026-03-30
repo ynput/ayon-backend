@@ -16,6 +16,8 @@ from fastapi import Path, Request, Body
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
+from ayon_server.enum.enum_item import EnumItem
+from ayon_server.enum.enum_registry import EnumRegistry
 from ayon_server.entity_lists.models import EntityListItemModel
 from ayon_server.exceptions import (
     BadRequestException,
@@ -269,7 +271,14 @@ async def import_data(
                 payload[model_cls.parent_column_name()] = folder_id
 
             fields = await model_cls.fields(project_name=project_name)
-            _create_payload(header, payload, row, fields, column_mapping)
+            await _create_payload(
+                project_name,
+                header,
+                payload,
+                row,
+                fields,
+                column_mapping
+            )
 
             # Add project_name for non-user entities
             if entity_cls != UserEntity:
@@ -368,7 +377,8 @@ def _detect_delimiter(content: str) -> str:
     return ","
 
 
-def _create_payload(
+async def _create_payload(
+    project_name: str,
     header: list[str],
     payload: dict[str, Any],
     row: dict[str, Any],
@@ -438,19 +448,15 @@ def _create_payload(
 
                 target_value = _convert_value(importable_column, val)
 
-            # Validate enum values if applicable
-            if importable_column.enum_items:
-                _validate_enum_value(
-                    value,
-                    importable_column.enum_items,
-                    replacement_mapping_action
-                )
                 # Validate enum values if applicable
                 if importable_column.enum_items:
                     await _validate_enum_value(
                         target_value,
                         importable_column.enum_items,
                         replacement_mapping_action,
+                        enum_name=getattr(importable_column, 'enum_name', None),
+                        project_name=project_name,
+                    )
 
                 # Store the value in payload
                 _add_value_to_payload(
@@ -495,10 +501,12 @@ def _convert_value(importable_column: ImportableColumn, value: str) -> any:
     return value
 
 
-def _validate_enum_value(
+async def _validate_enum_value(
     value: str,
     enum_items: list,
-    replacement_action: str | None
+    replacement_action: str | None,
+    enum_name: str | None = None,
+    project_name: str | None = None,
 ) -> None:
     """Validate that a value matches an allowed enum value.
 
@@ -506,6 +514,8 @@ def _validate_enum_value(
         value: The value to validate
         enum_items: List of allowed enum items
         replacement_action: Action to take if value not found
+        enum_name: The enum resolver name (for creating new items)
+        project_name: The project name (for creating new items)
 
     Raises:
         ValueError: If value is not in enum and not handled by 'create' action
@@ -521,7 +531,24 @@ def _validate_enum_value(
         logger.info(f"Missing enum values: {missing_values} | Action: {replacement_action}")
 
         if replacement_action == "create":
-            raise NotImplementedError("Creation of new enum items not yet implemented")
+            if not enum_name:
+                raise ValueError(
+                    "Cannot create enum items: enum name not provided. "
+                    "Ensure the field has an associated enum resolver."
+                )
+
+            # Create new enum items
+            for missing_value in missing_values:
+                new_item = EnumItem(
+                    value=missing_value,
+                    label=missing_value.replace("_", " ").title(),
+                )
+                await EnumRegistry.create_item(
+                    enum_name,
+                    new_item,
+                    project_name=project_name,
+                )
+            return
 
         raise ValueError(
             f"Import contains invalid enum values: {', '.join(map(str, missing_values))}"
