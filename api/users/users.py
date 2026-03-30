@@ -4,11 +4,8 @@ from fastapi import Path
 
 from ayon_server.api.clientinfo import ClientInfo
 from ayon_server.api.dependencies import (
-    AccessToken,
     AllowGuests,
     CurrentUser,
-    Sender,
-    SenderType,
     UserName,
 )
 from ayon_server.api.responses import EmptyResponse
@@ -122,8 +119,6 @@ async def create_user(
     put_data: NewUserModel,
     user: CurrentUser,
     user_name: UserName,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Create a new user."""
 
@@ -160,12 +155,7 @@ async def create_user(
     }
 
     await nuser.save()
-    await EventStream.dispatch(
-        sender=sender,
-        sender_type=sender_type,
-        user=user.name,
-        **event,
-    )
+    await EventStream.dispatch(**event)
     return EmptyResponse()
 
 
@@ -173,8 +163,6 @@ async def create_user(
 async def delete_user(
     user: CurrentUser,
     user_name: UserName,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     if not user.is_manager:
         raise ForbiddenException
@@ -191,13 +179,7 @@ async def delete_user(
         }
 
     await target_user.delete()
-    await EventStream.dispatch(
-        "entity.user.deleted",
-        sender=sender,
-        sender_type=sender_type,
-        user=user.name,
-        **event,
-    )
+    await EventStream.dispatch("entity.user.deleted", **event)
     return EmptyResponse()
 
 
@@ -206,7 +188,6 @@ async def patch_user(
     payload: UserEntity.model.patch_model,  # type: ignore
     user: CurrentUser,
     user_name: UserName,
-    access_token: AccessToken,
 ) -> EmptyResponse:
     payload.data["updatedBy"] = user.name
     target_user = await UserEntity.load(user_name)
@@ -356,8 +337,6 @@ async def change_user_name(
     patch_data: ChangeUserNameRequestModel,
     user: CurrentUser,
     user_name: UserName,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Changes the user name of a user.
 
@@ -372,8 +351,6 @@ async def change_user_name(
         user_name,
         patch_data.new_name,
         invoking_user_name=user.name,
-        sender=sender,
-        sender_type=sender_type,
     )
     return EmptyResponse()
 

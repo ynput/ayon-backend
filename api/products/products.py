@@ -1,12 +1,6 @@
 from fastapi import APIRouter
 
-from ayon_server.api.dependencies import (
-    CurrentUser,
-    ProductID,
-    ProjectName,
-    Sender,
-    SenderType,
-)
+from ayon_server.api.dependencies import CurrentUser, ProductID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import ProductEntity
 from ayon_server.operations.project_level import ProjectLevelOperations
@@ -43,20 +37,14 @@ async def create_product(
     post_data: ProductEntity.model.post_model,  # type: ignore
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new product."""
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
     ops.create("product", **post_data.dict())
     res = await ops.process(can_fail=False, raise_on_error=True)
     entity_id = res.operations[0].entity_id
+    assert entity_id
     return EntityIdResponse(id=entity_id)
 
 
@@ -71,16 +59,12 @@ async def update_product(
     user: CurrentUser,
     project_name: ProjectName,
     product_id: ProductID,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Patch (partially update) a product."""
 
     ops = ProjectLevelOperations(
         project_name,
         user=user,
-        sender=sender,
-        sender_type=sender_type,
     )
     ops.update("product", product_id, **post_data.dict(exclude_unset=True))
     await ops.process(can_fail=False, raise_on_error=True)
@@ -97,20 +81,13 @@ async def delete_product(
     user: CurrentUser,
     project_name: ProjectName,
     product_id: ProductID,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete a product.
 
     This will also delete all the product's versions and representations.
     """
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
     ops.delete("product", product_id)
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse(status_code=204)

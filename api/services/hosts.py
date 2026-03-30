@@ -51,8 +51,8 @@ class HeartbeatResponseModel(OPModel):
     )
 
 
-@router.get("/hosts", response_model=HostListResponseModel)
-async def list_hosts(user: CurrentUser):
+@router.get("/hosts")
+async def list_hosts(user: CurrentUser) -> HostListResponseModel:
     """Return a list of all hosts.
 
     A host is an instance of Ayon Service Host (ASH) that is capable of
@@ -66,12 +66,11 @@ async def list_hosts(user: CurrentUser):
     )
 
 
-@router.post(
-    "/hosts/heartbeat",
-    response_model=HeartbeatResponseModel,
-    dependencies=[NoTraces],
-)
-async def host_heartbeat(payload: HeartbeatRequestModel, user: CurrentUser):
+@router.post("/hosts/heartbeat", dependencies=[NoTraces])
+async def host_heartbeat(
+    user: CurrentUser,
+    payload: HeartbeatRequestModel,
+) -> HeartbeatResponseModel:
     """Send a heartbeat from a host.
 
     This endpoint is called by ASH to send a heartbeat to the API. The
