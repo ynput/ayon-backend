@@ -736,6 +736,10 @@ async def _resolve_parent_id(
     Returns:
         Parent ID if resolved, None otherwise
     """
+    # Use fixed folder_id for tasks
+    if folder_id:
+        return folder_id
+
     original_id = row.get("id")
     parent_id = row.get("parent_id")
 
@@ -776,10 +780,6 @@ async def _resolve_parent_id(
             path_to_ids[parent_path] = parent_id
 
         return parent_id
-
-    # Use fixed folder_id for tasks
-    if folder_id:
-        return folder_id
 
     return None
 
