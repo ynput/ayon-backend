@@ -1,4 +1,5 @@
 from typing import Any
+import json
 
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
@@ -50,3 +51,49 @@ class LinkTypesEnumResolver(BaseEnumResolver):
         if not project_name or project_name == "_":
             return await _resolve_link_types_studio()
         return await _resolve_link_types_project(project_name)
+
+    async def create_item(
+        self,
+        item: EnumItem,
+        project_name: str | None = None,
+        **kwargs
+    ) -> str:
+        if not project_name or project_name == "_":
+            raise ValueError("Link types require a project name")
+
+        from ayon_server.settings.anatomy import Anatomy
+
+        # Get current anatomy
+        anatomy = await get_project_anatomy(project_name)
+
+        # Check if item with same name already exists
+        for lt in anatomy.link_types:
+            if lt.name == item.value:
+                return item.value
+
+        # Create new link type
+        new_link_type = {
+            "name": item.value,
+            "link_type": item.value.lower().replace(" ", "_"),
+            "input_type": "folder",
+            "output_type": "folder",
+            "color": item.color or "#FFFFFF",
+        }
+
+        # Add to anatomy link_types
+        link_types_list = [lt.model_dump() for lt in anatomy.link_types]
+        link_types_list.append(new_link_type)
+
+        async with Postgres.transaction():
+            await Postgres.set_project_schema(project_name)
+            await Postgres.execute(
+                """
+                UPDATE project_anatomy
+                SET data = jsonb_set(data, '{link_types}', to_jsonb($1::jsonb))
+                WHERE name = $2
+                """,
+                json.dumps(link_types_list),
+                project_name,
+            )
+
+        return item.value
