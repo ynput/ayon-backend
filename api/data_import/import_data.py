@@ -417,19 +417,26 @@ def _create_payload(
             }
 
             # Get the value from the row
-            value = row.get(csv_column_name)
-            replacement_mapping = value_mapping.get(value)
-            replacement_mapping_action = None
+            source_value = row.get(csv_column_name)
+            if importable_column.value_type == "list_of_strings":
+                json_friendly = source_value.replace("'", '"')
+                source_value = json.loads(json_friendly)
+            else:
+                source_value = [source_value]
 
-            # Apply value replacement if defined
-            if replacement_mapping:
-                if replacement_mapping.action == "skip":
-                    continue
+            for val in source_value:
+                replacement_mapping = value_mapping.get(val)
+                replacement_mapping_action = None
 
-                value = replacement_mapping.target
-                replacement_mapping_action = replacement_mapping.action
+                # Apply value replacement if defined
+                if replacement_mapping:
+                    if replacement_mapping.action == "skip":
+                        continue
 
-            value = _convert_value(importable_column, value)
+                    val = replacement_mapping.target
+                    replacement_mapping_action = replacement_mapping.action
+
+                target_value = _convert_value(importable_column, val)
 
             # Validate enum values if applicable
             if importable_column.enum_items:
@@ -438,13 +445,19 @@ def _create_payload(
                     importable_column.enum_items,
                     replacement_mapping_action
                 )
+                # Validate enum values if applicable
+                if importable_column.enum_items:
+                    await _validate_enum_value(
+                        target_value,
+                        importable_column.enum_items,
+                        replacement_mapping_action,
 
                 # Store the value in payload
                 _add_value_to_payload(
                     payload=payload,
                     column_name=column_name,
                     column_type=importable_column.value_type,
-                    value=value
+                    value=target_value
                 )
 
         except Exception as exp:
@@ -471,10 +484,7 @@ def _convert_value(importable_column: ImportableColumn, value: str) -> any:
             return None
 
     # Convert value based on column type
-    if importable_column.value_type == "list_of_strings":
-        json_friendly = value.replace("'", '"')
-        value = json.loads(json_friendly)
-    elif importable_column.value_type == "datetime":
+    if importable_column.value_type == "datetime":
         value = datetime.fromisoformat(value)
     elif importable_column.value_type == "float":
         value = float(value)
