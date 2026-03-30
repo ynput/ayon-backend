@@ -210,7 +210,6 @@ async def import_data(
     originals_and_new = {}
     path_to_ids = {}
     unprocessed = len(rows)
-    failed_entity_paths = set()
 
     for row in rows:
         exists = False
@@ -265,12 +264,6 @@ async def import_data(
             )
             if parent_id:
                 path_to_ids[parent_path] = parent_id
-                if parent_path in failed_entity_paths:
-                    raise ValueError(
-                        f"Parent entity at '{parent_path}' (ID: '{parent_id}') "
-                        f"failed to import, cannot import child "
-                        f"'{row.get('name', 'unknown')}'."
-                    )
                 payload[model_cls.parent_column_name()] = parent_id
 
             # for tasks
@@ -335,8 +328,6 @@ async def import_data(
                 isinstance(exp, ImportRowErrorException) or
                 not skip_errors
             )
-            if path:
-                failed_entity_paths.add(path)
 
             if should_stop:
                 import_status.failed += 1
@@ -772,7 +763,7 @@ async def _resolve_parent_id(
         )
 
         parent_id = path_to_ids.get(parent_path)
-        if parent_id is None:
+        if parent_path and parent_id is None:
             try:
                 parent_id = await _get_entity_id_by_path(
                     project_name,
@@ -780,7 +771,7 @@ async def _resolve_parent_id(
                     False  # Not a task
                 )
             except NotFoundException:
-                logger.debug(
+                raise ValueError(
                     f"Parent path '{parent_path}' not found in "
                     f"project '{project_name}' during CSV import",
                 )
