@@ -4,7 +4,7 @@ from ayon_server.entities import FolderEntity, UserEntity
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.lib.postgres import Postgres
 
-from .common import get_relevant_users_cte, get_team_names
+from .common import get_relevant_users_cte, get_team_suggestion_items
 from .models import (
     FolderSuggestionItem,
     SuggestionType,
@@ -119,6 +119,6 @@ async def get_folder_suggestions(
         )
 
     # teams
-    result["users"].extend(await get_team_names(project_name))
+    result["users"].extend(await get_team_suggestion_items(project_name))
 
     return result

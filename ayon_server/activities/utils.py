@@ -5,7 +5,10 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
 from .models import ActivityReferenceModel, EntityLinkTuple, ReferencedEntityType
-from ..suggestions.common import get_team_names, get_team_members
+from ..suggestions.common import (
+    get_team_suggestion_items,
+    get_team_members
+)
 
 MAX_BODY_LENGTH = 2000
 
@@ -17,7 +20,7 @@ async def extract_link_tuples(md_text: str, project_name: str) -> list[EntityLin
     links: set[EntityLinkTuple] = set()
     team_names = set(
         team.name for team in
-        await get_team_names(project_name)
+        await get_team_suggestion_items(project_name)
     )
     for link in LINK_PATTERN.findall(md_text):
         try:

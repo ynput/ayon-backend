@@ -3,7 +3,7 @@ from collections import defaultdict
 from ayon_server.entities import ProjectEntity, UserEntity, VersionEntity
 from ayon_server.lib.postgres import Postgres
 
-from .common import get_relevant_users_cte, get_team_names
+from .common import get_relevant_users_cte, get_team_suggestion_items
 from .models import (
     FolderSuggestionItem,
     ProductSuggestionItem,
@@ -191,6 +191,6 @@ async def get_version_suggestions(
         result["tasks"].append(item)
 
     # teams
-    result["users"].extend(await get_team_names(project_name))
+    result["users"].extend(await get_team_suggestion_items(project_name))
 
     return result

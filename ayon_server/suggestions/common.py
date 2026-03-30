@@ -23,7 +23,7 @@ async def get_relevant_users_cte(project: ProjectEntity, user: UserEntity) -> st
     )
     """
 
-async def get_team_names(project_name: str) -> List[TeamSuggestionItem]:
+async def get_team_suggestion_items(project_name: str) -> List[TeamSuggestionItem]:
     query = f"""
         SELECT DISTINCT
             team_element->>'name' AS name
