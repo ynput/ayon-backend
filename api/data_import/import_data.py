@@ -439,12 +439,13 @@ def _create_payload(
                     replacement_mapping_action
                 )
 
-            # Store the value in payload
-            _add_value_to_payload(
-                payload=payload,
-                column_name=column_name,
-                value=value
-            )
+                # Store the value in payload
+                _add_value_to_payload(
+                    payload=payload,
+                    column_name=column_name,
+                    column_type=importable_column.value_type,
+                    value=value
+                )
 
         except Exception as exp:
             row_id = row.get("name", row.get(list(row.keys())[0], "unknown"))
@@ -456,6 +457,7 @@ def _create_payload(
                 _add_value_to_payload(
                     payload=payload,
                     column_name=column_name,
+                    column_type=importable_column.value_type,
                     value=importable_column.default_value
                 )
             else:
@@ -519,31 +521,57 @@ def _validate_enum_value(
 def _add_value_to_payload(
     payload: dict[str, Any],
     column_name: str,
+    column_type: str | None,
     value: Any
 ) -> None:
     """Add a value to the payload dictionary.
 
     Handles both simple fields and nested fields (attrib.field, data.field).
+    Uses column_type to determine if the field should be stored as a list.
 
     Args:
         payload: The payload dictionary to modify
         column_name: The target column name
+        column_type: The type of the column (e.g., "list_of_strings")
         value: The value to store
     """
-    if "." in column_name:
-        # Handle nested fields (e.g., "attrib.priority", "data.someField")
+    is_iterable = column_type in ("list_of_strings", "list")
+    is_nested = "." in column_name
+
+    # Get or create the target container
+    if is_nested:
         main, key = column_name.split(".", 1)
         if main not in payload:
             payload[main] = {}
-
-        # Handle boolean fields (fields starting with "is")
-        if key.startswith("is"):
-            payload[main][key] = _to_bool(value)
-        else:
-            payload[main][key] = value
+        container = payload[main]
+        is_bool = key.startswith("is")
     else:
-        # Simple field
-        payload[column_name] = value
+        container = payload
+        key = column_name
+        is_bool = False
+
+    # Handle boolean fields
+    if is_bool:
+        container[key] = _to_bool(value)
+        return
+
+    # Handle value storage
+    existing = container.get(key)
+
+    if is_iterable:
+        # For iterable types, always store as list
+        if existing is None:
+            container[key] = [value]
+        elif isinstance(existing, list):
+            existing.append(value)
+        else:
+            container[key] = [existing, value]
+    else:
+        # For non-iterable types, only wrap in list if key exists
+        if existing is None:
+            container[key] = value
+        else:
+            container[key] = [existing, value]
 
 
 async def _check_all_required(
