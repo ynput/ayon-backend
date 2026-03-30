@@ -1,5 +1,4 @@
 from typing import Any
-import json
 
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
