@@ -260,7 +260,6 @@ async def import_data(
                 originals_and_new=originals_and_new,
                 existing_identifiers=existing_identifiers,
                 path_to_ids=path_to_ids,
-                model_cls=model_cls,
                 project_name=project_name,
                 folder_id=folder_id,
             )
@@ -729,7 +728,6 @@ async def _resolve_parent_id(
     originals_and_new: dict[str, str],
     existing_identifiers: set[tuple],
     path_to_ids: dict[str, str],
-    model_cls,
     project_name: str,
     folder_id: str | None,
 ) -> tuple[str | None, str | None]:
