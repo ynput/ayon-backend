@@ -46,3 +46,30 @@ async def get_team_names(project_name: str) -> List[TeamSuggestionItem]:
         results.append(item)
 
     return results
+
+
+async def get_team_members(
+    project_name: str, team_name:str
+) -> List[str]:
+    """Return list of team members for the given team name in the project."""
+    query = f"""
+        SELECT 
+            member_element->>'name' AS member_name
+        FROM 
+            public.projects p,
+            LATERAL jsonb_array_elements(p.data->'teams') AS team_element,
+            LATERAL jsonb_array_elements(team_element->'members') AS member_element
+        WHERE 
+            p.name = '{project_name}' 
+            AND team_element->>'name' = '{team_name}'
+            AND jsonb_typeof(p.data->'teams') = 'array'
+            AND jsonb_typeof(team_element->'members') = 'array'
+        ORDER BY 
+            member_name ASC;
+
+    """
+    results = []
+    async for row in Postgres.iterate(query):
+        results.append(row["member_name"])
+
+    return results
