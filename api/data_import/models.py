@@ -397,6 +397,7 @@ class EntityExportImport:
 
             if enum_items:
                 field_dict["enum_items"] = enum_items
+                field_dict["enum_name"] = enum_name
 
             if field_info:
                 if field_info.description:
