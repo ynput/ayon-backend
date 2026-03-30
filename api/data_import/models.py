@@ -108,6 +108,15 @@ class ImportableColumn(OPModel):
         ),
     ]
 
+    enum_name: Annotated[
+        str | None,
+        Field(
+            description=(
+                "The enum resolver name (e.g., 'statuses', 'folderTypes')"
+            )
+        ),
+    ] = None
+
     error_handling_modes: Annotated[
         list[ErrorHandlingMode],
         Field(
