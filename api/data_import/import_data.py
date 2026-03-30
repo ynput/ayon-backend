@@ -210,6 +210,7 @@ async def import_data(
     originals_and_new = {}
     path_to_ids = {}
     unprocessed = len(rows)
+    failed_entity_paths = set()
 
     for row in rows:
         exists = False
@@ -254,7 +255,7 @@ async def import_data(
                     raise ValueError(f"Item '{identifier}' already exists.")
 
             original_id = row.get("id")
-            parent_id = await _resolve_parent_id(
+            parent_id, parent_path = await _resolve_parent_id(
                 row=row,
                 originals_and_new=originals_and_new,
                 existing_identifiers=existing_identifiers,
@@ -264,6 +265,13 @@ async def import_data(
                 folder_id=folder_id,
             )
             if parent_id:
+                path_to_ids[parent_path] = parent_id
+                if parent_path in failed_entity_paths:
+                    raise ValueError(
+                        f"Parent entity at '{parent_path}' (ID: '{parent_id}') "
+                        f"failed to import, cannot import child "
+                        f"'{row.get('name', 'unknown')}'."
+                    )
                 payload[model_cls.parent_column_name()] = parent_id
 
             # for tasks
@@ -328,6 +336,9 @@ async def import_data(
                 isinstance(exp, ImportRowErrorException) or
                 not skip_errors
             )
+            if path:
+                failed_entity_paths.add(path)
+
             if should_stop:
                 import_status.failed += 1
                 import_status.skipped += unprocessed
@@ -721,7 +732,7 @@ async def _resolve_parent_id(
     model_cls,
     project_name: str,
     folder_id: str | None,
-) -> str | None:
+) -> tuple[str | None, str | None]:
     """Resolve the parent ID for a CSV row.
 
     Args:
@@ -734,22 +745,22 @@ async def _resolve_parent_id(
         folder_id: Fixed folder ID for tasks
 
     Returns:
-        Parent ID if resolved, None otherwise
+        Tuple of (parent_id, parent_path)
     """
     # Use fixed folder_id for tasks
     if folder_id:
-        return folder_id
+        return folder_id, None
 
     original_id = row.get("id")
     parent_id = row.get("parent_id")
 
     # Try to resolve from current import batch
     if parent_id and parent_id in originals_and_new:
-        return originals_and_new[parent_id]
+        return originals_and_new[parent_id], None
 
     # Check if parent exists in database
     if parent_id and parent_id not in existing_identifiers:
-        return None
+        return None, None
 
     # Resolve from path if provided
     if "path" in row and row["path"]:
@@ -776,12 +787,9 @@ async def _resolve_parent_id(
                     f"project '{project_name}' during CSV import",
                 )
 
-        if parent_id:
-            path_to_ids[parent_path] = parent_id
+        return parent_id, parent_path
 
-        return parent_id
-
-    return None
+    return None, None
 
 
 def _to_bool(value: Any) -> bool:
