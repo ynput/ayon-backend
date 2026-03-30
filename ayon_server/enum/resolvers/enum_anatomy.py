@@ -4,6 +4,7 @@ from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.settings.enum import get_primary_anatomy_preset
 
 
@@ -66,6 +67,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                     "name": item.value
                 },
             )
+        await Redis.delete("project-anatomy", project_name)
         return item.value
 
 
@@ -128,6 +130,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                     "name": item.value
                 },
             )
+        await Redis.delete("project-anatomy", project_name)
         return item.value
 
 
@@ -190,6 +193,7 @@ class StatusesEnumResolver(BaseEnumResolver):
                     "name": item.value
                 },
             )
+        await Redis.delete("project-anatomy", project_name)
         return item.value
 
 
@@ -249,4 +253,5 @@ class TagsEnumResolver(BaseEnumResolver):
                     "name": item.value
                 },
             )
+        await Redis.delete("project-anatomy", project_name)
         return item.value

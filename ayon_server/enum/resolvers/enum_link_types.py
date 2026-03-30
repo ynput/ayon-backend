@@ -6,6 +6,7 @@ from ayon_server.enum.enum_item import EnumItem
 from ayon_server.helpers.anatomy import get_project_anatomy
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.settings.anatomy.link_types import LinkType
 
@@ -89,4 +90,5 @@ class LinkTypesEnumResolver(BaseEnumResolver):
                     "style": style
                 },
             )
+        await Redis.delete("project-anatomy", project_name)
         return item.value
