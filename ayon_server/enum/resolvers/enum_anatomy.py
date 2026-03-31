@@ -6,6 +6,7 @@ from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.settings.enum import get_primary_anatomy_preset
+from ayon_server.types import SimpleValue
 
 
 class FolderTypesEnumResolver(BaseEnumResolver):
@@ -47,8 +48,13 @@ class FolderTypesEnumResolver(BaseEnumResolver):
         return result
 
     async def create_item(
-        self, item: EnumItem, project_name: str = None,**kwargs
-    ) -> str:
+        self,
+        item: EnumItem,
+        project_name: str | None = None,
+        **kwargs,
+    ) -> SimpleValue:
+        _ = kwargs  # Unused for now, but allows for future extensibility
+
         if not project_name:
             raise ValueError("Missing project name in item data")
 
@@ -58,13 +64,16 @@ class FolderTypesEnumResolver(BaseEnumResolver):
             await Postgres.execute(
                 """
                 INSERT INTO folder_types (name, data, position)
-                VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM folder_types))
+                VALUES (
+                    $1,
+                    $2,
+                    (SELECT COALESCE(MAX(position), 0) + 1 FROM folder_types))
                 """,
                 item.value,
                 {
                     "icon": item.icon or "folder",
                     "color": item.color or "#808080",
-                    "name": item.value
+                    "name": item.value,
                 },
             )
         await Redis.delete("project-anatomy", project_name)
@@ -110,8 +119,11 @@ class TaskTypesEnumResolver(BaseEnumResolver):
         return result
 
     async def create_item(
-        self, item: EnumItem, project_name: str = None, **kwargs
-    ) -> str:
+        self,
+        item: EnumItem,
+        project_name: str | None = None,
+        **kwargs,
+    ) -> SimpleValue:
         if not project_name:
             raise ValueError("Missing project name in item data")
 
@@ -127,7 +139,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                 {
                     "icon": item.icon or "task",
                     "color": item.color or "#808080",
-                    "name": item.value
+                    "name": item.value,
                 },
             )
         await Redis.delete("project-anatomy", project_name)
@@ -173,8 +185,11 @@ class StatusesEnumResolver(BaseEnumResolver):
         return result
 
     async def create_item(
-        self, item: EnumItem, project_name: str = None,  **kwargs
-    ) -> str:
+        self,
+        item: EnumItem,
+        project_name: str | None = None,
+        **kwargs,
+    ) -> SimpleValue:
         if not project_name:
             raise ValueError("Missing project name in item data")
 
@@ -190,7 +205,7 @@ class StatusesEnumResolver(BaseEnumResolver):
                 {
                     "icon": item.icon or "check_circle",
                     "color": item.color or "#808080",
-                    "name": item.value
+                    "name": item.value,
                 },
             )
         await Redis.delete("project-anatomy", project_name)
@@ -234,8 +249,11 @@ class TagsEnumResolver(BaseEnumResolver):
         return result
 
     async def create_item(
-        self, item: EnumItem, project_name: str = None, **kwargs
-    ) -> str:
+        self,
+        item: EnumItem,
+        project_name: str | None = None,
+        **kwargs,
+    ) -> SimpleValue:
         if not project_name:
             raise ValueError("Missing project name in item data")
 
@@ -248,10 +266,7 @@ class TagsEnumResolver(BaseEnumResolver):
                 VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM tags))
                 """,
                 item.value,
-                {
-                    "color": item.color or "#808080",
-                    "name": item.value
-                },
+                {"color": item.color or "#808080", "name": item.value},
             )
         await Redis.delete("project-anatomy", project_name)
         return item.value

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.modules import classes_from_module, import_module
 from ayon_server.logging import logger
+from ayon_server.types import SimpleValue
 
 from .base_resolver import BaseEnumResolver
 from .enum_item import EnumItem
@@ -59,7 +60,6 @@ class EnumRegistry:
         user: "UserEntity | None" = None,
         **context: Any,
     ) -> list[EnumItem]:
-
         if "." in enum_name:
             key, name = enum_name.split(".", 1)
         else:
@@ -85,8 +85,8 @@ class EnumRegistry:
         enum_name: str,
         item: EnumItem,
         project_name: str | None = None,
-        **kwargs
-    ) -> str:
+        **kwargs,
+    ) -> SimpleValue:
         """Create a new enum item using the appropriate resolver.
 
         Args:
