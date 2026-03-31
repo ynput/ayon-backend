@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from ayon_server.forms import SimpleForm
 
@@ -31,9 +31,15 @@ class BaseEnumResolver:
         return []
 
     async def create_item(
-        self, item: EnumItem, project_name: Optional[str] = None, **kwargs
-    ) -> str:
+        self,
+        item: EnumItem,
+        project_name: str | None = None,
+        **kwargs,
+    ) -> None:
+        _ = (
+            item,
+            project_name,
+            kwargs,
+        )  # Unused for now, but allows for future extensibility
         """Resolve enum options based on the provided context."""
-        raise NotImplementedError(
-            "This enum resolver does not support item creation"
-        )
+        raise NotImplementedError("This enum resolver does not support item creation")

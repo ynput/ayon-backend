@@ -1,10 +1,11 @@
 from typing import Any
-import json
 
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.helpers.anatomy import get_project_anatomy
+from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.settings.anatomy.link_types import LinkType
 
@@ -56,44 +57,34 @@ class LinkTypesEnumResolver(BaseEnumResolver):
         self,
         item: EnumItem,
         project_name: str | None = None,
-        **kwargs
-    ) -> str:
+        **kwargs,
+    ) -> None:
         if not project_name or project_name == "_":
             raise ValueError("Link types require a project name")
 
-        from ayon_server.settings.anatomy import Anatomy
-
-        # Get current anatomy
-        anatomy = await get_project_anatomy(project_name)
-
-        # Check if item with same name already exists
-        for lt in anatomy.link_types:
-            if lt.name == item.value:
-                return item.value
-
-        # Create new link type
-        new_link_type = {
-            "name": item.value,
-            "link_type": item.value.lower().replace(" ", "_"),
-            "input_type": "folder",
-            "output_type": "folder",
-            "color": item.color or "#FFFFFF",
-        }
-
-        # Add to anatomy link_types
-        link_types_list = [lt.model_dump() for lt in anatomy.link_types]
-        link_types_list.append(new_link_type)
-
+        project_name = await normalize_project_name(project_name)
         async with Postgres.transaction():
             await Postgres.set_project_schema(project_name)
+            link_type_params = kwargs["link_type_params"]
+            input_type = link_type_params.get("input_type")
+            output_type = link_type_params.get("output_type")
+            link_type = link_type_params.get("link_type", item.value)
+            style = link_type_params.get("style", "solid")
+
+            if not all([input_type, output_type, link_type]):
+                raise ValueError(
+                    "Missing required parameters: input_type, output_type, link_type"
+                )
             await Postgres.execute(
                 """
-                UPDATE project_anatomy
-                SET data = jsonb_set(data, '{link_types}', to_jsonb($1::jsonb))
-                WHERE name = $2
+                INSERT INTO link_types
+                    (name, input_type, output_type, link_type, data)
+                VALUES ($1, $2, $3, $4, $5)
                 """,
-                json.dumps(link_types_list),
-                project_name,
+                item.value,
+                input_type,
+                output_type,
+                link_type,
+                {"color": item.color or "#808080", "style": style},
             )
-
-        return item.value
+        await Redis.delete("project-anatomy", project_name)
