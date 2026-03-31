@@ -34,6 +34,9 @@ from ayon_server.utils import create_uuid
 # This inverts FIELD_TYPES which maps AttributeType -> Python type
 TYPE_TO_ATTR_TYPE: dict[type, str] = {v: k for k, v in FIELD_TYPES.items()}
 
+# column name for unified folder/task type in hierarchy imports
+HIERARCHY_UNIFIED_COLUMN = "folder_or_task_type"
+
 
 class ExistingItemStrategy(str, Enum):
     """Strategy for handling existing items during import."""
@@ -597,7 +600,7 @@ class FolderTaskExportImportModel(EntityExportImport):
             # to use only single column in csv to contain both
             # folder and task types
             ImportableColumn(
-                key="folder_or_task_type",
+                key=HIERARCHY_UNIFIED_COLUMN,
                 label="Folder or Task type",
                 required=False,
                 value_type="string",

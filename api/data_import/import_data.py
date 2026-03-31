@@ -46,6 +46,7 @@ from .models import (
     ColumnMapping,
     ImportableColumn,
     EntityListExportImportModel,
+    HIERARCHY_UNIFIED_COLUMN,
 )
 from .router import router
 
@@ -406,8 +407,7 @@ async def _create_payload(
             continue
         column_name = mapping.target_key
         error_handling_mode = mapping.error_handling_mode
-
-        if column_name == "folder_or_task_name":
+        if column_name == HIERARCHY_UNIFIED_COLUMN:
             # Special handling for hierarchy imports where folder and task share a column
             if "entity_type" not in row:
                 raise ValueError(
@@ -420,7 +420,7 @@ async def _create_payload(
                     f"in row: {row}"
                 )
             # Adjust column name based on entity type
-            column_name = f"{entity_type}_name"
+            column_name = f"{entity_type}_type"
 
         # Get the target column definition
         importable_column = importable_column_by_key.get(column_name)
