@@ -179,23 +179,17 @@ async def import_data(
     model_cls = IMPORTABLE_ENTITIES[import_type]
 
     hierarchy_existing_identifiers: dict = {}
-    hierarchy_required_fields: dict = {}
-    required_fields = []
 
     # For non-hierarchy types, get fields and existing identifiers upfront
+    fields = await model_cls.fields(project_name=project_name)
+    required_fields = [f.key for f in fields if f.required]
     if import_type != "hierarchy":
-        fields = await model_cls.fields(project_name=project_name)
-        required_fields = [f.key for f in fields if f.required]
         existing_identifiers = await _get_existing_identifiers(
             model_cls, project_name
         )
     else:
         # For hierarchy, pre-fetch existing identifiers for both folder and task
         for entity_type, model_cls in HIERARCHY_MODEL_CLASSES.items():
-            fields = await model_cls.fields(project_name=project_name)
-            hierarchy_required_fields[entity_type] = [
-                f.key for f in fields if f.required
-            ]
             hierarchy_existing_identifiers[entity_type] = await _get_existing_identifiers(
                 model_cls, project_name
             )
@@ -226,7 +220,6 @@ async def import_data(
                     raise ValueError(error_msg)
                 model_cls = HIERARCHY_MODEL_CLASSES[entity_type]
                 entity_cls = HIERARCHY_ENTITY_CLASSES[entity_type]
-                required_fields = hierarchy_required_fields[entity_type]
                 existing_identifiers = hierarchy_existing_identifiers[entity_type]
             else:
                 entity_cls = get_entity_class(import_type)
@@ -413,6 +406,21 @@ async def _create_payload(
             continue
         column_name = mapping.target_key
         error_handling_mode = mapping.error_handling_mode
+
+        if column_name == "folder_or_task_name":
+            # Special handling for hierarchy imports where folder and task share a column
+            if "entity_type" not in row:
+                raise ValueError(
+                    f"Missing 'entity_type' for hierarchy import in row: {row}"
+                )
+            entity_type = row["entity_type"]
+            if entity_type not in ("folder", "task"):
+                raise ValueError(
+                    f"Invalid 'entity_type' value '{entity_type}' for hierarchy import "
+                    f"in row: {row}"
+                )
+            # Adjust column name based on entity type
+            column_name = f"{entity_type}_name"
 
         # Get the target column definition
         importable_column = importable_column_by_key.get(column_name)

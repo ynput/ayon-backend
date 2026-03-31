@@ -593,6 +593,18 @@ class FolderTaskExportImportModel(EntityExportImport):
                 error_handling_modes=["abort"],
                 enum_name=None,
                 enum_items=None
+            ),
+            # to use only single column in csv to contain both
+            # folder and task types
+            ImportableColumn(
+                key="folder_or_task_type",
+                label="Folder or Task type",
+                required=False,
+                value_type="string",
+                default_value="",
+                error_handling_modes=["abort"],
+                enum_name=None,
+                enum_items=None
             )
         ]
 
