@@ -89,15 +89,46 @@ class ModelSet:
         attribute_library.register_invalidation_callback(self.invalidate)
 
     def invalidate(self) -> None:
-        """Invalidate all cached Pydantic models.
+        """Update the attrib model's fields in-place after an attribute reload.
 
-        Forces regeneration of all cached models on next access. Called
-        by AttributeLibrary.reload() when attributes are updated live.
+        FastAPI evaluates route type annotations (e.g. `post_data:
+        FolderEntity.model.patch_model`) once at import time and holds the
+        resulting Pydantic class for the lifetime of the process.  Creating
+        a brand-new class on reload would be invisible to those routes.
+
+        Instead we mutate the *existing* `_attrib_model` class in-place:
+        - Replace its `__fields__` dict so Pydantic's validator picks up
+          added / removed / changed attributes on the very next request.
+        - Clear `__schema_cache__` on all four models so the OpenAPI schema
+          is regenerated correctly on the next `/openapi.json` request.
+
+        If the attrib model has not been built yet (still None) the fresh
+        build from the updated `self.attributes` list will happen lazily on
+        the next access, so no action is needed.
         """
-        self._attrib_model = None
-        self._model = None
-        self._post_model = None
-        self._patch_model = None
+        if self._attrib_model is None:
+            return
+
+        # Build a temporary model to obtain the updated ModelField objects.
+        new_attrib_model = generate_model(
+            f"{self.entity_name.capitalize()}AttribModel",
+            self.attributes,
+            AttribModelConfig,
+        )
+
+        # Swap fields in-place on the class FastAPI already holds a reference to.
+        self._attrib_model.__fields__.clear()
+        self._attrib_model.__fields__.update(new_attrib_model.__fields__)
+
+        # Clear Pydantic's cached JSON schemas so OpenAPI reflects the changes.
+        for model in (
+            self._attrib_model,
+            self._model,
+            self._post_model,
+            self._patch_model,
+        ):
+            if model is not None:
+                model.__schema_cache__.clear()
 
     @property
     def attrib_model(self) -> type[BaseModel]:

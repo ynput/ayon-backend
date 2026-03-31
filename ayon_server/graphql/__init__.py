@@ -226,3 +226,77 @@ router: GraphQLRouter[Any, Any] = GraphQLRouter(
     graphql_ide=None,
     context_getter=graphql_get_context,
 )
+
+
+def rebuild_graphql_schema() -> None:
+    """Rebuild the Strawberry GraphQL schema after attribute changes.
+
+    Strawberry compiles the GraphQL schema once at startup. Each entity's
+    XxxAttribType is a Strawberry type whose fields were read from the Pydantic
+    attrib model at decoration time. When attributes change we must:
+
+      1. Regenerate the fields on each attrib type in-place (same class object,
+         so existing return-type annotations on node resolvers remain valid).
+      2. Rebuild the compiled schema so graphql-core validates queries against
+         the updated type defThe initions.
+    """
+    from strawberry.experimental.pydantic import type as pydantic_type_decorator
+
+    from ayon_server.entities import (
+        FolderEntity,
+        ProductEntity,
+        ProjectEntity,
+        RepresentationEntity,
+        TaskEntity,
+        UserEntity,
+        VersionEntity,
+        WorkfileEntity,
+    )
+    from ayon_server.graphql.nodes import folder as folder_mod
+    from ayon_server.graphql.nodes import product as product_mod
+    from ayon_server.graphql.nodes import project as project_mod
+    from ayon_server.graphql.nodes import representation as representation_mod
+    from ayon_server.graphql.nodes import task as task_mod
+    from ayon_server.graphql.nodes import user as user_mod
+    from ayon_server.graphql.nodes import version as version_mod
+    from ayon_server.graphql.nodes import workfile as workfile_mod
+
+    pairs = [
+        (FolderEntity, folder_mod.FolderAttribType),
+        (TaskEntity, task_mod.TaskAttribType),
+        (ProductEntity, product_mod.ProductAttribType),
+        (VersionEntity, version_mod.VersionAttribType),
+        (WorkfileEntity, workfile_mod.WorkfileAttribType),
+        (RepresentationEntity, representation_mod.RepresentationAttribType),
+        (UserEntity, user_mod.UserAttribType),
+        (ProjectEntity, project_mod.ProjectAttribType),
+    ]
+
+    for entity_cls, existing_attrib_type in pairs:
+        temp = type(existing_attrib_type.__name__, (), {})
+        new_type = pydantic_type_decorator(
+            model=entity_cls.model.attrib_model, all_fields=True
+        )(temp)
+        existing_attrib_type.__strawberry_definition__.fields[:] = (
+            new_type.__strawberry_definition__.fields
+        )
+        # Strawberry types are dataclasses; __init__, __repr__, __eq__ are
+        # generated from fields at decoration time and must be replaced too so
+        # that constructing XxxAttribType(**attrib_dict) accepts new fields.
+        existing_attrib_type.__dataclass_fields__ = dict(
+            new_type.__dataclass_fields__
+        )
+        existing_attrib_type.__init__ = new_type.__init__
+        existing_attrib_type.__repr__ = new_type.__repr__
+        existing_attrib_type.__eq__ = new_type.__eq__
+
+    router.schema = AyonSchema(query=Query)
+    logger.info("GraphQL schema rebuilt after attribute update")
+
+
+# Register the GraphQL schema rebuild as an attribute invalidation callback so
+# it fires whenever attribute_library.reload() is called (which happens on every
+# server.attributes_updated event, including from other server instances via Redis).
+from ayon_server.entities.core.attrib import attribute_library  # noqa: E402
+
+attribute_library.register_invalidation_callback(rebuild_graphql_schema)
