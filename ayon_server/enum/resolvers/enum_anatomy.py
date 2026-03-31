@@ -6,7 +6,6 @@ from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.settings.enum import get_primary_anatomy_preset
-from ayon_server.types import SimpleValue
 
 
 class FolderTypesEnumResolver(BaseEnumResolver):
@@ -52,7 +51,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
         item: EnumItem,
         project_name: str | None = None,
         **kwargs,
-    ) -> SimpleValue:
+    ) -> None:
         _ = kwargs  # Unused for now, but allows for future extensibility
 
         if not project_name:
@@ -77,7 +76,6 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                 },
             )
         await Redis.delete("project-anatomy", project_name)
-        return item.value
 
 
 class TaskTypesEnumResolver(BaseEnumResolver):
@@ -123,7 +121,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
         item: EnumItem,
         project_name: str | None = None,
         **kwargs,
-    ) -> SimpleValue:
+    ) -> None:
         if not project_name:
             raise ValueError("Missing project name in item data")
 
@@ -143,7 +141,6 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                 },
             )
         await Redis.delete("project-anatomy", project_name)
-        return item.value
 
 
 class StatusesEnumResolver(BaseEnumResolver):
@@ -189,7 +186,7 @@ class StatusesEnumResolver(BaseEnumResolver):
         item: EnumItem,
         project_name: str | None = None,
         **kwargs,
-    ) -> SimpleValue:
+    ) -> None:
         if not project_name:
             raise ValueError("Missing project name in item data")
 
@@ -209,7 +206,6 @@ class StatusesEnumResolver(BaseEnumResolver):
                 },
             )
         await Redis.delete("project-anatomy", project_name)
-        return item.value
 
 
 class TagsEnumResolver(BaseEnumResolver):
@@ -253,7 +249,7 @@ class TagsEnumResolver(BaseEnumResolver):
         item: EnumItem,
         project_name: str | None = None,
         **kwargs,
-    ) -> SimpleValue:
+    ) -> None:
         if not project_name:
             raise ValueError("Missing project name in item data")
 
@@ -269,4 +265,3 @@ class TagsEnumResolver(BaseEnumResolver):
                 {"color": item.color or "#808080", "name": item.value},
             )
         await Redis.delete("project-anatomy", project_name)
-        return item.value

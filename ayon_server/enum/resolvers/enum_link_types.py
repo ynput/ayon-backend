@@ -8,7 +8,6 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.settings.anatomy.link_types import LinkType
-from ayon_server.types import SimpleValue
 
 
 def link_type_to_enum_item(link_type: LinkType) -> EnumItem:
@@ -59,7 +58,7 @@ class LinkTypesEnumResolver(BaseEnumResolver):
         item: EnumItem,
         project_name: str | None = None,
         **kwargs,
-    ) -> SimpleValue:
+    ) -> None:
         if not project_name or project_name == "_":
             raise ValueError("Link types require a project name")
 
@@ -88,4 +87,3 @@ class LinkTypesEnumResolver(BaseEnumResolver):
                 {"color": item.color or "#808080", "style": style},
             )
         await Redis.delete("project-anatomy", project_name)
-        return item.value

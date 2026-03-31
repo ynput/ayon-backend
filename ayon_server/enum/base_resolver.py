@@ -1,7 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
 from ayon_server.forms import SimpleForm
-from ayon_server.types import SimpleValue
 
 from .enum_item import EnumItem
 
@@ -36,7 +35,7 @@ class BaseEnumResolver:
         item: EnumItem,
         project_name: str | None = None,
         **kwargs,
-    ) -> SimpleValue:
+    ) -> None:
         _ = (
             item,
             project_name,
