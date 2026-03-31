@@ -548,8 +548,8 @@ class FolderTaskExportImportModel(EntityExportImport):
     _data_fields = []
     _parent_column_name = "folder_id"
     # Fields required to reconstruct hierarchy and folder paths during import
-    _process_required_fields = ["path"]
-    _calculated_fields = [FieldInfo(default="", title="Path", name="path")]
+    _process_required_fields = ["entity_type", "path"]
+    _calculated_fields = []
 
     @classmethod
     async def fields(cls, project_name: str = None) -> List[ImportableColumn]:
@@ -570,12 +570,37 @@ class FolderTaskExportImportModel(EntityExportImport):
         task_fields = await TaskExportImportModel.fields(
             project_name=project_name)
 
+        process_columns = [
+            ImportableColumn(
+                key="entity_type",
+                label="Entity type",
+                required=True,
+                value_type="string",
+                default_value="",
+                error_handling_modes=["abort"],
+                enum_name=None,
+                enum_items=[
+                    EnumItem(value="folder", label="Folder"),
+                    EnumItem(value="task", label="Task")
+                ]
+            ),
+            ImportableColumn(
+                key="path",
+                label="Path",
+                required=True,
+                value_type="string",
+                default_value="",
+                error_handling_modes=["abort"],
+                enum_name=None,
+                enum_items=None
+            )
+        ]
+
         # Combine and deduplicate by field name
-        seen_names: Set[str] = {"entity_type"}
-        for field in folder_fields + task_fields:
-            if field.key in cls._process_required_fields:
-                    # Ensure required fields are included even if not in field_names
-                    field.required = True
+        seen_names: Set[str] = set()
+        for field in folder_fields + task_fields + process_columns:
+            # control required explicitly based on agreed format
+            field.required = field.key in cls._process_required_fields
             if field.key not in seen_names:
                 seen_names.add(field.key)
                 result.append(field)
