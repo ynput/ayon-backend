@@ -16,6 +16,7 @@ from ayon_server.entities.models.fields import (
     version_fields,
     workfile_fields,
 )
+from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.entities.models.generator import generate_model
 from ayon_server.types import (
     ENTITY_ID_EXAMPLE,
@@ -84,6 +85,19 @@ class ModelSet:
         self._post_model: type[BaseModel] | None = None
         self._patch_model: type[BaseModel] | None = None
         self._attrib_model: type[BaseModel] | None = None
+
+        attribute_library.register_invalidation_callback(self.invalidate)
+
+    def invalidate(self) -> None:
+        """Invalidate all cached Pydantic models.
+
+        Forces regeneration of all cached models on next access. Called
+        by AttributeLibrary.reload() when attributes are updated live.
+        """
+        self._attrib_model = None
+        self._model = None
+        self._post_model = None
+        self._patch_model = None
 
     @property
     def attrib_model(self) -> type[BaseModel]:
