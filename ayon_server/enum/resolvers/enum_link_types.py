@@ -65,10 +65,11 @@ class LinkTypesEnumResolver(BaseEnumResolver):
         project_name = await normalize_project_name(project_name)
         async with Postgres.transaction():
             await Postgres.set_project_schema(project_name)
-            input_type = kwargs.get("input_type")
-            output_type = kwargs.get("output_type")
-            link_type = kwargs.get("link_type", item.value)
-            style = kwargs.get("style", "solid")
+            link_type_params = kwargs["link_type_params"]
+            input_type = link_type_params.get("input_type")
+            output_type = link_type_params.get("output_type")
+            link_type = link_type_params.get("link_type", item.value)
+            style = link_type_params.get("style", "solid")
 
             if not all([input_type, output_type, link_type]):
                 raise ValueError(
