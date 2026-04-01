@@ -333,7 +333,12 @@ class EntityExportImport:
                 default = field.default if not required else None
             elif isinstance(field, FieldInfo):
                 # Handle FieldInfo directly (e.g., from _calculated_fields)
-                name = getattr(field, "name", None) or getattr(field, "title")
+                # Note: 'name' may be stored in extra dict in pydantic v2
+                name = getattr(field, "name", None)
+                if name is None:
+                    name = field.extra.get("name")
+                if name is None:
+                    name = getattr(field, "title")
                 if not name:
                     # Skip FieldInfo without a name
                     continue
@@ -523,7 +528,10 @@ class FolderExportImportModel(EntityExportImport):
     _table_name = "project_{project_name}.folders"
     _unique_fields = ["id"]
     _data_fields = []
-    _calculated_fields = [FieldInfo(default="", title="Path")]
+    _calculated_fields = [
+        FieldInfo(default="", title="Path"),
+        FieldInfo(default="", title="EntityType", name="entity_type")
+    ]
     _parent_column_name = "parent_id"
 
 
@@ -534,7 +542,10 @@ class TaskExportImportModel(EntityExportImport):
     _table_name = "project_{project_name}.tasks"
     _unique_fields = ["id"]
     _data_fields = []
-    _calculated_fields = [FieldInfo(default="", title="Path")]
+    _calculated_fields = [
+        FieldInfo(default="", title="Path"),
+        FieldInfo(default="", title="EntityType", name="entity_type")
+    ]
     _parent_column_name = "folder_id"
 
 
