@@ -509,8 +509,8 @@ class ProjectLevelOperations:
                 task = asyncio.create_task(
                     _process_events(
                         events,
-                        sender=self.sender,
-                        sender_type=self.sender_type,
+                        sender="background-operations",
+                        sender_type="system",
                     )
                 )
                 task.add_done_callback(lambda _: logger.trace(msg))
