@@ -215,7 +215,7 @@ async def import_data(
             if import_type == "entity_list_item":
                 entity_cls = EntityListItemModel
             elif import_type == "hierarchy":
-                entity_type = row.get("entity_type")
+                entity_type = await _get_entity_type(row, column_mapping)
                 if entity_type not in HIERARCHY_MODEL_CLASSES:
                     error_msg = f"Invalid entity_type '{entity_type}'"
                     raise ValueError(error_msg)
@@ -336,6 +336,28 @@ async def import_data(
             logger.error(f"Failed to import data", exc_info=True)
 
     return import_status
+
+
+async def _get_entity_type(
+    row: dict[str, Any],
+    column_mapping: List[ColumnMapping]
+) -> str:
+    """Extract the entity type from column mapping for hierarchy imports.
+
+    Args:
+    column_mapping: List of ColumnMapping objects provided by the user
+    """
+    target_mapping_by_key = {
+        mapping.target_key: mapping
+        for mapping in column_mapping
+    }
+    entity_type_mapping = target_mapping_by_key.get("entity_type")
+    if not entity_type_mapping:
+        raise ValueError(
+            "Missing column mapping for 'entity_type' in hierarchy import"
+        )
+    entity_type = entity_type_mapping.source_key
+    return row[entity_type]
 
 
 def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]:
