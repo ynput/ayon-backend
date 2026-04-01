@@ -437,6 +437,10 @@ async def _create_payload(
 
             # Get the value from the row
             source_value = row.get(csv_column_name)
+
+            if column_name == "name" and source_value:
+                source_value = source_value.replace("\\", "/").rsplit("/", 1)[-1]
+
             if importable_column.value_type == "list_of_strings":
                 json_friendly = source_value.replace("'", '"')
                 source_value = json.loads(json_friendly)
