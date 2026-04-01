@@ -225,8 +225,6 @@ async def import_data(
             else:
                 entity_cls = get_entity_class(import_type)
 
-            await _check_all_required(required_fields, row)
-
             path = None
             if "path" in row and row["path"]:
                 path = row["path"]
@@ -273,6 +271,8 @@ async def import_data(
                 fields,
                 column_mapping
             )
+
+            await _check_all_required(required_fields, payload)
 
             # Add project_name for non-user entities
             if entity_cls != UserEntity:
