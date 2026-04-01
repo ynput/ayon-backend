@@ -278,6 +278,9 @@ async def import_data(
             if entity_cls != UserEntity:
                 payload["project_name"] = project_name
 
+            # Remove entity_type from payload if present, as its not a field to set
+            payload.pop("entity_type", None)
+
             logger.debug(f"entity_id:: '{entity_id}:{entity_type} -> {payload} ")
 
             if exists:
