@@ -748,7 +748,6 @@ async def _resolve_parent_id(
     if folder_id:
         return folder_id, None
 
-    original_id = row.get("id")
     parent_id = row.get("parent_id")
 
     # Try to resolve from current import batch
