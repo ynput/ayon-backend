@@ -1,4 +1,4 @@
-from fastapi import BackgroundTasks, Query
+from fastapi import Query
 
 from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
@@ -33,7 +33,6 @@ async def get_folder(
 @router.post("", status_code=201)
 async def create_folder(
     post_data: FolderEntity.model.post_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
 ) -> EntityIdResponse:
@@ -56,7 +55,6 @@ async def create_folder(
 @router.patch("/{folder_id}", status_code=204)
 async def update_folder(
     post_data: FolderEntity.model.patch_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,

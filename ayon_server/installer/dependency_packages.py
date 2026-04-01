@@ -6,10 +6,20 @@ from ayon_server.installer.common import get_desktop_dir
 async def download_dependency_package(event_id: str, url: str):
     target_dir = get_desktop_dir("dependency_packages")
 
-    await EventStream.update(event_id, status="in_progress")
+    await EventStream.update(
+        event_id,
+        status="in_progress",
+        sender="background-installer",
+        sender_type="system",
+    )
 
     async def on_progress(progress):
         await EventStream.update(event_id, progress=progress, store=False)
 
     await download_file(url, target_dir, progress_handler=on_progress)
-    await EventStream.update(event_id, status="finished")
+    await EventStream.update(
+        event_id,
+        status="finished",
+        sender="background-installer",
+        sender_type="system",
+    )
