@@ -556,6 +556,9 @@ async def _validate_enum_value(
         ValueError: If value is not in enum and not handled by 'create' action
         NotImplementedError: If 'create' action is not yet implemented
     """
+    if not value:
+        return
+
     valid_values = {item.value for item in enum_items}
     to_check = {value} if isinstance(value, str) else set(value)
 
