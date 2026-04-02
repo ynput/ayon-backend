@@ -1058,6 +1058,8 @@ def _get_attr_type_from_annotation(annotation: Any) -> str:
         if isinstance(annotation, type) and issubclass(annotation, int):
             return "integer"
     except TypeError:
+        # annotation is not suitable for issubclass (e.g. not a class); ignore
+        # and let the logic below handle it via origin checks or the fallback
         pass
 
     # Check origin for constrained types
