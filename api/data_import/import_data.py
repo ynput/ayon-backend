@@ -207,7 +207,7 @@ async def import_data(
 
     for row in rows:
         exists = False
-        payload = {}
+        import_entity_data = {}
         identifier = None
 
         try:
@@ -255,55 +255,58 @@ async def import_data(
             )
             if parent_id:
                 path_to_ids[parent_path] = parent_id
-                payload[model_cls.parent_column_name()] = parent_id
+                import_entity_data[model_cls.parent_column_name()] = parent_id
 
             # for tasks
             if folder_id:
-                payload[model_cls.parent_column_name()] = folder_id
+                import_entity_data[model_cls.parent_column_name()] = folder_id
 
             fields = await model_cls.fields(project_name=project_name)
-            await _create_payload(
+            await _remap_row(
                 project_name,
                 header,
-                payload,
+                import_entity_data,
                 row,
                 fields,
                 column_mapping
             )
 
-            await _check_all_required(required_fields, payload)
+            await _check_all_required(required_fields, import_entity_data)
 
             # Add project_name for non-user entities
             if entity_cls != UserEntity:
-                payload["project_name"] = project_name
+                import_entity_data["project_name"] = project_name
 
-            # Remove entity_type from payload if present, as its not a field to set
-            payload.pop("entity_type", None)
+            # Remove entity_type from import_entity_data if present,
+            # as its not a field to set
+            import_entity_data.pop("entity_type", None)
 
-            logger.debug(f"entity_id:: '{entity_id}:{entity_type} -> {payload} ")
+            logger.debug(
+                f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
+            )
 
             if exists:
                 # mark that model has custom update
                 custom_updated = await model_cls.update(
-                    user=user, preview=preview, **payload
+                    user=user, preview=preview, **import_entity_data
                 )
                 if not custom_updated:
                     operations.update(
                         entity_type,
                         entity_id,
-                        **payload
+                        **import_entity_data
                     )
                 import_status.updated += 1
             else:
                 entity_id = await model_cls.create(
-                    user=user, preview=preview, **payload
+                    user=user, preview=preview, **import_entity_data
                 )
                 if not entity_id:
                     entity_id = create_uuid()
                     operations.create(
                         entity_type,
                         entity_id=entity_id,
-                        **payload
+                        **import_entity_data
                     )
                 import_status.created += 1
 
@@ -409,19 +412,19 @@ def _detect_delimiter(content: str) -> str:
     return ","
 
 
-async def _create_payload(
+async def _remap_row(
     project_name: str,
     header: list[str],
-    payload: dict[str, Any],
+    import_entity_data: dict[str, Any],
     row: dict[str, Any],
     fields: List[ImportableColumn],
     column_mapping: List[ColumnMapping]
 ) -> None:
-    """Prepare the payload with main columns and attributes columns.
+    """Remap CSV row data to match target schema based on column mapping.
 
     Args:
         header: CSV column headers
-        payload: Dictionary to populate with converted values
+        import_entity_data: Dictionary to populate with converted values
         row: CSV row data
         fields: Available importable columns
         column_mapping: User-defined column mappings
@@ -514,9 +517,9 @@ async def _create_payload(
                         project_name=project_name,
                     )
 
-                # Store the value in payload
-                _add_value_to_payload(
-                    payload=payload,
+                # Store the value in import_entity_data
+                _add_value_to_import_entity(
+                    import_entity_data=import_entity_data,
                     column_name=column_name,
                     column_type=importable_column.value_type,
                     value=target_value
@@ -529,8 +532,8 @@ async def _create_payload(
             if error_handling_mode == "abort":
                 raise ImportRowErrorException(error_msg)
             elif error_handling_mode == "default":
-                _add_value_to_payload(
-                    payload=payload,
+                _add_value_to_import_entity(
+                    import_entity_data=import_entity_data,
                     column_name=column_name,
                     column_type=importable_column.value_type,
                     value=importable_column.default_value
@@ -614,19 +617,19 @@ async def _validate_enum_value(
         )
 
 
-def _add_value_to_payload(
-    payload: dict[str, Any],
+def _add_value_to_import_entity(
+    import_entity_data: dict[str, Any],
     column_name: str,
     column_type: str | None,
     value: Any
 ) -> None:
-    """Add a value to the payload dictionary.
+    """Add a value to the import_entity_data dictionary.
 
     Handles both simple fields and nested fields (attrib.field, data.field).
     Uses column_type to determine if the field should be stored as a list.
 
     Args:
-        payload: The payload dictionary to modify
+        import_entity_data: The import_entity_data dictionary to modify
         column_name: The target column name
         column_type: The type of the column (e.g., "list_of_strings")
         value: The value to store
@@ -637,12 +640,12 @@ def _add_value_to_payload(
     # Get or create the target container
     if is_nested:
         main, key = column_name.split(".", 1)
-        if main not in payload:
-            payload[main] = {}
-        container = payload[main]
+        if main not in import_entity_data:
+            import_entity_data[main] = {}
+        container = import_entity_data[main]
         is_bool = key.startswith("is")
     else:
-        container = payload
+        container = import_entity_data
         key = column_name
         is_bool = False
 
