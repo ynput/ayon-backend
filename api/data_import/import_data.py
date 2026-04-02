@@ -7,7 +7,6 @@ their data into the AYON system as users, folders, tasks, or hierarchies.
 
 import csv
 import io
-import traceback
 from datetime import datetime
 from typing import Any, Annotated, List
 import json
