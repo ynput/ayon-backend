@@ -317,7 +317,7 @@ async def import_data(
         except Exception as exp:
             error_msg = f"{exp}"
             import_status.failed_items[row.get("name", "unknown")] = error_msg
-            logger.warning(f"{error_msg} - {traceback.format_exc(limit=5)}")
+            logger.error(f"{error_msg}", exc_info=True)
             unprocessed -= 1
             # ImportRowErrorException always stops processing, regardless of skip_errors
             should_stop = (
