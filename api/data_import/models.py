@@ -239,14 +239,14 @@ class EntityExportImport:
     _parent_column_name: Optional[str] = None  # Column name for parent reference
     # Field names to exclude from export/import
     # Subclasses can override by redefining this class attribute
-    _excluded_field_names: Set[str] = set(
+    _excluded_field_names: Set[str] = {
         "created_at",
         "updated_at",
         "created_by",
         "updated_by",
         "thumbnail_id",
         "creation_order"
-    )
+    }
 
     @classmethod
     def unique_fields(cls) -> List[str]:
