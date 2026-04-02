@@ -235,7 +235,7 @@ class EntityExportImport:
     _data_fields: List[Tuple[str, FieldInfo]] = []  # Additional data fields
     # Fields that are calculated during import and not stored in DB,
     # 'path' for example
-    _calculated_fields: List[FieldInfo] = []
+    _calculated_fields: List[ImportableColumn] = []
     _parent_column_name: Optional[str] = None  # Column name for parent reference
     # Field names to exclude from export/import
     # Subclasses can override by redefining this class attribute
@@ -362,6 +362,9 @@ class EntityExportImport:
                 annotation = getattr(field_info, "annotation", Any)
                 required = False
                 default = getattr(field_info, "default", None)
+            elif isinstance(field, ImportableColumn):
+                result.append(field)
+                continue
             else:
                 # unknown/unsupported item; skip
                 continue
@@ -538,8 +541,29 @@ class FolderExportImportModel(EntityExportImport):
     _unique_fields = ["id"]
     _data_fields = []
     _calculated_fields = [
-        FieldInfo(default="", title="Path"),
-        FieldInfo(default="", title="EntityType", name="entity_type")
+        ImportableColumn(
+            key="entity_type",
+            label="Entity type",
+            required=True,
+            value_type="string",
+            default_value="",
+            error_handling_modes=["abort"],
+            enum_name=None,
+            enum_items=[
+                EnumItem(value="folder", label="Folder"),
+                EnumItem(value="task", label="Task")
+            ]
+        ),
+        ImportableColumn(
+            key="path",
+            label="Path",
+            required=True,
+            value_type="string",
+            default_value="",
+            error_handling_modes=["abort"],
+            enum_name=None,
+            enum_items=None
+        ),
     ]
     _parent_column_name = "parent_id"
 
@@ -552,8 +576,29 @@ class TaskExportImportModel(EntityExportImport):
     _unique_fields = ["id"]
     _data_fields = []
     _calculated_fields = [
-        FieldInfo(default="", title="Path"),
-        FieldInfo(default="", title="EntityType", name="entity_type")
+        ImportableColumn(
+            key="entity_type",
+            label="Entity type",
+            required=True,
+            value_type="string",
+            default_value="",
+            error_handling_modes=["abort"],
+            enum_name=None,
+            enum_items=[
+                EnumItem(value="folder", label="Folder"),
+                EnumItem(value="task", label="Task")
+            ]
+        ),
+        ImportableColumn(
+            key="path",
+            label="Path",
+            required=True,
+            value_type="string",
+            default_value="",
+            error_handling_modes=["abort"],
+            enum_name=None,
+            enum_items=None
+        ),
     ]
     _parent_column_name = "folder_id"
 
