@@ -239,7 +239,7 @@ async def import_data(
                 fields,
                 column_mapping
             )
-            logger.info(f"Remapped row data: {import_entity_data}")
+
             path = None
             if "path" in import_entity_data and import_entity_data["path"]:
                 path = import_entity_data["path"]
