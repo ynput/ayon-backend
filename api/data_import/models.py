@@ -1051,6 +1051,26 @@ def _get_attr_type_from_annotation(annotation: Any) -> str:
         if annotation == py_type or annotation == Optional[py_type]:
             return attr_type
 
+    # Handle Pydantic constrained types (e.g., conint, constrained integers
+    # with gt/ge/lt/le)
+    # Check if it's a subclass of int (includes constrained int types)
+    try:
+        if isinstance(annotation, type) and issubclass(annotation, int):
+            return "integer"
+    except TypeError:
+        pass
+
+    # Check origin for constrained types
+    if origin is not None:
+        # Get the underlying type from the origin
+        origin_args = get_args(annotation)
+        if origin_args:
+            underlying = origin_args[0]
+            if underlying is int or (
+                isinstance(underlying, type) and issubclass(underlying, int)
+            ):
+                return "integer"
+
     # Default fallback
     return "string"
 
