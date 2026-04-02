@@ -200,6 +200,32 @@ class ColumnMapping(OPModel):
         )
     ]
 
+# Reusable column definitions for hierarchy imports
+ENTITY_TYPE_COLUMN = ImportableColumn(
+    key="entity_type",
+    label="Entity type",
+    required=True,
+    value_type="string",
+    default_value="",
+    error_handling_modes=["abort"],
+    enum_name=None,
+    enum_items=[
+        EnumItem(value="folder", label="Folder"),
+        EnumItem(value="task", label="Task")
+    ]
+)
+
+PATH_COLUMN = ImportableColumn(
+    key="path",
+    label="Path",
+    required=True,
+    value_type="string",
+    default_value="",
+    error_handling_modes=["abort"],
+    enum_name=None,
+    enum_items=None
+)
+
 
 class ImportStatus(OPModel):
     """Status model for tracking import results."""
@@ -541,29 +567,8 @@ class FolderExportImportModel(EntityExportImport):
     _unique_fields = ["id"]
     _data_fields = []
     _calculated_fields = [
-        ImportableColumn(
-            key="entity_type",
-            label="Entity type",
-            required=True,
-            value_type="string",
-            default_value="",
-            error_handling_modes=["abort"],
-            enum_name=None,
-            enum_items=[
-                EnumItem(value="folder", label="Folder"),
-                EnumItem(value="task", label="Task")
-            ]
-        ),
-        ImportableColumn(
-            key="path",
-            label="Path",
-            required=True,
-            value_type="string",
-            default_value="",
-            error_handling_modes=["abort"],
-            enum_name=None,
-            enum_items=None
-        ),
+        ENTITY_TYPE_COLUMN,
+        PATH_COLUMN,
     ]
     _parent_column_name = "parent_id"
 
@@ -576,29 +581,8 @@ class TaskExportImportModel(EntityExportImport):
     _unique_fields = ["id"]
     _data_fields = []
     _calculated_fields = [
-        ImportableColumn(
-            key="entity_type",
-            label="Entity type",
-            required=True,
-            value_type="string",
-            default_value="",
-            error_handling_modes=["abort"],
-            enum_name=None,
-            enum_items=[
-                EnumItem(value="folder", label="Folder"),
-                EnumItem(value="task", label="Task")
-            ]
-        ),
-        ImportableColumn(
-            key="path",
-            label="Path",
-            required=True,
-            value_type="string",
-            default_value="",
-            error_handling_modes=["abort"],
-            enum_name=None,
-            enum_items=None
-        ),
+        ENTITY_TYPE_COLUMN,
+        PATH_COLUMN,
     ]
     _parent_column_name = "folder_id"
 
