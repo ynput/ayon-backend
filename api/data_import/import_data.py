@@ -140,7 +140,6 @@ async def import_data(
     user: CurrentUser,
     file_id: str,  # pointer to file stored in Redis
     column_mapping: List[ColumnMapping],
-    skip_errors: bool = False,  # what to do if row fails
     existing_strategy: ExistingStrategyType = ExistingItemStrategy.SKIP,  # what to do if item found in target
     project_name: str = None,
     folder_id: str = None,    # limit import to specific folder
@@ -156,7 +155,6 @@ async def import_data(
         user: Current authenticated user (must be a manager)
         file_id: ID of the uploaded CSV file in Redis
         column_mapping: List of column mappings (source -> target)
-        skip_errors: Whether to skip rows with errors
         existing_strategy: How to handle existing items (skip, update, fail)
         project_name: Project name for folder/task imports
         folder_id: Limit import to specific folder
@@ -348,13 +346,8 @@ async def import_data(
             import_status.failed_items[row.get("name", "unknown")] = error_msg
             logger.error(f"{error_msg}", exc_info=True)
             unprocessed -= 1
-            # ImportRowErrorException always stops processing, regardless of skip_errors
-            should_stop = (
-                isinstance(exp, ImportRowErrorException) or
-                not skip_errors
-            )
-
-            if should_stop:
+            # ImportRowErrorException always stops processing
+            if isinstance(exp, ImportRowErrorException):
                 import_status.failed += 1
                 import_status.skipped += unprocessed
                 return import_status
@@ -770,7 +763,7 @@ async def _check_all_required(
         row: CSV row data
 
     Raises:
-        ValueError: If a required field is missing and skip_errors=False
+        ValueError: If a required field is missing
     """
     for req_field in required_fields:
         if req_field not in row or not row[req_field]:
