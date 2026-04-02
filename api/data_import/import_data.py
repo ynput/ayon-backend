@@ -495,7 +495,6 @@ async def _create_payload(
                     if replacement_mapping.action == "skip":
                         continue
 
-                    val = replacement_mapping.target
                     replacement_mapping_action = replacement_mapping.action
 
                     # Only replace val if action is not "create" AND target is not None
