@@ -346,7 +346,9 @@ async def import_data(
                 f"Import failed during operations processing: {exp}"
             )
             import_status.skipped = len(rows)
+            # transaction rollback
             import_status.created = 0
+            import_status.updated = 0
 
     return import_status
 
