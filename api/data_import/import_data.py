@@ -483,6 +483,8 @@ async def _create_payload(
                 source_value = [source_value]
 
             for val in source_value:
+                if not val:
+                    val = "undefined"
                 replacement_mapping = value_mapping.get(val)
                 replacement_mapping_action = None
 
