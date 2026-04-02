@@ -523,6 +523,8 @@ async def _remap_single_column(
             if (replacement_mapping.action != "create" and
                     replacement_mapping.target is not None):
                 val = replacement_mapping.target
+        elif val == "undefined":
+            continue
 
         target_value = _convert_value(importable_column, val)
 
