@@ -334,9 +334,20 @@ async def import_data(
             continue
 
     if not preview:
-        response = await operations.process()
-        if not response.success:
-            logger.error(f"Failed to import data", exc_info=True)
+        try:
+            response = await operations.process()
+            if not response.success:
+                logger.error(f"Failed to import data", exc_info=True)
+        except Exception as exp:
+            logger.error(
+                f"Exception during import operations processing: {exp}",
+                exc_info=True
+            )
+            import_status.failed_items["global"] = (
+                f"Import failed during operations processing: {exp}"
+            )
+            import_status.skipped = len(rows)
+            import_status.created = 0
 
     return import_status
 
