@@ -409,6 +409,7 @@ class EntityExportImport:
                     enum_name, project_name=project_name
                 )
             except BadRequestException:
+                # do not log anything, would be polluting too much
                 pass
 
             if enum_items:
