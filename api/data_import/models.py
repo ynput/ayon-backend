@@ -380,9 +380,6 @@ class EntityExportImport:
             # Convert annotation to valid AttributeType
             value_type = _get_attr_type_from_annotation(annotation)
             
-            # Determine default value handling
-            default_value = None
-            
             # Determine error handling modes based on field requirements
             # - "skip" and "abort" are always available
             # - "default" is only available for non-required fields
@@ -395,7 +392,7 @@ class EntityExportImport:
                 "label": label,
                 "value_type": value_type,
                 "required": required,
-                "default_value": default_value,
+                "default_value": default,
                 "error_handling_modes": error_handling_modes,
             }
             enum_items = None
