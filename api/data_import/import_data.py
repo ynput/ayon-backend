@@ -738,7 +738,18 @@ async def _resolve_entity_id(
     Returns:
         Entity ID if found, None otherwise
     """
-    # Check by path first
+    # Check by unique fields
+    identifier = None
+    for unique_field in model_cls.unique_fields():
+        identifier = tuple()
+        if unique_field not in row or not row[unique_field]:
+            break
+        identifier = identifier + (row[unique_field],)
+
+    if identifier in existing_identifiers:
+        return identifier[0] # Return the identifier
+
+    # Check by path if path is provided and entity supports it
     if "path" in row and row["path"]:
         path = row["path"]
 
@@ -760,14 +771,6 @@ async def _resolve_entity_id(
                 return entity_id
         except NotFoundException:
             logger.debug(f"Couldn't find entity for path '{path}'")
-
-    # Check by unique fields
-    if model_cls.unique_fields():
-        identifier = tuple(
-            row.get(field) for field in model_cls.unique_fields()
-        )
-        if identifier in existing_identifiers:
-            return identifier  # Return the identifier tuple
 
     return None
 
