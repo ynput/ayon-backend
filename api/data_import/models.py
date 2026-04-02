@@ -96,7 +96,7 @@ class ImportableColumn(OPModel):
     ]
 
     default_value: Annotated[
-        str,
+        str | None,
         Field(
             description="If value in field is required"
         )
