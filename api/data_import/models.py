@@ -368,9 +368,7 @@ class EntityExportImport:
             value_type = _get_attr_type_from_annotation(annotation)
             
             # Determine default value handling
-            default_value = ""
-            if not required and default is not None:
-                default_value = str(default) if default else ""
+            default_value = None
             
             # Determine error handling modes based on field requirements
             # - "skip" and "abort" are always available
