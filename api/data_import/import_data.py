@@ -499,7 +499,10 @@ async def _remap_single_column(
 
     if importable_column.value_type == "list_of_strings":
         json_friendly = source_value.replace("'", '"')
-        source_value = json.loads(json_friendly)
+        try:
+            source_value = json.loads(json_friendly)
+        except json.JSONDecodeError:
+            source_value = [item.strip() for item in source_value.split(",")]
     else:
         source_value = [source_value]
 
@@ -609,7 +612,7 @@ async def _remap_row(
         except Exception as exp:
             row_id = row.get("name", row.get(list(row.keys())[0], "unknown"))
             error_msg = f"Row '{row_id}' failed: {exp}"
-            logger.debug(error_msg)
+            logger.debug(error_msg, exc_info=True)
             if error_handling_mode == "abort":
                 raise ImportRowErrorException(error_msg)
             elif error_handling_mode == "default":
