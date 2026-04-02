@@ -216,14 +216,13 @@ async def import_data(
         exists = False
         import_entity_data = {}
         identifier = None
-
         try:
             if import_type == "entity_list_item":
                 entity_cls = EntityListItemModel
             elif import_type == "hierarchy":
-                entity_type = await _get_entity_type(row, column_mapping)
-                if entity_type in folder_type_names:
-                    entity_type = "folder"
+                entity_type = await _get_entity_type(
+                    project_name, row, column_mapping, fields
+                )
                 if entity_type not in HIERARCHY_MODEL_CLASSES:
                     error_msg = f"Invalid entity_type '{entity_type}'"
                     raise ValueError(error_msg)
@@ -384,13 +383,18 @@ async def import_data(
 
 
 async def _get_entity_type(
+    project_name: str,
     row: dict[str, Any],
-    column_mapping: List[ColumnMapping]
+    column_mapping: List[ColumnMapping],
+    fields: List[ImportableColumn],
 ) -> str:
     """Extract the entity type from column mapping for hierarchy imports.
 
     Args:
-    column_mapping: List of ColumnMapping objects provided by the user
+        project_name: The project name for enum validation
+        row: CSV row data
+        column_mapping: List of ColumnMapping objects provided by the user
+        fields: Available importable columns
     """
     target_mapping_by_key = {
         mapping.target_key: mapping
@@ -401,8 +405,18 @@ async def _get_entity_type(
         raise ValueError(
             "Missing column mapping for 'entity_type' in hierarchy import"
         )
-    entity_type = entity_type_mapping.source_key
-    return row[entity_type]
+
+    # Use the reusable helper to remap the column value
+    import_entity_data: dict[str, Any] = {}
+    await _remap_single_column(
+        project_name=project_name,
+        mapping=entity_type_mapping,
+        row=row,
+        fields=fields,
+        import_entity_data=import_entity_data,
+        column_name="entity_type",
+    )
+    return import_entity_data.get("entity_type")
 
 
 def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]:
@@ -439,6 +453,101 @@ def _detect_delimiter(content: str) -> str:
     return ","
 
 
+async def _remap_single_column(
+    project_name: str,
+    mapping: ColumnMapping,
+    row: dict[str, Any],
+    fields: List[ImportableColumn],
+    import_entity_data: dict[str, Any],
+    column_name: str | None = None,
+) -> None:
+    """Remap a single CSV column value based on its mapping.
+
+    This is a reusable helper that processes one column from a row,
+    applying value mappings, type conversion, and enum validation.
+
+    Args:
+        project_name: The project name for enum validation
+        mapping: ColumnMapping object defining source->target mapping
+        row: CSV row data
+        fields: Available importable columns
+        import_entity_data: Dictionary to populate with converted values
+        column_name: Optional override for target column name
+    """
+    # Use mapping's target_key unless overridden
+    target_column_name = column_name or mapping.target_key
+    csv_column_name = mapping.source_key
+
+    # Get the target column definition
+    importable_column_by_key = {
+        importable_column.key: importable_column
+        for importable_column in fields
+    }
+    importable_column = importable_column_by_key.get(target_column_name)
+    if not importable_column:
+        logger.debug(f"Unknown column '{target_column_name}'")
+        return
+
+    # Build value mapping dictionary
+    value_mapping = {
+        (vm.source or ""): vm
+        for vm in mapping.values_mapping
+    }
+
+    # Get the value from the row
+    source_value = row.get(csv_column_name)
+
+    if target_column_name == "name" and source_value:
+        source_value = source_value.replace("\\", "/").rsplit("/", 1)[-1]
+
+    if target_column_name == "path":
+        source_value = source_value.replace("\\", "/").replace(" ", "")
+
+    if importable_column.value_type == "list_of_strings":
+        json_friendly = source_value.replace("'", '"')
+        source_value = json.loads(json_friendly)
+    else:
+        source_value = [source_value]
+
+    for val in source_value:
+        if not val:
+            val = "undefined"
+        replacement_mapping = value_mapping.get(val)
+        replacement_mapping_action = None
+
+        # Apply value replacement if defined
+        if replacement_mapping:
+            if replacement_mapping.action == "skip":
+                continue
+
+            replacement_mapping_action = replacement_mapping.action
+
+            # Only replace val if action is not "create" AND target is not None
+            if (replacement_mapping.action != "create" and
+                    replacement_mapping.target is not None):
+                val = replacement_mapping.target
+
+        target_value = _convert_value(importable_column, val)
+
+        # Validate enum values if applicable
+        if importable_column.enum_items:
+            await _validate_enum_value(
+                target_value,
+                importable_column.enum_items,
+                replacement_mapping_action,
+                enum_name=getattr(importable_column, 'enum_name', None),
+                project_name=project_name,
+            )
+
+        # Store the value in import_entity_data
+        _add_value_to_import_entity(
+            import_entity_data=import_entity_data,
+            column_name=target_column_name,
+            column_type=importable_column.value_type,
+            value=target_value
+        )
+
+
 async def _remap_row(
     project_name: str,
     header: list[str],
@@ -465,7 +574,7 @@ async def _remap_row(
         importable_column.key: importable_column
         for importable_column in fields
     }
-
+    logger.info(f"Remapping row with header: {header} and row data: {row}")
     # Process each CSV column
     for csv_column_name in header:
         mapping = source_mapping_by_key.get(csv_column_name)
@@ -489,69 +598,16 @@ async def _remap_row(
             # Adjust column name based on entity type
             column_name = f"{entity_type}_type"
 
-        # Get the target column definition
-        importable_column = importable_column_by_key.get(column_name)
-        if not importable_column:
-            logger.debug(f"Unknown column '{column_name}'")
-            continue
-
         try:
-            # Build value mapping dictionary
-            value_mapping = {
-                (vm.source or ""): vm
-                for vm in mapping.values_mapping
-            }
-
-            # Get the value from the row
-            source_value = row.get(csv_column_name)
-
-            if column_name == "name" and source_value:
-                source_value = source_value.replace("\\", "/").rsplit("/", 1)[-1]
-
-            if importable_column.value_type == "list_of_strings":
-                json_friendly = source_value.replace("'", '"')
-                source_value = json.loads(json_friendly)
-            else:
-                source_value = [source_value]
-
-            for val in source_value:
-                if not val:
-                    val = "undefined"
-                replacement_mapping = value_mapping.get(val)
-                replacement_mapping_action = None
-
-                # Apply value replacement if defined
-                if replacement_mapping:
-                    if replacement_mapping.action == "skip":
-                        continue
-
-                    replacement_mapping_action = replacement_mapping.action
-
-                    # Only replace val if action is not "create" AND target is not None
-                    if (replacement_mapping.action != "create" and
-                            replacement_mapping.target is not None):
-                        val = replacement_mapping.target
-
-                target_value = _convert_value(importable_column, val)
-
-                # Validate enum values if applicable
-                if importable_column.enum_items:
-                    await _validate_enum_value(
-                        target_value,
-                        importable_column.enum_items,
-                        replacement_mapping_action,
-                        enum_name=getattr(importable_column, 'enum_name', None),
-                        project_name=project_name,
-                    )
-
-                # Store the value in import_entity_data
-                _add_value_to_import_entity(
-                    import_entity_data=import_entity_data,
-                    column_name=column_name,
-                    column_type=importable_column.value_type,
-                    value=target_value
-                )
-
+            # Use the helper function to remap the single column
+            await _remap_single_column(
+                project_name=project_name,
+                mapping=mapping,
+                row=row,
+                fields=fields,
+                import_entity_data=import_entity_data,
+                column_name=column_name,
+            )
         except Exception as exp:
             row_id = row.get("name", row.get(list(row.keys())[0], "unknown"))
             error_msg = f"Row '{row_id}' failed: {exp}"
@@ -559,12 +615,15 @@ async def _remap_row(
             if error_handling_mode == "abort":
                 raise ImportRowErrorException(error_msg)
             elif error_handling_mode == "default":
-                _add_value_to_import_entity(
-                    import_entity_data=import_entity_data,
-                    column_name=column_name,
-                    column_type=importable_column.value_type,
-                    value=importable_column.default_value
-                )
+                # Get the target column definition for default value
+                importable_column = importable_column_by_key.get(column_name)
+                if importable_column:
+                    _add_value_to_import_entity(
+                        import_entity_data=import_entity_data,
+                        column_name=column_name,
+                        column_type=importable_column.value_type,
+                        value=importable_column.default_value
+                    )
             else:
                 raise ValueError(error_msg)
 
