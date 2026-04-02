@@ -205,6 +205,11 @@ async def import_data(
     path_to_ids = {}
     unprocessed = len(rows)
 
+    folder_enum_items = await EnumRegistry.resolve(
+        "folderTypes", project_name=project_name
+    )
+    folder_type_names = {item.value for item in folder_enum_items}
+
     for row in rows:
         exists = False
         import_entity_data = {}
@@ -215,6 +220,8 @@ async def import_data(
                 entity_cls = EntityListItemModel
             elif import_type == "hierarchy":
                 entity_type = await _get_entity_type(row, column_mapping)
+                if entity_type in folder_type_names:
+                    entity_type = "folder"
                 if entity_type not in HIERARCHY_MODEL_CLASSES:
                     error_msg = f"Invalid entity_type '{entity_type}'"
                     raise ValueError(error_msg)
