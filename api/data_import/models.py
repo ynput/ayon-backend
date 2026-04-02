@@ -627,6 +627,8 @@ class FolderTaskExportImportModel(EntityExportImport):
         for field in folder_fields + task_fields + process_columns:
             # control required explicitly based on agreed format
             field.required = field.key in cls._process_required_fields
+            if field.key == "status":
+                field.label = "Status"
             if field.key not in seen_names:
                 seen_names.add(field.key)
                 result.append(field)
