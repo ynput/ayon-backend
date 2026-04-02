@@ -239,7 +239,7 @@ async def import_data(
                 fields,
                 column_mapping
             )
-
+            logger.info(f"Remapped row data: {import_entity_data}")
             path = None
             if "path" in import_entity_data and import_entity_data["path"]:
                 path = import_entity_data["path"]
@@ -372,6 +372,7 @@ async def import_data(
             import_status.created = 0
             import_status.updated = 0
 
+    logger.debug(f"Import completed:{import_status}")
     return import_status
 
 
@@ -493,7 +494,7 @@ async def _remap_single_column(
     if target_column_name == "name" and source_value:
         source_value = source_value.replace("\\", "/").rsplit("/", 1)[-1]
 
-    if target_column_name == "path":
+    if target_column_name == "path" and source_value:
         source_value = source_value.replace("\\", "/").replace(" ", "")
 
     if importable_column.value_type == "list_of_strings":
@@ -567,7 +568,10 @@ async def _remap_row(
         importable_column.key: importable_column
         for importable_column in fields
     }
-
+    target_mapping_by_key = {
+        mapping.target_key: mapping
+        for mapping in column_mapping
+    }
     # Process each CSV column
     for csv_column_name in header:
         mapping = source_mapping_by_key.get(csv_column_name)
@@ -577,12 +581,13 @@ async def _remap_row(
         column_name = mapping.target_key
         error_handling_mode = mapping.error_handling_mode
         if column_name == HIERARCHY_UNIFIED_COLUMN:
+            mapping_for_entity_type = target_mapping_by_key.get("entity_type")
             # Special handling for hierarchy imports where folder and task share a column
-            if "entity_type" not in row:
+            if not mapping_for_entity_type:
                 raise ValueError(
                     f"Missing 'entity_type' for hierarchy import in row: {row}"
                 )
-            entity_type = row["entity_type"]
+            entity_type = row[mapping_for_entity_type.source_key]
             if entity_type not in ("folder", "task"):
                 raise ValueError(
                     f"Invalid 'entity_type' value '{entity_type}' for hierarchy import "
