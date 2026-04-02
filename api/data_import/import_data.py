@@ -224,12 +224,22 @@ async def import_data(
             else:
                 entity_cls = get_entity_class(import_type)
 
+            fields = await model_cls.fields(project_name=project_name)
+            await _remap_row(
+                project_name,
+                header,
+                import_entity_data,
+                row,
+                fields,
+                column_mapping
+            )
+
             path = None
-            if "path" in row and row["path"]:
-                path = row["path"]
+            if "path" in import_entity_data and import_entity_data["path"]:
+                path = import_entity_data["path"]
 
             entity_id = await _resolve_entity_id(
-                row=row,
+                row=import_entity_data,
                 path_to_ids=path_to_ids,
                 existing_identifiers=existing_identifiers,
                 model_cls=model_cls,
@@ -246,7 +256,7 @@ async def import_data(
 
             original_id = row.get("id")
             parent_id, parent_path = await _resolve_parent_id(
-                row=row,
+                row=import_entity_data,
                 originals_and_new=originals_and_new,
                 existing_identifiers=existing_identifiers,
                 path_to_ids=path_to_ids,
@@ -260,16 +270,6 @@ async def import_data(
             # for tasks
             if folder_id:
                 import_entity_data[model_cls.parent_column_name()] = folder_id
-
-            fields = await model_cls.fields(project_name=project_name)
-            await _remap_row(
-                project_name,
-                header,
-                import_entity_data,
-                row,
-                fields,
-                column_mapping
-            )
 
             await _check_all_required(required_fields, import_entity_data)
 
