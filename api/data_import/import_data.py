@@ -494,6 +494,11 @@ async def _create_payload(
                     val = replacement_mapping.target
                     replacement_mapping_action = replacement_mapping.action
 
+                    # Only replace val if action is not "create" AND target is not None
+                    if (replacement_mapping.action != "create" and
+                            replacement_mapping.target is not None):
+                        val = replacement_mapping.target
+
                 target_value = _convert_value(importable_column, val)
 
                 # Validate enum values if applicable
