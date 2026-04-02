@@ -630,13 +630,21 @@ class FolderTaskExportImportModel(EntityExportImport):
             )
         ]
 
+        label_overrides = {
+            "status": "Status",
+            "active": "Active",
+            "id": "Id",
+            "tags": "Tags",
+            "name": "Name",
+            "label": "Label",
+        }
         # Combine and deduplicate by field name
         seen_names: Set[str] = set()
         for field in folder_fields + task_fields + process_columns:
             # control required explicitly based on agreed format
             field.required = field.key in cls._process_required_fields
-            if field.key == "status":
-                field.label = "Status"
+            label_override = label_overrides.get(field.key)
+            field.label = label_override or field.label
             if field.key not in seen_names:
                 seen_names.add(field.key)
                 result.append(field)
