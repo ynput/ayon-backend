@@ -237,6 +237,16 @@ class EntityExportImport:
     # 'path' for example
     _calculated_fields: List[FieldInfo] = []
     _parent_column_name: Optional[str] = None  # Column name for parent reference
+    # Field names to exclude from export/import
+    # Subclasses can override by redefining this class attribute
+    _excluded_field_names: Set[str] = set(
+        "created_at",
+        "updated_at",
+        "created_by",
+        "updated_by",
+        "thumbnail_id",
+        "creation_order"
+    )
 
     @classmethod
     def unique_fields(cls) -> List[str]:
@@ -357,6 +367,9 @@ class EntityExportImport:
                 continue
 
             if name.startswith("_"):
+                continue
+
+            if name in cls._excluded_field_names:
                 continue
 
             # Get the label - use title if available, otherwise capitalize the name
