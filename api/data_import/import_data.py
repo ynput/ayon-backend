@@ -205,11 +205,6 @@ async def import_data(
     path_to_ids = {}
     unprocessed = len(rows)
 
-    folder_enum_items = await EnumRegistry.resolve(
-        "folderTypes", project_name=project_name
-    )
-    folder_type_names = {item.value for item in folder_enum_items}
-
     for row in rows:
         exists = False
         import_entity_data = {}
