@@ -288,6 +288,13 @@ async def import_data(
             # as its not a field to set
             import_entity_data.pop("entity_type", None)
 
+            if (
+                    import_entity_data.get("path") and
+                    not import_entity_data.get("name")
+            ):
+                import_entity_data["name"] = (
+                    import_entity_data["path"].rsplit("/", 1))[-1]
+
             logger.debug(
                 f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
             )
