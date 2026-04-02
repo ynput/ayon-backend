@@ -343,7 +343,8 @@ async def import_data(
 
         except Exception as exp:
             error_msg = f"{exp}"
-            import_status.failed_items[row.get("name", "unknown")] = error_msg
+            row_identifier = path or identifier or row[list(row.keys())[0]]
+            import_status.failed_items[row_identifier] = error_msg
             logger.error(f"{error_msg}", exc_info=True)
             unprocessed -= 1
             # ImportRowErrorException always stops processing
