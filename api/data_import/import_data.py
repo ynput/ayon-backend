@@ -181,7 +181,7 @@ async def import_data(
 
     # Send start event
     event_id = await EventStream.dispatch(
-        "import.data.start",
+        "import.data",
         project=project_name,
         description=f"Starting import of {total_rows} rows",
         summary={"total": total_rows, "type": import_type},
@@ -356,7 +356,7 @@ async def import_data(
 
             # Send progress event after each processed item
             await EventStream.dispatch(
-                "import.data.item",
+                "import.data",
                 project=project_name,
                 description=f"Processed item: {identifier or path or entity_id}",
                 summary={
@@ -384,7 +384,7 @@ async def import_data(
                 import_status.skipped += unprocessed
                 # Send end event for early termination
                 await EventStream.dispatch(
-                    "import.data.finish",
+                    "import.data",
                     project=project_name,
                     description="Import finished with error",
                     summary={
