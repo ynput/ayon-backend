@@ -211,6 +211,10 @@ async def import_data(
     default_task_type = task_type_enum_items[0].value
 
     for row in rows:
+        # Skip empty rows
+        if _is_row_empty(row):
+            unprocessed -= 1
+            continue
         exists = False
         import_entity_data = {}
         identifier = None
@@ -446,6 +450,21 @@ def _detect_delimiter(content: str) -> str:
     if semicolon_count > comma_count:
         return ";"
     return ","
+
+
+def _is_row_empty(row: dict) -> bool:
+    """Check if a CSV row is completely empty (all values are None or empty).
+
+    Args:
+        row: Dictionary representing a CSV row
+
+    Returns:
+        True if the row is empty, False otherwise
+    """
+    return all(
+        value is None or (isinstance(value, str) and not value.strip())
+        for value in row.values()
+    )
 
 
 async def _remap_single_column(
