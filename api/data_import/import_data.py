@@ -187,6 +187,8 @@ async def import_data(
         summary={"total": total_rows, "type": import_type},
         finished=False,
         store=True,
+        sender="data_import",
+        sender_type="system",
     )
 
     model_cls = IMPORTABLE_ENTITIES[import_type]
@@ -368,6 +370,8 @@ async def import_data(
                 depends_on=event_id,
                 finished=False,
                 store=True,
+                sender="data_import",
+                sender_type="system",
             )
 
             unprocessed -= 1
@@ -397,6 +401,8 @@ async def import_data(
                     depends_on=event_id,
                     finished=True,
                     store=True,
+                    sender="data_import",
+                    sender_type="system"
                 )
                 return import_status
             import_status.skipped += 1
@@ -437,6 +443,8 @@ async def import_data(
         depends_on=event_id,
         finished=True,
         store=True,
+        sender="data_import",
+        sender_type="system",
     )
 
     return import_status
