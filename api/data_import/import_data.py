@@ -24,6 +24,7 @@ from ayon_server.exceptions import (
     NotFoundException,
     ImportRowErrorException,
 )
+from ayon_server.events.eventstream import EventStream
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.lib.redis import Redis
@@ -174,6 +175,20 @@ async def import_data(
 
     import_status = ImportStatus()
 
+    # Filter out empty rows
+    filtered_rows = [row for row in rows if not _is_row_empty(row)]
+    total_rows = len(filtered_rows)
+
+    # Send start event
+    event_id = await EventStream.dispatch(
+        "import.data.start",
+        project=project_name,
+        description=f"Starting import of {total_rows} rows",
+        summary={"total": total_rows, "type": import_type},
+        finished=False,
+        store=True,
+    )
+
     model_cls = IMPORTABLE_ENTITIES[import_type]
 
     hierarchy_existing_identifiers: dict = {}
@@ -201,7 +216,7 @@ async def import_data(
 
     originals_and_new = {}
     path_to_ids = {}
-    unprocessed = len(rows)
+    unprocessed = len(filtered_rows)
 
     task_type_enum_items = await EnumRegistry.resolve(
         "taskTypes", project_name=project_name
@@ -210,11 +225,7 @@ async def import_data(
         raise ValueError("No task types")
     default_task_type = task_type_enum_items[0].value
 
-    for row in rows:
-        # Skip empty rows
-        if _is_row_empty(row):
-            unprocessed -= 1
-            continue
+    for row in filtered_rows:
         exists = False
         import_entity_data = {}
         identifier = None
@@ -343,6 +354,22 @@ async def import_data(
             if path:
                 path_to_ids[path] = entity_id
 
+            # Send progress event after each processed item
+            await EventStream.dispatch(
+                "import.data.item",
+                project=project_name,
+                description=f"Processed item: {identifier or path or entity_id}",
+                summary={
+                    "created": import_status.created,
+                    "updated": import_status.updated,
+                    "skipped": import_status.skipped,
+                    "failed": import_status.failed,
+                },
+                depends_on=event_id,
+                finished=False,
+                store=True,
+            )
+
             unprocessed -= 1
 
         except Exception as exp:
@@ -355,6 +382,22 @@ async def import_data(
             if isinstance(exp, ImportRowErrorException):
                 import_status.failed += 1
                 import_status.skipped += unprocessed
+                # Send end event for early termination
+                await EventStream.dispatch(
+                    "import.data.finish",
+                    project=project_name,
+                    description="Import finished with error",
+                    summary={
+                        "created": import_status.created,
+                        "updated": import_status.updated,
+                        "skipped": import_status.skipped,
+                        "failed": import_status.failed,
+                        "failed_items": import_status.failed_items,
+                    },
+                    depends_on=event_id,
+                    finished=True,
+                    store=True,
+                )
                 return import_status
             import_status.skipped += 1
             continue
@@ -378,6 +421,24 @@ async def import_data(
             import_status.updated = 0
 
     logger.debug(f"Import completed:{import_status}")
+
+    # Send end event
+    await EventStream.dispatch(
+        "import.data.finish",
+        project=project_name,
+        description="Import finished",
+        summary={
+            "created": import_status.created,
+            "updated": import_status.updated,
+            "skipped": import_status.skipped,
+            "failed": import_status.failed,
+            "failed_items": import_status.failed_items,
+        },
+        depends_on=event_id,
+        finished=True,
+        store=True,
+    )
+
     return import_status
 
 
