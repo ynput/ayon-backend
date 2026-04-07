@@ -214,6 +214,7 @@ async def import_data(
         exists = False
         import_entity_data = {}
         identifier = None
+        path = None
         try:
             if import_type == "entity_list_item":
                 entity_cls = EntityListItemModel
@@ -240,7 +241,6 @@ async def import_data(
                 column_mapping
             )
 
-            path = None
             if "path" in import_entity_data and import_entity_data["path"]:
                 path = import_entity_data["path"]
 
