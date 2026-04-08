@@ -219,6 +219,7 @@ async def import_data(
     originals_and_new = {}
     path_to_ids = {}
     unprocessed = len(filtered_rows)
+    row_number  = 0
 
     task_type_enum_items = await EnumRegistry.resolve(
         "taskTypes", project_name=project_name
@@ -228,6 +229,7 @@ async def import_data(
     default_task_type = task_type_enum_items[0].value
 
     for row in filtered_rows:
+        row_number += 1
         exists = False
         import_entity_data = {}
         identifier = None
@@ -379,8 +381,7 @@ async def import_data(
 
         except Exception as exp:
             error_msg = f"{exp}"
-            row_identifier = path or identifier or row[list(row.keys())[0]]
-            import_status.failed_items[row_identifier] = error_msg
+            import_status.failed_items[f"{row_number}"] = error_msg
             logger.error(f"{error_msg}", exc_info=True)
             unprocessed -= 1
             # ImportRowErrorException always stops processing
