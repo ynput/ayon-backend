@@ -141,7 +141,7 @@ async def import_data(
     user: CurrentUser,
     file_id: str,  # pointer to file stored in Redis
     column_mapping: List[ColumnMapping],
-    existing_strategy: ExistingStrategyType = ExistingItemStrategy.SKIP,  # what to do if item found in target
+    existing_strategy: ExistingStrategyType = ExistingItemStrategy.UPDATE,  # what to do if item found in target
     project_name: str = None,
     folder_id: str = None,    # limit import to specific folder
     preview: bool  = False,  # do not commit to db if True
