@@ -93,18 +93,6 @@ CREATE INDEX IF NOT EXISTS idx_activity_reference_active ON activity_references(
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_reference_unique ON activity_references(activity_id, entity_id, entity_name, reference_type);
 
 
--- This will be implemented later.
--- Now we can create the table, but until we start populating it
--- and invalidating it, hierarchy crawling won't work (but won't break)
-
-CREATE TABLE IF NOT EXISTS entity_paths (
-    entity_id UUID PRIMARY KEY,
-    entity_type VARCHAR NOT NULL,
-    path VARCHAR NOT NULL
-);
-CREATE INDEX IF NOT EXISTS entity_paths_path_idx ON entity_paths USING GIN (path public.gin_trgm_ops);
-
-
 CREATE OR REPLACE VIEW activity_feed AS
   SELECT
     ref.id as reference_id,
@@ -134,8 +122,6 @@ CREATE OR REPLACE VIEW activity_feed AS
     activity_references as ref
   INNER JOIN
     activities as act ON ref.activity_id = act.id
-  LEFT JOIN
-    entity_paths as ref_paths ON ref.entity_id = ref_paths.entity_id;
 
 
 CREATE TABLE IF NOT EXISTS files (
@@ -161,6 +147,7 @@ CREATE INDEX IF NOT EXISTS idx_files_activity_id ON files(activity_id);
 
 CREATE TABLE folders(
     id UUID NOT NULL PRIMARY KEY,
+    path VARCHAR,
 
     name VARCHAR NOT NULL,
     label VARCHAR,
@@ -180,6 +167,7 @@ CREATE TABLE folders(
     creation_order SERIAL NOT NULL
 );
 
+CREATE INDEX folder_path_idx ON folders(path);
 CREATE INDEX folder_parent_idx ON folders(parent_id);
 CREATE INDEX folder_thumbnail_idx ON folders(thumbnail_id);
 CREATE UNIQUE INDEX folder_creation_order_idx ON folders(creation_order);
@@ -193,7 +181,16 @@ CREATE UNIQUE INDEX folder_root_unique_name ON folders (LOWER(name))
     WHERE (active IS TRUE AND parent_id IS NULL);
 
 
--- Hierarchy view
+
+
+CREATE TABLE exported_attributes(
+  folder_id UUID NOT NULL PRIMARY KEY REFERENCES folders(id) ON DELETE CASCADE,
+  path VARCHAR NOT NULL,
+  attrib JSONB NOT NULL DEFAULT '{}'::JSONB
+);
+
+-- TODO: THIS IS DEPRECATED
+-- Hierarchy view 
 -- Materialized view used as a shorthand to get folder parents/full path
 
 CREATE MATERIALIZED VIEW hierarchy
@@ -219,11 +216,7 @@ AS
 CREATE UNIQUE INDEX hierarchy_id ON hierarchy (id);
 
 
-CREATE TABLE exported_attributes(
-  folder_id UUID NOT NULL PRIMARY KEY REFERENCES folders(id) ON DELETE CASCADE,
-  path VARCHAR NOT NULL,
-  attrib JSONB NOT NULL DEFAULT '{}'::JSONB
-);
+
 
 -----------
 -- TASKS --
