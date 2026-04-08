@@ -60,6 +60,12 @@ class ProjectFolderModel(OPModel):
     label: Annotated[str, FFolderLabel]
     parent_id: Annotated[str | None, FFolderParentID] = None
     position: Annotated[int, Field(title="Folder position", ge=0)] = 0
+    is_empty: Annotated[
+        bool,
+        Field(
+            title="Whether the folder (or any of its subfolders) contains any projects",
+        ),
+    ] = False
     data: Annotated[ProjectFolderData, FFolderData]
 
 
@@ -76,10 +82,49 @@ class ProjectFoldersResponseModel(OPModel):
 async def get_project_folders(user: CurrentUser) -> ProjectFoldersResponseModel:
     result = []
     async with Postgres.transaction():
+        query = """
+            SELECT distinct(data->>'projectFolder')
+            FROM projects WHERE data ? 'projectFolder'
+        """
+        stmt = await Postgres.prepare(query)
+        project_folder_ids = set()
+        async for row in stmt.cursor():
+            if row[0] is not None:
+                project_folder_ids.add(row[0])
+
         query = "SELECT * FROM project_folders ORDER BY parent_id, position, label"
         stmt = await Postgres.prepare(query)
         async for row in stmt.cursor():
             result.append(ProjectFolderModel(**row))
+
+        # Mark folders that contain projects
+        # This is done in Python instead of SQL for simplicity,
+        # as the number of folders is expected to be small
+        #
+        # A folder is considered empty if it doesn't contain any projects directly
+        # or in any of its subfolders.
+        # Folder that contains subfolders is considered empty only if
+        # all of its subfolders are also empty.
+
+        folder_with_projects = set()
+
+        def crawl_folder(parent_id: str | None) -> bool:
+            res = False
+            for folder in result:
+                if folder.parent_id != parent_id:
+                    continue
+                if folder.id in project_folder_ids:
+                    folder_with_projects.add(folder.id)
+                    res = True
+                if crawl_folder(folder.id):
+                    folder_with_projects.add(folder.id)
+                    res = True
+            return res
+
+        crawl_folder(None)
+
+        for folder in result:
+            folder.is_empty = folder.id not in folder_with_projects
 
     return ProjectFoldersResponseModel(folders=result)
 
