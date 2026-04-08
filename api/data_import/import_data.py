@@ -609,8 +609,7 @@ async def _remap_single_column(
             replacement_mapping_action = replacement_mapping.action
 
             # Only replace val if action is not "create" AND target is not None
-            if (replacement_mapping.action != "create" and
-                    replacement_mapping.target is not None):
+            if replacement_mapping.target is not None:
                 val = replacement_mapping.target
         elif val == "undefined":
             continue
@@ -761,8 +760,9 @@ async def _validate_enum_value(
     if not value:
         return
 
-    valid_values = {item.value for item in enum_items}
-    to_check = {value} if isinstance(value, str) else set(value)
+    valid_values = {item.value.lower() for item in enum_items}
+    value = value.replace("_", " ")
+    to_check = {value.lower()} if isinstance(value, str) else set(value)
 
     # Identify exactly which values are missing
     missing_values = to_check - valid_values
@@ -778,16 +778,15 @@ async def _validate_enum_value(
                 )
 
             # Create new enum items
-            for missing_value in missing_values:
-                new_item = EnumItem(
-                    value=missing_value,
-                    label=missing_value.replace("_", " ").title(),
-                )
-                await EnumRegistry.create_item(
-                    enum_name,
-                    new_item,
-                    project_name=project_name,
-                )
+            new_item = EnumItem(
+                value=value,
+                label=value.title(),
+            )
+            await EnumRegistry.create_item(
+                enum_name,
+                new_item,
+                project_name=project_name,
+            )
             return
 
         raise ValueError(
