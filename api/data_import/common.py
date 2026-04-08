@@ -28,6 +28,7 @@ async def _get_entity_id_by_path(
     if is_task:
         folder_path, task_name = path.rsplit("/", 1)
 
+    folder_path = folder_path.lstrip("/")
     # Query for folder
     query = f"""
         SELECT h.id, h.path
