@@ -567,6 +567,36 @@ class UserExportImportModel(EntityExportImport):
     ]
     _parent_column_name = None
 
+    @classmethod
+    async def create(cls, **kwargs: Any) -> str | None:
+        name = kwargs["name"]
+        preview = kwargs.get("preview", False)
+
+        user = UserEntity(
+            payload={**kwargs}
+        )
+        user.set_password(name)
+        if not preview:
+            await user.save()
+
+        return name
+
+    @classmethod
+    async def update(cls, **kwargs: Any) -> str | None:
+        preview = kwargs.get("preview", False)
+        name = kwargs["name"]
+        user = await UserEntity.load(name, for_update=True)
+        if not user:
+            raise NotFoundException(f"User '{name}' not found for update")
+        user.data.update(kwargs.get("data", {}))
+        # Pydantic models don't have an update method
+        for key, value in kwargs.get("attrib", {}).items():
+            setattr(user.attrib, key, value)
+        if not preview:
+            await user.save()
+
+        return name
+
 
 class FolderExportImportModel(EntityExportImport):
     """Model used for exporting and importing folder entities."""
