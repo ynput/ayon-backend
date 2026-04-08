@@ -1015,7 +1015,7 @@ async def _resolve_parent_id(
             except NotFoundException:
                 raise ValueError(
                     f"Parent path '{parent_path}' not found in "
-                    f"project '{project_name}' during CSV import",
+                    f"project '{project_name}'",
                 )
 
         return parent_id, parent_path
