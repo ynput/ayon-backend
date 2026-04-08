@@ -131,7 +131,16 @@ class ImportableColumn(OPModel):
             )
         ),
     ]
-
+    create_new_items: Annotated[
+        bool,
+        Field(
+            description=(
+                "Marker that new items can be created for frontend to decide "
+                "if Create button should be offered. Entity_type cannot be "
+                "created for example."
+            )
+        ),
+    ] = True
 
 class ColumnValueMapping(OPModel):
     """Value to value mapping mostly for enum fields"""
@@ -634,7 +643,8 @@ class FolderTaskExportImportModel(EntityExportImport):
                 enum_items=[
                     EnumItem(value="folder", label="Folder"),
                     EnumItem(value="task", label="Task")
-                ]
+                ],
+                create_new_items=False
             ),
             ImportableColumn(
                 key="path",
@@ -656,7 +666,8 @@ class FolderTaskExportImportModel(EntityExportImport):
                 default_value="",
                 error_handling_modes=["abort"],
                 enum_name=None,
-                enum_items=None
+                enum_items=None,
+                create_new_items=False
             )
         ]
 
