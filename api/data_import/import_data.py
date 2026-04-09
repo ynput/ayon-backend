@@ -865,9 +865,7 @@ async def _check_all_required(
     """
     for req_field in required_fields:
         if req_field not in row or not row[req_field]:
-            raise ValueError(
-                f"Missing required field '{req_field}'"
-            )
+                raise ValueError(f"Missing required field '{req_field}'")
 
 
 async def _get_existing_identifiers(
