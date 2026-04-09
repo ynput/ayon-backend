@@ -96,8 +96,12 @@ class Session:
             remaining_ttl = ayonconfig.session_ttl - (time.time() - session.last_used)
             if remaining_ttl < ayonconfig.session_ttl - 120:
                 session.last_used = time.time()
+                try:
+                    await cls.on_extend(session)
+                except UnauthorizedException as e:
+                    await cls.delete(token, f"Session extension failed: {e}")
+                    return None
                 await Redis.set(cls.ns, token, json_dumps(session.dict()))
-                await cls.on_extend(session)
 
         return session
 
