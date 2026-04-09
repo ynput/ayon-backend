@@ -701,8 +701,7 @@ async def _remap_row(
                 column_name=column_name,
             )
         except Exception as exp:
-            row_id = row.get("name", row.get(list(row.keys())[0], "unknown"))
-            error_msg = f"Row '{row_id}' failed: {exp}"
+            error_msg = str(exp)
             logger.debug(error_msg, exc_info=True)
             if error_handling_mode == "abort":
                 raise ImportRowErrorException(error_msg)
