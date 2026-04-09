@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 from fastapi.openapi.docs import get_redoc_html
@@ -60,7 +60,7 @@ def _get_temp_app(addon: "BaseServerAddon") -> FastAPI:
     return temp_app
 
 
-def get_addon_openapi(addon: "BaseServerAddon") -> dict[str, str]:
+def get_addon_openapi(addon: "BaseServerAddon") -> dict[str, Any]:
     """Get OpenAPI schema for the addon"""
     temp_app = _get_temp_app(addon)
     router_openapi = temp_app.openapi()
