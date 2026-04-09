@@ -685,7 +685,6 @@ async def _remap_row(
             if entity_type not in ("folder", "task"):
                 raise ValueError(
                     f"Invalid 'entity_type' value '{entity_type}' for hierarchy import "
-                    f"in row: {row}"
                 )
             # Adjust column name based on entity type
             column_name = f"{entity_type}_type"
