@@ -498,29 +498,28 @@ def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]
     Returns:
         Tuple of (header_fields, list of row dictionaries)
     """
-    content = file_bytes.decode("utf-8")
-    delimiter = _detect_delimiter(content)
-    reader = csv.DictReader(io.StringIO(content), delimiter=delimiter)
+    try:
+        content = file_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        content = file_bytes.decode("latin-1")
+
+    if not content.strip():
+        return [], []
+
+    # Initialize the sniffer
+    sniffer = csv.Sniffer()
+
+    try:
+        dialect = sniffer.sniff(content[:4048], delimiters=",;\t|")
+    except csv.Error:
+        dialect = csv.excel
+
+    reader = csv.DictReader(io.StringIO(content), dialect=dialect)
+
     header = reader.fieldnames or []
     rows = list(reader)
+
     return header, rows
-
-
-def _detect_delimiter(content: str) -> str:
-    """Detect if CSV uses comma or semicolon as delimiter.
-
-    Args:
-        content: CSV file content as string
-
-    Returns:
-        Delimiter character (',' or ';')
-    """
-    first_line = content.split("\n")[0]
-    comma_count = first_line.count(",")
-    semicolon_count = first_line.count(";")
-    if semicolon_count > comma_count:
-        return ";"
-    return ","
 
 
 def _is_row_empty(row: dict) -> bool:
