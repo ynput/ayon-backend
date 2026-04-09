@@ -1,3 +1,4 @@
+from ayon_server.entities.folder import FolderEntity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.utils import create_uuid
@@ -18,7 +19,7 @@ async def get_default_folder_type(project_name: str) -> str:
     return res["name"]
 
 
-async def get_internal_folder_id(project_name: str, key: str) -> str:
+async def get_internal_folder(project_name: str, key: str) -> FolderEntity:
     """Get internal folder id by key"""
 
     expected_root_path = "__ayon_internal__"
@@ -39,16 +40,30 @@ async def get_internal_folder_id(project_name: str, key: str) -> str:
         elif row["path"] == expected_path:
             folder_id = row["id"]
 
+    default_folder_type = await get_default_folder_type(project_name)
+
     ops = ProjectLevelOperations(project_name)
 
     if not root_folder_id:
         root_folder_id = create_uuid()
-        ops.create("folder", entity_id=root_folder_id, parent_id=None)
+        ops.create(
+            "folder",
+            entity_id=root_folder_id,
+            parent_id=None,
+            name="__ayon_internal__",
+            folder_type=default_folder_type,
+        )
 
     if not folder_id:
         folder_id = create_uuid()
         ops.create(
-            "folder", entity_id=folder_id, parent_id=root_folder_id, data={"key": key}
+            "folder",
+            name=key,
+            entity_id=folder_id,
+            parent_id=root_folder_id,
+            folder_type=default_folder_type,
         )
 
-    return folder_id
+    await ops.process()
+
+    return await FolderEntity.load(project_name, folder_id)
