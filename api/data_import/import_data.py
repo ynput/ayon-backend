@@ -382,7 +382,7 @@ async def import_data(
         except Exception as exp:
             error_msg = f"{exp}"
             import_status.failed_items[f"{row_number}"] = error_msg
-            logger.error(f"{error_msg}", exc_info=True)
+            logger.warning(error_msg, exc_info=True)
             unprocessed -= 1
             # ImportRowErrorException always stops processing
             if isinstance(exp, ImportRowErrorException):
