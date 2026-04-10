@@ -148,6 +148,6 @@ async def get_task_suggestions(
         result["tasks"].append(item)
 
     # teams
-    result["users"].extend(await get_team_suggestion_items(project_name))
+    result["teams"].extend(await get_team_suggestion_items(project_name))
 
     return result
