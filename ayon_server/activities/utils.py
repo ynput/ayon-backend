@@ -5,6 +5,10 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
 from .models import ActivityReferenceModel, EntityLinkTuple, ReferencedEntityType
+from ..suggestions.common import (
+    get_team_suggestion_items,
+    get_team_members
+)
 
 MAX_BODY_LENGTH = 2000
 
@@ -12,21 +16,31 @@ MAX_BODY_LENGTH = 2000
 LINK_PATTERN = re.compile(r"(?<!\!)\[(.*?)\]\((.*?)\)")
 
 
-def extract_link_tuples(md_text: str) -> list[EntityLinkTuple]:
+async def extract_link_tuples(md_text: str, project_name: str) -> list[EntityLinkTuple]:
     links: set[EntityLinkTuple] = set()
+    team_names = set(
+        team.name for team in
+        await get_team_suggestion_items(project_name)
+    )
     for link in LINK_PATTERN.findall(md_text):
         try:
             entity_type, entity_id = link[1].split(":")
             if entity_type not in get_args(ReferencedEntityType):
                 continue
-            links.add((entity_type, entity_id))
+            if entity_type == "user" and entity_id in team_names:
+                members = await get_team_members(project_name, entity_id)
+                for member_name in members:
+                    links.add(("user", member_name))
+            else:
+                links.add((entity_type, entity_id))
         except ValueError:
             logger.debug("Invalid reference link format")
     return list(links)
 
 
-def extract_mentions(
+async def extract_mentions(
     md_text: str,
+    project_name: str,
 ) -> set[ActivityReferenceModel]:
     """Extract entity and user mentions from markdown text.
 
@@ -36,7 +50,7 @@ def extract_mentions(
 
     references: set[ActivityReferenceModel] = set()
 
-    for entity_type, entity_id in extract_link_tuples(md_text):
+    for entity_type, entity_id in await extract_link_tuples(md_text, project_name):
         if entity_type == "user":
             references.add(
                 ActivityReferenceModel(
