@@ -679,16 +679,30 @@ async def _remap_row(
             # Special handling for hierarchy imports where folder and task share a column
             if not mapping_for_entity_type:
                 raise ValueError(
-                    f"Missing 'entity_type' for hierarchy import in row: {row}"
+                    f"Missing 'entity_type' mapping for hierarchy import in row: {row}"
                 )
-            entity_type = row[mapping_for_entity_type.source_key]
-            if entity_type not in ("folder", "task"):
-                raise ValueError(
-                    f"Invalid 'entity_type' value '{entity_type}' for hierarchy import "
-                )
-            # Adjust column name based on entity type
-            column_name = f"{entity_type}_type"
 
+            # Use the reusable helper to remap the entity_type value (applies error handling, enum validation, etc.)
+            entity_type_import_data: dict[str, Any] = {}
+            await _remap_single_column(
+                project_name=project_name,
+                mapping=mapping_for_entity_type,
+                row=row,
+                fields=fields,
+                import_entity_data=entity_type_import_data,
+                column_name="entity_type",
+            )
+            entity_type = entity_type_import_data.get("entity_type")
+            if not entity_type:
+                raise ValueError(
+                    f"Missing 'entity_type' value for hierarchy import in row: {row}"
+                )
+            if entity_type not in HIERARCHY_MODEL_CLASSES:
+                raise ValueError(
+                    f"Invalid 'entity_type' value '{entity_type}' for hierarchy import in row: {row}"
+                )
+            # Adjust column name based on entity type 'folder_type'|'task_type'
+            column_name = f"{entity_type}_type"
         try:
             # Use the helper function to remap the single column
             await _remap_single_column(
