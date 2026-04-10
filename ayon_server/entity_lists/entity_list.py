@@ -176,7 +176,7 @@ class EntityList:
     ) -> "EntityList":
         """Load the entity list from the database."""
 
-        async def load_data():
+        async with Postgres.transaction():
             await Postgres.set_project_schema(project_name)
             query = "SELECT * FROM entity_lists WHERE id = $1"
             res = await Postgres.fetchrow(query, id)
@@ -194,13 +194,6 @@ class EntityList:
                 async for row in stmt.cursor(res["id"]):
                     item = EntityListItemModel(**row)
                     items.append(item)
-            return res, items
-
-        if await Postgres.is_in_transaction():
-            res, items = await load_data()
-        else:
-            async with Postgres.transaction():
-                res, items = await load_data()
 
         #
         # Access control
