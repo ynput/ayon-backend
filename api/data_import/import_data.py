@@ -610,10 +610,7 @@ async def _remap_single_column(
                 continue
 
             replacement_mapping_action = replacement_mapping.action
-
-            # Only replace val if action is not "create" AND target is not None
-            if replacement_mapping.target is not None:
-                val = replacement_mapping.target
+            val = replacement_mapping.target
         elif val == "undefined":
             continue
 
