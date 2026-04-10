@@ -6,7 +6,7 @@ from ayon_server.lib.postgres import Postgres
 from .models import EntityListModel, EntityListSummary
 
 
-async def _save_entity_list(
+async def save_entity_list(
     project_name: str,
     payload: EntityListModel,
     *,
@@ -20,7 +20,11 @@ async def _save_entity_list(
     If the list with the same ID already exists, it will be updated.
     """
 
+    if not await Postgres.is_in_transaction():
+        raise AyonException("save_entity_list must be called within a transaction")
     await Postgres.set_project_schema(project_name)
+
+    # await Postgres.set_project_schema(project_name)
     payload.data["count"] = len(payload.items)
 
     query = """
@@ -167,31 +171,3 @@ async def _save_entity_list(
         sender_type=sender_type,
     )
     return summary
-
-
-#
-# Transaction wrapper
-#
-
-
-async def save_entity_list(
-    project_name: str,
-    payload: EntityListModel,
-    *,
-    user: UserEntity | None = None,
-    sender: str | None = None,
-    sender_type: str | None = None,
-) -> EntityListSummary:
-    """
-    Save the entity list to the database.
-    If the list with the same ID already exists, it will be updated.
-    """
-
-    async with Postgres.transaction():
-        return await _save_entity_list(
-            project_name,
-            payload,
-            user=user,
-            sender=sender,
-            sender_type=sender_type,
-        )
