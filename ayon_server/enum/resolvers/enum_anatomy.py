@@ -76,6 +76,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                 },
             )
         await Redis.delete("project-anatomy", project_name)
+        await Redis.delete("project-data", project_name)
 
 
 class TaskTypesEnumResolver(BaseEnumResolver):
@@ -141,6 +142,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                 },
             )
         await Redis.delete("project-anatomy", project_name)
+        await Redis.delete("project-data", project_name)
 
 
 class StatusesEnumResolver(BaseEnumResolver):
@@ -206,6 +208,7 @@ class StatusesEnumResolver(BaseEnumResolver):
                 },
             )
         await Redis.delete("project-anatomy", project_name)
+        await Redis.delete("project-data", project_name)
 
 
 class TagsEnumResolver(BaseEnumResolver):
@@ -265,3 +268,4 @@ class TagsEnumResolver(BaseEnumResolver):
                 {"color": item.color or "#808080", "name": item.value},
             )
         await Redis.delete("project-anatomy", project_name)
+        await Redis.delete("project-data", project_name)

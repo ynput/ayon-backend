@@ -88,3 +88,4 @@ class LinkTypesEnumResolver(BaseEnumResolver):
                 {"color": item.color or "#808080", "style": style},
             )
         await Redis.delete("project-anatomy", project_name)
+        await Redis.delete("project-data", project_name)
