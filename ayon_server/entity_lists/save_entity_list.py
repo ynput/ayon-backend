@@ -187,6 +187,15 @@ async def save_entity_list(
     If the list with the same ID already exists, it will be updated.
     """
 
+    if await Postgres.is_in_transaction():
+        return await _save_entity_list(
+            project_name,
+            payload,
+            user=user,
+            sender=sender,
+            sender_type=sender_type,
+        )
+
     async with Postgres.transaction():
         return await _save_entity_list(
             project_name,
