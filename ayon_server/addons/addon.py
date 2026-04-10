@@ -9,7 +9,7 @@ except ModuleNotFoundError:
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
-from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 from ayon_server.actions.config import get_action_config, set_action_config
 from ayon_server.actions.context import ActionContext
@@ -25,14 +25,12 @@ from ayon_server.addons.models import (
     SourceInfo,
     SSOOption,
 )
+from ayon_server.addons.openapi import get_addon_api_docs, get_addon_openapi
 from ayon_server.addons.settings_caching import AddonSettingsCache
-from ayon_server.api.context import get_request_context
-from ayon_server.config import ayonconfig
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import (
     AyonException,
     BadRequestException,
-    ForbiddenException,
     NotFoundException,
 )
 from ayon_server.lib.postgres import Postgres
@@ -229,53 +227,10 @@ class BaseServerAddon:
         )
 
     def get_openapi(self) -> dict[str, Any]:
+        return get_addon_openapi(self)
 
-        if ayonconfig.disable_rest_docs:
-            raise ForbiddenException("OpenAPI documentation is disabled")
-
-        if ayonconfig.openapi_require_authentication:
-            ctx = get_request_context()
-            user = ctx.user
-
-            if user is None:
-                raise ForbiddenException(
-                    "You must be logged in to access addon OpenAPI schema"
-                )
-
-            if not user.is_manager:
-                raise ForbiddenException(
-                    "You are not allowed to access addon OpenAPI schema"
-                )
-
-        prefix = f"/api/addons/{self.name}/{self.version}"
-        temp_app = FastAPI(
-            title=self.definition.friendly_name,
-            version=self.version,
-        )
-        for endpoint in self.endpoints:
-            path = endpoint["path"].lstrip("/")
-            path = f"{prefix}/{path}"
-            temp_app.add_api_route(
-                path,
-                endpoint["handler"],
-                methods=[endpoint["method"]],
-                name=endpoint["name"],
-                description=endpoint["description"],
-                operation_id=endpoint["name"],
-            )
-
-        def generate_unique_id(route):
-            return route.name
-
-        for router in self.routers:
-            temp_app.include_router(
-                router,
-                prefix=prefix,
-                generate_unique_id_function=generate_unique_id,
-            )
-
-        router_openapi = temp_app.openapi()
-        return router_openapi
+    def get_api_docs(self) -> HTMLResponse:
+        return get_addon_api_docs(self)
 
     async def get_frontend_scopes(self) -> FrontendScopes:
         return self.frontend_scopes
