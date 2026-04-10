@@ -10,6 +10,7 @@ import io
 from datetime import datetime
 from typing import Any, Annotated, List
 import json
+import traceback
 
 from fastapi import Path, Request, Body
 
@@ -380,9 +381,10 @@ async def import_data(
             unprocessed -= 1
 
         except Exception as exp:
-            error_msg = f"{exp}"
+            logger.debug(f"Error processing row {row_number}: {traceback.format_exc()}")
+            error_msg = str(exp)
             import_status.failed_items[f"{row_number}"] = error_msg
-            logger.warning(error_msg, exc_info=True)
+
             unprocessed -= 1
             # ImportRowErrorException always stops processing
             if isinstance(exp, ImportRowErrorException):
