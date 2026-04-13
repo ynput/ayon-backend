@@ -562,8 +562,29 @@ class UserExportImportModel(EntityExportImport):
     _table_name = "public.users"
     _unique_fields = ["name"]
     _data_fields = [
-        ("data.isAdmin", FieldInfo(default=False, title="Admin")),
-        ("data.userPool", FieldInfo(default=False, title="User Pool")),
+        ImportableColumn(
+            key="data.isAdmin",
+            label="Admin",
+            required=False,
+            value_type="boolean",
+            default_value="False",
+            error_handling_modes=["skip", "default"],
+            enum_name=None,
+            enum_items=None,
+        ),
+        ImportableColumn(
+            key="data.userPool",
+            label="User Pool",
+            required=False,
+            value_type="string",
+            default_value="",
+            error_handling_modes=["skip", "default"],
+            enum_name=None,
+            enum_items=[
+                EnumItem(value="fixed", label="Fixed"),
+                EnumItem(value="metered", label="Metered"),
+            ],
+        ),
     ]
     _parent_column_name = None
 
