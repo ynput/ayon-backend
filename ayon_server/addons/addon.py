@@ -1,5 +1,6 @@
 import inspect
 import os
+import json
 
 from ayon_server.entities.user import UserEntity
 
@@ -297,6 +298,18 @@ class BaseServerAddon:
             return toml.load(open(pyproject_path))
         except Exception:
             raise AyonException("Unable to parse pyproject.toml") from None
+
+    async def get_client_metadata(self) -> dict[str, Any] | None:
+        if (pdir := self.get_private_dir()) is None:
+            return None
+        client_json = os.path.join(pdir, "client.json")
+        if not os.path.exists(client_json):
+            return None
+
+        try:
+            return json.load(open(client_json))
+        except Exception:
+            raise AyonException("Unable to parse client.json") from None
 
     #
     # Settings
