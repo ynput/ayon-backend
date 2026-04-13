@@ -179,17 +179,25 @@ async def get_folders(
             """
         )
 
+    descendant_access_condition = ""
+    if access_list is not None:
+        descendant_access_condition = (
+            f" AND h2.path like ANY ('{{ {','.join(access_list)} }}')"
+        )
+
     if fields.has_any("descendantCount"):
         sql_columns.append(
             f"""(SELECT COUNT(*) FROM project_{project_name}.hierarchy h2
-            WHERE h2.path LIKE hierarchy.path || '/%') AS descendant_count"""
+            WHERE starts_with(h2.path, hierarchy.path || '/')
+            {descendant_access_condition}) AS descendant_count"""
         )
 
     if fields.has_any("descendantTaskCount"):
         sql_columns.append(
             f"""(SELECT COUNT(*) FROM project_{project_name}.tasks t
             JOIN project_{project_name}.hierarchy h2 ON t.folder_id = h2.id
-            WHERE h2.path LIKE hierarchy.path || '/%') AS descendant_task_count"""
+            WHERE starts_with(h2.path, hierarchy.path || '/')
+            {descendant_access_condition}) AS descendant_task_count"""
         )
 
     if fields.any_endswith("hasReviewables"):

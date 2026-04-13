@@ -187,34 +187,6 @@ async def get_attrib_groups(
     return groups
 
 
-async def get_folder_groups(project_name: str) -> list[EntityGroup]:
-    """Get task groups based on parent folder."""
-    groups: list[EntityGroup] = []
-
-    query = f"""
-        WITH folder_counts AS (
-            SELECT count(*) AS count, folder_id
-            FROM project_{project_name}.tasks
-            GROUP BY folder_id
-        )
-        SELECT
-            f.id AS value,
-            COALESCE(f.label, f.name) AS label,
-            COALESCE(folder_counts.count, 0) AS count
-        FROM project_{project_name}.folders f
-        LEFT JOIN folder_counts ON f.id = folder_counts.folder_id
-    """
-    result = await Postgres.fetch(query)
-    for row in result:
-        group = EntityGroup(
-            value=row["value"],
-            label=row["label"],
-            count=row["count"],
-        )
-        groups.append(group)
-    return groups
-
-
 async def get_tags_groups(
     project_name: str,
     entity_type: ProjectLevelEntityType,
