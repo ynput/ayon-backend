@@ -573,6 +573,16 @@ class UserExportImportModel(EntityExportImport):
             enum_items=None,
         ),
         ImportableColumn(
+            key="data.isDeveloper",
+            label="Developer",
+            required=False,
+            value_type="boolean",
+            default_value="False",
+            error_handling_modes=["skip", "default"],
+            enum_name=None,
+            enum_items=None,
+        ),
+        ImportableColumn(
             key="data.userPool",
             label="License",
             required=False,
