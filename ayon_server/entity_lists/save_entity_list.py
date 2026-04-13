@@ -24,7 +24,6 @@ async def save_entity_list(
         raise AyonException("save_entity_list must be called within a transaction")
     await Postgres.set_project_schema(project_name)
 
-    # await Postgres.set_project_schema(project_name)
     payload.data["count"] = len(payload.items)
 
     query = """
