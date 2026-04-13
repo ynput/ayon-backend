@@ -179,6 +179,19 @@ async def get_folders(
             """
         )
 
+    if fields.has_any("descendantCount"):
+        sql_columns.append(
+            f"""(SELECT COUNT(*) FROM project_{project_name}.hierarchy h2
+            WHERE h2.path LIKE hierarchy.path || '/%') AS descendant_count"""
+        )
+
+    if fields.has_any("descendantTaskCount"):
+        sql_columns.append(
+            f"""(SELECT COUNT(*) FROM project_{project_name}.tasks t
+            JOIN project_{project_name}.hierarchy h2 ON t.folder_id = h2.id
+            WHERE h2.path LIKE hierarchy.path || '/%') AS descendant_task_count"""
+        )
+
     if fields.any_endswith("hasReviewables"):
         sql_cte.append(
             f"""

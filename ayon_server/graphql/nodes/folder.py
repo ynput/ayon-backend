@@ -47,6 +47,8 @@ class FolderNode(BaseNode):
     task_count: int = strawberry.field(default=0)
     has_versions: bool = strawberry.field(default=False)
     has_reviewables: bool = strawberry.field(default=False)
+    descendant_count: int = strawberry.field(default=0)
+    descendant_task_count: int = strawberry.field(default=0)
 
     products: ProductsConnection = strawberry.field(
         resolver=get_products,
@@ -156,6 +158,8 @@ async def folder_from_record(
         task_count=record.get("task_count", 0),
         has_reviewables=has_reviewables,
         has_versions=record.get("has_versions", False),
+        descendant_count=record.get("descendant_count", 0),
+        descendant_task_count=record.get("descendant_task_count", 0),
         path=path,
         _folder_path=path,
         _attrib=record["attrib"] or {},
