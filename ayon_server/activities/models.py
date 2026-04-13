@@ -32,6 +32,7 @@ ReferencedEntityType = Literal[
     "version",
     "representation",
     "workfile",
+    "team",
 ]
 
 EntityLinkTuple = tuple[ReferencedEntityType, str]

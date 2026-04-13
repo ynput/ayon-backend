@@ -10,6 +10,7 @@ from ayon_server.suggestions.models import (
     TaskSuggestionItem,
     UserSuggestionItem,
     VersionSuggestionItem,
+    TeamSuggestionItem,
 )
 from ayon_server.suggestions.task import get_task_suggestions
 from ayon_server.suggestions.version import get_version_suggestions
@@ -25,6 +26,7 @@ class SuggestRequest(OPModel):
 
 class SuggestResponse(OPModel):
     users: list[UserSuggestionItem] = Field(default_factory=list)
+    teams: list[TeamSuggestionItem] = Field(default_factory=list)
     tasks: list[TaskSuggestionItem] = Field(default_factory=list)
     versions: list[VersionSuggestionItem] = Field(default_factory=list)
 
