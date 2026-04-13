@@ -574,7 +574,7 @@ class UserExportImportModel(EntityExportImport):
         ),
         ImportableColumn(
             key="data.userPool",
-            label="User Pool",
+            label="License",
             required=False,
             value_type="string",
             default_value="",
