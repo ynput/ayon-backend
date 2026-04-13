@@ -582,19 +582,19 @@ class UserExportImportModel(EntityExportImport):
             enum_name=None,
             enum_items=None,
         ),
-        ImportableColumn(
-            key="data.userPool",
-            label="License",
-            required=False,
-            value_type="string",
-            default_value="",
-            error_handling_modes=["skip", "default"],
-            enum_name=None,
-            enum_items=[
-                EnumItem(value="fixed", label="Fixed"),
-                EnumItem(value="metered", label="Metered"),
-            ],
-        ),
+        # ImportableColumn(
+        #     key="data.userPool",
+        #     label="License",
+        #     required=False,
+        #     value_type="string",
+        #     default_value="",
+        #     error_handling_modes=["skip", "default"],
+        #     enum_name=None,
+        #     enum_items=[
+        #         EnumItem(value=item.id, label=item.label)
+        #         for item in  await AuthUtils.get_user_pools()
+        #     ],
+        # ),
     ]
     _parent_column_name = None
 
