@@ -359,7 +359,6 @@ async def get_folders(
             terms = slugify(part, make_set=True)
             t2_conds = []
             for term in terms:
-                term = term.replace("'", "''")
                 t2_conds.append(
                     f"(folders.name ILIKE '%{term}%' OR "
                     f"folders.label ILIKE '%{term}%' OR "
