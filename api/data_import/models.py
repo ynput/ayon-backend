@@ -1054,11 +1054,11 @@ class EntityListExportImportModel(EntityExportImport):
             list_type = entity_list.entity_type
             try:
                 if list_type == "folder":
-                    _entity = await FolderEntity.load(project_name, entity_id)
+                    await FolderEntity.load(project_name, entity_id)
                 elif list_type == "task":
-                    _entity = await TaskEntity.load(project_name, entity_id)
+                    await TaskEntity.load(project_name, entity_id)
                 elif list_type == "version":
-                    _entity = await VersionEntity.load(project_name, entity_id)
+                    await VersionEntity.load(project_name, entity_id)
                 else:
                     raise ValueError(
                         f"Unsupported entity type: {list_type}"
