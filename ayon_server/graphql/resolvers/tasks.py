@@ -431,16 +431,21 @@ async def get_tasks(
 
     if search:
         use_folder_query = True
-        terms = slugify(search, make_set=True)
-        # isn't it nice that slugify effectively prevents sql injections?
-        for term in terms:
-            cond = f"""(
-            tasks.name ILIKE '%{term}%'
-            OR tasks.label ILIKE '%{term}%'
-            OR tasks.task_type ILIKE '%{term}%'
-            OR hierarchy.path ILIKE '%{term}%'
-            )"""
-            sql_conditions.append(cond)
+        parts = search.split(",")
+        t1_conds = []
+
+        for part in parts:
+            terms = slugify(part, make_set=True)
+            t2_conds = []
+            for term in terms:
+                t2_conds.append(
+                    f"(tasks.name ILIKE '%{term}%'"
+                    f"OR tasks.label ILIKE '%{term}%'"
+                    f"OR tasks.task_type ILIKE '%{term}%'"
+                    f"OR hierarchy.path ILIKE '%{term}%')"
+                )
+            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
+        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
 
     #
     # Additional joins

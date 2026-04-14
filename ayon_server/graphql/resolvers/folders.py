@@ -354,14 +354,20 @@ async def get_folders(
         sql_conditions.append(cond)
 
     if search:
-        terms = slugify(search, make_set=True)
-        for term in terms:
-            term = term.replace("'", "''")
-            sql_conditions.append(
-                f"(folders.name ILIKE '%{term}%' OR "
-                f"folders.label ILIKE '%{term}%' OR "
-                f"hierarchy.path ILIKE '%{term}%')"
-            )
+        parts = search.split(",")
+        t1_conds = []
+
+        for part in parts:
+            terms = slugify(part, make_set=True)
+            t2_conds = []
+            for term in terms:
+                t2_conds.append(
+                    f"(folders.name ILIKE '%{term}%' OR "
+                    f"folders.label ILIKE '%{term}%' OR "
+                    f"hierarchy.path ILIKE '%{term}%')"
+                )
+            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
+        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
 
     #
     # Filter
