@@ -171,8 +171,10 @@ async def get_file_preview(
             if retries < 5:
                 return await get_file_preview(project_name, file_id, retries + 1)
             raise ServiceUnavailableException("File preview service unavailable")
-    else:
-        # Bump the TTL for the cached preview
+    elif pvw_bytes != b"":
+        # Bump the TTL only for successful cached previews.
+        # Negative cache entries should expire naturally so transient
+        # preview-generation/storage failures can recover automatically.
         await Redis.expire(REDIS_NS, key, PREVIEW_CACHE_TTL)
 
     if pvw_bytes == b"":
