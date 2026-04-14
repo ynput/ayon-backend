@@ -130,7 +130,10 @@ async def create_reviewable(
     # Ensure the file preview is generated and cached,
     # so it is not generated when the client requests it for the first time,
     # which would cause a delay for the user.
-    await get_file_preview(project_name, file_id)
+    try:
+        await get_file_preview(project_name, file_id)
+    except Exception as e:
+        logger.warning(f"Failed to generate preview for reviewable {file_id}: {e}")
 
     return ReviewableModel(
         file_id=file_id,
