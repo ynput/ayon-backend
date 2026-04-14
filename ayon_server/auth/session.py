@@ -165,11 +165,11 @@ class Session:
         """Update a session with new user data."""
         data = await Redis.get(cls.ns, token)
         if not data:
-            # TODO: shouldn't be silent!
+            logger.trace(f"Trying to update non-existing session {token}")
             return None
 
         session = SessionModel(**json_loads(data))
-        session.user = user.dict()
+        session.user = user._payload.copy()
         if client_info is not None:
             session.client_info = client_info
         session.last_used = time.time()
@@ -271,6 +271,7 @@ class Session:
             logger.trace(f"User cannot log in after save: {e}")
             await cls.logout_user(user.name)
         else:
+            logger.trace(f"Updating user {user.name} sessions after save")
             async for session in Session.list(user.name):
                 await Session.update(session.token, user)
 
