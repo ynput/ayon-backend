@@ -170,6 +170,7 @@ async def get_file_preview(
             await asyncio.sleep(0.2)
             if retries < 5:
                 return await get_file_preview(project_name, file_id, retries + 1)
+            raise ServiceUnavailableException("File preview service unavailable")
     else:
         # Bump the TTL for the cached preview
         await Redis.expire(REDIS_NS, key, PREVIEW_CACHE_TTL)
