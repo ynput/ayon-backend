@@ -24,7 +24,12 @@ from ayon_server.entity_lists.models import EntityListItemModel
 from ayon_server.enum import EnumItem, EnumRegistry
 from ayon_server.exceptions import BadRequestException, NotFoundException
 from ayon_server.types import Field, OPModel, AttributeType
-from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
+from ayon_server.entities import (
+    UserEntity,
+    FolderEntity,
+    TaskEntity,
+    VersionEntity
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.entities.models.generator import FIELD_TYPES
@@ -1039,14 +1044,29 @@ class EntityListExportImportModel(EntityExportImport):
                         folder_path,
                         is_task=False
                     )
-                    entity_list._payload.entity_type = "folder"
                 except NotFoundException:
                     entity_id = await _get_entity_id_by_path(
                         project_name,
                         folder_path,
                         is_task=True
                     )
-                    entity_list._payload.entity_type = "task"
+
+            list_type = entity_list.entity_type
+            try:
+                if list_type == "folder":
+                    _entity = await FolderEntity.load(project_name, entity_id)
+                elif list_type == "task":
+                    _entity = await TaskEntity.load(project_name, entity_id)
+                elif list_type == "version":
+                    _entity = await VersionEntity.load(project_name, entity_id)
+                else:
+                    raise ValueError(
+                        f"Unsupported entity type: {list_type}"
+                    )
+            except NotFoundException:
+                raise NotFoundException(
+                    f"Entity with id '{entity_id}' not found for type '{list_type}'"
+                )
 
             # check if already in list
             for item in entity_list.items:
