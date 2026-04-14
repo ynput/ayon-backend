@@ -4,8 +4,8 @@ from typing import Any, get_args
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
-from .models import ActivityReferenceModel, EntityLinkTuple, ReferencedEntityType
 from ..suggestions.common import get_team_members
+from .models import ActivityReferenceModel, EntityLinkTuple, ReferencedEntityType
 
 MAX_BODY_LENGTH = 2000
 

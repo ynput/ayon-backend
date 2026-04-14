@@ -37,7 +37,7 @@ def _isolated_import(
                 mod_name = f.f_globals.get("__name__")
                 if mod_name:
                     break
-                f = f.f_back
+                f = f.f_back  # type: ignore[assignment]
         except ValueError:
             pass
 
@@ -71,7 +71,7 @@ def _isolated_import(
 
 
 # Global patch
-builtins.__import__ = _isolated_import
+builtins.__import__ = _isolated_import  # type: ignore[assignment]
 
 
 def import_module(name: str, path: str) -> ModuleType:

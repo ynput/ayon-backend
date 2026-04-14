@@ -8,9 +8,9 @@ from ayon_server.suggestions.folder import get_folder_suggestions
 from ayon_server.suggestions.models import (
     SuggestionType,
     TaskSuggestionItem,
+    TeamSuggestionItem,
     UserSuggestionItem,
     VersionSuggestionItem,
-    TeamSuggestionItem,
 )
 from ayon_server.suggestions.task import get_task_suggestions
 from ayon_server.suggestions.version import get_version_suggestions

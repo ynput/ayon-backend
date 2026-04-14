@@ -1,5 +1,3 @@
-from typing import List
-
 from ayon_server.config import ayonconfig
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.entities.user import UserEntity
@@ -23,18 +21,19 @@ async def get_relevant_users_cte(project: ProjectEntity, user: UserEntity) -> st
     )
     """
 
-async def get_team_suggestion_items(project_name: str) -> List[TeamSuggestionItem]:
+
+async def get_team_suggestion_items(project_name: str) -> list[TeamSuggestionItem]:
     query = f"""
         SELECT DISTINCT
             team_element->>'name' AS name
-        FROM 
+        FROM
             public.projects p,
             LATERAL jsonb_array_elements(data->'teams') AS team_element
-        WHERE 
-            p.name = '{project_name}' 
+        WHERE
+            p.name = '{project_name}'
             AND jsonb_typeof(data->'teams') = 'array'
             AND team_element->>'name' IS NOT NULL
-        ORDER BY 
+        ORDER BY
             name ASC
     """
     results = []
@@ -48,23 +47,21 @@ async def get_team_suggestion_items(project_name: str) -> List[TeamSuggestionIte
     return results
 
 
-async def get_team_members(
-    project_name: str, team_name:str
-) -> List[str]:
+async def get_team_members(project_name: str, team_name: str) -> list[str]:
     """Return list of team members for the given team name in the project."""
     query = f"""
-        SELECT 
+        SELECT
             member_element->>'name' AS member_name
-        FROM 
+        FROM
             public.projects p,
             LATERAL jsonb_array_elements(p.data->'teams') AS team_element,
             LATERAL jsonb_array_elements(team_element->'members') AS member_element
-        WHERE 
-            p.name = '{project_name}' 
+        WHERE
+            p.name = '{project_name}'
             AND team_element->>'name' = '{team_name}'
             AND jsonb_typeof(p.data->'teams') = 'array'
             AND jsonb_typeof(team_element->'members') = 'array'
-        ORDER BY 
+        ORDER BY
             member_name ASC;
 
     """

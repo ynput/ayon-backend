@@ -1,5 +1,5 @@
 import json
-from typing import Annotated
+from typing import Annotated, cast
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import attribute_library
@@ -262,15 +262,17 @@ async def get_folders(
     if parent_ids is not None:
         if not parent_ids:
             return FoldersConnection()
-        pids_set = set(parent_ids)
+        pids_set: set[str | None] = set(parent_ids)
         lconds = []
         if "root" in pids_set or None in pids_set:
-            pids_set.discard("root")
-            pids_set.discard(None)  # type: ignore
             lconds.append("folders.parent_id IS NULL")
 
+        pids_set.discard("root")
+        pids_set.discard(None)
+
         if pids_set:
-            lconds.append(f"folders.parent_id IN {SQLTool.id_array(list(pids_set))}")
+            pids_list = cast("list[str]", list(pids_set))
+            lconds.append(f"folders.parent_id IN {SQLTool.id_array(pids_list)}")
 
         if lconds:
             sql_conditions.append(f"({' OR '.join(lconds)})")

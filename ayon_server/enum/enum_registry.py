@@ -107,4 +107,5 @@ class EnumRegistry:
         except KeyError:
             raise BadRequestException(f"Unknown enum resolver '{key}'")
 
-        return await resolver.create_item(item, project_name, **kwargs)
+        await resolver.create_item(item, project_name, **kwargs)
+        return item.value
