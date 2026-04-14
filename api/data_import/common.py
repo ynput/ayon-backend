@@ -22,11 +22,11 @@ async def _get_entity_id_by_path(
     Raises:
         NotFoundException: If entity not found
     """
-    folder_path = path
+    folder_path = path.replace("\\", "/").replace(" ", "")
     task_name = None
 
     if is_task:
-        folder_path, task_name = path.rsplit("/", 1)
+        folder_path, task_name = folder_path.rsplit("/", 1)
 
     folder_path = folder_path.lstrip("/")
     # Query for folder
@@ -39,7 +39,7 @@ async def _get_entity_id_by_path(
 
     if not result:
         raise NotFoundException(
-            f"Entity with path '{path}' not found in the database"
+            f"Entity with path '{folder_path}' not found in the database"
         )
 
     # For tasks, also query for the task
@@ -56,7 +56,7 @@ async def _get_entity_id_by_path(
         )
         if not result:
             raise NotFoundException(
-                f"Entity with path '{path}' not found in the database"
+                f"Entity with path '{folder_path}' not found in the database"
             )
 
     return result["id"]
