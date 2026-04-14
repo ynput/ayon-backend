@@ -24,6 +24,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                     label=folder_type.name,
                     icon=folder_type.icon,
                     color=folder_type.color,
+                    short_name=folder_type.shortName
                 )
                 for folder_type in anatomy.folder_types
             ]
@@ -42,6 +43,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                         label=row["name"],
                         icon=row["data"].get("icon"),
                         color=row["data"].get("color"),
+                        short_name=row["data"].get("shortName")
                     )
                 )
         return result
@@ -73,6 +75,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                     "icon": item.icon or "folder",
                     "color": item.color or "#808080",
                     "name": item.value,
+                    "shortName": item.short_name or item.value[0:3],
                 },
             )
         await Redis.delete("project-anatomy", project_name)
@@ -95,6 +98,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                     label=task_type.name,
                     icon=task_type.icon,
                     color=task_type.color,
+                    short_name=task_type.shortName
                 )
                 for task_type in anatomy.task_types
             ]
@@ -113,6 +117,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                         label=row["name"],
                         icon=row["data"].get("icon"),
                         color=row["data"].get("color"),
+                        short_name=row["data"].get("shortName"),
                     )
                 )
         return result
@@ -139,6 +144,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                     "icon": item.icon or "task",
                     "color": item.color or "#808080",
                     "name": item.value,
+                    "shortName": item.short_name or item.value[0:3],
                 },
             )
         await Redis.delete("project-anatomy", project_name)
@@ -161,6 +167,7 @@ class StatusesEnumResolver(BaseEnumResolver):
                     label=status.name,
                     icon=status.icon,
                     color=status.color,
+                    short_name=status.shortName,
                 )
                 for status in anatomy.statuses
             ]
@@ -179,6 +186,7 @@ class StatusesEnumResolver(BaseEnumResolver):
                         label=row["name"],
                         icon=row["data"].get("icon"),
                         color=row["data"].get("color"),
+                        short_name=row["data"].get("shortName"),
                     )
                 )
         return result
@@ -205,6 +213,7 @@ class StatusesEnumResolver(BaseEnumResolver):
                     "icon": item.icon or "check_circle",
                     "color": item.color or "#808080",
                     "name": item.value,
+                    "shortName": item.short_name or item.value[0:3].upper(),
                 },
             )
         await Redis.delete("project-anatomy", project_name)
