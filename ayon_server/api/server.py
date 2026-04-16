@@ -15,6 +15,7 @@ from fastapi.websockets import WebSocket, WebSocketDisconnect
 
 # okay. now the rest
 from ayon_server.api.auth import AuthMiddleware
+from ayon_server.api.context import RequestContextMiddleware
 from ayon_server.api.dependencies import CurrentUser, CurrentUserOptional
 from ayon_server.api.lifespan import lifespan
 from ayon_server.api.logging import LoggingMiddleware
@@ -46,6 +47,7 @@ app = FastAPI(
     **app_meta,
 )
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(AuthMiddleware)
 

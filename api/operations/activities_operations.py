@@ -7,7 +7,7 @@ from ayon_server.activities import (
     delete_activity,
     update_activity,
 )
-from ayon_server.api.dependencies import CurrentUser, ProjectName, Sender, SenderType
+from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
     AyonException,
@@ -146,8 +146,6 @@ async def process_activity_operation(
     project_name: str,
     operation: ActivityOperationModel,
     user: UserEntity,
-    sender: str | None = None,
-    sender_type: str | None = None,
 ) -> ActivityOperationResponseModel:
     if operation.type == "create":
         if not operation.data:
@@ -177,10 +175,8 @@ async def process_activity_operation(
                 activity_type=activity.activity_type,
                 body=activity.body,
                 files=activity.files,
-                user_name=user.name,
+                user=user,
                 timestamp=activity.timestamp,
-                sender=sender,
-                sender_type=sender_type,
                 data=activity.data,
             )
         except Exception as e:
@@ -213,8 +209,6 @@ async def process_activity_operation(
                 append_files=patch.append_files,
                 user_name=user.name,
                 is_admin=user.is_admin,
-                sender=sender,
-                sender_type=sender_type,
                 data=patch.data,
             )
         except Exception as e:
@@ -236,8 +230,6 @@ async def process_activity_operation(
                 operation.activity_id,
                 user_name=user.name,
                 is_admin=user.is_admin,
-                sender=sender,
-                sender_type=sender_type,
             )
         except Exception as e:
             raise AyonException(str(e))
@@ -257,8 +249,6 @@ async def activities_operations(
     user: CurrentUser,
     project_name: ProjectName,
     payload: ActivityOperationsRequestModel,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> ActivityOperationsResponseModel:
     """
     Perform multiple operations on activities.
@@ -279,8 +269,6 @@ async def activities_operations(
                 project_name,
                 operation,
                 user,
-                sender,
-                sender_type,
             )
         except AyonException as e:
             response = ActivityOperationResponseModel(

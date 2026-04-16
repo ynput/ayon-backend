@@ -10,9 +10,9 @@ from ayon_server.api.dependencies import (
     FileID,
     NoTraces,
     ProjectName,
-    XActivityID,
+    XActivityIDOptional,
     XContentType,
-    XFileID,
+    XFileIDOptional,
     XFileName,
 )
 from ayon_server.api.responses import EmptyResponse
@@ -43,8 +43,8 @@ async def upload_project_file(
     user: CurrentUser,
     x_file_name: XFileName,
     content_type: XContentType,
-    x_file_id: XFileID | None = None,
-    x_activity_id: XActivityID | None = None,
+    x_file_id: XFileIDOptional = None,
+    x_activity_id: XActivityIDOptional = None,
 ) -> CreateFileResponseModel:
     """Handle uploading a file to a project.
 
@@ -202,7 +202,7 @@ async def get_project_file(
     return RedirectResponse(url=url, status_code=302)
 
 
-@router.get("/{file_id}/info", response_model=FileInfo, dependencies=[AllowGuests])
+@router.get("/{file_id}/info", dependencies=[AllowGuests])
 async def get_project_file_info(
     project_name: ProjectName,
     file_id: FileID,

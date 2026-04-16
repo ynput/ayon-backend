@@ -13,11 +13,11 @@ class EntityListEnities(OPModel):
     entity_ids: Annotated[list[str], Field(title="Entity IDs")]
 
 
-@router.get("/lists/{list_id}/entities")
+@router.get("/lists/{entity_list_id}/entities")
 async def get_list_entities(
     user: CurrentUser,
     project_name: ProjectName,
-    list_id: str,
+    entity_list_id: str,
 ) -> EntityListEnities:
     """Get the entities of a list."""
 
@@ -35,13 +35,13 @@ async def get_list_entities(
     entity_type: ProjectLevelEntityType | None = None
     entity_ids: set[str] = set()
 
-    async for row in Postgres.iterate(query, list_id):
+    async for row in Postgres.iterate(query, entity_list_id):
         entity_type = row["entity_type"]
         entity_ids.add(row["entity_id"])
 
     if entity_type is None:
         raise NotFoundException(
-            f"Entity list ID '{list_id}' not found",
+            f"Entity list ID '{entity_list_id}' not found",
         )
 
     return EntityListEnities(

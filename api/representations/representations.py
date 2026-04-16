@@ -1,11 +1,7 @@
-from fastapi import BackgroundTasks
-
 from ayon_server.api.dependencies import (
     CurrentUser,
     ProjectName,
     RepresentationID,
-    Sender,
-    SenderType,
 )
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import RepresentationEntity
@@ -39,26 +35,15 @@ async def get_representation(
 #
 
 
-@router.post(
-    "/projects/{project_name}/representations",
-    status_code=201,
-    response_model=EntityIdResponse,
-)
+@router.post("/projects/{project_name}/representations", status_code=201)
 async def create_representation(
     post_data: RepresentationEntity.model.post_model,  # type: ignore
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new representation."""
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
     ops.create("representation", **post_data.dict(exclude_unset=True))
     res = await ops.process(can_fail=False, raise_on_error=True)
     entity_id = res.operations[0].entity_id
@@ -75,21 +60,13 @@ async def create_representation(
 )
 async def update_representation(
     post_data: RepresentationEntity.model.patch_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     representation_id: RepresentationID,
-    sender: Sender,
-    sender_type: SenderType,
 ):
     """Patch (partially update) a representation."""
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
     ops.update(
         "representation",
         representation_id,
@@ -108,21 +85,13 @@ async def update_representation(
     "/projects/{project_name}/representations/{representation_id}", status_code=204
 )
 async def delete_representation(
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     representation_id: RepresentationID,
-    sender: Sender,
-    sender_type: SenderType,
 ):
     """Delete a representation."""
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
     ops.delete("representation", representation_id)
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()

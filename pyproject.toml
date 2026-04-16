@@ -1,6 +1,6 @@
 [project]
 name = "ayon-server"
-version = "1.14.3"
+version = "1.14.6"
 description = ""
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -12,6 +12,7 @@ dependencies = [
   "asyncpg >=0.31.0",
   "boto3 >=1.35.22",
   "codenamize >=1.2.3",
+  "croniter>=6.2.2",
   "cryptography >=46.0.5",
   "email-validator >=2.3.0",
   "fastapi ==0.125.0", # Higher versions require Pydantic v2
@@ -26,6 +27,7 @@ dependencies = [
   "psutil >=7.2.2",
   "pydantic ==1.10.25", # 1.10.25 is the last 1.x version
   "pyjwt ==2.9.0", # Do not upgrade before migrating to string only subs
+  "pytz>=2026.1.post1",
   "pyyaml >=6.0.3",
   "redis >=7.2.0",
   "rich >=14.3.2",
@@ -40,6 +42,16 @@ dependencies = [
   "uvicorn[standard] >=0.41.0"
 ]
 
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["ayon_server*"]
+
+[tool.setuptools.package-data]
+ayon_server = ["py.typed"]
+
 [dependency-groups]
 dev = [
   "asyncpg-stubs >=0.29.1",
@@ -53,6 +65,8 @@ dev = [
   "types-pyyaml >=6.0.12.20240311",
   "types-toml >=0.10.8",
   "types-boto3 >=1.0.2",
+  "types-croniter>=6.2.2.20260316",
+  "types-pytz>=2026.1.1.20260304",
 ]
 
 [tool.ruff]

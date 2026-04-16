@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.modules import classes_from_module, import_module
 from ayon_server.logging import logger
+from ayon_server.types import SimpleValue
 
 from .base_resolver import BaseEnumResolver
 from .enum_item import EnumItem
@@ -44,10 +45,11 @@ class EnumRegistry:
 
     @classmethod
     async def get_accepted_params(cls, enum_name: str) -> dict[str, type]:
+        key = enum_name.split(".")[0]
         try:
-            resolver = cls.resolvers[enum_name]
+            resolver = cls.resolvers[key]
         except KeyError:
-            raise BadRequestException(f"Unknown enum resolver '{enum_name}'")
+            raise BadRequestException(f"Unknown enum resolver '{key}'")
         return await resolver.get_accepted_params()
 
     @classmethod
@@ -55,17 +57,55 @@ class EnumRegistry:
         cls,
         enum_name: str,
         *,
-        context: dict[str, Any] | None = None,
         user: "UserEntity | None" = None,
+        **context: Any,
     ) -> list[EnumItem]:
+        if "." in enum_name:
+            key, name = enum_name.split(".", 1)
+        else:
+            key, name = enum_name, None
+
         try:
-            resolver = cls.resolvers[enum_name]
+            resolver = cls.resolvers[key]
         except KeyError:
-            raise BadRequestException(f"Unknown enum resolver '{enum_name}'")
+            raise BadRequestException(f"Unknown enum resolver '{key}'")
 
         context = context or {}
         if user is not None:
             context["user"] = user
+        if name is not None:
+            context["name"] = name
 
         enum = await resolver.resolve(context)
         return enum
+
+    @classmethod
+    async def create_item(
+        cls,
+        enum_name: str,
+        item: EnumItem,
+        project_name: str | None = None,
+        **kwargs,
+    ) -> SimpleValue:
+        """Create a new enum item using the appropriate resolver.
+
+        Args:
+            enum_name: The name of the enum (e.g., "statuses", "folderTypes")
+            item: The EnumItem to create
+            project_name: Optional project name for project-specific enums
+
+        Returns:
+            The value of the created item
+
+        Raises:
+            BadRequestException: If the resolver is not found
+            NotImplementedError: If the resolver doesn't support item creation
+        """
+        key = enum_name.split(".")[0]
+        try:
+            resolver = cls.resolvers[key]
+        except KeyError:
+            raise BadRequestException(f"Unknown enum resolver '{key}'")
+
+        await resolver.create_item(item, project_name, **kwargs)
+        return item.value

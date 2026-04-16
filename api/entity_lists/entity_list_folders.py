@@ -4,8 +4,6 @@ from ayon_server.api.dependencies import (
     CurrentUser,
     FolderID,
     ProjectName,
-    Sender,
-    SenderType,
 )
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.exceptions import (
@@ -99,8 +97,6 @@ async def get_entity_list_folders(
 async def create_entity_list_folder(
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
     payload: EntityListFolderPostModel,
 ) -> EntityIdResponse:
     if payload.id is None:
@@ -132,8 +128,6 @@ async def update_entity_list_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
-    sender: Sender,
-    sender_type: SenderType,
     payload: EntityListFolderPatchModel,
 ) -> EmptyResponse:
     async with Postgres.transaction():
@@ -182,8 +176,6 @@ async def delete_entity_list_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     async with Postgres.transaction():
         await Postgres.set_project_schema(project_name)
@@ -219,8 +211,6 @@ class EntityListFolderOrderModel(OPModel):
 async def set_entity_list_folders_order(
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
     payload: EntityListFolderOrderModel,
 ) -> EmptyResponse:
     async with Postgres.transaction():

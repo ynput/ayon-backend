@@ -3,8 +3,6 @@ from fastapi import APIRouter
 from ayon_server.api.dependencies import (
     CurrentUser,
     ProjectName,
-    Sender,
-    SenderType,
     VersionID,
 )
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
@@ -43,8 +41,6 @@ async def create_version(
     post_data: VersionEntity.model.post_model,  # type: ignore
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new version.
 
@@ -52,12 +48,7 @@ async def create_version(
     """
 
     payload = post_data.dict(exclude_unset=True)
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
 
     ops.create("version", **payload)
     res = await ops.process(can_fail=False, raise_on_error=True)
@@ -76,17 +67,10 @@ async def update_version(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Patch (partially update) a version."""
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
 
     ops.update("version", version_id, **post_data.dict(exclude_unset=True))
     await ops.process(can_fail=False, raise_on_error=True)
@@ -103,20 +87,13 @@ async def delete_version(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete a version.
 
     This will also delete all representations of the version.
     """
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
     ops.delete("version", version_id)
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()

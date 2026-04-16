@@ -432,6 +432,26 @@ async def dep_activity_id(
 ActivityID = Annotated[str, Depends(dep_activity_id)]
 
 
+async def dep_entity_list_id(
+    entity_list_id: str = Path(..., title="Entity list ID", **EntityID.META),
+) -> str:
+    """Validate and return an entity list id specified in an endpoint path."""
+    return entity_list_id
+
+
+EntityListID = Annotated[str, Depends(dep_entity_list_id)]
+
+
+async def dep_entity_list_item_id(
+    entity_list_item_id: str = Path(..., title="Entity list item ID", **EntityID.META),
+) -> str:
+    """Validate and return an entity list item id specified in an endpoint path."""
+    return entity_list_item_id
+
+
+EntityListItemID = Annotated[str, Depends(dep_entity_list_item_id)]
+
+
 async def dep_file_id(
     file_id: str = Path(..., title="File ID", **EntityID.META),
 ) -> str:
@@ -479,28 +499,43 @@ LinkType = Annotated[tuple[str, str, str], Depends(dep_link_type)]
 SITE_ID_REGEX = r"^[a-z0-9-]+$"
 
 
-def validate_site_id(site_id: str | None) -> None:
+def validate_site_id(site_id: str) -> str:
     """Raise a ValueError if the site id is invalid."""
+    if not site_id:
+        raise BadRequestException("Site id cannot be empty")
 
-    if site_id is not None and not re.match(SITE_ID_REGEX, site_id):
-        raise ValueError(f"Invalid site id: {site_id}")
+    if not re.match(SITE_ID_REGEX, site_id):
+        raise BadRequestException(f"Invalid site id: {site_id}")
+    return site_id
 
 
 async def dep_client_site_id(
-    param1: str | None = Query(
-        None, title="Site ID", alias="site_id", include_in_schema=False
-    ),
-    param2: str | None = Query(
-        None, title="Site ID", alias="site", include_in_schema=False
-    ),
-    x_ayon_site_id: str | None = Header(
-        None,
-        title="Site ID",
-        description=(
-            "Site ID may be specified either "
-            "as a query parameter (`site_id` or `site`) or in a header."
+    param1: Annotated[
+        str | None,
+        Query(
+            title="Site ID",
+            alias="site_id",
+            include_in_schema=False,
         ),
-    ),
+    ] = None,
+    param2: Annotated[
+        str | None,
+        Query(
+            title="Site ID",
+            alias="site",
+            include_in_schema=False,
+        ),
+    ] = None,
+    x_ayon_site_id: Annotated[
+        str | None,
+        Header(
+            title="Site ID",
+            description=(
+                "Site ID may be specified either "
+                "as a query parameter (`site_id` or `site`) or in a header."
+            ),
+        ),
+    ] = None,
 ) -> str | None:
     """Validate and return a site id
 
@@ -508,29 +543,34 @@ async def dep_client_site_id(
     This is usually used for request from the client application.
     """
     site_id = param1 or param2 or x_ayon_site_id
-    validate_site_id(site_id)
-    return site_id
+    if site_id is None:
+        return None
+    return validate_site_id(site_id)
 
 
 ClientSiteID = Annotated[str | None, Depends(dep_client_site_id)]
 
 
 async def dep_site_id(
-    param1: str | None = Query(
-        None,
-        title="Site ID",
-        alias="site_id",
-        description=(
-            "Site ID may be specified a query parameter. "
-            "Both `site_id` and its's alias `site` are supported."
+    param1: Annotated[
+        str | None,
+        Query(
+            title="Site ID",
+            alias="site_id",
+            description=(
+                "Site ID may be specified a query parameter. "
+                "Both `site_id` and its's alias `site` are supported."
+            ),
         ),
-    ),
-    param2: str | None = Query(
-        None,
-        title="Site ID",
-        alias="site",
-        include_in_schema=False,
-    ),
+    ] = None,
+    param2: Annotated[
+        str | None,
+        Query(
+            title="Site ID",
+            alias="site",
+            include_in_schema=False,
+        ),
+    ] = None,
 ) -> str | None:
     """Validate and return a site id specified as an query argument
 
@@ -538,8 +578,9 @@ async def dep_site_id(
     This is used for management / settings endpoints.
     """
     site_id = param1 or param2
-    validate_site_id(site_id)
-    return site_id
+    if site_id is None:
+        return None
+    return validate_site_id(site_id)
 
 
 SiteID = Annotated[str | None, Depends(dep_site_id)]
@@ -583,22 +624,23 @@ async def dep_x_file_name(
 XFileName = Annotated[str, Depends(dep_x_file_name)]
 
 
-async def dep_x_file_id(
-    x_file_id: str = Header(..., title="File ID", **EntityID.META),
-) -> str:
-    return x_file_id
+XFileIDOptional = Annotated[
+    str | None,
+    Header(
+        alias="X-File-ID",
+        title="File ID",
+        **EntityID.META,
+    ),
+]
 
-
-XFileID = Annotated[str, Depends(dep_x_file_id)]
-
-
-async def dep_x_activity_id(
-    x_activity_id: str = Header(..., title="Activity ID", **EntityID.META),
-) -> str:
-    return x_activity_id
-
-
-XActivityID = Annotated[str, Depends(dep_x_activity_id)]
+XActivityIDOptional = Annotated[
+    str | None,
+    Header(
+        alias="X-Activity-ID",
+        title="Activity ID",
+        **EntityID.META,
+    ),
+]
 
 
 async def dep_x_content_type(

@@ -1,12 +1,6 @@
-from fastapi import BackgroundTasks, Query
+from fastapi import Query
 
-from ayon_server.api.dependencies import (
-    CurrentUser,
-    FolderID,
-    ProjectName,
-    Sender,
-    SenderType,
-)
+from ayon_server.api.dependencies import CurrentUser, FolderID, ProjectName
 from ayon_server.api.responses import EmptyResponse, EntityIdResponse
 from ayon_server.entities import FolderEntity
 from ayon_server.operations.project_level import ProjectLevelOperations
@@ -39,20 +33,12 @@ async def get_folder(
 @router.post("", status_code=201)
 async def create_folder(
     post_data: FolderEntity.model.post_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EntityIdResponse:
     """Create a new folder."""
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
 
     ops.create("folder", **post_data.dict(exclude_unset=True))
     res = await ops.process(can_fail=False, raise_on_error=True)
@@ -69,12 +55,9 @@ async def create_folder(
 @router.patch("/{folder_id}", status_code=204)
 async def update_folder(
     post_data: FolderEntity.model.patch_model,  # type: ignore
-    background_tasks: BackgroundTasks,
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Patch (partially update) a folder.
 
@@ -82,12 +65,7 @@ async def update_folder(
     cannot be changed.
     """
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
     ops.update("folder", folder_id, **post_data.dict(exclude_unset=True))
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()
@@ -103,8 +81,6 @@ async def delete_folder(
     user: CurrentUser,
     project_name: ProjectName,
     folder_id: FolderID,
-    sender: Sender,
-    sender_type: SenderType,
     force: bool = Query(False, description="Allow recursive deletion"),
 ) -> EmptyResponse:
     """Delete a folder.
@@ -113,12 +89,7 @@ async def delete_folder(
     its subfolders. Otherwise, deletes the folder and all its subfolders.
     """
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
 
     ops.delete("folder", folder_id, force=force)
     await ops.process(can_fail=False, raise_on_error=True)

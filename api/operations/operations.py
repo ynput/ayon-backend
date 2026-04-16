@@ -2,7 +2,7 @@ from typing import Literal
 
 from fastapi import BackgroundTasks
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName, Sender, SenderType
+from ayon_server.api.dependencies import CurrentUser, ProjectName
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.redis import Redis
 from ayon_server.operations.project_level import (
@@ -25,17 +25,12 @@ class OperationsRequestModel(OPModel):
     raise_on_error: bool = False
 
 
-@router.post(
-    "/projects/{project_name}/operations",
-    response_model=OperationsResponseModel,
-)
+@router.post("/projects/{project_name}/operations")
 async def operations(
     payload: OperationsRequestModel,
     project_name: ProjectName,
     user: CurrentUser,
-    sender: Sender,
-    sender_type: SenderType,
-):
+) -> OperationsResponseModel:
     """
     Process multiple operations (create / update / delete) in a single request.
 
@@ -54,12 +49,7 @@ async def operations(
     Always check the `success` field of the response.
     """
 
-    ops = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=sender,
-        sender_type=sender_type,
-    )
+    ops = ProjectLevelOperations(project_name, user=user)
 
     for operation in payload.operations:
         if operation.as_user:
@@ -129,8 +119,6 @@ async def background_operations(
     payload: OperationsRequestModel,
     project_name: ProjectName,
     user: CurrentUser,
-    sender: Sender,
-    sender_type: SenderType,
     background_tasks: BackgroundTasks,
 ) -> BackgroundOperationsResponseModel:
     """
@@ -142,8 +130,8 @@ async def background_operations(
     ops = ProjectLevelOperations(
         project_name,
         user=user,
-        sender=sender,
-        sender_type=sender_type,
+        sender="background-operations",
+        sender_type="system",
     )
 
     for operation in payload.operations:

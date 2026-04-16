@@ -29,7 +29,11 @@ from ayon_server.entities import UserEntity
 from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.entities.project import ProjectEntity
 from ayon_server.events.eventstream import EventStream
-from ayon_server.exceptions import BadRequestException, NotFoundException
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+)
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -44,7 +48,8 @@ async def create_activity(
     tags: list[str] | None = None,
     files: list[str] | None = None,
     activity_id: str | None = None,
-    user_name: str | None = None,
+    user: UserEntity | None = None,
+    user_name: str | None = None,  # deprecated, use user instead
     extra_references: list[ActivityReferenceModel] | None = None,
     data: dict[str, Any] | None = None,
     timestamp: datetime.datetime | None = None,
@@ -58,6 +63,31 @@ async def create_activity(
     They are autopopulated based on the activity body and the current
     user if not provided.
     """
+
+    if (
+        user is None
+        and user_name is not None
+        and activity_type in ["comment", "reviewable"]  # we need acl for these
+    ):
+        user = await UserEntity.load(user_name)
+
+    if user_name is None and user is not None:
+        user_name = user.name
+
+    if (
+        user is not None
+        and activity_type in ["comment", "reviewable"]
+        and not user.is_manager
+        and not user.is_guest  # guest permissions are checked in the endpoint
+    ):
+        # Check if the user can create enity activities for the given entity
+
+        perms = user.permissions(project_name=entity.project_name)
+        if perms.activities.enabled:
+            if activity_type not in perms.activities.activities:
+                raise ForbiddenException(
+                    f"You don't have permission to create {activity_type}"
+                )
 
     if timestamp is None:
         timestamp = datetime.datetime.now(datetime.UTC)
@@ -127,10 +157,7 @@ async def create_activity(
         )
         data["author"] = user_name
 
-    if "@external" in body:
-        data["category"] = "external"
-
-    references.update(extract_mentions(body))
+    references.update(await extract_mentions(body, project_name))
     if activity_type not in ["watch"]:
         # We don't need to collect additional references for watch activities
         # As they only apply to the entity itself

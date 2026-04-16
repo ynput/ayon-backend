@@ -3,8 +3,6 @@ from fastapi import Query, Request
 from ayon_server.api.dependencies import (
     CurrentUser,
     ProjectName,
-    Sender,
-    SenderType,
     VersionID,
     XContentType,
     XFileName,
@@ -27,8 +25,6 @@ async def upload_reviewable(
     user: CurrentUser,
     project_name: ProjectName,
     version_id: VersionID,
-    sender: Sender,
-    sender_type: SenderType,
     x_file_name: XFileName,
     content_type: XContentType,
     label: str | None = Query(None, description="Label", alias="label"),
@@ -60,6 +56,4 @@ async def upload_reviewable(
         activity_id=None,
         content_type=content_type,
         user_name=user.name,
-        sender=sender,
-        sender_type=sender_type,
     )

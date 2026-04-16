@@ -5,8 +5,6 @@ from ayon_server.api.dependencies import (
     CurrentUser,
     NewProjectName,
     ProjectName,
-    Sender,
-    SenderType,
 )
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
@@ -130,8 +128,6 @@ async def create_project(
     put_data: ProjectPostModel,
     user: CurrentUser,
     project_name: NewProjectName,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Create a new project.
 
@@ -162,10 +158,7 @@ async def create_project(
 
     await EventStream.dispatch(
         "entity.project.created",
-        sender=sender,
-        sender_type=sender_type,
         project=project.name,
-        user=user.name,
         description=f"Created project {project.name}",
     )
 
@@ -182,8 +175,6 @@ async def update_project(
     patch_data: ProjectPatchModel,
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
 ):
     """Patch a project.
 
@@ -206,12 +197,7 @@ async def update_project(
     await project.save()
 
     for edata in events:
-        await EventStream.dispatch(
-            **edata,
-            sender=sender,
-            sender_type=sender_type,
-            user=user.name,
-        )
+        await EventStream.dispatch(**edata)
     return EmptyResponse()
 
 
@@ -248,8 +234,6 @@ async def unassign_users_from_deleted_projects() -> None:
 async def delete_project(
     user: CurrentUser,
     project_name: ProjectName,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> EmptyResponse:
     """Delete a given project including all its entities."""
 
@@ -268,10 +252,7 @@ async def delete_project(
 
     await EventStream.dispatch(
         "entity.project.deleted",
-        sender=sender,
-        sender_type=sender_type,
         project=project.name,
-        user=user.name,
         description=f"Deleted project {project.name}",
     )
 

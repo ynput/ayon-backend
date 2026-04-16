@@ -36,6 +36,13 @@ def _top_level_fields_enum() -> list[dict[str, str]]:
     ]
 
 
+def _activities_permissions_enum() -> list[dict[str, str]]:
+    return [
+        {"value": "comment", "label": "Comment"},
+        {"value": "reviewable", "label": "Upload reviewables"},
+    ]
+
+
 @aiocache.cached(ttl=300)
 async def _attr_enum():
     return [
@@ -57,7 +64,7 @@ async def _actions_enum() -> list[EnumItem]:
 async def _link_types_enum(project_name: str | None = None) -> list[EnumItem]:
     return await EnumRegistry.resolve(
         "linkTypes",
-        context={"project_name": project_name},
+        project_name=project_name,
     )
 
 
@@ -146,6 +153,15 @@ class ActionsAccessList(BasePermissionsModel):
     actions: list[str] = SettingsField(
         default_factory=list,
         enum_resolver=_actions_enum,
+    )
+
+
+class ActivitiesAccessList(BasePermissionsModel):
+    activities: list[str] = SettingsField(
+        title=" ",
+        default_factory=list,
+        enum_resolver=_activities_permissions_enum,
+        widget="switchbox",
     )
 
 
@@ -281,6 +297,12 @@ class Permissions(BaseSettingsModel):
         default_factory=AttributeWriteAccessList,
         title="Restrict attribute update",
         description="Whitelist attributes a user can write",
+    )
+
+    activities: ActivitiesAccessList = SettingsField(
+        default_factory=ActivitiesAccessList,
+        title="Restrict activities",
+        description="Whitelist activities a user can perform",
     )
 
     actions: ActionsAccessList = SettingsField(

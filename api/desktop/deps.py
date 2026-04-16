@@ -171,6 +171,8 @@ async def create_dependency_package(
                 summary={"url": url},
                 status="pending",
                 retries=0,
+                sender="background_installer",
+                sender_type="system",
             )
         else:
             event_id = await EventStream.dispatch(
@@ -180,6 +182,8 @@ async def create_dependency_package(
                 summary={"url": url},
                 user=user.name,
                 finished=False,
+                sender="background_installer",
+                sender_type="system",
             )
 
         assert event_id

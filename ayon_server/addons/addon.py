@@ -1,8 +1,6 @@
 import inspect
 import os
 
-from ayon_server.entities.user import UserEntity
-
 try:
     import toml
 except ModuleNotFoundError:
@@ -10,6 +8,8 @@ except ModuleNotFoundError:
 
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
+
+from fastapi.responses import HTMLResponse
 
 from ayon_server.actions.config import get_action_config, set_action_config
 from ayon_server.actions.context import ActionContext
@@ -25,8 +25,14 @@ from ayon_server.addons.models import (
     SourceInfo,
     SSOOption,
 )
+from ayon_server.addons.openapi import get_addon_api_docs, get_addon_openapi
 from ayon_server.addons.settings_caching import AddonSettingsCache
-from ayon_server.exceptions import AyonException, BadRequestException, NotFoundException
+from ayon_server.entities.user import UserEntity
+from ayon_server.exceptions import (
+    AyonException,
+    BadRequestException,
+    NotFoundException,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback, logger
 from ayon_server.settings import BaseSettingsModel, apply_overrides
@@ -219,6 +225,12 @@ class BaseServerAddon:
                 "description": description or handler.__doc__ or "",
             }
         )
+
+    def get_openapi(self) -> dict[str, Any]:
+        return get_addon_openapi(self)
+
+    def get_api_docs(self) -> HTMLResponse:
+        return get_addon_api_docs(self)
 
     async def get_frontend_scopes(self) -> FrontendScopes:
         return self.frontend_scopes

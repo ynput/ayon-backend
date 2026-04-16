@@ -14,6 +14,7 @@ ActivityType = Literal[
     "version.publish",
 ]
 
+
 ActivityReferenceType = Literal[
     "origin",
     "mention",
@@ -31,6 +32,7 @@ ReferencedEntityType = Literal[
     "version",
     "representation",
     "workfile",
+    "team",
 ]
 
 EntityLinkTuple = tuple[ReferencedEntityType, str]
