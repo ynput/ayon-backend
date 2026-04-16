@@ -59,7 +59,7 @@ class ProjectEntity(TopLevelEntity):
         try:
             project_data = await Postgres.fetchrow(
                 f"""
-                SELECT  *
+                SELECT *
                 FROM public.projects
                 WHERE name ILIKE $1
                 {"FOR UPDATE NOWAIT" if for_update else ""}

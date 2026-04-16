@@ -1,6 +1,13 @@
+from typing import Annotated
+
+from fastapi import Query
+
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
 from ayon_server.helpers.deploy_project import create_project_from_anatomy
+from ayon_server.helpers.deploy_project_skeleton import (
+    create_project_skeleton_from_anatomy,
+)
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.types import Field, OPModel
 
@@ -17,7 +24,9 @@ class DeployProjectRequestModel(OPModel):
 
 @router.post("/projects", status_code=201)
 async def deploy_project(
-    payload: DeployProjectRequestModel, user: CurrentUser
+    payload: DeployProjectRequestModel,
+    user: CurrentUser,
+    skeleton: Annotated[bool, Query(title="Skeleton project")] = False,
 ) -> EmptyResponse:
     """Create a new project using the provided anatomy object.
 
@@ -26,6 +35,17 @@ async def deploy_project(
     """
 
     user.check_permissions("studio.create_projects")
+
+    if skeleton:
+        await create_project_skeleton_from_anatomy(
+            name=payload.name,
+            code=payload.code,
+            anatomy=payload.anatomy,
+            library=payload.library,
+            user_name=user.name,
+            assign_users=payload.assign_users,
+        )
+        return EmptyResponse(status_code=201)
 
     await create_project_from_anatomy(
         name=payload.name,
