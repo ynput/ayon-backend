@@ -65,6 +65,7 @@ class Session:
         """
         data = await Redis.get(cls.ns, token)
         if not data:
+            logger.trace(f"Session {token} not found")
             return None
 
         session = SessionModel(**json_loads(data))
@@ -187,6 +188,7 @@ class Session:
                     description=message,
                     user=session.user.name,
                 )
+        logger.trace(f"Deleting session {token}: {message}")
         await Redis.delete(cls.ns, token)
 
     @classmethod
