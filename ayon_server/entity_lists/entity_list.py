@@ -347,13 +347,14 @@ class EntityList:
     ) -> EntityListSummary:
         """Save the entity list to the database"""
         _user = user or self._user
-        return await save_entity_list(
-            self._project_name,
-            self._payload,
-            user=_user,
-            sender=sender,
-            sender_type=sender_type,
-        )
+        async with Postgres.transaction():
+            return await save_entity_list(
+                self._project_name,
+                self._payload,
+                user=_user,
+                sender=sender,
+                sender_type=sender_type,
+            )
 
     async def delete(
         self,

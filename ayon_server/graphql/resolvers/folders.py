@@ -184,33 +184,41 @@ async def get_folders(
     if ids is not None:
         if fields.has_any("totalFolderCount"):
             sql_columns.append(
-                f"""(SELECT COUNT(*) FROM project_{project_name}.hierarchy h2
-                WHERE starts_with(h2.path, hierarchy.path || '/')) AS total_folder_count"""
+                f"""
+                (SELECT COUNT(*) FROM project_{project_name}.hierarchy h2
+                WHERE starts_with(h2.path, hierarchy.path || '/')) AS total_folder_count
+                """
             )
 
         if fields.has_any("totalTaskCount"):
             sql_columns.append(
-                f"""(SELECT COUNT(*) FROM project_{project_name}.tasks t
+                f"""
+                (SELECT COUNT(*) FROM project_{project_name}.tasks t
                 JOIN project_{project_name}.hierarchy h2 ON t.folder_id = h2.id
                 WHERE h2.path = hierarchy.path
-                OR starts_with(h2.path, hierarchy.path || '/')) AS total_task_count"""
+                OR starts_with(h2.path, hierarchy.path || '/')) AS total_task_count
+                """
             )
 
         if fields.has_any("totalProductCount"):
             sql_columns.append(
-                f"""(SELECT COUNT(*) FROM project_{project_name}.products p
+                f"""
+                (SELECT COUNT(*) FROM project_{project_name}.products p
                 JOIN project_{project_name}.hierarchy h2 ON p.folder_id = h2.id
                 WHERE h2.path = hierarchy.path
-                OR starts_with(h2.path, hierarchy.path || '/')) AS total_product_count"""
+                OR starts_with(h2.path, hierarchy.path || '/')) AS total_product_count
+                """
             )
 
         if fields.has_any("totalVersionCount"):
             sql_columns.append(
-                f"""(SELECT COUNT(*) FROM project_{project_name}.versions v
+                f"""
+                (SELECT COUNT(*) FROM project_{project_name}.versions v
                 JOIN project_{project_name}.products p ON v.product_id = p.id
                 JOIN project_{project_name}.hierarchy h2 ON p.folder_id = h2.id
                 WHERE h2.path = hierarchy.path
-                OR starts_with(h2.path, hierarchy.path || '/')) AS total_version_count"""
+                OR starts_with(h2.path, hierarchy.path || '/')) AS total_version_count
+                """
             )
 
     if fields.any_endswith("hasReviewables"):
