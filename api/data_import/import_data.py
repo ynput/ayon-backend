@@ -31,7 +31,11 @@ from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.utils import create_uuid
-from .common import _get_entity_id_by_path, SENDER_TYPE
+from .common import (
+    _get_entity_id_by_path,
+    SENDER_TYPE,
+    _get_entity_ids_by_name
+)
 
 from .export_data import EntityType
 from .models import (
@@ -40,8 +44,8 @@ from .models import (
     FolderExportImportModel,
     TaskExportImportModel,
     FolderTaskExportImportModel,
-    ExistingItemStrategy,
     ExistingStrategyType,
+    NewEntitiesStrategyType,
     ImportStatus,
     ImportUpload,
     ColumnMapping,
@@ -142,7 +146,8 @@ async def import_data(
     user: CurrentUser,
     file_id: str,  # pointer to file stored in Redis
     column_mapping: List[ColumnMapping],
-    existing_strategy: ExistingStrategyType = ExistingItemStrategy.UPDATE,  # what to do if item found in target
+    existing_strategy: ExistingStrategyType = "update_first",  # what to do if item found in target
+    new_strategy: NewEntitiesStrategyType = "create",  # what to do if item not found in target
     project_name: str = None,
     folder_id: str = None,    # limit import to specific folder
     preview: bool  = False,  # do not commit to db if True
@@ -158,6 +163,7 @@ async def import_data(
         file_id: ID of the uploaded CSV file in Redis
         column_mapping: List of column mappings (source -> target)
         existing_strategy: How to handle existing items (skip, update, fail)
+        new_strategy: How to handle new items (create, skip, fail)
         project_name: Project name for folder/task imports
         folder_id: Limit import to specific folder
         preview: If True, don't commit to database
@@ -264,7 +270,7 @@ async def import_data(
             if "path" in import_entity_data and import_entity_data["path"]:
                 path = import_entity_data["path"]
 
-            entity_id = await _resolve_entity_id(
+            entity_ids = await _resolve_entity_ids(
                 row=import_entity_data,
                 path_to_ids=path_to_ids,
                 existing_identifiers=existing_identifiers,
@@ -272,13 +278,30 @@ async def import_data(
                 entity_cls=entity_cls,
                 project_name=project_name,
             )
-
-            if entity_id:
-                if existing_strategy == ExistingItemStrategy.UPDATE:
-                    exists = True
+            if entity_ids:
+                if existing_strategy == "skip":
+                    continue
+                elif existing_strategy == "abort":
+                    raise ImportRowErrorException(
+                        f"Entity already exists '{entity_ids}'"
+                    )
                 else:
-                    identifier = path or identifier
-                    raise ValueError(f"Item '{identifier}' already exists.")
+                    found_multiple = len(entity_ids) > 1
+                    if existing_strategy == "update" and found_multiple:
+                        raise ValueError(
+                            f"Multiple entities found: '{entity_ids}'. "
+                            "Select update multi to update them all"
+                        )
+                    if existing_strategy == "update_first":
+                        entity_ids = entity_ids[:1]
+            else:
+                # check NewEntitiesStrategy
+                if new_strategy == "skip":
+                    continue
+                elif new_strategy == "abort":
+                    raise ImportRowErrorException(
+                        "New entity found, creation forbidden. Stopping."
+                    )
 
             original_id = row.get("id")
             parent_id, parent_path = await _resolve_parent_id(
@@ -326,21 +349,21 @@ async def import_data(
                 import_entity_data["task_type"] = default_task_type
 
             logger.debug(
-                f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
+                f"entity_ids:: {entity_ids}:{entity_type} -> {import_entity_data} "
             )
-
-            if exists:
-                # mark that model has custom update
-                custom_updated = await model_cls.update(
-                    user=user, preview=preview, **import_entity_data
-                )
-                if not custom_updated:
-                    operations.update(
-                        entity_type,
-                        entity_id,
-                        **import_entity_data
+            if entity_ids:
+                for entity_id in entity_ids:
+                    # mark that model has custom update
+                    custom_updated = await model_cls.update(
+                        user=user, preview=preview, **import_entity_data
                     )
-                import_status.updated += 1
+                    if not custom_updated:
+                        operations.update(
+                            entity_type,
+                            entity_id,
+                            **import_entity_data
+                        )
+                    import_status.updated += 1
             else:
                 entity_id = await model_cls.create(
                     user=user, preview=preview, **import_entity_data
@@ -903,17 +926,20 @@ async def _get_existing_identifiers(
     return existing_identifiers
 
 
-async def _resolve_entity_id(
+async def _resolve_entity_ids(
     row: dict[str, Any],
     path_to_ids: dict[str, str],
     existing_identifiers: set[tuple],
     model_cls,
     entity_cls,
     project_name: str,
-) -> str | None:
+) -> list[str] | None:
     """Resolve the entity ID for a CSV row.
 
     Checks if the entity already exists by path or unique fields.
+
+    Also tries to check by name and entity type as last resort. This could
+    result in multiple ids returned.
 
     Args:
         row: CSV row data
@@ -935,7 +961,7 @@ async def _resolve_entity_id(
         identifier = identifier + (row[unique_field],)
 
     if identifier in existing_identifiers:
-        return identifier[0] # Return the identifier
+        return [identifier[0]] # Return the identifier
 
     # Check by path if path is provided and entity supports it
     if "path" in row and row["path"]:
@@ -944,7 +970,7 @@ async def _resolve_entity_id(
         # Check in-memory cache
         entity_id = path_to_ids.get(path)
         if entity_id:
-            return entity_id
+            return [entity_id]
 
         # Look up in database
         is_task = entity_cls == TaskEntity
@@ -956,11 +982,21 @@ async def _resolve_entity_id(
             )
             if entity_id:
                 path_to_ids[path] = entity_id  # Cache it
-                return entity_id
+                return [entity_id]
         except NotFoundException:
             logger.debug(f"Couldn't find entity for path '{path}'")
 
-    return None
+     # or check by name if present
+    has_entity_type = "entity_type" in row and row["entity_type"]
+    item_name = row.get("name") or row.get("path")
+    if item_name and has_entity_type:
+        return await _get_entity_ids_by_name(
+            project_name,
+            item_name,
+            row["entity_type"]
+        )
+
+    return []
 
 
 async def _resolve_parent_id(

@@ -49,9 +49,15 @@ class ExistingItemStrategy(str, Enum):
     UPDATE = "update"
     FAIL = "fail"
 
-
+NewEntitiesStrategyType = Literal["create", "skip", "abort"]
 # Type alias for existing strategy values
-ExistingStrategyType = Literal["skip", "update", "fail"]
+ExistingStrategyType = Literal[
+    "skip",
+    "abort",
+    "update",
+    "update_all",
+    "update_first",
+]
 
 # How to handle errors when importing data for this column.
 # - "skip": skip the row if there is an error in this column.

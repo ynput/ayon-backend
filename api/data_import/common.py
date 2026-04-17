@@ -60,3 +60,33 @@ async def _get_entity_id_by_path(
             )
 
     return result["id"]
+
+
+async def _get_entity_ids_by_name(
+    project_name: str,
+    entity_name: str,
+    entity_type: str,
+) -> list[str]:
+    """Get folder or task id by its name.
+
+    Args:
+        project_name: Project name
+        entity_name: Entity name
+        entity_type: Entity type
+
+    Returns:
+        list[str]: Entity IDs
+    """
+    if entity_type.lower() not in ["folder", "task"]:
+        raise ValueError(f"Invalid entity type '{entity_type}'")
+
+    query = f"""
+        SELECT id
+        FROM project_{project_name}.{entity_type.lower()}s
+        WHERE name = $1
+    """
+    entity_ids = []
+    async for row in Postgres.iterate(query, entity_name):
+        entity_ids.append(row["id"])
+
+    return entity_ids
