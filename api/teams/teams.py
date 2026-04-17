@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import Query
+from fastapi import Path, Query
 
 from ayon_server.api.dependencies import AllowProjectSkeleton, CurrentUser, ProjectName
 from ayon_server.api.responses import EmptyResponse
@@ -13,7 +13,8 @@ from .router import router
 
 TeamName = Annotated[
     str,
-    Query(
+    Path(
+        alias="team_name",
         min_length=2,
         max_length=64,
         title="Team Name",
@@ -22,7 +23,8 @@ TeamName = Annotated[
 
 MemberName = Annotated[
     str,
-    Query(
+    Path(
+        alias="member_name",
         title="User Name",
         regex=USER_NAME_REGEX,
     ),
@@ -113,7 +115,7 @@ async def save_team(
 )
 async def save_team_member(
     team_name: TeamName,
-    member_name: str,
+    member_name: MemberName,
     member: TeamMemberModel,
     project_name: ProjectName,
     current_user: CurrentUser,
