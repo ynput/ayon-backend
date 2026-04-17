@@ -6,7 +6,7 @@ from ayon_server.entities import (
     RepresentationEntity,
     TaskEntity,
     VersionEntity,
-    WorkfileEntity,
+    WorkfileEntity, UserEntity,
 )
 from ayon_server.entities.core import ProjectLevelEntity
 
@@ -46,6 +46,7 @@ def get_entity_class(entity_type: str) -> type[ProjectLevelEntity]:
         "version": VersionEntity,
         "representation": RepresentationEntity,
         "workfile": WorkfileEntity,
+        "user": UserEntity
     }.get(entity_type)
     if entity_class is None:
         raise ValueError(f"Invalid entity type: {entity_type}")
