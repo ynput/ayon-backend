@@ -36,6 +36,7 @@ async def get_projects(
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
+    skeleton: bool = False,
 ) -> ProjectsConnection:
     """Return a list of projects."""
 
@@ -48,10 +49,14 @@ async def get_projects(
         validate_name(code)
         sql_conditions.append(f"projects.code ILIKE '{code}'")
 
+    if not skeleton:
+        sql_conditions.append("projects.data->>'isSkeleton' IS DISTINCT FROM 'true'")
+
     fields = FieldInfo(info, ["projects.edges.node", "project"])
 
     cols = [
         "name",
+        "label",
         "code",
         "library",
         "attrib",
@@ -59,6 +64,7 @@ async def get_projects(
         "created_at",
         "updated_at",
         "data->'projectFolder' AS project_folder",
+        "data->'isSkeleton' AS is_skeleton",
     ]
 
     if fields.has_any("config"):

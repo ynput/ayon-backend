@@ -1,13 +1,18 @@
 import copy
 
-from ayon_server.api.dependencies import CurrentUser, ProjectName, UserName
+from ayon_server.api.dependencies import (
+    AllowProjectSkeleton,
+    CurrentUser,
+    ProjectName,
+    UserName,
+)
 from ayon_server.entities import UserEntity
 from ayon_server.lib.postgres import Postgres
 
 from .router import router
 
 
-@router.get("/projects/{project_name}/users")
+@router.get("/projects/{project_name}/users", dependencies=[AllowProjectSkeleton])
 async def get_project_users(
     user: CurrentUser,
     project_name: ProjectName,
@@ -41,7 +46,10 @@ async def get_project_users(
     return result
 
 
-@router.patch("/projects/{project_name}/users/{user_name}")
+@router.patch(
+    "/projects/{project_name}/users/{user_name}",
+    dependencies=[AllowProjectSkeleton],
+)
 async def update_project_user(
     user: CurrentUser,
     project_name: ProjectName,

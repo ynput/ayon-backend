@@ -131,6 +131,7 @@ class ProjectAttribType:
 @strawberry.type
 class ProjectNode:
     name: str = strawberry.field()
+    label: str | None
     project_name: str = strawberry.field()
     code: str = strawberry.field()
     project_folder: str | None = strawberry.field()
@@ -138,6 +139,7 @@ class ProjectNode:
     config: str | None
     active: bool
     library: bool
+    skeleton: bool
     thumbnail: ThumbnailInfo | None = None
     bundle: ProjectBundleType
     created_at: datetime
@@ -409,6 +411,7 @@ async def project_from_record(
 
     thumbnail = None
     user = context["user"]
+    skeleton = record.get("is_skeleton", False)
     if user.is_guest:
         guest_users = record.get("data", {}).get("guestUsers", {})
         if user.attrib.email not in guest_users:
@@ -436,11 +439,13 @@ async def project_from_record(
 
     return ProjectNode(
         name=record["name"],
+        label=record.get("label"),
         code=record["code"],
         project_name=record["name"],
         active=record["active"],
         library=record["library"],
         thumbnail=thumbnail,
+        skeleton=skeleton,
         data=json_dumps(data) if data else None,
         config=json_dumps(config) if config else None,
         bundle=bundle,

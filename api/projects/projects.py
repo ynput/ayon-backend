@@ -2,11 +2,11 @@ from typing import Annotated, cast
 
 from ayon_server.api.dependencies import (
     AllowGuests,
+    AllowProjectSkeleton,
     CurrentUser,
     NewProjectName,
     ProjectName,
 )
-from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
 from ayon_server.events.patch import build_project_change_events
@@ -79,7 +79,7 @@ class ProjectPatchModel(ProjectEntity.model.patch_model):  # type: ignore
     "/projects/{project_name}",
     response_model_exclude_none=True,
     response_model_exclude_unset=True,
-    dependencies=[AllowGuests],
+    dependencies=[AllowGuests, AllowProjectSkeleton],
 )
 async def get_project(
     user: CurrentUser,
@@ -123,12 +123,12 @@ async def get_project_stats(user: CurrentUser, project_name: ProjectName):
 #
 
 
-@router.put("/projects/{project_name}", status_code=201)
+@router.put("/projects/{project_name}")
 async def create_project(
     put_data: ProjectPostModel,
     user: CurrentUser,
     project_name: NewProjectName,
-) -> EmptyResponse:
+) -> None:
     """Create a new project.
 
     Since project has no ID, and a unique name is used as its
@@ -162,7 +162,7 @@ async def create_project(
         description=f"Created project {project.name}",
     )
 
-    return EmptyResponse(status_code=201)
+    return None
 
 
 #
@@ -170,12 +170,12 @@ async def create_project(
 #
 
 
-@router.patch("/projects/{project_name}", status_code=204)
+@router.patch("/projects/{project_name}", dependencies=[AllowProjectSkeleton])
 async def update_project(
     patch_data: ProjectPatchModel,
     user: CurrentUser,
     project_name: ProjectName,
-):
+) -> None:
     """Patch a project.
 
     Use a PATCH request to partially update a project.
@@ -198,7 +198,8 @@ async def update_project(
 
     for edata in events:
         await EventStream.dispatch(**edata)
-    return EmptyResponse()
+
+    return None
 
 
 #
@@ -230,11 +231,11 @@ async def unassign_users_from_deleted_projects() -> None:
     # we don't need to update sessions, as they are updated on the next login
 
 
-@router.delete("/projects/{project_name}", status_code=204)
+@router.delete("/projects/{project_name}", dependencies=[AllowProjectSkeleton])
 async def delete_project(
     user: CurrentUser,
     project_name: ProjectName,
-) -> EmptyResponse:
+) -> None:
     """Delete a given project including all its entities."""
 
     project = await ProjectEntity.load(project_name)
@@ -256,4 +257,4 @@ async def delete_project(
         description=f"Deleted project {project.name}",
     )
 
-    return EmptyResponse()
+    return None

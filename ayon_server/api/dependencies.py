@@ -15,7 +15,9 @@ from ayon_server.exceptions import (
     UnauthorizedException,
     UnsupportedMediaException,
 )
-from ayon_server.helpers.project_list import build_project_list, get_project_list
+from ayon_server.helpers.project_list import (
+    get_project_info,
+)
 from ayon_server.logging import logger
 from ayon_server.types import (
     ATTRIBUTE_NAME_REGEX,
@@ -30,17 +32,9 @@ from ayon_server.utils import (
     parse_api_key,
 )
 
-
-def dep_no_traces() -> None:
-    return None
-
-
-def dep_allow_guests() -> None:
-    return None
-
-
-NoTraces = Depends(dep_no_traces)
-AllowGuests = Depends(dep_allow_guests)
+NoTraces = Depends(lambda: None)
+AllowGuests = Depends(lambda: None)
+AllowProjectSkeleton = Depends(lambda: None)
 
 
 def dep_current_addon(request: Request) -> BaseServerAddon:
@@ -210,12 +204,15 @@ NewProjectName = Annotated[str, Depends(dep_new_project_name)]
 
 
 async def dep_project_name(
-    current_user: Annotated[UserEntity, Depends(dep_current_user)],
-    project_name: str = Path(
-        ...,
-        title="Project name",
-        regex=PROJECT_NAME_REGEX,
-    ),
+    request: Request,
+    current_user: CurrentUser,
+    project_name: Annotated[
+        str,
+        Path(
+            title="Project name",
+            regex=PROJECT_NAME_REGEX,
+        ),
+    ],
 ) -> str:
     """Validate and return a project name specified in an endpoint path.
 
@@ -226,33 +223,38 @@ async def dep_project_name(
 
     await current_user.ensure_project_access(project_name)
 
-    project_list = await get_project_list()
+    allow_skeleton = False
+    route = request.scope.get("route")
+    if isinstance(route, APIRoute):
+        if AllowProjectSkeleton in route.dependencies:
+            allow_skeleton = True
 
-    for pn in project_list:
-        if project_name.lower() == pn.name.lower():
-            return pn.name
+    project_info = await get_project_info(
+        project_name,
+        with_skeleton=True,  # query skeleton as well, as we need to check it below
+    )
+    validated_project_name = project_info.name
 
-    # try again
-    project_list = await build_project_list()
+    if project_info.skeleton and not allow_skeleton:
+        raise NotFoundException(
+            f"Project {project_name} is a skeleton and cannot be used in this endpoint"
+        )
 
-    for pn in project_list:
-        if project_name.lower() == pn.name.lower():
-            return pn.name
-
-    raise NotFoundException(f"Project {project_name} not found")
+    return validated_project_name
 
 
 ProjectName = Annotated[str, Depends(dep_project_name)]
 
 
 async def dep_project_name_or_underscore(
+    request: Request,
     current_user: Annotated[UserEntity, Depends(dep_current_user)],
     project_name: str = Path(..., title="Project name"),
 ) -> str:
     if project_name == "_":
         # TODO: check if user has access to all projects?
         return project_name
-    return await dep_project_name(current_user, project_name)
+    return await dep_project_name(request, current_user, project_name)
 
 
 ProjectNameOrUnderscore = Annotated[str, Depends(dep_project_name_or_underscore)]
