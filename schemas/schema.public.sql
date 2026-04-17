@@ -21,6 +21,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS server_updates_version_idx ON public.server_up
 
 CREATE TABLE IF NOT EXISTS public.projects(
     name VARCHAR NOT NULL PRIMARY KEY,
+    label VARCHAR,
     code VARCHAR NOT NULL,
     library BOOLEAN NOT NULL DEFAULT FALSE,
     config JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -32,8 +33,13 @@ CREATE TABLE IF NOT EXISTS public.projects(
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS label VARCHAR;
+
 CREATE UNIQUE INDEX IF NOT EXISTS projectname_idx ON public.projects(LOWER(name));
 CREATE UNIQUE INDEX IF NOT EXISTS projectcode_idx ON public.projects(LOWER(code));
+CREATE UNIQUE INDEX IF NOT EXISTS projectlabel_idx ON public.projects(LOWER(label));
+CREATE INDEX IF NOT EXISTS projectactive_idx ON public.projects(active);
+
 
 CREATE TABLE IF NOT EXISTS project_folders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -45,6 +51,18 @@ CREATE TABLE IF NOT EXISTS project_folders (
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_project_folder_parent_label 
   ON project_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
+
+
+CREATE TABLE IF NOT EXISTS project_thumbnails(
+    project_name VARCHAR NOT NULL PRIMARY KEY REFERENCES public.projects(name) ON DELETE CASCADE ON UPDATE CASCADE,
+    mime VARCHAR NOT NULL,
+    data BYTEA NOT NULL,
+    meta JSONB NOT NULL DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE project_thumbnails ALTER COLUMN data SET STORAGE EXTERNAL;
+
 
 -- Users
 
