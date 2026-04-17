@@ -231,7 +231,6 @@ async def import_data(
 
     for row in filtered_rows:
         row_number += 1
-        exists = False
         import_entity_data = {}
         identifier = None
         path = None
