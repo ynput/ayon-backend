@@ -1,13 +1,18 @@
 from typing import Annotated
 
-from fastapi import Query
-
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.responses import EmptyResponse
+from ayon_server.exceptions import (
+    BadRequestException,
+    ConflictException,
+    NotFoundException,
+)
 from ayon_server.helpers.deploy_project import create_project_from_anatomy
 from ayon_server.helpers.deploy_project_skeleton import (
     create_project_skeleton_from_anatomy,
 )
+from ayon_server.helpers.project_list import get_project_info
+from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy import Anatomy
 from ayon_server.types import Field, OPModel
 
@@ -15,18 +20,55 @@ from .router import router
 
 
 class DeployProjectRequestModel(OPModel):
-    name: str = Field(..., description="Project name")
-    code: str = Field(..., description="Project code")
-    anatomy: Anatomy = Field(..., description="Project anatomy")
-    library: bool = Field(False, description="Library project")
-    assign_users: bool = Field(True, description="Assign default users to the project")
+    name: Annotated[
+        str,
+        Field(
+            title="Project name",
+            exampe="Example project",
+        ),
+    ]
+    code: Annotated[
+        str,
+        Field(
+            title="Project code",
+        ),
+    ]
+    anatomy: Annotated[
+        Anatomy | None,
+        Field(
+            title="Project anatomy",
+        ),
+    ] = None
+    anatomy_preset: Annotated[
+        str | None,
+        Field(
+            title="Anatomy preset name",
+            description="Anatomy preset to use instead of providing anatomy",
+        ),
+    ] = None
+    library: Annotated[
+        bool,
+        Field(
+            title="Library project",
+        ),
+    ] = False
+    assign_users: Annotated[
+        bool,
+        Field(title="Assign users", description="Assign default users to the project"),
+    ] = True
+    skeleton: Annotated[
+        bool,
+        Field(
+            title="Create skeleton",
+            description="Create a project skeleton instead of a full project",
+        ),
+    ] = False
 
 
 @router.post("/projects", status_code=201)
 async def deploy_project(
     payload: DeployProjectRequestModel,
     user: CurrentUser,
-    skeleton: Annotated[bool, Query(title="Skeleton project")] = False,
 ) -> EmptyResponse:
     """Create a new project using the provided anatomy object.
 
@@ -36,11 +78,43 @@ async def deploy_project(
 
     user.check_permissions("studio.create_projects")
 
-    if skeleton:
+    try:
+        existing_project = await get_project_info(
+            payload.name,
+            project_code=payload.code,
+            with_skeleton=True,
+        )
+    except NotFoundException:
+        pass
+    else:
+        msg = (
+            f"Project {existing_project.name} ({existing_project.code}) already exists"
+        )
+        if existing_project.skeleton:
+            msg += " as a skeleton."
+        raise ConflictException(msg)
+
+    if payload.anatomy:
+        anatomy = payload.anatomy
+    elif payload.anatomy_preset:
+        r = await Postgres.fetchrow(
+            "SELECT data FROM anatomy_presets WHERE name = $1 AND version = $2",
+            payload.anatomy_preset,
+            "1.0.0",
+        )
+        if not r:
+            raise NotFoundException(
+                f"Anatomy preset {payload.anatomy_preset} not found"
+            )
+        anatomy = Anatomy(**r["data"])
+    else:
+        raise BadRequestException("Anatomy not provided")
+
+    if payload.skeleton:
         await create_project_skeleton_from_anatomy(
             name=payload.name,
             code=payload.code,
-            anatomy=payload.anatomy,
+            anatomy=anatomy,
             library=payload.library,
             user_name=user.name,
             assign_users=payload.assign_users,
@@ -50,7 +124,7 @@ async def deploy_project(
     await create_project_from_anatomy(
         name=payload.name,
         code=payload.code,
-        anatomy=payload.anatomy,
+        anatomy=anatomy,
         library=payload.library,
         user_name=user.name,
         assign_users=payload.assign_users,

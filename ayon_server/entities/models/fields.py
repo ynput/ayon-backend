@@ -120,6 +120,13 @@ project_fields: list[FieldDefinitionDict] = [
         "default": {},
         "title": "Project config",
     },
+    {
+        "name": "skeleton",
+        "type": "boolean",
+        "title": "Skeleton project",
+        "example": True,
+        "dynamic": True,
+    },
 ]
 
 user_fields = [

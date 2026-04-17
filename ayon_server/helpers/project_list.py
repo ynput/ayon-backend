@@ -67,16 +67,35 @@ async def get_project_list(*, with_skeleton: bool = False) -> list[ProjectListIt
     return list(reduced_project_list)
 
 
-async def get_project_info(project_name: str) -> ProjectListItem:
-    """Return a single project info"""
-    project_list = await get_project_list()
+async def get_project_info(
+    project_name: str,
+    *,
+    project_code: str | None = None,
+    with_skeleton=False,
+) -> ProjectListItem:
+    """Return a single project info
+
+    Retrieves the project info by name case insensitively.
+    If project_code is provided, both name and code are checked for a match.
+    This may be use to ensure that project name and code are unique, not
+    as the mean of retrieving a single project as it is not explicit
+    which project will be returned if both name and code are provided,
+    but belong to different projects.
+    """
+    project_list = await get_project_list(with_skeleton=with_skeleton)
     project_name = project_name.lower()
     for project in project_list:
         if project.name.lower() == project_name:
             return project
+        if project_code and project.code.lower() == project_code.lower():
+            return project
     raise NotFoundException(f"Project {project_name} not found")
 
 
-async def normalize_project_name(project_name: str) -> str:
+async def normalize_project_name(
+    project_name: str,
+    *,
+    with_skeleton: bool = False,
+) -> str:
     """Return the canonical project name matching the input case-insensitively."""
-    return (await get_project_info(project_name)).name
+    return (await get_project_info(project_name, with_skeleton=with_skeleton)).name

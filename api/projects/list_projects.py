@@ -18,6 +18,7 @@ class ListProjectsItemModel(OPModel):
     code: Annotated[str, Field(title="Project code")]
     active: Annotated[bool, Field(title="Project is active")] = True
     library: Annotated[bool, Field(title="Project is a library project")] = False
+    skeleton: Annotated[bool, Field(title="Project is a skeleton project")] = False
     pinned: Annotated[bool, Field(title="Project is pinned")] = False
     project_folder: Annotated[str | None, Field(title="Project folder id")] = None
     created_at: Annotated[datetime, Field(title="Creation time")]
@@ -88,6 +89,12 @@ async def list_projects(
             description="If not provided, return projects regardless the flag",
         ),
     ] = None,
+    skeleton: Annotated[
+        bool,
+        Query(
+            title="Show skeleton projects",
+        ),
+    ] = False,
     order: Annotated[
         Literal["name", "createdAt", "updatedAt"] | None,
         Query(
@@ -126,6 +133,8 @@ async def list_projects(
         conditions.append(f"library IS {'TRUE' if library else 'FALSE'}")
     if active is not None:
         conditions.append(f"active IS {'TRUE' if active else 'FALSE'}")
+    if not skeleton:
+        conditions.append("data->>'isSkeleton' IS DISTINCT FROM 'true'")
 
     if name:
         conditions.append(f"name ILIKE '{name}'")
@@ -156,7 +165,9 @@ async def list_projects(
                 created_at,
                 updated_at,
                 active,
-                data
+                data->'projectFolder' AS project_folder,
+                data->'guestUsers' AS guest_users,
+                data->'isSkeleton' AS is_skeleton
             FROM projects
             {SQLTool.conditions(conditions)}
             {SQLTool.order(sql_order, desc, length, offset)}
@@ -168,7 +179,7 @@ async def list_projects(
             # Evaluate guest before can_list_all_projects:
             # This is a security measure to prevent legacy
             # guest users from seeing all projects.
-            guest_users = row["data"].get("guestUsers", {})
+            guest_users = row["guest_users"] or {}
             if user.attrib.email not in guest_users:
                 continue
 
@@ -190,7 +201,8 @@ async def list_projects(
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
                 active=row.get("active", True),
-                project_folder=row["data"].get("projectFolder"),
+                project_folder=row["project_folder"] or None,
+                skeleton=row.get("is_skeleton") or False,
                 library=row.get("library", False),
                 pinned=row["name"] in pinned,
             )

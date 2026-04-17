@@ -49,15 +49,18 @@ class ProjectEntity(TopLevelEntity):
 
         from .project_skeleton import ProjectSkeletonEntity
 
-        full_payload = payload.copy()
+        full_payload = dict(payload)
 
         skeleton_anatomy = full_payload["data"].pop("skeletonAnatomy", None)
         if skeleton_anatomy is None:
             raise NotFoundException("Project skeleton anatomy not found")
 
         full_payload.update(anatomy_to_project_data(Anatomy(**skeleton_anatomy)))
+        full_payload["skeleton"] = True
+        if "data" in full_payload:
+            full_payload["data"].pop("isSkeleton", None)
 
-        return ProjectSkeletonEntity(**payload)
+        return ProjectSkeletonEntity.from_record(full_payload)
 
     @classmethod
     async def load(
@@ -220,6 +223,7 @@ class ProjectEntity(TopLevelEntity):
                     "created_at",
                     "name",
                     "own_attrib",
+                    "skeleton",
                 ],
             )
 
@@ -248,6 +252,7 @@ class ProjectEntity(TopLevelEntity):
                             "statuses",
                             "tags",
                             "own_attrib",
+                            "skeleton",
                         ],
                     ),
                 )
