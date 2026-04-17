@@ -16,6 +16,7 @@ from .router import router
 class ListProjectsItemModel(OPModel):
     name: Annotated[str, Field(title="Project name")]
     code: Annotated[str, Field(title="Project code")]
+    label: Annotated[str | None, Field(title="Project label")] = None
     active: Annotated[bool, Field(title="Project is active")] = True
     library: Annotated[bool, Field(title="Project is a library project")] = False
     skeleton: Annotated[bool, Field(title="Project is a skeleton project")] = False
@@ -161,6 +162,7 @@ async def list_projects(
                 COUNT(name) OVER () AS count,
                 name,
                 code,
+                label,
                 library,
                 created_at,
                 updated_at,
@@ -198,6 +200,7 @@ async def list_projects(
             ListProjectsItemModel(
                 name=row["name"],
                 code=row["code"],
+                label=row["label"],
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
                 active=row.get("active", True),

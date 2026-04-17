@@ -11,6 +11,7 @@ from ayon_server.utils import get_nickname
 class ProjectListItem(OPModel):
     name: str
     code: str
+    label: str | None = None
     active: bool = True
     created_at: datetime
     nickname: str
@@ -23,6 +24,7 @@ async def build_project_list() -> list[ProjectListItem]:
         SELECT
             name,
             code,
+            label,
             active,
             created_at,
             data->>'projectRole' as role,
@@ -36,6 +38,7 @@ async def build_project_list() -> list[ProjectListItem]:
                 {
                     "name": row["name"],
                     "code": row["code"],
+                    "label": row["label"],
                     "active": row["active"],
                     "created_at": row["created_at"],
                     "nickname": get_nickname(str(row["created_at"]) + row["name"], 2),

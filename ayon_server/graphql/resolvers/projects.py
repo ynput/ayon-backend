@@ -56,6 +56,7 @@ async def get_projects(
 
     cols = [
         "name",
+        "label",
         "code",
         "library",
         "attrib",
@@ -63,6 +64,7 @@ async def get_projects(
         "created_at",
         "updated_at",
         "data->'projectFolder' AS project_folder",
+        "data->'isSkeleton' AS is_skeleton",
     ]
 
     if fields.has_any("config"):

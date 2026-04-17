@@ -324,6 +324,16 @@ class ProjectEntity(TopLevelEntity):
         self._payload.code = value  # type: ignore
 
     @property
+    def label(self) -> str | None:
+        """Get the project label."""
+        return self._payload.label  # type: ignore
+
+    @label.setter
+    def label(self, value: str | None) -> None:
+        """Set the project label."""
+        self._payload.label = value  # type: ignore
+
+    @property
     def library(self) -> bool:
         """Return True if the entity is a library."""
         return self._payload.library  # type: ignore
