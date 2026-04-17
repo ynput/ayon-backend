@@ -6,7 +6,7 @@ folder_types of the project and the folder hierarchy.
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
@@ -26,15 +26,38 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.utils import SQLTool, dict_exclude, get_nickname
 
+if TYPE_CHECKING:
+    from .project_skeleton import ProjectSkeletonEntity
+
 
 class ProjectEntity(TopLevelEntity):
     entity_type: str = "project"
     model: ModelSet = ModelSet("project", attribute_library["project"], False)
     original_attributes: dict[str, Any] = {}
+    is_skeleton: bool = False
 
     #
     # Load
     #
+
+    @classmethod
+    def return_project_skeleton(
+        cls, payload: dict[str, Any]
+    ) -> "ProjectSkeletonEntity":
+        from ayon_server.helpers.deploy_project import anatomy_to_project_data
+        from ayon_server.settings.anatomy import Anatomy
+
+        from .project_skeleton import ProjectSkeletonEntity
+
+        full_payload = payload.copy()
+
+        skeleton_anatomy = full_payload["data"].pop("skeletonAnatomy", None)
+        if skeleton_anatomy is None:
+            raise NotFoundException("Project skeleton anatomy not found")
+
+        full_payload.update(anatomy_to_project_data(Anatomy(**skeleton_anatomy)))
+
+        return ProjectSkeletonEntity(**payload)
 
     @classmethod
     async def load(
@@ -54,6 +77,9 @@ class ProjectEntity(TopLevelEntity):
             if payload := await Redis.get_json("project-data", project_name):
                 if isinstance(payload, list):
                     payload = payload[0]
+
+                if payload["data"].get("isSkeleton", False):
+                    return cls.return_project_skeleton(payload=payload)
                 return cls.from_record(payload=payload)
 
         try:
@@ -69,6 +95,10 @@ class ProjectEntity(TopLevelEntity):
 
             if project_data is None:
                 raise NotFoundException(f"Project '{project_name}' not found")
+
+            if project_data["data"].get("isSkeleton", False):
+                await Redis.set_json("project-data", project_name, payload, ttl=3600)
+                return cls.return_project_skeleton(payload=project_data)
 
             # Load folder types
             folder_types = []
