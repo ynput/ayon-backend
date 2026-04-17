@@ -5,14 +5,13 @@ from pydantic import Field, ValidationError
 
 from ayon_server.api.dependencies import AttributeName, CurrentUser
 from ayon_server.api.responses import EmptyResponse
-from ayon_server.api.system import require_server_restart
 from ayon_server.attributes.models import (
     AttributeModel,
     AttributePatchModel,
     AttributePutModel,
 )
 from ayon_server.attributes.validate_attribute_data import validate_attribute_data
-from ayon_server.entities import ProjectEntity
+from ayon_server.events import EventStream
 from ayon_server.exceptions import ForbiddenException, NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.types import OPModel
@@ -39,8 +38,7 @@ class SetAttributeListModel(GetAttributeListModel):
 async def save_attribute(attribute: AttributeModel) -> None:
     """Save attribute configuration to the database.
 
-    Additionally performs validation of the attribute data and updates
-    the enumerator in the running instance.
+    Additionally performs validation of the attribute data.
     """
     query = """
     INSERT INTO attributes
@@ -59,25 +57,6 @@ async def save_attribute(attribute: AttributeModel) -> None:
         attribute.scope,
         attribute.data.dict(exclude_none=True),
     )
-
-    # TODO: The following code does not support horizontal scaling!!
-    # Notify other instances instead and reload the attribute library
-
-    if (enum := attribute.data.enum) is not None:
-        for name, field in ProjectEntity.model.attrib_model.__fields__.items():
-            if name != attribute.name:
-                continue
-
-            field_enum = field.field_info.extra.get("enum")
-            if field_enum is None:
-                continue
-            field_enum.clear()
-            field_enum.extend(enum)
-
-        for name, field in ProjectEntity.model.attrib_model.__fields__.items():
-            if name != attribute.name:
-                continue
-            field_enum = field.field_info.extra.get("enum")
 
 
 async def list_raw_attributes() -> list[dict[str, Any]]:
@@ -153,7 +132,7 @@ async def set_attribute_list(
     for attr in new_attributes:
         await save_attribute(attr)
 
-    await require_server_restart()
+    await EventStream.dispatch("server.attributes_updated")
     return EmptyResponse()
 
 
@@ -180,9 +159,7 @@ async def set_attribute_config(
         raise ForbiddenException("Only administrators are allowed to modify attributes")
     attribute = AttributeModel(name=attribute_name, **payload.dict())
     await save_attribute(attribute)
-    await require_server_restart(
-        None, "Restart the server to apply the attribute changes."
-    )
+    await EventStream.dispatch("server.attributes_updated")
     return EmptyResponse()
 
 
@@ -196,8 +173,6 @@ async def patch_attribute_config(
 
     patch_payload = payload.dict(exclude_unset=True)
     patch_data = patch_payload.pop("data", {})
-
-    requires_restart = False
 
     if "scope" in patch_payload or any(
         k in patch_data
@@ -216,8 +191,6 @@ async def patch_attribute_config(
             "inherit",
         )
     ):
-        requires_restart = True
-
         if not user.is_admin:
             raise ForbiddenException(
                 "Only administrators are allowed to modify attribute configuration"
@@ -236,10 +209,7 @@ async def patch_attribute_config(
 
     await save_attribute(attribute)
 
-    if requires_restart:
-        await require_server_restart(
-            None, "Restart the server to apply the attribute changes."
-        )
+    await EventStream.dispatch("server.attributes_updated")
     return EmptyResponse()
 
 
@@ -251,7 +221,5 @@ async def delete_attribute(
         raise ForbiddenException("Only administrators are allowed to delete attributes")
 
     await remove_attribute(attribute_name)
-    await require_server_restart(
-        None, "Restart the server to apply the attribute changes."
-    )
+    await EventStream.dispatch("server.attributes_updated")
     return EmptyResponse()
