@@ -54,19 +54,27 @@ async def build_project_list() -> list[ProjectListItem]:
     return [ProjectListItem(**item) for item in result]
 
 
-async def get_project_list(*, with_skeleton: bool = False) -> list[ProjectListItem]:
-    project_list_data = await Redis.get_json("global", "project-list")
+async def get_project_list(
+    *,
+    force_load: bool = True,
+    with_skeleton: bool = False,
+) -> list[ProjectListItem]:
+    if not force_load:
+        project_list_data = await Redis.get_json("global", "project-list")
+    else:
+        project_list_data = None
+
     if project_list_data is None:
         project_list = await build_project_list()
     else:
         project_list = [ProjectListItem(**item) for item in project_list_data]
 
-    def project_filder(p: ProjectListItem) -> bool:
+    def project_filter(p: ProjectListItem) -> bool:
         if p.skeleton and not with_skeleton:
             return False
         return True
 
-    reduced_project_list = filter(project_filder, project_list)
+    reduced_project_list = filter(project_filter, project_list)
     return list(reduced_project_list)
 
 

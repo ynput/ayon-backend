@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from ayon_server.helpers.project_list import build_project_list, get_project_list
+from ayon_server.helpers.project_list import get_project_list
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import critical_error, log_traceback, logger
@@ -126,15 +126,16 @@ async def main(force: bool | None = None) -> None:
         server_version,
     )
 
-    await build_project_list()
-
     # Attributes may have changed, so we need to rebuild
     # existing hierarchies.
 
     from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 
-    project_list = await get_project_list()
+    project_list = await get_project_list(force_load=True)
     for project in project_list:
+        if project.skeleton:
+            # this should not happen, but just in case.
+            continue
         try:
             await rebuild_inherited_attributes(project.name)
         except Exception:

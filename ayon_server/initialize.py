@@ -22,6 +22,7 @@ async def ayon_init(
 
     This connects to the database and installs the event hooks.
     """
+    logger.trace("Initializing ayon", nodb=True)
     retry_interval = 2
     with logger.contextualize(nodb=True):
         while Postgres.pool is None:
