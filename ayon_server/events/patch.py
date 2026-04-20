@@ -246,9 +246,11 @@ def build_project_change_events(
     oval: Any
     nval: Any
 
+    etype = "project_skeleton" if original_entity.skeleton else "project"
+
     if new_attributes := patch_data.get("attrib", {}):
         evt: dict[str, Any] = {
-            "topic": "entity.project.attrib_changed",
+            "topic": f"entity.{etype}.attrib_changed",
             "description": "Changed project attributes",
             **common_data,
         }
@@ -302,7 +304,7 @@ def build_project_change_events(
                 description = "Project deactivated"
 
         evt = {
-            "topic": f"entity.project.{topic_name}",
+            "topic": f"entity.{etype}.{topic_name}",
             "description": description,
             **common_data,
         }
@@ -319,7 +321,7 @@ def build_project_change_events(
 
     result.append(
         {
-            "topic": "entity.project.changed",
+            "topic": f"entity.{etype}.changed",
             "description": f"Updated project {original_entity.name}",
             **common_data,
         }

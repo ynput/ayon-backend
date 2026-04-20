@@ -96,7 +96,11 @@ async def deploy_project(
 
             if not payload.skeleton:
                 # promoting skeleton to full project.
-                await promote_project_from_skeleton(payload.name, payload.anatomy)
+                await promote_project_from_skeleton(
+                    payload.name,
+                    payload.anatomy,
+                    user_name=user.name,
+                )
                 return None
 
         raise ConflictException(msg)

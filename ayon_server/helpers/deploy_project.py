@@ -238,6 +238,8 @@ async def create_project_skeleton_from_anatomy(
 async def promote_project_from_skeleton(
     project_name: str,
     anatomy: Anatomy | None = None,
+    *,
+    user_name: str | None = None,
 ) -> None:
     skeleton = await ProjectEntity.load(project_name)
     if not isinstance(skeleton, ProjectSkeletonEntity):
@@ -246,3 +248,11 @@ async def promote_project_from_skeleton(
     if not anatomy:
         anatomy = Anatomy(**skeleton.data.get("skeletonAnatomy", {}))
     await skeleton.promote()
+
+    await EventStream.dispatch(
+        "entity.project_skeleton.created",
+        sender="ayon",
+        project=skeleton.name,
+        user=user_name,
+        description=f"Project {skeleton.name} promoted from skeleton",
+    )

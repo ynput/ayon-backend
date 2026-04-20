@@ -155,9 +155,10 @@ async def create_project(
         raise ConflictException(f"Project {project_name} already exists")
 
     await project.save()
+    etype = "project_skeleton" if project.skeleton else "project"
 
     await EventStream.dispatch(
-        "entity.project.created",
+        f"entity.{etype}.created",
         project=project.name,
         description=f"Created project {project.name}",
     )
@@ -251,8 +252,10 @@ async def delete_project(
     await storage.trash()
     await unassign_users_from_deleted_projects()
 
+    etype = "project_skeleton" if project.skeleton else "project"
+
     await EventStream.dispatch(
-        "entity.project.deleted",
+        f"entity.{etype}.deleted",
         project=project.name,
         description=f"Deleted project {project.name}",
     )

@@ -406,3 +406,8 @@ class ProjectEntity(TopLevelEntity):
     def link_types(self, value: list[dict[str, Any]]) -> None:
         """Set the link types."""
         self._payload.link_types = value  # type: ignore
+
+    @property
+    def skeleton(self) -> bool:
+        """Return True if the project is a skeleton."""
+        return False
