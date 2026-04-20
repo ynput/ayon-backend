@@ -1,9 +1,14 @@
 from datetime import datetime
 from typing import Any
 
+from ayon_server.entities.project_aux_tables import (
+    aux_table_update,
+    link_types_update,
+)
 from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.utils import SQLTool, dict_exclude
 
 from .project import ProjectEntity
@@ -29,13 +34,15 @@ class ProjectSkeletonEntity(ProjectEntity):
         self.data["skeletonAnatomy"] = anatomy.dict()
         self.data["isSkeleton"] = True
 
-    async def save(self) -> bool:
+    async def save(self, *args, **kwargs) -> bool:
         assert self.folder_types, "Project must have at least one folder type"
         assert self.task_types, "Project must have at least one task type"
         assert self.statuses, "Project must have at least one status"
 
         self.config.pop("productTypes", None)  # legacy
-        self._repopulate_anatomy()
+
+        if "promote" not in kwargs:
+            self._repopulate_anatomy()
 
         project_name = self.name
         if self.exists:
@@ -100,3 +107,23 @@ class ProjectSkeletonEntity(ProjectEntity):
                 await Redis.delete("project-folders", self.name)
                 await build_project_list()
         return True
+
+    async def promote(self) -> None:
+        async with Postgres.transaction():
+            logger.info(f"Promoting project skeleton {self.name} to full project")
+            await Postgres.execute(f"CREATE SCHEMA project_{self.name}")
+
+            # Create tables in the newly created schema
+            await Postgres.execute(f"SET LOCAL search_path TO project_{self.name}")
+            await Postgres.execute(open("schemas/schema.project.sql").read())
+
+            await aux_table_update(self.name, "folder_types", self.folder_types)
+            await aux_table_update(self.name, "task_types", self.task_types)
+            await aux_table_update(self.name, "statuses", self.statuses)
+            await aux_table_update(self.name, "tags", self.tags)
+            await link_types_update(self.name, "link_types", self.link_types)
+
+            self.data.pop("skeletonAnatomy", None)
+            self.data.pop("isSkeleton", None)
+
+            await self.save(promote=True)

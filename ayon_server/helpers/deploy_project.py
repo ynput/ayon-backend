@@ -7,7 +7,7 @@ from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
 from ayon_server.entities.project_skeleton import ProjectSkeletonEntity
 from ayon_server.events import EventStream
-from ayon_server.exceptions import NotImplementedException
+from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.settings.anatomy import Anatomy
@@ -239,6 +239,10 @@ async def promote_project_from_skeleton(
     project_name: str,
     anatomy: Anatomy | None = None,
 ) -> None:
-    raise NotImplementedException(
-        "Promoting project from skeleton is not implemented yet"
-    )
+    skeleton = await ProjectEntity.load(project_name)
+    if not isinstance(skeleton, ProjectSkeletonEntity):
+        raise BadRequestException(f"Project {project_name} is not a skeleton")
+    skeleton.data.pop("isSkeleton", None)
+    if not anatomy:
+        anatomy = Anatomy(**skeleton.data.get("skeletonAnatomy", {}))
+    await skeleton.promote()
