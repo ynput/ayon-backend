@@ -257,7 +257,6 @@ CREATE INDEX task_parent_idx ON tasks(folder_id);
 CREATE INDEX task_type_idx ON tasks(task_type);
 CREATE INDEX task_thumbnail_idx ON tasks(thumbnail_id);
 CREATE INDEX task_status_idx ON tasks(status);
-CREATE INDEX task_type_idx ON tasks(task_type);
 CREATE INDEX task_assignees_idx ON tasks USING gin(assignees);
 CREATE INDEX task_attrib_idx ON tasks USING gin(attrib);
 CREATE UNIQUE INDEX task_creation_order_idx ON tasks(creation_order);
