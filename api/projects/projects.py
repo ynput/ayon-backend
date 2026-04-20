@@ -16,8 +16,8 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages
-from ayon_server.helpers import rename_project
 from ayon_server.helpers.project_list import get_project_list
+from ayon_server.helpers.rename_project import rename_project
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy.folder_types import FolderType
 from ayon_server.settings.anatomy.product_base_types import (
@@ -278,7 +278,7 @@ class RenameProjectRequestModel(OPModel):
     )
 
 
-@router.patch("/{project_name}/rename")
+@router.patch("/projects/{project_name}/rename")
 async def change_project_name(
     user: CurrentUser,
     project_name: ProjectName,
