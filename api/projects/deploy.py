@@ -1,15 +1,15 @@
 from typing import Annotated
 
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.api.responses import EmptyResponse
 from ayon_server.exceptions import (
     BadRequestException,
     ConflictException,
     NotFoundException,
 )
-from ayon_server.helpers.deploy_project import create_project_from_anatomy
-from ayon_server.helpers.deploy_project_skeleton import (
+from ayon_server.helpers.deploy_project import (
+    create_project_from_anatomy,
     create_project_skeleton_from_anatomy,
+    promote_project_from_skeleton,
 )
 from ayon_server.helpers.project_list import get_project_info
 from ayon_server.lib.postgres import Postgres
@@ -65,11 +65,11 @@ class DeployProjectRequestModel(OPModel):
     ] = False
 
 
-@router.post("/projects", status_code=201)
+@router.post("/projects")
 async def deploy_project(
     payload: DeployProjectRequestModel,
     user: CurrentUser,
-) -> EmptyResponse:
+) -> None:
     """Create a new project using the provided anatomy object.
 
     Main purpose is to take an anatomy object and transform its contents
@@ -86,12 +86,19 @@ async def deploy_project(
         )
     except NotFoundException:
         pass
+
     else:
         msg = (
             f"Project {existing_project.name} ({existing_project.code}) already exists"
         )
         if existing_project.skeleton:
             msg += " as a skeleton."
+
+            if not payload.skeleton:
+                # promoting skeleton to full project.
+                await promote_project_from_skeleton(payload.name, payload.anatomy)
+                return None
+
         raise ConflictException(msg)
 
     if payload.anatomy:
@@ -119,7 +126,7 @@ async def deploy_project(
             user_name=user.name,
             assign_users=payload.assign_users,
         )
-        return EmptyResponse(status_code=201)
+        return None
 
     await create_project_from_anatomy(
         name=payload.name,
@@ -130,4 +137,4 @@ async def deploy_project(
         assign_users=payload.assign_users,
     )
 
-    return EmptyResponse(status_code=201)
+    return None

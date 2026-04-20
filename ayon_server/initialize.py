@@ -16,6 +16,7 @@ from ayon_server.logging import logger
 async def ayon_init(
     extensions: bool = True,
     enum_registry: bool = True,
+    load_projects: bool = True,
 ):
     """Initialize ayon for use with server or stand-alone tools
 
@@ -68,4 +69,6 @@ async def ayon_init(
     if enum_registry:
         EnumRegistry.initialize()
     ActivityFeedEventHook.install(EventStream)
-    await build_project_list()
+
+    if load_projects:
+        await build_project_list()

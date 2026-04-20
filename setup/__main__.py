@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from ayon_server.helpers.project_list import get_project_list
+from ayon_server.helpers.project_list import build_project_list, get_project_list
 from ayon_server.initialize import ayon_init
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import critical_error, log_traceback, logger
@@ -21,7 +21,11 @@ async def main(force: bool | None = None) -> None:
 
     logger.info("Starting setup")
 
-    await ayon_init(extensions=False, enum_registry=False)
+    await ayon_init(
+        extensions=False,
+        enum_registry=False,
+        load_projects=False,
+    )
 
     try:
         await Postgres.fetch("SELECT * FROM projects")
@@ -121,6 +125,8 @@ async def main(force: bool | None = None) -> None:
         """,
         server_version,
     )
+
+    await build_project_list()
 
     # Attributes may have changed, so we need to rebuild
     # existing hierarchies.
