@@ -1,5 +1,6 @@
 __all__ = ["task_sequence"]
 
+from .add_missing_project_indexes import AddMissingProjectIndexes
 from .auto_update import AutoUpdate
 from .push_metrics import PushMetrics
 from .remove_inactive_workers import RemoveInactiveWorkers
@@ -23,6 +24,7 @@ task_sequence = [
     RemoveUnusedFiles,
     RemoveUnusedSettings,
     RemoveUnusedThumbnails,
+    AddMissingProjectIndexes,
     # VacuumDB, -- too expensive. maybe run it manually?
     PushMetrics,
 ]
