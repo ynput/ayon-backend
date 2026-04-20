@@ -30,7 +30,13 @@ class AddMissingProjectIndexes(ProjectMaintenanceTask):
         query = """
             SELECT indexname FROM pg_indexes
             WHERE schemaname ILIKE $1
-            AND tablename IN ('folders', 'tasks', 'versions', 'representations');
+            AND tablename IN (
+                'folders',
+                'tasks',
+                'versions',
+                'products',
+                'representations'
+            );
         """
         result = await Postgres.fetch(query, f"project_{project_name}")
 
