@@ -245,8 +245,12 @@ async def promote_project_from_skeleton(
     if not isinstance(skeleton, ProjectSkeletonEntity):
         raise BadRequestException(f"Project {project_name} is not a skeleton")
     skeleton.data.pop("isSkeleton", None)
-    if not anatomy:
-        anatomy = Anatomy(**skeleton.data.get("skeletonAnatomy", {}))
+
+    if anatomy:
+        patch_data = anatomy_to_project_data(anatomy)
+        patch = ProjectEntity.model.patch_model(**patch_data)
+        skeleton.patch(patch)
+
     await skeleton.promote()
 
     await EventStream.dispatch(
