@@ -16,6 +16,7 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.files import Storages
+from ayon_server.helpers import rename_project
 from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy.folder_types import FolderType
@@ -25,7 +26,7 @@ from ayon_server.settings.anatomy.product_base_types import (
 from ayon_server.settings.anatomy.statuses import Status
 from ayon_server.settings.anatomy.tags import Tag
 from ayon_server.settings.anatomy.task_types import TaskType
-from ayon_server.types import Field
+from ayon_server.types import PROJECT_NAME_REGEX, Field, OPModel
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .router import router
@@ -260,4 +261,34 @@ async def delete_project(
         description=f"Deleted project {project.name}",
     )
 
+    return None
+
+
+#
+# Rename
+#
+
+
+class RenameProjectRequestModel(OPModel):
+    new_name: str = Field(
+        ...,
+        description="New project name",
+        example="better_project_name",
+        regex=PROJECT_NAME_REGEX,
+    )
+
+
+@router.patch("/{project_name}/rename")
+async def change_project_name(
+    user: CurrentUser,
+    project_name: ProjectName,
+    payload: RenameProjectRequestModel,
+) -> None:
+    if not user.is_manager:
+        raise ForbiddenException
+
+    await rename_project(
+        project_name,
+        payload.new_name,
+    )
     return None
