@@ -11,6 +11,9 @@ from ayon_server.helpers.mimetypes import guess_mime_type
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
+MAX_THUMBNAIL_WIDTH = 600
+MAX_THUMBNAIL_HEIGHT = 600
+
 
 class ThumbnailProcessNoop(Exception):
     pass
@@ -160,9 +163,6 @@ async def store_thumbnail(
     if len(payload) < 10:
         raise UnsupportedMediaException("Thumbnail cannot be empty")
 
-    MAX_THUMBNAIL_WIDTH = 600
-    MAX_THUMBNAIL_HEIGHT = 600
-
     guessed_mime = guess_mime_type(payload)
     if guessed_mime is None:
         # This shouldn't happen, but we'll log it.
@@ -210,8 +210,10 @@ async def store_thumbnail(
         INSERT INTO project_{project_name}.thumbnails (id, mime, data, meta)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (id)
-        DO UPDATE SET data = EXCLUDED.data, meta = EXCLUDED.meta
-        RETURNING id
+        DO UPDATE SET
+            data = EXCLUDED.data,
+            mime = EXCLUDED.mime,
+            meta = EXCLUDED.meta
     """
     await Postgres.execute(query, thumbnail_id, mime, thumbnail, meta)
     for entity_type in ["workfiles", "versions", "folders", "tasks"]:
@@ -222,3 +224,66 @@ async def store_thumbnail(
             """,
             thumbnail_id,
         )
+
+
+async def store_project_skeleton_thumbnail(
+    project_name: str,
+    payload,
+    *,
+    mime: str | None = None,
+    user_name: str | None = None,
+):
+    """Store a thumbnail for the project skeleton."""
+    if len(payload) < 10:
+        raise UnsupportedMediaException("Thumbnail cannot be empty")
+
+    guessed_mime = guess_mime_type(payload)
+    if guessed_mime is None:
+        # This shouldn't happen, but we'll log it.
+        # Upload will probably fail later on, in process_thumbnail.
+        logger.warning(f"Could not guess mime type of thumbnail. Using provided {mime}")
+
+    elif mime and guessed_mime != mime:
+        # This is a warning, not an error, because we can still store the thumbnail
+        # even if the mime type is wrong. We're just logging it and using the
+        # correct mime type instead of the provided one.
+        logger.warning(
+            "Thumbnail mime type mismatch: "
+            f"Payload contains {guessed_mime} "
+            f"but was requested to store {mime}"
+        )
+        mime = guessed_mime
+
+    if mime not in ["image/png", "image/jpeg"]:
+        raise UnsupportedMediaException(f"Unsupported thumbnail mime type {mime}")
+
+    try:
+        thumbnail = await process_thumbnail(
+            payload,
+            (MAX_THUMBNAIL_WIDTH, MAX_THUMBNAIL_HEIGHT),
+            raise_on_noop=True,
+        )
+    except ValueError as e:
+        raise UnsupportedMediaException(str(e))
+
+    except ThumbnailProcessNoop:
+        thumbnail = payload
+
+    meta = {
+        "originalSize": len(payload),
+        "thumbnailSize": len(thumbnail),
+        "mime": mime,  # eventually, we'll drop the column
+    }
+    if user_name:
+        meta["author"] = user_name
+
+    query = """
+        INSERT INTO public.project_thumbnails (project_name, mime, data, meta)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (project_name)
+        DO UPDATE SET
+            data = EXCLUDED.data,
+            mime = EXCLUDED.mime,
+            meta = EXCLUDED.meta
+    """
+    await Postgres.execute(query, project_name, mime, thumbnail, meta)

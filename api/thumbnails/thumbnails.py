@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, Request, Response
 
 from ayon_server.api.dependencies import (
     AllowGuests,
+    AllowProjectSkeleton,
     CurrentUser,
     FolderID,
     NoTraces,
@@ -27,7 +28,12 @@ from ayon_server.exceptions import (
 )
 from ayon_server.files import Storages
 from ayon_server.helpers.preview import get_file_preview
-from ayon_server.helpers.thumbnails import get_fake_thumbnail, store_thumbnail
+from ayon_server.helpers.project_list import get_project_info
+from ayon_server.helpers.thumbnails import (
+    get_fake_thumbnail,
+    store_project_skeleton_thumbnail,
+    store_thumbnail,
+)
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
@@ -601,3 +607,73 @@ async def get_task_thumbnail(
     if placeholder == "empty":
         return get_fake_thumbnail_response()
     raise NotFoundException("Task thumbnail not found")
+
+
+#
+# Project thumbnail
+#
+
+PROJECT_THUMBNAIL_ID = "0" * 32  # reserved thumbnail ID for project thumbnail
+
+
+@router.post(
+    "/projects/{project_name}/thumbnail",
+    status_code=201,
+    dependencies=[AllowProjectSkeleton],
+)
+async def create_project_thumbnail(
+    request: Request,
+    user: CurrentUser,
+    project_name: ProjectName,
+    content_type: ThumbnailContentType,
+) -> CreateThumbnailResponseModel:
+    payload = await body_from_request(request)
+
+    user.check_permissions("project.anatomy", project_name, write=True)
+
+    project_info = await get_project_info(project_name, with_skeleton=True)
+    if project_info.skeleton:
+        await store_project_skeleton_thumbnail(
+            project_name,
+            payload,
+            mime=content_type,
+            user_name=user.name,
+        )
+        return CreateThumbnailResponseModel(id=PROJECT_THUMBNAIL_ID)
+
+    await store_thumbnail(
+        project_name=project_name,
+        thumbnail_id=PROJECT_THUMBNAIL_ID,
+        payload=payload,
+        mime=content_type,
+        user_name=user.name,
+    )
+    return CreateThumbnailResponseModel(id=PROJECT_THUMBNAIL_ID)
+
+
+@router.get(
+    "/projects/{project_name}/thumbnail",
+    dependencies=[NoTraces, AllowGuests, AllowProjectSkeleton],
+)
+async def get_project_thumbnail(
+    user: CurrentUser,
+    project_name: ProjectName,
+    placeholder: PlaceholderOption = Query("empty"),
+    original: bool = Query(False),
+) -> Response:
+    project_info = await get_project_info(project_name, with_skeleton=True)
+
+    await user.ensure_project_access(project_name)
+
+    if project_info.skeleton:
+        if placeholder == "empty":
+            return get_fake_thumbnail_response()
+        else:
+            raise NotFoundException("Project thumbnail not found")
+
+    return await retrieve_thumbnail(
+        project_name,
+        PROJECT_THUMBNAIL_ID,
+        placeholder=placeholder,
+        original=original,
+    )

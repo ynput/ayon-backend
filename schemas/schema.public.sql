@@ -54,7 +54,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_project_folder_parent_label
 
 
 CREATE TABLE IF NOT EXISTS project_thumbnails(
-    project_name VARCHAR NOT NULL PRIMARY KEY REFERENCES public.projects(name) ON DELETE CASCADE ON UPDATE CASCADE,
+    project_name VARCHAR NOT NULL PRIMARY KEY 
+      REFERENCES public.projects(name) 
+      ON DELETE CASCADE ON UPDATE CASCADE,
     mime VARCHAR NOT NULL,
     data BYTEA NOT NULL,
     meta JSONB NOT NULL DEFAULT '{}'::JSONB,
