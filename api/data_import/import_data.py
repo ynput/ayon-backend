@@ -494,7 +494,7 @@ def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]
 
     reader = csv.DictReader(io.StringIO(content), dialect=dialect)
 
-    header = reader.fieldnames or []
+    header = list(reader.fieldnames) if reader.fieldnames else []
     rows = list(reader)
 
     return header, rows
