@@ -229,8 +229,8 @@ async def import_data(
 
     for row in filtered_rows:
         row_number += 1
-        exists = False
-        import_entity_data = {}
+
+        import_entity_data : dict[str, Any] = {}
         identifier = None
         path = None
         entity_type = import_type  # Initialize for non-hierarchy types
