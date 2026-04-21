@@ -64,7 +64,7 @@ SUPPORTED_MIME_TYPES = {
 }
 
 # Model classes for each importable entity type
-IMPORTABLE_ENTITIES: dict = {
+IMPORTABLE_ENTITIES: dict[str, Any] = {
     "user": UserExportImportModel,
     "folder": FolderExportImportModel,
     "task": TaskExportImportModel,
@@ -73,7 +73,7 @@ IMPORTABLE_ENTITIES: dict = {
 }
 
 # Entity classes for each entity type
-ENTITY_TYPE_TO_ENTITY_CLASS: dict = {
+ENTITY_TYPE_TO_ENTITY_CLASS: dict[str, Any] = {
     "user": UserEntity,
     "folder": FolderEntity,
     "task": TaskEntity,
@@ -82,13 +82,13 @@ ENTITY_TYPE_TO_ENTITY_CLASS: dict = {
 }
 
 # Model classes for hierarchy import (folder and task)
-HIERARCHY_MODEL_CLASSES: dict = {
+HIERARCHY_MODEL_CLASSES: dict[str, Any] = {
     "folder": FolderExportImportModel,
     "task": TaskExportImportModel,
 }
 
 # Entity classes for hierarchy import (folder and task)
-HIERARCHY_ENTITY_CLASSES: dict = {
+HIERARCHY_ENTITY_CLASSES: dict[str, Any] = {
     "folder": FolderEntity,
     "task": TaskEntity,
 }
