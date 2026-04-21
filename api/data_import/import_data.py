@@ -281,7 +281,7 @@ async def import_data(
                 project_name=project_name,
                 folder_id=folder_id,
             )
-            if parent_id:
+            if parent_id and parent_path:
                 path_to_ids[parent_path] = parent_id
                 import_entity_data[model_cls.parent_column_name()] = parent_id
 
