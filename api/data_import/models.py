@@ -236,10 +236,10 @@ class EntityExportImport:
         _data_fields: Additional data fields to include (list of tuples)
     """
 
-    _entity_model = None  # Entity model class
+    _entity_model : type[Any] | None = None  # Entity model class
     _table_name = ""  # Table name for queries
     _unique_fields: list[str] = ["name"]  # Default unique fields
-    _data_fields: list[tuple[str, FieldInfo]] = []  # Additional data fields
+    _data_fields: list[ImportableColumn] = []  # Additional data fields
     # Fields that are calculated during import and not stored in DB,
     # 'path' for example
     _calculated_fields: list[ImportableColumn] = []
@@ -318,7 +318,7 @@ class EntityExportImport:
         return result
 
     @classmethod
-    def data(cls) -> list[tuple[str, FieldInfo]]:
+    def data(cls) -> list[ImportableColumn]:
         """Return data fields for auxiliary data."""
         return cls._data_fields
 
@@ -331,10 +331,17 @@ class EntityExportImport:
         """
         result: list[ImportableColumn] = []
 
+        sources: list[Iterable[Any]] = [
+            cls.main(),
+            cls.attrib(),
+            cls.data(),
+            cls._calculated_fields
+        ]
+
         # Model fields (exclude private fields starting with underscore)
         all_fields = [
             field
-            for source in [cls.main(), cls.attrib(), cls.data(), cls._calculated_fields]
+            for source in sources
             for field in source
         ]
         for field in all_fields:
@@ -437,10 +444,10 @@ class EntityExportImport:
     @classmethod
     async def get_all_items(
         cls,
-        field_names: list[str],
+        field_names: list[str] | None,
         as_csv: bool = False,
-        project_name: str = None,
-        entity_ids: tuple[str, list[str]] = None,
+        project_name: str | None = None,
+        entity_ids: tuple[str, list[str]] | None = None,
     ) -> list[dict[str, Any]] | list[list[str]]:
         """Get all entities from the database.
 
@@ -639,7 +646,7 @@ class FolderTaskExportImportModel(EntityExportImport):
     _calculated_fields = []
 
     @classmethod
-    async def fields(cls, project_name: str = None) -> list[ImportableColumn]:
+    async def fields(cls, project_name: str | None = None) -> list[ImportableColumn]:
         """Return task fields including folder_path.
 
         Args:
@@ -718,10 +725,10 @@ class FolderTaskExportImportModel(EntityExportImport):
     @classmethod
     async def get_all_items(
         cls,
-        field_names: list[str],
+        field_names: list[str] | None,
         as_csv: bool = False,
-        project_name: str = None,
-        entity_ids: tuple[str, list[str]] = None,
+        project_name: str | None = None,
+        entity_ids: tuple[str, list[str]] | None = None,
     ) -> list[dict[str, Any]] | list[list[str]]:
         """Get all tasks with folder path information.
 
@@ -734,26 +741,26 @@ class FolderTaskExportImportModel(EntityExportImport):
             field_names = [field.key for field in fields]
 
         # Get folders and tasks sequentially (as dictionaries, not CSV)
-        folder_items: list[
-            dict[str, Any]
-        ] = await FolderExportImportModel.get_all_items(
-            field_names=field_names,
-            as_csv=False,
-            project_name=project_name,
-            entity_ids=entity_ids,
-        )
+        folder_items: list[dict[str, Any]] = await (
+            FolderExportImportModel.get_all_items(
+                field_names=field_names,
+                as_csv=False,
+                project_name=project_name,
+                entity_ids=entity_ids,
+        ))
 
         # Determine task entity_ids if needed
         task_entity_ids = None
         if entity_ids:
             task_entity_ids = entity_ids
 
-        task_items: list[dict[str, Any]] = await TaskExportImportModel.get_all_items(
-            field_names=field_names,
-            as_csv=False,
-            project_name=project_name,
-            entity_ids=task_entity_ids,
-        )
+        task_items: list[dict[str, Any]] = await (
+            TaskExportImportModel.get_all_items(
+                field_names=field_names,
+                as_csv=False,
+                project_name=project_name,
+                entity_ids=task_entity_ids,
+        ))
 
         # Add entity_type to each item
         for folder in folder_items:
@@ -783,17 +790,19 @@ class FolderTaskExportImportModel(EntityExportImport):
         return result_items
 
     @classmethod
-    async def _build_hierarchy_by_ids(cls, folder_items, task_items):
-        folder_by_id: dict[str, dict] = {
+    async def _build_hierarchy_by_ids(
+        cls, folder_items: list[dict[str, Any]], task_items: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        folder_by_id: dict[str, dict[str, Any]] = {
             folder["id"]: folder for folder in folder_items
         }
-        children_by_parent_id: dict[str, list[dict]] = {}
+        children_by_parent_id: dict[str | None, list[dict[str, Any]]] = {}
         for folder in folder_items:
             parent_id = folder.get("parent_id")
             if parent_id not in children_by_parent_id:
                 children_by_parent_id[parent_id] = []
             children_by_parent_id[parent_id].append(folder)
-        tasks_by_folder_id: dict[str, list[dict]] = {}
+        tasks_by_folder_id: dict[str | None, list[dict[str, Any]]] = {}
         for task in task_items:
             folder_id = task.get("folder_id")
             if folder_id not in tasks_by_folder_id:
@@ -821,7 +830,7 @@ class FolderTaskExportImportModel(EntityExportImport):
     def _add_folder_and_children_by_ids(
         cls,
         folder: dict[str, Any],
-        result_items: list[dict[str, Any]] = None,
+        result_items: list[dict[str, Any]] | None = None,
         children_by_parent_id=None,
         tasks_by_folder_id=None,
     ):
@@ -842,8 +851,8 @@ class FolderTaskExportImportModel(EntityExportImport):
 
     @classmethod
     async def _build_hierarchy_by_ids_with_path(
-        cls, folder_items: list[dict], task_items: list[dict]
-    ) -> list[dict]:
+        cls, folder_items: list[dict[str, Any]], task_items: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         Build hierarchy using natural path sorting.
         Folders are sorted by path; tasks are placed immediately after their
@@ -883,7 +892,9 @@ class EntityListExportImportModel(EntityExportImport):
     _parent_column_name = "entity_list_id"
 
     @classmethod
-    async def fields(cls, project_name: str = None) -> list[ImportableColumn]:
+    async def fields(
+        cls, project_name: str | None = None
+    ) -> list[ImportableColumn]:
         """Return model fields (public) plus fields derived from `_attrib`.
 
         Args:
@@ -929,10 +940,10 @@ class EntityListExportImportModel(EntityExportImport):
     @classmethod
     async def get_all_items(
         cls,
-        field_names: list[str],
+        field_names: list[str] | None,
         as_csv: bool = False,
-        project_name: str = None,
-        entity_ids: tuple[str, list[str]] = None,
+        project_name: str | None = None,
+        entity_ids: tuple[str, list[str]] | None = None,
     ) -> list[dict[str, Any]] | list[list[str]]:
         """Get all entities from the database.
 
@@ -1062,7 +1073,7 @@ def _get_field_value(row: dict[str, Any], field_name: str) -> Any:
         return row.get(field_name)
 
 
-def _get_model_fields(model: type[BaseModel]) -> dict:
+def _get_model_fields(model: type[BaseModel]) -> dict[str, Any]:
     """Get fields from a Pydantic model, compatible with both v1 and v2.
 
     Pydantic v2 uses 'model_fields' while v1 uses '__fields__'.
