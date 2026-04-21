@@ -47,10 +47,19 @@ async def rename_project(
     old_name: str,
     new_name: str,
 ) -> None:
-    """Changes the user name of a user in the database and all references to it.
+    """Rename a project and update related project references.
 
-    Requires only old_name and new_name as arguments. The rest are optional and
-    is used only for logging purposes.
+    This updates the project's name in ``public.projects``. For non-skeleton
+    projects, it also renames the corresponding ``project_<name>`` PostgreSQL
+    schema and reassigns user ``accessGroups`` entries keyed by the old project
+    name to the new one.
+
+    After the transaction completes, the project list is rebuilt and a
+    ``entity.<type>.renamed`` event is dispatched.
+
+    Limitations:
+        - Non-skeleton projects cannot be renamed if they contain thumbnails.
+        - Non-skeleton projects cannot be renamed if they contain files.
     """
     async with Postgres.transaction():
         project = await ProjectEntity.load(old_name)
