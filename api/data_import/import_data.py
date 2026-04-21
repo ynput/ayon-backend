@@ -237,7 +237,7 @@ async def import_data(
         entity_type: str = import_type  # Initialize for non-hierarchy types
         try:
             if import_type == "entity_list_item":
-                entity_cls = EntityListItemModel
+                entity_cls: type[Any] = EntityListItemModel
             elif import_type == "hierarchy":
                 entity_type = await _get_entity_type(
                     project_name, row, column_mapping, fields
