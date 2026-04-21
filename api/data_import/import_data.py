@@ -214,7 +214,6 @@ async def import_data(
             sender=f"{SENDER_TYPE}-csv",
             sender_type=SENDER_TYPE,
         )
-    ops_supported = operations is not None
 
     originals_and_new: dict[str, Any] = {}
     path_to_ids: dict[str, Any] = {}
@@ -321,7 +320,7 @@ async def import_data(
                 custom_updated = await model_cls.update(
                     user=user, preview=preview, **import_entity_data
                 )
-                if not custom_updated and ops_supported:
+                if not custom_updated and operations is not None:
                     operations.update(
                         cast(ProjectLevelEntityType, entity_type),
                         entity_id,
@@ -332,7 +331,7 @@ async def import_data(
                 entity_id = await model_cls.create(
                     user=user, preview=preview, **import_entity_data
                 )
-                if not entity_id and ops_supported:
+                if not entity_id and operations is not None:
                     entity_id = create_uuid()
                     operations.create(
                         cast(ProjectLevelEntityType, entity_type),
@@ -398,7 +397,7 @@ async def import_data(
             import_status.skipped += 1
             continue
 
-    if not preview and ops_supported:
+    if not preview and operations is not None:
         try:
             response = await operations.process()
             if not response.success:
