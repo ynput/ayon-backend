@@ -201,9 +201,9 @@ async def import_data(
         existing_identifiers = await _get_existing_identifiers(model_cls, project_name)
     else:
         # For hierarchy, pre-fetch existing identifiers for both folder and task
-        for entity_type, model_cls in HIERARCHY_MODEL_CLASSES.items():
+        for hier_entity_type, model_cls in HIERARCHY_MODEL_CLASSES.items():
             hierarchy_existing_identifiers[
-                entity_type
+                hier_entity_type
             ] = await _get_existing_identifiers(model_cls, project_name)
 
     operations: ProjectLevelOperations | None = None
@@ -850,9 +850,8 @@ async def _check_all_required(
 
 
 async def _get_existing_identifiers(
-    model: EntityExportImport, project_name: str = None
-) -> set[tuple]:
     model: EntityExportImport, project_name: str | None = None
+) -> set[tuple[str, ...]]:
     """Get existing entity identifiers from the database.
 
     Args:
