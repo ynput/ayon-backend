@@ -7,21 +7,21 @@ from ayon_server.lib.postgres import Postgres
 
 async def _reassign_access_groups(old_project_name: str, new_project_name: str) -> None:
     """Reassigns access groups from the old project to the new project."""
-    query = f"""
+    query = """
         UPDATE users
         SET data = jsonb_set(
             data,
-            '{{accessGroups}}',
+            '{accessGroups}',
             (
-                (data->'accessGroups') - '{old_project_name}'
+                (data->'accessGroups') - $1::text
             ) || jsonb_build_object(
-                '{new_project_name}',
-                data->'accessGroups'->'{old_project_name}'
+                $2::text,
+                data->'accessGroups'->$1::text
             )
         )
-        WHERE data->'accessGroups' ? '{old_project_name}';
+        WHERE data->'accessGroups' ? $1::text;
     """
-    await Postgres.execute(query)
+    await Postgres.execute(query, old_project_name, new_project_name)
 
 
 async def _sanity_check_full_project(project_name: str) -> None:
