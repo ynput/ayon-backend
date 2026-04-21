@@ -1,7 +1,46 @@
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
 from ayon_server.exceptions import BadRequestException
+from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
+
+
+async def _reassign_access_groups(old_project_name: str, new_project_name: str) -> None:
+    """Reassigns access groups from the old project to the new project."""
+    query = f"""
+        UPDATE users
+        SET data = jsonb_set(
+            data,
+            '{{accessGroups}}',
+            (
+                (data->'accessGroups') - '{old_project_name}'
+            ) || jsonb_build_object(
+                '{new_project_name}',
+                data->'accessGroups'->'{old_project_name}'
+            )
+        )
+        WHERE data->'accessGroups' ? '{old_project_name}';
+    """
+    await Postgres.execute(query)
+
+
+async def _sanity_check_full_project(project_name: str) -> None:
+    """
+    Performs a sanity check to ensure that the
+    project can be renamed without issues.
+    """
+
+    res = await Postgres.fetchrow(
+        f"SELECT COUNT(*) FROM project_{project_name}.thumbnails"
+    )
+    if res and res[0] > 0:
+        raise BadRequestException(
+            f"Project {project_name} has thumbnails, cannot rename."
+        )
+
+    res = await Postgres.fetchrow(f"SELECT COUNT(*) FROM project_{project_name}.files")
+    if res and res[0] > 0:
+        raise BadRequestException(f"Project {project_name} has files, cannot rename.")
 
 
 async def rename_project(
@@ -24,15 +63,17 @@ async def rename_project(
         )
 
         if not project.skeleton:
-            # TODO: Additional logic for renaming non-skeleton projects
+            await _sanity_check_full_project(old_name)
 
-            # old_schema_name = f"project_{old_name}"
-            # new_schema_name = f"project_{new_name}"
-            #
-            # query = f"ALTER SCHEMA {old_schema_name} RENAME TO {new_schema_name}"
-            # await Postgres.execute(query)
+            old_schema_name = f"project_{old_name}"
+            new_schema_name = f"project_{new_name}"
 
-            raise BadRequestException("Only skeleton projects can be renamed")
+            query = f"ALTER SCHEMA {old_schema_name} RENAME TO {new_schema_name}"
+            await Postgres.execute(query)
+
+            await _reassign_access_groups(old_name, new_name)
+
+    await build_project_list()
 
     await EventStream.dispatch(
         f"entity.{etype}.renamed",
