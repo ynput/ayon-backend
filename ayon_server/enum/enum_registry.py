@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Any
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.modules import classes_from_module, import_module
 from ayon_server.logging import logger
-from ayon_server.types import SimpleValue
 
 from .base_resolver import BaseEnumResolver
 from .enum_item import EnumItem

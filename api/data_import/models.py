@@ -1,5 +1,6 @@
 """Data models for data import/export functionality."""
 
+from collections.abc import Iterable
 from enum import StrEnum
 from typing import (
     Annotated,
@@ -9,7 +10,6 @@ from typing import (
     cast,
     get_args,
     get_origin,
-    Iterable,
 )
 
 from pydantic import BaseModel
@@ -93,14 +93,12 @@ class ImportableColumn(OPModel):
 
     enum_items: Annotated[
         list[EnumItem] | None,
-        Field(description=("A list of possible enum items for this column "
-                           "(if set)")),
+        Field(description=("A list of possible enum items for this column (if set)")),
     ]
 
     enum_name: Annotated[
         str | None,
-        Field(description=("The enum resolver name (e.g., 'statuses', "
-                           "'folderTypes')")),
+        Field(description=("The enum resolver name (e.g., 'statuses', 'folderTypes')")),
     ] = None
 
     error_handling_modes: Annotated[
@@ -238,7 +236,7 @@ class EntityExportImport:
         _data_fields: Additional data fields to include (list of tuples)
     """
 
-    _entity_model : type[Any] | None = None  # Entity model class
+    _entity_model: type[Any] | None = None  # Entity model class
     _table_name = ""  # Table name for queries
     _unique_fields: list[str] = ["name"]  # Default unique fields
     _data_fields: list[ImportableColumn] = []  # Additional data fields
@@ -337,15 +335,11 @@ class EntityExportImport:
             cls.main(),
             cls.attrib(),
             cls.data(),
-            cls._calculated_fields
+            cls._calculated_fields,
         ]
 
         # Model fields (exclude private fields starting with underscore)
-        all_fields = [
-            field
-            for source in sources
-            for field in source
-        ]
+        all_fields = [field for source in sources for field in source]
         for field in all_fields:
             name: str | None = None  # because of MyPy
             if isinstance(field, ModelField):
@@ -901,9 +895,7 @@ class EntityListExportImportModel(EntityExportImport):
     _parent_column_name = "entity_list_id"
 
     @classmethod
-    async def fields(
-        cls, project_name: str | None = None
-    ) -> list[ImportableColumn]:
+    async def fields(cls, project_name: str | None = None) -> list[ImportableColumn]:
         """Return model fields (public) plus fields derived from `_attrib`.
 
         Args:

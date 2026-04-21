@@ -22,13 +22,9 @@ async def _get_entity_id_by_path(
         NotFoundException: If entity not found
     """
     if project_name is None:
-        raise NotFoundException(
-            f"Cannot find entity without project name"
-        )
+        raise NotFoundException("Cannot find entity without project name")
     if path is None:
-        raise NotFoundException(
-            f"Entity with path 'None' not found in the database"
-        )
+        raise NotFoundException("Entity with path 'None' not found in the database")
     folder_path = path.replace("\\", "/").replace(" ", "")
     task_name = None
 

@@ -41,7 +41,6 @@ from .models import (
     EntityExportImport,
     EntityListExportImportModel,
     ExistingItemStrategy,
-    ExistingStrategyType,
     FolderExportImportModel,
     FolderTaskExportImportModel,
     ImportableColumn,
@@ -193,7 +192,7 @@ async def import_data(
 
     model_cls = IMPORTABLE_ENTITIES[import_type]
 
-    hierarchy_existing_identifiers: dict[str, set[tuple[str,...]]] = {}
+    hierarchy_existing_identifiers: dict[str, set[tuple[str, ...]]] = {}
 
     # For non-hierarchy types, get fields and existing identifiers upfront
     fields = await model_cls.fields(project_name=project_name)
@@ -217,8 +216,8 @@ async def import_data(
         )
     ops_supported = operations is not None
 
-    originals_and_new : dict[str, Any] = {}
-    path_to_ids : dict[str, Any]  = {}
+    originals_and_new: dict[str, Any] = {}
+    path_to_ids: dict[str, Any] = {}
     unprocessed = len(filtered_rows)
     row_number = 0
 
@@ -232,7 +231,7 @@ async def import_data(
     for row in filtered_rows:
         row_number += 1
 
-        import_entity_data : dict[str, Any] = {}
+        import_entity_data: dict[str, Any] = {}
         identifier = None
         path = None
         entity_type: str = import_type  # Initialize for non-hierarchy types
@@ -326,7 +325,7 @@ async def import_data(
                     operations.update(
                         cast(ProjectLevelEntityType, entity_type),
                         entity_id,
-                        **import_entity_data
+                        **import_entity_data,
                     )
                 import_status.updated += 1
             else:
@@ -338,7 +337,7 @@ async def import_data(
                     operations.create(
                         cast(ProjectLevelEntityType, entity_type),
                         entity_id=entity_id,
-                        **import_entity_data
+                        **import_entity_data,
                     )
                 import_status.created += 1
 
@@ -454,14 +453,10 @@ async def _get_entity_type(
         column_mapping: List of ColumnMapping objects provided by the user
         fields: Available importable columns
     """
-    target_mapping_by_key = {
-        mapping.target_key: mapping for mapping in column_mapping
-    }
+    target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
     entity_type_mapping = target_mapping_by_key.get("entity_type")
     if not entity_type_mapping:
-        raise ValueError(
-            "Missing column mapping for 'entity_type' in hierarchy import"
-        )
+        raise ValueError("Missing column mapping for 'entity_type' in hierarchy import")
 
     # Use the reusable helper to remap the column value
     import_entity_data: dict[str, Any] = {}
@@ -720,7 +715,7 @@ def _convert_value(importable_column: ImportableColumn, value: str) -> Any:
     elif importable_column.value_type == "float":
         return float(value)
     elif importable_column.value_type == "integer":
-        return  int(value)
+        return int(value)
     elif importable_column.value_type == "boolean":
         return _to_bool(value)
     else:
@@ -781,10 +776,8 @@ async def _validate_enum_value(
                 project_name=project_name,
             )
             return
-        missing_values_str = ', '.join(map(str, missing_values))
-        raise ValueError(
-            f"Import contains invalid enum values: {missing_values_str}"
-        )
+        missing_values_str = ", ".join(map(str, missing_values))
+        raise ValueError(f"Import contains invalid enum values: {missing_values_str}")
 
 
 def _add_value_to_import_entity(
