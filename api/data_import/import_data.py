@@ -743,7 +743,7 @@ async def _validate_enum_value(
     if not value:
         return
 
-    valid_values = {item.value.lower() for item in enum_items}
+    valid_values = {str(item.value).lower() for item in enum_items}
     value = value.replace("_", " ")
     to_check = {value.lower()} if isinstance(value, str) else set(value)
 
