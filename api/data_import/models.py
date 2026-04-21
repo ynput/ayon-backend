@@ -347,6 +347,7 @@ class EntityExportImport:
             for field in source
         ]
         for field in all_fields:
+            name: str | None = None  # because of MyPy
             if isinstance(field, ModelField):
                 name = field.name
                 field_info = field.field_info

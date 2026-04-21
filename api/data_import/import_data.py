@@ -468,7 +468,7 @@ async def _get_entity_type(
         import_entity_data=import_entity_data,
         column_name="entity_type",
     )
-    return import_entity_data.get("entity_type")
+    return import_entity_data["entity_type"]
 
 
 def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]:
