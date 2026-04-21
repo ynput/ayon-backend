@@ -75,7 +75,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                     "icon": item.icon or "folder",
                     "color": item.color or "#808080",
                     "name": item.value,
-                    "shortName": item.short_name or item.value[0:3],
+                    "shortName": item.short_name or str(item.value)[0:3],
                 },
             )
         await Redis.delete("project-anatomy", project_name)
@@ -144,7 +144,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                     "icon": item.icon or "task",
                     "color": item.color or "#808080",
                     "name": item.value,
-                    "shortName": item.short_name or item.value[0:3],
+                    "shortName": item.short_name or str(item.value)[0:3],
                 },
             )
         await Redis.delete("project-anatomy", project_name)
@@ -213,7 +213,7 @@ class StatusesEnumResolver(BaseEnumResolver):
                     "icon": item.icon or "check_circle",
                     "color": item.color or "#808080",
                     "name": item.value,
-                    "shortName": item.short_name or item.value[0:3].upper(),
+                    "shortName": item.short_name or str(item.value)[0:3].upper(),
                 },
             )
         await Redis.delete("project-anatomy", project_name)
