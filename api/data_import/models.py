@@ -6,6 +6,7 @@ from typing import (
     Any,
     Literal,
     Union,
+    cast,
     get_args,
     get_origin,
 )
@@ -743,26 +744,30 @@ class FolderTaskExportImportModel(EntityExportImport):
             field_names = [field.key for field in fields]
 
         # Get folders and tasks sequentially (as dictionaries, not CSV)
-        folder_items: list[dict[str, Any]] = await (
-            FolderExportImportModel.get_all_items(
+        folder_items: list[dict[str, Any]] = cast(
+            "list[dict[str, Any]]",
+            await FolderExportImportModel.get_all_items(
                 field_names=field_names,
                 as_csv=False,
                 project_name=project_name,
                 entity_ids=entity_ids,
-        ))
+            ),
+        )
 
         # Determine task entity_ids if needed
         task_entity_ids = None
         if entity_ids:
             task_entity_ids = entity_ids
 
-        task_items: list[dict[str, Any]] = await (
-            TaskExportImportModel.get_all_items(
+        task_items: list[dict[str, Any]] = cast(
+            "list[dict[str, Any]]",
+            await TaskExportImportModel.get_all_items(
                 field_names=field_names,
                 as_csv=False,
                 project_name=project_name,
                 entity_ids=task_entity_ids,
-        ))
+            ),
+        )
 
         # Add entity_type to each item
         for folder in folder_items:
