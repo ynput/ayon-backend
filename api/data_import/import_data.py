@@ -436,7 +436,7 @@ async def import_data(
 
 
 async def _get_entity_type(
-    project_name: str,
+    project_name: str | None,
     row: dict[str, Any],
     column_mapping: list[ColumnMapping],
     fields: list[ImportableColumn],
@@ -516,7 +516,7 @@ def _is_row_empty(row: dict[str, Any]) -> bool:
 
 
 async def _remap_single_column(
-    project_name: str,
+    project_name: str | None,
     mapping: ColumnMapping,
     row: dict[str, Any],
     fields: list[ImportableColumn],
@@ -529,7 +529,7 @@ async def _remap_single_column(
     applying value mappings, type conversion, and enum validation.
 
     Args:
-        project_name: The project name for enum validation
+        project_name: The project name for enum validation (can be None)
         mapping: ColumnMapping object defining source->target mapping
         row: CSV row data
         fields: Available importable columns
@@ -608,7 +608,7 @@ async def _remap_single_column(
 
 
 async def _remap_row(
-    project_name: str,
+    project_name: str | None,
     header: list[str],
     import_entity_data: dict[str, Any],
     row: dict[str, Any],
@@ -852,6 +852,7 @@ async def _check_all_required(
 async def _get_existing_identifiers(
     model: EntityExportImport, project_name: str = None
 ) -> set[tuple]:
+    model: EntityExportImport, project_name: str | None = None
     """Get existing entity identifiers from the database.
 
     Args:
@@ -876,7 +877,7 @@ async def _resolve_entity_id(
     existing_identifiers: set[tuple],
     model_cls,
     entity_cls,
-    project_name: str,
+    project_name: str | None,
 ) -> str | None:
     """Resolve the entity ID for a CSV row.
 
@@ -931,7 +932,7 @@ async def _resolve_parent_id(
     originals_and_new: dict[str, str],
     existing_identifiers: set[tuple],
     path_to_ids: dict[str, str],
-    project_name: str,
+    project_name: str | None,
     folder_id: str | None,
 ) -> tuple[str | None, str | None]:
     """Resolve the parent ID for a CSV row.
@@ -948,6 +949,9 @@ async def _resolve_parent_id(
     Returns:
         Tuple of (parent_id, parent_path)
     """
+    if project_name is None:
+        return None, None
+
     # Use fixed folder_id for tasks
     if folder_id:
         return folder_id, None
