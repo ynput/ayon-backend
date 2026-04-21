@@ -391,7 +391,7 @@ async def import_data(
             import_status.skipped += 1
             continue
 
-    if not preview:
+    if not preview and operations:
         try:
             response = await operations.process()
             if not response.success:
