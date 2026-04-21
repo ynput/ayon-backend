@@ -327,7 +327,7 @@ async def import_data(
                 entity_id = await model_cls.create(
                     user=user, preview=preview, **import_entity_data
                 )
-                if not entity_id:
+                if not entity_id and operations:
                     entity_id = create_uuid()
                     operations.create(
                         entity_type, entity_id=entity_id, **import_entity_data
