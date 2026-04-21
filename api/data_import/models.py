@@ -356,13 +356,15 @@ class EntityExportImport:
                 # Note: 'name' may be stored in extra dict in pydantic v2
                 name = getattr(field, "name", None)
                 if name is None:
-                    name = field.extra.get("name")
+                    extra = getattr(field, "extra", {})
+                    if isinstance(extra, dict):
+                        name = extra.get("name")
                 if name is None:
-                    name = getattr(field, "title")
+                    name = getattr(field, "title", None)
                 if not name:
                     # Skip FieldInfo without a name
                     continue
-                name = name.lower()
+                name = str(name).lower()
                 field_info = field
                 annotation = getattr(field, "annotation", Any)
                 required = getattr(field, "required", False)
