@@ -449,10 +449,14 @@ async def _get_entity_type(
         column_mapping: List of ColumnMapping objects provided by the user
         fields: Available importable columns
     """
-    target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
+    target_mapping_by_key = {
+        mapping.target_key: mapping for mapping in column_mapping
+    }
     entity_type_mapping = target_mapping_by_key.get("entity_type")
     if not entity_type_mapping:
-        raise ValueError("Missing column mapping for 'entity_type' in hierarchy import")
+        raise ValueError(
+            "Missing column mapping for 'entity_type' in hierarchy import"
+        )
 
     # Use the reusable helper to remap the column value
     import_entity_data: dict[str, Any] = {}
