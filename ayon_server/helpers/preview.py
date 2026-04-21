@@ -96,6 +96,7 @@ async def create_video_thumbnail(
 async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
     """Return a preview image for a file as bytes.
 
+
     Raises:
         - UnsupportedMediaException if the mimetype is not supported
         for preview generation.
@@ -136,21 +137,7 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
     else:
         raise AyonException("Unsupported storage type. This should not happen")
 
-    if is_video_mime_type(mime_type):
-        pvw_bytes = await create_video_thumbnail(path, FILE_PREVIEW_SIZE)
-        return pvw_bytes
-
-    if is_image_mime_type(mime_type):
-        # async with aiofiles.open(path, "rb") as f:
-        #     image_bytes = await f.read()
-        #     pvw_bytes = await process_thumbnail(
-        #         image_bytes,
-        #         FILE_PREVIEW_SIZE,
-        #         format="JPEG",
-        #     )
-        #     return pvw_bytes
-
-        # TODO: unify. for now use ffmpeg for images as well (since it handles s3
+    if is_video_mime_type(mime_type) or is_image_mime_type(mime_type):
         pvw_bytes = await create_video_thumbnail(path, FILE_PREVIEW_SIZE)
         return pvw_bytes
 
@@ -159,13 +146,16 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
 
 
 async def get_file_preview(
-    project_name: str, file_id: str, retries: int = 0
+    project_name: str,
+    file_id: str,
+    retries: int = 0,
 ) -> Response:
     """Return a preview image for a file.
 
     Uses the cache if available, otherwise generates a new preview and caches it.
     Returns fastapi.Response object with the image data.
     """
+
     file_id = file_id.replace("-", "")
     assert len(file_id) == 32
 
@@ -180,6 +170,12 @@ async def get_file_preview(
             await asyncio.sleep(0.2)
             if retries < 5:
                 return await get_file_preview(project_name, file_id, retries + 1)
+            raise ServiceUnavailableException("File preview service unavailable")
+    elif pvw_bytes != b"":
+        # Bump the TTL only for successful cached previews.
+        # Negative cache entries should expire naturally so transient
+        # preview-generation/storage failures can recover automatically.
+        await Redis.expire(REDIS_NS, key, PREVIEW_CACHE_TTL)
 
     if pvw_bytes == b"":
         raise NotFoundException("File preview not available")

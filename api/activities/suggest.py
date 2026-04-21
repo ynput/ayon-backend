@@ -8,6 +8,7 @@ from ayon_server.suggestions.folder import get_folder_suggestions
 from ayon_server.suggestions.models import (
     SuggestionType,
     TaskSuggestionItem,
+    TeamSuggestionItem,
     UserSuggestionItem,
     VersionSuggestionItem,
 )
@@ -25,6 +26,7 @@ class SuggestRequest(OPModel):
 
 class SuggestResponse(OPModel):
     users: list[UserSuggestionItem] = Field(default_factory=list)
+    teams: list[TeamSuggestionItem] = Field(default_factory=list)
     tasks: list[TaskSuggestionItem] = Field(default_factory=list)
     versions: list[VersionSuggestionItem] = Field(default_factory=list)
 

@@ -118,6 +118,8 @@ class BackgroundInstaller(BackgroundWorker):
                     status="failed",
                     description=f"Failed to process event: {e}",
                     retries=r[0]["retries"] + 1,
+                    sender="background-installer",
+                    sender_type="system",
                 )
                 await self.enqueue(event_id)
 

@@ -157,7 +157,7 @@ async def create_activity(
         )
         data["author"] = user_name
 
-    references.update(extract_mentions(body))
+    references.update(await extract_mentions(body, project_name))
     if activity_type not in ["watch"]:
         # We don't need to collect additional references for watch activities
         # As they only apply to the entity itself
