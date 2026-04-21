@@ -315,7 +315,7 @@ async def import_data(
                 f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
             )
 
-            if exists:
+            if entity_id:
                 # mark that model has custom update
                 custom_updated = await model_cls.update(
                     user=user, preview=preview, **import_entity_data
