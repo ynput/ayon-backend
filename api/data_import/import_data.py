@@ -140,9 +140,9 @@ async def import_data(
     user: CurrentUser,
     file_id: str,  # pointer to file stored in Redis
     column_mapping: list[ColumnMapping],
-    existing_strategy: ExistingStrategyType = ExistingItemStrategy.UPDATE,
-    project_name: str = None,
-    folder_id: str = None,  # limit import to specific folder
+    existing_strategy: ExistingItemStrategy = ExistingItemStrategy.UPDATE,
+    project_name: str | None = None,
+    folder_id: str | None = None,  # limit import to specific folder
     preview: bool = False,  # do not commit to db if True
 ) -> ImportStatus:
     """Process CSV file and import entities to the database.
