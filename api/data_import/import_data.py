@@ -561,7 +561,7 @@ async def _remap_single_column(
     if target_column_name == "path" and source_value:
         source_value = source_value.replace("\\", "/").replace(" ", "")
 
-    if importable_column.value_type == "list_of_strings":
+    if importable_column.value_type == "list_of_strings" and source_value:
         json_friendly = source_value.replace("'", '"')
         try:
             source_value = json.loads(json_friendly)
