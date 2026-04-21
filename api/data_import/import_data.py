@@ -206,12 +206,14 @@ async def import_data(
                 entity_type
             ] = await _get_existing_identifiers(model_cls, project_name)
 
-    operations: ProjectLevelOperations = ProjectLevelOperations(
-        project_name,
-        user=user,
-        sender=f"{SENDER_TYPE}-csv",
-        sender_type=SENDER_TYPE,
-    )
+    operations: ProjectLevelOperations | None = None
+    if project_name:
+        operations = ProjectLevelOperations(
+            project_name,
+            user=user,
+            sender=f"{SENDER_TYPE}-csv",
+            sender_type=SENDER_TYPE,
+        )
 
     originals_and_new = {}
     path_to_ids = {}
@@ -315,19 +317,20 @@ async def import_data(
                 f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
             )
 
+            ent_ops_supported = entity_type in PROJECT_LEVEL_ENTITY_TYPES
             if entity_id:
                 # mark that model has custom update
                 custom_updated = await model_cls.update(
                     user=user, preview=preview, **import_entity_data
                 )
-                if not custom_updated:
+                if not custom_updated and operations and ent_ops_supported:
                     operations.update(entity_type, entity_id, **import_entity_data)
                 import_status.updated += 1
             else:
                 entity_id = await model_cls.create(
                     user=user, preview=preview, **import_entity_data
                 )
-                if not entity_id and operations:
+                if not entity_id and operations and ent_ops_supported:
                     entity_id = create_uuid()
                     operations.create(
                         entity_type, entity_id=entity_id, **import_entity_data
