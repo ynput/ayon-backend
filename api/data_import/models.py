@@ -9,6 +9,7 @@ from typing import (
     cast,
     get_args,
     get_origin,
+    Iterable,
 )
 
 from pydantic import BaseModel
