@@ -86,7 +86,7 @@ class EnumRegistry:
         item: EnumItem,
         project_name: str | None = None,
         **kwargs,
-    ) -> SimpleValue:
+    ) -> None:
         """Create a new enum item using the appropriate resolver.
 
         Args:
@@ -107,4 +107,4 @@ class EnumRegistry:
         except KeyError:
             raise BadRequestException(f"Unknown enum resolver '{key}'")
 
-        return await resolver.create_item(item, project_name, **kwargs)
+        await resolver.create_item(item, project_name, **kwargs)
