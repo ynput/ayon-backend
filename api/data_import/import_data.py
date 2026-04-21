@@ -234,7 +234,7 @@ async def import_data(
         import_entity_data : dict[str, Any] = {}
         identifier = None
         path = None
-        entity_type = import_type  # Initialize for non-hierarchy types
+        entity_type: str = import_type  # Initialize for non-hierarchy types
         try:
             if import_type == "entity_list_item":
                 entity_cls = EntityListItemModel
