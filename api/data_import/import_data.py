@@ -722,7 +722,7 @@ def _convert_value(importable_column: ImportableColumn, value: str) -> Any:
 
 async def _validate_enum_value(
     value: str,
-    enum_items: list,
+    enum_items: list[EnumItem],
     replacement_action: str | None,
     enum_name: str | None = None,
     project_name: str | None = None,
@@ -877,7 +877,7 @@ async def _get_existing_identifiers(
 async def _resolve_entity_id(
     row: dict[str, Any],
     path_to_ids: dict[str, str],
-    existing_identifiers: set[tuple],
+    existing_identifiers: set[tuple[str, ...]],
     model_cls,
     entity_cls,
     project_name: str | None,
@@ -933,7 +933,7 @@ async def _resolve_entity_id(
 async def _resolve_parent_id(
     row: dict[str, Any],
     originals_and_new: dict[str, str],
-    existing_identifiers: set[tuple],
+    existing_identifiers: set[tuple[str, ...]],
     path_to_ids: dict[str, str],
     project_name: str | None,
     folder_id: str | None,
