@@ -711,17 +711,16 @@ def _convert_value(importable_column: ImportableColumn, value: str) -> Any:
 
     # Convert value based on column type
     if importable_column.value_type == "datetime":
-        ret_value = datetime.fromisoformat(value)
+        return datetime.fromisoformat(value)
     elif importable_column.value_type == "float":
-        ret_value = float(value)
+        return float(value)
     elif importable_column.value_type == "integer":
-        ret_value = int(value)
+        return  int(value)
     elif importable_column.value_type == "boolean":
-        ret_value = _to_bool(value)
+        return _to_bool(value)
     else:
         # Handle string or None value_type - return value as-is
-        ret_value = value
-    return ret_value
+        return value
 
 
 async def _validate_enum_value(
