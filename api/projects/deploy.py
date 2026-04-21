@@ -24,7 +24,7 @@ class DeployProjectRequestModel(OPModel):
         str,
         Field(
             title="Project name",
-            exampe="Example project",
+            example="Example project",
         ),
     ]
     code: Annotated[
