@@ -270,9 +270,7 @@ async def import_data(
             )
 
             if entity_id:
-                if existing_strategy == ExistingItemStrategy.UPDATE:
-                    exists = True
-                else:
+                if existing_strategy != ExistingItemStrategy.UPDATE:
                     identifier = path or identifier
                     raise ValueError(f"Item '{identifier}' already exists.")
 
