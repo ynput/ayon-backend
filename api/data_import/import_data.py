@@ -192,7 +192,7 @@ async def import_data(
 
     model_cls = IMPORTABLE_ENTITIES[import_type]
 
-    hierarchy_existing_identifiers: dict = {}
+    hierarchy_existing_identifiers: dict[str, set[tuple[str,...]]] = {}
 
     # For non-hierarchy types, get fields and existing identifiers upfront
     fields = await model_cls.fields(project_name=project_name)
@@ -215,8 +215,8 @@ async def import_data(
             sender_type=SENDER_TYPE,
         )
 
-    originals_and_new = {}
-    path_to_ids = {}
+    originals_and_new : dict[str, Any] = {}
+    path_to_ids : dict[str, Any]  = {}
     unprocessed = len(filtered_rows)
     row_number = 0
 
@@ -500,7 +500,7 @@ def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]
     return header, rows
 
 
-def _is_row_empty(row: dict) -> bool:
+def _is_row_empty(row: dict[str, Any]) -> bool:
     """Check if a CSV row is completely empty (all values are None or empty).
 
     Args:
