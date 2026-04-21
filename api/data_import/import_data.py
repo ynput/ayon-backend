@@ -337,7 +337,7 @@ async def import_data(
                     )
                 import_status.created += 1
 
-            if original_id:
+            if original_id and entity_id:
                 originals_and_new[original_id] = entity_id
             if path:
                 path_to_ids[path] = entity_id
