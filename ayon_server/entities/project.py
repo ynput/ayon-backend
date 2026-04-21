@@ -100,7 +100,9 @@ class ProjectEntity(TopLevelEntity):
                 raise NotFoundException(f"Project '{project_name}' not found")
 
             if project_data["data"].get("isSkeleton", False):
-                await Redis.set_json("project-data", project_name, payload, ttl=3600)
+                await Redis.set_json(
+                    "project-data", project_name, project_data, ttl=3600
+                )
                 return cls.return_project_skeleton(payload=project_data)
 
             # Load folder types

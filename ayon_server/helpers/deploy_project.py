@@ -191,7 +191,6 @@ async def create_project_from_anatomy(
 
     await EventStream.dispatch(
         "entity.project.created",
-        sender="ayon",
         project=project.name,
         user=user_name,
         description=f"Created project {project.name}",
@@ -224,11 +223,13 @@ async def create_project_skeleton_from_anatomy(
         },
     )
 
-    await project.save()
+    async with Postgres.transaction():
+        await project.save()
+        if assign_users:
+            await assign_default_users_to_project(project.name)
 
     await EventStream.dispatch(
         "entity.project_skeleton.created",
-        sender="ayon",
         project=project.name,
         user=user_name,
         description=f"Created project {project.name}",
@@ -238,8 +239,6 @@ async def create_project_skeleton_from_anatomy(
 async def promote_project_from_skeleton(
     project_name: str,
     anatomy: Anatomy | None = None,
-    *,
-    user_name: str | None = None,
 ) -> None:
     skeleton = await ProjectEntity.load(project_name)
     if not isinstance(skeleton, ProjectSkeletonEntity):
@@ -254,9 +253,7 @@ async def promote_project_from_skeleton(
     await skeleton.promote()
 
     await EventStream.dispatch(
-        "entity.project_skeleton.created",
-        sender="ayon",
+        "entity.project.created",
         project=skeleton.name,
-        user=user_name,
         description=f"Project {skeleton.name} promoted from skeleton",
     )

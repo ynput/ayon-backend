@@ -124,7 +124,7 @@ async def get_project_stats(user: CurrentUser, project_name: ProjectName):
 #
 
 
-@router.put("/projects/{project_name}")
+@router.put("/projects/{project_name}", status_code=201)
 async def create_project(
     put_data: ProjectPostModel,
     user: CurrentUser,
@@ -172,7 +172,11 @@ async def create_project(
 #
 
 
-@router.patch("/projects/{project_name}", dependencies=[AllowProjectSkeleton])
+@router.patch(
+    "/projects/{project_name}",
+    dependencies=[AllowProjectSkeleton],
+    status_code=204,
+)
 async def update_project(
     patch_data: ProjectPatchModel,
     user: CurrentUser,
@@ -233,7 +237,11 @@ async def unassign_users_from_deleted_projects() -> None:
     # we don't need to update sessions, as they are updated on the next login
 
 
-@router.delete("/projects/{project_name}", dependencies=[AllowProjectSkeleton])
+@router.delete(
+    "/projects/{project_name}",
+    dependencies=[AllowProjectSkeleton],
+    status_code=204,
+)
 async def delete_project(
     user: CurrentUser,
     project_name: ProjectName,
@@ -278,7 +286,7 @@ class RenameProjectRequestModel(OPModel):
     )
 
 
-@router.patch("/projects/{project_name}/rename")
+@router.patch("/projects/{project_name}/rename", status_code=204)
 async def change_project_name(
     user: CurrentUser,
     project_name: ProjectName,

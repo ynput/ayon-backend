@@ -56,7 +56,7 @@ async def build_project_list() -> list[ProjectListItem]:
 
 async def get_project_list(
     *,
-    force_load: bool = True,
+    force_load: bool = False,
     with_skeleton: bool = False,
 ) -> list[ProjectListItem]:
     if not force_load:

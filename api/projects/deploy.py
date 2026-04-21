@@ -65,7 +65,7 @@ class DeployProjectRequestModel(OPModel):
     ] = False
 
 
-@router.post("/projects")
+@router.post("/projects", status_code=201)
 async def deploy_project(
     payload: DeployProjectRequestModel,
     user: CurrentUser,
@@ -99,7 +99,6 @@ async def deploy_project(
                 await promote_project_from_skeleton(
                     payload.name,
                     payload.anatomy,
-                    user_name=user.name,
                 )
                 return None
 
