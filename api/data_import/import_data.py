@@ -901,12 +901,14 @@ async def _resolve_entity_id(
         Entity ID if found, None otherwise
     """
     # Check by unique fields
-    identifier = None
+    identifier: tuple[str, ...] = ()
     for unique_field in model_cls.unique_fields():
-        identifier = ()
-        if unique_field not in row or not row[unique_field]:
+        val = row.get(unique_field)
+        if not val:
+            # If a required unique field is missing, reset or handle error
+            identifier = ()
             break
-        identifier = identifier + (row[unique_field],)
+        identifier = (*identifier, str(val))
 
     if identifier in existing_identifiers:
         return identifier[0]  # Return the identifier
