@@ -866,8 +866,11 @@ async def _get_existing_identifiers(
         Set of tuples representing unique identifiers
     """
     existing_items = await model.get_all_items(
-        field_names=model.unique_fields(), project_name=project_name
+        field_names=model.unique_fields(),
+        as_csv=False,
+        project_name=project_name,
     )
+    existing_items = cast("list[dict[str, Any]]", existing_items)
     existing_identifiers = {
         tuple(item[field] for field in model.unique_fields()) for item in existing_items
     }
