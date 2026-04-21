@@ -961,7 +961,6 @@ class EntityListExportImportModel(EntityExportImport):
             field_names = [field.key for field in fields]
 
         where = ""
-        query_values = []
         if entity_ids:
             id_list = entity_ids[1]
             placeholders = ", ".join(f"${i + 1}" for i in range(len(id_list)))
@@ -978,7 +977,7 @@ class EntityListExportImportModel(EntityExportImport):
             "ON li.entity_id = t.id "
             f"{where}"
         )
-        rows = await Postgres.fetch(query, *query_values)
+        rows = await Postgres.fetch(query)
 
         return await cls._return_items(as_csv, field_names, rows)
 
