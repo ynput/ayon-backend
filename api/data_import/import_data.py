@@ -698,22 +698,26 @@ async def _remap_row(
                 raise ValueError(error_msg)
 
 
-def _convert_value(importable_column: ImportableColumn, value: str) -> any:
+def _convert_value(importable_column: ImportableColumn, value: str) -> Any:
     if not value:
         # Return None for typed columns to avoid empty string issues
         if importable_column.value_type not in ("string", None):
             return None
+        return value
 
     # Convert value based on column type
     if importable_column.value_type == "datetime":
-        value = datetime.fromisoformat(value)
+        ret_value = datetime.fromisoformat(value)
     elif importable_column.value_type == "float":
-        value = float(value)
+        ret_value = float(value)
     elif importable_column.value_type == "integer":
-        value = int(value)
+        ret_value = int(value)
     elif importable_column.value_type == "boolean":
-        value = _to_bool(value)
-    return value
+        ret_value = _to_bool(value)
+    else:
+        # Handle string or None value_type - return value as-is
+        ret_value = value
+    return ret_value
 
 
 async def _validate_enum_value(
