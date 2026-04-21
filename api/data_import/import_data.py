@@ -10,7 +10,7 @@ import io
 import json
 import traceback
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 from fastapi import Body, Path, Request
 
@@ -30,6 +30,7 @@ from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.operations.project_level import ProjectLevelOperations
+from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
 from .common import SENDER_TYPE, _get_entity_id_by_path
@@ -317,23 +318,28 @@ async def import_data(
                 f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
             )
 
-            ent_ops_supported = entity_type in PROJECT_LEVEL_ENTITY_TYPES
             if entity_id:
                 # mark that model has custom update
                 custom_updated = await model_cls.update(
                     user=user, preview=preview, **import_entity_data
                 )
-                if not custom_updated and operations and ent_ops_supported:
-                    operations.update(entity_type, entity_id, **import_entity_data)
+                if not custom_updated and operations:
+                    operations.update(
+                        cast(ProjectLevelEntityType, entity_type),
+                        entity_id,
+                        **import_entity_data
+                    )
                 import_status.updated += 1
             else:
                 entity_id = await model_cls.create(
                     user=user, preview=preview, **import_entity_data
                 )
-                if not entity_id and operations and ent_ops_supported:
+                if not entity_id and operations:
                     entity_id = create_uuid()
                     operations.create(
-                        entity_type, entity_id=entity_id, **import_entity_data
+                        cast(ProjectLevelEntityType, entity_type),
+                        entity_id=entity_id,
+                        **import_entity_data
                     )
                 import_status.created += 1
 
