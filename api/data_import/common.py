@@ -4,10 +4,9 @@ from ayon_server.lib.postgres import Postgres
 # Sender type for operations status propagation
 SENDER_TYPE = "data_import"
 
+
 async def _get_entity_id_by_path(
-    project_name: str,
-    path: str,
-    is_task: bool = False
+    project_name: str, path: str, is_task: bool = False
 ) -> str:
     """Get folder or task id by its path.
 
@@ -49,11 +48,7 @@ async def _get_entity_id_by_path(
             FROM project_{project_name}.tasks
             WHERE folder_id = $1 AND name = $2
         """
-        result = await Postgres.fetchrow(
-            query,
-            result["id"],
-            task_name
-        )
+        result = await Postgres.fetchrow(query, result["id"], task_name)
         if not result:
             raise NotFoundException(
                 f"Entity with path '{folder_path}' not found in the database"

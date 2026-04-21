@@ -1,19 +1,17 @@
 import csv
 import os
 import tempfile
-from typing import Literal, Optional, Tuple, Annotated
+from typing import Annotated, Literal
 
 import fastapi
-from fastapi import HTTPException, BackgroundTasks
+from fastapi import BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, Response
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import ForbiddenException
 
 from .models import EXPORTABLE_ENTITIES, ImportableColumn
-
 from .router import router
-
 
 # Type alias for exportable entity types
 EntityType = Literal["user", "folder", "task", "hierarchy", "entity_list_item"]
@@ -21,10 +19,9 @@ EntityType = Literal["user", "folder", "task", "hierarchy", "entity_list_item"]
 
 @router.get("/export/{entity_type}/fields")
 async def export_fields(
-    entity_type: Annotated[
-        EntityType, fastapi.Path(title="Import entity type")],
-    project_name: Optional[str] = None,
-) -> Optional[list[ImportableColumn]]:
+    entity_type: Annotated[EntityType, fastapi.Path(title="Import entity type")],
+    project_name: str | None = None,
+) -> list[ImportableColumn] | None:
     """Get exportable fields for an entity type.
 
     Args:
@@ -35,8 +32,7 @@ async def export_fields(
     # Validate entity type exists
     if entity_type not in EXPORTABLE_ENTITIES:
         raise HTTPException(
-            status_code=404,
-            detail=f"Entity type '{entity_type}' not implemented"
+            status_code=404, detail=f"Entity type '{entity_type}' not implemented"
         )
 
     model = EXPORTABLE_ENTITIES[entity_type]
@@ -45,13 +41,12 @@ async def export_fields(
 
 @router.post("/export/{entity_type}")
 async def export(
-    entity_type:  Annotated[
-        EntityType, fastapi.Path(title="Import entity type")],
+    entity_type: Annotated[EntityType, fastapi.Path(title="Import entity type")],
     user: CurrentUser,
     background_tasks: BackgroundTasks,
-    project_name: Optional[str] = None,
-    field_names: Optional[list[str]] = None,
-    entity_ids: Optional[Tuple[str, list[str]]] = None,
+    project_name: str | None = None,
+    field_names: list[str] | None = None,
+    entity_ids: tuple[str, list[str]] | None = None,
 ) -> Response:
     """Export entity data as CSV."""
     if not user.is_manager:
@@ -60,8 +55,7 @@ async def export(
     # Validate entity type exists
     if entity_type not in EXPORTABLE_ENTITIES:
         raise HTTPException(
-            status_code=404,
-            detail=f"Entity type '{entity_type}' not implemented"
+            status_code=404, detail=f"Entity type '{entity_type}' not implemented"
         )
 
     storage_dir = tempfile.mkdtemp(prefix="ayon_export_")
@@ -73,10 +67,7 @@ async def export(
 
     model_cls = EXPORTABLE_ENTITIES[entity_type]
     rows = await model_cls().get_all_items(
-        field_names,
-        True,
-        project_name=project_name,
-        entity_ids=entity_ids
+        field_names, True, project_name=project_name, entity_ids=entity_ids
     )
 
     export_path = os.path.join(storage_dir, f"{entity_type}_export.csv")
@@ -88,9 +79,7 @@ async def export(
         background_tasks.add_task(_cleanup_file, export_path, storage_dir)
 
     return FileResponse(
-        export_path,
-        media_type="text/csv",
-        filename=f"{entity_type}_export.csv"
+        export_path, media_type="text/csv", filename=f"{entity_type}_export.csv"
     )
 
 
@@ -101,5 +90,5 @@ def _cleanup_file(file_path: str, temp_dir: str) -> None:
             os.remove(file_path)
         if os.path.exists(temp_dir):
             os.rmdir(temp_dir)
-    except Exception as e:
+    except Exception:
         pass  # Silent fail for cleanup

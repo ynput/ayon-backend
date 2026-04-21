@@ -24,7 +24,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                     label=folder_type.name,
                     icon=folder_type.icon,
                     color=folder_type.color,
-                    short_name=folder_type.shortName
+                    short_name=folder_type.shortName,
                 )
                 for folder_type in anatomy.folder_types
             ]
@@ -43,7 +43,7 @@ class FolderTypesEnumResolver(BaseEnumResolver):
                         label=row["name"],
                         icon=row["data"].get("icon"),
                         color=row["data"].get("color"),
-                        short_name=row["data"].get("shortName")
+                        short_name=row["data"].get("shortName"),
                     )
                 )
         return result
@@ -98,7 +98,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
                     label=task_type.name,
                     icon=task_type.icon,
                     color=task_type.color,
-                    short_name=task_type.shortName
+                    short_name=task_type.shortName,
                 )
                 for task_type in anatomy.task_types
             ]

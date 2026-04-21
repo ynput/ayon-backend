@@ -113,9 +113,5 @@ class Anatomy(BaseSettingsModel):
 
     @validator("folder_types", "task_types", "statuses")
     def ensure_unique_short_names(cls, value, field):
-        ensure_unique_property(
-            value,
-            "shortName",
-            context=field.name
-        )
+        ensure_unique_property(value, "shortName", context=field.name)
         return value

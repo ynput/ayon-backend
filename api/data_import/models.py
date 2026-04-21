@@ -1,38 +1,27 @@
 """Data models for data import/export functionality."""
 
-from enum import Enum
+from enum import StrEnum
 from typing import (
-    Any,
-    Dict,
-    List,
-    Tuple,
-    Optional,
-    Set,
-    Literal,
     Annotated,
-    get_origin,
+    Any,
+    Literal,
+    Union,
     get_args,
-    Union
+    get_origin,
 )
 
 from pydantic import BaseModel
-from pydantic.fields import ModelField, FieldInfo
+from pydantic.fields import FieldInfo, ModelField
 
-from api.data_import.common import _get_entity_id_by_path, SENDER_TYPE
+from api.data_import.common import SENDER_TYPE, _get_entity_id_by_path
+from ayon_server.entities import FolderEntity, TaskEntity, UserEntity, VersionEntity
+from ayon_server.entities.models.generator import FIELD_TYPES
 from ayon_server.entity_lists import EntityList
 from ayon_server.entity_lists.models import EntityListItemModel
 from ayon_server.enum import EnumItem, EnumRegistry
 from ayon_server.exceptions import BadRequestException, NotFoundException
-from ayon_server.types import Field, OPModel, AttributeType
-from ayon_server.entities import (
-    UserEntity,
-    FolderEntity,
-    TaskEntity,
-    VersionEntity
-)
 from ayon_server.lib.postgres import Postgres
-from ayon_server.logging import logger
-from ayon_server.entities.models.generator import FIELD_TYPES
+from ayon_server.types import AttributeType, Field, OPModel
 from ayon_server.utils import create_uuid
 
 # Create reverse mapping: Python type -> AttributeType string
@@ -43,8 +32,9 @@ TYPE_TO_ATTR_TYPE: dict[type, str] = {v: k for k, v in FIELD_TYPES.items()}
 HIERARCHY_UNIFIED_COLUMN = "folder_or_task_type"
 
 
-class ExistingItemStrategy(str, Enum):
+class ExistingItemStrategy(StrEnum):
     """Strategy for handling existing items during import."""
+
     SKIP = "skip"
     UPDATE = "update"
     FAIL = "fail"
@@ -81,12 +71,7 @@ class ImportableColumn(OPModel):
         ),
     ]
 
-    required: Annotated[
-        bool,
-        Field(
-            description="If value in field is required"
-        )
-    ]
+    required: Annotated[bool, Field(description="If value in field is required")]
 
     value_type: Annotated[
         AttributeType,
@@ -101,28 +86,19 @@ class ImportableColumn(OPModel):
     ]
 
     default_value: Annotated[
-        str | None,
-        Field(
-            description="If value in field is required"
-        )
+        str | None, Field(description="If value in field is required")
     ]
 
     enum_items: Annotated[
         list[EnumItem] | None,
-        Field(
-            description=(
-                "A list of possible enum items for this column (if set)"
-            )
-        ),
+        Field(description=("A list of possible enum items for this column "
+                           "(if set)")),
     ]
 
     enum_name: Annotated[
         str | None,
-        Field(
-            description=(
-                "The enum resolver name (e.g., 'statuses', 'folderTypes')"
-            )
-        ),
+        Field(description=("The enum resolver name (e.g., 'statuses', "
+                           "'folderTypes')")),
     ] = None
 
     error_handling_modes: Annotated[
@@ -147,34 +123,27 @@ class ImportableColumn(OPModel):
         ),
     ] = True
 
+
 class ColumnValueMapping(OPModel):
     """Value to value mapping mostly for enum fields"""
+
     source: Annotated[
-        Optional[str],   # allow replacement of empty value with some default
-        Field(
-            description=(
-                "The source value from csv"
-            )
-        ),
+        str | None,  # allow replacement of empty value with some default
+        Field(description=("The source value from csv")),
     ]
     target: Annotated[
-        Optional[str],
-        Field(
-            description=(
-                "The target value from csv"
-            )
-        ),
+        str | None,
+        Field(description=("The target value from csv")),
     ]
     action: Annotated[
         Literal["map", "skip", "create"],
-        Field(
-            description="Map, skip or create missing"
-        )
+        Field(description="Map, skip or create missing"),
     ]
 
 
 class ColumnMapping(OPModel):
     """User configured mapping of source csv column to target db column"""
+
     source_key: Annotated[
         str,
         Field(
@@ -194,25 +163,19 @@ class ColumnMapping(OPModel):
     ]
 
     action: Annotated[
-        Literal["map", "skip"],
-        Field(
-            description="Map or skip whole column"
-        )
+        Literal["map", "skip"], Field(description="Map or skip whole column")
     ]
 
     error_handling_mode: Annotated[
         ErrorHandlingMode,
-        Field(
-            description="Handle errors in this column. 'abort' to stop import"
-        )
+        Field(description="Handle errors in this column. 'abort' to stop import"),
     ]
 
     values_mapping: Annotated[
-        List[ColumnValueMapping],
-        Field(
-            description="List of values mapping mostly for enum fields"
-        )
+        list[ColumnValueMapping],
+        Field(description="List of values mapping mostly for enum fields"),
     ]
+
 
 # Reusable column definitions for hierarchy imports
 ENTITY_TYPE_COLUMN = ImportableColumn(
@@ -225,8 +188,8 @@ ENTITY_TYPE_COLUMN = ImportableColumn(
     enum_name=None,
     enum_items=[
         EnumItem(value="folder", label="Folder"),
-        EnumItem(value="task", label="Task")
-    ]
+        EnumItem(value="task", label="Task"),
+    ],
 )
 
 PATH_COLUMN = ImportableColumn(
@@ -237,17 +200,20 @@ PATH_COLUMN = ImportableColumn(
     default_value="",
     error_handling_modes=["abort"],
     enum_name=None,
-    enum_items=None
+    enum_items=None,
 )
 
 
 class ImportStatus(OPModel):
     """Status model for tracking import results."""
+
     created: int = 0
     updated: int = 0
     skipped: int = 0
     failed: int = 0
-    failed_items: Dict[str, Any] = Field(default_factory=dict)  # Dict of items that failed with error details (name -> error message)
+    failed_items: dict[str, Any] = Field(
+        default_factory=dict
+    )  # Dict of items that failed with error details (name -> error message)
     preview: bool = False  # if import was run in regular or dry run mode
 
 
@@ -256,6 +222,7 @@ class ImportUpload(OPModel):
 
     It is expected to be enhanced with preview data, fields (?) in the future.
     """
+
     id: str
 
 
@@ -271,31 +238,32 @@ class EntityExportImport:
 
     _entity_model = None  # Entity model class
     _table_name = ""  # Table name for queries
-    _unique_fields: List[str] = ["name"]  # Default unique fields
-    _data_fields: List[Tuple[str, FieldInfo]] = []  # Additional data fields
+    _unique_fields: list[str] = ["name"]  # Default unique fields
+    _data_fields: list[tuple[str, FieldInfo]] = []  # Additional data fields
     # Fields that are calculated during import and not stored in DB,
     # 'path' for example
-    _calculated_fields: List[ImportableColumn] = []
-    _parent_column_name: Optional[str] = None  # Column name for parent reference
+    _calculated_fields: list[ImportableColumn] = []
+    # Column name for parent reference
+    _parent_column_name: str | None = None
     # Field names to exclude from export/import
     # Subclasses can override by redefining this class attribute
-    _excluded_field_names: Set[str] = {
+    _excluded_field_names: set[str] = {
         "created_at",
         "updated_at",
         "created_by",
         "updated_by",
         "thumbnail_id",
-        "creation_order"
+        "creation_order",
     }
 
     @classmethod
-    def unique_fields(cls) -> List[str]:
+    def unique_fields(cls) -> list[str]:
         return cls._unique_fields
 
     @classmethod
-    def parent_column_name(cls) -> Optional[str]:
+    def parent_column_name(cls) -> str | None:
         """Return the column name for the parent reference.
-        
+
         Returns:
             The column name (e.g., 'parent_id' for Folders, 'folder_id' for Tasks)
             or None if not applicable.
@@ -316,62 +284,57 @@ class EntityExportImport:
         return None
 
     @classmethod
-    def main(cls) -> List[ModelField]:
+    def main(cls) -> list[ModelField]:
         """Return main fields from entity model"""
         if cls._entity_model is None:
             return []
-        
+
         return [
             value
             for value in _get_model_fields(cls._entity_model.model.main_model).values()
-            if value.name not in ["attrib", "data", "own_attrib"] and
-               value.name not in cls._entity_model.model.dynamic_fields
+            if value.name not in ["attrib", "data", "own_attrib"]
+            and value.name not in cls._entity_model.model.dynamic_fields
         ]
 
     @classmethod
-    def attrib(cls) -> List[ModelField]:
+    def attrib(cls) -> list[ModelField]:
         """Return attribute fields from entity model with 'attrib.' prefix."""
         if cls._entity_model is None:
             return []
-        
-        result: List[ModelField] = []
+
+        result: list[ModelField] = []
         for f in _get_model_fields(cls._entity_model.model.attrib_model).values():
             # Create a copy with prefixed name
             new_field = ModelField(
                 name=f"attrib.{f.name}",
-                type_=getattr(f, 'type_', f.annotation),
+                type_=getattr(f, "type_", f.annotation),
                 field_info=f.field_info,
                 required=f.required,
                 default=f.default,
                 model_config=f.model_config,
-                class_validators=getattr(f, 'class_validators', None),
+                class_validators=getattr(f, "class_validators", None),
             )
             result.append(new_field)
         return result
 
     @classmethod
-    def data(cls) -> List[Tuple[str, FieldInfo]]:
+    def data(cls) -> list[tuple[str, FieldInfo]]:
         """Return data fields for auxiliary data."""
         return cls._data_fields
 
     @classmethod
-    async def fields(cls, project_name: str = None) -> List[ImportableColumn]:
+    async def fields(cls, project_name: str | None = None) -> list[ImportableColumn]:
         """Return model fields (public) plus fields derived from `_attrib`.
 
         Args:
             project_name: Project name for resolving project-specific enums.
         """
-        result: List[ImportableColumn] = []
+        result: list[ImportableColumn] = []
 
         # Model fields (exclude private fields starting with underscore)
         all_fields = [
             field
-            for source in [
-                cls.main(),
-                cls.attrib(),
-                cls.data(),
-                cls._calculated_fields
-            ]
+            for source in [cls.main(), cls.attrib(), cls.data(), cls._calculated_fields]
             for field in source
         ]
         for field in all_fields:
@@ -419,18 +382,18 @@ class EntityExportImport:
             label = name
             if field_info and field_info.title:
                 label = field_info.title
-            
+
             # Convert annotation to valid AttributeType
             value_type = _get_attr_type_from_annotation(annotation)
-            
+
             # Determine error handling modes based on field requirements
             # - "skip" and "abort" are always available
             # - "default" is only available for non-required fields
-            error_handling_modes: List[str] = ["skip", "abort"]
+            error_handling_modes: list[str] = ["skip", "abort"]
             if not required:
                 error_handling_modes.append("default")
 
-            field_dict: Dict[str, Any] = {
+            field_dict: dict[str, Any] = {
                 "key": name,
                 "label": label,
                 "value_type": value_type,
@@ -443,8 +406,8 @@ class EntityExportImport:
             field_to_enum_names = {
                 "status": "statuses",
                 "folder_type": "folderTypes",
-                "task_type":  "taskTypes",
-                "link_type": "linkTypes"
+                "task_type": "taskTypes",
+                "link_type": "linkTypes",
             }
             enum_name = field_to_enum_names.get(name) or name
             try:
@@ -474,11 +437,11 @@ class EntityExportImport:
     @classmethod
     async def get_all_items(
         cls,
-        field_names: List[str],
+        field_names: list[str],
         as_csv: bool = False,
         project_name: str = None,
-        entity_ids: Tuple[str, List[str]] = None
-    ) -> List[dict[str, Any]] | List[List[str]]:
+        entity_ids: tuple[str, list[str]] = None,
+    ) -> list[dict[str, Any]] | list[list[str]]:
         """Get all entities from the database.
 
         Args:
@@ -491,10 +454,8 @@ class EntityExportImport:
             List of entity dictionaries or CSV rows (including header)
         """
         if field_names is None:
-            fields = await  cls.fields()
-            field_names = [
-                field.key for field in fields
-            ]
+            fields = await cls.fields()
+            field_names = [field.key for field in fields]
 
         # Resolve table name
         table_name = cls._table_name
@@ -506,7 +467,7 @@ class EntityExportImport:
         if entity_ids:
             id_field = entity_ids[0]
             id_list = entity_ids[1]
-            placeholders = ", ".join(f"${i+1}" for i in range(len(id_list)))
+            placeholders = ", ".join(f"${i + 1}" for i in range(len(id_list)))
             where = f"WHERE {id_field} IN ({placeholders})"
             query_values = id_list
 
@@ -515,7 +476,7 @@ class EntityExportImport:
         if "path" in field_names:
             # If path is requested, we need to join with hierarchy table to get it
             matching_key_field = (
-                "folder_id"  if cls._entity_model == TaskEntity else "id"
+                "folder_id" if cls._entity_model == TaskEntity else "id"
             )
             join_str = (
                 f"LEFT JOIN project_{project_name}.hierarchy h "
@@ -532,7 +493,8 @@ class EntityExportImport:
             f"SELECT {select_field_names} "
             f"FROM {table_name} "
             f"{join_str} "
-            f"{where} ORDER BY name")
+            f"{where} ORDER BY name"
+        )
         rows = await Postgres.fetch(query, *query_values)
 
         return await cls._return_items(as_csv, field_names, rows)
@@ -608,9 +570,7 @@ class UserExportImportModel(EntityExportImport):
         name = kwargs["name"]
         preview = kwargs.get("preview", False)
 
-        user = UserEntity(
-            payload={**kwargs}
-        )
+        user = UserEntity(payload={**kwargs})
         user.set_password(name)
         if not preview:
             await user.save()
@@ -664,7 +624,7 @@ class TaskExportImportModel(EntityExportImport):
 
 class FolderTaskExportImportModel(EntityExportImport):
     """Model for exporting tasks with folder path information.
-    
+
     Uses TaskEntity.base_get_query to fetch tasks with their folder paths
     from the hierarchy table.
     """
@@ -679,7 +639,7 @@ class FolderTaskExportImportModel(EntityExportImport):
     _calculated_fields = []
 
     @classmethod
-    async def fields(cls, project_name: str = None) -> List[ImportableColumn]:
+    async def fields(cls, project_name: str = None) -> list[ImportableColumn]:
         """Return task fields including folder_path.
 
         Args:
@@ -689,13 +649,11 @@ class FolderTaskExportImportModel(EntityExportImport):
             return []
 
         # Add entity_type field at first position
-        result: List[ImportableColumn] = []
+        result: list[ImportableColumn] = []
 
         # Get fields from both models
-        folder_fields = await FolderExportImportModel.fields(
-            project_name=project_name)
-        task_fields = await TaskExportImportModel.fields(
-            project_name=project_name)
+        folder_fields = await FolderExportImportModel.fields(project_name=project_name)
+        task_fields = await TaskExportImportModel.fields(project_name=project_name)
 
         process_columns = [
             ImportableColumn(
@@ -708,9 +666,9 @@ class FolderTaskExportImportModel(EntityExportImport):
                 enum_name=None,
                 enum_items=[
                     EnumItem(value="folder", label="Folder"),
-                    EnumItem(value="task", label="Task")
+                    EnumItem(value="task", label="Task"),
                 ],
-                create_new_items=False
+                create_new_items=False,
             ),
             ImportableColumn(
                 key="path",
@@ -720,7 +678,7 @@ class FolderTaskExportImportModel(EntityExportImport):
                 default_value="",
                 error_handling_modes=["abort"],
                 enum_name=None,
-                enum_items=None
+                enum_items=None,
             ),
             # to use only single column in csv to contain both
             # folder and task types
@@ -733,8 +691,8 @@ class FolderTaskExportImportModel(EntityExportImport):
                 error_handling_modes=["abort"],
                 enum_name=None,
                 enum_items=None,
-                create_new_items=False
-            )
+                create_new_items=False,
+            ),
         ]
 
         label_overrides = {
@@ -746,7 +704,7 @@ class FolderTaskExportImportModel(EntityExportImport):
             "label": "Label",
         }
         # Combine and deduplicate by field name
-        seen_names: Set[str] = set()
+        seen_names: set[str] = set()
         for field in folder_fields + task_fields + process_columns:
             # control required explicitly based on agreed format
             field.required = field.key in cls._process_required_fields
@@ -760,23 +718,25 @@ class FolderTaskExportImportModel(EntityExportImport):
     @classmethod
     async def get_all_items(
         cls,
-        field_names: List[str],
+        field_names: list[str],
         as_csv: bool = False,
         project_name: str = None,
-        entity_ids: Tuple[str, List[str]] = None
-    ) -> List[dict[str, Any]] | List[List[str]]:
+        entity_ids: tuple[str, list[str]] = None,
+    ) -> list[dict[str, Any]] | list[list[str]]:
         """Get all tasks with folder path information.
-        
+
         Calls get_all_items from FolderExportImportModel and TaskExportImportModel
         sequentially and orders items in hierarchy where Task with folder_id of X
         should be under Folder with id X.
         """
         if field_names is None:
-            fields = await  cls.fields()
+            fields = await cls.fields()
             field_names = [field.key for field in fields]
 
         # Get folders and tasks sequentially (as dictionaries, not CSV)
-        folder_items: List[dict[str, Any]] = await FolderExportImportModel.get_all_items(
+        folder_items: list[
+            dict[str, Any]
+        ] = await FolderExportImportModel.get_all_items(
             field_names=field_names,
             as_csv=False,
             project_name=project_name,
@@ -788,7 +748,7 @@ class FolderTaskExportImportModel(EntityExportImport):
         if entity_ids:
             task_entity_ids = entity_ids
 
-        task_items: List[dict[str, Any]] = await TaskExportImportModel.get_all_items(
+        task_items: list[dict[str, Any]] = await TaskExportImportModel.get_all_items(
             field_names=field_names,
             as_csv=False,
             project_name=project_name,
@@ -804,14 +764,10 @@ class FolderTaskExportImportModel(EntityExportImport):
         # Build lookup structures
         if "path" in field_names:
             result_items = await cls._build_hierarchy_by_ids_with_path(
-                folder_items,
-                task_items
+                folder_items, task_items
             )
         else:
-            result_items = await cls._build_hierarchy_by_ids(
-                folder_items,
-                task_items
-            )
+            result_items = await cls._build_hierarchy_by_ids(folder_items, task_items)
 
         if as_csv:
             # Create CSV rows with header
@@ -828,29 +784,28 @@ class FolderTaskExportImportModel(EntityExportImport):
 
     @classmethod
     async def _build_hierarchy_by_ids(cls, folder_items, task_items):
-        folder_by_id: Dict[str, dict] = {folder["id"]: folder for folder in folder_items}
-        children_by_parent_id: Dict[str, List[dict]] = {}
+        folder_by_id: dict[str, dict] = {
+            folder["id"]: folder for folder in folder_items
+        }
+        children_by_parent_id: dict[str, list[dict]] = {}
         for folder in folder_items:
             parent_id = folder.get("parent_id")
             if parent_id not in children_by_parent_id:
                 children_by_parent_id[parent_id] = []
             children_by_parent_id[parent_id].append(folder)
-        tasks_by_folder_id: Dict[str, List[dict]] = {}
+        tasks_by_folder_id: dict[str, list[dict]] = {}
         for task in task_items:
             folder_id = task.get("folder_id")
             if folder_id not in tasks_by_folder_id:
                 tasks_by_folder_id[folder_id] = []
             tasks_by_folder_id[folder_id].append(task)
         # Build ordered list with folders and their children recursively
-        result_items: List[dict[str, Any]] = []
+        result_items: list[dict[str, Any]] = []
         # Start with root folders (those with no parent)
         root_folders = children_by_parent_id.get(None, [])
         for root_folder in root_folders:
             cls._add_folder_and_children_by_ids(
-                root_folder,
-                result_items,
-                children_by_parent_id,
-                tasks_by_folder_id
+                root_folder, result_items, children_by_parent_id, tasks_by_folder_id
             )
         # Handle orphan tasks (tasks with no valid folder_id)
         orphan_tasks = tasks_by_folder_id.get(None, [])
@@ -866,9 +821,9 @@ class FolderTaskExportImportModel(EntityExportImport):
     def _add_folder_and_children_by_ids(
         cls,
         folder: dict[str, Any],
-        result_items: List[dict[str, Any]] = None,
-        children_by_parent_id = None,
-        tasks_by_folder_id = None
+        result_items: list[dict[str, Any]] = None,
+        children_by_parent_id=None,
+        tasks_by_folder_id=None,
     ):
         """Recursively add folder and its children to result_items."""
         if result_items is None:
@@ -879,10 +834,7 @@ class FolderTaskExportImportModel(EntityExportImport):
         child_folders = children_by_parent_id.get(folder_id, [])
         for child_folder in child_folders:
             cls._add_folder_and_children_by_ids(
-                child_folder,
-                result_items,
-                children_by_parent_id,
-                tasks_by_folder_id
+                child_folder, result_items, children_by_parent_id, tasks_by_folder_id
             )
         # Add tasks under this folder
         tasks = tasks_by_folder_id.get(folder_id, [])
@@ -890,15 +842,14 @@ class FolderTaskExportImportModel(EntityExportImport):
 
     @classmethod
     async def _build_hierarchy_by_ids_with_path(
-        cls, folder_items: List[Dict], task_items: List[Dict]
-    ) -> List[Dict]:
+        cls, folder_items: list[dict], task_items: list[dict]
+    ) -> list[dict]:
         """
         Build hierarchy using natural path sorting.
-        Folders are sorted by path; tasks are placed immediately after their parent folder.
+        Folders are sorted by path; tasks are placed immediately after their
+        parent folder.
         """
-        all_items = [
-            {**item, "_is_folder": True} for item in folder_items
-        ] + [
+        all_items = [{**item, "_is_folder": True} for item in folder_items] + [
             {**item, "_is_folder": False} for item in task_items
         ]
 
@@ -932,51 +883,57 @@ class EntityListExportImportModel(EntityExportImport):
     _parent_column_name = "entity_list_id"
 
     @classmethod
-    async def fields(cls, project_name: str = None) -> List[ImportableColumn]:
+    async def fields(cls, project_name: str = None) -> list[ImportableColumn]:
         """Return model fields (public) plus fields derived from `_attrib`.
 
         Args:
             project_name: Project name for resolving project-specific enums.
         """
-        result: List[ImportableColumn] = []
+        result: list[ImportableColumn] = []
 
-        result.append(ImportableColumn(
-            key="entity_list_id",
-            label="Entity List Id",
-            required=False,
-            value_type="string",
-            default_value="",
-            error_handling_modes=["abort"]
-        ))
+        result.append(
+            ImportableColumn(
+                key="entity_list_id",
+                label="Entity List Id",
+                required=False,
+                value_type="string",
+                default_value="",
+                error_handling_modes=["abort"],
+            )
+        )
 
-        result.append(ImportableColumn(
-            key="entity_id",
-            label="Entity Id",
-            required=False,
-            value_type="string",
-            default_value="",
-            error_handling_modes=["abort"]
-        ))
+        result.append(
+            ImportableColumn(
+                key="entity_id",
+                label="Entity Id",
+                required=False,
+                value_type="string",
+                default_value="",
+                error_handling_modes=["abort"],
+            )
+        )
 
-        result.append(ImportableColumn(
-            key="folder_path",
-            label="Entity path",
-            required=False,
-            value_type="string",
-            default_value="",
-            error_handling_modes=["skip"]
-        ))
+        result.append(
+            ImportableColumn(
+                key="folder_path",
+                label="Entity path",
+                required=False,
+                value_type="string",
+                default_value="",
+                error_handling_modes=["skip"],
+            )
+        )
 
         return result
 
     @classmethod
     async def get_all_items(
         cls,
-        field_names: List[str],
+        field_names: list[str],
         as_csv: bool = False,
         project_name: str = None,
-        entity_ids: Tuple[str, List[str]] = None
-    ) -> List[dict[str, Any]] | List[List[str]]:
+        entity_ids: tuple[str, list[str]] = None,
+    ) -> list[dict[str, Any]] | list[list[str]]:
         """Get all entities from the database.
 
         Args:
@@ -989,23 +946,21 @@ class EntityListExportImportModel(EntityExportImport):
             List of entity dictionaries or CSV rows (including header)
         """
         if field_names is None:
-            fields = await  cls.fields()
-            field_names = [
-                field.key for field in fields
-            ]
+            fields = await cls.fields()
+            field_names = [field.key for field in fields]
 
         where = ""
         query_values = []
         if entity_ids:
             id_list = entity_ids[1]
-            placeholders = ", ".join(f"${i+1}" for i in range(len(id_list)))
+            placeholders = ", ".join(f"${i + 1}" for i in range(len(id_list)))
             where = f"WHERE  li.entity_list_id IN ({placeholders})"
 
         query = (
             "SELECT li.entity_id, li.entity_list_id, "
             "CASE "
-                "WHEN t.id IS NOT NULL THEN li.folder_path || '/' || t.name "
-                "ELSE li.folder_path "
+            "WHEN t.id IS NOT NULL THEN li.folder_path || '/' || t.name "
+            "ELSE li.folder_path "
             "END AS folder_path "
             f"FROM project_{project_name}.entity_list_items li "
             f"LEFT JOIN project_{project_name}.tasks t "
@@ -1031,24 +986,18 @@ class EntityListExportImportModel(EntityExportImport):
             )
 
         async with Postgres.transaction():
-            entity_list = await EntityList.load(
-                project_name, entity_list_id, user=user
-            )
+            entity_list = await EntityList.load(project_name, entity_list_id, user=user)
             await entity_list.ensure_can_update()
 
             # folder paths might be folders or tasks
             if not entity_id:
                 try:
                     entity_id = await _get_entity_id_by_path(
-                        project_name,
-                        folder_path,
-                        is_task=False
+                        project_name, folder_path, is_task=False
                     )
                 except NotFoundException:
                     entity_id = await _get_entity_id_by_path(
-                        project_name,
-                        folder_path,
-                        is_task=True
+                        project_name, folder_path, is_task=True
                     )
 
             list_type = entity_list.entity_type
@@ -1060,9 +1009,7 @@ class EntityListExportImportModel(EntityExportImport):
                 elif list_type == "version":
                     await VersionEntity.load(project_name, entity_id)
                 else:
-                    raise ValueError(
-                        f"Unsupported entity type: {list_type}"
-                    )
+                    raise ValueError(f"Unsupported entity type: {list_type}")
             except NotFoundException:
                 raise NotFoundException(
                     f"Entity with id '{entity_id}' not found for type '{list_type}'"
@@ -1080,8 +1027,7 @@ class EntityListExportImportModel(EntityExportImport):
             )
             if not preview:
                 await entity_list.save(
-                    sender=f"{SENDER_TYPE}-create",
-                    sender_type=SENDER_TYPE
+                    sender=f"{SENDER_TYPE}-create", sender_type=SENDER_TYPE
                 )
 
         return new_id
@@ -1110,9 +1056,8 @@ def _get_field_value(row: dict[str, Any], field_name: str) -> Any:
     if "." in field_name:
         prefix, key = field_name.split(".", 1)
         return (
-            row.get(prefix, {}).get(key)
-            if isinstance(row.get(prefix), dict)
-            else None)
+            row.get(prefix, {}).get(key) if isinstance(row.get(prefix), dict) else None
+        )
     else:
         return row.get(field_name)
 
@@ -1123,7 +1068,7 @@ def _get_model_fields(model: type[BaseModel]) -> dict:
     Pydantic v2 uses 'model_fields' while v1 uses '__fields__'.
     This helper provides compatibility with both versions.
     """
-    if hasattr(model, 'model_fields'):
+    if hasattr(model, "model_fields"):
         return model.model_fields
     return model.__fields__
 
@@ -1170,7 +1115,7 @@ def _get_attr_type_from_annotation(annotation: Any) -> str:
 
     # Check if it's a direct type in our mapping (including Optional versions)
     for py_type, attr_type in TYPE_TO_ATTR_TYPE.items():
-        if annotation == py_type or annotation == Optional[py_type]:
+        if annotation == py_type or annotation == py_type | None:
             return attr_type
 
     # Handle Pydantic constrained types (e.g., conint, constrained integers
@@ -1205,5 +1150,5 @@ EXPORTABLE_ENTITIES = {
     "folder": FolderExportImportModel,
     "task": TaskExportImportModel,
     "hierarchy": FolderTaskExportImportModel,
-    "entity_list_item": EntityListExportImportModel
+    "entity_list_item": EntityListExportImportModel,
 }

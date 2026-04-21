@@ -7,50 +7,49 @@ their data into the AYON system as users, folders, tasks, or hierarchies.
 
 import csv
 import io
-from datetime import datetime
-from typing import Any, Annotated, List
 import json
 import traceback
+from datetime import datetime
+from typing import Annotated, Any
 
-from fastapi import Path, Request, Body
+from fastapi import Body, Path, Request
 
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.entities import UserEntity, FolderEntity, TaskEntity
+from ayon_server.entities import FolderEntity, TaskEntity, UserEntity
+from ayon_server.entity_lists.models import EntityListItemModel
 from ayon_server.enum.enum_item import EnumItem
 from ayon_server.enum.enum_registry import EnumRegistry
-from ayon_server.entity_lists.models import EntityListItemModel
+from ayon_server.events.eventstream import EventStream
 from ayon_server.exceptions import (
     BadRequestException,
     ForbiddenException,
-    NotFoundException,
     ImportRowErrorException,
+    NotFoundException,
 )
-from ayon_server.events.eventstream import EventStream
 from ayon_server.helpers.get_entity_class import get_entity_class
-from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
+from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.utils import create_uuid
-from .common import _get_entity_id_by_path, SENDER_TYPE
 
+from .common import SENDER_TYPE, _get_entity_id_by_path
 from .export_data import EntityType
 from .models import (
-    UserExportImportModel,
+    HIERARCHY_UNIFIED_COLUMN,
+    ColumnMapping,
     EntityExportImport,
-    FolderExportImportModel,
-    TaskExportImportModel,
-    FolderTaskExportImportModel,
+    EntityListExportImportModel,
     ExistingItemStrategy,
     ExistingStrategyType,
+    FolderExportImportModel,
+    FolderTaskExportImportModel,
+    ImportableColumn,
     ImportStatus,
     ImportUpload,
-    ColumnMapping,
-    ImportableColumn,
-    EntityListExportImportModel,
-    HIERARCHY_UNIFIED_COLUMN,
+    TaskExportImportModel,
+    UserExportImportModel,
 )
 from .router import router
-
 
 # Redis namespace for storing uploaded CSV files
 REDIS_NS = "csv.import"
@@ -61,7 +60,7 @@ SUPPORTED_MIME_TYPES = {
     "text/csv": ".csv",
     "application/vnd.ms-excel": ".csv",
     "application/csv": ".csv",
-    "text/x-csv": ".csv"
+    "text/x-csv": ".csv",
 }
 
 # Model classes for each importable entity type
@@ -79,7 +78,7 @@ ENTITY_TYPE_TO_ENTITY_CLASS: dict = {
     "folder": FolderEntity,
     "task": TaskEntity,
     "hierarchy": None,
-    "entity_list_item": EntityListItemModel
+    "entity_list_item": EntityListItemModel,
 }
 
 # Model classes for hierarchy import (folder and task)
@@ -137,15 +136,14 @@ async def upload_file(
 
 @router.post("/import/{import_type}")
 async def import_data(
-    import_type: Annotated[
-        EntityType, Path(title="Import entity type")],
+    import_type: Annotated[EntityType, Path(title="Import entity type")],
     user: CurrentUser,
     file_id: str,  # pointer to file stored in Redis
-    column_mapping: List[ColumnMapping],
-    existing_strategy: ExistingStrategyType = ExistingItemStrategy.UPDATE,  # what to do if item found in target
+    column_mapping: list[ColumnMapping],
+    existing_strategy: ExistingStrategyType = ExistingItemStrategy.UPDATE,
     project_name: str = None,
-    folder_id: str = None,    # limit import to specific folder
-    preview: bool  = False,  # do not commit to db if True
+    folder_id: str = None,  # limit import to specific folder
+    preview: bool = False,  # do not commit to db if True
 ) -> ImportStatus:
     """Process CSV file and import entities to the database.
 
@@ -200,15 +198,13 @@ async def import_data(
     fields = await model_cls.fields(project_name=project_name)
     required_fields = [f.key for f in fields if f.required]
     if import_type != "hierarchy":
-        existing_identifiers = await _get_existing_identifiers(
-            model_cls, project_name
-        )
+        existing_identifiers = await _get_existing_identifiers(model_cls, project_name)
     else:
         # For hierarchy, pre-fetch existing identifiers for both folder and task
         for entity_type, model_cls in HIERARCHY_MODEL_CLASSES.items():
-            hierarchy_existing_identifiers[entity_type] = await _get_existing_identifiers(
-                model_cls, project_name
-            )
+            hierarchy_existing_identifiers[
+                entity_type
+            ] = await _get_existing_identifiers(model_cls, project_name)
 
     operations: ProjectLevelOperations = ProjectLevelOperations(
         project_name,
@@ -220,7 +216,7 @@ async def import_data(
     originals_and_new = {}
     path_to_ids = {}
     unprocessed = len(filtered_rows)
-    row_number  = 0
+    row_number = 0
 
     task_type_enum_items = await EnumRegistry.resolve(
         "taskTypes", project_name=project_name
@@ -254,12 +250,7 @@ async def import_data(
 
             fields = await model_cls.fields(project_name=project_name)
             await _remap_row(
-                project_name,
-                header,
-                import_entity_data,
-                row,
-                fields,
-                column_mapping
+                project_name, header, import_entity_data, row, fields, column_mapping
             )
 
             if "path" in import_entity_data and import_entity_data["path"]:
@@ -308,22 +299,16 @@ async def import_data(
             # as its not a field to set
             import_entity_data.pop("entity_type", None)
 
-            if (
-                    import_entity_data.get("path") and
-                    not import_entity_data.get("name")
-            ):
+            if import_entity_data.get("path") and not import_entity_data.get("name"):
                 import_entity_data["name"] = (
-                    import_entity_data["path"].rsplit("/", 1))[-1]
+                    import_entity_data["path"].rsplit("/", 1)
+                )[-1]
 
             # refactor
-            if (entity_cls == FolderEntity and
-                    not import_entity_data.get("folder_type")):
+            if entity_cls == FolderEntity and not import_entity_data.get("folder_type"):
                 import_entity_data["folder_type"] = "Folder"
 
-            if (
-                entity_cls == TaskEntity and
-                not import_entity_data.get("task_type")
-            ):
+            if entity_cls == TaskEntity and not import_entity_data.get("task_type"):
                 import_entity_data["task_type"] = default_task_type
 
             logger.debug(
@@ -336,11 +321,7 @@ async def import_data(
                     user=user, preview=preview, **import_entity_data
                 )
                 if not custom_updated:
-                    operations.update(
-                        entity_type,
-                        entity_id,
-                        **import_entity_data
-                    )
+                    operations.update(entity_type, entity_id, **import_entity_data)
                 import_status.updated += 1
             else:
                 entity_id = await model_cls.create(
@@ -349,9 +330,7 @@ async def import_data(
                 if not entity_id:
                     entity_id = create_uuid()
                     operations.create(
-                        entity_type,
-                        entity_id=entity_id,
-                        **import_entity_data
+                        entity_type, entity_id=entity_id, **import_entity_data
                     )
                 import_status.created += 1
 
@@ -406,7 +385,7 @@ async def import_data(
                     finished=True,
                     store=True,
                     sender="data_import",
-                    sender_type="system"
+                    sender_type="system",
                 )
                 return import_status
             import_status.skipped += 1
@@ -416,11 +395,10 @@ async def import_data(
         try:
             response = await operations.process()
             if not response.success:
-                logger.error(f"Failed to import data", exc_info=True)
+                logger.error("Failed to import data", exc_info=True)
         except Exception as exp:
             logger.error(
-                f"Exception during import operations processing: {exp}",
-                exc_info=True
+                f"Exception during import operations processing: {exp}", exc_info=True
             )
             import_status.failed_items["global"] = (
                 f"Import failed during operations processing: {exp}"
@@ -457,8 +435,8 @@ async def import_data(
 async def _get_entity_type(
     project_name: str,
     row: dict[str, Any],
-    column_mapping: List[ColumnMapping],
-    fields: List[ImportableColumn],
+    column_mapping: list[ColumnMapping],
+    fields: list[ImportableColumn],
 ) -> str:
     """Extract the entity type from column mapping for hierarchy imports.
 
@@ -468,15 +446,10 @@ async def _get_entity_type(
         column_mapping: List of ColumnMapping objects provided by the user
         fields: Available importable columns
     """
-    target_mapping_by_key = {
-        mapping.target_key: mapping
-        for mapping in column_mapping
-    }
+    target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
     entity_type_mapping = target_mapping_by_key.get("entity_type")
     if not entity_type_mapping:
-        raise ValueError(
-            "Missing column mapping for 'entity_type' in hierarchy import"
-        )
+        raise ValueError("Missing column mapping for 'entity_type' in hierarchy import")
 
     # Use the reusable helper to remap the column value
     import_entity_data: dict[str, Any] = {}
@@ -543,7 +516,7 @@ async def _remap_single_column(
     project_name: str,
     mapping: ColumnMapping,
     row: dict[str, Any],
-    fields: List[ImportableColumn],
+    fields: list[ImportableColumn],
     import_entity_data: dict[str, Any],
     column_name: str | None = None,
 ) -> None:
@@ -566,8 +539,7 @@ async def _remap_single_column(
 
     # Get the target column definition
     importable_column_by_key = {
-        importable_column.key: importable_column
-        for importable_column in fields
+        importable_column.key: importable_column for importable_column in fields
     }
     importable_column = importable_column_by_key.get(target_column_name)
     if not importable_column:
@@ -575,10 +547,7 @@ async def _remap_single_column(
         return
 
     # Build value mapping dictionary
-    value_mapping = {
-        (vm.source or ""): vm
-        for vm in mapping.values_mapping
-    }
+    value_mapping = {(vm.source or ""): vm for vm in mapping.values_mapping}
 
     # Get the value from the row
     source_value = row.get(csv_column_name)
@@ -622,7 +591,7 @@ async def _remap_single_column(
                 target_value,
                 importable_column.enum_items,
                 replacement_mapping_action,
-                enum_name=getattr(importable_column, 'enum_name', None),
+                enum_name=getattr(importable_column, "enum_name", None),
                 project_name=project_name,
             )
 
@@ -631,7 +600,7 @@ async def _remap_single_column(
             import_entity_data=import_entity_data,
             column_name=target_column_name,
             column_type=importable_column.value_type,
-            value=target_value
+            value=target_value,
         )
 
 
@@ -640,8 +609,8 @@ async def _remap_row(
     header: list[str],
     import_entity_data: dict[str, Any],
     row: dict[str, Any],
-    fields: List[ImportableColumn],
-    column_mapping: List[ColumnMapping]
+    fields: list[ImportableColumn],
+    column_mapping: list[ColumnMapping],
 ) -> None:
     """Remap CSV row data to match target schema based on column mapping.
 
@@ -653,18 +622,11 @@ async def _remap_row(
         column_mapping: User-defined column mappings
     """
     # Create lookup dictionaries for efficient access
-    source_mapping_by_key = {
-        mapping.source_key: mapping
-        for mapping in column_mapping
-    }
+    source_mapping_by_key = {mapping.source_key: mapping for mapping in column_mapping}
     importable_column_by_key = {
-        importable_column.key: importable_column
-        for importable_column in fields
+        importable_column.key: importable_column for importable_column in fields
     }
-    target_mapping_by_key = {
-        mapping.target_key: mapping
-        for mapping in column_mapping
-    }
+    target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
     # Process each CSV column
     for csv_column_name in header:
         mapping = source_mapping_by_key.get(csv_column_name)
@@ -675,13 +637,14 @@ async def _remap_row(
         error_handling_mode = mapping.error_handling_mode
         if column_name == HIERARCHY_UNIFIED_COLUMN:
             mapping_for_entity_type = target_mapping_by_key.get("entity_type")
-            # Special handling for hierarchy imports where folder and task share a column
+            # Special handling for hierarchy imports if folder/task share a column
             if not mapping_for_entity_type:
                 raise ValueError(
                     f"Missing 'entity_type' mapping for hierarchy import in row: {row}"
                 )
 
-            # Use the reusable helper to remap the entity_type value (applies error handling, enum validation, etc.)
+            # Use the reusable helper to remap the entity_type value
+            # (applies error handling, enum validation, etc.)
             entity_type_import_data: dict[str, Any] = {}
             await _remap_single_column(
                 project_name=project_name,
@@ -698,7 +661,8 @@ async def _remap_row(
                 )
             if entity_type not in HIERARCHY_MODEL_CLASSES:
                 raise ValueError(
-                    f"Invalid 'entity_type' value '{entity_type}' for hierarchy import in row: {row}"
+                    f"Invalid 'entity_type' value '{entity_type}' for hierarchy "
+                    f"import in row: {row}"
                 )
             # Adjust column name based on entity type 'folder_type'|'task_type'
             column_name = f"{entity_type}_type"
@@ -725,7 +689,7 @@ async def _remap_row(
                         import_entity_data=import_entity_data,
                         column_name=column_name,
                         column_type=importable_column.value_type,
-                        value=importable_column.default_value
+                        value=importable_column.default_value,
                     )
             else:
                 raise ValueError(error_msg)
@@ -780,7 +744,9 @@ async def _validate_enum_value(
     missing_values = to_check - valid_values
 
     if missing_values:
-        logger.info(f"Missing enum values: {missing_values} | Action: {replacement_action}")
+        logger.info(
+            f"Missing enum values: {missing_values} | Action: {replacement_action}"
+        )
 
         if replacement_action == "create":
             if not enum_name:
@@ -800,9 +766,9 @@ async def _validate_enum_value(
                 project_name=project_name,
             )
             return
-
+        missing_values_str = ', '.join(map(str, missing_values))
         raise ValueError(
-            f"Import contains invalid enum values: {', '.join(map(str, missing_values))}"
+            f"Import contains invalid enum values: {missing_values_str}"
         )
 
 
@@ -810,7 +776,7 @@ def _add_value_to_import_entity(
     import_entity_data: dict[str, Any],
     column_name: str,
     column_type: str | None,
-    value: Any
+    value: Any,
 ) -> None:
     """Add a value to the import_entity_data dictionary.
 
@@ -877,12 +843,11 @@ async def _check_all_required(
     """
     for req_field in required_fields:
         if req_field not in row or not row[req_field]:
-                raise ValueError(f"Missing required field '{req_field}'")
+            raise ValueError(f"Missing required field '{req_field}'")
 
 
 async def _get_existing_identifiers(
-    model: EntityExportImport,
-    project_name: str = None
+    model: EntityExportImport, project_name: str = None
 ) -> set[tuple]:
     """Get existing entity identifiers from the database.
 
@@ -894,12 +859,10 @@ async def _get_existing_identifiers(
         Set of tuples representing unique identifiers
     """
     existing_items = await model.get_all_items(
-        field_names=model.unique_fields(),
-        project_name=project_name
+        field_names=model.unique_fields(), project_name=project_name
     )
     existing_identifiers = {
-        tuple(item[field] for field in model.unique_fields())
-        for item in existing_items
+        tuple(item[field] for field in model.unique_fields()) for item in existing_items
     }
     return existing_identifiers
 
@@ -930,13 +893,13 @@ async def _resolve_entity_id(
     # Check by unique fields
     identifier = None
     for unique_field in model_cls.unique_fields():
-        identifier = tuple()
+        identifier = ()
         if unique_field not in row or not row[unique_field]:
             break
         identifier = identifier + (row[unique_field],)
 
     if identifier in existing_identifiers:
-        return identifier[0] # Return the identifier
+        return identifier[0]  # Return the identifier
 
     # Check by path if path is provided and entity supports it
     if "path" in row and row["path"]:
@@ -950,11 +913,7 @@ async def _resolve_entity_id(
         # Look up in database
         is_task = entity_cls == TaskEntity
         try:
-            entity_id = await _get_entity_id_by_path(
-                project_name,
-                path,
-                is_task
-            )
+            entity_id = await _get_entity_id_by_path(project_name, path, is_task)
             if entity_id:
                 path_to_ids[path] = entity_id  # Cache it
                 return entity_id
@@ -1005,11 +964,7 @@ async def _resolve_parent_id(
         path = row["path"]
         path_parts = path.split("/")
 
-        parent_path = (
-            "/".join(path_parts[:-1])
-            if len(path_parts) > 1
-            else ""
-        )
+        parent_path = "/".join(path_parts[:-1]) if len(path_parts) > 1 else ""
 
         parent_id = path_to_ids.get(parent_path)
         if parent_path and parent_id is None:
@@ -1017,7 +972,7 @@ async def _resolve_parent_id(
                 parent_id = await _get_entity_id_by_path(
                     project_name,
                     parent_path,
-                    False  # Not a task
+                    False,  # Not a task
                 )
             except NotFoundException:
                 raise ValueError(

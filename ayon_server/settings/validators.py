@@ -77,9 +77,7 @@ def ensure_unique_names(objects: Iterable[Any], field_name: str | None = None) -
 
 
 def ensure_unique_property(
-        items: Iterable[Any],
-        key: str = "name",
-        context: str = ""
+    items: Iterable[Any], key: str = "name", context: str = ""
 ) -> None:
     """
     Checks if a specific property is unique across a collection of objects.
