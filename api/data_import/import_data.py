@@ -37,9 +37,9 @@ from ayon_server.utils import create_uuid
 from .common import (
     SENDER_TYPE,
     get_entity_id_by_path,
-    ProjectNameQuery
+    ProjectNameQuery,
+    ImportEntityType
 )
-from .export_data import ImportEntityType
 from .models import (
     HIERARCHY_UNIFIED_COLUMN,
     ColumnMapping,
