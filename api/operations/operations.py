@@ -127,7 +127,12 @@ async def background_operations(
     query the status of the task.
     """
 
-    ops = ProjectLevelOperations(project_name, user=user)
+    ops = ProjectLevelOperations(
+        project_name,
+        user=user,
+        sender="background-operations",
+        sender_type="system",
+    )
 
     for operation in payload.operations:
         if operation.as_user:

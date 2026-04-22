@@ -4,6 +4,7 @@ from typing import Any
 import aiocache
 import psutil
 
+from ayon_server.helpers.project_list import get_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.types import Field, OPModel
@@ -127,9 +128,8 @@ class SystemMetrics:
     async def get_upload_sizes(self) -> list[Metric]:
         result: list[Metric] = []
 
-        q = "SELECT name FROM public.projects ORDER BY name"
-        projects = await Postgres.fetch(q)
-        project_names = [row["name"] for row in projects]
+        project_list = await get_project_list()
+        project_names = [p.name for p in project_list]
         total_size = 0
 
         for project_name in project_names:

@@ -1,5 +1,5 @@
 import json
-from typing import Annotated
+from typing import Annotated, cast
 
 from ayon_server.entities import ProjectEntity
 from ayon_server.entities.core import attribute_library
@@ -179,6 +179,48 @@ async def get_folders(
             """
         )
 
+    # Total count fields (for delete info). Only computed when ids filter
+    # is provided to prevent expensive full-project scans.
+    if ids is not None:
+        if fields.has_any("totalFolderCount"):
+            sql_columns.append(
+                f"""
+                (SELECT COUNT(*) FROM project_{project_name}.hierarchy h2
+                WHERE starts_with(h2.path, hierarchy.path || '/')) AS total_folder_count
+                """
+            )
+
+        if fields.has_any("totalTaskCount"):
+            sql_columns.append(
+                f"""
+                (SELECT COUNT(*) FROM project_{project_name}.tasks t
+                JOIN project_{project_name}.hierarchy h2 ON t.folder_id = h2.id
+                WHERE h2.path = hierarchy.path
+                OR starts_with(h2.path, hierarchy.path || '/')) AS total_task_count
+                """
+            )
+
+        if fields.has_any("totalProductCount"):
+            sql_columns.append(
+                f"""
+                (SELECT COUNT(*) FROM project_{project_name}.products p
+                JOIN project_{project_name}.hierarchy h2 ON p.folder_id = h2.id
+                WHERE h2.path = hierarchy.path
+                OR starts_with(h2.path, hierarchy.path || '/')) AS total_product_count
+                """
+            )
+
+        if fields.has_any("totalVersionCount"):
+            sql_columns.append(
+                f"""
+                (SELECT COUNT(*) FROM project_{project_name}.versions v
+                JOIN project_{project_name}.products p ON v.product_id = p.id
+                JOIN project_{project_name}.hierarchy h2 ON p.folder_id = h2.id
+                WHERE h2.path = hierarchy.path
+                OR starts_with(h2.path, hierarchy.path || '/')) AS total_version_count
+                """
+            )
+
     if fields.any_endswith("hasReviewables"):
         sql_cte.append(
             f"""
@@ -262,15 +304,17 @@ async def get_folders(
     if parent_ids is not None:
         if not parent_ids:
             return FoldersConnection()
-        pids_set = set(parent_ids)
+        pids_set: set[str | None] = set(parent_ids)
         lconds = []
         if "root" in pids_set or None in pids_set:
-            pids_set.discard("root")
-            pids_set.discard(None)  # type: ignore
             lconds.append("folders.parent_id IS NULL")
 
+        pids_set.discard("root")
+        pids_set.discard(None)
+
         if pids_set:
-            lconds.append(f"folders.parent_id IN {SQLTool.id_array(list(pids_set))}")
+            pids_list = cast("list[str]", list(pids_set))
+            lconds.append(f"folders.parent_id IN {SQLTool.id_array(pids_list)}")
 
         if lconds:
             sql_conditions.append(f"({' OR '.join(lconds)})")
@@ -352,14 +396,20 @@ async def get_folders(
         sql_conditions.append(cond)
 
     if search:
-        terms = slugify(search, make_set=True)
-        for term in terms:
-            term = term.replace("'", "''")
-            sql_conditions.append(
-                f"(folders.name ILIKE '%{term}%' OR "
-                f"folders.label ILIKE '%{term}%' OR "
-                f"hierarchy.path ILIKE '%{term}%')"
-            )
+        parts = search.split(",")
+        t1_conds = []
+
+        for part in parts:
+            terms = slugify(part, make_set=True)
+            t2_conds = []
+            for term in terms:
+                t2_conds.append(
+                    f"(folders.name ILIKE '%{term}%' OR "
+                    f"folders.label ILIKE '%{term}%' OR "
+                    f"hierarchy.path ILIKE '%{term}%')"
+                )
+            t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
+        sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
 
     #
     # Filter

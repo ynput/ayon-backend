@@ -44,6 +44,7 @@ async def create_entity_list(
         raise BadRequestException("Entity list type is required")
 
     async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
         entity_list = await EntityList.construct(
             project_name,
             payload.entity_type,
@@ -85,6 +86,7 @@ async def update_entity_list(
     """Update entity list metadata"""
 
     async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
         entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
 
@@ -168,6 +170,7 @@ async def delete_entity_list(
     """Delete entity list from the database"""
 
     async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
         entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
         await entity_list.delete()
@@ -184,6 +187,7 @@ async def materialize_entity_list(
     """Materialize an entity list."""
 
     async with Postgres.transaction():
+        await Postgres.set_project_schema(project_name)
         entity_list = await EntityList.load(project_name, entity_list_id, user=user)
         await entity_list.ensure_can_admin()
         await entity_list.materialize()

@@ -65,6 +65,7 @@ class Session:
         """
         data = await Redis.get(cls.ns, token)
         if not data:
+            logger.trace(f"Session {token} not found")
             return None
 
         session = SessionModel(**json_loads(data))
@@ -96,8 +97,12 @@ class Session:
             remaining_ttl = ayonconfig.session_ttl - (time.time() - session.last_used)
             if remaining_ttl < ayonconfig.session_ttl - 120:
                 session.last_used = time.time()
+                try:
+                    await cls.on_extend(session)
+                except UnauthorizedException as e:
+                    await cls.delete(token, f"Session extension failed: {e}")
+                    return None
                 await Redis.set(cls.ns, token, json_dumps(session.dict()))
-                await cls.on_extend(session)
 
         return session
 
@@ -161,11 +166,11 @@ class Session:
         """Update a session with new user data."""
         data = await Redis.get(cls.ns, token)
         if not data:
-            # TODO: shouldn't be silent!
+            logger.trace(f"Trying to update non-existing session {token}")
             return None
 
         session = SessionModel(**json_loads(data))
-        session.user = user.dict()
+        session.user = user._payload.copy()
         if client_info is not None:
             session.client_info = client_info
         session.last_used = time.time()
@@ -183,6 +188,7 @@ class Session:
                     description=message,
                     user=session.user.name,
                 )
+        logger.trace(f"Deleting session {token}: {message}")
         await Redis.delete(cls.ns, token)
 
     @classmethod
@@ -267,6 +273,7 @@ class Session:
             logger.trace(f"User cannot log in after save: {e}")
             await cls.logout_user(user.name)
         else:
+            logger.trace(f"Updating user {user.name} sessions after save")
             async for session in Session.list(user.name):
                 await Session.update(session.token, user)
 
