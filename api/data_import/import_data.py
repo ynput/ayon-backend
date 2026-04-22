@@ -12,7 +12,7 @@ import traceback
 from datetime import datetime
 from typing import Annotated, Any, cast
 
-from fastapi import Body, Path, Request
+from fastapi import Body, Path, Request, Query
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import FolderEntity, TaskEntity, UserEntity
@@ -27,13 +27,18 @@ from ayon_server.exceptions import (
     NotFoundException,
 )
 from ayon_server.helpers.get_entity_class import get_entity_class
+from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
-from .common import SENDER_TYPE, get_entity_id_by_path
+from .common import (
+    SENDER_TYPE,
+    get_entity_id_by_path,
+    ProjectNameQuery
+)
 from .export_data import EntityType
 from .models import (
     HIERARCHY_UNIFIED_COLUMN,
@@ -141,7 +146,7 @@ async def import_data(
     file_id: str,  # pointer to file stored in Redis
     column_mapping: list[ColumnMapping],
     existing_strategy: ExistingItemStrategy = ExistingItemStrategy.UPDATE,
-    project_name: str | None = None,
+    project_name: ProjectNameQuery = None,
     folder_id: str | None = None,  # limit import to specific folder
     preview: bool = False,  # do not commit to db if True
 ) -> ImportStatus:
@@ -165,6 +170,9 @@ async def import_data(
     """
     if not user.is_manager:
         raise ForbiddenException("You must be a manager")
+
+    if project_name is not None:
+        project_name = await normalize_project_name(project_name)
 
     file_bytes = await Redis.get(REDIS_NS, file_id)
     if not file_bytes:

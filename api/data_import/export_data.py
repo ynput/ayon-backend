@@ -4,12 +4,15 @@ import tempfile
 from typing import Annotated, Literal
 
 import fastapi
-from fastapi import BackgroundTasks, HTTPException
+from fastapi import BackgroundTasks, HTTPException, Query
 from fastapi.responses import FileResponse, Response
+
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import ForbiddenException
+from ayon_server.helpers.project_list import normalize_project_name
 
+from .common import ProjectNameQuery
 from .models import EXPORTABLE_ENTITIES, ImportableColumn
 from .router import router
 
@@ -20,7 +23,7 @@ EntityType = Literal["user", "folder", "task", "hierarchy", "entity_list_item"]
 @router.get("/export/{entity_type}/fields")
 async def export_fields(
     entity_type: Annotated[EntityType, fastapi.Path(title="Import entity type")],
-    project_name: str | None = None,
+    project_name: ProjectNameQuery = None,
 ) -> list[ImportableColumn] | None:
     """Get exportable fields for an entity type.
 
@@ -35,6 +38,9 @@ async def export_fields(
             status_code=404, detail=f"Entity type '{entity_type}' not implemented"
         )
 
+    if project_name is not None:
+        project_name = await normalize_project_name(project_name)
+
     model = EXPORTABLE_ENTITIES[entity_type]
     return await model.fields(project_name=project_name)
 
@@ -44,13 +50,16 @@ async def export(
     entity_type: Annotated[EntityType, fastapi.Path(title="Import entity type")],
     user: CurrentUser,
     background_tasks: BackgroundTasks,
-    project_name: str | None = None,
+    project_name: ProjectNameQuery = None,
     field_names: list[str] | None = None,
     entity_ids: tuple[str, list[str]] | None = None,
 ) -> Response:
     """Export entity data as CSV."""
     if not user.is_manager:
         raise ForbiddenException("You must be a manager")
+
+    if project_name is not None:
+        project_name = await normalize_project_name(project_name)
 
     # Validate entity type exists
     if entity_type not in EXPORTABLE_ENTITIES:

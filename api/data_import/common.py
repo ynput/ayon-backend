@@ -1,8 +1,18 @@
+from typing import Annotated
+from fastapi import Query
+
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.types import PROJECT_NAME_REGEX
 
 # Sender type for operations status propagation
 SENDER_TYPE = "data_import"
+
+
+ProjectNameQuery = Annotated[
+    str | None,
+    Query(alias="project_name", regex=PROJECT_NAME_REGEX)
+]
 
 
 async def get_entity_id_by_path(
