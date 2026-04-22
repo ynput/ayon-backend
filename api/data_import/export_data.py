@@ -2,7 +2,7 @@ import csv
 import os
 import tempfile
 
-from fastapi import BackgroundTasks, HTTPException, Query
+from fastapi import BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, Response
 
 
