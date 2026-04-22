@@ -12,7 +12,7 @@ import traceback
 from datetime import datetime
 from typing import Annotated, Any, cast
 
-from fastapi import Body, Path, Request
+from fastapi import Body, Request
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.entities import FolderEntity, TaskEntity, UserEntity
