@@ -1,7 +1,6 @@
 import csv
 import os
 import tempfile
-from typing import Annotated, Literal
 
 import fastapi
 from fastapi import BackgroundTasks, HTTPException, Query
@@ -12,17 +11,14 @@ from ayon_server.api.dependencies import CurrentUser
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.helpers.project_list import normalize_project_name
 
-from .common import ProjectNameQuery
+from .common import ProjectNameQuery, ImportEntityType
 from .models import EXPORTABLE_ENTITIES, ImportableColumn
 from .router import router
-
-# Type alias for exportable entity types
-EntityType = Literal["user", "folder", "task", "hierarchy", "entity_list_item"]
 
 
 @router.get("/export/{entity_type}/fields")
 async def export_fields(
-    entity_type: Annotated[EntityType, fastapi.Path(title="Import entity type")],
+    entity_type: ImportEntityType,
     project_name: ProjectNameQuery = None,
 ) -> list[ImportableColumn] | None:
     """Get exportable fields for an entity type.
@@ -47,7 +43,7 @@ async def export_fields(
 
 @router.post("/export/{entity_type}")
 async def export(
-    entity_type: Annotated[EntityType, fastapi.Path(title="Import entity type")],
+    entity_type: ImportEntityType,
     user: CurrentUser,
     background_tasks: BackgroundTasks,
     project_name: ProjectNameQuery = None,

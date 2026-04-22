@@ -39,7 +39,7 @@ from .common import (
     get_entity_id_by_path,
     ProjectNameQuery
 )
-from .export_data import EntityType
+from .export_data import ImportEntityType
 from .models import (
     HIERARCHY_UNIFIED_COLUMN,
     ColumnMapping,
@@ -141,7 +141,7 @@ async def upload_file(
 
 @router.post("/import/{import_type}")
 async def import_data(
-    import_type: Annotated[EntityType, Path(title="Import entity type")],
+    import_type: ImportEntityType,
     user: CurrentUser,
     file_id: str,  # pointer to file stored in Redis
     column_mapping: list[ColumnMapping],
