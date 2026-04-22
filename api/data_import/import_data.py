@@ -33,7 +33,7 @@ from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid
 
-from .common import SENDER_TYPE, _get_entity_id_by_path
+from .common import SENDER_TYPE, get_entity_id_by_path
 from .export_data import EntityType
 from .models import (
     HIERARCHY_UNIFIED_COLUMN,
@@ -925,7 +925,7 @@ async def _resolve_entity_id(
         # Look up in database
         is_task = entity_cls == TaskEntity
         try:
-            entity_id = await _get_entity_id_by_path(project_name, path, is_task)
+            entity_id = await get_entity_id_by_path(project_name, path, is_task)
             if entity_id:
                 path_to_ids[path] = entity_id  # Cache it
                 return entity_id
@@ -984,7 +984,7 @@ async def _resolve_parent_id(
         parent_id = path_to_ids.get(parent_path)
         if parent_path and parent_id is None:
             try:
-                parent_id = await _get_entity_id_by_path(
+                parent_id = await get_entity_id_by_path(
                     project_name,
                     parent_path,
                     False,  # Not a task

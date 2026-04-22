@@ -5,7 +5,7 @@ from ayon_server.lib.postgres import Postgres
 SENDER_TYPE = "data_import"
 
 
-async def _get_entity_id_by_path(
+async def get_entity_id_by_path(
     project_name: str | None, path: str | None, is_task: bool = False
 ) -> str:
     """Get folder or task id by its path.

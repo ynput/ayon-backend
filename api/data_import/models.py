@@ -15,7 +15,7 @@ from typing import (
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo, ModelField
 
-from api.data_import.common import SENDER_TYPE, _get_entity_id_by_path
+from api.data_import.common import SENDER_TYPE, get_entity_id_by_path
 from ayon_server.entities import FolderEntity, TaskEntity, UserEntity, VersionEntity
 from ayon_server.entities.models.generator import FIELD_TYPES
 from ayon_server.entity_lists import EntityList
@@ -1003,11 +1003,11 @@ class EntityListExportImportModel(EntityExportImport):
             # folder paths might be folders or tasks
             if not entity_id:
                 try:
-                    entity_id = await _get_entity_id_by_path(
+                    entity_id = await get_entity_id_by_path(
                         project_name, folder_path, is_task=False
                     )
                 except NotFoundException:
-                    entity_id = await _get_entity_id_by_path(
+                    entity_id = await get_entity_id_by_path(
                         project_name, folder_path, is_task=True
                     )
 
