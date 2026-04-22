@@ -168,7 +168,7 @@ async def import_data(
 
     file_bytes = await Redis.get(REDIS_NS, file_id)
     if not file_bytes:
-        raise ValueError(f"No file {file_id} found.")
+        raise BadRequestException(f"No file {file_id} found.")
 
     header, rows = _parse_csv_rows(file_bytes)
 
@@ -224,7 +224,7 @@ async def import_data(
         "taskTypes", project_name=project_name
     )
     if not task_type_enum_items:
-        raise ValueError("No task types")
+        raise BadRequestException("No task types")
     default_task_type = task_type_enum_items[0].value
 
     for row in filtered_rows:
@@ -243,7 +243,7 @@ async def import_data(
                 )
                 if entity_type not in HIERARCHY_MODEL_CLASSES:
                     error_msg = f"Invalid entity_type '{entity_type}'"
-                    raise ValueError(error_msg)
+                    raise BadRequestException(error_msg)
                 model_cls = HIERARCHY_MODEL_CLASSES[entity_type]
                 entity_cls = HIERARCHY_ENTITY_CLASSES[entity_type]
                 existing_identifiers = hierarchy_existing_identifiers[entity_type]
@@ -270,7 +270,7 @@ async def import_data(
             if entity_id:
                 if existing_strategy != ExistingItemStrategy.UPDATE:
                     identifier = path or identifier
-                    raise ValueError(f"Item '{identifier}' already exists.")
+                    raise BadRequestException(f"Item '{identifier}' already exists.")
 
             original_id = row.get("id")
             parent_id, parent_path = await _resolve_parent_id(
@@ -455,7 +455,7 @@ async def _get_entity_type(
     target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
     entity_type_mapping = target_mapping_by_key.get("entity_type")
     if not entity_type_mapping:
-        raise ValueError("Missing column mapping for 'entity_type' in hierarchy import")
+        raise BadRequestException("Missing column mapping for 'entity_type' in hierarchy import")
 
     # Use the reusable helper to remap the column value
     import_entity_data: dict[str, Any] = {}
@@ -645,7 +645,7 @@ async def _remap_row(
             mapping_for_entity_type = target_mapping_by_key.get("entity_type")
             # Special handling for hierarchy imports if folder/task share a column
             if not mapping_for_entity_type:
-                raise ValueError(
+                raise BadRequestException(
                     f"Missing 'entity_type' mapping for hierarchy import in row: {row}"
                 )
 
@@ -662,11 +662,11 @@ async def _remap_row(
             )
             entity_type = entity_type_import_data.get("entity_type")
             if not entity_type:
-                raise ValueError(
+                raise BadRequestException(
                     f"Missing 'entity_type' value for hierarchy import in row: {row}"
                 )
             if entity_type not in HIERARCHY_MODEL_CLASSES:
-                raise ValueError(
+                raise BadRequestException(
                     f"Invalid 'entity_type' value '{entity_type}' for hierarchy "
                     f"import in row: {row}"
                 )
@@ -698,7 +698,7 @@ async def _remap_row(
                         value=importable_column.default_value,
                     )
             else:
-                raise ValueError(error_msg)
+                raise BadRequestException(error_msg)
 
 
 def _convert_value(importable_column: ImportableColumn, value: str) -> Any:
@@ -739,7 +739,7 @@ async def _validate_enum_value(
         project_name: The project name (for creating new items)
 
     Raises:
-        ValueError: If value is not in enum and not handled by 'create' action
+        BadRequestException: If value is not in enum and not handled by 'create' action
         NotImplementedError: If 'create' action is not yet implemented
     """
     if not value:
@@ -759,7 +759,7 @@ async def _validate_enum_value(
 
         if replacement_action == "create":
             if not enum_name:
-                raise ValueError(
+                raise BadRequestException(
                     "Cannot create enum items: enum name not provided. "
                     "Ensure the field has an associated enum resolver."
                 )
@@ -776,7 +776,7 @@ async def _validate_enum_value(
             )
             return
         missing_values_str = ", ".join(map(str, missing_values))
-        raise ValueError(f"Import contains invalid enum values: {missing_values_str}")
+        raise BadRequestException(f"Import contains invalid enum values: {missing_values_str}")
 
 
 def _add_value_to_import_entity(
@@ -846,11 +846,11 @@ async def _check_all_required(
         row: CSV row data
 
     Raises:
-        ValueError: If a required field is missing
+        BadRequestException: If a required field is missing
     """
     for req_field in required_fields:
         if req_field not in row or not row[req_field]:
-            raise ValueError(f"Missing required field '{req_field}'")
+            raise BadRequestException(f"Missing required field '{req_field}'")
 
 
 async def _get_existing_identifiers(
@@ -990,7 +990,7 @@ async def _resolve_parent_id(
                     False,  # Not a task
                 )
             except NotFoundException:
-                raise ValueError(
+                raise BadRequestException(
                     f"Parent path '{parent_path}' not found in "
                     f"project '{project_name}'",
                 )

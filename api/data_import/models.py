@@ -992,7 +992,7 @@ class EntityListExportImportModel(EntityExportImport):
         preview = kwargs.get("preview")
 
         if not folder_path and not entity_id:
-            raise ValueError(
+            raise BadRequestException(
                 "At least one of 'entity_id', or 'folder_path' must be provided."
             )
 
@@ -1020,7 +1020,7 @@ class EntityListExportImportModel(EntityExportImport):
                 elif list_type == "version":
                     await VersionEntity.load(project_name, entity_id)
                 else:
-                    raise ValueError(f"Unsupported entity type: {list_type}")
+                    raise BadRequestException(f"Unsupported entity type: {list_type}")
             except NotFoundException:
                 raise NotFoundException(
                     f"Entity with id '{entity_id}' not found for type '{list_type}'"
