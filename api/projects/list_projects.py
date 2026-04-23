@@ -17,6 +17,7 @@ class ListProjectsItemModel(OPModel):
     name: Annotated[str, Field(title="Project name")]
     code: Annotated[str, Field(title="Project code")]
     label: Annotated[str | None, Field(title="Project label")] = None
+    color: Annotated[str | None, Field(title="Project color")] = None
     active: Annotated[bool, Field(title="Project is active")] = True
     library: Annotated[bool, Field(title="Project is a library project")] = False
     skeleton: Annotated[bool, Field(title="Project is a skeleton project")] = False
@@ -167,6 +168,7 @@ async def list_projects(
                 created_at,
                 updated_at,
                 active,
+                data->'color' AS color,
                 data->'projectFolder' AS project_folder,
                 data->'guestUsers' AS guest_users,
                 data->'isSkeleton' AS is_skeleton
@@ -201,6 +203,7 @@ async def list_projects(
                 name=row["name"],
                 code=row["code"],
                 label=row["label"],
+                color=row["color"],
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
                 active=row.get("active", True),
