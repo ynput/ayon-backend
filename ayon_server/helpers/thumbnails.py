@@ -243,7 +243,10 @@ async def store_project_skeleton_thumbnail(
         # Upload will probably fail later on, in process_thumbnail.
         logger.warning(f"Could not guess mime type of thumbnail. Using provided {mime}")
 
-    elif mime and guessed_mime != mime:
+    elif mime is None:
+        mime = guessed_mime
+
+    elif guessed_mime != mime:
         # This is a warning, not an error, because we can still store the thumbnail
         # even if the mime type is wrong. We're just logging it and using the
         # correct mime type instead of the provided one.
