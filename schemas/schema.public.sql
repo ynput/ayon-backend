@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS project_thumbnails(
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE project_thumbnails ALTER COLUMN data SET STORAGE EXTERNAL;
+ALTER TABLE public.project_thumbnails ALTER COLUMN data SET STORAGE EXTERNAL;
 
 
 -- Users

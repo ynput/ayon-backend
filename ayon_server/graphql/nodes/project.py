@@ -412,7 +412,7 @@ async def project_from_record(
 
     thumbnail = None
     user = context["user"]
-    skeleton = record.get("is_skeleton") or False
+    skeleton = record.get("is_skeleton") is True
     if user.is_guest:
         guest_users = record.get("data", {}).get("guestUsers", {})
         if user.attrib.email not in guest_users:
