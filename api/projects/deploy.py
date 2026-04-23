@@ -1,11 +1,7 @@
 from typing import Annotated
 
 from ayon_server.api.dependencies import CurrentUser
-from ayon_server.exceptions import (
-    BadRequestException,
-    ConflictException,
-    NotFoundException,
-)
+from ayon_server.exceptions import ConflictException, NotFoundException
 from ayon_server.helpers.deploy_project import (
     create_project_from_anatomy,
     create_project_skeleton_from_anatomy,
@@ -79,6 +75,14 @@ class DeployProjectRequestModel(OPModel):
     ] = False
 
 
+async def _get_default_anatomy() -> Anatomy:
+    query = "SELECT * FROM anatomy_presets WHERE is_primary = TRUE"
+    r = await Postgres.fetchrow(query)
+    if not r:
+        return Anatomy()
+    return Anatomy(**r["data"])
+
+
 @router.post("/projects", status_code=201)
 async def deploy_project(
     payload: DeployProjectRequestModel,
@@ -132,7 +136,7 @@ async def deploy_project(
             )
         anatomy = Anatomy(**r["data"])
     else:
-        raise BadRequestException("Anatomy not provided")
+        anatomy = await _get_default_anatomy()
 
     data = {}
     if payload.color:
