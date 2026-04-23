@@ -18,7 +18,11 @@ async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> A
     return await coalesce(_get_project_anatomy, project_name)
 
 
-@router.post("/projects/{project_name}/anatomy", dependencies=[AllowProjectSkeleton])
+@router.post(
+    "/projects/{project_name}/anatomy",
+    dependencies=[AllowProjectSkeleton],
+    status_code=204,
+)
 async def set_project_anatomy(
     payload: Anatomy,
     user: CurrentUser,

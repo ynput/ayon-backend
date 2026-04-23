@@ -278,12 +278,25 @@ async def delete_project(
 
 
 class RenameProjectRequestModel(OPModel):
-    new_name: str = Field(
-        ...,
-        description="New project name",
-        example="better_project_name",
-        regex=PROJECT_NAME_REGEX,
-    )
+    new_name: Annotated[
+        str,
+        Field(
+            title="New project name",
+            example="better_project_name",
+            regex=PROJECT_NAME_REGEX,
+            min_length=1,
+        ),
+    ]
+    new_code: Annotated[
+        str | None,
+        Field(
+            title="New project code",
+            description="If not provided, the code will remain unchanged.",
+            example="BETTER",
+            regex=PROJECT_NAME_REGEX,
+            min_length=1,
+        ),
+    ]
 
 
 @router.patch(
@@ -302,5 +315,6 @@ async def change_project_name(
     await rename_project(
         project_name,
         payload.new_name,
+        payload.new_code,
     )
     return None

@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Any
 
+import aiofiles
+
 from ayon_server.entities.project_aux_tables import (
     aux_table_update,
     link_types_update,
@@ -14,8 +16,6 @@ from .project import ProjectEntity
 
 
 class ProjectSkeletonEntity(ProjectEntity):
-    is_skeleton: bool = True
-
     @classmethod
     async def load(
         cls,
@@ -114,7 +114,9 @@ class ProjectSkeletonEntity(ProjectEntity):
 
             # Create tables in the newly created schema
             await Postgres.execute(f"SET LOCAL search_path TO project_{self.name}")
-            await Postgres.execute(open("schemas/schema.project.sql").read())
+            async with aiofiles.open("schemas/schema.project.sql") as f:
+                schema_sql = await f.read()
+            await Postgres.execute(schema_sql)
 
             await aux_table_update(self.name, "folder_types", self.folder_types)
             await aux_table_update(self.name, "task_types", self.task_types)
@@ -126,3 +128,8 @@ class ProjectSkeletonEntity(ProjectEntity):
             self.data.pop("isSkeleton", None)
 
             await self.save(promote=True)
+
+    @property
+    def skeleton(self) -> bool:
+        """Return True if the project is a skeleton."""
+        return True

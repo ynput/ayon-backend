@@ -46,6 +46,7 @@ async def _sanity_check_full_project(project_name: str) -> None:
 async def rename_project(
     old_name: str,
     new_name: str,
+    new_code: str | None = None,
 ) -> None:
     """Rename a project and update related project references.
 
@@ -65,11 +66,20 @@ async def rename_project(
         project = await ProjectEntity.load(old_name)
         etype = "project_skeleton" if project.skeleton else "project"
 
-        await Postgres.execute(
-            "UPDATE public.projects SET name = $1 WHERE name = $2",
-            new_name,
-            old_name,
-        )
+        if new_code is None:
+            new_code = project.code
+
+        try:
+            await Postgres.execute(
+                "UPDATE public.projects SET name = $1, code=$2 WHERE name = $3",
+                new_name,
+                new_code,
+                old_name,
+            )
+        except Postgres.UniqueViolationError:
+            raise BadRequestException(
+                f"Project name {new_name} ({new_code}) already exists."
+            )
 
         if not project.skeleton:
             await _sanity_check_full_project(old_name)

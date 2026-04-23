@@ -36,7 +36,6 @@ class ProjectEntity(TopLevelEntity):
     entity_type: str = "project"
     model: ModelSet = ModelSet("project", attribute_library["project"], False)
     original_attributes: dict[str, Any] = {}
-    is_skeleton: bool = False
 
     #
     # Load
