@@ -49,7 +49,7 @@ async def build_project_list() -> list[ProjectListItem]:
                             str(row["created_at"]) + row["name"], 2
                         ),
                         "role": row["role"],
-                        "skeleton": row["isSkeleton"] == "true",
+                        "skeleton": row["skeleton"] == "true",
                     }
                 )
     except Postgres.UndefinedTableError:
