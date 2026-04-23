@@ -6,12 +6,14 @@ __all__ = [
     "FolderTypesEnumResolver",
     "StatusesEnumResolver",
     "TaskTypesEnumResolver",
+    "TagsEnumResolver",
 ]
 
 from .enum_actions import ActionsEnumResolver
 from .enum_anatomy import (
     FolderTypesEnumResolver,
     StatusesEnumResolver,
+    TagsEnumResolver,
     TaskTypesEnumResolver,
 )
 from .enum_attributes import AttributeEnumResolver

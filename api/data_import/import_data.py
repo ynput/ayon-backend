@@ -1,0 +1,1026 @@
+"""
+Data import functionality for CSV files.
+
+This module provides endpoints for uploading CSV files and importing
+their data into the AYON system as users, folders, tasks, or hierarchies.
+"""
+
+import csv
+import io
+import json
+import traceback
+from datetime import datetime
+from typing import Annotated, Any, cast
+
+from fastapi import Body, Request
+
+from ayon_server.api.dependencies import CurrentUser
+from ayon_server.entities import FolderEntity, TaskEntity, UserEntity
+from ayon_server.entity_lists.models import EntityListItemModel
+from ayon_server.enum.enum_item import EnumItem
+from ayon_server.enum.enum_registry import EnumRegistry
+from ayon_server.events.eventstream import EventStream
+from ayon_server.exceptions import (
+    BadRequestException,
+    ForbiddenException,
+    ImportRowErrorException,
+    NotFoundException,
+)
+from ayon_server.helpers.get_entity_class import get_entity_class
+from ayon_server.helpers.project_list import normalize_project_name
+from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
+from ayon_server.operations.project_level import ProjectLevelOperations
+from ayon_server.types import ProjectLevelEntityType
+from ayon_server.utils import create_uuid
+
+from .common import (
+    SENDER_TYPE,
+    get_entity_id_by_path,
+    ProjectNameQuery,
+    ImportEntityType
+)
+from .models import (
+    HIERARCHY_UNIFIED_COLUMN,
+    ColumnMapping,
+    EntityExportImport,
+    EntityListExportImportModel,
+    ExistingItemStrategy,
+    FolderExportImportModel,
+    FolderTaskExportImportModel,
+    ImportableColumn,
+    ImportStatus,
+    ImportUpload,
+    TaskExportImportModel,
+    UserExportImportModel,
+)
+from .router import router
+
+# Redis namespace for storing uploaded CSV files
+REDIS_NS = "csv.import"
+
+# Supported MIME types for CSV file uploads
+# Maps MIME type to file extension
+SUPPORTED_MIME_TYPES = {
+    "text/csv": ".csv",
+    "application/vnd.ms-excel": ".csv",
+    "application/csv": ".csv",
+    "text/x-csv": ".csv",
+}
+
+# Model classes for each importable entity type
+IMPORTABLE_ENTITIES: dict[str, Any] = {
+    "user": UserExportImportModel,
+    "folder": FolderExportImportModel,
+    "task": TaskExportImportModel,
+    "hierarchy": FolderTaskExportImportModel,
+    "entity_list_item": EntityListExportImportModel,
+}
+
+# Entity classes for each entity type
+ENTITY_TYPE_TO_ENTITY_CLASS: dict[str, Any] = {
+    "user": UserEntity,
+    "folder": FolderEntity,
+    "task": TaskEntity,
+    "hierarchy": None,
+    "entity_list_item": EntityListItemModel,
+}
+
+# Model classes for hierarchy import (folder and task)
+HIERARCHY_MODEL_CLASSES: dict[str, Any] = {
+    "folder": FolderExportImportModel,
+    "task": TaskExportImportModel,
+}
+
+# Entity classes for hierarchy import (folder and task)
+HIERARCHY_ENTITY_CLASSES: dict[str, Any] = {
+    "folder": FolderEntity,
+    "task": TaskEntity,
+}
+
+
+@router.put("/import/upload")
+async def upload_file(
+    user: CurrentUser,
+    request: Request,
+    csv: Annotated[str, Body()],
+    ttl: int | None = None,
+) -> ImportUpload:
+    """Upload a CSV file to Redis for subsequent import operations.
+
+    The uploaded file is stored in Redis with a unique ID that can be
+    used in the import endpoint to process the file.
+
+    Args:
+        user: Current authenticated user (must be a manager)
+        request: HTTP request containing the CSV file
+        csv: bytes of csv file from body
+        ttl: Optional time-to-live in seconds for the uploaded file.
+             If not provided, defaults to 30 minutes.
+
+    Returns:
+        ImportUpload: Object containing the file ID for use in import
+
+    Raises:
+        ForbiddenException: If user is not a manager
+        NotFoundException: If file format is not supported
+    """
+    # Verify user has manager privileges
+    if not user.is_manager:
+        raise ForbiddenException("You must be a manager")
+
+    mime = request.headers.get("Content-Type")
+    if mime not in SUPPORTED_MIME_TYPES:
+        raise BadRequestException("Invalid content type")
+    file_id = create_uuid()
+    ttl_seconds = ttl if ttl is not None else 30 * 60  # 30 minutes default
+    await Redis.set(REDIS_NS, file_id, csv, ttl=ttl_seconds)
+
+    return ImportUpload(id=file_id)
+
+
+@router.post("/import/{import_type}")
+async def import_data(
+    import_type: ImportEntityType,
+    user: CurrentUser,
+    file_id: str,  # pointer to file stored in Redis
+    column_mapping: list[ColumnMapping],
+    existing_strategy: ExistingItemStrategy = ExistingItemStrategy.UPDATE,
+    project_name: ProjectNameQuery = None,
+    folder_id: str | None = None,  # limit import to specific folder
+    preview: bool = False,  # do not commit to db if True
+) -> ImportStatus:
+    """Process CSV file and import entities to the database.
+
+    Parses the CSV file and creates/updates entities based on the data.
+    Supports importing users, folders, tasks, or hierarchies (combined).
+
+    Args:
+        import_type: Type of entity to import (user, folder, task, hierarchy)
+        user: Current authenticated user (must be a manager)
+        file_id: ID of the uploaded CSV file in Redis
+        column_mapping: List of column mappings (source -> target)
+        existing_strategy: How to handle existing items (skip, update, fail)
+        project_name: Project name for folder/task imports
+        folder_id: Limit import to specific folder
+        preview: If True, don't commit to database
+
+    Returns:
+        ImportStatus: Summary of import results
+    """
+    if not user.is_manager:
+        raise ForbiddenException("You must be a manager")
+
+    if project_name is not None:
+        project_name = await normalize_project_name(project_name)
+
+    file_bytes = await Redis.get(REDIS_NS, file_id)
+    if not file_bytes:
+        raise BadRequestException(f"No file {file_id} found.")
+
+    header, rows = _parse_csv_rows(file_bytes)
+
+    import_status = ImportStatus()
+
+    # Filter out empty rows
+    filtered_rows = [row for row in rows if not _is_row_empty(row)]
+    total_rows = len(filtered_rows)
+
+    # Send start event
+    event_id = await EventStream.dispatch(
+        "import.data",
+        project=project_name,
+        description=f"Starting import of {total_rows} rows",
+        summary={"total": total_rows, "type": import_type},
+        finished=False,
+        store=True,
+        sender="data_import",
+        sender_type="system",
+    )
+
+    model_cls = IMPORTABLE_ENTITIES[import_type]
+
+    hierarchy_existing_identifiers: dict[str, set[tuple[str, ...]]] = {}
+
+    # For non-hierarchy types, get fields and existing identifiers upfront
+    fields = await model_cls.fields(project_name=project_name)
+    required_fields = [f.key for f in fields if f.required]
+    if import_type != "hierarchy":
+        existing_identifiers = await _get_existing_identifiers(model_cls, project_name)
+    else:
+        # For hierarchy, pre-fetch existing identifiers for both folder and task
+        for hier_entity_type, model_cls in HIERARCHY_MODEL_CLASSES.items():
+            hierarchy_existing_identifiers[
+                hier_entity_type
+            ] = await _get_existing_identifiers(model_cls, project_name)
+
+    operations: ProjectLevelOperations | None = None
+    if project_name:
+        operations = ProjectLevelOperations(
+            project_name,
+            user=user,
+            sender=f"{SENDER_TYPE}-csv",
+            sender_type=SENDER_TYPE,
+        )
+
+    originals_and_new: dict[str, Any] = {}
+    path_to_ids: dict[str, Any] = {}
+    unprocessed = len(filtered_rows)
+    row_number = 0
+
+    task_type_enum_items = await EnumRegistry.resolve(
+        "taskTypes", project_name=project_name
+    )
+    if not task_type_enum_items:
+        raise BadRequestException("No task types")
+    default_task_type = task_type_enum_items[0].value
+
+    for row in filtered_rows:
+        row_number += 1
+
+        import_entity_data: dict[str, Any] = {}
+        identifier = None
+        path = None
+        entity_type: str = import_type  # Initialize for non-hierarchy types
+        try:
+            if import_type == "entity_list_item":
+                entity_cls: type[Any] = EntityListItemModel
+            elif import_type == "hierarchy":
+                entity_type = await _get_entity_type(
+                    project_name, row, column_mapping, fields
+                )
+                if entity_type not in HIERARCHY_MODEL_CLASSES:
+                    error_msg = f"Invalid entity_type '{entity_type}'"
+                    raise BadRequestException(error_msg)
+                model_cls = HIERARCHY_MODEL_CLASSES[entity_type]
+                entity_cls = HIERARCHY_ENTITY_CLASSES[entity_type]
+                existing_identifiers = hierarchy_existing_identifiers[entity_type]
+            else:
+                entity_cls = get_entity_class(import_type)
+
+            fields = await model_cls.fields(project_name=project_name)
+            await _remap_row(
+                project_name, header, import_entity_data, row, fields, column_mapping
+            )
+
+            if "path" in import_entity_data and import_entity_data["path"]:
+                path = import_entity_data["path"]
+
+            entity_id = await _resolve_entity_id(
+                row=import_entity_data,
+                path_to_ids=path_to_ids,
+                existing_identifiers=existing_identifiers,
+                model_cls=model_cls,
+                entity_cls=entity_cls,
+                project_name=project_name,
+            )
+
+            if entity_id:
+                if existing_strategy != ExistingItemStrategy.UPDATE:
+                    identifier = path or identifier
+                    raise BadRequestException(f"Item '{identifier}' already exists.")
+
+            original_id = row.get("id")
+            parent_id, parent_path = await _resolve_parent_id(
+                row=import_entity_data,
+                originals_and_new=originals_and_new,
+                existing_identifiers=existing_identifiers,
+                path_to_ids=path_to_ids,
+                project_name=project_name,
+                folder_id=folder_id,
+            )
+            if parent_id and parent_path:
+                path_to_ids[parent_path] = parent_id
+                import_entity_data[model_cls.parent_column_name()] = parent_id
+
+            # for tasks
+            if folder_id:
+                import_entity_data[model_cls.parent_column_name()] = folder_id
+
+            await _check_all_required(required_fields, import_entity_data)
+
+            # Add project_name for non-user entities
+            if entity_cls != UserEntity:
+                import_entity_data["project_name"] = project_name
+
+            # Remove entity_type from import_entity_data if present,
+            # as its not a field to set
+            import_entity_data.pop("entity_type", None)
+
+            if import_entity_data.get("path") and not import_entity_data.get("name"):
+                import_entity_data["name"] = (
+                    import_entity_data["path"].rsplit("/", 1)
+                )[-1]
+
+            # refactor
+            if entity_cls == FolderEntity and not import_entity_data.get("folder_type"):
+                import_entity_data["folder_type"] = "Folder"
+
+            if entity_cls == TaskEntity and not import_entity_data.get("task_type"):
+                import_entity_data["task_type"] = default_task_type
+
+            logger.debug(
+                f"entity_id:: {entity_id}:{entity_type} -> {import_entity_data} "
+            )
+
+            if entity_id:
+                # mark that model has custom update
+                custom_updated = await model_cls.update(
+                    user=user, preview=preview, **import_entity_data
+                )
+                if not custom_updated and operations is not None:
+                    operations.update(
+                        cast(ProjectLevelEntityType, entity_type),
+                        entity_id,
+                        **import_entity_data,
+                    )
+                import_status.updated += 1
+            else:
+                entity_id = await model_cls.create(
+                    user=user, preview=preview, **import_entity_data
+                )
+                if not entity_id and operations is not None:
+                    entity_id = create_uuid()
+                    operations.create(
+                        cast(ProjectLevelEntityType, entity_type),
+                        entity_id=entity_id,
+                        **import_entity_data,
+                    )
+                import_status.created += 1
+
+            if original_id and entity_id:
+                originals_and_new[original_id] = entity_id
+            if path:
+                path_to_ids[path] = entity_id
+
+            # Send progress event after each processed item
+            await EventStream.dispatch(
+                "import.data",
+                project=project_name,
+                description=f"Processed item: {identifier or path or entity_id}",
+                summary={
+                    "created": import_status.created,
+                    "updated": import_status.updated,
+                    "skipped": import_status.skipped,
+                    "failed": import_status.failed,
+                },
+                depends_on=event_id,
+                finished=False,
+                store=True,
+                sender="data_import",
+                sender_type="system",
+            )
+
+            unprocessed -= 1
+
+        except Exception as exp:
+            logger.debug(f"Error processing row {row_number}: {traceback.format_exc()}")
+            error_msg = str(exp)
+            import_status.failed_items[f"{row_number}"] = error_msg
+
+            unprocessed -= 1
+            # ImportRowErrorException always stops processing
+            if isinstance(exp, ImportRowErrorException):
+                import_status.failed += 1
+                import_status.skipped += unprocessed
+                # Send end event for early termination
+                await EventStream.dispatch(
+                    "import.data",
+                    project=project_name,
+                    description="Import finished with error",
+                    summary={
+                        "created": import_status.created,
+                        "updated": import_status.updated,
+                        "skipped": import_status.skipped,
+                        "failed": import_status.failed,
+                        "failed_items": import_status.failed_items,
+                    },
+                    depends_on=event_id,
+                    finished=True,
+                    store=True,
+                    sender="data_import",
+                    sender_type="system",
+                )
+                return import_status
+            import_status.skipped += 1
+            continue
+
+    if not preview and operations is not None:
+        try:
+            response = await operations.process()
+            if not response.success:
+                logger.error("Failed to import data", exc_info=True)
+        except Exception as exp:
+            logger.error(
+                f"Exception during import operations processing: {exp}", exc_info=True
+            )
+            import_status.failed_items["global"] = (
+                f"Import failed during operations processing: {exp}"
+            )
+            import_status.skipped = len(rows)
+            # transaction rollback
+            import_status.created = 0
+            import_status.updated = 0
+
+    logger.debug(f"Import completed:{import_status}")
+
+    # Send end event
+    await EventStream.dispatch(
+        "import.data.finish",
+        project=project_name,
+        description="Import finished",
+        summary={
+            "created": import_status.created,
+            "updated": import_status.updated,
+            "skipped": import_status.skipped,
+            "failed": import_status.failed,
+            "failed_items": import_status.failed_items,
+        },
+        depends_on=event_id,
+        finished=True,
+        store=True,
+        sender="data_import",
+        sender_type="system",
+    )
+
+    return import_status
+
+
+async def _get_entity_type(
+    project_name: str | None,
+    row: dict[str, Any],
+    column_mapping: list[ColumnMapping],
+    fields: list[ImportableColumn],
+) -> str:
+    """Extract the entity type from column mapping for hierarchy imports.
+
+    Args:
+        project_name: The project name for enum validation
+        row: CSV row data
+        column_mapping: List of ColumnMapping objects provided by the user
+        fields: Available importable columns
+    """
+    target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
+    entity_type_mapping = target_mapping_by_key.get("entity_type")
+    if not entity_type_mapping:
+        raise BadRequestException("Missing column mapping for 'entity_type' in hierarchy import")
+
+    # Use the reusable helper to remap the column value
+    import_entity_data: dict[str, Any] = {}
+    await _remap_single_column(
+        project_name=project_name,
+        mapping=entity_type_mapping,
+        row=row,
+        fields=fields,
+        import_entity_data=import_entity_data,
+        column_name="entity_type",
+    )
+    return import_entity_data["entity_type"]
+
+
+def _parse_csv_rows(file_bytes: bytes) -> tuple[list[str], list[dict[str, Any]]]:
+    """Parse CSV file and return header and rows.
+
+    Args:
+        file_bytes: Raw bytes content of the CSV file
+
+    Returns:
+        Tuple of (header_fields, list of row dictionaries)
+    """
+    try:
+        content = file_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        content = file_bytes.decode("latin-1")
+
+    if not content.strip():
+        return [], []
+
+    # Initialize the sniffer
+    sniffer = csv.Sniffer()
+
+    try:
+        dialect = sniffer.sniff(content[:4048], delimiters=",;\t|")
+    except csv.Error:
+        dialect = csv.excel
+
+    reader = csv.DictReader(io.StringIO(content), dialect=dialect)
+
+    header = list(reader.fieldnames) if reader.fieldnames else []
+    rows = list(reader)
+
+    return header, rows
+
+
+def _is_row_empty(row: dict[str, Any]) -> bool:
+    """Check if a CSV row is completely empty (all values are None or empty).
+
+    Args:
+        row: Dictionary representing a CSV row
+
+    Returns:
+        True if the row is empty, False otherwise
+    """
+    return all(
+        value is None or (isinstance(value, str) and not value.strip())
+        for value in row.values()
+    )
+
+
+async def _remap_single_column(
+    project_name: str | None,
+    mapping: ColumnMapping,
+    row: dict[str, Any],
+    fields: list[ImportableColumn],
+    import_entity_data: dict[str, Any],
+    column_name: str | None = None,
+) -> None:
+    """Remap a single CSV column value based on its mapping.
+
+    This is a reusable helper that processes one column from a row,
+    applying value mappings, type conversion, and enum validation.
+
+    Args:
+        project_name: The project name for enum validation (can be None)
+        mapping: ColumnMapping object defining source->target mapping
+        row: CSV row data
+        fields: Available importable columns
+        import_entity_data: Dictionary to populate with converted values
+        column_name: Optional override for target column name
+    """
+    # Use mapping's target_key unless overridden
+    target_column_name = column_name or mapping.target_key
+    csv_column_name = mapping.source_key
+
+    # Get the target column definition
+    importable_column_by_key = {
+        importable_column.key: importable_column for importable_column in fields
+    }
+    importable_column = importable_column_by_key.get(target_column_name)
+    if not importable_column:
+        logger.debug(f"Unknown column '{target_column_name}'")
+        return
+
+    # Build value mapping dictionary
+    value_mapping = {(vm.source or ""): vm for vm in mapping.values_mapping}
+
+    # Get the value from the row
+    source_value = row.get(csv_column_name)
+
+    if target_column_name == "name" and source_value:
+        source_value = source_value.replace("\\", "/").rsplit("/", 1)[-1]
+
+    if target_column_name == "path" and source_value:
+        source_value = source_value.replace("\\", "/").replace(" ", "")
+
+    if importable_column.value_type == "list_of_strings" and source_value:
+        json_friendly = source_value.replace("'", '"')
+        try:
+            source_value = json.loads(json_friendly)
+        except json.JSONDecodeError:
+            source_value = [item.strip() for item in source_value.split(",")]
+    else:
+        source_value = [source_value]
+
+    for val in source_value:
+        if not val:
+            val = "undefined"
+        replacement_mapping = value_mapping.get(val)
+        replacement_mapping_action = None
+
+        # Apply value replacement if defined
+        if replacement_mapping:
+            if replacement_mapping.action == "skip":
+                continue
+
+            replacement_mapping_action = replacement_mapping.action
+            val = replacement_mapping.target
+        elif val == "undefined":
+            continue
+
+        target_value = _convert_value(importable_column, val)
+
+        # Validate enum values if applicable
+        if importable_column.enum_items:
+            await _validate_enum_value(
+                target_value,
+                importable_column.enum_items,
+                replacement_mapping_action,
+                enum_name=getattr(importable_column, "enum_name", None),
+                project_name=project_name,
+            )
+
+        # Store the value in import_entity_data
+        _add_value_to_import_entity(
+            import_entity_data=import_entity_data,
+            column_name=target_column_name,
+            column_type=importable_column.value_type,
+            value=target_value,
+        )
+
+
+async def _remap_row(
+    project_name: str | None,
+    header: list[str],
+    import_entity_data: dict[str, Any],
+    row: dict[str, Any],
+    fields: list[ImportableColumn],
+    column_mapping: list[ColumnMapping],
+) -> None:
+    """Remap CSV row data to match target schema based on column mapping.
+
+    Args:
+        header: CSV column headers
+        import_entity_data: Dictionary to populate with converted values
+        row: CSV row data
+        fields: Available importable columns
+        column_mapping: User-defined column mappings
+    """
+    # Create lookup dictionaries for efficient access
+    source_mapping_by_key = {mapping.source_key: mapping for mapping in column_mapping}
+    importable_column_by_key = {
+        importable_column.key: importable_column for importable_column in fields
+    }
+    target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
+    # Process each CSV column
+    for csv_column_name in header:
+        mapping = source_mapping_by_key.get(csv_column_name)
+        if not mapping or mapping.action == "skip":
+            # No mapping defined for this column - skip it
+            continue
+        column_name = mapping.target_key
+        error_handling_mode = mapping.error_handling_mode
+        if column_name == HIERARCHY_UNIFIED_COLUMN:
+            mapping_for_entity_type = target_mapping_by_key.get("entity_type")
+            # Special handling for hierarchy imports if folder/task share a column
+            if not mapping_for_entity_type:
+                raise BadRequestException(
+                    f"Missing 'entity_type' mapping for hierarchy import in row: {row}"
+                )
+
+            # Use the reusable helper to remap the entity_type value
+            # (applies error handling, enum validation, etc.)
+            entity_type_import_data: dict[str, Any] = {}
+            await _remap_single_column(
+                project_name=project_name,
+                mapping=mapping_for_entity_type,
+                row=row,
+                fields=fields,
+                import_entity_data=entity_type_import_data,
+                column_name="entity_type",
+            )
+            entity_type = entity_type_import_data.get("entity_type")
+            if not entity_type:
+                raise BadRequestException(
+                    f"Missing 'entity_type' value for hierarchy import in row: {row}"
+                )
+            if entity_type not in HIERARCHY_MODEL_CLASSES:
+                raise BadRequestException(
+                    f"Invalid 'entity_type' value '{entity_type}' for hierarchy "
+                    f"import in row: {row}"
+                )
+            # Adjust column name based on entity type 'folder_type'|'task_type'
+            column_name = f"{entity_type}_type"
+        try:
+            # Use the helper function to remap the single column
+            await _remap_single_column(
+                project_name=project_name,
+                mapping=mapping,
+                row=row,
+                fields=fields,
+                import_entity_data=import_entity_data,
+                column_name=column_name,
+            )
+        except Exception as exp:
+            error_msg = str(exp)
+            logger.debug(error_msg, exc_info=True)
+            if error_handling_mode == "abort":
+                raise ImportRowErrorException(error_msg)
+            elif error_handling_mode == "default":
+                # Get the target column definition for default value
+                importable_column = importable_column_by_key.get(column_name)
+                if importable_column:
+                    _add_value_to_import_entity(
+                        import_entity_data=import_entity_data,
+                        column_name=column_name,
+                        column_type=importable_column.value_type,
+                        value=importable_column.default_value,
+                    )
+            else:
+                raise BadRequestException(error_msg)
+
+
+def _convert_value(importable_column: ImportableColumn, value: str) -> Any:
+    if not value:
+        # Return None for typed columns to avoid empty string issues
+        if importable_column.value_type not in ("string", None):
+            return None
+        return value
+
+    # Convert value based on column type
+    if importable_column.value_type == "datetime":
+        return datetime.fromisoformat(value)
+    elif importable_column.value_type == "float":
+        return float(value)
+    elif importable_column.value_type == "integer":
+        return int(value)
+    elif importable_column.value_type == "boolean":
+        return _to_bool(value)
+    else:
+        # Handle string or None value_type - return value as-is
+        return value
+
+
+async def _validate_enum_value(
+    value: str,
+    enum_items: list[EnumItem],
+    replacement_action: str | None,
+    enum_name: str | None = None,
+    project_name: str | None = None,
+) -> None:
+    """Validate that a value matches an allowed enum value.
+
+    Args:
+        value: The value to validate
+        enum_items: List of allowed enum items
+        replacement_action: Action to take if value not found
+        enum_name: The enum resolver name (for creating new items)
+        project_name: The project name (for creating new items)
+
+    Raises:
+        BadRequestException: If value is not in enum and not handled by 'create' action
+        NotImplementedError: If 'create' action is not yet implemented
+    """
+    if not value:
+        return
+
+    valid_values = {str(item.value).lower() for item in enum_items}
+    value = value.replace("_", " ")
+    to_check = {value.lower()} if isinstance(value, str) else set(value)
+
+    # Identify exactly which values are missing
+    missing_values = to_check - valid_values
+
+    if missing_values:
+        logger.info(
+            f"Missing enum values: {missing_values} | Action: {replacement_action}"
+        )
+
+        if replacement_action == "create":
+            if not enum_name:
+                raise BadRequestException(
+                    "Cannot create enum items: enum name not provided. "
+                    "Ensure the field has an associated enum resolver."
+                )
+
+            # Create new enum items
+            new_item = EnumItem(
+                value=value,
+                label=value.title(),
+            )
+            await EnumRegistry.create_item(
+                enum_name,
+                new_item,
+                project_name=project_name,
+            )
+            return
+        missing_values_str = ", ".join(map(str, missing_values))
+        raise BadRequestException(f"Import contains invalid enum values: {missing_values_str}")
+
+
+def _add_value_to_import_entity(
+    import_entity_data: dict[str, Any],
+    column_name: str,
+    column_type: str | None,
+    value: Any,
+) -> None:
+    """Add a value to the import_entity_data dictionary.
+
+    Handles both simple fields and nested fields (attrib.field, data.field).
+    Uses column_type to determine if the field should be stored as a list.
+
+    Args:
+        import_entity_data: The import_entity_data dictionary to modify
+        column_name: The target column name
+        column_type: The type of the column (e.g., "list_of_strings")
+        value: The value to store
+    """
+    is_iterable = column_type in ("list_of_strings", "list")
+    is_nested = "." in column_name
+
+    # Get or create the target container
+    if is_nested:
+        main, key = column_name.split(".", 1)
+        if main not in import_entity_data:
+            import_entity_data[main] = {}
+        container = import_entity_data[main]
+        is_bool = key.startswith("is")
+    else:
+        container = import_entity_data
+        key = column_name
+        is_bool = False
+
+    # Handle boolean fields
+    if is_bool:
+        container[key] = _to_bool(value)
+        return
+
+    # Handle value storage
+    existing = container.get(key)
+
+    if is_iterable:
+        # For iterable types, always store as list
+        if existing is None:
+            container[key] = [value]
+        elif isinstance(existing, list):
+            existing.append(value)
+        else:
+            container[key] = [existing, value]
+    else:
+        # For non-iterable types, only wrap in list if key exists
+        if existing is None:
+            container[key] = value
+        else:
+            container[key] = [existing, value]
+
+
+async def _check_all_required(
+    required_fields: list[str],
+    row: dict[str, Any],
+) -> None:
+    """Check if the row has all required fields.
+
+    Args:
+        required_fields: List of required field names
+        row: CSV row data
+
+    Raises:
+        BadRequestException: If a required field is missing
+    """
+    for req_field in required_fields:
+        if req_field not in row or not row[req_field]:
+            raise BadRequestException(f"Missing required field '{req_field}'")
+
+
+async def _get_existing_identifiers(
+    model: EntityExportImport, project_name: str | None = None
+) -> set[tuple[str, ...]]:
+    """Get existing entity identifiers from the database.
+
+    Args:
+        model: The entity model class
+        project_name: Project name for project-specific tables
+
+    Returns:
+        Set of tuples representing unique identifiers
+    """
+    existing_items = await model.get_all_items(
+        field_names=model.unique_fields(),
+        as_csv=False,
+        project_name=project_name,
+    )
+    existing_items = cast("list[dict[str, Any]]", existing_items)
+    existing_identifiers = {
+        tuple(item[field] for field in model.unique_fields()) for item in existing_items
+    }
+    return existing_identifiers
+
+
+async def _resolve_entity_id(
+    row: dict[str, Any],
+    path_to_ids: dict[str, str],
+    existing_identifiers: set[tuple[str, ...]],
+    model_cls,
+    entity_cls,
+    project_name: str | None,
+) -> str | None:
+    """Resolve the entity ID for a CSV row.
+
+    Checks if the entity already exists by path or unique fields.
+
+    Args:
+        row: CSV row data
+        path_to_ids: Cache of path -> entity_id mappings
+        existing_identifiers: Set of existing unique identifiers
+        model_cls: The entity model class
+        entity_cls: The entity class
+        project_name: Project name
+
+    Returns:
+        Entity ID if found, None otherwise
+    """
+    # Check by unique fields
+    identifier: tuple[str, ...] = ()
+    for unique_field in model_cls.unique_fields():
+        val = row.get(unique_field)
+        if not val:
+            # If a required unique field is missing, reset or handle error
+            identifier = ()
+            break
+        identifier = (*identifier, str(val))
+
+    if identifier in existing_identifiers:
+        return identifier[0]  # Return the identifier
+
+    # Check by path if path is provided and entity supports it
+    if "path" in row and row["path"]:
+        path = row["path"]
+
+        # Check in-memory cache
+        entity_id = path_to_ids.get(path)
+        if entity_id:
+            return entity_id
+
+        # Look up in database
+        is_task = entity_cls == TaskEntity
+        try:
+            entity_id = await get_entity_id_by_path(project_name, path, is_task)
+            if entity_id:
+                path_to_ids[path] = entity_id  # Cache it
+                return entity_id
+        except NotFoundException:
+            logger.debug(f"Couldn't find entity for path '{path}'")
+
+    return None
+
+
+async def _resolve_parent_id(
+    row: dict[str, Any],
+    originals_and_new: dict[str, str],
+    existing_identifiers: set[tuple[str, ...]],
+    path_to_ids: dict[str, str],
+    project_name: str | None,
+    folder_id: str | None,
+) -> tuple[str | None, str | None]:
+    """Resolve the parent ID for a CSV row.
+
+    Args:
+        row: CSV row data
+        originals_and_new: Mapping of original IDs to new IDs
+        existing_identifiers: Set of existing identifiers
+        path_to_ids: Cache of path -> entity_id mappings
+        model_cls: The entity model class
+        project_name: Project name
+        folder_id: Fixed folder ID for tasks
+
+    Returns:
+        Tuple of (parent_id, parent_path)
+    """
+    if project_name is None:
+        return None, None
+
+    # Use fixed folder_id for tasks
+    if folder_id:
+        return folder_id, None
+
+    parent_id = row.get("parent_id")
+
+    # Try to resolve from current import batch
+    if parent_id and parent_id in originals_and_new:
+        return originals_and_new[parent_id], None
+
+    # Check if parent exists in database
+    if parent_id and parent_id not in existing_identifiers:
+        return None, None
+
+    # Resolve from path if provided
+    if "path" in row and row["path"]:
+        path = row["path"]
+        path_parts = path.split("/")
+
+        parent_path = "/".join(path_parts[:-1]) if len(path_parts) > 1 else ""
+
+        parent_id = path_to_ids.get(parent_path)
+        if parent_path and parent_id is None:
+            try:
+                parent_id = await get_entity_id_by_path(
+                    project_name,
+                    parent_path,
+                    False,  # Not a task
+                )
+            except NotFoundException:
+                raise BadRequestException(
+                    f"Parent path '{parent_path}' not found in "
+                    f"project '{project_name}'",
+                )
+
+        return parent_id, parent_path
+
+    return None, None
+
+
+def _to_bool(value: Any) -> bool:
+    """Convert a value to boolean.
+
+    Args:
+        value: Value to convert (bool, str, int, float, or other)
+
+    Returns:
+        Boolean representation of the value
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in ("1", "true", "yes", "on")
+    if isinstance(value, (int, float)):
+        return value != 0
+    return False
