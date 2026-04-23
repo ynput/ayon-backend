@@ -8,6 +8,8 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+import aiofiles
+
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
 from ayon_server.entities.models.submodels import LinkTypeModel
@@ -266,8 +268,10 @@ class ProjectEntity(TopLevelEntity):
 
             # Create tables in the newly created schema
             await Postgres.execute(f"SET LOCAL search_path TO project_{project_name}")
-            # TODO: Preload this to avoid blocking
-            await Postgres.execute(open("schemas/schema.project.sql").read())
+
+            async with aiofiles.open("schemas/schema.project.sql") as f:
+                schema_sql = await f.read()
+            await Postgres.execute(schema_sql)
 
         #
         # Save aux tables
