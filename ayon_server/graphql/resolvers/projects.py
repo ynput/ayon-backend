@@ -63,6 +63,7 @@ async def get_projects(
         "active",
         "created_at",
         "updated_at",
+        "data->'color' AS color",
         "data->'projectFolder' AS project_folder",
         "data->'isSkeleton' AS is_skeleton",
     ]

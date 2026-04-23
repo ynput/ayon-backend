@@ -99,6 +99,8 @@ class ProjectEntity(TopLevelEntity):
             if project_data is None:
                 raise NotFoundException(f"Project '{project_name}' not found")
 
+            project_data = dict(project_data)
+
             if project_data["data"].get("isSkeleton", False):
                 await Redis.set_json(
                     "project-data", project_name, project_data, ttl=3600
@@ -293,10 +295,10 @@ class ProjectEntity(TopLevelEntity):
                     "DELETE FROM public.projects WHERE name = $1", self.name
                 )
             finally:
+                await Redis.delete("global", "project-list")
                 await Redis.delete("project-anatomy", self.name)
                 await Redis.delete("project-data", self.name)
                 await Redis.delete("project-folders", self.name)
-                await build_project_list()
         return True
 
     def as_user(self, user):

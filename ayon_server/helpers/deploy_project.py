@@ -147,6 +147,7 @@ async def create_project_from_anatomy(
     code: str,
     anatomy: Anatomy,
     *,
+    label: str | None = None,
     library: bool = False,
     user_name: str | None = None,
     data: dict[str, Any] | None = None,
@@ -166,8 +167,6 @@ async def create_project_from_anatomy(
     project_data = anatomy_to_project_data(anatomy)
     if data:
         if "data" not in project_data:
-            # now we don't expect anything to be in project_data.data
-            # but we will keep this check for now for the future
             project_data["data"] = {}
         project_data["data"].update(data)
 
@@ -175,6 +174,7 @@ async def create_project_from_anatomy(
         payload={
             "name": name,
             "code": code,
+            "label": label,
             "library": library,
             **project_data,
         },
@@ -207,6 +207,7 @@ async def create_project_skeleton_from_anatomy(
     code: str,
     anatomy: Anatomy,
     *,
+    label: str | None = None,
     library: bool = False,
     user_name: str | None = None,
     data: dict[str, Any] | None = None,
@@ -214,10 +215,16 @@ async def create_project_skeleton_from_anatomy(
 ) -> None:
     project_data = anatomy_to_project_data(anatomy)
 
+    if data:
+        if "data" not in project_data:
+            project_data["data"] = {}
+        project_data["data"].update(data)
+
     project = ProjectSkeletonEntity(
         payload={
             "name": name,
             "code": code,
+            "label": label,
             "library": library,
             **project_data,
         },

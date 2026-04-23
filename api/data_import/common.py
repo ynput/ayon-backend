@@ -1,5 +1,6 @@
 from typing import Annotated, Literal
-from fastapi import Query, Path
+
+from fastapi import Path, Query
 
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
@@ -10,14 +11,13 @@ SENDER_TYPE = "data_import"
 
 
 ProjectNameQuery = Annotated[
-    str | None,
-    Query(alias="project_name", regex=PROJECT_NAME_REGEX)
+    str | None, Query(alias="project_name", regex=PROJECT_NAME_REGEX)
 ]
 
 # Type alias for exportable entity types
 ImportEntityType = Annotated[
     Literal["user", "folder", "task", "hierarchy", "entity_list_item"],
-    Path(title="Import entity type")
+    Path(title="Import entity type"),
 ]
 
 

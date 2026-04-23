@@ -286,7 +286,11 @@ class RenameProjectRequestModel(OPModel):
     )
 
 
-@router.patch("/projects/{project_name}/rename", status_code=204)
+@router.patch(
+    "/projects/{project_name}/rename",
+    status_code=204,
+    dependencies=[AllowProjectSkeleton],
+)
 async def change_project_name(
     user: CurrentUser,
     project_name: ProjectName,

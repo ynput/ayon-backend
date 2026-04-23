@@ -36,9 +36,9 @@ from ayon_server.utils import create_uuid
 
 from .common import (
     SENDER_TYPE,
-    get_entity_id_by_path,
+    ImportEntityType,
     ProjectNameQuery,
-    ImportEntityType
+    get_entity_id_by_path,
 )
 from .models import (
     HIERARCHY_UNIFIED_COLUMN,
@@ -463,7 +463,9 @@ async def _get_entity_type(
     target_mapping_by_key = {mapping.target_key: mapping for mapping in column_mapping}
     entity_type_mapping = target_mapping_by_key.get("entity_type")
     if not entity_type_mapping:
-        raise BadRequestException("Missing column mapping for 'entity_type' in hierarchy import")
+        raise BadRequestException(
+            "Missing column mapping for 'entity_type' in hierarchy import"
+        )
 
     # Use the reusable helper to remap the column value
     import_entity_data: dict[str, Any] = {}
@@ -784,7 +786,9 @@ async def _validate_enum_value(
             )
             return
         missing_values_str = ", ".join(map(str, missing_values))
-        raise BadRequestException(f"Import contains invalid enum values: {missing_values_str}")
+        raise BadRequestException(
+            f"Import contains invalid enum values: {missing_values_str}"
+        )
 
 
 def _add_value_to_import_entity(

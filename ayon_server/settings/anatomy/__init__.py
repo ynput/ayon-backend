@@ -24,8 +24,7 @@ from ayon_server.settings.anatomy.task_types import TaskType, default_task_types
 from ayon_server.settings.anatomy.templates import Templates
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.settings_field import SettingsField
-from ayon_server.settings.validators import ensure_unique_names
-from ayon_server.settings.validators import ensure_unique_property
+from ayon_server.settings.validators import ensure_unique_names, ensure_unique_property
 
 
 class ProjectAttribModel(

@@ -4,6 +4,7 @@ from typing import Any
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 from ayon_server.types import OPModel
 from ayon_server.utils import get_nickname
 
@@ -20,6 +21,7 @@ class ProjectListItem(OPModel):
 
 
 async def build_project_list() -> list[ProjectListItem]:
+    logger.trace("Rebuilding project list cache")
     q = """
         SELECT
             name,
@@ -33,24 +35,27 @@ async def build_project_list() -> list[ProjectListItem]:
     """
     result: list[dict[str, Any]] = []
     try:
-        async for row in Postgres.iterate(q):
-            result.append(
-                {
-                    "name": row["name"],
-                    "code": row["code"],
-                    "label": row["label"],
-                    "active": row["active"],
-                    "created_at": row["created_at"],
-                    "nickname": get_nickname(str(row["created_at"]) + row["name"], 2),
-                    "role": row["role"],
-                    "skeleton": row["skeleton"] == "true",
-                }
-            )
+        async with Postgres.transaction():
+            stmt = await Postgres.prepare(q)
+            async for row in stmt.cursor():
+                result.append(
+                    {
+                        "name": row["name"],
+                        "code": row["code"],
+                        "label": row["label"],
+                        "active": row["active"],
+                        "created_at": row["created_at"],
+                        "nickname": get_nickname(
+                            str(row["created_at"]) + row["name"], 2
+                        ),
+                        "role": row["role"],
+                        "skeleton": row["isSkeleton"] == "true",
+                    }
+                )
     except Postgres.UndefinedTableError:
         # No projects table, return an empty list
         pass
-    else:
-        await Redis.set_json("global", "project-list", result)
+    await Redis.set_json("global", "project-list", result)
     return [ProjectListItem(**item) for item in result]
 
 

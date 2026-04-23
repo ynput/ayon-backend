@@ -33,6 +33,20 @@ class DeployProjectRequestModel(OPModel):
             title="Project code",
         ),
     ]
+    label: Annotated[
+        str | None,
+        Field(
+            title="Project label",
+        ),
+    ] = None
+    color: Annotated[
+        str | None,
+        Field(
+            title="Project color",
+            description="Hex color code for the project highlight (e.g. #ff0000)",
+            regex=r"^#(?:[0-9a-fA-F]{3}){1,2}$",
+        ),
+    ] = None
     anatomy: Annotated[
         Anatomy | None,
         Field(
@@ -120,24 +134,32 @@ async def deploy_project(
     else:
         raise BadRequestException("Anatomy not provided")
 
+    data = {}
+    if payload.color:
+        data["color"] = payload.color
+
     if payload.skeleton:
         await create_project_skeleton_from_anatomy(
             name=payload.name,
             code=payload.code,
+            label=payload.label,
             anatomy=anatomy,
             library=payload.library,
             user_name=user.name,
             assign_users=payload.assign_users,
+            data=data,
         )
         return None
 
     await create_project_from_anatomy(
         name=payload.name,
         code=payload.code,
+        label=payload.label,
         anatomy=anatomy,
         library=payload.library,
         user_name=user.name,
         assign_users=payload.assign_users,
+        data=data,
     )
 
     return None

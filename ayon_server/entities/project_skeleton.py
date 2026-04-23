@@ -5,7 +5,6 @@ from ayon_server.entities.project_aux_tables import (
     aux_table_update,
     link_types_update,
 )
-from ayon_server.helpers.project_list import build_project_list
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
@@ -102,10 +101,10 @@ class ProjectSkeletonEntity(ProjectEntity):
                     "DELETE FROM public.projects WHERE name = $1", self.name
                 )
             finally:
+                await Redis.delete("global", "project-list")
                 await Redis.delete("project-anatomy", self.name)
                 await Redis.delete("project-data", self.name)
                 await Redis.delete("project-folders", self.name)
-                await build_project_list()
         return True
 
     async def promote(self) -> None:

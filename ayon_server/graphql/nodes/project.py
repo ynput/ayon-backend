@@ -134,6 +134,7 @@ class ProjectNode:
     label: str | None
     project_name: str = strawberry.field()
     code: str = strawberry.field()
+    color: str | None = strawberry.field()
     project_folder: str | None = strawberry.field()
     data: str | None
     config: str | None
@@ -437,9 +438,14 @@ async def project_from_record(
         else:
             bundle = ProjectBundleType()
 
+    color = data.get("color")
+    if not isinstance(color, str):
+        color = None
+
     return ProjectNode(
         name=record["name"],
         label=record.get("label"),
+        color=color,
         code=record["code"],
         project_name=record["name"],
         active=record["active"],
