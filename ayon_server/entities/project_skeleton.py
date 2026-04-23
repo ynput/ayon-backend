@@ -129,6 +129,34 @@ class ProjectSkeletonEntity(ProjectEntity):
 
             await self.save(promote=True)
 
+            # Move thumbnail from project_thumbnails to project_<name>.thumbnails
+            # does project thumbnail exist?
+
+            r = await Postgres.fetchrow(
+                "SELECT 1 FROM public.project_thumbnails WHERE project_name = $1",
+                self.name,
+            )
+            if r:
+                await Postgres.execute(
+                    f"""
+                        INSERT INTO project_{self.name}.thumbnails
+                            (id, mime, data, meta, created_at)
+                        SELECT
+                            $1::UUID,
+                            mime,
+                            data,
+                            meta,
+                            created_at
+                        FROM public.project_thumbnails WHERE project_name = $2
+                    """,
+                    "0" * 32,
+                    self.name,
+                )
+                await Postgres.execute(
+                    "DELETE FROM public.project_thumbnails WHERE project_name = $1",
+                    self.name,
+                )
+
     @property
     def skeleton(self) -> bool:
         """Return True if the project is a skeleton."""

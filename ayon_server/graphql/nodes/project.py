@@ -438,7 +438,7 @@ async def project_from_record(
         else:
             bundle = ProjectBundleType()
 
-    color = data.get("color")
+    color = record.get("color")
     if not isinstance(color, str):
         color = None
 

@@ -26,7 +26,7 @@ from ayon_server.settings.anatomy.product_base_types import (
 from ayon_server.settings.anatomy.statuses import Status
 from ayon_server.settings.anatomy.tags import Tag
 from ayon_server.settings.anatomy.task_types import TaskType
-from ayon_server.types import PROJECT_NAME_REGEX, Field, OPModel
+from ayon_server.types import PROJECT_CODE_REGEX, PROJECT_NAME_REGEX, Field, OPModel
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
 from .router import router
@@ -223,7 +223,9 @@ async def unassign_users_from_deleted_projects() -> None:
         """
     )
     assigned_projects = [row["project_name"] for row in res]
-    existing_projects = [project.name for project in await get_project_list()]
+    existing_projects = [
+        project.name for project in await get_project_list(with_skeleton=True)
+    ]
 
     for project_name in assigned_projects:
         if project_name not in existing_projects:
@@ -293,7 +295,7 @@ class RenameProjectRequestModel(OPModel):
             title="New project code",
             description="If not provided, the code will remain unchanged.",
             example="BETTER",
-            regex=PROJECT_NAME_REGEX,
+            regex=PROJECT_CODE_REGEX,
             min_length=1,
         ),
     ]
