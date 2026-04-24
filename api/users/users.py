@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import Path
 
@@ -20,7 +20,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
-from ayon_server.helpers.rename_user import rename_user
+from ayon_server.helpers.rename_user import rename_user as _rename_user
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import USER_NAME_REGEX, Field, OPModel
@@ -322,6 +322,8 @@ async def check_password(
 # Change login name
 #
 
+# Deprecated PATCH endpoint, replaced with POST for clarity and consistency
+
 
 class ChangeUserNameRequestModel(OPModel):
     new_name: str = Field(
@@ -332,7 +334,7 @@ class ChangeUserNameRequestModel(OPModel):
     )
 
 
-@router.patch("/{user_name}/rename")
+@router.patch("/{user_name}/rename", deprecated=True)
 async def change_user_name(
     patch_data: ChangeUserNameRequestModel,
     user: CurrentUser,
@@ -347,7 +349,44 @@ async def change_user_name(
     if not user.is_manager:
         raise ForbiddenException
 
-    await rename_user(
+    await _rename_user(
+        user_name,
+        patch_data.new_name,
+        invoking_user_name=user.name,
+    )
+    return EmptyResponse()
+
+
+# New and shiny rename user endpoint
+
+
+class RenameUserRequestModel(OPModel):
+    name: Annotated[
+        str,
+        Field(
+            description="New user name",
+            example="EvenBetterUser",
+            regex=USER_NAME_REGEX,
+        ),
+    ]
+
+
+@router.post("/{user_name}/rename")
+async def rename_user(
+    patch_data: ChangeUserNameRequestModel,
+    user: CurrentUser,
+    user_name: UserName,
+) -> EmptyResponse:
+    """Changes the user name of a user.
+
+    This is a manager-only operation. Target user name must not exist.
+    This is a dangerous operation and should be used with caution.
+    """
+
+    if not user.is_manager:
+        raise ForbiddenException
+
+    await _rename_user(
         user_name,
         patch_data.new_name,
         invoking_user_name=user.name,

@@ -17,7 +17,7 @@ from ayon_server.exceptions import (
 )
 from ayon_server.files import Storages
 from ayon_server.helpers.project_list import get_project_list
-from ayon_server.helpers.rename_project import rename_project
+from ayon_server.helpers.rename_project import rename_project as _rename_project
 from ayon_server.lib.postgres import Postgres
 from ayon_server.settings.anatomy.folder_types import FolderType
 from ayon_server.settings.anatomy.product_base_types import (
@@ -280,7 +280,7 @@ async def delete_project(
 
 
 class RenameProjectRequestModel(OPModel):
-    new_name: Annotated[
+    name: Annotated[
         str,
         Field(
             title="New project name",
@@ -289,7 +289,7 @@ class RenameProjectRequestModel(OPModel):
             min_length=1,
         ),
     ]
-    new_code: Annotated[
+    code: Annotated[
         str | None,
         Field(
             title="New project code",
@@ -301,12 +301,12 @@ class RenameProjectRequestModel(OPModel):
     ]
 
 
-@router.patch(
+@router.post(
     "/projects/{project_name}/rename",
     status_code=204,
     dependencies=[AllowProjectSkeleton],
 )
-async def change_project_name(
+async def rename_project(
     user: CurrentUser,
     project_name: ProjectName,
     payload: RenameProjectRequestModel,
@@ -314,9 +314,9 @@ async def change_project_name(
     if not user.is_manager:
         raise ForbiddenException
 
-    await rename_project(
+    await _rename_project(
         project_name,
-        payload.new_name,
-        payload.new_code,
+        payload.name,
+        payload.code,
     )
     return None
