@@ -92,6 +92,8 @@ FViewVisibility = Annotated[
     ),
 ]
 
+FDisplayStyle = Literal["cards", "table", "playlist"] | None
+
 
 # Shared submodels
 
@@ -153,6 +155,7 @@ class ListsSettings(OPModel):
 
 class ReviewsSettings(ListsSettings):
     grid_height: int | None = None
+    display_style: FDisplayStyle = None
 
 
 class VersionsSettings(OPModel):
