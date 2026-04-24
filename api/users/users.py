@@ -373,7 +373,7 @@ class RenameUserRequestModel(OPModel):
 
 @router.post("/{user_name}/rename")
 async def rename_user(
-    patch_data: ChangeUserNameRequestModel,
+    patch_data: RenameUserRequestModel,
     user: CurrentUser,
     user_name: UserName,
 ) -> EmptyResponse:
@@ -388,7 +388,7 @@ async def rename_user(
 
     await _rename_user(
         user_name,
-        patch_data.new_name,
+        patch_data.name,
         invoking_user_name=user.name,
     )
     return EmptyResponse()
