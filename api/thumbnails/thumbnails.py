@@ -666,6 +666,24 @@ async def get_project_thumbnail(
     await user.ensure_project_access(project_name)
 
     if project_info.skeleton:
+        query = """
+            SELECT * FROM public.project_skeleton_thumbnails
+            WHERE project_name = $1
+        """
+        res = await Postgres.fetch(query, project_name)
+        if res:
+            record = res[0]
+            payload = record["data"]
+            return Response(
+                media_type=record["mime"],
+                status_code=200,
+                content=payload,
+                headers={
+                    "X-Thumbnail-Time": str(record.get("created_at", 0)),
+                    "Cache-Control": f"max-age={60}",
+                },
+            )
+
         if placeholder == "empty":
             return get_fake_thumbnail_response()
         else:

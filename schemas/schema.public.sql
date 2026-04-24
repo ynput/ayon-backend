@@ -53,7 +53,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_project_folder_parent_label
   ON project_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
 
 
-CREATE TABLE IF NOT EXISTS project_thumbnails(
+CREATE TABLE IF NOT EXISTS project_skeleton_thumbnails(
     project_name VARCHAR NOT NULL PRIMARY KEY 
       REFERENCES public.projects(name) 
       ON DELETE CASCADE ON UPDATE CASCADE,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS project_thumbnails(
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE public.project_thumbnails ALTER COLUMN data SET STORAGE EXTERNAL;
+ALTER TABLE public.project_skeleton_thumbnails ALTER COLUMN data SET STORAGE EXTERNAL;
 
 
 -- Users

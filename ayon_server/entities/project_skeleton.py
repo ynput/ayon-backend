@@ -147,13 +147,17 @@ class ProjectSkeletonEntity(ProjectEntity):
                             data,
                             meta,
                             created_at
-                        FROM public.project_thumbnails WHERE project_name = $2
+                        FROM public.project_skeleton_thumbnails
+                        WHERE project_name = $2
                     """,
                     "0" * 32,
                     self.name,
                 )
                 await Postgres.execute(
-                    "DELETE FROM public.project_thumbnails WHERE project_name = $1",
+                    """
+                    DELETE FROM public.project_skeleton_thumbnails
+                    WHERE project_name = $1
+                    """,
                     self.name,
                 )
 

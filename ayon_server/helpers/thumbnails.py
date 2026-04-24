@@ -281,7 +281,8 @@ async def store_project_skeleton_thumbnail(
         meta["author"] = user_name
 
     query = """
-        INSERT INTO public.project_thumbnails (project_name, mime, data, meta)
+        INSERT INTO public.project_skeleton_thumbnails
+        (project_name, mime, data, meta)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (project_name)
         DO UPDATE SET
