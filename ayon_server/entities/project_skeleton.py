@@ -133,7 +133,7 @@ class ProjectSkeletonEntity(ProjectEntity):
             # does project thumbnail exist?
 
             r = await Postgres.fetchrow(
-                "SELECT 1 FROM public.project_thumbnails WHERE project_name = $1",
+                "SELECT 1 FROM public.project_skeleton_thumbnails WHERE project_name = $1",
                 self.name,
             )
             if r:
