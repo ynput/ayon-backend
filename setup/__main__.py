@@ -21,7 +21,11 @@ async def main(force: bool | None = None) -> None:
 
     logger.info("Starting setup")
 
-    await ayon_init(extensions=False, enum_registry=False)
+    await ayon_init(
+        extensions=False,
+        enum_registry=False,
+        load_projects=False,
+    )
 
     try:
         await Postgres.fetch("SELECT * FROM projects")
@@ -127,8 +131,11 @@ async def main(force: bool | None = None) -> None:
 
     from ayon_server.helpers.inherited_attributes import rebuild_inherited_attributes
 
-    project_list = await get_project_list()
+    project_list = await get_project_list(force_load=True)
     for project in project_list:
+        if project.skeleton:
+            # this should not happen, but just in case.
+            continue
         try:
             await rebuild_inherited_attributes(project.name)
         except Exception:

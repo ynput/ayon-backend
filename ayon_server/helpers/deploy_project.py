@@ -5,7 +5,9 @@ from typing import Any
 from ayon_server.auth.session import Session
 from ayon_server.entities import ProjectEntity, UserEntity
 from ayon_server.entities.models.submodels import LinkTypeModel
+from ayon_server.entities.project_skeleton import ProjectSkeletonEntity
 from ayon_server.events import EventStream
+from ayon_server.exceptions import BadRequestException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.settings.anatomy import Anatomy
@@ -145,6 +147,7 @@ async def create_project_from_anatomy(
     code: str,
     anatomy: Anatomy,
     *,
+    label: str | None = None,
     library: bool = False,
     user_name: str | None = None,
     data: dict[str, Any] | None = None,
@@ -164,8 +167,6 @@ async def create_project_from_anatomy(
     project_data = anatomy_to_project_data(anatomy)
     if data:
         if "data" not in project_data:
-            # now we don't expect anything to be in project_data.data
-            # but we will keep this check for now for the future
             project_data["data"] = {}
         project_data["data"].update(data)
 
@@ -173,6 +174,7 @@ async def create_project_from_anatomy(
         payload={
             "name": name,
             "code": code,
+            "label": label,
             "library": library,
             **project_data,
         },
@@ -189,8 +191,76 @@ async def create_project_from_anatomy(
 
     await EventStream.dispatch(
         "entity.project.created",
-        sender="ayon",
         project=project.name,
         user=user_name,
         description=f"Created project {project.name}",
+    )
+
+
+#
+# Skeleton projects
+#
+
+
+async def create_project_skeleton_from_anatomy(
+    name: str,
+    code: str,
+    anatomy: Anatomy,
+    *,
+    label: str | None = None,
+    library: bool = False,
+    user_name: str | None = None,
+    data: dict[str, Any] | None = None,
+    assign_users: bool = True,
+) -> None:
+    project_data = anatomy_to_project_data(anatomy)
+
+    if data:
+        if "data" not in project_data:
+            project_data["data"] = {}
+        project_data["data"].update(data)
+
+    project = ProjectSkeletonEntity(
+        payload={
+            "name": name,
+            "code": code,
+            "label": label,
+            "library": library,
+            **project_data,
+        },
+    )
+
+    async with Postgres.transaction():
+        await project.save()
+        if assign_users:
+            await assign_default_users_to_project(project.name)
+
+    await EventStream.dispatch(
+        "entity.project_skeleton.created",
+        project=project.name,
+        user=user_name,
+        description=f"Created project {project.name}",
+    )
+
+
+async def promote_project_from_skeleton(
+    project_name: str,
+    anatomy: Anatomy | None = None,
+) -> None:
+    skeleton = await ProjectEntity.load(project_name)
+    if not isinstance(skeleton, ProjectSkeletonEntity):
+        raise BadRequestException(f"Project {project_name} is not a skeleton")
+    skeleton.data.pop("isSkeleton", None)
+
+    if anatomy:
+        patch_data = anatomy_to_project_data(anatomy)
+        patch = ProjectEntity.model.patch_model(**patch_data)
+        skeleton.patch(patch)
+
+    await skeleton.promote()
+
+    await EventStream.dispatch(
+        "entity.project.created",
+        project=skeleton.name,
+        description=f"Project {skeleton.name} promoted from skeleton",
     )

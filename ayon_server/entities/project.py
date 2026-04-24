@@ -6,7 +6,9 @@ folder_types of the project and the folder hierarchy.
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+import aiofiles
 
 from ayon_server.entities.core import TopLevelEntity, attribute_library
 from ayon_server.entities.models import ModelSet
@@ -26,6 +28,9 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.utils import SQLTool, dict_exclude, get_nickname
 
+if TYPE_CHECKING:
+    from .project_skeleton import ProjectSkeletonEntity
+
 
 class ProjectEntity(TopLevelEntity):
     entity_type: str = "project"
@@ -35,6 +40,28 @@ class ProjectEntity(TopLevelEntity):
     #
     # Load
     #
+
+    @classmethod
+    def return_project_skeleton(
+        cls, payload: dict[str, Any]
+    ) -> "ProjectSkeletonEntity":
+        from ayon_server.helpers.deploy_project import anatomy_to_project_data
+        from ayon_server.settings.anatomy import Anatomy
+
+        from .project_skeleton import ProjectSkeletonEntity
+
+        full_payload = dict(payload)
+
+        skeleton_anatomy = full_payload["data"].pop("skeletonAnatomy", None)
+        if skeleton_anatomy is None:
+            raise NotFoundException("Project skeleton anatomy not found")
+
+        full_payload.update(anatomy_to_project_data(Anatomy(**skeleton_anatomy)))
+        full_payload["skeleton"] = True
+        if "data" in full_payload:
+            full_payload["data"].pop("isSkeleton", None)
+
+        return ProjectSkeletonEntity.from_record(full_payload)
 
     @classmethod
     async def load(
@@ -54,12 +81,15 @@ class ProjectEntity(TopLevelEntity):
             if payload := await Redis.get_json("project-data", project_name):
                 if isinstance(payload, list):
                     payload = payload[0]
+
+                if payload["data"].get("isSkeleton", False):
+                    return cls.return_project_skeleton(payload=payload)
                 return cls.from_record(payload=payload)
 
         try:
             project_data = await Postgres.fetchrow(
                 f"""
-                SELECT  *
+                SELECT *
                 FROM public.projects
                 WHERE name ILIKE $1
                 {"FOR UPDATE NOWAIT" if for_update else ""}
@@ -69,6 +99,14 @@ class ProjectEntity(TopLevelEntity):
 
             if project_data is None:
                 raise NotFoundException(f"Project '{project_name}' not found")
+
+            project_data = dict(project_data)
+
+            if project_data["data"].get("isSkeleton", False):
+                await Redis.set_json(
+                    "project-data", project_name, project_data, ttl=3600
+                )
+                return cls.return_project_skeleton(payload=project_data)
 
             # Load folder types
             folder_types = []
@@ -190,6 +228,7 @@ class ProjectEntity(TopLevelEntity):
                     "created_at",
                     "name",
                     "own_attrib",
+                    "skeleton",
                 ],
             )
 
@@ -218,6 +257,7 @@ class ProjectEntity(TopLevelEntity):
                             "statuses",
                             "tags",
                             "own_attrib",
+                            "skeleton",
                         ],
                     ),
                 )
@@ -227,8 +267,10 @@ class ProjectEntity(TopLevelEntity):
 
             # Create tables in the newly created schema
             await Postgres.execute(f"SET LOCAL search_path TO project_{project_name}")
-            # TODO: Preload this to avoid blocking
-            await Postgres.execute(open("schemas/schema.project.sql").read())
+
+            async with aiofiles.open("schemas/schema.project.sql") as f:
+                schema_sql = await f.read()
+            await Postgres.execute(schema_sql)
 
         #
         # Save aux tables
@@ -256,10 +298,10 @@ class ProjectEntity(TopLevelEntity):
                     "DELETE FROM public.projects WHERE name = $1", self.name
                 )
             finally:
+                await Redis.delete("global", "project-list")
                 await Redis.delete("project-anatomy", self.name)
                 await Redis.delete("project-data", self.name)
                 await Redis.delete("project-folders", self.name)
-                await build_project_list()
         return True
 
     def as_user(self, user):
@@ -287,6 +329,16 @@ class ProjectEntity(TopLevelEntity):
     def code(self, value: str) -> None:
         """Set the project code."""
         self._payload.code = value  # type: ignore
+
+    @property
+    def label(self) -> str | None:
+        """Get the project label."""
+        return self._payload.label  # type: ignore
+
+    @label.setter
+    def label(self, value: str | None) -> None:
+        """Set the project label."""
+        self._payload.label = value  # type: ignore
 
     @property
     def library(self) -> bool:
@@ -361,3 +413,8 @@ class ProjectEntity(TopLevelEntity):
     def link_types(self, value: list[dict[str, Any]]) -> None:
         """Set the link types."""
         self._payload.link_types = value  # type: ignore
+
+    @property
+    def skeleton(self) -> bool:
+        """Return True if the project is a skeleton."""
+        return False

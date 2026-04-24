@@ -26,7 +26,8 @@ class EntityCounts(OPModel):
 
 @router.get("/entities")
 async def get_project_entity_counts(
-    user: CurrentUser, project_name: ProjectName
+    user: CurrentUser,
+    project_name: ProjectName,
 ) -> EntityCounts:
     """Retrieve entity counts for a given project."""
 
