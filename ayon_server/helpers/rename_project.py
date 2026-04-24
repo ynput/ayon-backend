@@ -90,7 +90,7 @@ async def rename_project(
             query = f"ALTER SCHEMA {old_schema_name} RENAME TO {new_schema_name}"
             await Postgres.execute(query)
 
-            await _reassign_access_groups(old_name, new_name)
+        await _reassign_access_groups(old_name, new_name)
 
     await build_project_list()
 
