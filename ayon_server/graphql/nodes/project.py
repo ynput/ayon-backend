@@ -247,6 +247,8 @@ class ProjectNode:
 
     @strawberry.field(description="List of project's task types")
     async def task_types(self, active_only: bool = False) -> list[TaskType]:
+        if self.skeleton:
+            return []  # TODO: load from skeleton data instead of returning empty list
         cond = ""
         if active_only:
             cond = f"""
@@ -272,6 +274,8 @@ class ProjectNode:
 
     @strawberry.field(description="List of project's folder types")
     async def folder_types(self, active_only: bool = False) -> list[FolderType]:
+        if self.skeleton:
+            return []  # TODO: load from skeleton data instead of returning empty list
         cond = ""
         if active_only:
             cond = f"""
@@ -298,6 +302,8 @@ class ProjectNode:
 
     @strawberry.field(description="List of project's link types")
     async def link_types(self, active_only: bool = False) -> list[LinkType]:
+        if self.skeleton:
+            return []  # TODO: load from skeleton data instead of returning empty list
         cond = ""
         if active_only:
             cond = f"""
@@ -327,6 +333,8 @@ class ProjectNode:
 
     @strawberry.field(description="List of project's product types")
     async def product_types(self) -> list[ProductType]:
+        if self.skeleton:
+            return []  # TODO: load from skeleton data instead of returning empty list
         return [
             ProductType(
                 name=row["name"],
@@ -347,6 +355,8 @@ class ProjectNode:
 
     @strawberry.field(description="List of project's product base types")
     async def product_base_types(self) -> list[ProductBaseType]:
+        if self.skeleton:
+            return []  # TODO: load from skeleton data instead of returning empty list
         return [
             ProductBaseType(
                 name=row["name"],
@@ -363,6 +373,8 @@ class ProjectNode:
 
     @strawberry.field(description="List of project's statuses")
     async def statuses(self) -> list[Status]:
+        if self.skeleton:
+            return []  # TODO: load from skeleton data instead of returning empty list
         query = f"""
             SELECT name, data
             FROM project_{self.project_name}.statuses
@@ -383,6 +395,8 @@ class ProjectNode:
 
     @strawberry.field(description="List of tags in the project")
     async def tags(self) -> list[Tag]:
+        if self.skeleton:
+            return []  # TODO: load from skeleton data instead of returning empty list
         query = f"""
             SELECT name, data
             FROM project_{self.project_name}.tags
@@ -399,6 +413,8 @@ class ProjectNode:
 
     @strawberry.field(description="List of tags used in the project")
     async def used_tags(self) -> list[str]:
+        if self.skeleton:
+            return []
         return await get_used_project_tags(self.project_name)
 
 
