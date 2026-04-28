@@ -506,6 +506,11 @@ async def get_versions(
     # Filter
     #
 
+    # Backwards-compat fallback for projects with NULL product_base_type
+    product_base_type_expr = (
+        "COALESCE(products.product_base_type, products.product_type)"
+    )
+
     if filter:
         column_whitelist = [
             "id",
@@ -524,6 +529,7 @@ async def get_versions(
             "updated_by",
             # virtual
             "product_type",
+            "product_base_type",
             "task_type",
             "folder_type",
             "hero_version_id",
@@ -537,6 +543,7 @@ async def get_versions(
             table_prefix="versions",
             column_map={
                 "product_type": "products.product_type",
+                "product_base_type": product_base_type_expr,
                 "task_type": "tasks.task_type",
                 "folder_type": "folders.folder_type",
                 "hero_version_id": "hero_versions.hero_version_id",
@@ -550,6 +557,7 @@ async def get_versions(
             "name",
             "folder_id",
             "product_type",
+            "product_base_type",
             "status",
             "attrib",
             "data",
@@ -567,6 +575,9 @@ async def get_versions(
             fq,
             column_whitelist=column_whitelist,
             table_prefix="products",
+            column_map={
+                "product_base_type": product_base_type_expr,
+            },
         ):
             sql_conditions.append(fcond)
 
