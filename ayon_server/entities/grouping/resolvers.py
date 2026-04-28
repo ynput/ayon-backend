@@ -282,13 +282,20 @@ async def get_product_base_type_groups(
     Returns one group per base type defined in the project anatomy
     (with count=0 if unused), plus any orphan base type values present
     in the products table that are not in the anatomy definitions.
+
+    For backwards compatibility with projects not yet fully migrated,
+    products with a NULL product_base_type fall back to their product_type.
     """
     anatomy = await get_project_anatomy(project_name)
 
     query = f"""
+        WITH base_types_with_fallback AS (
+            SELECT
+                COALESCE(product_base_type, product_type) AS product_base_type
+            FROM project_{project_name}.products
+        )
         SELECT count(*) AS count, product_base_type AS value
-        FROM project_{project_name}.products
-        WHERE product_base_type IS NOT NULL
+        FROM base_types_with_fallback
         GROUP BY product_base_type
     """
     result = await Postgres.fetch(query)
