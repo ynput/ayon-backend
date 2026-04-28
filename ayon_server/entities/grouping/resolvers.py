@@ -271,3 +271,54 @@ async def get_product_type_groups(
         )
         groups.append(group)
     return groups
+
+
+async def get_product_base_type_groups(
+    project_name: str,
+) -> list[EntityGroup]:
+    """
+    Retrieve product groups based on product base types for the given project.
+
+    Returns one group per base type defined in the project anatomy
+    (with count=0 if unused), plus any orphan base type values present
+    in the products table that are not in the anatomy definitions.
+    """
+    anatomy = await get_project_anatomy(project_name)
+
+    query = f"""
+        SELECT count(*) AS count, product_base_type AS value
+        FROM project_{project_name}.products
+        WHERE product_base_type IS NOT NULL
+        GROUP BY product_base_type
+    """
+    result = await Postgres.fetch(query)
+    counts = {row["value"]: row["count"] for row in result}
+
+    groups: list[EntityGroup] = []
+    seen: set[str] = set()
+    for pt in anatomy.product_base_types.definitions:
+        groups.append(
+            EntityGroup(
+                value=pt.name,
+                label=pt.name,
+                icon=pt.icon or anatomy.product_base_types.default.icon,
+                color=pt.color or anatomy.product_base_types.default.color,
+                count=counts.get(pt.name, 0),
+            )
+        )
+        seen.add(pt.name)
+
+    for value, count in counts.items():
+        if value in seen:
+            continue
+        groups.append(
+            EntityGroup(
+                value=value,
+                label=value,
+                icon=anatomy.product_base_types.default.icon,
+                color=anatomy.product_base_types.default.color,
+                count=count,
+            )
+        )
+
+    return groups
