@@ -486,7 +486,7 @@ async def get_versions(
     #
 
     if search:
-        terms = slugify(search, make_set=True, min_length=2)
+        terms = slugify(search, make_set=True, min_length=2, split_chars=" ")
 
         for term in terms:
             sub_conditions = []

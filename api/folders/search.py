@@ -122,7 +122,7 @@ async def search_folders(
             t1_conds = []
 
             for part in parts:
-                terms = slugify(part, make_set=True)
+                terms = slugify(part, make_set=True, split_chars=" ")
                 t2_conds = []
                 for term in terms:
                     t2_conds.append(
@@ -174,7 +174,7 @@ async def search_folders(
         t1_conds = []
 
         for part in parts:
-            terms = slugify(part, make_set=True)
+            terms = slugify(part, make_set=True, split_chars=" ")
             t2_conds = []
             for term in terms:
                 t2_conds.append(
@@ -209,8 +209,8 @@ async def search_folders(
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
     """
-    result = []
+    result = set()
     async for row in Postgres.iterate(query):
-        result.append(row["folder_id"])
+        result.add(row["folder_id"])
 
-    return FolderSearchResponse(folder_ids=result)
+    return FolderSearchResponse(folder_ids=list(result))
