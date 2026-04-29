@@ -132,7 +132,7 @@ async def search_folders(
                         f"OR ex.path ILIKE '%{term}%')"
                     )
                 t1_conds.append(SQLTool.conditions(t2_conds, "AND", add_where=False))
-            sql_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
+            task_conditions.append(SQLTool.conditions(t1_conds, "OR", add_where=False))
 
         sql_cte.append(
             f"""
