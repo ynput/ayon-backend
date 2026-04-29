@@ -162,15 +162,19 @@ def slugify(
             Set of characters used for word splitting (there is a sane default)
 
     """
+
+    whitelist = slug_whitelist
+    for sep in SLUG_SEPARATORS:
+        if sep not in whitelist and sep not in split_chars:
+            whitelist += sep
+
     input_string = unidecode.unidecode(input_string)
     if lower:
         input_string = input_string.lower()
     input_string = "".join(
         [ch if ch not in split_chars else " " for ch in input_string]
     )
-    input_string = "".join(
-        [ch if ch in slug_whitelist + " " else "" for ch in input_string]
-    )
+    input_string = "".join([ch if ch in whitelist + " " else "" for ch in input_string])
     elements = [
         elm.strip() for elm in input_string.split(" ") if len(elm.strip()) >= min_length
     ]
