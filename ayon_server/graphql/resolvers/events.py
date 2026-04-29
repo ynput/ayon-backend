@@ -101,7 +101,7 @@ async def get_events(
             sql_conditions.append("id NOT IN (SELECT depends_on FROM public.events)")
 
     if filter:
-        elms = slugify(filter, make_set=True)
+        elms = slugify(filter, make_set=True, split_chars=" ")
         search_cols = ["topic", "project_name", "user_name", "description"]
         lconds = []
         for elm in elms:

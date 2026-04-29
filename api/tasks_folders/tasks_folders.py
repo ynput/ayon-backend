@@ -87,7 +87,7 @@ async def query_tasks_folders(
         t1_conds = []
 
         for part in parts:
-            terms = slugify(part, make_set=True)
+            terms = slugify(part, make_set=True, split_chars=" ")
             t2_conds = []
             for term in terms:
                 t2_conds.append(
