@@ -363,7 +363,7 @@ BEGIN
     FOR project IN
       SELECT p.name FROM projects AS p JOIN users AS u ON u.name = user_name
       WHERE (show_active_projects IS NULL OR p.active = show_active_projects)
-      AND p.data->>'isSkeleton' != 'true'
+      AND (p.data->>'isSkeleton' IS DISTINCT FROM  'true')
       AND (
         (
           (u.data->'isManager')::boolean
