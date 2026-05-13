@@ -99,9 +99,17 @@ async def get_users(
 
     # Filter by isSupport
     if is_support is not None:
-        sql_conditions.append(
-            f"users.data->>'isSupport' = '{'true' if is_support else 'false'}'"
-        )
+        if is_support:
+            # Only users with isSupport explicitly set to true
+            sql_conditions.append(
+                "users.data->>'isSupport' = 'true'"
+            )
+        else:
+            # Users where isSupport is false OR not set (NULL)
+            sql_conditions.append(
+                "(users.data->>'isSupport' = 'false' OR "
+                "users.data->>'isSupport' IS NULL)"
+            )
 
     # Filter by project
 
