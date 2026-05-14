@@ -84,7 +84,10 @@ async def validate_access_groups(user_data: dict[str, Any]) -> None:
 
         groups = access_groups[pname]
         groups = [g for g in groups if g in existing_access_groups]
-        access_groups[pname] = groups
+        if not groups:
+            access_groups.pop(pname, None)
+        else:
+            access_groups[pname] = groups
 
     #
     # Put back cleaned up groups to data, or remove empty lists
