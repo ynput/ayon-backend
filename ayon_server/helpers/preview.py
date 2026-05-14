@@ -22,7 +22,7 @@ FILE_PREVIEW_SIZE = (600, None)
 PREVIEW_CACHE_TTL = 3600 * 24
 
 
-VIDEO_THUMBNAIL_STATUS = set()
+VIDEO_THUMBNAIL_STATUS: set[str] = set()
 
 
 async def create_video_thumbnail(

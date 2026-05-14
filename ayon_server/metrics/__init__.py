@@ -1,6 +1,7 @@
 __all__ = ["Metrics", "get_metrics"]
 
 import time
+from typing import Any
 
 import httpx
 
@@ -134,7 +135,7 @@ class Metrics(OPModel):
     user_stats: list[UserStat] | None = Field(None, title="User stats")
 
 
-METRICS_SNAPSHOT = {}
+METRICS_SNAPSHOT: dict[str, Any] = {}
 METRICS_SETUP = [
     {
         "name": "project_counts",
