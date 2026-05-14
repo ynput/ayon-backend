@@ -48,6 +48,60 @@ class SessionInfo:
         return f"SessionInfo(is_api_key={self.is_api_key})"
 
 
+async def validate_access_groups(user_data: dict[str, Any]) -> None:
+    """
+    Validate defaultAccessGroups and accessGroups in user data
+    and do in-place clean-up (delete non-existing groups and projects)
+    """
+    access_groups = user_data.get("accessGroups", {})
+    default_access_groups = user_data.get("defaultAccessGroups", [])
+
+    # if there are no groups, we don't need to do anything
+    if not (access_groups or default_access_groups):
+        # we don't need empty lists in data
+        user_data.pop("accessGroups", None)
+        user_data.pop("defaultAccessGroups", None)
+        return
+
+    # fetch existing groups and projects from DB
+
+    res = await Postgres.fetch("SELECT name FROM public.access_groups")
+    existing_access_groups = {row["name"] for row in res}
+    existing_projects = {p.name for p in await get_project_list(with_skeleton=True)}
+
+    # clean up non-existing groups and projects
+
+    default_access_groups = [
+        g for g in default_access_groups if g in existing_access_groups
+    ]
+
+    for pname in list(access_groups.keys()):
+        if pname not in existing_projects:
+            del access_groups[pname]
+            continue
+
+        groups = access_groups[pname]
+        groups = [g for g in groups if g in existing_access_groups]
+        if not groups:
+            access_groups.pop(pname, None)
+        else:
+            access_groups[pname] = groups
+
+    #
+    # Put back cleaned up groups to data, or remove empty lists
+    #
+
+    if not access_groups:
+        user_data.pop("accessGroups", None)
+    else:
+        user_data["accessGroups"] = access_groups
+
+    if not default_access_groups:
+        user_data.pop("defaultAccessGroups", None)
+    else:
+        user_data["defaultAccessGroups"] = default_access_groups
+
+
 class UserEntity(TopLevelEntity):
     entity_type: str = "user"
     model = ModelSet("user", attribute_library["user"], has_id=False)
@@ -164,6 +218,8 @@ class UserEntity(TopLevelEntity):
                 if res:
                     msg = "This email is already used by another user"
                     raise ConstraintViolationException(msg)
+
+            await validate_access_groups(self.data)
 
             if do_con_check:
                 logger.info(f"Activating user {self.name}")
