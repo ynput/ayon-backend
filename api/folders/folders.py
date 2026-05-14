@@ -91,6 +91,11 @@ async def delete_folder(
 
     ops = ProjectLevelOperations(project_name, user=user)
 
+    # If `force` is true, all subfolders, as well as any products in those folders,
+    # will be deleted. We don't need any additional ACL checks here,
+    # as they are performed in the delete operation (only managers and above can
+    # use this flag
+
     ops.delete("folder", folder_id, force=force)
     await ops.process(can_fail=False, raise_on_error=True)
     return EmptyResponse()

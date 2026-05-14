@@ -132,6 +132,16 @@ async def get_event(user: CurrentUser, event_id: EventID) -> EventModel:
     if user.is_guest:
         raise ForbiddenException("Guests are not allowed to get events this way")
 
+    # Standard users can access any event that they know the ID of.
+    # Since event IDs are UUIDs, they are not guessable,
+    # so this is not a security issue.
+    #
+    # Non-managers cannot list events, and the only way of knowing the ID is when they
+    # receive an event through websocket connection. In order to receive it,
+    # they need to be subscribed to the project scope they have access to, or
+    # the event needs to be explicitly whitelisted in messaging.py
+    # (such as inbox events).
+
     return await EventStream.get(event_id)
 
 
@@ -166,8 +176,13 @@ async def update_existing_event(
                 raise ForbiddenException("Not allowed to update status of this event")
 
     if not user.is_manager:
+        # managers can update any event, but normal users can only update their
+        # own events and only if they are not trying to change
+        # the user of the event to someone else
+
         if event_user != user.name:
             raise ForbiddenException("Not allowed to update this event")
+
         if payload.user and payload.user != user.name:
             raise ForbiddenException("Not allowed to change user of this event")
 
