@@ -60,8 +60,8 @@ async def validate_access_groups(user_data: dict[str, Any]) -> None:
         return
 
     res = await Postgres.fetch("SELECT name FROM public.access_groups")
-    existing_access_groups = [row["name"] for row in res]
-    existing_projects = [p.name for p in await get_project_list(with_skeleton=True)]
+    existing_access_groups = {row["name"] for row in res}
+    existing_projects = {p.name for p in await get_project_list(with_skeleton=True)}
 
     default_access_groups = [
         g for g in default_access_groups if g in existing_access_groups
