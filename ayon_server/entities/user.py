@@ -59,10 +59,8 @@ async def validate_access_groups(user_data: dict[str, Any]) -> None:
     # if there are no groups, we don't need to do anything
     if not (access_groups or default_access_groups):
         # we don't need empty lists in data
-        if not access_groups:
-            user_data.pop("accessGroups", None)
-        if not default_access_groups:
-            user_data.pop("defaultAccessGroups", None)
+        user_data.pop("accessGroups", None)
+        user_data.pop("defaultAccessGroups", None)
         return
 
     # fetch existing groups and projects from DB
