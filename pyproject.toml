@@ -17,7 +17,7 @@ dependencies = [
   "email-validator >=2.3.0",
   "fastapi ==0.125.0", # Higher versions require Pydantic v2
   "geoip2 >=5.2.0",
-  "granian >=1.1.1",
+  "granian >=2.3.2",
   "gunicorn >=25.1.0",
   "httpx >=0.28.1",
   "jinja2>=3.1.6",
