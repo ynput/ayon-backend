@@ -56,16 +56,27 @@ async def validate_access_groups(user_data: dict[str, Any]) -> None:
     access_groups = user_data.get("accessGroups", {})
     default_access_groups = user_data.get("defaultAccessGroups", [])
 
-    if not access_groups and not default_access_groups:
+    # if there are no groups, we don't need to do anything
+    if not (access_groups or default_access_groups):
+        # we don't need empty lists in data
+        if not access_groups:
+            user_data.pop("accessGroups", None)
+        if not default_access_groups:
+            user_data.pop("defaultAccessGroups", None)
         return
 
+    # fetch existing groups and projects from DB
+
     res = await Postgres.fetch("SELECT name FROM public.access_groups")
-    existing_access_groups = [row["name"] for row in res]
-    existing_projects = [p.name for p in await get_project_list(with_skeleton=True)]
+    existing_access_groups = {row["name"] for row in res}
+    existing_projects = {p.name for p in await get_project_list(with_skeleton=True)}
+
+    # clean up non-existing groups and projects
 
     default_access_groups = [
         g for g in default_access_groups if g in existing_access_groups
     ]
+
     for pname in list(access_groups.keys()):
         if pname not in existing_projects:
             del access_groups[pname]
@@ -75,8 +86,19 @@ async def validate_access_groups(user_data: dict[str, Any]) -> None:
         groups = [g for g in groups if g in existing_access_groups]
         access_groups[pname] = groups
 
-    user_data["defaultAccessGroups"] = default_access_groups
-    user_data["accessGroups"] = access_groups
+    #
+    # Put back cleaned up groups to data, or remove empty lists
+    #
+
+    if not access_groups:
+        user_data.pop("accessGroups", None)
+    else:
+        user_data["accessGroups"] = access_groups
+
+    if not default_access_groups:
+        user_data.pop("defaultAccessGroups", None)
+    else:
+        user_data["defaultAccessGroups"] = default_access_groups
 
 
 class UserEntity(TopLevelEntity):
