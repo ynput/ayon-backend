@@ -1,4 +1,6 @@
+import json
 from datetime import datetime
+from typing import Annotated
 
 from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.entities import ProjectEntity
@@ -11,11 +13,30 @@ from ayon_server.graphql.resolvers.common import (
     ARGFirst,
     ARGLast,
     resolve,
+    argdesc,
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import validate_name_list
 from ayon_server.utils import SQLTool
+
+ACTIVITY_FEED_ALLOWED_KEYS = [
+    "activity_type",
+    "reference_type",
+    "entity_type",
+    "entity_name",
+    "entity_id",
+    "tags",
+    "body",
+    "active",
+    "created_at",
+    "updated_at",
+    "reference_id",
+    "activity_id",
+    "entity_path",
+    "creation_order"
+]
 
 
 async def get_activities(
@@ -35,6 +56,7 @@ async def get_activities(
     categories: list[str | None] | None = None,
     changed_before: str | None = None,
     changed_after: str | None = None,
+    filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
 ) -> ActivitiesConnection:
     project_name = root.project_name
     project = await ProjectEntity.load(project_name)
@@ -215,6 +237,16 @@ async def get_activities(
     if entity_names is not None:
         validate_name_list(entity_names)
         sql_conditions.append(f"entity_name IN {SQLTool.array(entity_names)}")
+
+    if filter:
+        fdata = json.loads(filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=ACTIVITY_FEED_ALLOWED_KEYS,
+            json_fields=["activity_data", "reference_data"],
+        ):
+             sql_conditions.append(fcond)
 
     #
     # Pagination
