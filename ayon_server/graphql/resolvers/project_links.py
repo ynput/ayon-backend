@@ -24,24 +24,36 @@ async def get_project_links(
         await access_checker.load(user, project_name)
         info.context["access_checker"] = access_checker
 
+    args = []
+
+    def next_idx():
+        idx = len(args) + 1
+        return f"${idx}"
+
     cte_conds = []
     if link_types:
-        cte_conds.append(f"link_type IN {SQLTool.array(link_types)}")
+        cte_conds.append(f"link_type = ANY({next_idx()})")
+        args.append(link_types)
     if input_types:
-        cte_conds.append(f"input_type IN {SQLTool.array(input_types)}")
+        cte_conds.append(f"input_type = ANY({next_idx()})")
+        args.append(input_types)
     if output_types:
-        cte_conds.append(f"output_type IN {SQLTool.array(output_types)}")
+        cte_conds.append(f"output_type = ANY({next_idx()})")
+        args.append(output_types)
 
     sql_conditions = []
 
     if after is not None and after.isdigit():
-        sql_conditions.append(f"l.creation_order > {after}")
+        sql_conditions.append(f"l.creation_order > {next_idx()}")
+        args.append(after)
 
-    if names is not None:
-        sql_conditions.append(f"l.name in {SQLTool.array(names)}")
+    if names:
+        sql_conditions.append(f"l.name = ANY({next_idx()})")
+        args.append(names)
 
-    if name_ex is not None:
-        sql_conditions.append(f"l.name ~ '{name_ex}'")
+    if name_ex:
+        sql_conditions.append(f"l.name ~ {next_idx()}")
+        args.append(name_ex)
 
     query = f"""
         WITH matching_link_types AS (
@@ -67,12 +79,12 @@ async def get_project_links(
         JOIN matching_link_types m ON l.link_type = m.name
         {SQLTool.conditions(sql_conditions)}
         ORDER BY creation_order
-        LIMIT {first + 1}
+        LIMIT {max(first, 0) + 1}
     """
 
     edges: list[ProjectLinkEdge] = []
 
-    async for row in Postgres.iterate(query):
+    async for row in Postgres.iterate(query, *args):
         input_id = row["input_id"]
         output_id = row["output_id"]
         cursor = str(row["creation_order"])
