@@ -8,6 +8,10 @@ from ayon_server.utils import SQLTool
 async def get_project_links(
     root,
     info: Info,
+    ids: list[str] | None = None,
+    entity_ids: list[str] | None = None,
+    input_ids: list[str] | None = None,
+    output_ids: list[str] | None = None,
     link_types: list[str] | None = None,
     input_types: list[str] | None = None,
     output_types: list[str] | None = None,
@@ -42,6 +46,23 @@ async def get_project_links(
         args.append(output_types)
 
     sql_conditions = []
+
+    if ids:
+        sql_conditions.append(f"l.id = ANY({next_idx()})")
+        args.append(ids)
+
+    if entity_ids:
+        idx = next_idx()
+        sql_conditions.append(f"(l.input_id = ANY({idx}) OR l.output_id = ANY({idx}))")
+        args.append(entity_ids)
+
+    if input_ids:
+        sql_conditions.append(f"l.input_id = ANY({next_idx()})")
+        args.append(input_ids)
+
+    if output_ids:
+        sql_conditions.append(f"l.output_id = ANY({next_idx()})")
+        args.append(output_ids)
 
     if after is not None and after.isdigit():
         sql_conditions.append(f"l.creation_order > {next_idx()}")
