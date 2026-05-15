@@ -99,7 +99,7 @@ class ProjectLinkEdge(BaseEdge):
     id: str = strawberry.field()
     project_name: str = strawberry.field()
 
-    link_type: str = strawberry.field(default="something")
+    link_type: str = strawberry.field()
 
     input_type: str = strawberry.field()
     output_type: str = strawberry.field()
