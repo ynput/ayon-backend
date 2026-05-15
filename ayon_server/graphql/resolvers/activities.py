@@ -46,17 +46,37 @@ async def get_activities(
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
-    entity_type: str | None = None,
-    entity_ids: list[str] | None = None,
-    entity_names: list[str] | None = None,
-    activity_types: list[str] | None = None,
-    reference_types: list[str] | None = None,
-    activity_ids: list[str] | None = None,
-    tags: list[str] | None = None,
-    categories: list[str | None] | None = None,
-    changed_before: str | None = None,
-    changed_after: str | None = None,
-    filter: Annotated[str | None, argdesc("Filter tasks using QueryFilter")] = None,
+    entity_type: Annotated[
+        str | None, argdesc("Entity type to filter by")
+    ] = None,
+    entity_ids: Annotated[
+        list[str] | None, argdesc("List of entity IDs to filter by")
+    ] = None,
+    entity_names: Annotated[
+        list[str] | None, argdesc("List of entity names to filter by")
+    ] = None,
+    activity_types: Annotated[
+        list[str] | None, argdesc("List of activity types to filter by")
+    ] = None,
+    reference_types: Annotated[
+        list[str] | None, argdesc("List of reference types to filter by")
+    ] = None,
+    activity_ids: Annotated[
+        list[str] | None, argdesc("List of activity IDs to filter by")
+    ] = None,
+    tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
+    categories: Annotated[
+        list[str | None] | None, argdesc("List of categories to filter by")
+    ] = None,
+    changed_before: Annotated[
+        str | None, argdesc("Filter activities updated before this timestamp")
+    ] = None,
+    changed_after: Annotated[
+        str | None, argdesc("Filter activities updated after this timestamp")
+    ] = None,
+    filter: Annotated[
+        str | None, argdesc("Filter activities using QueryFilter")
+    ] = None,
 ) -> ActivitiesConnection:
     project_name = root.project_name
     project = await ProjectEntity.load(project_name)
