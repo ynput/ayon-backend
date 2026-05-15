@@ -7,11 +7,17 @@ from ayon_server.entities import ProjectEntity
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import ForbiddenException
 from ayon_server.graphql.connections import ActivitiesConnection, EntityListsConnection
-from ayon_server.graphql.nodes.common import ProductBaseType, ProductType, ThumbnailInfo
+from ayon_server.graphql.nodes.common import (
+    ProductBaseType,
+    ProductType,
+    ProjectLinksConnection,
+    ThumbnailInfo,
+)
 from ayon_server.graphql.resolvers.activities import get_activities
 from ayon_server.graphql.resolvers.entity_lists import get_entity_list, get_entity_lists
 from ayon_server.graphql.resolvers.folders import get_folder, get_folders
 from ayon_server.graphql.resolvers.products import get_product, get_products
+from ayon_server.graphql.resolvers.project_links import get_project_links
 from ayon_server.graphql.resolvers.representations import (
     get_representation,
     get_representations,
@@ -243,6 +249,11 @@ class ProjectNode:
     activities: ActivitiesConnection = strawberry.field(
         resolver=get_activities,
         description=get_activities.__doc__,
+    )
+
+    links: ProjectLinksConnection = strawberry.field(
+        resolver=get_project_links,
+        description=get_project_links.__doc__,
     )
 
     @strawberry.field(description="List of project's task types")
