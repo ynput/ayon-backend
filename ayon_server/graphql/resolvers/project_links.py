@@ -20,6 +20,9 @@ async def get_project_links(
     names: list[str] | None = None,
     name_ex: str | None = None,
 ) -> ProjectLinksConnection:
+    """List all links in the project, with optional filters."""
+
+    first = max(first, 0)
 
     project_name = root.project_name
     user = info.context["user"]
@@ -100,7 +103,7 @@ async def get_project_links(
         JOIN matching_link_types m ON l.link_type = m.name
         {SQLTool.conditions(sql_conditions)}
         ORDER BY creation_order
-        LIMIT {max(first, 0) + 1}
+        LIMIT {first + 1}
     """
 
     edges: list[ProjectLinkEdge] = []
@@ -124,7 +127,8 @@ async def get_project_links(
                 name=row["name"],
                 link_type=link_type,
                 cursor=cursor,
-                author=row["author"],
+                author=row["author"] if user.is_manager else None,
+                created_at=row["created_at"],
                 data=row["data"],
             )
         )

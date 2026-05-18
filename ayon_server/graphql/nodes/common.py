@@ -108,11 +108,12 @@ class ProjectLinkEdge(BaseEdge):
 
     name: str | None = strawberry.field(default=None)
     author: str | None = strawberry.field(default=None)
+    created_at: datetime = strawberry.field()
 
     cursor: str | None = strawberry.field(default=None)
     data: JSON = strawberry.field(default_factory=dict)
 
-    @strawberry.field(description="Linked node")
+    @strawberry.field(description="Input node")
     async def input_node(self, info: Info) -> Optional["BaseNode"]:
         return await _get_entity(
             info,
@@ -121,7 +122,7 @@ class ProjectLinkEdge(BaseEdge):
             self.input_id,
         )
 
-    @strawberry.field(description="Linked node")
+    @strawberry.field(description="Output node")
     async def output_node(self, info: Info) -> Optional["BaseNode"]:
         return await _get_entity(
             info,
