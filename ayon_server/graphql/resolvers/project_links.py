@@ -69,7 +69,7 @@ async def get_project_links(
 
     if after is not None and after.isdigit():
         sql_conditions.append(f"l.creation_order > {next_idx()}")
-        args.append(after)
+        args.append(int(after))
 
     if names:
         sql_conditions.append(f"l.name = ANY({next_idx()})")
