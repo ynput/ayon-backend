@@ -117,6 +117,8 @@ JSON_FIELDS = [
     "attrib",
     "data",
     "config",
+    "activity_data",
+    "reference_data",
 ]
 
 
