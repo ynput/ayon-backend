@@ -23,7 +23,9 @@ from ayon_server.utils import SQLTool
 
 ACTIVITY_FEED_ALLOWED_KEYS = [
     "activity_type",
+    "activity_data",
     "reference_type",
+    "reference_data",
     "entity_type",
     "entity_name",
     "entity_id",
