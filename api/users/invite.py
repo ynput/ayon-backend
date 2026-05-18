@@ -72,7 +72,7 @@ async def password_reset_request(
         subject=subject,
         html=body,
     )
-    logger.info(f"Sent invitation email to {payload.email}")
+    logger.info(f"Sent invitation email to {user.attrib.email}")
 
 
 class AcceptInviteRequest(OPModel):
