@@ -12,8 +12,8 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
-    resolve,
     argdesc,
+    resolve,
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
@@ -37,7 +37,7 @@ ACTIVITY_FEED_ALLOWED_KEYS = [
     "reference_id",
     "activity_id",
     "entity_path",
-    "creation_order"
+    "creation_order",
 ]
 
 
@@ -48,9 +48,7 @@ async def get_activities(
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
-    entity_type: Annotated[
-        str | None, argdesc("Entity type to filter by")
-    ] = None,
+    entity_type: Annotated[str | None, argdesc("Entity type to filter by")] = None,
     entity_ids: Annotated[
         list[str] | None, argdesc("List of entity IDs to filter by")
     ] = None,
@@ -268,7 +266,7 @@ async def get_activities(
             column_whitelist=ACTIVITY_FEED_ALLOWED_KEYS,
             json_fields=["activity_data", "reference_data"],
         ):
-             sql_conditions.append(fcond)
+            sql_conditions.append(fcond)
 
     #
     # Pagination
