@@ -151,6 +151,12 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "title": "Developer mode",
         "example": True,
     },
+    "allowStagingMode": {
+        "scope": "U",
+        "type": "boolean",
+        "title": "Allow staging mode",
+        "example": False,
+    },
     "productGroup": {
         "scope": "S",
         "type": "string",
