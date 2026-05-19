@@ -29,7 +29,7 @@ class InviteUserRequest(OPModel):
 
 
 @router.post("/{user_name}/invite")
-async def password_reset_request(
+async def invite_user(
     current_user: CurrentUser,
     user_name: UserName,
     payload: InviteUserRequest,
@@ -81,7 +81,7 @@ class AcceptInviteRequest(OPModel):
 
 
 @router.post("/acceptInvite")
-async def password_reset(
+async def accept_invite(
     payload: AcceptInviteRequest, request: Request
 ) -> LoginResponseModel:
     query = "SELECT name, data FROM users WHERE data->'inviteRequest'->>'token' = $1"
