@@ -52,7 +52,7 @@ async def invite_user(
     studio_name = server_config.studio_name
 
     tplvars = {
-        "reset_url": f"{server_url}/acceptInvite?token={token}",
+        "reset_link": f"{server_url}/acceptInvite?token={token}",
         "full_name": user.attrib.fullName or user.name,
         "studio_name": studio_name,
         "user_name": user.name,
