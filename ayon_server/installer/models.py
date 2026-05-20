@@ -70,6 +70,14 @@ class BasePackageModel(OPModel):
             example="3.11",
         ),
     ] = None
+    distro_short: Annotated[
+        str | None,
+        Field(
+            title="Short distribution name",
+            description="Short name of the Linux distribution",
+            example="rocky9",
+        ),
+    ] = None
 
 
 class SourcesPatchModel(OPModel):
