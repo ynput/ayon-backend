@@ -109,6 +109,7 @@ async def accept_invite(
 
     user = await UserEntity.load(user_name)
     user.data["inviteRequest"] = None
+    user.data["inviteAcceptedAt"] = time.time()
     user.set_password(payload.password, complexity_check=True)
     await user.save()
 
