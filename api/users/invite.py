@@ -40,22 +40,33 @@ async def invite_user(
 
     user = await UserEntity.load(user_name)
 
+    server_url = server_url_from_request(request)
+    server_config = await get_server_config()
+    password_enabled = (not server_config.authentication.hide_password_auth) and (
+        not user.data.get("disablePasswordLogin", False)
+    )
+    studio_name = server_config.studio_name
+
     token = secrets.token_urlsafe(32)
     invite_request = {
         "time": time.time(),
         "token": token,
     }
-
     user.data["inviteRequest"] = invite_request
-    server_url = server_url_from_request(request)
-    server_config = await get_server_config()
-    studio_name = server_config.studio_name
+    user.data.pop("inviteAcceptedAt", None)
+
+    accept_link = (
+        f"{server_url}/acceptInvite?token={token}"
+        if password_enabled
+        else f"{server_url}/"
+    )
 
     tplvars = {
-        "reset_link": f"{server_url}/acceptInvite?token={token}",
+        "accept_link": accept_link,
         "full_name": user.attrib.fullName or user.name,
         "studio_name": studio_name,
         "user_name": user.name,
+        "password_enabled": password_enabled,
     }
 
     template = EmailTemplate()
@@ -108,10 +119,11 @@ async def accept_invite(
         return LoginResponseModel(detail="Token is valid")
 
     user = await UserEntity.load(user_name)
-    user.data["inviteRequest"] = None
-    user.data["inviteAcceptedAt"] = time.time()
     user.set_password(payload.password, complexity_check=True)
-    await user.save()
+
+    # No need to save here, because save is called in Session.create
+    # upon removing inviteRequest from user data
+    # await user.save()
 
     session = await Session.create(user, request=request)
     return LoginResponseModel(
