@@ -1,0 +1,31 @@
+{% extends "base.jinja" %}
+
+{% block content %}
+  {% call ui.paragraph() %}
+    Hello!
+  {% endcall %}
+
+  {% call ui.paragraph() %}
+    You have been invited to join <strong>{{ studio_name }}</strong> AYON instance.
+  {% endcall %}
+
+  {% call ui.paragraph() %}
+    Your account has been created with user name <strong>{{ user_name }}</strong>.
+
+    {% if password_enabled %}
+      Please click the button below to set your password and sign in. 
+    {% else %}
+      Please click the button below to accept the invite and sign in.
+    {% endif %}
+
+  {% endcall %}
+{% endblock %}
+
+{% block call_to_action %}
+  {{ ui.call_to_action("Accept invite", accept_link ) }}
+{% endblock %}
+
+{% block footer %}
+  If you did not expect this invitation, please ignore this email.
+{% endblock %}
+

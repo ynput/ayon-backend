@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Annotated, Any
 
 import strawberry
@@ -40,6 +40,8 @@ class UserNode:
     is_service: bool
     is_guest: bool
     is_developer: bool
+    invite_sent_at: datetime | None = None
+    invite_accepted_at: datetime | None = None
     has_password: bool
     disable_password_login: bool = False
     user_pool: str | None = None
@@ -87,6 +89,14 @@ async def user_from_record(
     user_pool = data.get("userPool")
     disable_password_login = data.get("disablePasswordLogin", False)
 
+    invite_sent_at = None
+    invite_accepted_at = None
+
+    if invite_sent_req := data.get("inviteRequest"):
+        invite_sent_at = datetime.fromtimestamp(invite_sent_req["time"], tz=UTC)
+    if "inviteAcceptedAt" in data:
+        invite_accepted_at = datetime.fromtimestamp(data["inviteAcceptedAt"], tz=UTC)
+
     current_user = context["user"]
 
     name = record["name"]
@@ -111,6 +121,8 @@ async def user_from_record(
         is_service=is_service,
         is_guest=is_guest,
         is_developer=is_developer,
+        invite_sent_at=invite_sent_at,
+        invite_accepted_at=invite_accepted_at,
         user_pool=user_pool,
         has_password=bool(data.get("password")),
         default_access_groups=data.get("defaultAccessGroups", []),
