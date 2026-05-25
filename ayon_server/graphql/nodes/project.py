@@ -345,17 +345,11 @@ class ProjectNode:
 
     @strawberry.field(description="List of project's product types")
     async def product_types(self) -> list[ProductType]:
-        # TODO separate from productBaseTypes definitions when available
-        # in Anatomy
-        default_color, default_icon, definitions = \
-            await self._get_product_base_type_defs()
         if self.skeleton:
             return []  # TODO: load from skeleton data instead of returning empty list
         return [
             ProductType(
-                name=row["name"],
-                icon=definitions.get(row["name"],{}).get("icon") or default_icon,
-                color=definitions.get(row["name"],{}).get("color") or default_color,
+                name=row["name"]
             )
             async for row in Postgres.iterate(
                 f"""
