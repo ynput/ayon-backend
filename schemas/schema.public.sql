@@ -158,6 +158,16 @@ CREATE INDEX IF NOT EXISTS event_status_idx ON events (status);
 CREATE INDEX IF NOT EXISTS event_retries_idx ON events (retries);
 CREATE INDEX IF NOT EXISTS events_sender_type_idx ON events(sender_type);
 
+CREATE INDEX IF NOT EXISTS idx_events_excluded_lookup 
+  ON public.events (topic, updated_at)
+  INCLUDE (depends_on) WHERE depends_on IS NOT NULL AND status IN ('finished', 'failed');
+
+CREATE INDEX IF NOT EXISTS idx_events_source_processing
+  ON public.events (topic, status, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_events_target_lookup 
+  ON public.events (depends_on, topic);
+
 --------------
 -- Settings --
 --------------

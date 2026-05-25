@@ -46,12 +46,12 @@ async def main(force: bool | None = None) -> None:
         logger.info("(re)creating database schema")
 
         schema = Path("schemas/schema.drop.sql").read_text()
-        await Postgres.execute(schema)
+        await Postgres.execute(schema, timeout=120)
 
     db_version = await db_migration(has_schema)
 
     schema = Path("schemas/schema.public.sql").read_text()
-    await Postgres.execute(schema)
+    await Postgres.execute(schema, timeout=120)
 
     # Save the current database version (latest migration applied)
 
