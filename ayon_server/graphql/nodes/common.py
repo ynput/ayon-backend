@@ -16,6 +16,8 @@ from ayon_server.utils import json_dumps
 @strawberry.type
 class ProductType(BaseEdge):
     name: str = strawberry.field()
+    icon: None = strawberry.field(default=None)
+    color: None = strawberry.field(default=None)
 
 
 @strawberry.type
