@@ -16,6 +16,8 @@ from ayon_server.utils import json_dumps
 @strawberry.type
 class ProductType(BaseEdge):
     name: str = strawberry.field()
+    # TODO remove 'icon' and 'color' for ayon_api compatibility
+    #     PR https://github.com/ynput/ayon-python-api/pull/332
     icon: None = strawberry.field(default=None)
     color: None = strawberry.field(default=None)
 
