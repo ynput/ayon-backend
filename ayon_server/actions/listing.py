@@ -10,7 +10,7 @@ from ayon_server.events import EventModel, EventStream
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.logging import logger
+from ayon_server.logging import logger, log_traceback
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import json_dumps, json_loads
 
@@ -262,7 +262,7 @@ class SimpleActionCache:
                 cached_data = [x.dict() for x in r]
                 result = [SimpleActionManifest(**x) for x in cached_data]
             except Exception as e:
-                logger.error(
+                log_traceback(
                     "Failed to get simple actions for addon "
                     f"{addon.name} v{addon.version}: {e}"
                 )
@@ -346,7 +346,7 @@ async def get_dynamic_actions(
         try:
             dynamic_actions = await addon.get_dynamic_actions(context, variant)
         except Exception as e:
-            logger.error(
+            log_traceback(
                 "Failed to get dynamic actions for addon "
                 f"{addon.name} v{addon.version}: {e}"
             )
