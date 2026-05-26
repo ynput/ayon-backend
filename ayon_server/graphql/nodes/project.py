@@ -348,9 +348,7 @@ class ProjectNode:
         if self.skeleton:
             return []  # TODO: load from skeleton data instead of returning empty list
         return [
-            ProductType(
-                name=row["name"]
-            )
+            ProductType(name=row["name"])
             async for row in Postgres.iterate(
                 f"""
                 SELECT name, data FROM product_types
@@ -365,15 +363,18 @@ class ProjectNode:
 
     @strawberry.field(description="List of project's product base types")
     async def product_base_types(self) -> list[ProductBaseType]:
-        default_color, default_icon, definitions = \
-            await self._get_product_base_type_defs()
+        (
+            default_color,
+            default_icon,
+            definitions,
+        ) = await self._get_product_base_type_defs()
         if self.skeleton:
             return []  # TODO: load from skeleton data instead of returning empty list
         return [
             ProductBaseType(
                 name=row["name"],
-                icon=definitions.get(row["name"],{}).get("icon") or default_icon,
-                color=definitions.get(row["name"],{}).get("color") or default_color,
+                icon=definitions.get(row["name"], {}).get("icon") or default_icon,
+                color=definitions.get(row["name"], {}).get("color") or default_color,
             )
             async for row in Postgres.iterate(
                 f"""
