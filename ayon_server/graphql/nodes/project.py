@@ -374,7 +374,9 @@ class ProjectNode:
             ProductBaseType(
                 name=row["name"],
                 icon=definitions.get(row["name"], {}).get("icon") or default_icon,
-                color=definitions.get(row["name"], {}).get("color") or default_color,
+                color=definitions.get(row["name"], {}).get("color")
+                or default_color
+                or "#cccccc",
             )
             async for row in Postgres.iterate(
                 f"""
@@ -387,11 +389,10 @@ class ProjectNode:
         ]
 
     async def _get_product_base_type_defs(self) -> tuple[dict[Any, Any], Any, Any]:
-        config = json.loads(self.config)
-        definitions = {
-            type_def["name"]: type_def
-            for type_def in config["productBaseTypes"]["definitions"]
-        }
+        config = json.loads(self.config or "{}")
+        pdt = config.get("productBaseTypes") or {}
+        pbdefs = pdt.get("definitions") or []
+        definitions = {type_def["name"]: type_def for type_def in pbdefs}
         default_icon = config["productBaseTypes"]["default"]["icon"]
         default_color = config["productBaseTypes"]["default"]["color"]
         return default_color, default_icon, definitions
