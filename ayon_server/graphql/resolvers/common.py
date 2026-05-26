@@ -7,7 +7,7 @@ from strawberry.types.arguments import StrawberryArgumentAnnotation
 
 from ayon_server.access.utils import folder_access_list
 from ayon_server.exceptions import ForbiddenException
-from ayon_server.graphql.types import Info, PageInfo
+from ayon_server.graphql.types import Info, PageInfo, ColumnStats
 from ayon_server.lib.postgres import Postgres
 
 from .pagination import encode_cursor
@@ -161,8 +161,26 @@ async def resolve(
     last: int | None = None,
     context: dict[str, Any] | None = None,
     order_by: list[str] | None = None,
+    include_metadata: bool = False
 ) -> R:
     """Return a connection object from a query."""
+
+    metadata_query = None
+    if include_metadata:
+        # Create a metadata query by removing LIMIT/OFFSET clauses
+        metadata_query = query
+        import re
+        metadata_query = re.sub(
+            r'\s+LIMIT\s+\d+', '', metadata_query, flags=re.IGNORECASE
+        )
+        metadata_query = re.sub(
+            r'\s+OFFSET\s+\d+', '', metadata_query, flags=re.IGNORECASE
+        )
+        metadata_query = metadata_query.strip()
+
+        string_columns = {}
+        integer_columns = {}
+        column_names = None
 
     if first is not None:
         count = first
@@ -172,6 +190,56 @@ async def resolve(
         count = first = DEFAULT_PAGE_SIZE
 
     edges: list[Any] = []
+    
+    # First, if metadata is requested, run the metadata query to gather statistics
+    if include_metadata and metadata_query:
+        try:
+            async for record in Postgres.iterate(metadata_query):
+                # Create a standard dictionary from the record
+                original_record = dict(record)
+                
+                # Initialize column names from the first record
+                if column_names is None:
+                    # Exclude cursor fields (they start with "cursor_")
+                    column_names = [
+                        key for key in original_record.keys()
+                        if not key.startswith("cursor_")
+                    ]
+                    # Initialize accumulators for each column
+                    for col in column_names:
+                        value = original_record[col]
+                        if isinstance(value, str):
+                            string_columns[col] = {"full": 0, "empty": 0}
+                        elif isinstance(value, int):
+                            integer_columns[col] = {
+                                "sum": 0, "count": 0, "min": None, "max": None
+                            }
+                        # Other types are ignored for now
+                
+                # Update metadata accumulators
+                for col in column_names:
+                    value = original_record[col]
+                    if col in string_columns:
+                        if value is None or value == "":
+                            string_columns[col]["empty"] += 1
+                        else:
+                            string_columns[col]["full"] += 1
+                    elif col in integer_columns:
+                        if value is not None:
+                            integer_columns[col]["sum"] += value
+                            integer_columns[col]["count"] += 1
+                            if (integer_columns[col]["min"] is None or
+                                    value < integer_columns[col]["min"]):
+                                integer_columns[col]["min"] = value
+                            if (integer_columns[col]["max"] is None or
+                                    value > integer_columns[col]["max"]):
+                                integer_columns[col]["max"] = value
+        except Exception as e:
+            # If metadata query fails, we continue without metadata
+            print(f"Failed to compute metadata: {e}")
+            include_metadata = False  # Disable metadata for this query
+
+    # Now execute the original query for the actual data
     async for record in Postgres.iterate(query):
         # Create a standard dictionary from the record
         record_dict = dict(record)
@@ -226,11 +294,43 @@ async def resolve(
         end_cursor = edges[-1].cursor if edges else None
         # edges.reverse()
 
+    column_metadata_list = None
+    if include_metadata and column_names is not None:
+        column_metadata_list = []
+        for col, stats in string_columns.items():
+            total = stats["full"] + stats["empty"]
+            percentage_filled = (stats["full"] / total * 100) if total > 0 else 0.0
+            column_stats = ColumnStats(
+                column_name=col,
+                value_filled_count=stats["full"],
+                percentage_filled=percentage_filled
+            )
+            column_metadata_list.append(column_stats)
+        for col, stats in integer_columns.items():
+            if stats["count"] > 0:
+                avg = stats["sum"] / stats["count"]
+                min_val = float(stats["min"]) if stats["min"] is not None else None
+                max_val = float(stats["max"]) if stats["max"] is not None else None
+            else:
+                avg = None
+                min_val = None
+                max_val = None
+            column_stats = ColumnStats(
+                column_name=col,
+                value_filled_count=stats["count"],
+                percentage_filled=100.0 if stats["count"] > 0 else 0.0,
+                avg=avg,
+                min=min_val,
+                max=max_val
+            )
+            column_metadata_list.append(column_stats)
+
     page_info = PageInfo(
         has_next_page=has_next_page,
         has_previous_page=has_previous_page,
         start_cursor=start_cursor,
         end_cursor=end_cursor,
+        column_metadata=column_metadata_list
     )
 
     return connection_type(edges=edges, page_info=page_info)
