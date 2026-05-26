@@ -108,7 +108,7 @@ async def send_extend_email(payload: TokenPayload, base_url: str) -> None:
     subject = payload.subject or "Ayon access link renewal"
     logger.debug(
         f"Sending guest exted email to {payload.email}: "
-        "redirect to {payload.redirect_url}"
+        f"redirect to {payload.redirect_url}"
     )
     await send_mail([payload.email], subject, html=body)
 

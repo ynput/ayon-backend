@@ -101,9 +101,7 @@ async def get_users(
     if is_support is not None:
         if is_support:
             # Only users with isSupport explicitly set to true
-            sql_conditions.append(
-                "users.data->>'isSupport' = 'true'"
-            )
+            sql_conditions.append("users.data->>'isSupport' = 'true'")
         else:
             # Users where isSupport is false OR not set (NULL)
             sql_conditions.append(
