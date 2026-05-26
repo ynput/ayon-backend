@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any
 
@@ -348,9 +349,7 @@ class ProjectNode:
             return []  # TODO: load from skeleton data instead of returning empty list
         return [
             ProductType(
-                name=row["name"],
-                icon=row["data"].get("icon"),
-                color=row["data"].get("color"),
+                name=row["name"]
             )
             async for row in Postgres.iterate(
                 f"""
@@ -366,11 +365,15 @@ class ProjectNode:
 
     @strawberry.field(description="List of project's product base types")
     async def product_base_types(self) -> list[ProductBaseType]:
+        default_color, default_icon, definitions = \
+            await self._get_product_base_type_defs()
         if self.skeleton:
             return []  # TODO: load from skeleton data instead of returning empty list
         return [
             ProductBaseType(
                 name=row["name"],
+                icon=definitions.get(row["name"],{}).get("icon") or default_icon,
+                color=definitions.get(row["name"],{}).get("color") or default_color,
             )
             async for row in Postgres.iterate(
                 f"""
@@ -381,6 +384,16 @@ class ProjectNode:
             """
             )
         ]
+
+    async def _get_product_base_type_defs(self) -> tuple[dict[Any, Any], Any, Any]:
+        config = json.loads(self.config)
+        definitions = {
+            type_def["name"]: type_def
+            for type_def in config["productBaseTypes"]["definitions"]
+        }
+        default_icon = config["productBaseTypes"]["default"]["icon"]
+        default_color = config["productBaseTypes"]["default"]["color"]
+        return default_color, default_icon, definitions
 
     @strawberry.field(description="List of project's statuses")
     async def statuses(self) -> list[Status]:
