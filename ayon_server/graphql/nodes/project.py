@@ -331,13 +331,16 @@ class ProjectNode:
         """
 
         res = await Postgres.fetch(query)
+
         return [
             LinkType(
                 name=row["name"],
                 link_type=row["link_type"],
                 input_type=row["input_type"],
                 output_type=row["output_type"],
-                color=row["data"].get("color"),
+                color=color
+                if (color := row["data"].get("color")) and isinstance(color, str)
+                else None,
                 style=row["data"].get("style", "solid"),
             )
             for row in res
@@ -374,7 +377,7 @@ class ProjectNode:
             ProductBaseType(
                 name=row["name"],
                 icon=definitions.get(row["name"], {}).get("icon") or default_icon,
-                color=definitions.get(row["name"], {}).get("color")
+                color=definitions.get(row["name"], {}).get("color")  # type: ignore
                 or default_color
                 or "#cccccc",
             )
