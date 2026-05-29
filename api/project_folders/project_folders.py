@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from ayon_server.api.dependencies import (
+    AllowProjectSkeleton,
     CurrentUser,
     FolderID,
 )
@@ -255,7 +256,7 @@ class AssignProjectRequest(OPModel):
     ]
 
 
-@router.post("/projectFolders/assign")
+@router.post("/projectFolders/assign", dependencies=[AllowProjectSkeleton])
 async def assign_projects_to_folder(
     user: CurrentUser,
     payload: AssignProjectRequest,
