@@ -421,7 +421,8 @@ def _parse_db_stats_to_graphql(db_result: dict) -> list[ColumnStats]:
                     if checked_percentage is not None else None,
                 min=metrics.get("min"),
                 max=metrics.get("max"),
-                avg=round(metrics["avg"], 2) if metrics.get("avg") is not None else None,
+                avg=round(metrics["avg"], 2)
+                    if metrics.get("avg") is not None else None,
             )
         )
 
