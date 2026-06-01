@@ -271,7 +271,10 @@ async def assign_projects_to_folder(
         )
 
     for project_name_input in payload.project_names:
-        project_name = await normalize_project_name(project_name_input)
+        project_name = await normalize_project_name(
+            project_name_input,
+            with_skeleton=True,
+        )
 
         folder_id = EntityID.parse(payload.folder_id, allow_nulls=True)
 
