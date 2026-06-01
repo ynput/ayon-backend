@@ -32,6 +32,7 @@ from .common import (
     resolve,
     sortdesc,
     generate_stats_columns,
+    ColumnMetadata,
 )
 from .pagination import create_pagination
 from .sorting import (
@@ -547,16 +548,39 @@ async def get_folders(
     else:
         cte = ""
 
-    columns_metadata = [
-        ("name", "string"),
-        ("label", "string"),
-        ("parent_id", "uuid"),
-        ("thumbnail_id", "uuid"),
-        ("path", "string"),
-        ("has_reviewables", "bool"),
-        ("project_attributes_fps", "jsonb_nested", "project_attributes", "fps", "numeric"),
-        ("attrib_priority", "jsonb_nested", "attrib", "priority", "string"),
-        ("attrib_description", "jsonb_nested", "attrib", "description", "string"),
+    columns_metadata: list[ColumnMetadata] = [
+        ColumnMetadata("name", "string"),
+        ColumnMetadata("label", "string"),
+        ColumnMetadata("parent_id", "uuid"),
+        ColumnMetadata("thumbnail_id", "uuid"),
+        ColumnMetadata("path", "string"),
+        ColumnMetadata("has_reviewables", "bool"),
+
+        # Nested JSONB metrics
+        ColumnMetadata(
+            column_name="project_attributes_fps",
+            data_type="jsonb",
+            is_nested=True,
+            parent_json_column="project_attributes",
+            json_key="fps",
+            nested_sub_type="numeric"
+        ),
+        ColumnMetadata(
+            column_name="attrib_priority",
+            data_type="jsonb",
+            is_nested=True,
+            parent_json_column="attrib",
+            json_key="priority",
+            nested_sub_type="string"
+        ),
+        ColumnMetadata(
+            column_name="attrib_description",
+            data_type="jsonb",
+            is_nested=True,
+            parent_json_column="attrib",
+            json_key="description",
+            nested_sub_type="string"
+        ),
     ]
 
     # 2. Generate the statistical expressions strings

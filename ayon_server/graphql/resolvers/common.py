@@ -1,6 +1,7 @@
 from collections.abc import Callable, Generator
+from dataclasses import dataclass
 from enum import Enum
-from typing import Annotated, Any, TypeVar
+from typing import Annotated, Any, TypeVar, Literal, Optional
 
 import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
@@ -28,6 +29,21 @@ class HasLinksFilter(Enum):
 class AttributeFilterInput:
     name: str
     values: list[str]
+
+
+ColumnMetadataDataType = Literal["string", "uuid", "bool", "numeric", "jsonb"]
+
+
+@dataclass(frozen=True)
+class ColumnMetadata:
+    column_name: str
+    data_type: ColumnMetadataDataType
+
+    # These are only used if we are unpacking a JSONB field
+    is_nested: bool = False
+    parent_json_column: Optional[str] = None
+    json_key: Optional[str] = None
+    nested_sub_type: Optional[ColumnMetadataDataType] = None
 
 
 def argdesc(description: str) -> StrawberryArgumentAnnotation:
@@ -267,59 +283,76 @@ def get_has_links_conds(
     raise ValueError("Wrong has_links value")
 
 
-def generate_stats_columns(columns_with_types):
+def generate_stats_columns(metadata_list: list[ColumnMetadata]):
     """
     columns_with_types: A list of dicts or tuples containing (column_alias, data_type)
     e.g., [("cursor_0", "numeric"), ("folder_name", "string"), ("path", "string")]
     """
     stats_fields = []
 
-    for item in columns_with_types:
-        col_alias, col_type = item[0], item[1]
+    for item in metadata_list:
+        # Handle Nested JSONB logic first
+        if item.is_nested:
+            extracted_val = f"({item.parent_json_column}->>'{item.json_key}')"
 
-        if col_type in ("numeric", "int", "float"):
-            stats_fields.append(f"MIN({col_alias}) AS {col_alias}_min")
-            stats_fields.append(f"MAX({col_alias}) AS {col_alias}_max")
-            stats_fields.append(f"AVG({col_alias}) AS {col_alias}_avg")
-
-        elif col_type in ("string", "text"):
-            stats_fields.append(
-                f"COUNT({col_alias}) FILTER (WHERE {col_alias} IS NOT NULL AND {col_alias} != '') AS {col_alias}_filled"
-            )
-            stats_fields.append(
-                f"COUNT(*) FILTER (WHERE {col_alias} IS NULL OR {col_alias} = '') AS {col_alias}_not_filled"
-            )
-
-        elif col_type in ("boolean", "bool"):
-            stats_fields.append(
-                f"COUNT({col_alias}) FILTER (WHERE {col_alias} = TRUE) AS {col_alias}_true"
-            )
-            stats_fields.append(
-                f"COUNT({col_alias}) FILTER (WHERE {col_alias} = FALSE OR {col_alias} IS NULL) AS {col_alias}_false"
-            )
-        elif col_type == "uuid":
-            stats_fields.append(
-                f"COUNT({col_alias}) FILTER (WHERE {col_alias} IS NOT NULL) AS {col_alias}_filled"
-            )
-            stats_fields.append(
-                f"COUNT(*) FILTER (WHERE {col_alias} IS NULL) AS {col_alias}_not_filled"
-            )
-        elif col_type == "jsonb_nested":
-            # Expects item to look like: ("alias_name", "jsonb_nested", "parent_json_column", "nested_key_name", "sub_type")
-            parent_col, json_key, sub_type = item[2], item[3], item[4]
-
-            # Use PostgreSQL ->> operator to extract the value as text
-            extracted_val = f"({parent_col}->>'{json_key}')"
-
-            if sub_type == "numeric":
-                stats_fields.append(f"MIN({extracted_val}::numeric) AS {col_alias}_min")
-                stats_fields.append(f"MAX({extracted_val}::numeric) AS {col_alias}_max")
-                stats_fields.append(f"AVG({extracted_val}::numeric) AS {col_alias}_avg")
-            elif sub_type == "string":
+            if item.nested_sub_type == "numeric":
                 stats_fields.append(
-                    f"COUNT({extracted_val}) FILTER (WHERE {extracted_val} IS NOT NULL AND {extracted_val} != '') AS {col_alias}_filled")
+                    f"MIN({extracted_val}::numeric) AS {item.column_name}_min")
                 stats_fields.append(
-                    f"COUNT(*) FILTER (WHERE {extracted_val} IS NULL OR {extracted_val} = '') AS {col_alias}_not_filled")
+                    f"MAX({extracted_val}::numeric) AS {item.column_name}_max")
+                stats_fields.append(
+                    f"AVG({extracted_val}::numeric) AS {item.column_name}_avg")
+            elif item.nested_sub_type == "string":
+                stats_fields.append(
+                    f"COUNT({extracted_val}) FILTER ("
+                    f"WHERE {extracted_val} IS NOT NULL AND "
+                    f"{extracted_val} != '') "
+                    f"AS {item.column_name}_filled")
+                stats_fields.append(
+                    f"COUNT(*) FILTER ("
+                    f"WHERE {extracted_val} IS NULL OR {extracted_val} = '') "
+                    f"AS {item.column_name}_not_filled")
+            continue  # Move to the next column
+
+        if item.data_type in ("numeric", "int", "float"):
+            stats_fields.append(
+                f"MIN({item.column_name}) AS {item.column_name}_min")
+            stats_fields.append(
+                f"MAX({item.column_name}) AS {item.column_name}_max")
+            stats_fields.append(
+                f"AVG({item.column_name}) AS {item.column_name}_avg")
+
+        elif item.data_type == "string":
+            stats_fields.append(
+                f"COUNT({item.column_name}) FILTER ("
+                f"WHERE {item.column_name} IS NOT NULL AND "
+                f"{item.column_name} != '') "
+                f"AS {item.column_name}_filled")
+            stats_fields.append(
+                f"COUNT(*) FILTER ("
+                f"WHERE {item.column_name} IS NULL OR "
+                f"{item.column_name} = '') "
+                f"AS {item.column_name}_not_filled")
+
+        elif item.data_type == "uuid":
+            stats_fields.append(
+                f"COUNT({item.column_name}) FILTER ("
+                f"WHERE {item.column_name} IS NOT NULL)"
+                f" AS {item.column_name}_filled")
+            stats_fields.append(f"COUNT(*) FILTER ("
+                f"WHERE {item.column_name} IS NULL) "
+                f"AS {item.column_name}_not_filled")
+
+        elif item.data_type == "bool":
+            stats_fields.append(
+                f"COUNT({item.column_name}) FILTER ("
+                f"WHERE {item.column_name} = TRUE) "
+                f"AS {item.column_name}_true")
+            stats_fields.append(
+                f"COUNT({item.column_name}) FILTER ("
+                f"WHERE {item.column_name} = FALSE OR "
+                f"{item.column_name} IS NULL) "
+                f"AS {item.column_name}_false")
 
     return ",\n    ".join(stats_fields)
 
