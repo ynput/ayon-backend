@@ -10,7 +10,7 @@ from ayon_server.events import EventModel, EventStream
 from ayon_server.exceptions import NotFoundException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.logging import logger, log_traceback
+from ayon_server.logging import log_traceback, logger
 from ayon_server.types import Field, OPModel
 from ayon_server.utils import json_dumps, json_loads
 
