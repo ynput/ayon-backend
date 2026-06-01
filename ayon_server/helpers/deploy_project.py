@@ -160,7 +160,7 @@ async def create_project_from_anatomy(
     defaultAccessGroups (if assign_users is True) and dispatch the
     entity.project.created event.
 
-    This is a preffered way of creating a new project, as it will
+    This is a preferred way of creating a new project, as it will
     create all the necessary data in the database consistently.
     """
 
