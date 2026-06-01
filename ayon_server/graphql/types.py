@@ -9,8 +9,19 @@ Info = StrawberryInfo[dict[str, Any], None]
 class ColumnStats:
     """Collector for statistical info about column values"""
     column_name: str
+
     value_filled_count: int
     percentage_filled: float
+
+    value_not_filled_count: int
+    percentage_not_filled: float
+
+    checked_count: int
+    checked_percentage: float
+
+    not_checked_count: int
+    not_checked_percentage: float
+
     avg: float | None = None
     min: float | None = None
     max: float | None = None

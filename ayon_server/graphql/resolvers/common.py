@@ -161,26 +161,11 @@ async def resolve(
     last: int | None = None,
     context: dict[str, Any] | None = None,
     order_by: list[str] | None = None,
-    include_metadata: bool = False
+    calculate_statistics: bool = False
 ) -> R:
     """Return a connection object from a query."""
 
     metadata_query = None
-    if include_metadata:
-        # Create a metadata query by removing LIMIT/OFFSET clauses
-        metadata_query = query
-        import re
-        metadata_query = re.sub(
-            r'\s+LIMIT\s+\d+', '', metadata_query, flags=re.IGNORECASE
-        )
-        metadata_query = re.sub(
-            r'\s+OFFSET\s+\d+', '', metadata_query, flags=re.IGNORECASE
-        )
-        metadata_query = metadata_query.strip()
-
-        string_columns = {}
-        integer_columns = {}
-        column_names = None
 
     if first is not None:
         count = first
@@ -190,92 +175,47 @@ async def resolve(
         count = first = DEFAULT_PAGE_SIZE
 
     edges: list[Any] = []
-    
-    # First, if metadata is requested, run the metadata query to gather statistics
-    if include_metadata and metadata_query:
-        try:
-            async for record in Postgres.iterate(metadata_query):
-                # Create a standard dictionary from the record
-                original_record = dict(record)
-                
-                # Initialize column names from the first record
-                if column_names is None:
-                    # Exclude cursor fields (they start with "cursor_")
-                    column_names = [
-                        key for key in original_record.keys()
-                        if not key.startswith("cursor_")
-                    ]
-                    # Initialize accumulators for each column
-                    for col in column_names:
-                        value = original_record[col]
-                        if isinstance(value, str):
-                            string_columns[col] = {"full": 0, "empty": 0}
-                        elif isinstance(value, int):
-                            integer_columns[col] = {
-                                "sum": 0, "count": 0, "min": None, "max": None
-                            }
-                        # Other types are ignored for now
-                
-                # Update metadata accumulators
-                for col in column_names:
-                    value = original_record[col]
-                    if col in string_columns:
-                        if value is None or value == "":
-                            string_columns[col]["empty"] += 1
-                        else:
-                            string_columns[col]["full"] += 1
-                    elif col in integer_columns:
-                        if value is not None:
-                            integer_columns[col]["sum"] += value
-                            integer_columns[col]["count"] += 1
-                            if (integer_columns[col]["min"] is None or
-                                    value < integer_columns[col]["min"]):
-                                integer_columns[col]["min"] = value
-                            if (integer_columns[col]["max"] is None or
-                                    value > integer_columns[col]["max"]):
-                                integer_columns[col]["max"] = value
-        except Exception as e:
-            # If metadata query fails, we continue without metadata
-            print(f"Failed to compute metadata: {e}")
-            include_metadata = False  # Disable metadata for this query
-
+    column_metadata_list = None
     # Now execute the original query for the actual data
     async for record in Postgres.iterate(query):
         # Create a standard dictionary from the record
         record_dict = dict(record)
 
-        # Create cursor:
-        # We need to do that first, because we need to get rid of
-        # the cursor data from the record
+        if not calculate_statistics:
+            # Create cursor:
+            # We need to do that first, because we need to get rid of
+            # the cursor data from the record
 
-        cdata = []
-        for i, _ in enumerate(order_by or []):
-            cdata.append(record_dict.pop(f"cursor_{i}"))
-        cursor = encode_cursor(cdata)
+            cdata = []
+            for i, _ in enumerate(order_by or []):
+                cdata.append(record_dict.pop(f"cursor_{i}"))
+            cursor = encode_cursor(cdata)
 
-        if node_type is not None:
-            try:
-                node = await node_type.from_record(
-                    project_name, record_dict, context=context
-                )
-            except ForbiddenException:
-                continue
-            edges.append(edge_type(node=node, cursor=cursor))
+            if node_type is not None:
+                try:
+                    node = await node_type.from_record(
+                        project_name, record_dict, context=context
+                    )
+                except ForbiddenException:
+                    continue
+                edges.append(edge_type(node=node, cursor=cursor))
 
+            else:
+                # This is for entity list items. They need to be resolved,
+                # But the actual node is created on the edge, not here
+                try:
+                    payload = {**record_dict, "cursor": cursor}
+                    edge = await edge_type.from_record(
+                        project_name, payload, context=context
+                    )
+                except ForbiddenException:
+                    continue
+                edges.append(edge)
+
+                if count and count == len(edges):
+                    break
         else:
-            # This is for entity list items. They need to be resolved,
-            # But the actual node is created on the edge, not here
-            try:
-                payload = {**record_dict, "cursor": cursor}
-                edge = await edge_type.from_record(
-                    project_name, payload, context=context
-                )
-            except ForbiddenException:
-                continue
-            edges.append(edge)
-
-        if count and count == len(edges):
-            break
+            column_metadata_list = _parse_db_stats_to_graphql(record_dict)
 
     has_next_page = False
     has_previous_page = False
@@ -293,37 +233,6 @@ async def resolve(
         start_cursor = edges[0].cursor if edges else None
         end_cursor = edges[-1].cursor if edges else None
         # edges.reverse()
-
-    column_metadata_list = None
-    if include_metadata and column_names is not None:
-        column_metadata_list = []
-        for col, stats in string_columns.items():
-            total = stats["full"] + stats["empty"]
-            percentage_filled = (stats["full"] / total * 100) if total > 0 else 0.0
-            column_stats = ColumnStats(
-                column_name=col,
-                value_filled_count=stats["full"],
-                percentage_filled=percentage_filled
-            )
-            column_metadata_list.append(column_stats)
-        for col, stats in integer_columns.items():
-            if stats["count"] > 0:
-                avg = stats["sum"] / stats["count"]
-                min_val = float(stats["min"]) if stats["min"] is not None else None
-                max_val = float(stats["max"]) if stats["max"] is not None else None
-            else:
-                avg = None
-                min_val = None
-                max_val = None
-            column_stats = ColumnStats(
-                column_name=col,
-                value_filled_count=stats["count"],
-                percentage_filled=100.0 if stats["count"] > 0 else 0.0,
-                avg=avg,
-                min=min_val,
-                max=max_val
-            )
-            column_metadata_list.append(column_stats)
 
     page_info = PageInfo(
         has_next_page=has_next_page,
@@ -358,3 +267,131 @@ def get_has_links_conds(
             f"{id_field} IN (SELECT input_id FROM project_{project_name}.links)",
         ]
     raise ValueError("Wrong has_links value")
+
+
+def generate_stats_columns(columns_with_types):
+    """
+    columns_with_types: A list of dicts or tuples containing (column_alias, data_type)
+    e.g., [("cursor_0", "numeric"), ("folder_name", "string"), ("path", "string")]
+    """
+    stats_fields = []
+
+    for item in columns_with_types:
+        col_alias, col_type = item[0], item[1]
+
+        if col_type in ("numeric", "int", "float"):
+            stats_fields.append(f"MIN({col_alias}) AS {col_alias}_min")
+            stats_fields.append(f"MAX({col_alias}) AS {col_alias}_max")
+            stats_fields.append(f"AVG({col_alias}) AS {col_alias}_avg")
+
+        elif col_type in ("string", "text"):
+            stats_fields.append(
+                f"COUNT({col_alias}) FILTER (WHERE {col_alias} IS NOT NULL AND {col_alias} != '') AS {col_alias}_filled"
+            )
+            stats_fields.append(
+                f"COUNT(*) FILTER (WHERE {col_alias} IS NULL OR {col_alias} = '') AS {col_alias}_not_filled"
+            )
+
+        elif col_type in ("boolean", "bool"):
+            stats_fields.append(
+                f"COUNT({col_alias}) FILTER (WHERE {col_alias} = TRUE) AS {col_alias}_true"
+            )
+            stats_fields.append(
+                f"COUNT({col_alias}) FILTER (WHERE {col_alias} = FALSE OR {col_alias} IS NULL) AS {col_alias}_false"
+            )
+        elif col_type == "uuid":
+            stats_fields.append(
+                f"COUNT({col_alias}) FILTER (WHERE {col_alias} IS NOT NULL) AS {col_alias}_filled"
+            )
+            stats_fields.append(
+                f"COUNT(*) FILTER (WHERE {col_alias} IS NULL) AS {col_alias}_not_filled"
+            )
+        elif col_type == "jsonb_nested":
+            # Expects item to look like: ("alias_name", "jsonb_nested", "parent_json_column", "nested_key_name", "sub_type")
+            parent_col, json_key, sub_type = item[2], item[3], item[4]
+
+            # Use PostgreSQL ->> operator to extract the value as text
+            extracted_val = f"({parent_col}->>'{json_key}')"
+
+            if sub_type == "numeric":
+                stats_fields.append(f"MIN({extracted_val}::numeric) AS {col_alias}_min")
+                stats_fields.append(f"MAX({extracted_val}::numeric) AS {col_alias}_max")
+                stats_fields.append(f"AVG({extracted_val}::numeric) AS {col_alias}_avg")
+            elif sub_type == "string":
+                stats_fields.append(
+                    f"COUNT({extracted_val}) FILTER (WHERE {extracted_val} IS NOT NULL AND {extracted_val} != '') AS {col_alias}_filled")
+                stats_fields.append(
+                    f"COUNT(*) FILTER (WHERE {extracted_val} IS NULL OR {extracted_val} = '') AS {col_alias}_not_filled")
+
+    return ",\n    ".join(stats_fields)
+
+
+def _parse_db_stats_to_graphql(db_result: dict) -> list[ColumnStats]:
+    # Temporary storage to group metrics by column name
+    # e.g., {"folder_name": {"filled": 2, "not_filled": 0}}
+    grouped_data = {}
+
+    for raw_key, value in db_result.items():
+        # Identify how the key ends
+        if raw_key.endswith("_not_filled"):
+            col_name = raw_key.removesuffix("_not_filled")
+            grouped_data.setdefault(col_name, {})["not_filled"] = value
+        elif raw_key.endswith("_filled"):
+            col_name = raw_key.removesuffix("_filled")
+            grouped_data.setdefault(col_name, {})["filled"] = value
+        elif raw_key.endswith("_true"):
+            col_name = raw_key.removesuffix("_true")
+            grouped_data.setdefault(col_name, {})["checked"] = value  # True counts as 'filled'
+        elif raw_key.endswith("_false"):
+            col_name = raw_key.removesuffix("_false")
+            grouped_data.setdefault(col_name, {})["not_checked"] = value  # False counts as 'empty/false'
+        elif raw_key.endswith("_min"):
+            col_name = raw_key.removesuffix("_min")
+            grouped_data.setdefault(col_name, {})["min"] = value
+        elif raw_key.endswith("_max"):
+            col_name = raw_key.removesuffix("_max")
+            grouped_data.setdefault(col_name, {})["max"] = value
+        elif raw_key.endswith("_avg"):
+            col_name = raw_key.removesuffix("_avg")
+            grouped_data.setdefault(col_name, {})["avg"] = value
+
+    # Build the final list of Strawberry objects
+    stats_list = []
+    for col_name, metrics in grouped_data.items():
+        filled = metrics.get("filled")
+        not_filled = metrics.get("not_filled")
+        checked = metrics.get("checked")
+        not_checked = metrics.get("not_checked")
+
+        percentage = None
+        if filled is not None and not_filled is not None:
+            total = filled + not_filled
+            percentage = (filled / total) * 100.0 if total > 0 else 0.0
+
+        checked_percentage = None
+        if checked is not None and not_checked is not None:
+            total = checked + not_checked
+            checked_percentage = (checked / total) * 100.0 if total > 0 else 0.0
+
+        stats_list.append(
+            ColumnStats(
+                column_name=col_name,
+                value_filled_count=filled,
+                percentage_filled=round(percentage, 2)
+                    if percentage is not None else None,
+                value_not_filled_count=not_filled,
+                percentage_not_filled=round(100.0 - percentage, 2)
+                    if percentage is not None else None,
+                checked_count=checked,
+                checked_percentage=round(checked_percentage, 2)
+                    if checked_percentage is not None else None,
+                not_checked_count=not_checked,
+                not_checked_percentage=round(100.0 - checked_percentage, 2)
+                    if checked_percentage is not None else None,
+                min=metrics.get("min"),
+                max=metrics.get("max"),
+                avg=round(metrics["avg"], 2) if metrics.get("avg") is not None else None,
+            )
+        )
+
+    return stats_list

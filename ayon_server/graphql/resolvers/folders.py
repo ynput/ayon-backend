@@ -31,6 +31,7 @@ from .common import (
     get_has_links_conds,
     resolve,
     sortdesc,
+    generate_stats_columns,
 )
 from .pagination import create_pagination
 from .sorting import (
@@ -104,6 +105,9 @@ async def get_folders(
     filter: Annotated[str | None, argdesc("Filter folders using QueryFilter")] = None,
     task_filter: Annotated[str | None, argdesc("Fitler folders by tasks")] = None,
     sort_by: Annotated[str | None, sortdesc(SORT_OPTIONS)] = None,
+    calculate_statistics: Annotated[
+        bool, argdesc("Whether to calculate column statistics")
+    ] = False,
 ) -> FoldersConnection:
     """Return a list of folders."""
 
@@ -530,7 +534,8 @@ async def get_folders(
         last,
         before,
     )
-    sql_conditions.append(paging_conds)
+    if not calculate_statistics:
+        sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -542,8 +547,35 @@ async def get_folders(
     else:
         cte = ""
 
+    columns_metadata = [
+        ("name", "string"),
+        ("label", "string"),
+        ("parent_id", "uuid"),
+        ("thumbnail_id", "uuid"),
+        ("path", "string"),
+        ("has_reviewables", "bool"),
+        ("project_attributes_fps", "jsonb_nested", "project_attributes", "fps", "numeric"),
+        ("attrib_priority", "jsonb_nested", "attrib", "priority", "string"),
+        ("attrib_description", "jsonb_nested", "attrib", "description", "string"),
+    ]
+
+    # 2. Generate the statistical expressions strings
+    stats_select_clause = generate_stats_columns(columns_metadata)
+
+    raw_data_start = ""
+    raw_data_end = ""
+    if calculate_statistics:
+        raw_data_start = ",\n raw_data AS ("
+        raw_data_end = f"""
+        )
+        SELECT
+            {stats_select_clause}
+        FROM raw_data;
+        """
+
     query = f"""
         {cte}
+        {raw_data_start}
         SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.folders AS folders
         {" ".join(sql_joins)}
@@ -551,6 +583,7 @@ async def get_folders(
         GROUP BY {",".join(sql_group_by)}
         {SQLTool.conditions(sql_having).replace("WHERE", "HAVING", 1)}
         {ordering}
+        {raw_data_end}
     """
     # Keep it here for debugging :)
     # from ayon_server.logging import logger
@@ -567,7 +600,7 @@ async def get_folders(
         last=last,
         order_by=order_by,
         context=info.context,
-        include_metadata=True
+        calculate_statistics=calculate_statistics
     )
 
 
