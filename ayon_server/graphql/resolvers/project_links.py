@@ -1,3 +1,5 @@
+from typing import Any
+
 from ayon_server.access.utils import AccessChecker
 from ayon_server.graphql.nodes.common import ProjectLinkEdge, ProjectLinksConnection
 from ayon_server.graphql.types import Info, PageInfo
@@ -31,7 +33,7 @@ async def get_project_links(
         await access_checker.load(user, project_name)
         info.context["access_checker"] = access_checker
 
-    args = []
+    args: list[Any] = []
 
     def next_idx():
         idx = len(args) + 1

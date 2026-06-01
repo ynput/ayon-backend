@@ -154,6 +154,11 @@ class Session:
             task = asyncio.create_task(cls.invalidate_least_used(user.name))
             task.add_done_callback(lambda _: None)
 
+        if user.data.get("inviteRequest"):
+            del user.data["inviteRequest"]
+            user.data["inviteAcceptedAt"] = time.time()
+            await user.save()
+
         return session
 
     @classmethod

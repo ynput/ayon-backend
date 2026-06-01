@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any
 
@@ -330,13 +331,16 @@ class ProjectNode:
         """
 
         res = await Postgres.fetch(query)
+
         return [
             LinkType(
                 name=row["name"],
                 link_type=row["link_type"],
                 input_type=row["input_type"],
                 output_type=row["output_type"],
-                color=row["data"].get("color"),
+                color=color
+                if (color := row["data"].get("color")) and isinstance(color, str)
+                else None,
                 style=row["data"].get("style", "solid"),
             )
             for row in res
@@ -347,11 +351,7 @@ class ProjectNode:
         if self.skeleton:
             return []  # TODO: load from skeleton data instead of returning empty list
         return [
-            ProductType(
-                name=row["name"],
-                icon=row["data"].get("icon"),
-                color=row["data"].get("color"),
-            )
+            ProductType(name=row["name"])
             async for row in Postgres.iterate(
                 f"""
                 SELECT name, data FROM product_types
@@ -366,11 +366,20 @@ class ProjectNode:
 
     @strawberry.field(description="List of project's product base types")
     async def product_base_types(self) -> list[ProductBaseType]:
+        (
+            default_color,
+            default_icon,
+            definitions,
+        ) = await self._get_product_base_type_defs()
         if self.skeleton:
             return []  # TODO: load from skeleton data instead of returning empty list
         return [
             ProductBaseType(
                 name=row["name"],
+                icon=definitions.get(row["name"], {}).get("icon") or default_icon,
+                color=definitions.get(row["name"], {}).get("color")  # type: ignore
+                or default_color
+                or "#cccccc",
             )
             async for row in Postgres.iterate(
                 f"""
@@ -381,6 +390,15 @@ class ProjectNode:
             """
             )
         ]
+
+    async def _get_product_base_type_defs(self) -> tuple[dict[Any, Any], Any, Any]:
+        config = json.loads(self.config or "{}")
+        pdt = config.get("productBaseTypes") or {}
+        pbdefs = pdt.get("definitions") or []
+        definitions = {type_def["name"]: type_def for type_def in pbdefs}
+        default_icon = config["productBaseTypes"]["default"]["icon"]
+        default_color = config["productBaseTypes"]["default"]["color"]
+        return default_color, default_icon, definitions
 
     @strawberry.field(description="List of project's statuses")
     async def statuses(self) -> list[Status]:

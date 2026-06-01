@@ -1,4 +1,6 @@
+import json
 from datetime import datetime
+from typing import Annotated
 
 from ayon_server.activities.activity_categories import ActivityCategories
 from ayon_server.entities import ProjectEntity
@@ -10,12 +12,33 @@ from ayon_server.graphql.resolvers.common import (
     ARGBefore,
     ARGFirst,
     ARGLast,
+    argdesc,
     resolve,
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
+from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.types import validate_name_list
 from ayon_server.utils import SQLTool
+
+ACTIVITY_FEED_ALLOWED_KEYS = [
+    "activity_type",
+    "activity_data",
+    "reference_type",
+    "reference_data",
+    "entity_type",
+    "entity_name",
+    "entity_id",
+    "tags",
+    "body",
+    "active",
+    "created_at",
+    "updated_at",
+    "reference_id",
+    "activity_id",
+    "entity_path",
+    "creation_order",
+]
 
 
 async def get_activities(
@@ -25,16 +48,35 @@ async def get_activities(
     after: ARGAfter = None,
     last: ARGLast = None,
     before: ARGBefore = None,
-    entity_type: str | None = None,
-    entity_ids: list[str] | None = None,
-    entity_names: list[str] | None = None,
-    activity_types: list[str] | None = None,
-    reference_types: list[str] | None = None,
-    activity_ids: list[str] | None = None,
-    tags: list[str] | None = None,
-    categories: list[str | None] | None = None,
-    changed_before: str | None = None,
-    changed_after: str | None = None,
+    entity_type: Annotated[str | None, argdesc("Entity type to filter by")] = None,
+    entity_ids: Annotated[
+        list[str] | None, argdesc("List of entity IDs to filter by")
+    ] = None,
+    entity_names: Annotated[
+        list[str] | None, argdesc("List of entity names to filter by")
+    ] = None,
+    activity_types: Annotated[
+        list[str] | None, argdesc("List of activity types to filter by")
+    ] = None,
+    reference_types: Annotated[
+        list[str] | None, argdesc("List of reference types to filter by")
+    ] = None,
+    activity_ids: Annotated[
+        list[str] | None, argdesc("List of activity IDs to filter by")
+    ] = None,
+    tags: Annotated[list[str] | None, argdesc("List of tags to filter by")] = None,
+    categories: Annotated[
+        list[str | None] | None, argdesc("List of categories to filter by")
+    ] = None,
+    changed_before: Annotated[
+        str | None, argdesc("Filter activities updated before this timestamp")
+    ] = None,
+    changed_after: Annotated[
+        str | None, argdesc("Filter activities updated after this timestamp")
+    ] = None,
+    filter: Annotated[
+        str | None, argdesc("Filter activities using QueryFilter")
+    ] = None,
 ) -> ActivitiesConnection:
     project_name = root.project_name
     project = await ProjectEntity.load(project_name)
@@ -215,6 +257,16 @@ async def get_activities(
     if entity_names is not None:
         validate_name_list(entity_names)
         sql_conditions.append(f"entity_name IN {SQLTool.array(entity_names)}")
+
+    if filter:
+        fdata = json.loads(filter)
+        fq = QueryFilter(**fdata)
+        if fcond := build_filter(
+            fq,
+            column_whitelist=ACTIVITY_FEED_ALLOWED_KEYS,
+            json_fields=["activity_data", "reference_data"],
+        ):
+            sql_conditions.append(fcond)
 
     #
     # Pagination

@@ -1,8 +1,8 @@
-from datetime import datetime
 from typing import Any
 
 from ayon_server.activities import (
-    ActivityType,
+    ActivityPatchModel,
+    ProjectActivityPostModel,
     create_activity,
     delete_activity,
     update_activity,
@@ -20,42 +20,6 @@ from ayon_server.utils import create_uuid
 
 from .common import OperationType
 from .router import router
-
-# Payload models: this is just a copy of the models from api/activities/activity.py
-# TODO: refactor - move these models to a shared location
-
-
-class ProjectActivityPostModel(OPModel):
-    id: str | None = Field(None, description="Explicitly set the ID of the activity")
-    activity_type: ActivityType = Field(..., example="comment")
-    body: str = Field("", example="This is a comment")
-    files: list[str] | None = Field(None, example=["file1", "file2"])
-    timestamp: datetime | None = Field(None, example="2021-01-01T00:00:00Z")
-    data: dict[str, Any] | None = Field(
-        None,
-        example={"key": "value"},
-        description="Additional data",
-    )
-
-
-class ActivityPatchModel(OPModel):
-    body: str | None = Field(
-        None,
-        example="This is a comment",
-        description="When set, update the activity body",
-    )
-    files: list[str] | None = Field(
-        None,
-        example=["file1", "file2"],
-        description="When set, update the activity files",
-    )
-    append_files: bool = Field(
-        False,
-        example=False,
-        description="When true, append files to the existing ones. replace them otherwise",  # noqa: E501
-    )
-    data: dict[str, Any] | None = Field(None, example={"key": "value"})
-
 
 # Request/response models
 
