@@ -165,8 +165,6 @@ async def resolve(
 ) -> R:
     """Return a connection object from a query."""
 
-    metadata_query = None
-
     if first is not None:
         count = first
     elif last is not None:
