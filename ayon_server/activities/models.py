@@ -49,6 +49,46 @@ DO_NOT_TRACK_ACTIVITIES: set[ActivityType] = {
 }
 
 
+class ProjectActivityPostModel(OPModel):
+    id: str | None = Field(None, description="Explicitly set the ID of the activity")
+    activity_type: ActivityType = Field(..., example="comment")
+    body: str = Field("", example="This is a comment")
+    tags: list[str] | None = Field(None, example=["tag1", "tag2"])
+    files: list[str] | None = Field(None, example=["file1", "file2"])
+    timestamp: datetime.datetime | None = Field(None, example="2021-01-01T00:00:00Z")
+    data: dict[str, Any] | None = Field(
+        None,
+        example={"key": "value"},
+        description="Additional data",
+    )
+
+
+class ActivityPatchModel(OPModel):
+    body: str | None = Field(
+        None,
+        example="This is a comment",
+        description="When set, update the activity body",
+    )
+    tags: list[str] | None = Field(
+        None,
+        example=["tag1", "tag2"],
+        description="When set, update the activity tags",
+    )
+    files: list[str] | None = Field(
+        None,
+        example=["file1", "file2"],
+        description="When set, update the activity files",
+    )
+    append_files: bool = Field(
+        False,
+        example=False,
+        description=(
+            "When true, append files to the existing ones. replace them otherwise"
+        ),
+    )
+    data: dict[str, Any] | None = Field(None, example={"key": "value"})
+
+
 class ActivityReferenceModel(OPModel):
     id: str = Field(default_factory=create_uuid)
     reference_type: ActivityReferenceType = Field(..., example="mention")

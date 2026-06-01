@@ -2,7 +2,6 @@ from typing import Literal
 
 from ayon_server.addons import AddonLibrary
 from ayon_server.exceptions import NotFoundException
-from ayon_server.logging import log_traceback
 from ayon_server.settings import BaseSettingsModel
 from ayon_server.settings.set_addon_settings import set_addon_settings
 from ayon_server.types import Field, OPModel
@@ -32,11 +31,7 @@ async def remove_override(
     else:
         overrides = await addon.get_studio_overrides(variant=variant)
 
-    try:  # TODO: this try/block is probably no longer needed
-        dict_remove_path(overrides, path)
-    except KeyError:
-        log_traceback()
-        return
+    dict_remove_path(overrides, path)
 
     await set_addon_settings(
         addon_name,
@@ -131,11 +126,7 @@ async def remove_site_override(
 
     overrides = await addon.get_project_site_overrides(project_name, user_name, site_id)
 
-    try:  # TODO: this try/block is probably no longer needed
-        dict_remove_path(overrides, path)
-    except KeyError:
-        log_traceback()
-        return
+    dict_remove_path(overrides, path)
 
     await set_addon_settings(
         addon_name,
