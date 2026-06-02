@@ -4,6 +4,7 @@ import strawberry
 from ayon_server.graphql.resolvers.common import ColumnMetadata
 from ayon_server.graphql.types import ColumnStats
 from ayon_server.lib.postgres import Postgres
+from ayon_server.logging import logger
 
 
 @strawberry.enum(name="StatsOperation")
@@ -139,8 +140,12 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
     # Temporary storage to group metrics by column name
     # e.g., {"folder_name": {"filled": 2, "not_filled": 0}}
     grouped_data = {}
+    try:
+        db_result = await Postgres.fetchrow(query)
+    except Exception as e:
+        logger.warning(f"Failed to fetch {query}")
+        raise
 
-    db_result = await Postgres.fetchrow(query)
     db_result_dict = dict(db_result)
 
     for raw_key, value in db_result_dict.items():
