@@ -69,7 +69,7 @@ def get_fake_thumbnail_response() -> Response:
     """
     response = Response(status_code=203, content=get_fake_thumbnail())
     response.headers["Content-Type"] = "image/png"
-    response.headers["Cache-Control"] = f"max-age={30}"
+    response.headers["Cache-Control"] = "max-age=3600"
     return response
 
 
@@ -104,7 +104,7 @@ async def retrieve_thumbnail(
                     headers={
                         "X-Thumbnail-Id": thumbnail_id,
                         "X-Thumbnail-Time": str(record.get("created_at", 0)),
-                        "Cache-Control": f"max-age={60}",
+                        "Cache-Control": "max-age=3600",
                     },
                 )
 

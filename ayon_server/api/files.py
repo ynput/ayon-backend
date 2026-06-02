@@ -133,4 +133,8 @@ def image_response_from_bytes(image_bytes: bytes) -> Response:
     if media_type is None:
         raise NotFoundException("Invalid image format")
 
-    return Response(content=image_bytes, media_type=media_type)
+    return Response(
+        content=image_bytes,
+        media_type=media_type,
+        headers={"cache-control": "max-age=3600"},
+    )
