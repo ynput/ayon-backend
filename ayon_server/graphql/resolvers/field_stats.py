@@ -11,67 +11,56 @@ def generate_stats_columns(metadata_list: list[ColumnMetadata]) -> str:
         # Handle Nested JSONB logic first
         if item.is_nested:
             extracted_val = f"({item.parent_json_column}->>'{item.json_key}')"
-
-            if item.nested_sub_type == "numeric":
-                stats_fields.append(
-                    f"MIN({extracted_val}::numeric) AS {item.column_name}_min")
-                stats_fields.append(
-                    f"MAX({extracted_val}::numeric) AS {item.column_name}_max")
-                stats_fields.append(
-                    f"AVG({extracted_val}::numeric) AS {item.column_name}_avg")
-            elif item.nested_sub_type == "string":
-                stats_fields.append(
-                    f"COUNT({extracted_val}) FILTER ("
-                    f"WHERE {extracted_val} IS NOT NULL AND "
-                    f"{extracted_val} != '') "
-                    f"AS {item.column_name}_filled")
-                stats_fields.append(
-                    f"COUNT(*) FILTER ("
-                    f"WHERE {extracted_val} IS NULL OR {extracted_val} = '') "
-                    f"AS {item.column_name}_not_filled")
+            stats_fields.extend(
+                _get_stats_for_column(
+                    extracted_val, item.column_name, item.nested_sub_type
+                )
+            )
             continue  # Move to the next column
 
-        if item.data_type in ("numeric", "int", "float"):
-            stats_fields.append(
-                f"MIN({item.column_name}) AS {item.column_name}_min")
-            stats_fields.append(
-                f"MAX({item.column_name}) AS {item.column_name}_max")
-            stats_fields.append(
-                f"AVG({item.column_name}) AS {item.column_name}_avg")
-
-        elif item.data_type == "string":
-            stats_fields.append(
-                f"COUNT({item.column_name}) FILTER ("
-                f"WHERE {item.column_name} IS NOT NULL AND "
-                f"{item.column_name} != '') "
-                f"AS {item.column_name}_filled")
-            stats_fields.append(
-                f"COUNT(*) FILTER ("
-                f"WHERE {item.column_name} IS NULL OR "
-                f"{item.column_name} = '') "
-                f"AS {item.column_name}_not_filled")
-
-        elif item.data_type == "uuid":
-            stats_fields.append(
-                f"COUNT({item.column_name}) FILTER ("
-                f"WHERE {item.column_name} IS NOT NULL)"
-                f" AS {item.column_name}_filled")
-            stats_fields.append(f"COUNT(*) FILTER ("
-                f"WHERE {item.column_name} IS NULL) "
-                f"AS {item.column_name}_not_filled")
-
-        elif item.data_type == "bool":
-            stats_fields.append(
-                f"COUNT({item.column_name}) FILTER ("
-                f"WHERE {item.column_name} = TRUE) "
-                f"AS {item.column_name}_true")
-            stats_fields.append(
-                f"COUNT({item.column_name}) FILTER ("
-                f"WHERE {item.column_name} = FALSE OR "
-                f"{item.column_name} IS NULL) "
-                f"AS {item.column_name}_false")
+        stats_fields.extend(
+            _get_stats_for_column(
+                item.column_name, item.column_name, item.data_type
+            )
+        )
 
     return ",\n    ".join(stats_fields)
+
+
+def _get_stats_for_column(column_expr: str, column_name: str, data_type: str) -> list[str]:
+    """Returns SQL fragments for statistics based on column data type."""
+    if data_type in ("numeric", "int", "float"):
+        return [
+            f"MIN({column_expr}::numeric) AS {column_name}_min",
+            f"MAX({column_expr}::numeric) AS {column_name}_max",
+            f"AVG({column_expr}::numeric) AS {column_name}_avg"
+        ]
+    elif data_type == "string":
+        return [
+            f"COUNT({column_expr}) FILTER ("
+            f"WHERE {column_expr} IS NOT NULL AND "
+            f"{column_expr} != '') "
+            f"AS {column_name}_filled",
+            f"COUNT(*) FILTER ("
+            f"WHERE {column_expr} IS NULL OR {column_expr} = '') "
+            f"AS {column_name}_not_filled"
+        ]
+    elif data_type == "uuid":
+        return [
+            f"COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT NULL) "
+            f"AS {column_name}_filled",
+            f"COUNT(*) FILTER (WHERE {column_expr} IS NULL) "
+            f"AS {column_name}_not_filled"
+        ]
+    elif data_type == "bool":
+        return [
+            f"COUNT({column_expr}) FILTER (WHERE {column_expr} = TRUE) "
+            f"AS {column_name}_true",
+            f"COUNT({column_expr}) FILTER (WHERE {column_expr} = FALSE OR "
+            f"{column_expr} IS NULL) "
+            f"AS {column_name}_false"
+        ]
+    return []
 
 
 async def generate_field_stats(query: str) -> list[ColumnStats]:
