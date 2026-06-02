@@ -554,7 +554,6 @@ async def get_folders(
         ColumnMetadata("parent_id", "uuid"),
         ColumnMetadata("thumbnail_id", "uuid"),
         ColumnMetadata("path", "string"),
-        ColumnMetadata("has_reviewables", "bool"),
 
         # Nested JSONB metrics
         ColumnMetadata(
@@ -582,6 +581,9 @@ async def get_folders(
             nested_sub_type="string"
         ),
     ]
+    if cte:
+        # has_reviewable only calculated in cte
+        columns_metadata.append(ColumnMetadata("has_reviewables", "bool"))
 
     # 2. Generate the statistical expressions strings
     stats_select_clause = generate_stats_columns(columns_metadata)
@@ -589,7 +591,8 @@ async def get_folders(
     raw_data_start = ""
     raw_data_end = ""
     if calculate_statistics:
-        raw_data_start = ",\n raw_data AS ("
+        cte_prefix = ",\n" if cte else "WITH"
+        raw_data_start = f"{cte_prefix} raw_data AS ("
         raw_data_end = f"""
         )
         SELECT
