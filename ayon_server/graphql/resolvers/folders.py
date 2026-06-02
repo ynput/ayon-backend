@@ -597,16 +597,17 @@ async def get_folders(
         # has_reviewable only calculated in cte
         columns_metadata.append(ColumnMetadata("has_reviewables", "bool"))
 
+    stats_select_clause = None
     if calculate_specific_statistics:
         stats_select_clause = generate_specific_stats_columns(
             calculate_specific_statistics
         )
-    else:
+    elif calculate_statistics:
         stats_select_clause = generate_stats_columns(columns_metadata)
 
     raw_data_start = ""
     raw_data_end = ""
-    if calculate_statistics:
+    if stats_select_clause:
         cte_prefix = ",\n" if cte else "WITH"
         raw_data_start = f"{cte_prefix} raw_data AS ("
         raw_data_end = f"""
@@ -633,6 +634,8 @@ async def get_folders(
     #
     # logger.debug(f"Folder query\n{query}")
     if calculate_statistics:
+
+    if stats_select_clause:
         field_stats = await generate_field_stats(query)
 
         return FoldersConnection(
