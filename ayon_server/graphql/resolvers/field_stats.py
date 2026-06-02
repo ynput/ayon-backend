@@ -1,6 +1,34 @@
+from enum import Enum
+import strawberry
+
 from ayon_server.graphql.resolvers.common import ColumnMetadata
 from ayon_server.graphql.types import ColumnStats
 from ayon_server.lib.postgres import Postgres
+
+
+@strawberry.enum(name="StatsOperation")
+class StatsAggregation(Enum):
+    MIN = "min"
+    MAX = "max"
+    AVG = "avg"
+    SUM = "sum"
+    FILLED = "filled"
+    NOT_FILLED = "not_filled"
+    PERCENTAGE_FILLED = "percentage_filled"
+    PERCENTAGE_EMPTY = "percentage_not_filled"
+    CHECKED = "checked"
+    NOT_CHECKED = "not_checked"
+    PERCENTAGE_CHECKED = "percentage_checked"
+    PERCENTAGE_NOT_CHECKED = "percentage_not_checked"
+
+@strawberry.input(name="MetricTargetInput")
+class MetricTargetInput:
+    field: str = strawberry.field(
+        description="The attribute path, e.g., 'attrib.fps'"
+    )
+    aggregations: list[StatsAggregation] = strawberry.field(
+        description="List of statistical calculations to run"
+    )
 
 
 def generate_stats_columns(metadata_list: list[ColumnMetadata]) -> str:
@@ -61,6 +89,49 @@ def _get_stats_for_column(column_expr: str, column_name: str, data_type: str) ->
             f"AS {column_name}_false"
         ]
     return []
+
+
+def generate_specific_stats_columns(calculate_specific_statistics):
+    """Generate aggregations only for FE provided definitions"""
+    stats_fields = []
+    for definition in calculate_specific_statistics:
+        column_expr = definition.field
+        column_name = column_expr.replace(".", "_")
+        if "." in column_expr:
+            main, key = column_expr.split(".")
+            column_expr = f"({main}->>'{key}')"
+        for op in definition.aggregations:
+            op = op.value
+            if op in ["min", "max", "avg"]:
+                value = f"{op.upper()}({column_expr}::numeric) AS {column_name}_{op}"
+            elif "not_filled" in op:  # for both count and percentage
+                value = (
+                    f"COUNT(*) FILTER ("
+                    f"WHERE {column_expr} IS NULL OR {column_expr} = '') "
+                    f"AS {column_name}_not_filled"
+                )
+            elif "filled" in op:
+                value = (
+                    f"COUNT({column_expr}) FILTER ("
+                    f"WHERE {column_expr} IS NOT NULL AND "
+                    f"{column_expr} != '') "
+                    f"AS {column_name}_filled"
+                )
+            elif "not_checked" in op:
+                value = (
+                    f"COUNT({column_expr}) FILTER (WHERE {column_expr} = FALSE OR "
+                    f"{column_expr} IS NULL) "
+                    f"AS {column_name}_false"
+                )
+            elif "checked" in op:
+                value = (
+                    f"COUNT({column_expr}) FILTER ("
+                    f"WHERE {column_expr} = TRUE) "
+                    f"AS {column_name}_true"
+                )
+            stats_fields.append(value)
+
+    return ",\n    ".join(stats_fields)
 
 
 async def generate_field_stats(query: str) -> list[ColumnStats]:
