@@ -223,8 +223,8 @@ async def resolve(
                 continue
             edges.append(edge)
 
-            if count and count == len(edges):
-                break
+        if count and count == len(edges):
+            break
 
     has_next_page = False
     has_previous_page = False
