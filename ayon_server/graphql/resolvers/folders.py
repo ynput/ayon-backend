@@ -650,7 +650,6 @@ async def get_folders(
         last=last,
         order_by=order_by,
         context=info.context,
-        calculate_statistics=calculate_statistics
     )
 
 
