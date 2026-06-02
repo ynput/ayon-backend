@@ -31,9 +31,9 @@ from .common import (
     get_has_links_conds,
     resolve,
     sortdesc,
-    generate_stats_columns,
     ColumnMetadata,
 )
+from .field_stats import generate_field_stats, generate_stats_columns
 from .pagination import create_pagination
 from .sorting import (
     get_attrib_sort_case,
@@ -616,6 +616,13 @@ async def get_folders(
     # from ayon_server.logging import logger
     #
     # logger.debug(f"Folder query\n{query}")
+    if calculate_statistics:
+        field_stats = await generate_field_stats(query)
+
+        return FoldersConnection(
+            edges=[],
+            field_stats=field_stats
+        )
 
     return await resolve(
         FoldersConnection,
