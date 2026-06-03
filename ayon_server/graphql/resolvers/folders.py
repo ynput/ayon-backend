@@ -547,7 +547,7 @@ async def get_folders(
         last,
         before,
     )
-    if not calculate_statistics:
+    if not calculate_statistics and not calculate_specific_statistics:
         sql_conditions.append(paging_conds)
 
     #
