@@ -25,6 +25,7 @@ class ColumnStats:
     avg: float | None = None
     min: float | None = None
     max: float | None = None
+    sum: float | None = None
 
 
 @strawberry.type

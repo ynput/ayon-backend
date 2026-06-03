@@ -103,7 +103,7 @@ def generate_specific_stats_columns(calculate_specific_statistics):
             column_expr = f"({main}->>'{key}')"
         for op in definition.aggregations:
             op = op.value
-            if op in ["min", "max", "avg"]:
+            if op in ["min", "max", "avg", "sum"]:
                 value = f"{op.upper()}({column_expr}::numeric) AS {column_name}_{op}"
             elif "not_filled" in op:  # for both count and percentage
                 value = (
@@ -131,7 +131,6 @@ def generate_specific_stats_columns(calculate_specific_statistics):
                     f"AS {column_name}_true"
                 )
             stats_fields.append(value)
-
     return ",\n    ".join(stats_fields)
 
 
@@ -171,6 +170,9 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
         elif raw_key.endswith("_avg"):
             col_name = raw_key.removesuffix("_avg")
             grouped_data.setdefault(col_name, {})["avg"] = value
+        elif raw_key.endswith("_sum"):
+            col_name = raw_key.removesuffix("_sum")
+            grouped_data.setdefault(col_name, {})["sum"] = value
 
     # Build the final list of Strawberry objects
     stats_list = []
@@ -209,6 +211,7 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
                 max=metrics.get("max"),
                 avg=round(metrics["avg"], 2)
                     if metrics.get("avg") is not None else None,
+                sum=metrics.get("sum"),
             )
         )
 
