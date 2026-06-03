@@ -5,7 +5,7 @@ from ayon_server.logging import logger
 
 # The following parameters may be used:
 # name, scope, type, title, default, example,
-# gt, lt, regex, min_len, max_len, description
+# gt, lt, regex, min_len, max_len, description, widget
 #
 # Scope and type are required.
 # All project attributes should have a default value
@@ -293,6 +293,7 @@ async def deploy_attributes() -> None:
             "lt",
             "inherit",
             "enum",
+            "widget"
         ):
             if (value := tdata.get(key)) is not None:
                 data[key] = value

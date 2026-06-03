@@ -130,6 +130,14 @@ class AttributeData(OPModel):
         ),
     ] = True
 
+    widget: Annotated[
+        str | None,
+        Field(
+            title="Widget",
+            description="Specific widget style this field should use.",
+        ),
+    ] = None
+
     @validator("enum")
     def validate_enum(cls, value: list[EnumItem] | None) -> list[EnumItem] | None:
         if value == []:
