@@ -287,7 +287,7 @@ class AccessChecker:
 
     def __init__(self) -> None:
         self.root = TrieNode()
-        self.exact_paths = set()
+        self.exact_paths: set[str] = set()
         self.is_none = False
 
     def __getitem__(self, path: str) -> bool:
