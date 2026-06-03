@@ -19,6 +19,7 @@ from ayon_server.graphql.resolvers.common import (
     get_has_links_conds,
     resolve,
     sortdesc,
+    ColumnMetadata,
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
@@ -30,6 +31,12 @@ from ayon_server.types import (
 )
 from ayon_server.utils import SQLTool, slugify
 
+from .field_stats import (
+    generate_field_stats,
+    generate_stats_columns,
+    generate_specific_stats_columns,
+    MetricTargetInput
+)
 from .sorting import get_attrib_sort_case, get_status_sort_case
 
 SORT_OPTIONS = {
@@ -133,6 +140,16 @@ async def get_versions(
         str | None,
         sortdesc(SORT_OPTIONS),
     ] = None,
+    calculate_statistics: Annotated[
+        bool, argdesc("Whether to calculate column statistics")
+    ] = False,
+    calculate_specific_statistics: Annotated[
+        list[MetricTargetInput] | None,
+        argdesc(
+            "Map of attribute names to lists of desired "
+            "statistical aggregations"
+        )
+    ] = None
 ) -> VersionsConnection:
     """Return a list of versions."""
 
@@ -633,7 +650,8 @@ async def get_versions(
         last,
         before,
     )
-    sql_conditions.append(paging_conds)
+    if not calculate_statistics and not calculate_specific_statistics:
+        sql_conditions.append(paging_conds)
 
     #
     # Query
@@ -645,19 +663,57 @@ async def get_versions(
     else:
         cte = ""
 
+    default_columns_metadata: list[ColumnMetadata] = [
+        ColumnMetadata("thumbnail_id", "uuid"),
+        ColumnMetadata("active", "bool"),
+        ColumnMetadata("status", "string"),
+    ]
+
+    stats_select_clause = None
+    if calculate_specific_statistics:
+        stats_select_clause = generate_specific_stats_columns(
+            calculate_specific_statistics
+        )
+    elif calculate_statistics:
+        stats_select_clause = generate_stats_columns(
+            default_columns_metadata)
+
+    raw_data_start = ""
+    raw_data_end = ""
+    if stats_select_clause:
+        cte_prefix = ",\n" if cte else "WITH"
+        raw_data_start = f"{cte_prefix} raw_data AS ("
+        raw_data_end = f"""
+            )
+            SELECT
+                {stats_select_clause}
+            FROM raw_data;
+            """
+
     query = f"""
         {cte}
+        {raw_data_start}
         SELECT {cursor}, {", ".join(sql_columns)}
         FROM project_{project_name}.versions AS versions
         {" ".join(sql_joins)}
         {SQLTool.conditions(sql_conditions)}
         {ordering}
+        {raw_data_end}
     """
 
     # print()
     # print("Versions query:")
     # print(query)
     # print()
+    #
+
+    if stats_select_clause:
+        field_stats = await generate_field_stats(query)
+
+        return VersionsConnection(
+            edges=[],
+            field_stats=field_stats
+        )
 
     return await resolve(
         VersionsConnection,
