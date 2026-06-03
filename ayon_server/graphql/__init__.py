@@ -140,6 +140,7 @@ class Query:
             is_manager=user.is_manager,
             is_service=user.is_service,
             is_developer=user.is_developer,
+            is_staging_enabled=user.is_staging_enabled,
             is_guest=user.is_guest,
             user_pool=user.data.get("userPool"),
             default_access_groups=user.data.get("defaultAccessGroups", []),
