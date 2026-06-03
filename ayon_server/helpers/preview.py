@@ -180,7 +180,7 @@ async def get_file_preview(
     if pvw_bytes == b"":
         raise NotFoundException("File preview not available")
 
-    return image_response_from_bytes(pvw_bytes)
+    return image_response_from_bytes(pvw_bytes, headers={"X-File-ID": file_id})
 
 
 async def uncache_file_preview(project_name: str, file_id: str) -> None:
