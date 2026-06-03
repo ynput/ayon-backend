@@ -293,7 +293,8 @@ async def deploy_attributes() -> None:
             "lt",
             "inherit",
             "enum",
-            "widget"
+            "widget",
+            "widget_settings"
         ):
             if (value := tdata.get(key)) is not None:
                 data[key] = value

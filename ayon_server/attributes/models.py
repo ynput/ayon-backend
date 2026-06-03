@@ -137,6 +137,15 @@ class AttributeData(OPModel):
             description="Specific widget style this field should use.",
         ),
     ] = None
+    # future proofing
+    widget_settings: Annotated[
+        dict[str, Any] | None,
+        Field(
+            title="Widget Settings",
+            description="Any additional config specific for the widget style."
+                                "(Date formats, precision etc.)",
+        ),
+    ] = None
 
     @validator("enum")
     def validate_enum(cls, value: list[EnumItem] | None) -> list[EnumItem] | None:
