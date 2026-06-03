@@ -633,7 +633,6 @@ async def get_folders(
     # from ayon_server.logging import logger
     #
     # logger.debug(f"Folder query\n{query}")
-    if calculate_statistics:
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
