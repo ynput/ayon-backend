@@ -4,14 +4,14 @@ import time
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
-from ayon_server.api.clientinfo import get_real_ip
-from ayon_server.auth.session import Session, is_local_ip
+from ayon_server.auth.session import Session
 from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import UnauthorizedException
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
+from ayon_server.utils.server import get_real_ip_from_request, is_internal_ip
 from ayon_server.utils.strings import parse_access_token, parse_api_key
 
 
@@ -70,8 +70,8 @@ async def user_from_api_key(api_key: str, request: Request) -> UserEntity:
     """
 
     previous_attempts = 0
-    real_ip = get_real_ip(request)
-    if not is_local_ip(real_ip):
+    real_ip = get_real_ip_from_request(request)
+    if not is_internal_ip(real_ip):
         previous_attempts = await Redis.get_json("brute-force-attempts", real_ip) or 0
         if previous_attempts >= 100:
             raise UnauthorizedException(
@@ -99,7 +99,7 @@ async def user_from_api_key(api_key: str, request: Request) -> UserEntity:
 
     await Session.mark_invalid(api_key)
 
-    if not is_local_ip(real_ip):
+    if not is_internal_ip(real_ip):
         logger.trace(
             f"Failed API key authentication attempt from {real_ip}. "
             f"Total attempts: {previous_attempts + 1}"

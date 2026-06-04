@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import Request
 
-from ayon_server.api.clientinfo import ClientInfo, get_client_info, get_real_ip
+from ayon_server.api.clientinfo import ClientInfo, get_client_info
 from ayon_server.config import ayonconfig
 from ayon_server.entities import UserEntity
 from ayon_server.events import EventStream
@@ -18,6 +18,12 @@ from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.types import OPModel
 from ayon_server.utils import json_dumps, json_loads
+from ayon_server.utils.server import get_real_ip_from_request, is_internal_ip
+
+
+def is_local_ip(ip: str) -> bool:
+    # Deprecated, but still used for backward compatibility.
+    return is_internal_ip(ip)
 
 
 class SessionModel(OPModel):
@@ -35,15 +41,6 @@ class SessionModel(OPModel):
             payload=self.user.dict(),
             exists=True,
         )
-
-
-def is_local_ip(ip: str) -> bool:
-    return (
-        ip.startswith("127.")
-        or ip.startswith("10.")
-        or ip.startswith("192.168.")
-        or ip.startswith("172.")
-    )
 
 
 class Session:
@@ -88,8 +85,8 @@ class Session:
                 session.last_used = time.time()
                 await Redis.set(cls.ns, token, session.json())
             elif not ayonconfig.disable_check_session_ip:
-                real_ip = get_real_ip(request)
-                if not is_local_ip(real_ip):
+                real_ip = get_real_ip_from_request(request)
+                if not is_internal_ip(real_ip):
                     if session.client_info.ip != real_ip:
                         r = f"Stored: {session.client_info.ip}, current: {real_ip}"
                         await cls.delete(token, f"Client IP mismatch: {r}")
