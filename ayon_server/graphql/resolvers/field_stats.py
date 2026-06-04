@@ -114,52 +114,58 @@ def _get_stats_for_column(
 def generate_specific_stats_columns(calculate_specific_statistics) -> str:
     """Generate aggregations strictly requested by FE definitions."""
     stats_fields = []
+
     for definition in calculate_specific_statistics:
-        column_expr = definition.field
-        column_name = column_expr.replace(".", "_")
-        if "." in column_expr:
-            main, key = column_expr.split(".")
-            column_expr = f"({main}->>'{key}')"
+        raw_field = definition.field
+        column_name = raw_field.replace(".", "_")
+
+        # Handle JSON nested extraction syntax safely
+        if "." in raw_field:
+            column_expr = f"({raw_field.replace('.', '->>>\'', 1)}')"
+        else:
+            column_expr = raw_field
+
+        AGGR_TEMPLATES = {
+            "min": f"MIN({column_expr}::numeric) AS {column_name}_min",
+            "max": f"MAX({column_expr}::numeric) AS {column_name}_max",
+            "avg": f"AVG({column_expr}::numeric) AS {column_name}_avg",
+            "sum": f"SUM({column_expr}::numeric) AS {column_name}_sum",
+            "not_filled": (
+                f"COUNT(*) FILTER (WHERE {column_expr} IS NULL OR "
+                f"{column_expr} = '') AS {column_name}_not_filled"
+            ),
+            "filled": (
+                f"COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT "
+                f"NULL AND {column_expr} != '') AS {column_name}_filled"
+            ),
+            "not_checked": (
+                f"COUNT({column_expr}) FILTER (WHERE {column_expr} = FALSE "
+                f"OR {column_expr} IS NULL) AS {column_name}_false"
+            ),
+            "checked": (
+                f"COUNT({column_expr}) FILTER (WHERE {column_expr} = TRUE) "
+                f"AS {column_name}_true"
+            ),
+            "distribution": (
+                f"(SELECT json_agg(json_build_object('value', "
+                f"{column_name}, 'count', cnt)) FROM (SELECT "
+                f"{column_expr} as {column_name}, COUNT(*) as cnt "
+                f"FROM raw_data WHERE {column_expr} IS NOT NULL "
+                f"GROUP BY {column_expr}) dist) AS "
+                f"{column_name}_distribution"
+            ),
+        }
+
         for op in definition.aggregations:
-            op = op.value
-            if op in ["min", "max", "avg", "sum"]:
-                value = f"{op.upper()}({column_expr}::numeric) AS {column_name}_{op}"
-            elif "not_filled" in op:  # for both count and percentage
-                value = (
-                    f"COUNT(*) FILTER ("
-                    f"WHERE {column_expr} IS NULL OR {column_expr} = '') "
-                    f"AS {column_name}_not_filled"
-                )
-            elif "filled" in op:
-                value = (
-                    f"COUNT({column_expr}) FILTER ("
-                    f"WHERE {column_expr} IS NOT NULL AND "
-                    f"{column_expr} != '') "
-                    f"AS {column_name}_filled"
-                )
-            elif "not_checked" in op:
-                value = (
-                    f"COUNT({column_expr}) FILTER ("
-                    f"WHERE {column_expr} = FALSE OR "
-                    f"{column_expr} IS NULL) "
-                    f"AS {column_name}_false"
-                )
-            elif "checked" in op:
-                value = (
-                    f"COUNT({column_expr}) FILTER ("
-                    f"WHERE {column_expr} = TRUE) "
-                    f"AS {column_name}_true"
-                )
-            elif op == 'distribution':
-                value = (
-                    f"(SELECT json_agg("
-                    f"json_build_object('value', {column_name}, 'count', cnt)) "
-                    f"FROM ("
-                    f"SELECT {column_expr} as {column_name}, COUNT(*) as cnt "
-                    f"FROM raw_data WHERE {column_expr} IS NOT NULL "
-                    f"GROUP BY {column_expr}) dist) AS {column_name}_distribution"
-                )
-            stats_fields.append(value)
+            op_str = op.value
+            # Match template variations (e.g. 'percentage_filled' maps
+            # back to 'filled')
+            matched_key = next(
+                (k for k in AGGR_TEMPLATES if k in op_str), None
+            )
+            if matched_key:
+                stats_fields.append(AGGR_TEMPLATES[matched_key])
+
     return ",\n    ".join(stats_fields)
 
 
