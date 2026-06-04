@@ -214,15 +214,6 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
         checked = metrics.get("checked")
         not_checked = metrics.get("not_checked")
 
-        def _calc_pct(part, total_alt):
-            if part is None or total_alt is None:
-                return None
-            total = part + total_alt
-            return (part / total) * 100.0 if total > 0 else 0.0
-
-        percentage = _calc_pct(filled, not_filled)
-        checked_percentage = _calc_pct(checked, not_checked)
-
         dist_obj = metrics.get("distribution")
         if isinstance(dist_obj, str):
             dist_obj = json.loads(dist_obj)
