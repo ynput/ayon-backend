@@ -174,9 +174,10 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
         logger.warning(f"Failed to fetch {query}")
         raise
 
-    db_result_dict = dict(db_result)
+    if not db_result:
+        return []
 
-    for raw_key, value in db_result_dict.items():
+    for raw_key, value in dict(db_result).items():
         for suffix, target_key in SUFFIX_MAP.items():
             if raw_key.endswith(suffix):
                 col_name = raw_key.removesuffix(suffix)
