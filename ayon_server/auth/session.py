@@ -63,12 +63,16 @@ class Session:
         If it's not expired, update the last_used field and extend
         its lifetime.
         """
-        data = await Redis.get(cls.ns, token)
+        data = await Redis.get_json(cls.ns, token)
         if not data:
             logger.trace(f"Session {token} not found")
             return None
 
-        session = SessionModel(**json_loads(data))
+        if data.get("isInvalid", False):
+            # this is to cache invalid api keys
+            return None
+
+        session = SessionModel(**data)
 
         if cls.is_expired(session):
             await cls.delete(token, "Session expired")
@@ -109,6 +113,16 @@ class Session:
     @classmethod
     async def on_extend(cls, session: SessionModel) -> None:
         pass
+
+    @classmethod
+    async def mark_invalid(cls, token: str) -> None:
+        """Mark a session as invalid without deleting it.
+
+        This is used to cache invalid API keys and prevent repeated
+        database lookups for them.
+        """
+        data = {"isInvalid": True}
+        await Redis.set_json(cls.ns, token, data)
 
     @classmethod
     async def create(

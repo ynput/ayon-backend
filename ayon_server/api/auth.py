@@ -75,17 +75,17 @@ async def user_from_api_key(api_key: str) -> UserEntity:
             WHERE ak->>'key' = $1
         )
     """
-    if not (result := await Postgres.fetch(query, hashed_key)):
-        raise UnauthorizedException("Invalid API key")
-    user = UserEntity.from_record(result[0])
-    if user.data.get("apiKey") == hashed_key:
-        return user
-    for key_data in user.data.get("apiKeys", []):
-        if key_data.get("key") != hashed_key:
-            continue
-        if key_data.get("expires") and key_data["expires"] < time.time():
-            raise UnauthorizedException("API key has expired")
-        return user
+    if result := await Postgres.fetch(query, hashed_key):
+        user = UserEntity.from_record(result[0])
+        if user.data.get("apiKey") == hashed_key:
+            return user
+        for key_data in user.data.get("apiKeys", []):
+            if key_data.get("key") != hashed_key:
+                continue
+            if not key_data.get("expires") or key_data["expires"] > time.time():
+                return user
+
+    await Session.mark_invalid(api_key)
     raise UnauthorizedException("Invalid API key. This shouldn't happen")
 
 
@@ -112,6 +112,7 @@ async def user_from_request(request: Request) -> UserEntity:
 
     elif access_token := access_token_from_request(request):
         session_data = await Session.check(access_token, request)
+
     else:
         raise UnauthorizedException("Access token is missing")
 
