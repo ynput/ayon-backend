@@ -114,6 +114,7 @@ def build_pl_entity_change_events(
                     **common_data,
                 }
             )
+            result[-1]["summary"]["value"] = new_name
             if ayonconfig.audit_trail:
                 payload = {
                     "oldValue": original_entity.name,
@@ -133,6 +134,7 @@ def build_pl_entity_change_events(
                     **common_data,
                 }
             )
+            result[-1]["summary"]["value"] = new_status
             if ayonconfig.audit_trail:
                 payload = {
                     "oldValue": original_entity.status,
@@ -155,6 +157,7 @@ def build_pl_entity_change_events(
                         **common_data,
                     }
                 )
+                result[-1]["summary"]["value"] = new_tags
                 if ayonconfig.audit_trail:
                     payload = {
                         "oldValue": original_entity.tags,
@@ -226,6 +229,19 @@ def build_pl_entity_change_events(
                 **common_data,
             }
         )
+
+        if topic_name not in (
+            "data",
+            "config",
+            "files",
+            "statuses",
+            "tags",
+            "folder_types",
+            "task_types",
+        ):
+            # for simple columns, we include new value in summary as well
+            result[-1]["summary"]["value"] = patch_data[column_name]
+
         if ayonconfig.audit_trail:
             payload = {
                 "oldValue": getattr(original_entity, column_name),
