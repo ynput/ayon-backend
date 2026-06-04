@@ -208,23 +208,36 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
             ColumnStats(
                 column_name=col_name,
                 value_filled_count=filled,
-                percentage_filled=round(percentage, 2)
-                    if percentage is not None else None,
+                percentage_filled=(
+                    round(percentage, 2) if percentage is not None else None
+                ),
                 value_not_filled_count=not_filled,
-                percentage_not_filled=round(100.0 - percentage, 2)
-                    if percentage is not None else None,
+                percentage_not_filled=(
+                    round(100.0 - percentage, 2)
+                    if percentage is not None
+                    else None
+                ),
                 checked_count=checked,
-                checked_percentage=round(checked_percentage, 2)
-                    if checked_percentage is not None else None,
+                checked_percentage=(
+                    round(checked_percentage, 2)
+                    if checked_percentage is not None
+                    else None
+                ),
                 not_checked_count=not_checked,
-                not_checked_percentage=round(100.0 - checked_percentage, 2)
-                    if checked_percentage is not None else None,
+                not_checked_percentage=(
+                    round(100.0 - checked_percentage, 2)
+                    if checked_percentage is not None
+                    else None
+                ),
                 min=metrics.get("min"),
                 max=metrics.get("max"),
-                avg=round(metrics["avg"], 2)
-                    if metrics.get("avg") is not None else None,
+                avg=(
+                    round(metrics["avg"], 2)
+                    if metrics.get("avg") is not None
+                    else None
+                ),
                 sum=metrics.get("sum"),
-                distribution=dist_obj
+                distribution=dist_obj,
             )
         )
 
