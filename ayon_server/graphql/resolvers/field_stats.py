@@ -81,32 +81,28 @@ def _get_stats_for_column(
         return [
             f"MIN({column_expr}::numeric) AS {column_name}_min",
             f"MAX({column_expr}::numeric) AS {column_name}_max",
-            f"AVG({column_expr}::numeric) AS {column_name}_avg"
+            f"AVG({column_expr}::numeric) AS {column_name}_avg",
         ]
-    elif data_type == "string":
+    if data_type == "string":
         return [
-            f"COUNT({column_expr}) FILTER ("
-            f"WHERE {column_expr} IS NOT NULL AND "
-            f"{column_expr} != '') "
-            f"AS {column_name}_filled",
-            f"COUNT(*) FILTER ("
-            f"WHERE {column_expr} IS NULL OR {column_expr} = '') "
-            f"AS {column_name}_not_filled"
+            f"COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT "
+            f"NULL AND {column_expr} != '') AS {column_name}_filled",
+            f"COUNT(*) FILTER (WHERE {column_expr} IS NULL OR "
+            f"{column_expr} = '') AS {column_name}_not_filled",
         ]
-    elif data_type == "uuid":
+    if data_type == "uuid":
         return [
-            f"COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT NULL) "
-            f"AS {column_name}_filled",
+            f"COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT "
+            f"NULL) AS {column_name}_filled",
             f"COUNT(*) FILTER (WHERE {column_expr} IS NULL) "
-            f"AS {column_name}_not_filled"
+            f"AS {column_name}_not_filled",
         ]
-    elif data_type == "bool":
+    if data_type == "bool":
         return [
             f"COUNT({column_expr}) FILTER (WHERE {column_expr} = TRUE) "
             f"AS {column_name}_true",
             f"COUNT({column_expr}) FILTER (WHERE {column_expr} = FALSE OR "
-            f"{column_expr} IS NULL) "
-            f"AS {column_name}_false"
+            f"{column_expr} IS NULL) AS {column_name}_false",
         ]
     return []
 
