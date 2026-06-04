@@ -38,7 +38,9 @@ class MetricTargetInput:
 
 # Suffix to nested output key map
 SUFFIX_MAP = {
+    "_percentage_not_filled": "percentage_not_filled",
     "_not_filled": "not_filled",
+    "_percentage_filled": "percentage_filled",
     "_filled": "filled",
     "_true": "checked",
     "_false": "not_checked",
@@ -132,19 +134,36 @@ def generate_specific_stats_columns(calculate_specific_statistics) -> str:
             "count": f"COUNT(*) AS {column_name}_count",
             "not_filled": (
                 f"COUNT(*) FILTER (WHERE {column_expr} IS NULL OR "
-                f"{column_expr} = '') AS {column_name}_not_filled"
+                f"{column_expr}::text IN ('', '{{}}', '[]')) "
+                f"AS {column_name}_not_filled,\n    "
+                f"ROUND((COUNT(*) FILTER (WHERE {column_expr} IS NULL OR "
+                f"{column_expr}::text IN ('', '{{}}', '[]')) * 100.0) / "
+                f"NULLIF(COUNT(*), 0), 2) "
+                f"AS {column_name}_percentage_not_filled"
             ),
             "filled": (
                 f"COUNT({column_expr}) FILTER (WHERE {column_expr} IS NOT "
-                f"NULL AND {column_expr} != '') AS {column_name}_filled"
+                f"NULL AND {column_expr}::text NOT IN ('', '{{}}', '[]')) "
+                f"AS {column_name}_filled,\n    "
+                f"ROUND((COUNT({column_expr}) FILTER (WHERE {column_expr} "
+                f"IS NOT NULL AND {column_expr}::text NOT IN "
+                f"('', '{{}}', '[]')) * 100.0) / NULLIF(COUNT(*), 0), 2) "
+                f"AS {column_name}_percentage_filled"
             ),
             "not_checked": (
                 f"COUNT({column_expr}) FILTER (WHERE {column_expr} = FALSE "
-                f"OR {column_expr} IS NULL) AS {column_name}_false"
+                f"OR {column_expr} IS NULL) AS {column_name}_false,\n    "
+                f"ROUND((COUNT({column_expr}) FILTER (WHERE {column_expr} "
+                f"= FALSE OR {column_expr} IS NULL) * 100.0) / "
+                f"NULLIF(COUNT(*), 0), 2) "
+                f"AS {column_name}_percentage_not_checked"
             ),
             "checked": (
                 f"COUNT({column_expr}) FILTER (WHERE {column_expr} = TRUE) "
-                f"AS {column_name}_true"
+                f"AS {column_name}_true,\n    "
+                f"ROUND((COUNT({column_expr}) FILTER (WHERE {column_expr} "
+                f"= TRUE) * 100.0) / NULLIF(COUNT(*), 0), 2) "
+                f"AS {column_name}_percentage_checked"
             ),
             "distribution": (
                 f"(SELECT json_agg(json_build_object('value', "
@@ -212,26 +231,14 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
             ColumnStats(
                 column_name=col_name,
                 value_filled_count=filled,
-                percentage_filled=(
-                    round(percentage, 2) if percentage is not None else None
-                ),
+                percentage_filled=metrics.get("percentage_filled"),
                 value_not_filled_count=not_filled,
-                percentage_not_filled=(
-                    round(100.0 - percentage, 2)
-                    if percentage is not None
-                    else None
-                ),
+                percentage_not_filled=metrics.get("percentage_not_filled"),
                 checked_count=checked,
-                checked_percentage=(
-                    round(checked_percentage, 2)
-                    if checked_percentage is not None
-                    else None
-                ),
+                checked_percentage=metrics.get("percentage_checked"),
                 not_checked_count=not_checked,
-                not_checked_percentage=(
-                    round(100.0 - checked_percentage, 2)
-                    if checked_percentage is not None
-                    else None
+                not_checked_percentage=metrics.get(
+                    "percentage_not_checked"
                 ),
                 min=metrics.get("min"),
                 max=metrics.get("max"),
