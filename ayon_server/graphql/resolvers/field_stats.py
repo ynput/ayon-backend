@@ -1,4 +1,5 @@
 from enum import Enum
+import json
 import strawberry
 
 from ayon_server.graphql.resolvers.common import ColumnMetadata
@@ -134,7 +135,9 @@ def generate_specific_stats_columns(calculate_specific_statistics):
                 )
             elif op == 'distribution':
                 value = (
-                    f"(SELECT json_object_agg({column_name}, cnt) FROM ("
+                    f"(SELECT json_agg("
+                    f"json_build_object('value', {column_name}, 'count', cnt)) "
+                    f"FROM ("
                     f"SELECT {column_expr} as {column_name}, COUNT(*) as cnt "
                     f"FROM raw_data WHERE {column_expr} IS NOT NULL "
                     f"GROUP BY {column_expr}) dist) AS {column_name}_distribution"
@@ -203,6 +206,11 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
         if checked is not None and not_checked is not None:
             total = checked + not_checked
             checked_percentage = (checked / total) * 100.0 if total > 0 else 0.0
+
+        # dist = metrics.get("distribution")
+        # if dist:
+        #     data_dict = json.loads(dist)
+        #     dist_list = [{"value": key, "count": val} for key, val in data_dict.items()]
 
         stats_list.append(
             ColumnStats(
