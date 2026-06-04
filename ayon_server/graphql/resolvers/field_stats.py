@@ -33,6 +33,18 @@ class MetricTargetInput:
         description="List of statistical calculations to run"
     )
 
+SUFFIX_MAP = {
+    "_not_filled": "not_filled",
+    "_filled": "filled",
+    "_true": "checked",
+    "_false": "not_checked",
+    "_min": "min",
+    "_max": "max",
+    "_avg": "avg",
+    "_sum": "sum",
+    "_distribution": "distribution",
+}
+
 
 def generate_stats_columns(metadata_list: list[ColumnMetadata]) -> str:
     """Generates sql based calculation for list of ColumnMetadata"""
@@ -160,34 +172,11 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
     db_result_dict = dict(db_result)
 
     for raw_key, value in db_result_dict.items():
-        # Identify how the key ends
-        if raw_key.endswith("_not_filled"):
-            col_name = raw_key.removesuffix("_not_filled")
-            grouped_data.setdefault(col_name, {})["not_filled"] = value
-        elif raw_key.endswith("_filled"):
-            col_name = raw_key.removesuffix("_filled")
-            grouped_data.setdefault(col_name, {})["filled"] = value
-        elif raw_key.endswith("_true"):
-            col_name = raw_key.removesuffix("_true")
-            grouped_data.setdefault(col_name, {})["checked"] = value  # True counts as 'filled'
-        elif raw_key.endswith("_false"):
-            col_name = raw_key.removesuffix("_false")
-            grouped_data.setdefault(col_name, {})["not_checked"] = value  # False counts as 'empty/false'
-        elif raw_key.endswith("_min"):
-            col_name = raw_key.removesuffix("_min")
-            grouped_data.setdefault(col_name, {})["min"] = value
-        elif raw_key.endswith("_max"):
-            col_name = raw_key.removesuffix("_max")
-            grouped_data.setdefault(col_name, {})["max"] = value
-        elif raw_key.endswith("_avg"):
-            col_name = raw_key.removesuffix("_avg")
-            grouped_data.setdefault(col_name, {})["avg"] = value
-        elif raw_key.endswith("_sum"):
-            col_name = raw_key.removesuffix("_sum")
-            grouped_data.setdefault(col_name, {})["sum"] = value
-        elif raw_key.endswith("_distribution"):
-            col_name = raw_key.removesuffix("_distribution")
-            grouped_data.setdefault(col_name, {})["distribution"] = value
+        for suffix, target_key in SUFFIX_MAP.items():
+            if raw_key.endswith(suffix):
+                col_name = raw_key.removesuffix(suffix)
+                grouped_data.setdefault(col_name, {})[target_key] = value
+                break
 
     # Build the final list of Strawberry objects
     stats_list = []
