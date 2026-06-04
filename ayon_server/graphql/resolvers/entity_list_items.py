@@ -1,5 +1,6 @@
 import functools
 import json
+from typing import Annotated
 
 from graphql.pyutils import camel_to_snake
 
@@ -27,6 +28,7 @@ from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.utils import SQLTool
 
 from .common import (
+    argdesc,
     ARGAfter,
     ARGBefore,
     ARGFirst,
@@ -34,6 +36,13 @@ from .common import (
     FieldInfo,
     create_folder_access_list,
     resolve,
+    ColumnMetadata,
+)
+from .field_stats import (
+    generate_field_stats,
+    generate_stats_columns,
+    generate_specific_stats_columns,
+    MetricTargetInput
 )
 from .pagination import create_pagination
 from .sorting import get_attrib_sort_case
@@ -116,6 +125,16 @@ async def get_entity_list_items(
     sort_by: str | None = None,
     filter: str | None = None,
     accessible_only: bool = False,
+    calculate_statistics: Annotated[
+        bool, argdesc("Whether to calculate column statistics")
+    ] = False,
+    calculate_specific_statistics: Annotated[
+        list[MetricTargetInput] | None,
+        argdesc(
+            "Map of attribute names to lists of desired "
+            "statistical aggregations"
+        )
+    ] = None
 ) -> EntityListItemsConnection:
     project_name = root.project_name
     entity_type = root.entity_type
@@ -451,8 +470,8 @@ async def get_entity_list_items(
         last,
         before,
     )
-
-    sql_conditions.append(paging_conds)
+    if not calculate_statistics and not calculate_specific_statistics:
+        sql_conditions.append(paging_conds)
 
     #
     # Filtering
@@ -493,8 +512,32 @@ async def get_entity_list_items(
     else:
         cte = ""
 
+    columns_metadata: list[ColumnMetadata] = [
+    ]
+
+    stats_select_clause = None
+    if calculate_specific_statistics:
+        stats_select_clause = generate_specific_stats_columns(
+            calculate_specific_statistics
+        )
+    elif calculate_statistics:
+        stats_select_clause = generate_stats_columns(columns_metadata)
+
+    raw_data_start = ""
+    raw_data_end = ""
+    if stats_select_clause:
+        cte_prefix = ",\n" if cte else "WITH"
+        raw_data_start = f"{cte_prefix} raw_data AS ("
+        raw_data_end = f"""
+        )
+        SELECT
+            {stats_select_clause}
+        FROM raw_data;
+        """
+
     query = f"""
         {cte}
+        {raw_data_start}
         SELECT {cursor}, * FROM (
             SELECT
             {", ".join(sql_columns)}
@@ -504,12 +547,21 @@ async def get_entity_list_items(
         ) as sub
         {SQLTool.conditions(sql_conditions)}
         {ordering}
+        {raw_data_end}
     """
 
     # from ayon_server.logging import logger
     #
     # logger.debug(f"Entity list items query: {query}")
-    #
+
+    if stats_select_clause:
+        field_stats = await generate_field_stats(query)
+
+        return EntityListItemsConnection(
+            edges=[],
+            field_stats=field_stats
+        )
+
     return await resolve(
         EntityListItemsConnection,
         EntityListItemEdge,
