@@ -204,9 +204,9 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
             total = checked + not_checked
             checked_percentage = (checked / total) * 100.0 if total > 0 else 0.0
 
-        dist = metrics.get("distribution")
-        if dist is not None:
-            dist_obj = json.loads(dist)
+        dist_obj = metrics.get("distribution")
+        if isinstance(dist_obj, str):
+            dist_obj = json.loads(dist_obj)
 
         stats_list.append(
             ColumnStats(
