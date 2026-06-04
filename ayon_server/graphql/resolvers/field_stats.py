@@ -54,21 +54,21 @@ def generate_stats_columns(metadata_list: list[ColumnMetadata]) -> str:
     stats_fields = []
 
     for item in metadata_list:
-        # Handle Nested JSONB logic first
         if item.is_nested:
-            extracted_val = f"({item.parent_json_column}->>'{item.json_key}')"
+            extracted_val = (
+                f"({item.parent_json_column}->>'{item.json_key}')"
+            )
             stats_fields.extend(
                 _get_stats_for_column(
                     extracted_val, item.column_name, item.nested_sub_type
                 )
             )
-            continue  # Move to the next column
-
-        stats_fields.extend(
-            _get_stats_for_column(
-                item.column_name, item.column_name, item.data_type
+        else:
+            stats_fields.extend(
+                _get_stats_for_column(
+                    item.column_name, item.column_name, item.data_type
+                )
             )
-        )
 
     return ",\n    ".join(stats_fields)
 
