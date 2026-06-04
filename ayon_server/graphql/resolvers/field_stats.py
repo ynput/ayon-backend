@@ -113,7 +113,7 @@ def _get_stats_for_column(
 
 def generate_specific_stats_columns(calculate_specific_statistics) -> str:
     """Generate aggregations strictly requested by FE definitions."""
-    stats_fields = []
+    stats_fields = set()
 
     for definition in calculate_specific_statistics:
         raw_field = definition.field
@@ -183,9 +183,9 @@ def generate_specific_stats_columns(calculate_specific_statistics) -> str:
                 (k for k in AGGR_TEMPLATES if k in op_str), None
             )
             if matched_key:
-                stats_fields.append(AGGR_TEMPLATES[matched_key])
+                stats_fields.add(AGGR_TEMPLATES[matched_key])
 
-    return ",\n    ".join(stats_fields)
+    return ",\n    ".join(list(stats_fields))
 
 
 async def generate_field_stats(query: str) -> list[ColumnStats]:
