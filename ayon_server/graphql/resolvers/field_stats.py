@@ -14,6 +14,7 @@ class StatsAggregation(Enum):
     MAX = "max"
     AVG = "avg"
     SUM = "sum"
+    COUNT = "count"
     FILLED = "filled"
     NOT_FILLED = "not_filled"
     PERCENTAGE_FILLED = "percentage_filled"
@@ -45,6 +46,7 @@ SUFFIX_MAP = {
     "_max": "max",
     "_avg": "avg",
     "_sum": "sum",
+    "_count": "count",
     "_distribution": "distribution",
 }
 
@@ -127,6 +129,7 @@ def generate_specific_stats_columns(calculate_specific_statistics) -> str:
             "max": f"MAX({column_expr}::numeric) AS {column_name}_max",
             "avg": f"AVG({column_expr}::numeric) AS {column_name}_avg",
             "sum": f"SUM({column_expr}::numeric) AS {column_name}_sum",
+            "count": f"COUNT(*) AS {column_name}_count",
             "not_filled": (
                 f"COUNT(*) FILTER (WHERE {column_expr} IS NULL OR "
                 f"{column_expr} = '') AS {column_name}_not_filled"
@@ -238,6 +241,7 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
                     else None
                 ),
                 sum=metrics.get("sum"),
+                count=metrics.get("count"),
                 distribution=dist_obj,
             )
         )

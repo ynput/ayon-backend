@@ -27,6 +27,7 @@ class ColumnStats:
     min: float | None = None
     max: float | None = None
     sum: float | None = None
+    count: float | None = None
 
     distribution: JSON | None = None
 
