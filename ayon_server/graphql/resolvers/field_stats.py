@@ -24,6 +24,7 @@ class StatsAggregation(Enum):
     PERCENTAGE_NOT_CHECKED = "percentage_not_checked"
     DISTRIBUTION = "distribution"
 
+
 @strawberry.input(name="MetricTargetInput")
 class MetricTargetInput:
     field: str = strawberry.field(
@@ -33,6 +34,8 @@ class MetricTargetInput:
         description="List of statistical calculations to run"
     )
 
+
+# Suffix to nested output key map
 SUFFIX_MAP = {
     "_not_filled": "not_filled",
     "_filled": "filled",
@@ -47,7 +50,7 @@ SUFFIX_MAP = {
 
 
 def generate_stats_columns(metadata_list: list[ColumnMetadata]) -> str:
-    """Generates sql based calculation for list of ColumnMetadata"""
+    """Generates SQL-based calculations for a list of ColumnMetadata."""
     stats_fields = []
 
     for item in metadata_list:
@@ -70,7 +73,9 @@ def generate_stats_columns(metadata_list: list[ColumnMetadata]) -> str:
     return ",\n    ".join(stats_fields)
 
 
-def _get_stats_for_column(column_expr: str, column_name: str, data_type: str) -> list[str]:
+def _get_stats_for_column(
+    column_expr: str, column_name: str, data_type: str
+) -> list[str]:
     """Returns SQL fragments for statistics based on column data type."""
     if data_type in ("numeric", "int", "float"):
         return [
@@ -106,8 +111,8 @@ def _get_stats_for_column(column_expr: str, column_name: str, data_type: str) ->
     return []
 
 
-def generate_specific_stats_columns(calculate_specific_statistics):
-    """Generate aggregations only for FE provided definitions"""
+def generate_specific_stats_columns(calculate_specific_statistics) -> str:
+    """Generate aggregations strictly requested by FE definitions."""
     stats_fields = []
     for definition in calculate_specific_statistics:
         column_expr = definition.field
@@ -159,13 +164,11 @@ def generate_specific_stats_columns(calculate_specific_statistics):
 
 
 async def generate_field_stats(query: str) -> list[ColumnStats]:
-    """Calculates field stats from prepared query"""
-    # Temporary storage to group metrics by column name
-    # e.g., {"folder_name": {"filled": 2, "not_filled": 0}}
+    """Calculates field stats from prepared query."""
     grouped_data = {}
     try:
         db_result = await Postgres.fetchrow(query)
-    except Exception as e:
+    except Exception:
         logger.warning(f"Failed to fetch {query}")
         raise
 
@@ -178,7 +181,6 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
                 grouped_data.setdefault(col_name, {})[target_key] = value
                 break
 
-    # Build the final list of Strawberry objects
     stats_list = []
     for col_name, metrics in grouped_data.items():
         filled = metrics.get("filled")
