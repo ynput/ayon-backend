@@ -229,6 +229,7 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "title": "Description",
         "description": "Textual description of the entity",
         "inherit": False,
+        "widget": "markdown"
     },
     "entityListCategory": {
         "scope": "L",
