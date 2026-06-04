@@ -1,9 +1,11 @@
+import asyncio
 import time
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
-from ayon_server.auth.session import Session
+from ayon_server.api.clientinfo import get_real_ip
+from ayon_server.auth.session import Session, is_local_ip
 from ayon_server.auth.utils import hash_password
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import UnauthorizedException
@@ -45,7 +47,7 @@ async def get_logout_reason(token: str) -> str:
     return reason
 
 
-async def user_from_api_key(api_key: str) -> UserEntity:
+async def user_from_api_key(api_key: str, request: Request) -> UserEntity:
     """Return a user associated with the given API key.
 
     Hashed ApiKey may be stored in the database in two ways:
@@ -66,6 +68,16 @@ async def user_from_api_key(api_key: str) -> UserEntity:
        is the one we are looking for. We also need to check
        if the key is not expired.
     """
+
+    previous_attempts = 0
+    real_ip = get_real_ip(request)
+    if not is_local_ip(real_ip):
+        previous_attempts = await Redis.get_json("brute-force-attempts", real_ip) or 0
+        if previous_attempts >= 100:
+            raise UnauthorizedException(
+                "Too many failed authentication attempts. Please try again later."
+            )
+
     hashed_key = hash_password(api_key)
     query = """
         SELECT * FROM public.users
@@ -86,6 +98,16 @@ async def user_from_api_key(api_key: str) -> UserEntity:
                 return user
 
     await Session.mark_invalid(api_key)
+
+    if not is_local_ip(real_ip):
+        logger.trace(
+            f"Failed API key authentication attempt from {real_ip}. "
+            f"Total attempts: {previous_attempts + 1}"
+        )
+        await Redis.incr("brute-force-attempts", real_ip, ttl=600)
+
+    # if the API key is invalid, wait a little to prevent brute-force attacks
+    await asyncio.sleep(0.2)
     raise UnauthorizedException("Invalid API key. This shouldn't happen")
 
 
@@ -106,7 +128,7 @@ async def user_from_request(request: Request) -> UserEntity:
 
     if api_key:
         if (session_data := await Session.check(api_key, request)) is None:
-            user = await user_from_api_key(api_key)
+            user = await user_from_api_key(api_key, request)
             session_data = await Session.create(user, request, token=api_key)
         session_data.is_api_key = True
 

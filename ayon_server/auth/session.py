@@ -70,6 +70,7 @@ class Session:
 
         if data.get("isInvalid", False):
             # this is to cache invalid api keys
+            logger.trace(f"Session {token} is marked as invalid")
             return None
 
         session = SessionModel(**data)
