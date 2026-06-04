@@ -21,6 +21,7 @@ class StatsAggregation(Enum):
     NOT_CHECKED = "not_checked"
     PERCENTAGE_CHECKED = "percentage_checked"
     PERCENTAGE_NOT_CHECKED = "percentage_not_checked"
+    DISTRIBUTION = "distribution"
 
 @strawberry.input(name="MetricTargetInput")
 class MetricTargetInput:
@@ -131,6 +132,13 @@ def generate_specific_stats_columns(calculate_specific_statistics):
                     f"WHERE {column_expr} = TRUE) "
                     f"AS {column_name}_true"
                 )
+            elif op == 'distribution':
+                value = (
+                    f"(SELECT json_object_agg({column_name}, cnt) FROM ("
+                    f"SELECT {column_expr} as {column_name}, COUNT(*) as cnt "
+                    f"FROM raw_data WHERE {column_expr} IS NOT NULL "
+                    f"GROUP BY {column_expr}) dist) AS {column_name}_distribution"
+                )
             stats_fields.append(value)
     return ",\n    ".join(stats_fields)
 
@@ -174,6 +182,9 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
         elif raw_key.endswith("_sum"):
             col_name = raw_key.removesuffix("_sum")
             grouped_data.setdefault(col_name, {})["sum"] = value
+        elif raw_key.endswith("_distribution"):
+            col_name = raw_key.removesuffix("_distribution")
+            grouped_data.setdefault(col_name, {})["distribution"] = value
 
     # Build the final list of Strawberry objects
     stats_list = []
@@ -213,6 +224,7 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
                 avg=round(metrics["avg"], 2)
                     if metrics.get("avg") is not None else None,
                 sum=metrics.get("sum"),
+                distribution=metrics.get("distribution"),
             )
         )
 

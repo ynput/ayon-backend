@@ -2,6 +2,7 @@ from typing import Any
 
 import strawberry
 from strawberry.types import Info as StrawberryInfo
+from strawberry.scalars import JSON
 
 Info = StrawberryInfo[dict[str, Any], None]
 
@@ -26,6 +27,8 @@ class ColumnStats:
     min: float | None = None
     max: float | None = None
     sum: float | None = None
+
+    distribution: JSON | None = None
 
 
 @strawberry.type
