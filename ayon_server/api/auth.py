@@ -110,6 +110,7 @@ async def user_from_api_key(api_key: str, request: Request) -> UserEntity:
     await asyncio.sleep(0.2)
     raise UnauthorizedException("Invalid API key")
 
+
 async def user_from_request(request: Request) -> UserEntity:
     """Get user from request"""
 

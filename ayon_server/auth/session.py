@@ -66,9 +66,9 @@ class Session:
             return None
 
         if data.get("isInvalid", False):
-            # this is to cache invalid api keys
-            logger.trace(f"Session {token} is marked as invalid")
-            return None
+            # if a session is marked as invalid, raise Unauthorized immediately
+            # without giving the user a chance to refresh the token.
+            raise UnauthorizedException("Invalid session")
 
         session = SessionModel(**data)
 
@@ -210,7 +210,8 @@ class Session:
 
     @classmethod
     async def list(
-        cls, user_name: str | None = None
+        cls,
+        user_name: str | None = None,
     ) -> AsyncGenerator[SessionModel, None]:
         """List active sessions for all or given user
 
@@ -222,7 +223,11 @@ class Session:
             if data is None:
                 continue  # this should never happen, but keeps mypy happy
 
-            session = SessionModel(**json_loads(data))
+            payload = json_loads(data)
+            if payload.get("isInvalid", False):
+                # skip invalid sessions
+                continue
+            session = SessionModel(**payload)
             if cls.is_expired(session):
                 await cls.delete(session.token, message="Session expired")
                 continue
