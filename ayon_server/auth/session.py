@@ -122,7 +122,7 @@ class Session:
         database lookups for them.
         """
         data = {"isInvalid": True}
-        await Redis.set_json(cls.ns, token, data)
+        await Redis.set_json(cls.ns, token, data, ttl=60)
 
     @classmethod
     async def create(
