@@ -207,10 +207,9 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
             total = checked + not_checked
             checked_percentage = (checked / total) * 100.0 if total > 0 else 0.0
 
-        # dist = metrics.get("distribution")
-        # if dist:
-        #     data_dict = json.loads(dist)
-        #     dist_list = [{"value": key, "count": val} for key, val in data_dict.items()]
+        dist = metrics.get("distribution")
+        if dist is not None:
+            dist_obj = json.loads(dist)
 
         stats_list.append(
             ColumnStats(
@@ -232,7 +231,7 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
                 avg=round(metrics["avg"], 2)
                     if metrics.get("avg") is not None else None,
                 sum=metrics.get("sum"),
-                distribution=metrics.get("distribution"),
+                distribution=dist_obj
             )
         )
 
