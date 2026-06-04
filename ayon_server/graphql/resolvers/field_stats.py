@@ -117,7 +117,8 @@ def generate_specific_stats_columns(calculate_specific_statistics) -> str:
 
         # Handle JSON nested extraction syntax safely
         if "." in raw_field:
-            column_expr = f"({raw_field.replace('.', '->>>\'', 1)}')"
+            json_target = raw_field.replace(".", "->>'", 1)
+            column_expr = f"({json_target}')"
         else:
             column_expr = raw_field
 
