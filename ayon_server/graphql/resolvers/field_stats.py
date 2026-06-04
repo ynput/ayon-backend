@@ -18,7 +18,7 @@ class StatsAggregation(Enum):
     FILLED = "filled"
     NOT_FILLED = "not_filled"
     PERCENTAGE_FILLED = "percentage_filled"
-    PERCENTAGE_EMPTY = "percentage_not_filled"
+    PERCENTAGE_NOT_FILLED = "percentage_not_filled"
     CHECKED = "checked"
     NOT_CHECKED = "not_checked"
     PERCENTAGE_CHECKED = "percentage_checked"
