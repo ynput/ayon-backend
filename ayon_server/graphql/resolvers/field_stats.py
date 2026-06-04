@@ -120,7 +120,8 @@ def generate_specific_stats_columns(calculate_specific_statistics):
                 )
             elif "not_checked" in op:
                 value = (
-                    f"COUNT({column_expr}) FILTER (WHERE {column_expr} = FALSE OR "
+                    f"COUNT({column_expr}) FILTER ("
+                    f"WHERE {column_expr} = FALSE OR "
                     f"{column_expr} IS NULL) "
                     f"AS {column_name}_false"
                 )
