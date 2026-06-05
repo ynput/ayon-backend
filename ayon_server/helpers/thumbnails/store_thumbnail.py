@@ -27,6 +27,8 @@ async def store_thumbnail(
     if len(payload) < 10:
         raise UnsupportedMediaException("Thumbnail cannot be empty")
 
+    logger.trace(f"Storing thumbnail {project_name}/{thumbnail_id}")
+
     guessed_mime = guess_mime_type(payload)
     if guessed_mime is None:
         # This shouldn't happen, but we'll log it.

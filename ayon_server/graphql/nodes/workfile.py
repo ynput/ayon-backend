@@ -62,7 +62,7 @@ async def workfile_from_record(
     """Construct a version node from a DB row."""
 
     data = record.get("data") or {}
-    thumbnail_hash = data.get("thumbnailHash") or "0a4f1"  # default to some hash
+    thumbnail_hash = data.get("thumbnailHash") or record["id"][-6:]
     npath = record["path"].replace("\\", "/")
     name = npath.split("/")[-1] if npath else ""
 

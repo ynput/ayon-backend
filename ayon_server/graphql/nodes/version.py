@@ -102,7 +102,7 @@ async def version_from_record(
     author = record["author"]
 
     data = record.get("data") or {}
-    thumbnail_hash = data.get("thumbnailHash") or "0a4f1"
+    thumbnail_hash = data.get("thumbnailHash") or record["id"][-6:]
     version_no = record["version"]
     if version_no < 0:
         name = "HERO"

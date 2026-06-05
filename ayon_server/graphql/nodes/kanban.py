@@ -45,6 +45,7 @@ async def kanban_node_from_record(
 
     project_name = record.pop("project_name", project_name)
     assert project_name, "project_name is required"
+    thumbnail_hash = record.pop("thumbnail_ash") or record["id"][-6:]
 
     due_date = record.pop("due_date", None)
     if isinstance(due_date, datetime):
@@ -73,7 +74,7 @@ async def kanban_node_from_record(
         project_name=project_name,
         priority=task_priority or folder_priority or project_priority,
         thumbnail=thumbnail,
-        thumbnail_hash=record.pop("thumbnail_hash") or "0a4f1",  # default to some hash
+        thumbnail_hash=thumbnail_hash,
         **record,
     )
 

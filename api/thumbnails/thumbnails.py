@@ -1,4 +1,5 @@
 import functools
+import uuid
 
 from fastapi import APIRouter, Query, Request, Response
 
@@ -231,6 +232,7 @@ async def create_folder_thumbnail(
         user_name=user.name,
     )
     folder.thumbnail_id = thumbnail_id
+    folder.data["thumbnailHash"] = uuid.uuid4().hex[-6:]
     await folder.save()
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
@@ -285,6 +287,7 @@ async def create_version_thumbnail(
         user_name=user.name,
     )
     version.thumbnail_id = thumbnail_id
+    version.data["thumbnailHash"] = uuid.uuid4().hex[-6:]
     await version.save()
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
@@ -339,6 +342,7 @@ async def create_workfile_thumbnail(
         user_name=user.name,
     )
     workfile.thumbnail_id = thumbnail_id
+    workfile.data["thumbnailHash"] = uuid.uuid4().hex[-6:]
     await workfile.save()
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
@@ -363,7 +367,10 @@ async def get_workfile_thumbnail(
         else:
             raise NotFoundException("Workfile not found")
     return await retrieve_thumbnail(
-        project_name, workfile.thumbnail_id, placeholder=placeholder, original=original
+        project_name,
+        workfile.thumbnail_id,
+        placeholder=placeholder,
+        original=original,
     )
 
 
@@ -383,7 +390,6 @@ async def create_task_thumbnail(
     payload = await body_from_request(request)
     task = await TaskEntity.load(project_name, task_id)
     await task.ensure_update_access(user)
-
     thumbnail_id = EntityID.create()
     await store_thumbnail(
         project_name=project_name,
@@ -393,6 +399,7 @@ async def create_task_thumbnail(
         user_name=user.name,
     )
     task.thumbnail_id = thumbnail_id
+    task.data["thumbnailHash"] = uuid.uuid4().hex[-6:]
     await task.save()
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
@@ -408,7 +415,6 @@ async def get_task_thumbnail(
     placeholder: PlaceholderOption = Query("empty"),
     original: bool = Query(False),
 ) -> Response:
-
     return await resolve_thumbnail(
         project_name,
         "task",
