@@ -15,6 +15,7 @@ from ayon_server.graphql.resolvers.common import (
     resolve,
 )
 from ayon_server.graphql.types import Info
+from ayon_server.helpers.users import get_manager_names
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import validate_name_list, validate_user_name_list
@@ -90,23 +91,18 @@ async def get_accessible_users(
         )
 
         {fquery}
-
-        UNION ALL
-
-        SELECT
-            name,
-            ARRAY['__all__']
-        FROM users
-        WHERE data->>'isAdmin' = 'true'
-        OR data->>'isManager' = 'true'
-
     """
+
+    manager_names = await get_manager_names()
 
     res = await Postgres.fetch(query, user.name, project_names)
     for row in res:
         user_name = row["user_name"]
         project_names = row["project_names"]
         result[user_name] = set(project_names)
+    for manager_name in manager_names:
+        if manager_name not in result:
+            result[manager_name] = set("__all__")
     return result
 
 
