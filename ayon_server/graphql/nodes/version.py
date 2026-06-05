@@ -37,6 +37,7 @@ class VersionNode(BaseNode):
     task_id: str | None = None
     thumbnail_id: str | None = None
     thumbnail: ThumbnailInfo | None = None
+    thumbnail_hash: str = strawberry.field()
     has_reviewables: bool = False
     author: str | None = None
     data: str | None = None
@@ -101,6 +102,7 @@ async def version_from_record(
     author = record["author"]
 
     data = record.get("data") or {}
+    thumbnail_hash = data.get("thumbnailHash") or "0a4f1"
     version_no = record["version"]
     if version_no < 0:
         name = "HERO"
@@ -139,6 +141,7 @@ async def version_from_record(
         task_id=record["task_id"],
         thumbnail_id=record["thumbnail_id"],
         thumbnail=thumbnail,
+        thumbnail_hash=thumbnail_hash,
         has_reviewables=has_reviewables,
         author=author,
         status=record["status"],

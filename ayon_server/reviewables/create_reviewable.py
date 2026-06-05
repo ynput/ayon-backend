@@ -1,3 +1,5 @@
+import uuid
+
 from ayon_server.activities.create_activity import create_activity
 from ayon_server.activities.watchers.set_watchers import ensure_watching
 from ayon_server.entities import UserEntity, VersionEntity
@@ -6,6 +8,8 @@ from ayon_server.exceptions import BadRequestException
 from ayon_server.files import Storages, create_project_file_record
 from ayon_server.helpers.ffprobe import availability_from_media_info
 from ayon_server.helpers.preview import get_file_preview
+from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 from ayon_server.reviewables.models import ReviewableAuthor, ReviewableModel
 
@@ -134,6 +138,57 @@ async def create_reviewable(
         await get_file_preview(project_name, file_id)
     except Exception as e:
         logger.warning(f"Failed to generate preview for reviewable {file_id}: {e}")
+
+    # Reset the thumbnail hash for the version,
+    # so the client will know to fetch a new thumbnail
+
+    thumbnail_hash = uuid.uuid4().hex[:6]
+
+    await Postgres.execute(
+        f"""
+        UPDATE project_{project_name}.versions
+        SET data = data || $2,
+        WHERE id = $1
+        """,
+        version.id,
+        {"thumbnailHash": thumbnail_hash},
+    )
+    await Redis.delete("thumbnail-info", f"{project_name}:{version.id}")
+
+    # Get folder id
+
+    res = await Postgres.fetchrow(
+        f"""
+        SELECT folder_id from project_{project_name}.products
+        WHERE id = $1
+        """,
+        version.product_id,
+    )
+
+    if res:
+        folder_id = res["folder_id"]
+        await Postgres.execute(
+            f"""
+            UPDATE project_{project_name}.folders
+            SET data = data || $2
+            WHERE id = $1
+            """,
+            folder_id,
+            {"thumbnailHash": thumbnail_hash},
+        )
+        await Redis.delete("thumbnail-info", f"{project_name}:{folder_id}")
+
+    if version.task_id:
+        await Postgres.execute(
+            f"""
+            UPDATE project_{project_name}.tasks
+            SET data = data || $2
+            WHERE id = $1
+            """,
+            version.task_id,
+            {"thumbnailHash": thumbnail_hash},
+        )
+        await Redis.delete("thumbnail-info", f"{project_name}:{version.task_id}")
 
     return ReviewableModel(
         file_id=file_id,

@@ -1,5 +1,4 @@
 import functools
-from typing import Literal
 
 from fastapi import APIRouter, Query, Request, Response
 
@@ -30,7 +29,9 @@ from ayon_server.files import Storages
 from ayon_server.helpers.preview import get_file_preview
 from ayon_server.helpers.project_list import get_project_info
 from ayon_server.helpers.thumbnails import (
+    PlaceholderOption,
     get_fake_thumbnail,
+    resolve_version_thumbnail,
     store_project_skeleton_thumbnail,
     store_thumbnail,
 )
@@ -44,12 +45,6 @@ from ayon_server.utils import EntityID
 #
 
 router = APIRouter(tags=["Thumbnails"])
-
-#
-# Common
-#
-
-PlaceholderOption = Literal["empty", "none"]
 
 
 async def body_from_request(request: Request) -> bytes:
@@ -381,6 +376,15 @@ async def get_version_thumbnail(
     placeholder: PlaceholderOption = Query("empty"),
     original: bool = Query(False),
 ) -> Response:
+
+    return await resolve_version_thumbnail(
+        project_name,
+        version_id,
+        user=user,
+        placeholder=placeholder,
+        original=original,
+    )
+
     query = f"""
         WITH reviewables AS (
             SELECT DISTINCT ON (a.entity_id)
