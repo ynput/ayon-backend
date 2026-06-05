@@ -26,7 +26,8 @@ class EntityCounts(OPModel):
 
 @router.get("/entities")
 async def get_project_entity_counts(
-    user: CurrentUser, project_name: ProjectName
+    user: CurrentUser,
+    project_name: ProjectName,
 ) -> EntityCounts:
     """Retrieve entity counts for a given project."""
 
@@ -241,11 +242,11 @@ class ProjectTeamsResponseModel(OPModel):
 async def get_project_teams(
     user: CurrentUser, project_name: ProjectName
 ) -> ProjectTeamsResponseModel:
-    team_members: list[str] = []
+    team_members: set[str] = set()
     project = await ProjectEntity.load(project_name)
     for team_data in project.data.get("teams", []):
         for member in team_data.get("members", []):
-            team_members.append(member["name"])
+            team_members.add(member["name"])
 
     role_counts: dict[str, int] = {}
     team_size_active = 0

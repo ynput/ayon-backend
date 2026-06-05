@@ -285,7 +285,7 @@ class AccessChecker:
         is_none (bool): A flag indicating if the user has unrestricted access.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.root = TrieNode()
         self.exact_paths = set()
         self.is_none = False

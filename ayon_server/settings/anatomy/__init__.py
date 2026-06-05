@@ -24,7 +24,7 @@ from ayon_server.settings.anatomy.task_types import TaskType, default_task_types
 from ayon_server.settings.anatomy.templates import Templates
 from ayon_server.settings.common import BaseSettingsModel
 from ayon_server.settings.settings_field import SettingsField
-from ayon_server.settings.validators import ensure_unique_names
+from ayon_server.settings.validators import ensure_unique_names, ensure_unique_property
 
 
 class ProjectAttribModel(
@@ -105,4 +105,9 @@ class Anatomy(BaseSettingsModel):
     @validator("roots", "folder_types", "task_types", "statuses", "tags")
     def ensure_unique_names(cls, value, field):
         ensure_unique_names(value, field_name=field.name)
+        return value
+
+    @validator("folder_types", "task_types", "statuses")
+    def ensure_unique_short_names(cls, value, field):
+        ensure_unique_property(value, "shortName", context=field.name)
         return value

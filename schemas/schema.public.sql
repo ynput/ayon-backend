@@ -21,6 +21,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS server_updates_version_idx ON public.server_up
 
 CREATE TABLE IF NOT EXISTS public.projects(
     name VARCHAR NOT NULL PRIMARY KEY,
+    label VARCHAR,
     code VARCHAR NOT NULL,
     library BOOLEAN NOT NULL DEFAULT FALSE,
     config JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -32,8 +33,13 @@ CREATE TABLE IF NOT EXISTS public.projects(
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS label VARCHAR;
+
 CREATE UNIQUE INDEX IF NOT EXISTS projectname_idx ON public.projects(LOWER(name));
 CREATE UNIQUE INDEX IF NOT EXISTS projectcode_idx ON public.projects(LOWER(code));
+CREATE UNIQUE INDEX IF NOT EXISTS projectlabel_idx ON public.projects(LOWER(label));
+CREATE INDEX IF NOT EXISTS projectactive_idx ON public.projects(active);
+
 
 CREATE TABLE IF NOT EXISTS project_folders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -45,6 +51,20 @@ CREATE TABLE IF NOT EXISTS project_folders (
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_project_folder_parent_label 
   ON project_folders(COALESCE(parent_id::varchar, ''), LOWER(label));
+
+
+CREATE TABLE IF NOT EXISTS project_skeleton_thumbnails(
+    project_name VARCHAR NOT NULL PRIMARY KEY 
+      REFERENCES public.projects(name) 
+      ON DELETE CASCADE ON UPDATE CASCADE,
+    mime VARCHAR NOT NULL,
+    data BYTEA NOT NULL,
+    meta JSONB NOT NULL DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.project_skeleton_thumbnails ALTER COLUMN data SET STORAGE EXTERNAL;
+
 
 -- Users
 
@@ -137,6 +157,16 @@ CREATE INDEX IF NOT EXISTS event_updated_at_idx ON events (updated_at);
 CREATE INDEX IF NOT EXISTS event_status_idx ON events (status);
 CREATE INDEX IF NOT EXISTS event_retries_idx ON events (retries);
 CREATE INDEX IF NOT EXISTS events_sender_type_idx ON events(sender_type);
+
+CREATE INDEX IF NOT EXISTS idx_events_excluded_lookup 
+  ON public.events (topic, updated_at)
+  INCLUDE (depends_on) WHERE depends_on IS NOT NULL AND status IN ('finished', 'failed');
+
+CREATE INDEX IF NOT EXISTS idx_events_source_processing
+  ON public.events (topic, status, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_events_target_lookup 
+  ON public.events (depends_on, topic);
 
 --------------
 -- Settings --
@@ -343,6 +373,7 @@ BEGIN
     FOR project IN
       SELECT p.name FROM projects AS p JOIN users AS u ON u.name = user_name
       WHERE (show_active_projects IS NULL OR p.active = show_active_projects)
+      AND (p.data->>'isSkeleton' IS DISTINCT FROM  'true')
       AND (
         (
           (u.data->'isManager')::boolean

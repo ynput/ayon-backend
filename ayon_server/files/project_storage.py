@@ -205,8 +205,7 @@ class ProjectStorage:
                 raise ForbiddenException("Unauthorized instance")
 
             if res.status_code >= 400:
-                logger.error("CDN Error", res.status_code)
-                logger.error("CDN Error", res.text)
+                logger.error(f"CDN Error {res.status_code}: {res.text}")
                 raise NotFoundException(f"Error {res.status_code} from CDN")
 
             data = res.json()

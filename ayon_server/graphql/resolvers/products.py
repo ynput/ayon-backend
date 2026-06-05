@@ -452,7 +452,7 @@ async def get_products(
     #
 
     if search:
-        terms = slugify(search, make_set=True)
+        terms = slugify(search, make_set=True, split_chars=" ")
         for term in terms:
             sub_conditions = []
             term = term.replace("'", "''")

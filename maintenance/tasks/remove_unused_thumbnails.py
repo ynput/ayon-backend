@@ -32,6 +32,8 @@ async def clear_thumbnails(project_name: str) -> None:
 
     storage = await Storages.project(project_name)
     async for row in Postgres.iterate(query):
+        if row["id"] == "0" * 32:
+            continue
         await storage.delete_thumbnail(row["id"])
 
 

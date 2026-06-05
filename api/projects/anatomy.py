@@ -1,5 +1,4 @@
-from ayon_server.api.dependencies import CurrentUser, ProjectName
-from ayon_server.api.responses import EmptyResponse
+from ayon_server.api.dependencies import AllowProjectSkeleton, CurrentUser, ProjectName
 from ayon_server.entities import ProjectEntity
 from ayon_server.events import EventStream
 from ayon_server.events.patch import build_project_change_events
@@ -11,7 +10,7 @@ from ayon_server.utils import RequestCoalescer
 from .router import router
 
 
-@router.get("/projects/{project_name}/anatomy")
+@router.get("/projects/{project_name}/anatomy", dependencies=[AllowProjectSkeleton])
 async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> Anatomy:
     """Retrieve a project anatomy."""
     await user.ensure_project_access(project_name)
@@ -19,12 +18,16 @@ async def get_project_anatomy(user: CurrentUser, project_name: ProjectName) -> A
     return await coalesce(_get_project_anatomy, project_name)
 
 
-@router.post("/projects/{project_name}/anatomy", status_code=204)
+@router.post(
+    "/projects/{project_name}/anatomy",
+    dependencies=[AllowProjectSkeleton],
+    status_code=204,
+)
 async def set_project_anatomy(
     payload: Anatomy,
     user: CurrentUser,
     project_name: ProjectName,
-) -> EmptyResponse:
+) -> None:
     """Set a project anatomy."""
 
     user.check_permissions("project.anatomy", project_name, write=True)
@@ -40,4 +43,4 @@ async def set_project_anatomy(
     for event in events:
         await EventStream.dispatch(**event)
 
-    return EmptyResponse()
+    return None

@@ -1,3 +1,4 @@
+{% import "components.jinja2" as ui with context %}
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -37,11 +38,20 @@
             </tr>
             {% endblock %}
 
+            <tr>
+              <td align="center" style="padding:24px 20px 0 20px;">
             {% block content %}
             {% endblock %}
+              </td>
+            </tr>
 
-            {% block footer %}
+            {% block call_to_action %}
             {% endblock %}
+
+            {% call ui.footer() %}
+              {% block footer %}
+              {% endblock %}
+            {% endcall %}
 
           </table>
         </td>

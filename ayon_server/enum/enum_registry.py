@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Any
 from ayon_server.exceptions import BadRequestException
 from ayon_server.helpers.modules import classes_from_module, import_module
 from ayon_server.logging import logger
-from ayon_server.types import SimpleValue
 
 from .base_resolver import BaseEnumResolver
 from .enum_item import EnumItem
@@ -86,7 +85,7 @@ class EnumRegistry:
         item: EnumItem,
         project_name: str | None = None,
         **kwargs,
-    ) -> SimpleValue:
+    ) -> None:
         """Create a new enum item using the appropriate resolver.
 
         Args:
@@ -108,4 +107,3 @@ class EnumRegistry:
             raise BadRequestException(f"Unknown enum resolver '{key}'")
 
         await resolver.create_item(item, project_name, **kwargs)
-        return item.value
