@@ -95,22 +95,19 @@ async def get_accessible_users(user: UserEntity) -> dict[str, set[str]] | None:
 
         SELECT
             a.user_name,
-            a.project_name
+            array_agg(DISTINCT a.project_name) AS project_names
         FROM all_user_ag a
         JOIN my_ag m ON (a.project_name = m.project_name OR a.project_name = '__all__')
         {agcond}
-        ORDER BY a.user_name, a.project_name;
+        GROUP BY a.user_name
+        ORDER BY a.user_name;
     """
 
-    async for row in Postgres.iterate(query, user.name):
+    res = await Postgres.fetch(query, user.name)
+    for row in res:
         user_name = row["user_name"]
-        project_name = row["project_name"]
-
-        if project_name not in result:
-            result[project_name] = set()
-
-        result[project_name].add(user_name)
-
+        project_name = row["project_names"]
+        result[user_name] = set(project_name)
     return result
 
 
