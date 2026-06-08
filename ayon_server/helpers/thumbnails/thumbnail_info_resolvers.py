@@ -153,3 +153,30 @@ async def resolve_version_thumbnail_info(
         "thumbnail_id": res["thumbnail_id"],
         "file_id": res["reviewable_id"],
     }
+
+
+@Redis.cached("thumbnail-info", "{project_name}:{entity_id}", ttl=THUMBNAIL_INFO_TTL)
+async def resolve_workfile_thumbnail_info(
+    project_name: str,
+    entity_id: str,
+) -> ThumbnailInfo:
+    query = f"""
+        SELECT
+            w.thumbnail_id AS thumbnail_id,
+            h.path AS path
+        FROM project_{project_name}.workfiles w
+        JOIN project_{project_name}.hierarchy h
+        ON w.folder_id = h.id
+        WHERE w.id = $1
+    """
+
+    res = await Postgres.fetchrow(query, entity_id)
+    if not res:
+        raise NotFoundException("Workfile not found")
+
+    return {
+        "project_name": project_name,
+        "path": res["path"],
+        "thumbnail_id": res["thumbnail_id"],
+        "file_id": None,
+    }

@@ -22,7 +22,6 @@ from ayon_server.entities.task import TaskEntity
 from ayon_server.entities.version import VersionEntity
 from ayon_server.entities.workfile import WorkfileEntity
 from ayon_server.exceptions import (
-    AyonException,
     ForbiddenException,
     NotFoundException,
 )
@@ -358,17 +357,11 @@ async def get_workfile_thumbnail(
     placeholder: PlaceholderOption = Query("empty"),
     original: bool = Query(False),
 ) -> Response:
-    try:
-        workfile = await WorkfileEntity.load(project_name, workfile_id)
-        await workfile.ensure_read_access(user)
-    except AyonException:
-        if placeholder == "empty":
-            return get_fake_thumbnail_response()
-        else:
-            raise NotFoundException("Workfile not found")
-    return await retrieve_thumbnail(
+    return await resolve_thumbnail(
         project_name,
-        workfile.thumbnail_id,
+        "workfile",
+        workfile_id,
+        user=user,
         placeholder=placeholder,
         original=original,
     )

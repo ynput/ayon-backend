@@ -1,12 +1,68 @@
 import uuid
 
+from ayon_server.events.eventstream import EventStream
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 
 
-async def invalidate_thumbnail_by_entity(project_name: str, entity_id: str) -> None:
+async def invalidate_thumbnail_by_entity(
+    project_name: str,
+    entity_type: str,
+    entity_id: str,
+) -> None:
     """Invalidate thumbnail by entity id."""
-    pass
+
+    thumbnail_hash = uuid.uuid4().hex[:6]
+
+    await Redis.delete("thumbnail-info", f"{project_name}:{entity_id}")
+    await Postgres.execute(
+        f"""
+        UPDATE project_{project_name}.{entity_type}
+        SET updated_at = NOW(), data = data || $2
+        WHERE id = $1
+        """,
+        entity_id,
+        {"thumbnailHash": thumbnail_hash},
+    )
+
+    if entity_type == "version":
+        # also invalidate folder and task thumbnail
+        res = await Postgres.fetchrow(
+            f"""
+            SELECT folder_id FROM project_{project_name}.products
+            JOIN project_{project_name}.versions
+            ON versions.product_id = products.id
+            LEFT JOIN project_{project_name}.tasks
+            ON tasks.id = versions.task_id
+            WHERE versions.id = $1
+            """,
+            entity_id,
+        )
+        if res:
+            if res["folder_id"]:
+                await invalidate_thumbnail_by_entity(
+                    project_name,
+                    "folder",
+                    res["folder_id"],
+                )
+            if res["task_id"]:
+                await invalidate_thumbnail_by_entity(
+                    project_name,
+                    "task",
+                    res["task_id"],
+                )
+
+    await EventStream.dispatch(
+        "thumbnail.updated",
+        project=project_name,
+        description="Thumbnail updated",
+        summary={
+            "entityType": entity_type,
+            "entityId": entity_id,
+            "thumbnailHash": thumbnail_hash,
+        },
+        store=False,
+    )
 
 
 async def invalidate_thumbnail_by_id(project_name: str, thumbnail_id: str) -> None:
@@ -17,24 +73,22 @@ async def invalidate_thumbnail_by_id(project_name: str, thumbnail_id: str) -> No
     the thumbnail from the cache.
     """
 
-    thumbnail_hash = uuid.uuid4().hex[:6]
-
-    async with Postgres.transaction():
-        for entity_type in ["workfiles", "versions", "folders", "tasks"]:
-            await Postgres.execute(
-                f"""
-                UPDATE project_{project_name}.{entity_type}
-                SET
-                    updated_at = NOW(),
-                    data = data || $2
-                WHERE
-                    thumbnail_id = $1
-                """,
-                thumbnail_id,
-                {"thumbnailHash": thumbnail_hash},
-            )
-
-            # TODO: bump hash on entities that use the thumbnail as fallback
-
     await Redis.delete("thumbnail", f"{project_name}:{thumbnail_id}:small")
     await Redis.delete("thumbnail", f"{project_name}:{thumbnail_id}:original")
+
+    async with Postgres.transaction():
+        for entity_type in ["workfile", "version", "folder", "task"]:
+            res = await Postgres.fetch(
+                f"""
+                SELECT id FROM project_{project_name}.{entity_type}s
+                WHERE thumbnail_id = $1
+                """,
+                thumbnail_id,
+            )
+
+            for row in res:
+                await invalidate_thumbnail_by_entity(
+                    project_name,
+                    entity_type,
+                    row["id"],
+                )
