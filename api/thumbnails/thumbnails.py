@@ -1,5 +1,4 @@
 import functools
-import uuid
 
 from fastapi import APIRouter, Query, Request, Response
 
@@ -229,10 +228,8 @@ async def create_folder_thumbnail(
         mime=content_type,
         payload=payload,
         user_name=user.name,
+        entity=folder,
     )
-    folder.thumbnail_id = thumbnail_id
-    folder.data["thumbnailHash"] = uuid.uuid4().hex[-6:]
-    await folder.save()
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
@@ -284,10 +281,8 @@ async def create_version_thumbnail(
         payload=payload,
         mime=content_type,
         user_name=user.name,
+        entity=version,
     )
-    version.thumbnail_id = thumbnail_id
-    version.data["thumbnailHash"] = uuid.uuid4().hex[-6:]
-    await version.save()
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
@@ -339,10 +334,8 @@ async def create_workfile_thumbnail(
         payload=payload,
         mime=content_type,
         user_name=user.name,
+        entity=workfile,
     )
-    workfile.thumbnail_id = thumbnail_id
-    workfile.data["thumbnailHash"] = uuid.uuid4().hex[-6:]
-    await workfile.save()
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 
@@ -390,10 +383,8 @@ async def create_task_thumbnail(
         payload=payload,
         mime=content_type,
         user_name=user.name,
+        entity=task,
     )
-    task.thumbnail_id = thumbnail_id
-    task.data["thumbnailHash"] = uuid.uuid4().hex[-6:]
-    await task.save()
     return CreateThumbnailResponseModel(id=thumbnail_id)
 
 

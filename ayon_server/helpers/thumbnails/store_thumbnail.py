@@ -1,5 +1,4 @@
-import uuid
-
+from ayon_server.entities import FolderEntity, TaskEntity, VersionEntity, WorkfileEntity
 from ayon_server.exceptions import UnsupportedMediaException
 from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import guess_mime_type
@@ -22,6 +21,7 @@ async def store_thumbnail(
     *,
     mime: str | None = None,
     user_name: str | None = None,
+    entity: FolderEntity | TaskEntity | VersionEntity | WorkfileEntity | None = None,
 ):
     """Store a thumbnail in the database and the storage service."""
     if len(payload) < 10:
@@ -72,6 +72,7 @@ async def store_thumbnail(
     if user_name:
         meta["author"] = user_name
 
+    logger.trace(f"Storing thumbnail {project_name}/{thumbnail_id}")
     query = f"""
         INSERT INTO project_{project_name}.thumbnails (id, mime, data, meta)
         VALUES ($1, $2, $3, $4)
@@ -81,21 +82,18 @@ async def store_thumbnail(
             mime = EXCLUDED.mime,
             meta = EXCLUDED.meta
     """
-    await Postgres.execute(query, thumbnail_id, mime, thumbnail, meta)
-    await invalidate_thumbnail_by_id(project_name, thumbnail_id)
 
-    thumbnail_hash = uuid.uuid4().hex[:6]
-    for entity_type in ["workfiles", "versions", "folders", "tasks"]:
-        await Postgres.execute(
-            f"""
-            UPDATE project_{project_name}.{entity_type}
-            SET updated_at = NOW(),
-            data = data || $2
-            WHERE thumbnail_id = $1
-            """,
-            thumbnail_id,
-            {"thumbnailHash": thumbnail_hash},
-        )
+    async with Postgres.transaction():
+        await Postgres.execute(query, thumbnail_id, mime, thumbnail, meta)
+        if entity:
+            assert hasattr(entity, "thumbnail_id"), (
+                "Entity must have thumbnail_id attribute"
+            )
+            if entity.thumbnail_id != thumbnail_id:
+                entity.thumbnail_id = thumbnail_id
+            await entity.save()
+
+        await invalidate_thumbnail_by_id(project_name, thumbnail_id)
 
 
 async def store_project_skeleton_thumbnail(

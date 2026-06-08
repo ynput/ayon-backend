@@ -3,6 +3,7 @@ import uuid
 from ayon_server.events.eventstream import EventStream
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 
 
 async def invalidate_thumbnail_by_entity(
@@ -13,6 +14,7 @@ async def invalidate_thumbnail_by_entity(
     """Invalidate thumbnail by entity id."""
 
     thumbnail_hash = uuid.uuid4().hex[:6]
+    logger.trace(f"Invalidating thumbnail for {project_name} {entity_type} {entity_id}")
 
     await Redis.delete("thumbnail-info", f"{project_name}:{entity_id}")
     await Postgres.execute(

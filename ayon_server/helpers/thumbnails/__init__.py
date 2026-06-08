@@ -57,7 +57,6 @@ async def resolve_thumbnail(
         project_name,
         entity_id,
     )
-
     await ensure_accessible(thumbnail_info, user)
 
     return await get_thumbnail_response(
