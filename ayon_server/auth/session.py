@@ -298,7 +298,10 @@ class Session:
         else:
             logger.trace(f"Updating user {user.name} sessions after save")
             async for session in Session.list(user.name):
-                await Session.update(session.token, user)
+                if session.is_service:
+                    await Session.delete(session.token, message="Service session reset")
+                else:
+                    await Session.update(session.token, user)
 
 
 UserEntity.save_hooks.append(Session.user_save_hook)
