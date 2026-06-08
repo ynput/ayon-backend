@@ -563,9 +563,9 @@ FROM project_{project_name}.tasks AS tasks
     """
 
     # Keep it here for debugging :)
-    # from ayon_server.logging import logger
-    #
-    # logger.debug(f"Task query\n{query}")
+    from ayon_server.logging import logger
+
+    logger.debug(f"Task query\n{query}")
 
     return await resolve(
         TasksConnection,

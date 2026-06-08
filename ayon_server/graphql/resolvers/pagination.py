@@ -64,16 +64,15 @@ def create_pagination(
         which the resolver uses to construct the actual cursor.
     """
 
-    if len(order_by) > 2:
-        raise ValueError("Order by can have only two fields")
     cursor_arr = []
     ordering_arr = []
     decoded_cursor, casts = decode_cursor(before or after)
     operator = "<" if before else ">"
 
     keys = []
-    for i, cast in enumerate(casts):
+    for i in range(min(len(order_by), len(decoded_cursor))):
         ob = order_by[i]
+        cast = casts[i]
         if "->" in ob:
             if cast == "::numeric":
                 keys.append(f"COALESCE({ob}, '0'::jsonb){cast}")
@@ -93,27 +92,18 @@ def create_pagination(
         cursor_arr.append(f"{c} AS cursor_{i}")
         ordering_arr.append(f"{c} {'DESC NULLS LAST' if last else 'ASC NULLS FIRST'}")
 
-    # Okay. I know this looks like something a 5YO would write, but hear me out.
-    # We don't need to support more than two cursors. Hopefully.
-    # So trust me, even if this is a mess, it is still MUCH more readable than
-    # doing it a loop for every cursor element. We just cover two cases,
-    # (or three if you're counting 'no cursor').
-
-    if len(decoded_cursor) == 1:
-        conditions = f"""
-        ({keys[0]} {operator} {decoded_cursor[0]})
-        """
-    elif len(decoded_cursor) == 2:
-        conditions = f"""
-        (
-            {keys[0]} {operator} {decoded_cursor[0]}
-        OR (
-            {keys[0]} = {decoded_cursor[0]}
-            AND {keys[1]} {operator} {decoded_cursor[1]}
-           )
-        )"""
-    else:
+    if not keys:
         conditions = ""
+    else:
+        cond_parts = []
+        for i in range(len(keys)):
+            line = []
+            for j in range(i):
+                line.append(f"{keys[j]} = {decoded_cursor[j]}")
+            line.append(f"{keys[i]} {operator} {decoded_cursor[i]}")
+            cond_parts.append(f"({' AND '.join(line)})")
+
+        conditions = f"({' OR '.join(cond_parts)})"
 
     ordering = "ORDER BY " + ", ".join(ordering_arr)
     cursor = ", ".join(cursor_arr)
