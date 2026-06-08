@@ -45,7 +45,7 @@ async def kanban_node_from_record(
 
     project_name = record.pop("project_name", project_name)
     assert project_name, "project_name is required"
-    thumbnail_hash = record.pop("thumbnail_ash") or record["id"][-6:]
+    thumbnail_hash = record.pop("thumbnail_hash", None) or record["id"][-6:]
 
     due_date = record.pop("due_date", None)
     if isinstance(due_date, datetime):
