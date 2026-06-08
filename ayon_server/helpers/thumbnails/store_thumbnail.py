@@ -4,9 +4,9 @@ from ayon_server.exceptions import UnsupportedMediaException
 from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import guess_mime_type
 from ayon_server.lib.postgres import Postgres
-from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
 
+from .invalidate_thumbnail import invalidate_thumbnail_by_id
 from .process_thumbnail import (
     MAX_THUMBNAIL_HEIGHT,
     MAX_THUMBNAIL_WIDTH,
@@ -82,6 +82,7 @@ async def store_thumbnail(
             meta = EXCLUDED.meta
     """
     await Postgres.execute(query, thumbnail_id, mime, thumbnail, meta)
+    await invalidate_thumbnail_by_id(project_name, thumbnail_id)
 
     thumbnail_hash = uuid.uuid4().hex[:6]
     for entity_type in ["workfiles", "versions", "folders", "tasks"]:
@@ -95,9 +96,6 @@ async def store_thumbnail(
             thumbnail_id,
             {"thumbnailHash": thumbnail_hash},
         )
-
-    await Redis.delete("thumbnail", f"{project_name}:{thumbnail_id}:small")
-    await Redis.delete("thumbnail", f"{project_name}:{thumbnail_id}:original")
 
 
 async def store_project_skeleton_thumbnail(

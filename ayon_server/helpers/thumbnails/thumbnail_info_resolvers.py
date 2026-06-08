@@ -4,7 +4,10 @@ from ayon_server.lib.redis import Redis
 
 from .common import ThumbnailInfo
 
+THUMBNAIL_INFO_TTL = 600  # 10 minutes
 
+
+@Redis.cached("thumbnail-info", "{project_name}:{entity_id}", ttl=THUMBNAIL_INFO_TTL)
 async def resolve_folder_thumbnail_info(
     project_name: str,
     entity_id: str,
@@ -56,6 +59,7 @@ async def resolve_folder_thumbnail_info(
     }
 
 
+@Redis.cached("thumbnail-info", "{project_name}:{entity_id}", ttl=THUMBNAIL_INFO_TTL)
 async def resolve_task_thumbnail_info(
     project_name: str,
     entity_id: str,
@@ -103,7 +107,7 @@ async def resolve_task_thumbnail_info(
     }
 
 
-@Redis.cached("thumbnail-info", "{project_name}:{version_id}", ttl=600)
+@Redis.cached("thumbnail-info", "{project_name}:{entity_id}", ttl=THUMBNAIL_INFO_TTL)
 async def resolve_version_thumbnail_info(
     project_name: str,
     entity_id: str,
