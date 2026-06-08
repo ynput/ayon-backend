@@ -170,6 +170,15 @@ class EntityLinksAccessList(BasePermissionsModel):
         default_factory=list,
         enum_resolver=_link_types_enum,
     )
+    delete_others: bool = SettingsField(
+        False,
+        title="Delete links created by others",
+        description=(
+            "Allow users to delete entity links created by other users. "
+            "When link restrictions are enabled, this only applies to the "
+            "allowed link types."
+        ),
+    )
 
 
 # Model for studio management permissions
