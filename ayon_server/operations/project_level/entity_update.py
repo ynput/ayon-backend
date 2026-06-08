@@ -166,7 +166,7 @@ async def update_project_level_entity(
             f"Thumbnail updated for {project_name} {entity.entity_type} {entity.id}, "
         )
         update_payload_dict["data"]["thumbnailHash"] = uuid.uuid4().hex[:6]
-        await Redis.delete("thumbnail-info:", f"{project_name}:{entity.id}")
+        await Redis.delete("thumbnail-info", f"{project_name}:{entity.id}")
 
     # Add the following fields directly to update_payload_dict
     # They don't affect the events created, so they don't need to be

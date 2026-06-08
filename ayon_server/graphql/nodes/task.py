@@ -142,7 +142,7 @@ async def task_from_record(
 
     assignees: list[str] = record["assignees"]
     data: dict[str, Any] = record.get("data") or {}
-    thumbnail_hash = data.get("thumbnailHash") or "4394"
+    thumbnail_hash = data.get("thumbnailHash") or record["id"][-6:]
 
     if current_user.is_guest:
         data = {}
