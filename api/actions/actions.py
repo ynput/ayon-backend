@@ -8,6 +8,7 @@ from ayon_server.actions.context import ActionContext
 from ayon_server.actions.execute import ActionExecutor, ExecuteResponseModel
 from ayon_server.actions.listing import (
     AvailableActionsListModel,
+    can_access_staging_actions,
     get_action_whitelist,
     get_dynamic_actions,
     get_simple_actions,
@@ -22,6 +23,11 @@ from ayon_server.types import Field, OPModel
 from .router import router
 
 ActionListMode = Literal["simple", "dynamic", "all"]
+
+
+def ensure_action_variant_access(user: CurrentUser, variant: str | None) -> None:
+    if variant == "staging" and not can_access_staging_actions(user):
+        raise ForbiddenException("You are not allowed to access staging actions")
 
 
 @router.post("/list", response_model_exclude_none=True, dependencies=[AllowGuests])
@@ -54,6 +60,8 @@ async def list_available_actions_for_context(
         # Guests cannot see actions, but we don't want to
         # throw 403 here
         return AvailableActionsListModel(actions=[])
+
+    ensure_action_variant_access(user, variant)
 
     if mode == "simple":
         r = await get_simple_actions(user, context, variant)
@@ -106,6 +114,7 @@ async def configure_action(
     variant: str = Query("production", title="Action Variant"),
     identifier: str = Query(..., title="Action Identifier"),
 ) -> dict[str, Any]:
+    ensure_action_variant_access(user, variant)
     addon = AddonLibrary.addon(addon_name, addon_version)
     config_dict = config.dict()
     config_value = config_dict.pop("value", None)
@@ -145,6 +154,7 @@ async def execute_action(
     This endpoint is used to run an action on a context.
     This is called from the frontend when the user selects an action to run.
     """
+    ensure_action_variant_access(user, variant)
 
     action_whitelist = await get_action_whitelist(user, context.project_name)
     if action_whitelist is not None:

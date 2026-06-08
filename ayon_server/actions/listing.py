@@ -96,6 +96,7 @@ async def get_relevant_addons(
 
     returns a tuple of variant and list of addons
     """
+    variant = sanitize_action_variant(variant, user)
     is_developer = user.is_developer and user.attrib.developerMode
     user_last_modified = str(user.updated_at)
 
@@ -105,6 +106,20 @@ async def get_relevant_addons(
         is_developer,
         user_last_modified,
     )
+
+
+def can_access_staging_actions(user: UserEntity) -> bool:
+    attrib = getattr(user, "attrib", None)
+    return bool(
+        (user.is_developer and getattr(attrib, "developerMode", False))
+        or getattr(attrib, "allowStagingMode", False)
+    )
+
+
+def sanitize_action_variant(variant: str | None, user: UserEntity) -> str | None:
+    if variant == "staging" and not can_access_staging_actions(user):
+        return "production"
+    return variant
 
 
 def match_list_subtypes(
