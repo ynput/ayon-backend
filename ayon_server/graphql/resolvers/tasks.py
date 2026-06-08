@@ -562,10 +562,10 @@ FROM project_{project_name}.tasks AS tasks
 {ordering}
     """
 
-    # Keep it here for debugging :)
-    from ayon_server.logging import logger
-
-    logger.debug(f"Task query\n{query}")
+    # print()
+    # print("Tasks query:")
+    # print(query)
+    # print()
 
     return await resolve(
         TasksConnection,

@@ -670,10 +670,10 @@ async def get_products(
         {ordering}
     """
 
-    print()
-    print("Products query:")
-    print(query)
-    print()
+    # print()
+    # print("Products query:")
+    # print(query)
+    # print()
 
     return await resolve(
         ProductsConnection,

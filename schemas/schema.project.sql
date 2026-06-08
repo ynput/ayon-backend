@@ -220,6 +220,7 @@ AS
    SELECT base_id AS id, path FROM htable;
 
 CREATE UNIQUE INDEX hierarchy_id ON hierarchy (id);
+CREATE INDEX hierarchy_path ON hierarchy(path);
 
 
 CREATE TABLE exported_attributes(
