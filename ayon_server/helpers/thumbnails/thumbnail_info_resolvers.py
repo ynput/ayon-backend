@@ -97,7 +97,7 @@ async def resolve_task_thumbnail_info(
 
     res = await Postgres.fetchrow(query, entity_id)
     if not res:
-        raise NotFoundException("Version not found")
+        raise NotFoundException("Task not found")
 
     return {
         "project_name": project_name,
