@@ -608,6 +608,8 @@ async def get_products(
             order_by.insert(0, status_type_case)
         elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
+        elif sort_by == "path":
+            order_by = ["hierarchy.path", "products.name"]
         elif sort_by.startswith("attrib."):
             attr_name = sort_by[7:]
             attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
@@ -668,10 +670,11 @@ async def get_products(
         {ordering}
     """
 
-    # print()
-    # print (query)
-    # print()
-    #
+    print()
+    print("Products query:")
+    print(query)
+    print()
+
     return await resolve(
         ProductsConnection,
         ProductEdge,

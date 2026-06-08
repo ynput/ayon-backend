@@ -122,6 +122,8 @@ def create_pagination(
 
         conditions = f"({' OR '.join(cond_parts)})"
 
-    ordering = "ORDER BY " + ", ".join(ordering_arr)
+    limit = (first or last or 500) * 2
+
+    ordering = "ORDER BY " + ", ".join(ordering_arr) + f" LIMIT {limit}"
     cursor = ", ".join(cursor_arr)
     return ordering, conditions, cursor
