@@ -1,6 +1,7 @@
 from ayon_server.entities import FolderEntity, TaskEntity, VersionEntity, WorkfileEntity
 from ayon_server.exceptions import UnsupportedMediaException
 from ayon_server.files import Storages
+from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
 from ayon_server.helpers.mimetypes import guess_mime_type
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -94,6 +95,7 @@ async def store_thumbnail(
             await entity.save()
 
         await invalidate_thumbnail_by_id(project_name, thumbnail_id)
+        await rebuild_hierarchy_cache(project_name)
 
 
 async def store_project_skeleton_thumbnail(
