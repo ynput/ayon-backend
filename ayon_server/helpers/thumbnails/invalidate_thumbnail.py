@@ -17,7 +17,7 @@ async def invalidate_thumbnail_by_entity(
     await Redis.delete("thumbnail-info", f"{project_name}:{entity_id}")
     await Postgres.execute(
         f"""
-        UPDATE project_{project_name}.{entity_type}
+        UPDATE project_{project_name}.{entity_type}s
         SET updated_at = NOW(), data = data || $2
         WHERE id = $1
         """,
@@ -29,11 +29,14 @@ async def invalidate_thumbnail_by_entity(
         # also invalidate folder and task thumbnail
         res = await Postgres.fetchrow(
             f"""
-            SELECT folder_id FROM project_{project_name}.products
+            SELECT
+                products.folder_id,
+                tasks.id AS task_id
+            FROM project_{project_name}.products
             JOIN project_{project_name}.versions
-            ON versions.product_id = products.id
+                ON versions.product_id = products.id
             LEFT JOIN project_{project_name}.tasks
-            ON tasks.id = versions.task_id
+                ON tasks.id = versions.task_id
             WHERE versions.id = $1
             """,
             entity_id,
