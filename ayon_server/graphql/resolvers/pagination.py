@@ -5,36 +5,26 @@ from typing import Any
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps, json_loads
 
+# Top-level non-nullable fields.
+# We don't need COALESCE for these.
+COLUMN_TYPES = {
+    "id": "text",
+    "name": "text",
+    "created_at": "timestamptz",
+    "updated_at": "timestamptz",
+    "status": "text",
+    "creation_order": "numeric",
+}
 
-def decode_cursor(cursor: str | None) -> tuple[list[str], list[str]]:
-    """
-    returns a list of cursor values and casts
-    """
 
+def decode_cursor(cursor: str | None) -> list[Any]:
     if not cursor:
-        return ([], [])
+        return []
     try:
-        cur_data = json_loads(b64decode(cursor).decode())
-        vals = []
-        casts = []
-        for c in cur_data:
-            if isinstance(c, str):
-                # Check if the value is a timestamp in ISO format
-                if re.match(r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", c):
-                    # Convert to timestamp
-                    vals.append(f"'{c}'::timestamptz")
-                    casts.append("::timestamptz")
-                else:
-                    val = c.replace("'", "''") if c else ""
-                    vals.append(f"'{val}'::text")
-                    casts.append("::text")
-            else:
-                vals.append(f"{c or 0}::numeric")
-                casts.append("::numeric")
-        return vals, casts
+        return json_loads(b64decode(cursor).decode())
     except Exception as e:
         logger.debug(f"Invalid cursor {e}")
-        return ([], [])
+        return []
 
 
 def encode_cursor(decoded_cursor: list[Any]) -> str:
@@ -66,31 +56,58 @@ def create_pagination(
 
     cursor_arr = []
     ordering_arr = []
-    decoded_cursor, casts = decode_cursor(before or after)
+    decoded_cursor = decode_cursor(before or after)
     operator = "<" if before else ">"
 
     keys = []
+    cursor_values = []
     for i in range(min(len(order_by), len(decoded_cursor))):
         ob = order_by[i]
-        cast = casts[i]
-        if "->" in ob:
-            if cast == "::numeric":
-                keys.append(f"COALESCE({ob}, '0'::jsonb){cast}")
-            elif cast == "::timestamptz":
-                keys.append(f"COALESCE({ob}, '1970-01-01T00:00:00Z'::jsonb){cast}")
-            else:
-                keys.append(f"COALESCE({ob}, ''::jsonb){cast}")
+        val = decoded_cursor[i]
+        col_name = ob.split(".")[-1]
+
+        is_jsonb = "->" in ob
+        ctype = COLUMN_TYPES.get(col_name)
+
+        if ctype and not is_jsonb:
+            # Known non-nullable top-level field
+            keys.append(f"{ob}::{ctype}")
+            if ctype == "text":
+                val_str = str(val).replace("'", "''") if val is not None else ""
+                sql_val = f"'{val_str}'::text"
+            elif ctype == "timestamptz":
+                sql_val = f"'{val}'::timestamptz"
+            else:  # numeric
+                sql_val = f"{val or 0}::numeric"
+            cursor_values.append(sql_val)
+            continue
+
+        # Fallback for nullable fields or JSONB
+        if isinstance(val, (int, float)):
+            cast = "numeric"
+            default = "0"
+            sql_val = f"{val}::numeric"
+        elif isinstance(val, str) and re.match(
+            r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", val
+        ):
+            cast = "timestamptz"
+            default = "'1970-01-01T00:00:00Z'"
+            sql_val = f"'{val}'::timestamptz"
         else:
-            if cast == "::numeric":
-                keys.append(f"COALESCE({ob}, 0){cast}")
-            elif cast == "::timestamptz":
-                keys.append(f"COALESCE({ob}, '1970-01-01T00:00:00Z'){cast}")
-            else:
-                keys.append(f"COALESCE({ob}, ''){cast}")
+            cast = "text"
+            default = "''"
+            v_str = str(val).replace("'", "''") if val is not None else ""
+            sql_val = f"'{v_str}'::text"
+
+        if is_jsonb:
+            keys.append(f"COALESCE({ob}, {default}::jsonb)::{cast}")
+        else:
+            keys.append(f"COALESCE({ob}, {default})::{cast}")
+        cursor_values.append(sql_val)
 
     for i, c in enumerate(order_by):
         cursor_arr.append(f"{c} AS cursor_{i}")
-        ordering_arr.append(f"{c} {'DESC NULLS LAST' if last else 'ASC NULLS FIRST'}")
+        ordering_arr.append(f"{c} {'DESC' if last else 'ASC'}")
 
     if not keys:
         conditions = ""
@@ -99,8 +116,8 @@ def create_pagination(
         for i in range(len(keys)):
             line = []
             for j in range(i):
-                line.append(f"{keys[j]} = {decoded_cursor[j]}")
-            line.append(f"{keys[i]} {operator} {decoded_cursor[i]}")
+                line.append(f"{keys[j]} = {cursor_values[j]}")
+            line.append(f"{keys[i]} {operator} {cursor_values[i]}")
             cond_parts.append(f"({' AND '.join(line)})")
 
         conditions = f"({' OR '.join(cond_parts)})"

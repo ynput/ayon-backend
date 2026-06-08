@@ -40,7 +40,6 @@ SORT_OPTIONS = {
     "createdBy": "versions.created_by",
     "updatedBy": "versions.updated_by",
     "tags": "array_to_string(versions.tags, '')",
-    "path": "hierarchy.path || '/' || products.name || '/' || LPAD(versions.version::text, 5, '0')",  # noqa 501
     "productType": "products.product_type",
     "productName": "products.name",
     "folderName": "folders.name",
@@ -617,6 +616,8 @@ async def get_versions(
         if sort_by == "status":
             status_type_case = get_status_sort_case(project, "versions.status")
             order_by.insert(0, status_type_case)
+        elif sort_by == "path":
+            order_by = ["hierarchy.path", "products.name", "versions.version"]
         elif sort_by in SORT_OPTIONS:
             order_by.insert(0, SORT_OPTIONS[sort_by])
         elif sort_by.startswith("attrib."):
