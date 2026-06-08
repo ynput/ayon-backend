@@ -161,11 +161,13 @@ class Redis:
         await cls.redis_pool.delete(f"{cls.prefix}{namespace}-{key}")
 
     @classmethod
-    async def incr(cls, namespace: str, key: str) -> int:
+    async def incr(cls, namespace: str, key: str, *, ttl: int = 0) -> int:
         """Increment a value in Redis"""
         if not cls.connected:
             await cls.connect()
         res = await cls.redis_pool.incr(f"{cls.prefix}{namespace}-{key}")
+        if ttl:
+            await cls.redis_pool.expire(f"{cls.prefix}{namespace}-{key}", ttl)
         return res
 
     @classmethod

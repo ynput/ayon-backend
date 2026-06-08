@@ -1,6 +1,28 @@
+import contextlib
+import ipaddress
 from urllib.parse import urlparse
 
 from fastapi import Request
+
+
+def is_internal_ip(ip: str) -> bool:
+    """Check if the given IP address is internal (private)"""
+    with contextlib.suppress(ValueError):
+        if ipaddress.IPv4Address(ip).is_private:
+            return True
+
+    with contextlib.suppress(ValueError):
+        if ipaddress.IPv6Address(ip).is_private:
+            return True
+    return False
+
+
+def get_real_ip_from_request(request: Request) -> str:
+    """Get the real client IP address from the request, considering possible proxies."""
+    if request.client is None:
+        return "0.0.0.0"
+    xff = request.headers.get("x-forwarded-for", request.client.host)
+    return xff.split(",")[0].strip()
 
 
 def server_url_from_request(request: Request) -> str:
