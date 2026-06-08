@@ -167,6 +167,21 @@ def get_version_conditions(version_name: str | None) -> list[str]:
         """
         ]
 
+    if version_name == "latestapproved":
+        return [
+            """
+            v.id in (
+                SELECT approved_versions.id
+                FROM (
+                    SELECT DISTINCT ON (product_id) id
+                    FROM versions
+                    WHERE version >= 0 AND lower(status) = 'approved'
+                    ORDER BY product_id, version DESC
+                ) AS approved_versions
+            )
+        """
+        ]
+
     if version_name == "hero":
         return ["v.version < 0"]
 
