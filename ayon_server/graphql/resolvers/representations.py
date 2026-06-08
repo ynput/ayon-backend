@@ -213,7 +213,6 @@ async def get_representations(
         {ordering}
     """
 
-    print(query)
 
     return await resolve(
         RepresentationsConnection,
