@@ -49,7 +49,7 @@ async def resolve_folder_thumbnail_info(
 
     res = await Postgres.fetchrow(query, entity_id)
     if not res:
-        raise NotFoundException("Version not found")
+        raise NotFoundException("Folder not found")
 
     return {
         "project_name": project_name,
