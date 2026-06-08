@@ -41,7 +41,6 @@ async def get_accessible_users(
 
     if user.is_manager:
         return None  # No restrictions for managers
-    result: dict[str, set[str]] = {}
 
     if ayonconfig.limit_user_visibility:
         fquery = """
@@ -93,16 +92,21 @@ async def get_accessible_users(
         {fquery}
     """
 
-    manager_names = await get_manager_names()
+    manager_names = set(await get_manager_names())
 
+    result: dict[str, set[str]] = {}
     res = await Postgres.fetch(query, user.name, project_names)
     for row in res:
         user_name = row["user_name"]
         project_names = row["project_names"]
-        result[user_name] = set(project_names)
-    for manager_name in manager_names:
-        if manager_name not in result:
-            result[manager_name] = set("__all__")
+        for project_name in project_names:
+            if project_name not in result:
+                result[project_name] = set()
+            result[project_name].add(user_name)
+
+    for project_name in result:
+        result[project_name] |= manager_names
+
     return result
 
 
@@ -225,7 +229,6 @@ async def get_kanban(
 
             else:
                 users = umap.get(project_name, set())
-                users = users.union(umap.get("__all__", set()))
                 if assignees_any:
                     users = users.intersection(assignees_any)
 

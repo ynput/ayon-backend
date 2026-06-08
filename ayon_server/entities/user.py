@@ -319,6 +319,7 @@ class UserEntity(TopLevelEntity):
             await Redis.delete("global", "manager-names")
 
         from ayon_server.auth.session import Session
+
         await Session.logout_user(self.name, message="Account has been deleted")
 
         return res[0]["count"]
