@@ -68,6 +68,7 @@ class Session:
         if data.get("isInvalid", False):
             # if a session is marked as invalid, raise Unauthorized immediately
             # without giving the user a chance to refresh the token.
+            await asyncio.sleep(0.2)
             raise UnauthorizedException("Invalid session")
 
         session = SessionModel(**data)
