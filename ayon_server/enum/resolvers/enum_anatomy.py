@@ -153,6 +153,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
 
 class StatusesEnumResolver(BaseEnumResolver):
     name = "statuses"
+    entity_types: set[str] = set()
 
     async def get_accepted_params(self) -> dict[str, type]:
         return {"project_name": str}
@@ -170,6 +171,12 @@ class StatusesEnumResolver(BaseEnumResolver):
                     short_name=status.shortName,
                 )
                 for status in anatomy.statuses
+                if (
+                    not self.entity_types
+                    or (
+                        status.scope and self.entity_types & set(status.scope)
+                    )
+                )
             ]
 
         project_name = await normalize_project_name(project_name)
@@ -180,6 +187,11 @@ class StatusesEnumResolver(BaseEnumResolver):
                 "SELECT name, data FROM statuses ORDER BY position"
             )
             async for row in stmt.cursor():
+                if self.entity_types:
+                    scope = row["data"].get("scope")
+                    if not scope or not self.entity_types & set(scope):
+                        continue
+
                 result.append(
                     EnumItem(
                         value=row["name"],
@@ -200,6 +212,15 @@ class StatusesEnumResolver(BaseEnumResolver):
         if not project_name:
             raise ValueError("Missing project name in item data")
 
+        data = {
+            "icon": item.icon or "check_circle",
+            "color": item.color or "#808080",
+            "name": item.value,
+            "shortName": item.short_name or str(item.value)[0:3].upper(),
+        }
+        if self.entity_types:
+            data["scope"] = list(self.entity_types)
+
         project_name = await normalize_project_name(project_name)
         async with Postgres.transaction():
             await Postgres.set_project_schema(project_name)
@@ -209,15 +230,30 @@ class StatusesEnumResolver(BaseEnumResolver):
                 VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM statuses))
                 """,
                 item.value,
-                {
-                    "icon": item.icon or "check_circle",
-                    "color": item.color or "#808080",
-                    "name": item.value,
-                    "shortName": item.short_name or str(item.value)[0:3].upper(),
-                },
+                data,
             )
         await Redis.delete("project-anatomy", project_name)
         await Redis.delete("project-data", project_name)
+
+
+class FolderStatusesEnumResolver(StatusesEnumResolver):
+    name = "folderStatuses"
+    entity_types = {"folder"}
+
+
+class TaskStatusesEnumResolver(StatusesEnumResolver):
+    name = "taskStatuses"
+    entity_types = {"task"}
+
+
+class ProductStatusesEnumResolver(StatusesEnumResolver):
+    name = "productStatuses"
+    entity_types = {"product"}
+
+
+class VersionStatusesEnumResolver(StatusesEnumResolver):
+    name = "versionStatuses"
+    entity_types = {"version"}
 
 
 class TagsEnumResolver(BaseEnumResolver):
