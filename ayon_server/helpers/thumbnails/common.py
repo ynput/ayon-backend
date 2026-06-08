@@ -104,6 +104,9 @@ async def get_thumbnail_response(
             )
             headers["X-File-Id"] = file_id
         except NotFoundException:
+            # Missing preview is expected for some files.
+            # Leave `content` as None and let the fallback logic below decide
+            # whether to return a placeholder or raise NotFoundException.
             pass
 
     # Construct the response. If nothing is found,
