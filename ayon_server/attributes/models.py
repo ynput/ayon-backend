@@ -143,7 +143,7 @@ class AttributeData(OPModel):
         Field(
             title="Widget Settings",
             description="Any additional config specific for the widget style."
-                                "(Date formats, precision etc.)",
+            "(Date formats, precision etc.)",
         ),
     ] = None
 

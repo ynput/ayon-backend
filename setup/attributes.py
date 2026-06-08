@@ -229,7 +229,7 @@ DEFAULT_ATTRIBUTES: dict[str, dict[str, Any]] = {
         "title": "Description",
         "description": "Textual description of the entity",
         "inherit": False,
-        "widget": "markdown"
+        "widget": "markdown",
     },
     "entityListCategory": {
         "scope": "L",
@@ -295,7 +295,7 @@ async def deploy_attributes() -> None:
             "inherit",
             "enum",
             "widget",
-            "widget_settings"
+            "widget_settings",
         ):
             if (value := tdata.get(key)) is not None:
                 data[key] = value
