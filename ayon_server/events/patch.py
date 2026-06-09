@@ -196,7 +196,9 @@ def build_pl_entity_change_events(
             evt["description"] = (
                 f"Changed {entity_type} {original_entity.path} attributes: {attr_list}"
             )
-            evt["summary"]["value"] = new_attributes
+            # Do not include new attributes in the summary, until we have entity-level
+            # ACL on WS events
+            # evt["summary"]["value"] = new_attributes
             result.append(evt)
 
     for column_name, topic_name in ADDITIONAL_COLUMNS.items():
