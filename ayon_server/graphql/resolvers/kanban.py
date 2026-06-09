@@ -33,7 +33,7 @@ async def get_accessible_users(
     project_names: Iterable[str],
 ) -> dict[str, set[str]] | None:
     """
-    Reurns a dictionary mapping project names to lists of users
+    Returns a dictionary mapping project names to lists of users
     that the given user has access to.
 
     For managers, this returns None, indicating no restrictions.
