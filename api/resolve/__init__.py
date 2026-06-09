@@ -104,6 +104,8 @@ def parse_uri(uri: str) -> ParsedURIModel:
     else:
         statuses = None
 
+    status_states = qs.get("status_state") or None
+
     # assert we don't have incompatible arguments
 
     if task_name is not None or workfile_name is not None:
@@ -126,7 +128,33 @@ def parse_uri(uri: str) -> ParsedURIModel:
         representation_name=representation_name,
         workfile_name=workfile_name,
         statuses=statuses,
+        status_states=status_states,
     )
+
+
+async def get_status_names_for_states(
+    status_states: list[str],
+) -> list[str]:
+    """Get status names for given status states.
+
+    Converts status states (e.g., 'in_progress', 'done') to status names
+    by querying the project's statuses table.
+    """
+    project_name = Postgres.get_current_project_name()
+    if project_name is None:
+        return []
+
+    # state is always stored lowercase
+    states = [state.lower().replace(" ", "_") for state in status_states]
+    query = f"""
+        SELECT name FROM project_{project_name}.statuses
+        WHERE data->>'state' = ANY({SQLTool.array(states, curly=True)})
+    """
+    result = await Postgres.fetch(query)
+    if result:
+        return [row["name"] for row in result]
+    # return original if not found
+    return status_states
 
 
 def get_representation_path(
@@ -221,6 +249,18 @@ async def resolve_entities(
     ):
         return []
 
+    statuses = req.statuses
+    status_states = req.status_states
+
+    if status_states:
+        status_names = await get_status_names_for_states(status_states)
+        if status_names:
+            statuses = (
+                list(set(statuses).union(status_names))
+                if statuses
+                else status_names
+            )
+
     platform = None
     if site_id:
         platform = await get_platform_for_site_id(site_id)
@@ -237,8 +277,8 @@ async def resolve_entities(
             target_entity_type = "workfile"
 
         conds.extend(get_path_conditions(req.path))
-        if req.statuses:
-            conds.append(f"t.status IN {SQLTool.array(req.statuses)}")
+        if statuses:
+            conds.append(f"t.status IN {SQLTool.array(statuses)}")
 
     else:
         if req.representation_name is not None:
@@ -259,8 +299,8 @@ async def resolve_entities(
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "representation"
-            if req.statuses:
-                conds.append(f"r.status IN {SQLTool.array(req.statuses)}")
+            if statuses:
+                conds.append(f"r.status IN {SQLTool.array(statuses)}")
 
         elif req.version_name is not None:
             cols.extend(["s.id as product_id", "v.id as version_id"])
@@ -270,8 +310,8 @@ async def resolve_entities(
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "version"
-            if req.statuses:
-                conds.append(f"v.status IN {SQLTool.array(req.statuses)}")
+            if statuses:
+                conds.append(f"v.status IN {SQLTool.array(statuses)}")
 
         elif req.product_name is not None:
             cols.append("s.id as product_id")
@@ -279,14 +319,14 @@ async def resolve_entities(
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "product"
-            if req.statuses:
-                conds.append(f"s.status IN {SQLTool.array(req.statuses)}")
+            if statuses:
+                conds.append(f"s.status IN {SQLTool.array(statuses)}")
 
         else:
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "folder"
-            if req.statuses:
-                conds.append(f"h.status IN {SQLTool.array(req.statuses)}")
+            if statuses:
+                conds.append(f"h.status IN {SQLTool.array(statuses)}")
 
     query = f"""
         SELECT {", ".join(cols)}
@@ -361,6 +401,11 @@ async def resolve_uris(
     task/workfile arguments.
 
     `status` could be multiple `&status=In progress&status=Approved` (OR)
+
+    `status_state` could be multiple `&status_state=in_progress&status_state=done`
+    to filter by status states (converted to status names)
+
+    `status_state` is wrapper for multiple `statuses`
 
     ### Implicit wildcards
 

@@ -110,3 +110,9 @@ class ParsedURIModel(OPModel):
         title="Statuses",
         description="List of statuses to filter by",
     )
+    status_states: list[str] | None = Field(
+        None,
+        title="Status states",
+        description="List of status states used for filtering",
+        example=["in_progress", "done"],
+    )
