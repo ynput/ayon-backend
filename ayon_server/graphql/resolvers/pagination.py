@@ -76,10 +76,12 @@ def create_pagination(
 
         if ctype and not is_jsonb:
             # Known non-nullable top-level field
+
             keys.append(f"{ob}")
             if ctype == "text":
                 val_str = str(val).replace("'", "''") if val is not None else ""
                 sql_val = f"'{val_str}'::text"
+
             elif ctype == "timestamptz":
                 sql_val = f"'{val}'::timestamptz"
                 if not isinstance(val, str) or not re.match(
@@ -88,6 +90,7 @@ def create_pagination(
                     raise BadRequestException(
                         f"Invalid value for timestamptz field: {val}"
                     )
+
             else:  # numeric
                 if not isinstance(val, (int, float)):
                     raise BadRequestException(f"Invalid value for numeric field: {val}")
@@ -98,24 +101,29 @@ def create_pagination(
         # Fallback for nullable fields or JSONB
         if isinstance(val, (int, float)):
             cast = "numeric"
-            default = "'0'"
+            # default = "'0'"
             sql_val = f"{val}::numeric"
+
         elif isinstance(val, str) and re.match(
             r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", val
         ):
             cast = "timestamptz"
-            default = "'1970-01-01T00:00:00Z'"
+            # default = "'1970-01-01T00:00:00Z'"
             sql_val = f"'{val}'::timestamptz"
+
         else:
             cast = "text"
-            default = "'\"\"'"
+            # default = "'\"\"'"
             v_str = str(val).replace("'", "''") if val is not None else ""
             sql_val = f"'{v_str}'::text"
 
-        if is_jsonb:
-            keys.append(f"COALESCE({ob}, {default}::jsonb)::{cast}")
-        else:
-            keys.append(f"COALESCE({ob}, {default})::{cast}")
+        keys.append(f"({ob})::{cast}")
+
+        # Probably not needed, just handle nulls as-is
+        # if is_jsonb:
+        #     keys.append(f"COALESCE({ob}, {default}::jsonb)::{cast}")
+        # else:
+        #     keys.append(f"COALESCE({ob}, {default})::{cast}")
         cursor_values.append(sql_val)
 
     for i, c in enumerate(order_by):
