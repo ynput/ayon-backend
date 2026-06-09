@@ -85,7 +85,7 @@ def create_pagination(
         # Fallback for nullable fields or JSONB
         if isinstance(val, (int, float)):
             cast = "numeric"
-            default = "0"
+            default = "'0'"
             sql_val = f"{val}::numeric"
         elif isinstance(val, str) and re.match(
             r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", val
@@ -95,7 +95,7 @@ def create_pagination(
             sql_val = f"'{val}'::timestamptz"
         else:
             cast = "text"
-            default = "''"
+            default = "'\"\"'"
             v_str = str(val).replace("'", "''") if val is not None else ""
             sql_val = f"'{v_str}'::text"
 

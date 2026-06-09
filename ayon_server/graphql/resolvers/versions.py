@@ -656,10 +656,10 @@ async def get_versions(
         {ordering}
     """
 
-    # print()
-    # print("Versions query:")
-    # print(query)
-    # print()
+    print()
+    print("Versions query:")
+    print(query)
+    print()
 
     return await resolve(
         VersionsConnection,
