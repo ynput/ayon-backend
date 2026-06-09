@@ -89,9 +89,9 @@ def create_pagination(
                         f"Invalid value for timestamptz field: {val}"
                     )
             else:  # numeric
-                sql_val = f"{val or 0}"
                 if not isinstance(val, (int, float)):
                     raise BadRequestException(f"Invalid value for numeric field: {val}")
+                sql_val = f"{val or 0}"
             cursor_values.append(sql_val)
             continue
 
