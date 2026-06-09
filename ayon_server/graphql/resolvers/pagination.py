@@ -71,7 +71,7 @@ def create_pagination(
         val = decoded_cursor[i]
         col_name = ob.split(".")[-1]
 
-        is_jsonb = "->" in ob
+        is_jsonb = ("->" in ob) and ("->>" not in ob) and ("::" not in ob)
         ctype = COLUMN_TYPES.get(col_name)
 
         if ctype and not is_jsonb:
