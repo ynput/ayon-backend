@@ -14,7 +14,12 @@ from ayon_server.exceptions import (
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.helpers.roots import get_roots_for_projects
 from ayon_server.lib.postgres import Postgres
-from ayon_server.types import NAME_REGEX, ProjectLevelEntityType
+from ayon_server.types import (
+    NAME_REGEX,
+    ProjectLevelEntityType,
+    validate_status_list
+)
+from ayon_server.utils import SQLTool
 
 from .models import (
     ParsedURIModel,
@@ -93,6 +98,12 @@ def parse_uri(uri: str) -> ParsedURIModel:
     if workfile_name is not None:
         validate_name(workfile_name)
 
+    statuses = qs.get("status", [])
+    if statuses:
+        statuses = validate_status_list(statuses)
+    else:
+        statuses = None
+
     # assert we don't have incompatible arguments
 
     if task_name is not None or workfile_name is not None:
@@ -114,6 +125,7 @@ def parse_uri(uri: str) -> ParsedURIModel:
         version_name=version_name,
         representation_name=representation_name,
         workfile_name=workfile_name,
+        statuses=statuses,
     )
 
 
@@ -225,6 +237,8 @@ async def resolve_entities(
             target_entity_type = "workfile"
 
         conds.extend(get_path_conditions(req.path))
+        if req.statuses:
+            conds.append(f"t.status IN {SQLTool.array(req.statuses)}")
 
     else:
         if req.representation_name is not None:
@@ -245,6 +259,8 @@ async def resolve_entities(
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "representation"
+            if req.statuses:
+                conds.append(f"r.status IN {SQLTool.array(req.statuses)}")
 
         elif req.version_name is not None:
             cols.extend(["s.id as product_id", "v.id as version_id"])
@@ -254,6 +270,8 @@ async def resolve_entities(
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "version"
+            if req.statuses:
+                conds.append(f"v.status IN {SQLTool.array(req.statuses)}")
 
         elif req.product_name is not None:
             cols.append("s.id as product_id")
@@ -261,10 +279,14 @@ async def resolve_entities(
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "product"
+            if req.statuses:
+                conds.append(f"s.status IN {SQLTool.array(req.statuses)}")
 
         else:
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "folder"
+            if req.statuses:
+                conds.append(f"h.status IN {SQLTool.array(req.statuses)}")
 
     query = f"""
         SELECT {", ".join(cols)}
@@ -333,10 +355,12 @@ async def resolve_uris(
 
     Schemes `ayon://` and `ayon+entity://` are equivalent (ayon is a shorter alias).
 
-    Additional query arguments [`product`, `version`, `representation`]
-    or [`task`, `workfile`] are allowed.
+    Additional query arguments [`product`, `version`, `representation`,
+    `status`] or [`task`, `workfile`] are allowed.
     Note that arguments from product/version/representations cannot be mixed with
     task/workfile arguments.
+
+    `status` could be multiple `&status=In progress&status=Approved` (OR)
 
     ### Implicit wildcards
 
