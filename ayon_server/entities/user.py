@@ -315,9 +315,8 @@ class UserEntity(TopLevelEntity):
                 except Postgres.UndefinedTableError:
                     continue
 
-        if self.was_manager:
+        if self.was_manager or self.is_manager:
             await Redis.delete("global", "manager-names")
-
         from ayon_server.auth.session import Session
 
         await Session.logout_user(self.name, message="Account has been deleted")
