@@ -6,6 +6,7 @@ INDEXES = {
     "folder_attrib_idx": "folders USING gin(attrib);",
     "folder_type_idx": "folders(folder_type);",
     "folder_status_idx": "folders(status);",
+    "hierarchy_path_idx": "hierarchy(path);",
     "task_type_idx": "tasks(task_type);",
     "task_status_idx": "tasks(status);",
     "task_assignees_idx": "tasks USING gin(assignees);",
