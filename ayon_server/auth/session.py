@@ -206,7 +206,6 @@ class Session:
                     description=message,
                     user=session.user.name,
                 )
-        logger.trace(f"Deleting session {token}: {message}")
         await Redis.delete(cls.ns, token)
 
     @classmethod
