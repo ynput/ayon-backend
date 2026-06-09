@@ -41,6 +41,7 @@ SORT_OPTIONS = {
     "updatedBy": "versions.updated_by",
     "tags": "array_to_string(versions.tags, '')",
     "productType": "products.product_type",
+    "productBaseType": "products.product_base_type",
     "productName": "products.name",
     "folderName": "folders.name",
     "folderType": "folders.folder_type",

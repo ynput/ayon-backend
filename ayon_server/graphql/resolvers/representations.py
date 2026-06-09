@@ -213,7 +213,6 @@ async def get_representations(
         {ordering}
     """
 
-
     return await resolve(
         RepresentationsConnection,
         RepresentationEdge,
