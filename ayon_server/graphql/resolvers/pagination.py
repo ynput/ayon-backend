@@ -76,12 +76,10 @@ def create_pagination(
 
         if ctype and not is_jsonb:
             # Known non-nullable top-level field
-
             keys.append(f"{ob}")
             if ctype == "text":
                 val_str = str(val).replace("'", "''") if val is not None else ""
                 sql_val = f"'{val_str}'::text"
-
             elif ctype == "timestamptz":
                 sql_val = f"'{val}'::timestamptz"
                 if not isinstance(val, str) or not re.match(
@@ -90,7 +88,6 @@ def create_pagination(
                     raise BadRequestException(
                         f"Invalid value for timestamptz field: {val}"
                     )
-
             else:  # numeric
                 if not isinstance(val, (int, float)):
                     raise BadRequestException(f"Invalid value for numeric field: {val}")
@@ -103,45 +100,43 @@ def create_pagination(
             cast = "numeric"
             # default = "'0'"
             sql_val = f"{val}::numeric"
-
         elif isinstance(val, str) and re.match(
             r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", val
         ):
             cast = "timestamptz"
             # default = "'1970-01-01T00:00:00Z'"
             sql_val = f"'{val}'::timestamptz"
-
         else:
             cast = "text"
             # default = "'\"\"'"
             v_str = str(val).replace("'", "''") if val is not None else ""
             sql_val = f"'{v_str}'::text"
 
-        keys.append(f"({ob})::{cast}")
-
-        # Probably not needed, just handle nulls as-is
         # if is_jsonb:
         #     keys.append(f"COALESCE({ob}, {default}::jsonb)::{cast}")
         # else:
         #     keys.append(f"COALESCE({ob}, {default})::{cast}")
+
+        keys.append(f"({ob})::{cast}")
         cursor_values.append(sql_val)
 
     for i, c in enumerate(order_by):
-        cursor_arr.append(f"{c} AS cursor_{i}")
         ordering_arr.append(f"{c} {'DESC' if last else 'ASC'}")
+        cursor_arr.append(f"{c} AS cursor_{i}")
+
+    #
+    # Create cursor conditions
+    #
 
     if not keys:
         conditions = ""
     else:
-        cond_parts = []
-        for i in range(len(keys)):
-            line = []
-            for j in range(i):
-                line.append(f"{keys[j]} = {cursor_values[j]}")
-            line.append(f"{keys[i]} {operator} {cursor_values[i]}")
-            cond_parts.append(f"({' AND '.join(line)})")
-
-        conditions = f"({' OR '.join(cond_parts)})"
+        if len(keys) > 1:
+            keys_str = ", ".join(keys)
+            vals_str = ", ".join(cursor_values)
+            conditions = f"({keys_str}) {operator} ({vals_str})"
+        else:
+            conditions = f"{keys[0]} {operator} {cursor_values[0]}"
 
     limit = (first or last or 500) * 2
 
