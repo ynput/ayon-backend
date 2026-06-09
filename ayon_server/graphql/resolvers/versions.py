@@ -47,6 +47,7 @@ SORT_OPTIONS = {
     "folderType": "folders.folder_type",
     "taskName": "tasks.name",
     "taskType": "tasks.task_type",
+    "path": "",  # special case handled in the code (is here for docs)
 }
 
 
@@ -656,10 +657,10 @@ async def get_versions(
         {ordering}
     """
 
-    print()
-    print("Versions query:")
-    print(query)
-    print()
+    # print()
+    # print("Versions query:")
+    # print(query)
+    # print()
 
     return await resolve(
         VersionsConnection,

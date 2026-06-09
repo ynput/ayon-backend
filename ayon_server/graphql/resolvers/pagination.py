@@ -2,6 +2,7 @@ import re
 from base64 import b64decode, b64encode
 from typing import Any
 
+from ayon_server.exceptions import BadRequestException
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps, json_loads
 
@@ -14,6 +15,7 @@ COLUMN_TYPES = {
     "updated_at": "timestamptz",
     "status": "text",
     "creation_order": "numeric",
+    "path": "text",
 }
 
 
@@ -21,7 +23,10 @@ def decode_cursor(cursor: str | None) -> list[Any]:
     if not cursor:
         return []
     try:
-        return json_loads(b64decode(cursor).decode())
+        cur = json_loads(b64decode(cursor).decode())
+        if not isinstance(cur, list):
+            raise BadRequestException("Cursor must decode to a list")
+        return cur
     except Exception as e:
         logger.debug(f"Invalid cursor {e}")
         return []
@@ -71,14 +76,22 @@ def create_pagination(
 
         if ctype and not is_jsonb:
             # Known non-nullable top-level field
-            keys.append(f"{ob}::{ctype}")
+            keys.append(f"{ob}")
             if ctype == "text":
                 val_str = str(val).replace("'", "''") if val is not None else ""
                 sql_val = f"'{val_str}'::text"
             elif ctype == "timestamptz":
                 sql_val = f"'{val}'::timestamptz"
+                if not isinstance(val, str) or not re.match(
+                    r"^\d{4}-\d{2}-\d{2}T[0-9:\.\+\-Z]+$", val
+                ):
+                    raise BadRequestException(
+                        f"Invalid value for timestamptz field: {val}"
+                    )
             else:  # numeric
-                sql_val = f"{val or 0}::numeric"
+                sql_val = f"{val or 0}"
+                if not isinstance(val, (int, float)):
+                    raise BadRequestException(f"Invalid value for numeric field: {val}")
             cursor_values.append(sql_val)
             continue
 
