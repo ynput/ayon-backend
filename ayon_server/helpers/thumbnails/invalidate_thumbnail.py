@@ -87,8 +87,6 @@ async def invalidate_thumbnail_by_entity(
             "thumbnailHash": thumbnail_hash,
         },
         store=False,
-        sender="thumbnail-helper",
-        sender_type="helper",
     )
     return affected_entities
 
