@@ -12,6 +12,7 @@ ActivityType = Literal[
     "assignee.add",
     "assignee.remove",
     "version.publish",
+    "guest_review",
 ]
 
 ActivityReferenceType = Literal[

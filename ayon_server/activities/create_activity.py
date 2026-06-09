@@ -40,6 +40,9 @@ from ayon_server.logging import logger
 from ayon_server.utils import create_uuid
 
 
+restricted_activity_types = ["comment", "reviewable", "guest_review"]
+
+
 async def create_activity(
     entity: ProjectLevelEntity,
     activity_type: ActivityType,
@@ -67,7 +70,7 @@ async def create_activity(
     if (
         user is None
         and user_name is not None
-        and activity_type in ["comment", "reviewable"]  # we need acl for these
+        and activity_type in restricted_activity_types  # we need acl for these
     ):
         user = await UserEntity.load(user_name)
 
@@ -76,7 +79,7 @@ async def create_activity(
 
     if (
         user is not None
-        and activity_type in ["comment", "reviewable"]
+        and activity_type in restricted_activity_types
         and not user.is_manager
         and not user.is_guest  # guest permissions are checked in the endpoint
     ):
