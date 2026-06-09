@@ -98,8 +98,8 @@ async def get_accessible_users(
     res = await Postgres.fetch(query, user.name, project_names)
     for row in res:
         user_name = row["user_name"]
-        project_names = row["project_names"]
-        for project_name in project_names:
+        user_project_names = row["project_names"]
+        for project_name in user_project_names:
             if project_name not in result:
                 result[project_name] = set()
             result[project_name].add(user_name)
