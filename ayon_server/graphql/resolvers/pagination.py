@@ -3,7 +3,6 @@ from base64 import b64decode, b64encode
 from typing import Any
 
 from ayon_server.exceptions import BadRequestException
-from ayon_server.logging import logger
 from ayon_server.utils import json_dumps, json_loads
 
 # Top-level non-nullable fields.
@@ -27,9 +26,8 @@ def decode_cursor(cursor: str | None) -> list[Any]:
         if not isinstance(cur, list):
             raise BadRequestException("Cursor must decode to a list")
         return cur
-    except Exception as e:
-        logger.debug(f"Invalid cursor {e}")
-        return []
+    except Exception:
+        raise BadRequestException("Invalid cursor")
 
 
 def encode_cursor(decoded_cursor: list[Any]) -> str:
