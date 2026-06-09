@@ -36,7 +36,8 @@ class AddMissingProjectIndexes(ProjectMaintenanceTask):
                 'tasks',
                 'versions',
                 'products',
-                'representations'
+                'representations',
+                'hierarchy'
             );
         """
         result = await Postgres.fetch(query, f"project_{project_name}")
