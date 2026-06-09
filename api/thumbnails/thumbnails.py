@@ -15,7 +15,6 @@ from ayon_server.api.dependencies import (
     VersionID,
     WorkfileID,
 )
-from ayon_server.api.responses import EmptyResponse
 from ayon_server.entities.folder import FolderEntity
 from ayon_server.entities.task import TaskEntity
 from ayon_server.entities.version import VersionEntity
@@ -33,6 +32,7 @@ from ayon_server.helpers.thumbnails import (
     store_project_skeleton_thumbnail,
     store_thumbnail,
 )
+from ayon_server.helpers.thumbnails.invalidate_thumbnail import AffectedEntity
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
@@ -114,6 +114,7 @@ async def retrieve_thumbnail(
 
 class CreateThumbnailResponseModel(OPModel):
     id: str = Field(..., title="Thumbnail ID", example="a1f2b3c4d5e6f7g8h9i0")
+    affected_entities: list[AffectedEntity] | None = None
 
 
 @router.post("/projects/{project_name}/thumbnails")
@@ -131,19 +132,21 @@ async def create_thumbnail(
     """
     thumbnail_id = EntityID.create()
     payload = await body_from_request(request)
-    await store_thumbnail(
+    affected_entities = await store_thumbnail(
         project_name,
         thumbnail_id,
         payload,
         mime=content_type,
         user_name=user.name,
     )
-    return CreateThumbnailResponseModel(id=thumbnail_id)
+    return CreateThumbnailResponseModel(
+        id=thumbnail_id,
+        affected_entities=affected_entities,
+    )
 
 
 @router.put(
     "/projects/{project_name}/thumbnails/{thumbnail_id}",
-    status_code=204,
 )
 async def update_thumbnail(
     request: Request,
@@ -151,7 +154,7 @@ async def update_thumbnail(
     project_name: ProjectName,
     thumbnail_id: ThumbnailID,
     content_type: ThumbnailContentType,
-) -> EmptyResponse:
+) -> CreateThumbnailResponseModel:
     """Create or update a thumbnail with a specific ID.
 
     This endpoint is used to create or update a thumbnail by its ID.
@@ -162,14 +165,17 @@ async def update_thumbnail(
     if not user.is_manager:  # TBD
         raise ForbiddenException("Only managers can update arbitrary thumbnails")
     payload = await body_from_request(request)
-    await store_thumbnail(
+    affected_entities = await store_thumbnail(
         project_name,
         thumbnail_id,
         payload,
         mime=content_type,
         user_name=user.name,
     )
-    return EmptyResponse()
+    return CreateThumbnailResponseModel(
+        id=thumbnail_id,
+        affected_entities=affected_entities,
+    )
 
 
 @router.get(
@@ -203,7 +209,7 @@ async def get_thumbnail(
 #
 
 
-@router.post("/projects/{project_name}/folders/{folder_id}/thumbnail", status_code=201)
+@router.post("/projects/{project_name}/folders/{folder_id}/thumbnail")
 async def create_folder_thumbnail(
     request: Request,
     user: CurrentUser,
@@ -222,7 +228,7 @@ async def create_folder_thumbnail(
     await folder.ensure_update_access(user, thumbnail_only=True)
 
     thumbnail_id = EntityID.create()
-    await store_thumbnail(
+    affected_entities = await store_thumbnail(
         project_name=project_name,
         thumbnail_id=thumbnail_id,
         mime=content_type,
@@ -230,7 +236,10 @@ async def create_folder_thumbnail(
         user_name=user.name,
         entity=folder,
     )
-    return CreateThumbnailResponseModel(id=thumbnail_id)
+    return CreateThumbnailResponseModel(
+        id=thumbnail_id,
+        affected_entities=affected_entities,
+    )
 
 
 @router.get(
@@ -244,7 +253,6 @@ async def get_folder_thumbnail(
     placeholder: PlaceholderOption = Query("empty"),
     original: bool = Query(False),
 ) -> Response:
-
     return await resolve_thumbnail(
         project_name,
         "folder",
@@ -260,9 +268,7 @@ async def get_folder_thumbnail(
 #
 
 
-@router.post(
-    "/projects/{project_name}/versions/{version_id}/thumbnail", status_code=201
-)
+@router.post("/projects/{project_name}/versions/{version_id}/thumbnail")
 async def create_version_thumbnail(
     request: Request,
     user: CurrentUser,
@@ -275,7 +281,7 @@ async def create_version_thumbnail(
     await version.ensure_update_access(user)
 
     thumbnail_id = EntityID.create()
-    await store_thumbnail(
+    affected_entities = await store_thumbnail(
         project_name=project_name,
         thumbnail_id=thumbnail_id,
         payload=payload,
@@ -283,7 +289,10 @@ async def create_version_thumbnail(
         user_name=user.name,
         entity=version,
     )
-    return CreateThumbnailResponseModel(id=thumbnail_id)
+    return CreateThumbnailResponseModel(
+        id=thumbnail_id,
+        affected_entities=affected_entities,
+    )
 
 
 @router.get(
@@ -297,7 +306,6 @@ async def get_version_thumbnail(
     placeholder: PlaceholderOption = Query("empty"),
     original: bool = Query(False),
 ) -> Response:
-
     return await resolve_thumbnail(
         project_name,
         "version",
@@ -313,9 +321,7 @@ async def get_version_thumbnail(
 #
 
 
-@router.post(
-    "/projects/{project_name}/workfiles/{workfile_id}/thumbnail", status_code=201
-)
+@router.post("/projects/{project_name}/workfiles/{workfile_id}/thumbnail")
 async def create_workfile_thumbnail(
     request: Request,
     user: CurrentUser,
@@ -328,7 +334,7 @@ async def create_workfile_thumbnail(
     await workfile.ensure_update_access(user)
 
     thumbnail_id = EntityID.create()
-    await store_thumbnail(
+    affected_entities = await store_thumbnail(
         project_name=project_name,
         thumbnail_id=thumbnail_id,
         payload=payload,
@@ -336,7 +342,10 @@ async def create_workfile_thumbnail(
         user_name=user.name,
         entity=workfile,
     )
-    return CreateThumbnailResponseModel(id=thumbnail_id)
+    return CreateThumbnailResponseModel(
+        id=thumbnail_id,
+        affected_entities=affected_entities,
+    )
 
 
 @router.get(
@@ -365,7 +374,7 @@ async def get_workfile_thumbnail(
 #
 
 
-@router.post("/projects/{project_name}/tasks/{task_id}/thumbnail", status_code=201)
+@router.post("/projects/{project_name}/tasks/{task_id}/thumbnail")
 async def create_task_thumbnail(
     request: Request,
     user: CurrentUser,
@@ -377,7 +386,7 @@ async def create_task_thumbnail(
     task = await TaskEntity.load(project_name, task_id)
     await task.ensure_update_access(user)
     thumbnail_id = EntityID.create()
-    await store_thumbnail(
+    affected_entities = await store_thumbnail(
         project_name=project_name,
         thumbnail_id=thumbnail_id,
         payload=payload,
@@ -385,7 +394,10 @@ async def create_task_thumbnail(
         user_name=user.name,
         entity=task,
     )
-    return CreateThumbnailResponseModel(id=thumbnail_id)
+    return CreateThumbnailResponseModel(
+        id=thumbnail_id,
+        affected_entities=affected_entities,
+    )
 
 
 @router.get(
@@ -418,7 +430,6 @@ PROJECT_THUMBNAIL_ID = "0" * 32  # reserved thumbnail ID for project thumbnail
 
 @router.post(
     "/projects/{project_name}/thumbnail",
-    status_code=201,
     dependencies=[AllowProjectSkeleton],
 )
 async def create_project_thumbnail(

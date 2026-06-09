@@ -6,7 +6,7 @@ from ayon_server.helpers.mimetypes import guess_mime_type
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 
-from .invalidate_thumbnail import invalidate_thumbnail_by_id
+from .invalidate_thumbnail import AffectedEntity, invalidate_thumbnail_by_id
 from .process_thumbnail import (
     MAX_THUMBNAIL_HEIGHT,
     MAX_THUMBNAIL_WIDTH,
@@ -23,8 +23,9 @@ async def store_thumbnail(
     mime: str | None = None,
     user_name: str | None = None,
     entity: FolderEntity | TaskEntity | VersionEntity | WorkfileEntity | None = None,
-):
+) -> list[AffectedEntity]:
     """Store a thumbnail in the database and the storage service."""
+
     if len(payload) < 10:
         raise UnsupportedMediaException("Thumbnail cannot be empty")
 
@@ -91,8 +92,9 @@ async def store_thumbnail(
                 entity.thumbnail_id = thumbnail_id
             await entity.save()
 
-        await invalidate_thumbnail_by_id(project_name, thumbnail_id)
+        affected_entities = await invalidate_thumbnail_by_id(project_name, thumbnail_id)
         await rebuild_hierarchy_cache(project_name)
+        return affected_entities
 
 
 async def store_project_skeleton_thumbnail(

@@ -4,16 +4,32 @@ from ayon_server.events.eventstream import EventStream
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
+from ayon_server.types import OPModel
+
+
+class AffectedEntity(OPModel):
+    entity_type: str
+    entity_id: str
+    thumbnail_hash: str
 
 
 async def invalidate_thumbnail_by_entity(
     project_name: str,
     entity_type: str,
     entity_id: str,
-) -> None:
+) -> list[AffectedEntity]:
     """Invalidate thumbnail by entity id."""
 
     thumbnail_hash = uuid.uuid4().hex[:6]
+
+    affected_entities = [
+        AffectedEntity(
+            entity_type=entity_type,
+            entity_id=entity_id,
+            thumbnail_hash=uuid.uuid4().hex[:6],
+        )
+    ]
+
     logger.trace(f"Invalidating thumbnail for {project_name} {entity_type} {entity_id}")
 
     await Redis.delete("thumbnail-info", f"{project_name}:{entity_id}")
@@ -45,16 +61,20 @@ async def invalidate_thumbnail_by_entity(
         )
         if res:
             if res["folder_id"]:
-                await invalidate_thumbnail_by_entity(
-                    project_name,
-                    "folder",
-                    res["folder_id"],
+                affected_entities.extend(
+                    await invalidate_thumbnail_by_entity(
+                        project_name,
+                        "folder",
+                        res["folder_id"],
+                    )
                 )
             if res["task_id"]:
-                await invalidate_thumbnail_by_entity(
-                    project_name,
-                    "task",
-                    res["task_id"],
+                affected_entities.extend(
+                    await invalidate_thumbnail_by_entity(
+                        project_name,
+                        "task",
+                        res["task_id"],
+                    )
                 )
 
     await EventStream.dispatch(
@@ -70,9 +90,13 @@ async def invalidate_thumbnail_by_entity(
         sender="thumbnail-helper",
         sender_type="helper",
     )
+    return affected_entities
 
 
-async def invalidate_thumbnail_by_id(project_name: str, thumbnail_id: str) -> None:
+async def invalidate_thumbnail_by_id(
+    project_name: str,
+    thumbnail_id: str,
+) -> list[AffectedEntity]:
     """Invalidate thumbnail by thumbnail id.
 
     This function is called when a thumbnail is uploaded or deleted.
@@ -82,6 +106,8 @@ async def invalidate_thumbnail_by_id(project_name: str, thumbnail_id: str) -> No
 
     await Redis.delete("thumbnail", f"{project_name}:{thumbnail_id}:small")
     await Redis.delete("thumbnail", f"{project_name}:{thumbnail_id}:original")
+
+    affected_entities: list[AffectedEntity] = []
 
     async with Postgres.transaction():
         for entity_type in ["workfile", "version", "folder", "task"]:
@@ -94,8 +120,11 @@ async def invalidate_thumbnail_by_id(project_name: str, thumbnail_id: str) -> No
             )
 
             for row in res:
-                await invalidate_thumbnail_by_entity(
-                    project_name,
-                    entity_type,
-                    row["id"],
+                affected_entities.extend(
+                    await invalidate_thumbnail_by_entity(
+                        project_name,
+                        entity_type,
+                        row["id"],
+                    )
                 )
+    return affected_entities
