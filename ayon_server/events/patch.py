@@ -196,6 +196,7 @@ def build_pl_entity_change_events(
             evt["description"] = (
                 f"Changed {entity_type} {original_entity.path} attributes: {attr_list}"
             )
+            evt["summary"]["value"] = new_attributes
             result.append(evt)
 
     for column_name, topic_name in ADDITIONAL_COLUMNS.items():
