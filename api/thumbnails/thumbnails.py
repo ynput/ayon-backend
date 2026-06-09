@@ -448,6 +448,16 @@ async def create_project_thumbnail(
         mime=content_type,
         user_name=user.name,
     )
+
+    # bump project updated_at to trigger client cache invalidation, since project
+    # does not have thumbnailHash yet
+    await Postgres.execute(
+        """
+        UPDATE public.projects
+        SET updated_at = NOW() WHERE name = $1
+        """,
+        project_name,
+    )
     return CreateThumbnailResponseModel(id=PROJECT_THUMBNAIL_ID)
 
 
