@@ -82,6 +82,7 @@ class FolderListItem(OPModel):
     status: str
     attrib: dict[str, Any] | None = None
     own_attrib: list[str] | None = None
+    active: bool = True
     created_at: datetime.datetime
     updated_at: datetime.datetime
 
