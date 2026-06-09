@@ -1,4 +1,5 @@
 from ayon_server.entities import FolderEntity, TaskEntity, VersionEntity, WorkfileEntity
+from ayon_server.entities.project import ProjectEntity
 from ayon_server.exceptions import UnsupportedMediaException
 from ayon_server.files import Storages
 from ayon_server.helpers.hierarchy_cache import rebuild_hierarchy_cache
@@ -22,7 +23,12 @@ async def store_thumbnail(
     *,
     mime: str | None = None,
     user_name: str | None = None,
-    entity: FolderEntity | TaskEntity | VersionEntity | WorkfileEntity | None = None,
+    entity: FolderEntity
+    | TaskEntity
+    | VersionEntity
+    | WorkfileEntity
+    | ProjectEntity
+    | None = None,
 ):
     """Store a thumbnail in the database and the storage service."""
     if len(payload) < 10:
@@ -86,10 +92,14 @@ async def store_thumbnail(
 
     async with Postgres.transaction():
         await Postgres.execute(query, thumbnail_id, mime, thumbnail, meta)
-        if entity:
-            assert hasattr(entity, "thumbnail_id"), (
-                "Entity must have thumbnail_id attribute"
+        if not entity:
+            pass
+        elif isinstance(entity, ProjectEntity):
+            await Postgres.execute(
+                "UPDATE public.projects SET updated_at = NOW() WHERE name = $1",
+                project_name,
             )
+        else:
             if entity.thumbnail_id != thumbnail_id:
                 entity.thumbnail_id = thumbnail_id
             await entity.save()
@@ -163,3 +173,8 @@ async def store_project_skeleton_thumbnail(
             meta = EXCLUDED.meta
     """
     await Postgres.execute(query, project_name, mime, thumbnail, meta)
+
+    await Postgres.execute(
+        "UPDATE public.projects SET updated_at = NOW() WHERE name = $1",
+        project_name,
+    )
