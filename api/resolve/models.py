@@ -105,14 +105,3 @@ class ParsedURIModel(OPModel):
     version_name: str | None = Field(None, title="Version name")
     representation_name: str | None = Field(None, title="Representation name")
     workfile_name: str | None = Field(None, title="Workfile name")
-    statuses: list[str] | None = Field(
-        None,
-        title="Statuses",
-        description="List of statuses to filter by",
-    )
-    states: list[str] | None = Field(
-        None,
-        title="Status states",
-        description="List of status states used for filtering",
-        example=["in_progress", "done"],
-    )

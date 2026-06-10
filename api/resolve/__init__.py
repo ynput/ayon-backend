@@ -17,9 +17,7 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.types import (
     NAME_REGEX,
     ProjectLevelEntityType,
-    validate_status_list
 )
-from ayon_server.utils import SQLTool
 
 from .models import (
     ParsedURIModel,
@@ -98,14 +96,6 @@ def parse_uri(uri: str) -> ParsedURIModel:
     if workfile_name is not None:
         validate_name(workfile_name)
 
-    statuses = qs.get("status", [])
-    if statuses:
-        statuses = validate_status_list(statuses)
-    else:
-        statuses = None
-
-    states = qs.get("state") or None
-
     # assert we don't have incompatible arguments
 
     if task_name is not None or workfile_name is not None:
@@ -127,34 +117,7 @@ def parse_uri(uri: str) -> ParsedURIModel:
         version_name=version_name,
         representation_name=representation_name,
         workfile_name=workfile_name,
-        statuses=statuses,
-        states=states,
     )
-
-
-async def get_status_names_for_states(
-    states: list[str],
-) -> list[str]:
-    """Get status names for given status states.
-
-    Converts status states (e.g., 'in_progress', 'done') to status names
-    by querying the project's statuses table.
-    """
-    project_name = Postgres.get_current_project_name()
-    if project_name is None:
-        return []
-
-    # state is always stored lowercase
-    states = [state.lower().replace(" ", "_") for state in states]
-    query = f"""
-        SELECT name FROM project_{project_name}.statuses
-        WHERE data->>'state' = ANY({SQLTool.array(states, curly=True)})
-    """
-    result = await Postgres.fetch(query)
-    if result:
-        return [row["name"] for row in result]
-    # return original if not found
-    return states
 
 
 def get_representation_path(
@@ -249,18 +212,6 @@ async def resolve_entities(
     ):
         return []
 
-    statuses = req.statuses
-    states = req.states
-
-    if states:
-        status_names = await get_status_names_for_states(states)
-        if status_names:
-            statuses = (
-                list(set(statuses).union(status_names))
-                if statuses
-                else status_names
-            )
-
     platform = None
     if site_id:
         platform = await get_platform_for_site_id(site_id)
@@ -277,8 +228,6 @@ async def resolve_entities(
             target_entity_type = "workfile"
 
         conds.extend(get_path_conditions(req.path))
-        if statuses:
-            conds.append(f"t.status IN {SQLTool.array(statuses)}")
 
     else:
         if req.representation_name is not None:
@@ -299,8 +248,6 @@ async def resolve_entities(
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "representation"
-            if statuses:
-                conds.append(f"r.status IN {SQLTool.array(statuses)}")
 
         elif req.version_name is not None:
             cols.extend(["s.id as product_id", "v.id as version_id"])
@@ -310,8 +257,6 @@ async def resolve_entities(
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "version"
-            if statuses:
-                conds.append(f"v.status IN {SQLTool.array(statuses)}")
 
         elif req.product_name is not None:
             cols.append("s.id as product_id")
@@ -319,14 +264,10 @@ async def resolve_entities(
             conds.extend(get_product_conditions(req.product_name))
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "product"
-            if statuses:
-                conds.append(f"s.status IN {SQLTool.array(statuses)}")
 
         else:
             conds.extend(get_path_conditions(req.path))
             target_entity_type = "folder"
-            if statuses:
-                conds.append(f"h.status IN {SQLTool.array(statuses)}")
 
     query = f"""
         SELECT {", ".join(cols)}
@@ -395,17 +336,10 @@ async def resolve_uris(
 
     Schemes `ayon://` and `ayon+entity://` are equivalent (ayon is a shorter alias).
 
-    Additional query arguments [`product`, `version`, `representation`,
-    `status`] or [`task`, `workfile`] are allowed.
+    Additional query arguments [`product`, `version`, `representation`] or
+    [`task`, `workfile`] are allowed.
     Note that arguments from product/version/representations cannot be mixed with
     task/workfile arguments.
-
-    `status` could be multiple `&status=In progress&status=Approved` (OR)
-
-    `state` could be multiple `&state=in_progress&state=done`
-    to filter by status states (converted to status names)
-
-    `state` is wrapper for multiple `statuses`
 
     ### Implicit wildcards
 
