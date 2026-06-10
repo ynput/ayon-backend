@@ -33,6 +33,8 @@ from .router import router
 
 human_activity_types = ["comment", "version.review"]
 
+human_activity_types = ['comment', 'version.review']
+
 async def delete_unused_files(project_name: str) -> None:
     storage = await Storages.project(project_name)
     await storage.delete_unused_files()
@@ -63,8 +65,8 @@ async def post_project_activity(
     """
 
     if not user.is_service:
-        if activity.activity_type not in ["comment"]:
-            raise BadRequestException("Humans can only create comments")
+        if activity.activity_type not in human_activity_types:
+            raise BadRequestException("Humans can only create comments/guest reviews")
 
     project = await ProjectEntity.load(project_name)
 

@@ -1,9 +1,13 @@
 import json
 from enum import Enum
+from typing import Any
 
 import strawberry
 
-from ayon_server.graphql.resolvers.common import ColumnMetadata
+from ayon_server.graphql.resolvers.common import (
+    ColumnMetadata,
+    ColumnMetadataDataType,
+)
 from ayon_server.graphql.types import ColumnStats
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -75,7 +79,7 @@ def generate_stats_columns(metadata_list: list[ColumnMetadata]) -> str:
 
 
 def _get_stats_for_column(
-    column_expr: str, column_name: str, data_type: str
+    column_expr: str, column_name: str, data_type: ColumnMetadataDataType | None
 ) -> list[str]:
     """Returns SQL fragments for statistics based on column data type."""
     if data_type in ("numeric", "int", "float"):
@@ -185,7 +189,7 @@ def generate_specific_stats_columns(calculate_specific_statistics) -> str:
 
 async def generate_field_stats(query: str) -> list[ColumnStats]:
     """Calculates field stats from prepared query."""
-    grouped_data = {}
+    grouped_data: dict[str, dict[str, Any]] = {}
     try:
         db_result = await Postgres.fetchrow(query)
     except Exception:
