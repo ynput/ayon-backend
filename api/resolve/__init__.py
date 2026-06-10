@@ -170,6 +170,21 @@ def get_version_conditions(version_name: str | None) -> list[str]:
         """
         ]
 
+    if version_name == "latestdone":
+        return [
+            """
+            v.id in (
+                    SELECT vv.id
+                    FROM versions vv
+                    JOIN statuses st ON st.name = vv.status
+                    WHERE vv.product_id = s.id
+                      AND st.data->>'state' = 'done'
+                    ORDER BY vv.version DESC
+                    LIMIT 1
+            )
+        """
+        ]
+
     if version_name == "hero":
         return ["v.version < 0"]
 
@@ -277,6 +292,8 @@ async def resolve_entities(
         query += f""" WHERE {" AND ".join(conds)}"""
 
     query += " LIMIT 1000"
+
+    print(query)
 
     statement = await Postgres.prepare(query)
     async for row in statement.cursor():
