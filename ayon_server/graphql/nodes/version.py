@@ -4,6 +4,7 @@ import strawberry
 
 # from strawberry import LazyType
 from ayon_server.entities import VersionEntity
+from ayon_server.graphql.nodes.activity import ActivityNode
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
 from ayon_server.graphql.resolvers.representations import get_representations
 from ayon_server.graphql.types import Info
@@ -46,6 +47,8 @@ class VersionNode(BaseNode):
     featured_version_type: str | None = None
     is_latest: bool = False
     is_latest_done: bool = False
+
+    latest_comments: list[ActivityNode] | None = strawberry.field(default=None)
 
     _folder_path: strawberry.Private[str | None] = None
 
@@ -156,6 +159,7 @@ async def version_from_record(
         featured_version_type=record.get("featured_version_type"),
         is_latest=record.get("is_latest", False),
         is_latest_done=record.get("is_latest_done", False),
+        latest_comments=[],
         _folder_path=folder_path,
         _attrib=record["attrib"] or {},
         _user=current_user,
