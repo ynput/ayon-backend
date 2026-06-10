@@ -544,7 +544,7 @@ async def get_tasks(
         # to have stable sorting when multiple items have the same value
         # In this case we don't want to use creation order as secondary sort,
         # because sorting is mainly invoked from the GUI and path makes more sense
-        order_by.append("hierarchy.path || '/' || tasks.name")
+        order_by.extend(["hierarchy.path", "tasks.name"])
 
     ordering, paging_conds, cursor = create_pagination(
         order_by,
@@ -611,10 +611,10 @@ async def get_tasks(
         {raw_data_end}
     """
 
-    # Keep it here for debugging :)
-    # from ayon_server.logging import logger
-    #
-    # logger.debug(f"Task query\n{query}")
+    # print()
+    # print("Tasks query:")
+    # print(query)
+    # print()
 
     if stats_select_clause:
         field_stats = await generate_field_stats(query)

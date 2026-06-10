@@ -29,7 +29,7 @@ from ayon_server.exceptions import (
 from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.redis import Redis
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
 from ayon_server.operations.project_level import ProjectLevelOperations
 from ayon_server.types import ProjectLevelEntityType
 from ayon_server.utils import create_uuid
@@ -409,11 +409,9 @@ async def import_data(
         try:
             response = await operations.process()
             if not response.success:
-                logger.error("Failed to import data", exc_info=True)
+                log_traceback("Failed to import data")
         except Exception as exp:
-            logger.error(
-                f"Exception during import operations processing: {exp}", exc_info=True
-            )
+            log_traceback(f"Exception during import operations processing: {exp}")
             import_status.failed_items["global"] = (
                 f"Import failed during operations processing: {exp}"
             )
@@ -694,7 +692,7 @@ async def _remap_row(
             )
         except Exception as exp:
             error_msg = str(exp)
-            logger.debug(error_msg, exc_info=True)
+            log_traceback(error_msg)
             if error_handling_mode == "abort":
                 raise ImportRowErrorException(error_msg)
             elif error_handling_mode == "default":

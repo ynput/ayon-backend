@@ -41,7 +41,6 @@ from .sorting import get_attrib_sort_case, get_status_sort_case
 
 SORT_OPTIONS = {
     "name": "products.name",
-    "path": "hierarchy.path || '/' || products.name",
     "productType": "products.product_type",
     "productBaseType": "products.product_base_type",
     "folderName": "folders.name",
@@ -52,6 +51,8 @@ SORT_OPTIONS = {
     "createdBy": "products.created_by",
     "updatedBy": "products.updated_by",
     "tags": "array_to_string(products.tags, '')",
+    "path": "",  # for docs only
+    "version": "",  # for docs only
 }
 
 
@@ -623,12 +624,10 @@ async def get_products(
         if sort_by == "status":
             status_type_case = get_status_sort_case(project, "products.status")
             order_by.insert(0, status_type_case)
-        elif sort_by in SORT_OPTIONS:
-            order_by.insert(0, SORT_OPTIONS[sort_by])
-        elif sort_by.startswith("attrib."):
-            attr_name = sort_by[7:]
-            attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
-            order_by.insert(0, attr_case)
+
+        elif sort_by == "path":
+            order_by = ["hierarchy.path", "products.name"]
+
         elif sort_by == "version":
             # count by product version count
             sql_cte.append(
@@ -650,6 +649,14 @@ async def get_products(
                 """
             )
             order_by.insert(0, "COALESCE(pvc.version_count, 0)")
+
+        elif sort_by.startswith("attrib."):
+            attr_name = sort_by[7:]
+            attr_case = await get_attrib_sort_case(attr_name, "products.attrib")
+            order_by.insert(0, attr_case)
+
+        elif sort_by in SORT_OPTIONS:
+            order_by.insert(0, SORT_OPTIONS[sort_by])
 
         else:
             raise ValueError(f"Invalid sort_by value: {sort_by}")
@@ -718,7 +725,8 @@ async def get_products(
     """
 
     # print()
-    # print (query)
+    # print("Products query:")
+    # print(query)
     # print()
     #
 

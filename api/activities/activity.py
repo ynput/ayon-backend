@@ -1,10 +1,8 @@
-from datetime import datetime
-from typing import Any
-
 from fastapi import BackgroundTasks
 
 from ayon_server.activities import (
-    ActivityType,
+    ActivityPatchModel,
+    ProjectActivityPostModel,
     create_activity,
     delete_activity,
     update_activity,
@@ -37,20 +35,6 @@ from .router import router
 async def delete_unused_files(project_name: str) -> None:
     storage = await Storages.project(project_name)
     await storage.delete_unused_files()
-
-
-class ProjectActivityPostModel(OPModel):
-    id: str | None = Field(None, description="Explicitly set the ID of the activity")
-    activity_type: ActivityType = Field(..., example="comment")
-    body: str = Field("", example="This is a comment")
-    tags: list[str] | None = Field(None, example=["tag1", "tag2"])
-    files: list[str] | None = Field(None, example=["file1", "file2"])
-    timestamp: datetime | None = Field(None, example="2021-01-01T00:00:00Z")
-    data: dict[str, Any] | None = Field(
-        None,
-        example={"key": "value"},
-        description="Additional data",
-    )
 
 
 class CreateActivityResponseModel(OPModel):
@@ -177,30 +161,6 @@ async def delete_project_activity(
     background_tasks.add_task(delete_unused_files, project_name)
 
     return EmptyResponse()
-
-
-class ActivityPatchModel(OPModel):
-    body: str | None = Field(
-        None,
-        example="This is a comment",
-        description="When set, update the activity body",
-    )
-    tags: list[str] | None = Field(
-        None,
-        example=["tag1", "tag2"],
-        description="When set, update the activity tags",
-    )
-    files: list[str] | None = Field(
-        None,
-        example=["file1", "file2"],
-        description="When set, update the activity files",
-    )
-    append_files: bool = Field(
-        False,
-        example=False,
-        description="When true, append files to the existing ones. replace them otherwise",  # noqa: E501
-    )
-    data: dict[str, Any] | None = Field(None, example={"key": "value"})
 
 
 @router.patch("/activities/{activity_id}", dependencies=[AllowGuests])

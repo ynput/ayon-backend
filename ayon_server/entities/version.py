@@ -88,7 +88,7 @@ class VersionEntity(ProjectLevelEntity):
 
     @classmethod
     async def refresh_views(cls, project_name: str) -> None:
-        """Refresh hierarchy materialized view on folder save."""
+        """Refresh hierarchy materialized view on version save."""
 
         await Postgres.execute(
             f"""
