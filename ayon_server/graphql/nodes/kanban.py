@@ -27,6 +27,7 @@ class KanbanNode:
     folder_path: str = strawberry.field()
     thumbnail_id: str | None = strawberry.field(default=None)
     thumbnail: ThumbnailInfo | None = None
+    thumbnail_hash: str = strawberry.field()
     has_reviewables: bool = strawberry.field(default=False)
 
     last_version_with_thumbnail_id: str | None = strawberry.field(default=None)
@@ -44,6 +45,7 @@ async def kanban_node_from_record(
 
     project_name = record.pop("project_name", project_name)
     assert project_name, "project_name is required"
+    thumbnail_hash = record.pop("thumbnail_hash", None) or record["id"][-6:]
 
     due_date = record.pop("due_date", None)
     if isinstance(due_date, datetime):
@@ -72,6 +74,7 @@ async def kanban_node_from_record(
         project_name=project_name,
         priority=task_priority or folder_priority or project_priority,
         thumbnail=thumbnail,
+        thumbnail_hash=thumbnail_hash,
         **record,
     )
 

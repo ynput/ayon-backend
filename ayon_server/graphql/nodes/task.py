@@ -54,6 +54,7 @@ class TaskNode(BaseNode):
     label: str | None
     task_type: str
     thumbnail_id: str | None = None
+    thumbnail_hash: str = strawberry.field()
     thumbnail: ThumbnailInfo | None = None
     assignees: list[str]
     folder_id: str
@@ -139,12 +140,13 @@ async def task_from_record(
 
     current_user = context["user"]
 
-    data: dict[str, Any] = {}
-    assignees: list[str] = []
+    assignees: list[str] = record["assignees"]
+    data: dict[str, Any] = record.get("data") or {}
+    thumbnail_hash = data.get("thumbnailHash") or record["id"][-6:]
 
-    if not current_user.is_guest:
-        assignees = record["assignees"]
-        data = record.get("data") or {}
+    if current_user.is_guest:
+        data = {}
+        assignees = []
 
     if "has_reviewables" in record:
         has_reviewables = record["has_reviewables"]
@@ -212,6 +214,7 @@ async def task_from_record(
         task_type=record["task_type"],
         thumbnail_id=record["thumbnail_id"],
         thumbnail=thumbnail,
+        thumbnail_hash=thumbnail_hash,
         assignees=assignees,
         folder_id=record["folder_id"],
         status=record["status"],

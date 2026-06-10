@@ -35,6 +35,7 @@ class FolderNode(BaseNode):
     status: str
     tags: list[str]
     data: str | None
+    thumbnail_hash: str = strawberry.field()
 
     _project_attrib: strawberry.Private[dict[str, Any]]
     _inherited_attrib: strawberry.Private[dict[str, Any]]
@@ -121,6 +122,7 @@ async def folder_from_record(
     """Construct a folder node from a DB row."""
 
     data = record.get("data") or {}
+    thumbnail_hash = data.get("thumbnailHash") or record["id"][-6:]
 
     if "has_reviewables" in record:
         has_reviewables = record["has_reviewables"]
@@ -164,6 +166,7 @@ async def folder_from_record(
         total_task_count=record.get("total_task_count", 0),
         total_product_count=record.get("total_product_count", 0),
         total_version_count=record.get("total_version_count", 0),
+        thumbnail_hash=thumbnail_hash,
         path=path,
         _folder_path=path,
         _attrib=record["attrib"] or {},

@@ -2,7 +2,7 @@ import inspect
 import json
 from collections.abc import Awaitable, Callable, Coroutine
 from functools import wraps
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar, cast
 
 from pydantic import BaseModel
 from redis import asyncio as aioredis
@@ -257,7 +257,8 @@ class Redis:
         ns: str,
         key: str,
         ttl: int = 60 * 5,
-        model: type[BaseModel] | None = None,
+        model: type[BaseModel] | Literal["bytes"] | None = None,
+        auto_extend: bool = False,
     ) -> Callable[[T], T]:
         """
         Decorator to cache the result of an async function in Redis.
@@ -269,31 +270,53 @@ class Redis:
             async def wrapper(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
                 full_key = _make_cache_key(func, ns, key, *args, **kwargs)
 
-                cached_result = await cls.get_json(ns, full_key.removeprefix(f"{ns}:"))
+                result: T
+
+                if model == "bytes":
+                    cached_result = await cls.get(ns, full_key.removeprefix(f"{ns}:"))
+                else:
+                    cached_result = await cls.get_json(
+                        ns, full_key.removeprefix(f"{ns}:")
+                    )
 
                 if cached_result is not None:
-                    logger.trace(f"Cache hit for key: {full_key}")
-                    if model is not None:
+                    # Too noisy
+                    # logger.trace(f"Cache hit for key: {full_key}")
+                    if model and model != "bytes":
                         try:
-                            return model(**cached_result)
+                            result = cast(T, model(**cached_result))
                         except (TypeError, json.JSONDecodeError) as e:
                             logger.error(
                                 f"Failed to parse cached result for {full_key}: {e}"
                             )
                             # Fall through to recompute the value
-                    return cached_result
+                    else:
+                        result = cached_result
+
+                    if result:
+                        if auto_extend:
+                            await cls.expire(ns, full_key.removeprefix(f"{ns}:"), ttl)
+                        return result
 
                 logger.trace(f"Cache miss for key: {full_key}")
                 result = await func(*args, **kwargs)
 
                 if result is not None:
                     try:
-                        await cls.set_json(
-                            ns,
-                            full_key.removeprefix(f"{ns}:"),
-                            result,
-                            ttl=ttl,
-                        )
+                        if model == "bytes":
+                            await cls.set(
+                                ns,
+                                full_key.removeprefix(f"{ns}:"),
+                                cast(bytes, result),
+                                ttl=ttl,
+                            )
+                        else:
+                            await cls.set_json(
+                                ns,
+                                full_key.removeprefix(f"{ns}:"),
+                                result,
+                                ttl=ttl,
+                            )
                     except (TypeError, json.JSONDecodeError, ConnectionError) as e:
                         logger.warning(f"Failed to set cache for {full_key}: {e}")
 

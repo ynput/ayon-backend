@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from typing import Any, cast
 
@@ -6,6 +7,8 @@ from ayon_server.entities.core import ProjectLevelEntity
 from ayon_server.events.patch import build_pl_entity_change_events
 from ayon_server.exceptions import BadRequestException, ForbiddenException
 from ayon_server.lib.postgres import Postgres
+from ayon_server.lib.redis import Redis
+from ayon_server.logging import logger
 
 from .hooks import OperationHooks
 from .models import OperationModel
@@ -154,6 +157,16 @@ async def update_project_level_entity(
     # updated (that covers various entity-specific logic, validtion, etc.).
 
     entity.patch(payload, user=user)
+
+    if "thumbnail_id" in update_payload_dict:
+        # if thumbnail is updated, we need to bump thumbnail hash in data
+        if "data" not in update_payload_dict:
+            update_payload_dict["data"] = {}
+        logger.trace(
+            f"Thumbnail updated for {project_name} {entity.entity_type} {entity.id}, "
+        )
+        update_payload_dict["data"]["thumbnailHash"] = uuid.uuid4().hex[:6]
+        await Redis.delete("thumbnail-info", f"{project_name}:{entity.id}")
 
     # Add the following fields directly to update_payload_dict
     # They don't affect the events created, so they don't need to be
