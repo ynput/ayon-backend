@@ -31,6 +31,7 @@ from ayon_server.types import Field, OPModel
 
 from .router import router
 
+human_activity_types = ["comment", "version.review"]
 
 async def delete_unused_files(project_name: str) -> None:
     storage = await Storages.project(project_name)

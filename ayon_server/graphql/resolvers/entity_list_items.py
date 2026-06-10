@@ -460,14 +460,16 @@ async def get_entity_list_items(
     if sort_by != "position":
         order_by.append("position")
 
-    ordering, paging_conds, cursor = create_pagination(
-        order_by,
-        first,
-        after,
-        last,
-        before,
-    )
+    ordering = ""
+    cursor = "''"
     if not calculate_statistics and not calculate_specific_statistics:
+        ordering, paging_conds, cursor = create_pagination(
+            order_by,
+            first,
+            after,
+            last,
+            before,
+        )
         sql_conditions.append(paging_conds)
 
     #
