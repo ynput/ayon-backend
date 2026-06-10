@@ -102,6 +102,7 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
         for preview generation.
         - NotFoundException if the file or file record is not found.
     """
+    logger.trace(f"Retrieving file preview {project_name}/{file_id}")
 
     res = await Postgres.fetch(
         f"""
@@ -145,11 +146,11 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
     raise UnsupportedMediaException("Preview mode is not supported for this file")
 
 
-async def get_file_preview(
+async def get_file_preview_bytes(
     project_name: str,
     file_id: str,
     retries: int = 0,
-) -> Response:
+) -> bytes:
     """Return a preview image for a file.
 
     Uses the cache if available, otherwise generates a new preview and caches it.
@@ -169,7 +170,7 @@ async def get_file_preview(
         except ServiceUnavailableException:
             await asyncio.sleep(0.2)
             if retries < 5:
-                return await get_file_preview(project_name, file_id, retries + 1)
+                return await get_file_preview_bytes(project_name, file_id, retries + 1)
             raise ServiceUnavailableException("File preview service unavailable")
     elif pvw_bytes != b"":
         # Bump the TTL only for successful cached previews.
@@ -179,7 +180,15 @@ async def get_file_preview(
 
     if pvw_bytes == b"":
         raise NotFoundException("File preview not available")
+    return pvw_bytes
 
+
+async def get_file_preview(
+    project_name: str,
+    file_id: str,
+    retries: int = 0,
+) -> Response:
+    pvw_bytes = await get_file_preview_bytes(project_name, file_id, retries)
     return image_response_from_bytes(pvw_bytes, headers={"X-File-ID": file_id})
 
 
