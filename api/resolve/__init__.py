@@ -104,7 +104,7 @@ def parse_uri(uri: str) -> ParsedURIModel:
     else:
         statuses = None
 
-    status_states = qs.get("status_state") or None
+    states = qs.get("state") or None
 
     # assert we don't have incompatible arguments
 
@@ -128,12 +128,12 @@ def parse_uri(uri: str) -> ParsedURIModel:
         representation_name=representation_name,
         workfile_name=workfile_name,
         statuses=statuses,
-        status_states=status_states,
+        states=states,
     )
 
 
 async def get_status_names_for_states(
-    status_states: list[str],
+    states: list[str],
 ) -> list[str]:
     """Get status names for given status states.
 
@@ -145,7 +145,7 @@ async def get_status_names_for_states(
         return []
 
     # state is always stored lowercase
-    states = [state.lower().replace(" ", "_") for state in status_states]
+    states = [state.lower().replace(" ", "_") for state in states]
     query = f"""
         SELECT name FROM project_{project_name}.statuses
         WHERE data->>'state' = ANY({SQLTool.array(states, curly=True)})
@@ -154,7 +154,7 @@ async def get_status_names_for_states(
     if result:
         return [row["name"] for row in result]
     # return original if not found
-    return status_states
+    return states
 
 
 def get_representation_path(
@@ -250,10 +250,10 @@ async def resolve_entities(
         return []
 
     statuses = req.statuses
-    status_states = req.status_states
+    states = req.states
 
-    if status_states:
-        status_names = await get_status_names_for_states(status_states)
+    if states:
+        status_names = await get_status_names_for_states(states)
         if status_names:
             statuses = (
                 list(set(statuses).union(status_names))
@@ -402,10 +402,10 @@ async def resolve_uris(
 
     `status` could be multiple `&status=In progress&status=Approved` (OR)
 
-    `status_state` could be multiple `&status_state=in_progress&status_state=done`
+    `state` could be multiple `&state=in_progress&state=done`
     to filter by status states (converted to status names)
 
-    `status_state` is wrapper for multiple `statuses`
+    `state` is wrapper for multiple `statuses`
 
     ### Implicit wildcards
 
