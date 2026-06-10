@@ -39,7 +39,6 @@ from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.utils import create_uuid
 
-
 restricted_activity_types = ["comment", "reviewable", "version.review"]
 
 
