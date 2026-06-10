@@ -1,7 +1,7 @@
 from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from enum import Enum
-from typing import Annotated, Any, TypeVar, Literal, Optional
+from typing import Annotated, Any, Literal, TypeVar
 
 import strawberry
 from strawberry.types.arguments import StrawberryArgumentAnnotation
@@ -41,9 +41,9 @@ class ColumnMetadata:
 
     # These are only used if we are unpacking a JSONB field
     is_nested: bool = False
-    parent_json_column: Optional[str] = None
-    json_key: Optional[str] = None
-    nested_sub_type: Optional[ColumnMetadataDataType] = None
+    parent_json_column: str | None = None
+    json_key: str | None = None
+    nested_sub_type: ColumnMetadataDataType | None = None
 
 
 def argdesc(description: str) -> StrawberryArgumentAnnotation:

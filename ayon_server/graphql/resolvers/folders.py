@@ -25,19 +25,19 @@ from .common import (
     ARGIds,
     ARGLast,
     AttributeFilterInput,
+    ColumnMetadata,
     FieldInfo,
     argdesc,
     create_folder_access_list,
     get_has_links_conds,
     resolve,
     sortdesc,
-    ColumnMetadata,
 )
 from .field_stats import (
+    MetricTargetInput,
     generate_field_stats,
-    generate_stats_columns,
     generate_specific_stats_columns,
-    MetricTargetInput
+    generate_stats_columns,
 )
 from .pagination import create_pagination
 from .sorting import (
@@ -116,11 +116,8 @@ async def get_folders(
     ] = False,
     calculate_specific_statistics: Annotated[
         list[MetricTargetInput] | None,
-        argdesc(
-            "Map of attribute names to lists of desired "
-            "statistical aggregations"
-        )
-    ] = None
+        argdesc("Map of attribute names to lists of desired statistical aggregations"),
+    ] = None,
 ) -> FoldersConnection:
     """Return a list of folders."""
 
@@ -566,7 +563,6 @@ async def get_folders(
         ColumnMetadata("parent_id", "uuid"),
         ColumnMetadata("thumbnail_id", "uuid"),
         ColumnMetadata("path", "string"),
-
         # Nested JSONB metrics
         ColumnMetadata(
             column_name="project_attributes_fps",
@@ -574,7 +570,7 @@ async def get_folders(
             is_nested=True,
             parent_json_column="project_attributes",
             json_key="fps",
-            nested_sub_type="numeric"
+            nested_sub_type="numeric",
         ),
         ColumnMetadata(
             column_name="attrib_priority",
@@ -582,7 +578,7 @@ async def get_folders(
             is_nested=True,
             parent_json_column="attrib",
             json_key="priority",
-            nested_sub_type="string"
+            nested_sub_type="string",
         ),
         ColumnMetadata(
             column_name="attrib_description",
@@ -590,7 +586,7 @@ async def get_folders(
             is_nested=True,
             parent_json_column="attrib",
             json_key="description",
-            nested_sub_type="string"
+            nested_sub_type="string",
         ),
     ]
     if cte:
@@ -637,10 +633,7 @@ async def get_folders(
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
 
-        return FoldersConnection(
-            edges=[],
-            field_stats=field_stats
-        )
+        return FoldersConnection(edges=[], field_stats=field_stats)
 
     return await resolve(
         FoldersConnection,

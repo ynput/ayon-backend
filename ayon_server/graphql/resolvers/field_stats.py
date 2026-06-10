@@ -1,5 +1,6 @@
-from enum import Enum
 import json
+from enum import Enum
+
 import strawberry
 
 from ayon_server.graphql.resolvers.common import ColumnMetadata
@@ -28,9 +29,7 @@ class StatsAggregation(Enum):
 
 @strawberry.input(name="MetricTargetInput")
 class MetricTargetInput:
-    field: str = strawberry.field(
-        description="The attribute path, e.g., 'attrib.fps'"
-    )
+    field: str = strawberry.field(description="The attribute path, e.g., 'attrib.fps'")
     aggregations: list[StatsAggregation] = strawberry.field(
         description="List of statistical calculations to run"
     )
@@ -59,9 +58,7 @@ def generate_stats_columns(metadata_list: list[ColumnMetadata]) -> str:
 
     for item in metadata_list:
         if item.is_nested:
-            extracted_val = (
-                f"({item.parent_json_column}->>'{item.json_key}')"
-            )
+            extracted_val = f"({item.parent_json_column}->>'{item.json_key}')"
             stats_fields.extend(
                 _get_stats_for_column(
                     extracted_val, item.column_name, item.nested_sub_type
@@ -179,9 +176,7 @@ def generate_specific_stats_columns(calculate_specific_statistics) -> str:
             op_str = op.value
             # Match template variations (e.g. 'percentage_filled' maps
             # back to 'filled')
-            matched_key = next(
-                (k for k in AGGR_TEMPLATES if k in op_str), None
-            )
+            matched_key = next((k for k in AGGR_TEMPLATES if k in op_str), None)
             if matched_key:
                 stats_fields.add(AGGR_TEMPLATES[matched_key])
 
@@ -228,15 +223,11 @@ async def generate_field_stats(query: str) -> list[ColumnStats]:
                 checked_count=checked,
                 checked_percentage=metrics.get("percentage_checked"),
                 not_checked_count=not_checked,
-                not_checked_percentage=metrics.get(
-                    "percentage_not_checked"
-                ),
+                not_checked_percentage=metrics.get("percentage_not_checked"),
                 min=metrics.get("min"),
                 max=metrics.get("max"),
                 avg=(
-                    round(metrics["avg"], 2)
-                    if metrics.get("avg") is not None
-                    else None
+                    round(metrics["avg"], 2) if metrics.get("avg") is not None else None
                 ),
                 sum=metrics.get("sum"),
                 count=metrics.get("count"),

@@ -1,23 +1,18 @@
 from datetime import datetime
-from typing import Any, Annotated
+from typing import Annotated, Any
 
 import strawberry
 
 from ayon_server.entities.user import UserEntity
 from ayon_server.exceptions import AyonException, ForbiddenException
 from ayon_server.graphql.nodes.common import BaseNode
-from ayon_server.graphql.types import (
-    BaseConnection,
-    BaseEdge,
-    Info,
-    ColumnStats
-)
+from ayon_server.graphql.resolvers.common import argdesc
+from ayon_server.graphql.resolvers.field_stats import MetricTargetInput
+from ayon_server.graphql.types import BaseConnection, BaseEdge, ColumnStats, Info
 from ayon_server.graphql.utils import process_attrib_data
 from ayon_server.helpers.entity_access import EntityAccessHelper
 from ayon_server.logging import logger
 from ayon_server.utils import json_dumps
-from ayon_server.graphql.resolvers.common import argdesc
-from ayon_server.graphql.resolvers.field_stats import MetricTargetInput
 
 #
 # Entity list item
@@ -173,6 +168,7 @@ class EntityListItemsConnection(BaseConnection):
     edges: list[EntityListItemEdge] = strawberry.field(default_factory=list)
     field_stats: list[ColumnStats] = strawberry.field(default_factory=list)
 
+
 #
 # Entity list
 #
@@ -237,10 +233,9 @@ class EntityListNode:
         calculate_specific_statistics: Annotated[
             list[MetricTargetInput] | None,
             argdesc(
-                "Map of attribute names to lists of desired "
-                "statistical aggregations"
-            )
-        ] = None
+                "Map of attribute names to lists of desired statistical aggregations"
+            ),
+        ] = None,
     ) -> EntityListItemsConnection:
         if first is None and last is None:
             first = 200
@@ -257,7 +252,7 @@ class EntityListNode:
             filter=filter,
             accessible_only=accessible_only,
             calculate_statistics=calculate_statistics,
-            calculate_specific_statistics=calculate_specific_statistics
+            calculate_specific_statistics=calculate_specific_statistics,
         )
 
     @strawberry.field

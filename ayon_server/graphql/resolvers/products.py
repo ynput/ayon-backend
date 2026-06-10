@@ -14,12 +14,12 @@ from ayon_server.graphql.resolvers.common import (
     ARGHasLinks,
     ARGIds,
     ARGLast,
+    ColumnMetadata,
     FieldInfo,
     argdesc,
     get_has_links_conds,
     resolve,
     sortdesc,
-    ColumnMetadata,
 )
 from ayon_server.graphql.resolvers.pagination import create_pagination
 from ayon_server.graphql.types import Info
@@ -32,10 +32,10 @@ from ayon_server.types import (
 from ayon_server.utils import SQLTool, slugify
 
 from .field_stats import (
+    MetricTargetInput,
     generate_field_stats,
-    generate_stats_columns,
     generate_specific_stats_columns,
-    MetricTargetInput
+    generate_stats_columns,
 )
 from .sorting import get_attrib_sort_case, get_status_sort_case
 
@@ -129,11 +129,8 @@ async def get_products(
     ] = False,
     calculate_specific_statistics: Annotated[
         list[MetricTargetInput] | None,
-        argdesc(
-            "Map of attribute names to lists of desired "
-            "statistical aggregations"
-        )
-    ] = None
+        argdesc("Map of attribute names to lists of desired statistical aggregations"),
+    ] = None,
 ) -> ProductsConnection:
     """Return a list of products."""
 
@@ -698,8 +695,7 @@ async def get_products(
             calculate_specific_statistics
         )
     elif calculate_statistics:
-        stats_select_clause = generate_stats_columns(
-            default_columns_metadata)
+        stats_select_clause = generate_stats_columns(default_columns_metadata)
 
     raw_data_start = ""
     raw_data_end = ""
@@ -733,10 +729,7 @@ async def get_products(
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
 
-        return ProductsConnection(
-            edges=[],
-            field_stats=field_stats
-        )
+        return ProductsConnection(edges=[], field_stats=field_stats)
 
     return await resolve(
         ProductsConnection,

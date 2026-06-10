@@ -28,21 +28,21 @@ from ayon_server.sqlfilter import QueryFilter, build_filter
 from ayon_server.utils import SQLTool
 
 from .common import (
-    argdesc,
     ARGAfter,
     ARGBefore,
     ARGFirst,
     ARGLast,
+    ColumnMetadata,
     FieldInfo,
+    argdesc,
     create_folder_access_list,
     resolve,
-    ColumnMetadata,
 )
 from .field_stats import (
+    MetricTargetInput,
     generate_field_stats,
-    generate_stats_columns,
     generate_specific_stats_columns,
-    MetricTargetInput
+    generate_stats_columns,
 )
 from .pagination import create_pagination
 from .sorting import get_attrib_sort_case
@@ -130,11 +130,8 @@ async def get_entity_list_items(
     ] = False,
     calculate_specific_statistics: Annotated[
         list[MetricTargetInput] | None,
-        argdesc(
-            "Map of attribute names to lists of desired "
-            "statistical aggregations"
-        )
-    ] = None
+        argdesc("Map of attribute names to lists of desired statistical aggregations"),
+    ] = None,
 ) -> EntityListItemsConnection:
     project_name = root.project_name
     entity_type = root.entity_type
@@ -512,8 +509,7 @@ async def get_entity_list_items(
     else:
         cte = ""
 
-    columns_metadata: list[ColumnMetadata] = [
-    ]
+    columns_metadata: list[ColumnMetadata] = []
 
     stats_select_clause = None
     if calculate_specific_statistics:
@@ -557,10 +553,7 @@ async def get_entity_list_items(
     if stats_select_clause:
         field_stats = await generate_field_stats(query)
 
-        return EntityListItemsConnection(
-            edges=[],
-            field_stats=field_stats
-        )
+        return EntityListItemsConnection(edges=[], field_stats=field_stats)
 
     return await resolve(
         EntityListItemsConnection,

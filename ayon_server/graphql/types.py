@@ -1,14 +1,16 @@
 from typing import Any
 
 import strawberry
-from strawberry.types import Info as StrawberryInfo
 from strawberry.scalars import JSON
+from strawberry.types import Info as StrawberryInfo
 
 Info = StrawberryInfo[dict[str, Any], None]
+
 
 @strawberry.type
 class ColumnStats:
     """Collector for statistical info about column values"""
+
     column_name: str
 
     value_filled_count: int | None = None
