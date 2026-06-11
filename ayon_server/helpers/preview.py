@@ -16,13 +16,14 @@ from ayon_server.helpers.mimetypes import is_image_mime_type, is_video_mime_type
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
 from ayon_server.logging import logger
+from ayon_server.utils.request_coalescer import RequestCoalescer
 
 REDIS_NS = "project.file_preview"
 FILE_PREVIEW_SIZE = (600, None)
 PREVIEW_CACHE_TTL = 3600 * 24
 
 
-VIDEO_THUMBNAIL_STATUS: set[str] = set()
+PREVIEW_SEMAPHORE = asyncio.Semaphore(3)
 
 
 async def create_video_thumbnail(
@@ -34,14 +35,8 @@ async def create_video_thumbnail(
 
     Returns the thumbnail image as bytes.
     """
-    global VIDEO_THUMBNAIL_STATUS
 
-    if video_path in VIDEO_THUMBNAIL_STATUS:
-        print("Video thumbnail generation is in progress")
-        raise ServiceUnavailableException("Video thumbnail generation is in progress")
-
-    VIDEO_THUMBNAIL_STATUS.add(video_path)
-    try:
+    async with PREVIEW_SEMAPHORE:
         async with aiofiles.tempfile.NamedTemporaryFile(
             suffix=".jpg", delete=True
         ) as temp_file:
@@ -72,25 +67,32 @@ async def create_video_thumbnail(
                 ]
             )
 
-            logger.debug(" ".join(cmd))
+            logger.trace(f"Extracting thumbnail from {video_path} with ffmpeg")
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            _, stderr = await proc.communicate()
+            try:
+                _, stderr = await proc.communicate()
+            except asyncio.CancelledError:
+                logger.warning("Thumbnail generation cancelled. Terminating ffmpeg.")
+                try:
+                    proc.terminate()
+                    await asyncio.wait_for(proc.wait(), timeout=2.0)
+                except Exception:
+                    proc.kill()
+                raise
 
             if proc.returncode != 0:
                 stderr_str = stderr.decode()
-                print(stderr_str, flush=True)
+                logger.error(f"ffmpeg failed: {stderr_str}")
                 return b""
 
             async with aiofiles.open(temp_path, "rb") as f:
                 image_bytes = await f.read()
 
         return image_bytes
-    finally:
-        VIDEO_THUMBNAIL_STATUS.remove(video_path)
 
 
 async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
@@ -139,7 +141,8 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
         raise AyonException("Unsupported storage type. This should not happen")
 
     if is_video_mime_type(mime_type) or is_image_mime_type(mime_type):
-        pvw_bytes = await create_video_thumbnail(path, FILE_PREVIEW_SIZE)
+        coalesce = RequestCoalescer()
+        pvw_bytes = await coalesce(create_video_thumbnail, path, FILE_PREVIEW_SIZE)
         return pvw_bytes
 
     # TODO: return a generic preview image for other file types
