@@ -42,7 +42,7 @@ class ThumbnailData(TypedDict):
 @Redis.cached(
     "thumbnail",
     "{project_name}:{thumbnail_id}:{mode}",
-    ttl=7200,
+    ttl=600,
     model="bytes",
 )
 async def retrieve_thumbnail(
@@ -87,14 +87,13 @@ async def get_thumbnail_response(
     }
 
     if thumbnail_id:
-        headers["X-Thumbnail-Id"] = thumbnail_id
         content = await coalesce(
             retrieve_thumbnail,
             thumbnail_info["project_name"],
             thumbnail_id,
             "original" if original else "small",
         )
-
+        headers["X-Thumbnail-Id"] = thumbnail_id
     elif file_id:
         try:
             content = await coalesce(
