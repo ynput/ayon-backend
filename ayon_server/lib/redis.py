@@ -198,10 +198,14 @@ class Redis:
         if not cls.connected:
             await cls.connect()
         keys = await cls.redis_pool.keys(f"{cls.prefix}{namespace}-*")
-        return [
-            key.decode("ascii").removeprefix(f"{cls.prefix}{namespace}-")
-            for key in keys
-        ]
+        result = []
+        for key in keys:
+            if isinstance(key, bytes):
+                key_str = key.decode("ascii")
+            else:
+                key_str = str(key)
+            result.append(key_str.removeprefix(f"{cls.prefix}{namespace}-"))
+        return result
 
     @classmethod
     async def delete_ns(cls, namespace: str):

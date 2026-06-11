@@ -310,6 +310,11 @@ class AyonConfig(BaseModel):
         description="Project files CDN resolver URL",
     )
 
+    thumbnail_size: int = Field(
+        default=500,
+        description="Max width of the generated thumbnails in pixels",
+    )
+
     # Temporary / workarounds
 
     limit_user_visibility: bool = Field(

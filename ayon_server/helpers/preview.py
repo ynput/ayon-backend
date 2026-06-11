@@ -5,6 +5,7 @@ import aiofiles
 from fastapi import Response
 
 from ayon_server.api.files import image_response_from_bytes
+from ayon_server.config import ayonconfig
 from ayon_server.exceptions import (
     AyonException,
     NotFoundException,
@@ -19,17 +20,15 @@ from ayon_server.logging import logger
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
 REDIS_NS = "project.file_preview"
-FILE_PREVIEW_SIZE = (600, None)
 PREVIEW_CACHE_TTL = 3600 * 24
-
-
 PREVIEW_SEMAPHORE = asyncio.Semaphore(3)
 
 
 async def create_video_thumbnail(
     video_path: str,
-    size: tuple[int | None, int | None] | None = None,
+    *,
     timestamp: float | None = None,
+    thumbnail: bool = True,
 ) -> bytes:
     """Create a thumbnail image for a video file.
 
@@ -48,12 +47,12 @@ async def create_video_thumbnail(
                 cmd.extend(["-ss", str(timestamp)])
 
             cmd.extend(["-y", "-i", video_path])
-
-            if size is not None:
+            if thumbnail:
+                target_size = ayonconfig.thumbnail_size
                 cmd.extend(
                     [
                         "-filter:v",
-                        f"scale={size[0] or -1}:{size[1] or -1}",
+                        f"scale={target_size}:-1",
                     ]
                 )
 
@@ -95,7 +94,11 @@ async def create_video_thumbnail(
         return image_bytes
 
 
-async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
+async def obtain_file_preview(
+    project_name: str,
+    file_id: str,
+    thumbnail: bool = True,
+) -> bytes:
     """Return a preview image for a file as bytes.
 
 
@@ -141,7 +144,7 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
         raise AyonException("Unsupported storage type. This should not happen")
 
     if is_video_mime_type(mime_type) or is_image_mime_type(mime_type):
-        pvw_bytes = await create_video_thumbnail(path, FILE_PREVIEW_SIZE)
+        pvw_bytes = await create_video_thumbnail(path, thumbnail=thumbnail)
         return pvw_bytes
 
     # TODO: return a generic preview image for other file types
