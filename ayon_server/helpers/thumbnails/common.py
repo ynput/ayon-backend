@@ -1,6 +1,5 @@
 import base64
 import functools
-import random
 from typing import Literal, NotRequired, TypedDict
 
 from fastapi import Response
@@ -80,11 +79,7 @@ async def get_thumbnail_response(
     file_id = thumbnail_info.get("file_id")
 
     content = None
-    cache_max_age = random.randint(3600, 3700)
-
-    headers = {
-        "Cache-Control": f"max-age={cache_max_age}, public",
-    }
+    headers = {"Cache-Control": "public, max-age=31536000, immutable"}
 
     if thumbnail_id:
         content = await coalesce(
