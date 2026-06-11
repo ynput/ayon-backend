@@ -141,8 +141,7 @@ async def obtain_file_preview(project_name: str, file_id: str) -> bytes:
         raise AyonException("Unsupported storage type. This should not happen")
 
     if is_video_mime_type(mime_type) or is_image_mime_type(mime_type):
-        coalesce = RequestCoalescer()
-        pvw_bytes = await coalesce(create_video_thumbnail, path, FILE_PREVIEW_SIZE)
+        pvw_bytes = await create_video_thumbnail(path, FILE_PREVIEW_SIZE)
         return pvw_bytes
 
     # TODO: return a generic preview image for other file types
@@ -172,7 +171,7 @@ async def get_file_preview_bytes(
             await Redis.set(REDIS_NS, key, pvw_bytes, ttl=PREVIEW_CACHE_TTL)
         except ServiceUnavailableException:
             await asyncio.sleep(0.2)
-            if retries < 5:
+            if retries < 3:
                 return await get_file_preview_bytes(project_name, file_id, retries + 1)
             raise ServiceUnavailableException("File preview service unavailable")
     elif pvw_bytes != b"":
@@ -191,7 +190,17 @@ async def get_file_preview(
     file_id: str,
     retries: int = 0,
 ) -> Response:
-    pvw_bytes = await get_file_preview_bytes(project_name, file_id, retries)
+    coalesce = RequestCoalescer()
+    try:
+        pvw_bytes = await coalesce(
+            get_file_preview_bytes,
+            project_name,
+            file_id,
+            retries,
+        )
+    except Exception as e:
+        logger.error(f"Error getting file preview for {project_name}/{file_id}: {e}")
+        raise
     return image_response_from_bytes(pvw_bytes, headers={"X-File-ID": file_id})
 
 

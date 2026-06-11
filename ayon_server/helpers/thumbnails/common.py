@@ -94,6 +94,7 @@ async def get_thumbnail_response(
             "original" if original else "small",
         )
         headers["X-Thumbnail-Id"] = thumbnail_id
+
     elif file_id:
         try:
             content = await coalesce(
