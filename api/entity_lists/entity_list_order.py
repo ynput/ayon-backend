@@ -12,7 +12,7 @@ from .router import router
 class OrderEntityListItemsRequestModel(OPModel):
     order: Annotated[
         list[str],
-        Field(description="The list of item IDs in the new order", min_length=1),
+        Field(description="The list of item IDs in the new order", min_items=1),
     ]
 
 
