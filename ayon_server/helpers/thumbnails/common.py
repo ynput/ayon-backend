@@ -111,6 +111,9 @@ async def get_thumbnail_response(
     if content is None:
         if placeholder_option == "empty":
             content = get_fake_thumbnail()
+            headers["Cache-Control"] = (
+                "public, max-age=3600"  # Cache the empty thumbnail for a shorter time
+            )
             mime = "image/png"
         else:
             raise NotFoundException("No thumbnail available")
