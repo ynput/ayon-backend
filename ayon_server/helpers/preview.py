@@ -16,7 +16,7 @@ from ayon_server.files import Storages
 from ayon_server.helpers.mimetypes import is_image_mime_type, is_video_mime_type
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
-from ayon_server.logging import logger
+from ayon_server.logging import log_traceback, logger
 from ayon_server.utils.request_coalescer import RequestCoalescer
 
 REDIS_NS = "project.file_preview"
@@ -203,8 +203,8 @@ async def get_file_preview(
             retries,
         )
     except Exception as e:
-        logger.error(f"Error getting file preview for {project_name}/{file_id}: {e}")
-        raise
+        log_traceback("Error getting file preview")
+        raise AyonException(f"Error getting file preview: {str(e)}") from e
     return image_response_from_bytes(pvw_bytes, headers={"X-File-ID": file_id})
 
 
