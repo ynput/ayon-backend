@@ -17,7 +17,7 @@ class OrderEntityListItemsRequestModel(OPModel):
 
 
 @router.delete("/lists/{entity_list_id}/order")
-async def order_entity_list_items(
+async def set_entity_list_items_order(
     project_name: ProjectName,
     entity_list_id: EntityListID,
     user: CurrentUser,
