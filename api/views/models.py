@@ -67,7 +67,7 @@ class GenericViewPatchModel(OPModel):
     label: FViewLabel | None = None
     owner: FViewOwner | None = None
 
-    view_type: str
+    view_type: str | None = None
     settings: dict[str, Any] | None = None
 
 
