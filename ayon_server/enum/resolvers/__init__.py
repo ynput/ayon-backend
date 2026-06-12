@@ -4,25 +4,17 @@ __all__ = [
     "UsersEnumResolver",
     "LinkTypesEnumResolver",
     "FolderTypesEnumResolver",
+    "StatusesEnumResolver",
     "TaskTypesEnumResolver",
     "TagsEnumResolver",
-    "StatusesEnumResolver",
-    "FolderStatusesEnumResolver",
-    "TaskStatusesEnumResolver",
-    "ProductStatusesEnumResolver",
-    "VersionStatusesEnumResolver",
 ]
 
 from .enum_actions import ActionsEnumResolver
 from .enum_anatomy import (
     FolderTypesEnumResolver,
+    StatusesEnumResolver,
     TagsEnumResolver,
     TaskTypesEnumResolver,
-    StatusesEnumResolver,
-    FolderStatusesEnumResolver,
-    TaskStatusesEnumResolver,
-    ProductStatusesEnumResolver,
-    VersionStatusesEnumResolver,
 )
 from .enum_attributes import AttributeEnumResolver
 from .enum_link_types import LinkTypesEnumResolver
