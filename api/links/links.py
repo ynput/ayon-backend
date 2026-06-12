@@ -63,6 +63,18 @@ class CreateLinkTypeRequestModel(OPModel):
     ]
 
 
+def _can_delete_foreign_link(user_permissions, link_type: str) -> bool:
+    link_permissions = user_permissions.links
+
+    if not link_permissions.delete_others:
+        return False
+
+    if not link_permissions.enabled:
+        return True
+
+    return link_type in link_permissions.link_types
+
+
 @router.get("/projects/{project_name}/links/types")
 async def list_link_types(
     project_name: ProjectName,
@@ -332,7 +344,11 @@ async def delete_entity_link(
         link_type = res["link_type"]
         link_type_name, input_type, output_type = link_type.split("|")
 
-        if res["author"] != user.name and not user.is_manager:
+        if (
+            res["author"] != user.name
+            and not user.is_manager
+            and not _can_delete_foreign_link(user.permissions(project_name), link_type)
+        ):
             raise ForbiddenException("You do not have permission to delete this link.")
 
         query = "DELETE FROM links WHERE id = $1"

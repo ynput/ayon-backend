@@ -144,6 +144,16 @@ class AccessGroups:
                         | set(value.endpoints)
                     )
 
+                elif perm_name == "links":
+                    result[perm_name]["link_types"] = list(
+                        set(result[perm_name].get("link_types", []))
+                        | set(value.link_types)
+                    )
+                    result[perm_name]["delete_others"] = bool(
+                        result[perm_name].get("delete_others", False)
+                        or value.delete_others
+                    )
+
         if not result:
             return Permissions()
         return Permissions(**result)
