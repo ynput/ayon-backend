@@ -312,7 +312,7 @@ class AyonConfig(BaseModel):
 
     thumbnail_size: int = Field(
         default=500,
-        description="Max width/height (largest dimension) of generated thumbnails in pixels",
+        description="Max width/height of generated thumbnails in pixels",
     )
 
     # Temporary / workarounds

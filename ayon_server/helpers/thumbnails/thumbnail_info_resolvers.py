@@ -17,6 +17,7 @@ async def resolve_folder_thumbnail_info(
                 SELECT DISTINCT ON (f.id)
                 p.folder_id AS folder_id,
                 f.id AS reviewable_id,
+                f.created_at AS reviewable_created_at,
                 v.thumbnail_id AS version_thumbnail_id
             FROM project_{project_name}.folders entity
             JOIN project_{project_name}.products p
@@ -31,7 +32,6 @@ async def resolve_folder_thumbnail_info(
             JOIN project_{project_name}.files f
                 ON f.activity_id = a.activity_id
             WHERE entity.id = $1
-            ORDER BY f.id, a.created_at DESC LIMIT 1
         )
         SELECT
             r.reviewable_id AS reviewable_id,
@@ -43,7 +43,8 @@ async def resolve_folder_thumbnail_info(
             ON entity.id = hierarchy.id
         LEFT JOIN reviewables r
             ON r.folder_id = entity.id
-        WHERE entity.id = $1;
+        WHERE entity.id = $1
+        ORDER BY r.reviewable_created_at DESC LIMIT 1;
     """
 
     res = await Postgres.fetchrow(query, entity_id)
@@ -69,7 +70,8 @@ async def resolve_task_thumbnail_info(
             SELECT DISTINCT ON (v.id)
                 v.task_id AS task_id,
                 v.thumbnail_id AS version_thumbnail_id,
-                f.id AS reviewable_id
+                f.id AS reviewable_id,
+                f.created_at AS reviewable_created_at
             FROM project_{project_name}.tasks entity
             JOIN project_{project_name}.versions v
                 ON v.task_id = entity.id
@@ -95,7 +97,8 @@ async def resolve_task_thumbnail_info(
 
         LEFT JOIN reviewables r
             ON r.task_id = entity.id
-        WHERE entity.id = $1;
+        WHERE entity.id = $1
+        ORDER BY r.reviewable_created_at DESC LIMIT 1;
     """
 
     res = await Postgres.fetchrow(query, entity_id)

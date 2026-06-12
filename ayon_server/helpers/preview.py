@@ -66,7 +66,8 @@ async def create_video_thumbnail(
                 ]
             )
 
-            logger.trace(f"Extracting thumbnail from {video_path} with ffmpeg")
+            safe_file_name = video_path.split("?")[0]
+            logger.trace(f"Extracting still from {safe_file_name}")
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stderr=asyncio.subprocess.PIPE,
