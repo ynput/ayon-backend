@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
@@ -153,7 +153,7 @@ class TaskTypesEnumResolver(BaseEnumResolver):
 
 class StatusesEnumResolver(BaseEnumResolver):
     name = "statuses"
-    entity_types: set[str] = set()
+    entity_type: Literal["folder", "task", "product", "version"] | None = None
 
     async def get_accepted_params(self) -> dict[str, type]:
         return {"project_name": str}
@@ -172,10 +172,8 @@ class StatusesEnumResolver(BaseEnumResolver):
                 )
                 for status in anatomy.statuses
                 if (
-                    not self.entity_types
-                    or (
-                        status.scope and self.entity_types & set(status.scope)
-                    )
+                    not self.entity_type
+                    or self.entity_type in status.scope
                 )
             ]
 
@@ -187,9 +185,9 @@ class StatusesEnumResolver(BaseEnumResolver):
                 "SELECT name, data FROM statuses ORDER BY position"
             )
             async for row in stmt.cursor():
-                if self.entity_types:
+                if self.entity_type:
                     scope = row["data"].get("scope")
-                    if not scope or not self.entity_types & set(scope):
+                    if not scope or self.entity_type not in scope:
                         continue
 
                 result.append(
@@ -218,8 +216,8 @@ class StatusesEnumResolver(BaseEnumResolver):
             "name": item.value,
             "shortName": item.short_name or str(item.value)[0:3].upper(),
         }
-        if self.entity_types:
-            data["scope"] = list(self.entity_types)
+        if self.entity_type:
+            data["scope"] = [self.entity_type]
 
         project_name = await normalize_project_name(project_name)
         async with Postgres.transaction():
@@ -238,22 +236,22 @@ class StatusesEnumResolver(BaseEnumResolver):
 
 class FolderStatusesEnumResolver(StatusesEnumResolver):
     name = "folderStatuses"
-    entity_types = {"folder"}
+    entity_type = "folder"
 
 
 class TaskStatusesEnumResolver(StatusesEnumResolver):
     name = "taskStatuses"
-    entity_types = {"task"}
+    entity_type = "task"
 
 
 class ProductStatusesEnumResolver(StatusesEnumResolver):
     name = "productStatuses"
-    entity_types = {"product"}
+    entity_type = "product"
 
 
 class VersionStatusesEnumResolver(StatusesEnumResolver):
     name = "versionStatuses"
-    entity_types = {"version"}
+    entity_type = "version"
 
 
 class TagsEnumResolver(BaseEnumResolver):
