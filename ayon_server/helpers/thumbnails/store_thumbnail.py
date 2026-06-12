@@ -1,3 +1,4 @@
+from ayon_server.config import ayonconfig
 from ayon_server.entities import FolderEntity, TaskEntity, VersionEntity, WorkfileEntity
 from ayon_server.exceptions import UnsupportedMediaException
 from ayon_server.files import Storages
@@ -8,8 +9,6 @@ from ayon_server.logging import logger
 
 from .invalidate_thumbnail import AffectedEntity, invalidate_thumbnail_by_id
 from .process_thumbnail import (
-    MAX_THUMBNAIL_HEIGHT,
-    MAX_THUMBNAIL_WIDTH,
     ThumbnailProcessNoop,
     process_thumbnail,
 )
@@ -54,7 +53,7 @@ async def store_thumbnail(
     try:
         thumbnail = await process_thumbnail(
             payload,
-            (MAX_THUMBNAIL_WIDTH, MAX_THUMBNAIL_HEIGHT),
+            (ayonconfig.thumbnail_size, ayonconfig.thumbnail_size),
             raise_on_noop=True,
         )
     except ValueError as e:
@@ -134,7 +133,7 @@ async def store_project_skeleton_thumbnail(
     try:
         thumbnail = await process_thumbnail(
             payload,
-            (MAX_THUMBNAIL_WIDTH, MAX_THUMBNAIL_HEIGHT),
+            (ayonconfig.thumbnail_size, ayonconfig.thumbnail_size),
             raise_on_noop=True,
         )
     except ValueError as e:
