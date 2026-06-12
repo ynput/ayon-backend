@@ -275,6 +275,10 @@ async def update_bundle(
             is_archived=row["is_archived"],
         )
 
+        was_production = bundle.is_production
+        was_staging = bundle.is_staging
+        was_archived = bundle.is_archived
+
         if patch.is_archived and (bundle.is_production or bundle.is_staging):
             raise BadRequestException(
                 "Cannot archive bundle that is production or staging"
@@ -419,18 +423,23 @@ async def update_bundle(
     if patch.is_production is not None or patch.is_staging is not None or patch.addons:
         await AddonLibrary.clear_addon_list_cache()
 
+    summary = {
+        "name": bundle_name,
+        "changedFields": patch.get_changed_fields(),
+        "isProduction": bundle.is_production,
+        "isStaging": bundle.is_staging,
+        "isArchived": bundle.is_archived,
+        "isDev": bundle.is_dev,
+        "isProject": bundle.is_project,
+        "wasProduction": was_production,
+        "wasStaging": was_staging,
+        "wasArchived": was_archived,
+    }
+
     await EventStream.dispatch(
         "bundle.updated",
         description=patch.get_changes_description(bundle_name),
-        summary={
-            "name": bundle_name,
-            "changedFields": patch.get_changed_fields(),
-            "isProduction": bundle.is_production,
-            "isStaging": bundle.is_staging,
-            "isArchived": bundle.is_archived,
-            "isDev": bundle.is_dev,
-            "isProject": bundle.is_project,
-        },
+        summary=summary,
         payload=data,
     )
 
