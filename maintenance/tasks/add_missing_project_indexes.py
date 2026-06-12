@@ -20,7 +20,7 @@ INDEXES = {
     "representation_attrib_idx": "representations USING gin(attrib);",
     "activity_origin_desc_idx": "activity_references (entity_type, entity_id, created_at DESC) WHERE reference_type = 'origin';",  # noqa: E501
     "activity_author_idx": "activities((data->>'author'));",  # noqa: E501
-    "activity_watcher_idx": "activities((data->>'watchers')) WHERE activity_type = 'watch';",  # noqa: E501
+    "activity_watcher_idx": "activities((data->>'watcher')) WHERE activity_type = 'watch';",  # noqa: E501
 }
 
 
