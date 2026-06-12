@@ -35,6 +35,24 @@ from .entity_update import update_project_level_entity
 from .models import OperationModel, OperationResponseModel, OperationsResponseModel
 
 
+def _log_validation_error(
+    op_tag: str,
+    validation_errors: list[dict[str, Any]],
+    *,
+    project_name: str,
+    operation_id: str,
+) -> None:
+    """Log pydantic validation errors without exposing loguru formatting bugs."""
+
+    logger.debug(
+        "{} Validation error: {}",
+        op_tag,
+        validation_errors,
+        project=project_name,
+        operation_id=operation_id,
+    )
+
+
 async def _process_events(
     events: list[dict[str, Any]],
     *,
@@ -205,7 +223,12 @@ async def _process_operations(
                 project=project_name,
                 operation_id=operation.id,
             ):
-                logger.debug(f"{op_tag} Validation error: {e.errors()}")
+                _log_validation_error(
+                    op_tag,
+                    e.errors(),
+                    project_name=project_name,
+                    operation_id=operation.id,
+                )
             result.append(
                 OperationResponseModel(
                     success=False,
