@@ -5,11 +5,12 @@ import strawberry
 
 from ayon_server.entities import TaskEntity
 from ayon_server.graphql.nodes.common import BaseNode, ThumbnailInfo
+from ayon_server.graphql.nodes.entity_comment import EntityComment
 from ayon_server.graphql.resolvers.versions import get_versions
 from ayon_server.graphql.resolvers.workfiles import get_workfiles
 from ayon_server.graphql.types import Info
 from ayon_server.logging import logger
-from ayon_server.utils import json_dumps
+from ayon_server.utils import json_dumps, json_loads
 
 if TYPE_CHECKING:
     from ..connections import VersionsConnection, WorkfilesConnection
@@ -64,6 +65,7 @@ class TaskNode(BaseNode):
     data: str | None
     path: str | None = None
     subtasks: list[SubTaskNode] = strawberry.field(default_factory=list)
+    latest_comments: list[EntityComment] | None = strawberry.field(default=None)
 
     _inherited_attrib: strawberry.Private[dict[str, Any]]
     _folder_path: strawberry.Private[str | None] = None
@@ -206,6 +208,11 @@ async def task_from_record(
         folder_path = "/" + record["_folder_path"].strip("/")
         path = f"{folder_path}/{record['name']}"
 
+    try:
+        latest_comments = json_loads(record.get("latest_comments") or "[]")
+    except Exception:
+        latest_comments = []
+
     return TaskNode(
         project_name=project_name,
         id=record["id"],
@@ -224,6 +231,7 @@ async def task_from_record(
         subtasks=subtasks,
         active=record["active"],
         path=path,
+        latest_comments=[EntityComment(**comment) for comment in latest_comments],
         created_at=record["created_at"],
         updated_at=record["updated_at"],
         created_by=record.get("created_by"),
