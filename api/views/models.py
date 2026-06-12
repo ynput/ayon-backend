@@ -54,7 +54,7 @@ class GenericViewPostModel(OPModel):
     id: FViewId
     label: FViewLabel
     working: FViewWorking = True
-    view_type: str
+    view_type: str | None = None
     settings: dict[str, Any]
 
 
