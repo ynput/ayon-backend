@@ -155,7 +155,10 @@ class StatusesEnumResolver(BaseEnumResolver):
     name = "statuses"
 
     async def get_accepted_params(self) -> dict[str, type]:
-        return {"project_name": str, "entity_type": str}
+        return {
+            "project_name": str,
+            "entity_type": Literal["folder", "task", "product", "version"],
+        }
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         project_name = context.get("project_name")
