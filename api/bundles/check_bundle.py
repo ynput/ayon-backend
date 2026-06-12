@@ -211,9 +211,6 @@ async def check_bundle(
         )
 
         for platform_name, package_filename in bundle.dependency_packages.items():
-            if variant is None:
-                continue
-
             if package_filename is None:
                 continue
 
