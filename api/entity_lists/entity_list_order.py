@@ -16,7 +16,7 @@ class OrderEntityListItemsRequestModel(OPModel):
     ]
 
 
-@router.delete("/lists/{entity_list_id}/order")
+@router.post("/lists/{entity_list_id}/order", status_code=204)
 async def set_entity_list_items_order(
     project_name: ProjectName,
     entity_list_id: EntityListID,
