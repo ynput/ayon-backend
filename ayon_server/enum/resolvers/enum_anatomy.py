@@ -2,6 +2,7 @@ from typing import Any, Literal
 
 from ayon_server.enum.base_resolver import BaseEnumResolver
 from ayon_server.enum.enum_item import EnumItem
+from ayon_server.enum.enum_registry import EnumRegistry
 from ayon_server.helpers.project_list import normalize_project_name
 from ayon_server.lib.postgres import Postgres
 from ayon_server.lib.redis import Redis
@@ -159,6 +160,25 @@ class StatusesEnumResolver(BaseEnumResolver):
             "project_name": str,
             "entity_type": Literal["folder", "task", "product", "version"],
         }
+
+    @classmethod
+    def for_type(
+        cls, entity_type: Literal["folder", "task", "product", "version"]
+    ):
+        """Helper method to easily get resolver for an entity type.
+
+        Goal is to be able to use
+            'enum_resolver=StatusesEnumResolver.for_type("task")'.
+
+        """
+        async def resolve(project_name: str | None = None) -> list[EnumItem]:
+            return await EnumRegistry.resolve(
+                "statuses",
+                project_name=project_name,
+                entity_type=entity_type,
+            )
+
+        return resolve
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         project_name = context.get("project_name")
