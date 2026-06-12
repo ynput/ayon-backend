@@ -153,13 +153,13 @@ class TaskTypesEnumResolver(BaseEnumResolver):
 
 class StatusesEnumResolver(BaseEnumResolver):
     name = "statuses"
-    entity_type: Literal["folder", "task", "product", "version"] | None = None
 
     async def get_accepted_params(self) -> dict[str, type]:
-        return {"project_name": str}
+        return {"project_name": str, "entity_type": str}
 
     async def resolve(self, context: dict[str, Any]) -> list[EnumItem]:
         project_name = context.get("project_name")
+        entity_type = context.get("entity_type")
         if not project_name:
             anatomy = await get_primary_anatomy_preset()
             return [
@@ -172,8 +172,8 @@ class StatusesEnumResolver(BaseEnumResolver):
                 )
                 for status in anatomy.statuses
                 if (
-                    not self.entity_type
-                    or self.entity_type in status.scope
+                    not entity_type
+                    or entity_type in status.scope
                 )
             ]
 
@@ -185,9 +185,9 @@ class StatusesEnumResolver(BaseEnumResolver):
                 "SELECT name, data FROM statuses ORDER BY position"
             )
             async for row in stmt.cursor():
-                if self.entity_type:
+                if entity_type:
                     scope = row["data"].get("scope")
-                    if not scope or self.entity_type not in scope:
+                    if not scope or entity_type not in scope:
                         continue
 
                 result.append(
@@ -205,6 +205,7 @@ class StatusesEnumResolver(BaseEnumResolver):
         self,
         item: EnumItem,
         project_name: str | None = None,
+        entity_type: str | None = None,
         **kwargs,
     ) -> None:
         if not project_name:
@@ -216,8 +217,8 @@ class StatusesEnumResolver(BaseEnumResolver):
             "name": item.value,
             "shortName": item.short_name or str(item.value)[0:3].upper(),
         }
-        if self.entity_type:
-            data["scope"] = [self.entity_type]
+        if entity_type:
+            data["scope"] = [entity_type]
 
         project_name = await normalize_project_name(project_name)
         async with Postgres.transaction():
@@ -232,26 +233,6 @@ class StatusesEnumResolver(BaseEnumResolver):
             )
         await Redis.delete("project-anatomy", project_name)
         await Redis.delete("project-data", project_name)
-
-
-class FolderStatusesEnumResolver(StatusesEnumResolver):
-    name = "folderStatuses"
-    entity_type = "folder"
-
-
-class TaskStatusesEnumResolver(StatusesEnumResolver):
-    name = "taskStatuses"
-    entity_type = "task"
-
-
-class ProductStatusesEnumResolver(StatusesEnumResolver):
-    name = "productStatuses"
-    entity_type = "product"
-
-
-class VersionStatusesEnumResolver(StatusesEnumResolver):
-    name = "versionStatuses"
-    entity_type = "version"
 
 
 class TagsEnumResolver(BaseEnumResolver):
