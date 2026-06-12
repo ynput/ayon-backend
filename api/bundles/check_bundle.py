@@ -8,6 +8,11 @@ from ayon_server.types import Field, OPModel
 from ayon_server.version import __version__ as ayon_version
 
 from .models import BundleModel, BundlePatchModel
+from api.desktop.deps import get_manifest
+from api.desktop.installers import (
+    get_manifest as get_installer_manifest,
+    get_installers
+)
 
 if TYPE_CHECKING:
     pass
@@ -194,6 +199,57 @@ async def check_bundle(
                         addon=addon_name,
                         message=msg,
                         required_addon=r_name,
+                    )
+                )
+
+    # Check for Python version installer compatibility with dependency packs
+    if bundle.dependency_packages:
+        variant = (
+            "production" if bundle.is_production
+            else "staging" if bundle.is_staging
+            else None
+        )
+
+        for platform_name, package_filename in bundle.dependency_packages.items():
+            if variant is None:
+                continue
+
+            if package_filename is None:
+                continue
+
+            manifest = get_manifest(package_filename)
+            package_python_version = manifest.python_version
+            if not package_python_version:
+                continue
+
+            installer_list = await get_installers(
+                bundle.installer_version, platform_name, variant
+            )
+            if not installer_list or not installer_list.installers:
+                continue
+
+            installer_python_version = None
+            for installer in installer_list.installers:
+                installer_manifest = get_installer_manifest(installer.filename)
+                installer_python_version = installer_manifest.python_version
+
+            if not installer_python_version:
+                continue
+
+            if not is_compatible(
+                package_python_version, installer_python_version
+            ):
+                msg = (
+                    f"Dependency package '{package_filename}' requires Python "
+                    f"{package_python_version}, but installer '{installer.filename}' "
+                    f"uses {installer_python_version} on platform '{platform_name}'."
+                )
+                issues.append(
+                    BundleIssueModel(
+                        severity="error",
+                        addon=None,
+                        message=msg,
+                        required_addon=None,
                     )
                 )
 
