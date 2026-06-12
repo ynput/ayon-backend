@@ -32,6 +32,9 @@ async def set_entity_list_items_order(
         new_item_ids_set = set(payload.order)
         existing_item_ids_set = {item.id for item in entity_list.items}
 
+        if len(payload.order) != len(entity_list.items) or len(new_item_ids_set) != len(payload.order):
+            raise BadRequestException("The order must contain each item ID exactly once")
+
         if new_item_ids_set != existing_item_ids_set:
             raise BadRequestException(
                 "The list of item IDs must be the same as the current items in the list"
