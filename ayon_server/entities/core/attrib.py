@@ -2,7 +2,7 @@ import asyncio
 import collections
 import functools
 import threading
-from typing import Any
+from typing import Any, Callable
 
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
@@ -28,6 +28,8 @@ class AttributeLibrary:
         # Used in info endpoint to get the active list of attributes
         # in the same format as the attributes endpoint
         self.info_data: list[Any] = []
+
+        self._invalidation_callbacks: list[Callable[[], None]] = []
 
         # We need to load attribute data in a separate thread
         # with a separate event loop, because the main event loop
@@ -145,6 +147,59 @@ class AttributeLibrary:
             if attr["name"] == name:
                 return attr
         raise KeyError(f"Attribute {name} not found for entity type {entity_type}")
+
+    def register_invalidation_callback(self, callback: Callable[[], None]) -> None:
+        """Register a callback to be called when attributes are reloaded."""
+        self._invalidation_callbacks.append(callback)
+
+    async def reload(self) -> None:
+        """Reload attributes from the database and invalidate all cached models.
+
+        Fetches fresh data from the database, updates the in-memory attribute
+        lists in-place (preserving list object identity so ModelSet.attributes
+        references remain valid), and invalidates all cached Pydantic models
+        so they are regenerated on next access.
+        """
+        query = "SELECT * FROM public.attributes ORDER BY position"
+        result = await Postgres.fetch(query)
+
+        # Build new data in a temporary structure first to minimize
+        # the window of inconsistency
+        new_data: collections.defaultdict[str, list[Any]] = collections.defaultdict(list)
+        new_info_data: list[Any] = []
+
+        for row in result:
+            new_info_data.append(row)
+            for scope in row["scope"]:
+                attrd = {"name": row["name"], **row["data"]}
+                if (scope != "project") and ("default" in attrd):
+                    del attrd["default"]
+                new_data[scope].append(attrd)
+
+        # Update self.data in-place to preserve list object identity.
+        # ModelSet instances hold direct references to these list objects,
+        # so we must mutate them rather than replace them.
+        all_scopes = set(self.data.keys()) | set(new_data.keys())
+        for scope in all_scopes:
+            self.data[scope].clear()
+            self.data[scope].extend(new_data.get(scope, []))
+
+        self.info_data = new_info_data
+
+        # Clear functools caches since the underlying data has changed
+        AttributeLibrary.inheritable_attributes.cache_clear()
+        AttributeLibrary.by_name.cache_clear()
+        AttributeLibrary.by_name_scoped.cache_clear()
+
+        # Invalidate all registered ModelSet Pydantic model caches
+        for callback in self._invalidation_callbacks:
+            callback()
+
+        logger.info("Attribute library reloaded")
+
+    async def reload_handler(self, event: Any = None) -> None:
+        """Event handler adapter for reload(), for use with EventStream.subscribe."""
+        await self.reload()
 
 
 attribute_library = AttributeLibrary()

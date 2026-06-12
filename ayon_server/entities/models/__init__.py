@@ -16,6 +16,7 @@ from ayon_server.entities.models.fields import (
     version_fields,
     workfile_fields,
 )
+from ayon_server.entities.core.attrib import attribute_library
 from ayon_server.entities.models.generator import generate_model
 from ayon_server.types import (
     ENTITY_ID_EXAMPLE,
@@ -84,6 +85,50 @@ class ModelSet:
         self._post_model: type[BaseModel] | None = None
         self._patch_model: type[BaseModel] | None = None
         self._attrib_model: type[BaseModel] | None = None
+
+        attribute_library.register_invalidation_callback(self.invalidate)
+
+    def invalidate(self) -> None:
+        """Update the attrib model's fields in-place after an attribute reload.
+
+        FastAPI evaluates route type annotations (e.g. `post_data:
+        FolderEntity.model.patch_model`) once at import time and holds the
+        resulting Pydantic class for the lifetime of the process.  Creating
+        a brand-new class on reload would be invisible to those routes.
+
+        Instead we mutate the *existing* `_attrib_model` class in-place:
+        - Replace its `__fields__` dict so Pydantic's validator picks up
+          added / removed / changed attributes on the very next request.
+        - Clear `__schema_cache__` on all four models so the OpenAPI schema
+          is regenerated correctly on the next `/openapi.json` request.
+
+        If the attrib model has not been built yet (still None) the fresh
+        build from the updated `self.attributes` list will happen lazily on
+        the next access, so no action is needed.
+        """
+        if self._attrib_model is None:
+            return
+
+        # Build a temporary model to obtain the updated ModelField objects.
+        new_attrib_model = generate_model(
+            f"{self.entity_name.capitalize()}AttribModel",
+            self.attributes,
+            AttribModelConfig,
+        )
+
+        # Swap fields in-place on the class FastAPI already holds a reference to.
+        self._attrib_model.__fields__.clear()
+        self._attrib_model.__fields__.update(new_attrib_model.__fields__)
+
+        # Clear Pydantic's cached JSON schemas so OpenAPI reflects the changes.
+        for model in (
+            self._attrib_model,
+            self._model,
+            self._post_model,
+            self._patch_model,
+        ):
+            if model is not None:
+                model.__schema_cache__.clear()
 
     @property
     def attrib_model(self) -> type[BaseModel]:
