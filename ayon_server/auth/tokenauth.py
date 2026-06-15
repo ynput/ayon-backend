@@ -122,7 +122,7 @@ async def create_guest_user_session(
     *,
     full_name: str | None = None,
     redirect_url: str | None = None,
-    guest_access: dict[str, Any] | None = None,
+    guest_access: list[dict[str, Any]] | None = None,
 ) -> LoginResponseModel:
     name = slugify(f"guest.{email}", separator=".")
 
@@ -158,9 +158,6 @@ async def handle_token_auth_callback(
         _, project_name, link_id = token.split(".", 2)
 
         try:
-            if len(link_id) != 64:
-                raise BadRequestException("Invalid token format")
-
             project_name = await normalize_project_name(project_name)
 
         except AyonException:
@@ -168,15 +165,33 @@ async def handle_token_auth_callback(
 
         res = await Postgres.fetchrow(
             f"""
-            SELECT session_id, data->publicLinks->>$1 AS link_data
+            SELECT id, data->'publicLinks'->$1 AS link_data
             FROM project_{project_name}.entity_lists
-            WHERE (data->'publicLinks'->>$1)::jsonb IS NOT NULL
+            WHERE (data->'publicLinks'->$1) IS NOT NULL
             """,
             link_id,
         )
 
         if not res:
             raise BadRequestException("Invalid or expired token")
+        session_id = res["id"]
+
+        guest_access = [
+            {
+                "type": "entityList",
+                "projectName": project_name,
+                "id": session_id,
+                "activityCategory": res["link_data"].get("activityCategory"),
+            }
+        ]
+
+        return await create_guest_user_session(
+            email="guest:publiclink@ayon.local",
+            request=request,
+            full_name="Public Link Guest",
+            redirect_url=f"/projects/{project_name}/reviews/{session_id}",
+            guest_access=guest_access,
+        )
 
     try:
         enc_data = await decrypt_json_urlsafe(token)
