@@ -418,6 +418,8 @@ class UserEntity(TopLevelEntity):
             return
 
         if self.is_guest:
+            if self.data.get("guestProjectAccess") == project_name:
+                return  # Guest user has access to this project
             project = await ProjectEntity.load(project_name)
             guest_users = project.data.get("guestUsers", {})
             if self.attrib.email not in guest_users:

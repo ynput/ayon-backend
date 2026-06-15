@@ -5,6 +5,7 @@ from fastapi import Request
 from ayon_server.auth.session import Session
 from ayon_server.entities import UserEntity
 from ayon_server.exceptions import (
+    AyonException,
     BadRequestException,
     InvalidSettingsException,
     UnauthorizedException,
@@ -12,6 +13,8 @@ from ayon_server.exceptions import (
 from ayon_server.helpers.crypto import decrypt_json_urlsafe, encrypt_json_urlsafe
 from ayon_server.helpers.email import EmailTemplate, is_mailing_enabled, send_mail
 from ayon_server.helpers.guest_users import GuestUsers
+from ayon_server.helpers.project_list import normalize_project_name
+from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback, logger
 from ayon_server.types import OPModel
 from ayon_server.utils import server_url_from_request, slugify
@@ -119,14 +122,19 @@ async def create_guest_user_session(
     *,
     full_name: str | None = None,
     redirect_url: str | None = None,
+    guest_access: dict[str, Any] | None = None,
 ) -> LoginResponseModel:
     name = slugify(f"guest.{email}", separator=".")
+
+    user_data: dict[str, Any] = {"isGuest": True}
+    if guest_access:
+        user_data["guestAccess"] = guest_access
 
     user = UserEntity(
         payload={
             "name": name,
             "attrib": {"email": email, "fullName": full_name},
-            "data": {"isGuest": True},
+            "data": user_data,
         }
     )
     session = await Session.create(user, request=request)
@@ -145,6 +153,31 @@ async def handle_token_auth_callback(
     request: Request,
     current_user: UserEntity | None = None,
 ) -> LoginResponseModel:
+
+    if token.startswith("ayrs."):
+        _, project_name, link_id = token.split(".", 2)
+
+        try:
+            if len(link_id) != 64:
+                raise BadRequestException("Invalid token format")
+
+            project_name = await normalize_project_name(project_name)
+
+        except AyonException:
+            raise BadRequestException("Invalid token format")
+
+        res = await Postgres.fetchrow(
+            f"""
+            SELECT session_id, data->publicLinks->>$1 AS link_data
+            FROM project_{project_name}.entity_lists
+            WHERE (data->'publicLinks'->>$1)::jsonb IS NOT NULL
+            """,
+            link_id,
+        )
+
+        if not res:
+            raise BadRequestException("Invalid or expired token")
+
     try:
         enc_data = await decrypt_json_urlsafe(token)
     except Exception:

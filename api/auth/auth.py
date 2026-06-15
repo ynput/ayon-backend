@@ -77,3 +77,35 @@ async def token_auth_callback(
         raise BadRequestException("Missing 'q' query parameter with token")
 
     return await handle_token_auth_callback(token, request, current_user)
+
+
+@router.get("/letmein")
+async def let_me_in(request: Request) -> str:
+    """Testing endpoint"""
+
+    import secrets
+
+    from ayon_server.lib.postgres import Postgres
+
+    link_id = secrets.token_hex(32)
+    project_name = "wing_it"
+    session_id = "72add6e2454911f0a4f30242ac130004"
+    activity_category = "Guest"
+
+    await Postgres.execute(
+        f"""
+        UPDATE project_{project_name}.entity_lists
+        SET data = data || $1::jsonb
+        WHERE id = $2
+        """,
+        {
+            "publicLinks": {
+                f"ayon.review.{link_id}": {
+                    "activityCategory": activity_category,
+                }
+            }
+        },
+        session_id,
+    )
+
+    return f"/login/token?q=ayrs.{project_name}.{link_id}"

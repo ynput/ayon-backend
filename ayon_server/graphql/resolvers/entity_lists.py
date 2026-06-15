@@ -70,12 +70,24 @@ async def get_entity_lists(
         sql_conditions.append(f"id in {SQLTool.id_array(ids)}")
 
     if user.is_guest:
-        sql_conditions.append(f"""
-            (
-            access->>'guest:{user.attrib.email}' IS NOT NULL
-            OR (access->'__guests__')::INTEGER > 0
-            )
-            """)
+        if guest_access := user.data.get("guestAccess"):
+            ids = [
+                ga["id"]
+                for ga in guest_access
+                if ga.get("project") == project_name
+                and ga.get("type") == "entityList"
+                and ga.get("id")
+            ]
+            if not ids:
+                return EntityListsConnection()
+            sql_conditions.append(f"id in {SQLTool.id_array(ids)}")
+        else:
+            sql_conditions.append(f"""
+                (
+                access->>'guest:{user.attrib.email}' IS NOT NULL
+                OR (access->'__guests__')::INTEGER > 0
+                )
+                """)
 
     #
     # Filtering
