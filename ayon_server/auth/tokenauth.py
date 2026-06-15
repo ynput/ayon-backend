@@ -155,16 +155,18 @@ async def handle_token_auth_callback(
     current_user: UserEntity | None = None,
 ) -> LoginResponseModel:
 
-    if token.startswith("review."):
-        addon_library = AddonLibrary.getinstance()
-        review_addon = await addon_library.get_production_addon("review")
-        if not review_addon:
-            raise NotImplementedError("Review addon is not available")
-        if not hasattr(review_addon, "authorize_public_link"):
+    parts = token.split(".", 1)
+    addon_library = AddonLibrary.getinstance()
+    if parts[0] in addon_library.data:
+        addon_name = parts[0]
+        addon = await addon_library.get_production_addon(addon_name)
+        if not addon:
+            raise NotImplementedError(f"{addon_name} is not available")
+        if not hasattr(addon, "authorize_public_link"):
             raise NotImplementedError(
-                "Review addon does not support public link authentication"
+                f"{addon} addon does not support public link authentication"
             )
-        return await review_addon.authorize_public_link(token, request, current_user)
+        return await addon.authorize_public_link(token, request, current_user)
 
     try:
         enc_data = await decrypt_json_urlsafe(token)
