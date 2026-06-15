@@ -301,7 +301,7 @@ async def get_entity_list_items(
 
         # when querying tasks, we need the parent folder attributes
         # as well because of the inheritance
-        sql_columns.append("px.attrib as _entity_parent_folder_attrib")
+        sql_columns.append("px.attrib as _entity_inherited_attributes")
         sql_columns.append("pf.folder_type as _parent_folder_type")
         sql_columns.append("hierarchy.path AS _entity__folder_path")
         sql_joins.extend(

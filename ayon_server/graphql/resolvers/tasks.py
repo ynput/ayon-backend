@@ -204,7 +204,7 @@ async def get_tasks(
     sql_columns = [
         "tasks.*",
         "hierarchy.path AS _folder_path",
-        "f_ex.attrib as parent_folder_attrib",
+        "f_ex.attrib as inherited_attributes",
     ]
 
     sql_joins = [
