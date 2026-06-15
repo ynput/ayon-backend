@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Annotated, Any
 
 from fastapi import APIRouter
@@ -230,6 +231,65 @@ class CreateLinksResponseModel(OPModel):
     ]
 
 
+@dataclass
+class ParsedLink:
+    """Parsed and validated link data."""
+
+    id: str
+    input: str
+    output: str
+    name: str | None
+    link_type: str
+    link_type_name: str
+    input_type: str
+    output_type: str
+    data: dict[str, Any]
+
+
+def _validate_link(
+    link: CreateLinkRequestModel,
+    user: CurrentUser,
+    project_name: ProjectName,
+) -> ParsedLink:
+    """Validate a single link request and return parsed link data.
+
+    Checks link type format, permissions, and self-linking constraints.
+    """
+    link_type = link.link_type or link.link
+    if link_type is None:
+        raise BadRequestException("Link type is not specified")
+
+    if not user.is_manager:
+        perms = user.permissions(project_name)
+        if perms.links.enabled and link_type not in perms.links.link_types:
+            raise ForbiddenException(
+                "You do not have permission to create this link type."
+            )
+
+    if len(link_type.split("|")) != 3:
+        raise BadRequestException(
+            "Link type must be in the format 'name|input_type|output_type'"
+        )
+
+    link_type_name, input_type, output_type = link_type.split("|")
+    link_id = link.id or EntityID.create()
+
+    if input_type == output_type and link.input == link.output:
+        raise BadRequestException("Cannot link an entity to itself.")
+
+    return ParsedLink(
+        id=link_id,
+        input=link.input,
+        output=link.output,
+        name=link.name,
+        link_type=link_type,
+        link_type_name=link_type_name,
+        input_type=input_type,
+        output_type=output_type,
+        data=link.data,
+    )
+
+
 @router.post("/projects/{project_name}/links/bulk")
 async def create_entity_links_bulk(
     user: CurrentUser,
@@ -245,50 +305,15 @@ async def create_entity_links_bulk(
     """
 
     # Parse and validate all link entries upfront (before touching the DB)
-    parsed_links: list[dict[str, Any]] = []
-    perms = None if user.is_manager else user.permissions(project_name)
-
+    parsed_links: list[ParsedLink] = []
     for link in post_data.links:
-        link_type = link.link_type or link.link
-        if link_type is None:
-            raise BadRequestException("Link type is not specified")
-
-        if perms is not None:
-            if perms.links.enabled and link_type not in perms.links.link_types:
-                raise ForbiddenException(
-                    "You do not have permission to create this link type."
-                )
-
-        if len(link_type.split("|")) != 3:
-            raise BadRequestException(
-                "Link type must be in the format 'name|input_type|output_type'"
-            )
-
-        link_type_name, input_type, output_type = link_type.split("|")
-        link_id = link.id or EntityID.create()
-
-        if input_type == output_type and link.input == link.output:
-            raise BadRequestException("Cannot link an entity to itself.")
-
-        parsed_links.append(
-            {
-                "id": link_id,
-                "input": link.input,
-                "output": link.output,
-                "name": link.name,
-                "link_type": link_type,
-                "link_type_name": link_type_name,
-                "input_type": input_type,
-                "output_type": output_type,
-                "data": link.data,
-            }
-        )
+        parsed_links.append(_validate_link(link, user, project_name))
 
     # Collect entity IDs grouped by type for bulk existence checks
     entity_ids_by_type: dict[str, set[str]] = {}
     for pl in parsed_links:
-        entity_ids_by_type.setdefault(pl["input_type"], set()).add(pl["input"])
-        entity_ids_by_type.setdefault(pl["output_type"], set()).add(pl["output"])
+        entity_ids_by_type.setdefault(pl.input_type, set()).add(pl.input)
+        entity_ids_by_type.setdefault(pl.output_type, set()).add(pl.output)
 
     async with Postgres.transaction():
         await Postgres.set_project_schema(project_name)
@@ -319,13 +344,13 @@ async def create_entity_links_bulk(
                 """,
                 [
                     (
-                        pl["id"],
-                        pl["name"],
-                        pl["input"],
-                        pl["output"],
-                        pl["link_type"],
+                        pl.id,
+                        pl.name,
+                        pl.input,
+                        pl.output,
+                        pl.link_type,
                         user.name,
-                        pl["data"],
+                        pl.data,
                     )
                     for pl in parsed_links
                 ],
@@ -343,12 +368,12 @@ async def create_entity_links_bulk(
                 "count": len(parsed_links),
                 "links": [
                     {
-                        "id": pl["id"],
-                        "linkType": pl["link_type_name"],
-                        "inputType": pl["input_type"],
-                        "outputType": pl["output_type"],
-                        "inputId": pl["input"],
-                        "outputId": pl["output"],
+                        "id": pl.id,
+                        "linkType": pl.link_type_name,
+                        "inputType": pl.input_type,
+                        "outputType": pl.output_type,
+                        "inputId": pl.input,
+                        "outputId": pl.output,
                     }
                     for pl in parsed_links
                 ],
@@ -365,10 +390,10 @@ async def create_entity_links_bulk(
     return CreateLinksResponseModel(
         created=[
             LinkCreatedItem(
-                id=pl["id"],
-                input=pl["input"],
-                output=pl["output"],
-                link_type=pl["link_type"],
+                id=pl.id,
+                input=pl.input,
+                output=pl.output,
+                link_type=pl.link_type,
             )
             for pl in parsed_links
         ]
@@ -388,27 +413,12 @@ async def create_entity_link(
     # TODO: access control. Since we need entity class for that,
     # we could get rid of the following check and use Entity.load instead
 
-    link_type = post_data.link_type or post_data.link
-
-    if link_type is None:
-        raise BadRequestException("Link type is not specified")
-
-    if not user.is_manager:
-        perms = user.permissions(project_name)
-        if perms.links.enabled and link_type not in perms.links.link_types:
-            raise ForbiddenException(
-                "You do not have permission to create this link type."
-            )
-
-    if len(link_type.split("|")) != 3:
-        msg = "Link type must be in the format 'name|input_type|output_type'"
-        raise BadRequestException(msg)
-
-    link_type_name, input_type, output_type = link_type.split("|")
-    link_id = post_data.id or EntityID.create()
-
-    if input_type == output_type and post_data.input == post_data.output:
-        raise BadRequestException("Cannot link an entity to itself.")
+    parsed = _validate_link(post_data, user, project_name)
+    link_type = parsed.link_type
+    link_type_name = parsed.link_type_name
+    input_type = parsed.input_type
+    output_type = parsed.output_type
+    link_id = parsed.id
 
     async with Postgres.transaction():
         await Postgres.set_project_schema(project_name)
