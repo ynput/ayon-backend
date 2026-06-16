@@ -41,7 +41,7 @@ class ThumbnailData(TypedDict):
 @Redis.cached(
     "thumbnail",
     "{project_name}:{thumbnail_id}:{mode}",
-    ttl=600,
+    ttl=300,
     model="bytes",
 )
 async def retrieve_thumbnail(
