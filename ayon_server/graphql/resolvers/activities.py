@@ -205,10 +205,13 @@ async def get_activities(
             ids = [
                 ga["id"]
                 for ga in guest_access
-                if ga.get("project") == project_name
+                if ga.get("projectName") == project_name
                 and ga.get("type") == "entityList"
                 and ga.get("id")
             ]
+            if not ids:
+                # guest has no access to any lists, so cannot see any activities
+                return ActivitiesConnection()
 
             sql_cte.append(
                 f"""
