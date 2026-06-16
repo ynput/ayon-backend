@@ -1,6 +1,5 @@
 import base64
 import functools
-import random
 from typing import Literal, NotRequired, TypedDict
 
 from fastapi import Response
@@ -42,7 +41,7 @@ class ThumbnailData(TypedDict):
 @Redis.cached(
     "thumbnail",
     "{project_name}:{thumbnail_id}:{mode}",
-    ttl=7200,
+    ttl=300,
     model="bytes",
 )
 async def retrieve_thumbnail(
@@ -80,20 +79,16 @@ async def get_thumbnail_response(
     file_id = thumbnail_info.get("file_id")
 
     content = None
-    cache_max_age = random.randint(3600, 3700)
-
-    headers = {
-        "Cache-Control": f"max-age={cache_max_age}, public",
-    }
+    headers = {"Cache-Control": "public, max-age=31536000, immutable"}
 
     if thumbnail_id:
-        headers["X-Thumbnail-Id"] = thumbnail_id
         content = await coalesce(
             retrieve_thumbnail,
             thumbnail_info["project_name"],
             thumbnail_id,
             "original" if original else "small",
         )
+        headers["X-Thumbnail-Id"] = thumbnail_id
 
     elif file_id:
         try:
@@ -116,6 +111,9 @@ async def get_thumbnail_response(
     if content is None:
         if placeholder_option == "empty":
             content = get_fake_thumbnail()
+            headers["Cache-Control"] = (
+                "public, max-age=3600"  # Cache the empty thumbnail for a shorter time
+            )
             mime = "image/png"
         else:
             raise NotFoundException("No thumbnail available")

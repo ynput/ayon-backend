@@ -218,7 +218,8 @@ class Messaging(BackgroundWorker):
         # (or only to those subscribed to the topic and authorized)
         #
 
-        for client in self.clients.values():
+        connected_clients = list(self.clients.values())
+        for client in connected_clients:
             project_name = message.get("project", None)
             if project_name is not None:
                 if topic == "inbox.message" or topic in ALWAYS_SUBSCRIBE:

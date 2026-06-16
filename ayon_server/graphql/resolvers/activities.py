@@ -74,6 +74,9 @@ async def get_activities(
     changed_after: Annotated[
         str | None, argdesc("Filter activities updated after this timestamp")
     ] = None,
+    authors: Annotated[
+        list[str] | None, argdesc("Filter for activities based on author names")
+    ] = None,
     filter: Annotated[
         str | None, argdesc("Filter activities using QueryFilter")
     ] = None,
@@ -257,6 +260,10 @@ async def get_activities(
     if entity_names is not None:
         validate_name_list(entity_names)
         sql_conditions.append(f"entity_name IN {SQLTool.array(entity_names)}")
+
+    if authors:
+        authors_array = SQLTool.array(authors, curly=True)
+        sql_conditions.append(f"activity_data->>'author' = ANY({authors_array})")
 
     if filter:
         fdata = json.loads(filter)
