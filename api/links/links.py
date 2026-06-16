@@ -332,9 +332,6 @@ async def delete_entity_link(
         link_type = res["link_type"]
         link_type_name, input_type, output_type = link_type.split("|")
 
-        if res["author"] != user.name and not user.is_manager:
-            raise ForbiddenException("You do not have permission to delete this link.")
-
         query = "DELETE FROM links WHERE id = $1"
         await Postgres.execute(query, link_id)
 
