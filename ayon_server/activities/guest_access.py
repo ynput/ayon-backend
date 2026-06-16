@@ -10,18 +10,24 @@ async def get_guest_activity_category(
     entity_list_id: str | None,
 ) -> str:
     if entity_list_id is None:
-        raise ForbiddenException("Guest has no comment category")
+        raise ForbiddenException("Guest has no comment category [no list selected]")
 
     if guest_access := user.data.get("guestAccess"):
         for ga in guest_access:
+            print()
+            print(ga)
+            print(project.name, entity_list_id)
+            print()
             if (
-                ga.get("project") == project.name
+                ga.get("projectName") == project.name
                 and ga.get("type") == "entityList"
                 and ga.get("id") == entity_list_id
             ):
                 return ga.get("activityCategory")
 
-        raise ForbiddenException("Guest has no comment category")
+        raise ForbiddenException(
+            "Guest has no direct comment category [no public access]"
+        )
 
     # Explicit project guests
 
@@ -53,7 +59,7 @@ async def get_guest_activity_category(
     list_guest_categories = res["data"].get("guestActivityCategories", {})
     list_guest_category = list_guest_categories.get(user.attrib.email)
     if not list_guest_category:
-        raise ForbiddenException("Guest has no comment category")
+        raise ForbiddenException("Guest has no comment category [no category defined]")
 
     return list_guest_category
 
