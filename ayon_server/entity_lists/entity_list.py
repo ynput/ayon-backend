@@ -201,21 +201,37 @@ class EntityList:
 
         access_level = EntityAccessHelper.MANAGE
         if user:
-            project = await ProjectEntity.load(project_name)
-            access_level = EntityAccessHelper.MANAGE
-            try:
-                await EntityAccessHelper.check(
-                    user,
-                    access=res["access"],
-                    level=access_level,
-                    owner=res["owner"],
-                    project=project,
-                    default_open=True,
-                )
-            except ForbiddenException as e:
-                access_level = e.extra.get("access_level", 10)
-            if access_level < 10:
-                raise ForbiddenException(f"Access denied to entity list {res['label']}")
+            if user.is_guest and (guest_access := user.data.get("guestAccess")):
+                for ga in guest_access:
+                    if (
+                        ga.get("id") == res["id"]
+                        and ga.get("type") == "entityList"
+                        and ga.get("projectName") == project_name
+                    ):
+                        break
+                else:
+                    raise ForbiddenException(
+                        f"Access denied to entity list {res['label']}"
+                    )
+
+            else:
+                project = await ProjectEntity.load(project_name)
+                access_level = EntityAccessHelper.MANAGE
+                try:
+                    await EntityAccessHelper.check(
+                        user,
+                        access=res["access"],
+                        level=access_level,
+                        owner=res["owner"],
+                        project=project,
+                        default_open=True,
+                    )
+                except ForbiddenException as e:
+                    access_level = e.extra.get("access_level", 10)
+                if access_level < 10:
+                    raise ForbiddenException(
+                        f"Access denied to entity list {res['label']}"
+                    )
 
         return cls(
             project_name,

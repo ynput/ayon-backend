@@ -149,9 +149,20 @@ async def get_entity_list(
         payload.created_by = None
         payload.updated_by = None
 
-        guest_activity_category = payload.data.get("guestActivityCategories", {}).get(
-            user.attrib.email
-        )
+        guest_activity_category = None
+        if guest_access := user.data.get("guestAccess"):
+            for ga in guest_access:
+                if (
+                    ga.get("type") == "entityList"
+                    and ga.get("id") == entity_list_id
+                    and ga.get("projectName") == project_name
+                ):
+                    guest_activity_category = ga.get("activityCategory")
+                    break
+        else:
+            guest_activity_category = payload.data.get(
+                "guestActivityCategories", {}
+            ).get(user.attrib.email)
         payload.data = {}
         if guest_activity_category:
             payload.data["guestActivityCategories"] = {
