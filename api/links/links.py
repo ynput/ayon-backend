@@ -379,10 +379,10 @@ async def _check_access(
         input_class = get_entity_class(input_type)
         input_entity = await input_class.load(project_name, input_id)
 
-        output_class = get_entity_class(output_type)
-        output_entity = await output_class.load(project_name, output_id)
-
         try:
             await input_entity.ensure_update_access(user)
         except ForbiddenException:
+            output_class = get_entity_class(output_type)
+            output_entity = await output_class.load(project_name, output_id)
+
             await output_entity.ensure_update_access(user)
