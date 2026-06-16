@@ -12,6 +12,19 @@ async def get_guest_activity_category(
     if entity_list_id is None:
         raise ForbiddenException("Guest has no comment category")
 
+    if guest_access := user.data.get("guestAccess"):
+        for ga in guest_access:
+            if (
+                ga.get("project") == project.name
+                and ga.get("type") == "entityList"
+                and ga.get("id") == entity_list_id
+            ):
+                return ga.get("activityCategory")
+
+        raise ForbiddenException("Guest has no comment category")
+
+    # Explicit project guests
+
     if user.attrib.email not in project.data.get("guestUsers", {}):
         raise ForbiddenException("You are not allowed to access this project")
 
