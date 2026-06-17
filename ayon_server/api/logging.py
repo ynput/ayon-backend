@@ -191,4 +191,5 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                         # so it doesn't pollute the logs.
                         logger.trace(msg)
 
+        response.headers["X-Request-ID"] = request_id
         return response
