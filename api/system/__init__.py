@@ -93,10 +93,16 @@ async def set_restart_required(
 
 @router.get("/system/sleep", include_in_schema=False)
 async def debug_sleep(
+    user: CurrentUser,
     duration: Annotated[
         int,
-        Query(ge=0, le=60, description="Duration in seconds"),
+        Query(
+            ge=0,
+            le=60,
+            description="Duration in seconds",
+        ),
     ] = 10,
+) -> dict[str, str]:
     """
     Debug endpoint to simulate a long-running request.
     Only available for administrators.
@@ -105,6 +111,6 @@ async def debug_sleep(
     if not user.is_admin:
         raise ForbiddenException("Only administrators can use this endpoint")
 
-    logger.info(f"Simulating a long-running request for {duration} seconds")
+    logger.debug(f"Simulating a long-running request for {duration} seconds")
     await asyncio.sleep(duration)
     return {"message": f"Slept for {duration} seconds"}
