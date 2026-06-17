@@ -93,9 +93,10 @@ async def set_restart_required(
 
 @router.get("/system/sleep", include_in_schema=False)
 async def debug_sleep(
-    user: CurrentUser,
-    duration: Annotated[int, Query(ge=0, description="Duration in seconds")] = 10,
-):
+    duration: Annotated[
+        int,
+        Query(ge=0, le=60, description="Duration in seconds"),
+    ] = 10,
     """
     Debug endpoint to simulate a long-running request.
     Only available for administrators.
