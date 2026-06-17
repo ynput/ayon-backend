@@ -339,7 +339,7 @@ async def delete_entity_link(
             input_type,
             output_type,
             res["input_id"],
-            res["output_id"]
+            res["output_id"],
         )
 
         query = "DELETE FROM links WHERE id = $1"
@@ -372,7 +372,7 @@ async def _check_access(
     input_type: str,
     output_type: str,
     input_id: str,
-    output_id: str
+    output_id: str,
 ):
     """Checks that user is manager or has access to both sides of link."""
     if not user.is_manager:
