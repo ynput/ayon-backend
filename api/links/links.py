@@ -17,6 +17,7 @@ from ayon_server.exceptions import (
     ForbiddenException,
     NotFoundException,
 )
+from ayon_server.helpers.get_entity_class import get_entity_class
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import logger
 from ayon_server.types import Field, OPModel
@@ -332,8 +333,14 @@ async def delete_entity_link(
         link_type = res["link_type"]
         link_type_name, input_type, output_type = link_type.split("|")
 
-        if res["author"] != user.name and not user.is_manager:
-            raise ForbiddenException("You do not have permission to delete this link.")
+        await _check_access(
+            user,
+            project_name,
+            input_type,
+            output_type,
+            res["input_id"],
+            res["output_id"]
+        )
 
         query = "DELETE FROM links WHERE id = $1"
         await Postgres.execute(query, link_id)
@@ -357,3 +364,25 @@ async def delete_entity_link(
         )
 
     return EmptyResponse()
+
+
+async def _check_access(
+    user: CurrentUser,
+    project_name: ProjectName,
+    input_type: str,
+    output_type: str,
+    input_id: str,
+    output_id: str
+):
+    """Checks that user is manager or has access to both sides of link."""
+    if not user.is_manager:
+        input_class = get_entity_class(input_type)
+        input_entity = await input_class.load(project_name, input_id)
+
+        try:
+            await input_entity.ensure_update_access(user)
+        except ForbiddenException:
+            output_class = get_entity_class(output_type)
+            output_entity = await output_class.load(project_name, output_id)
+
+            await output_entity.ensure_update_access(user)
