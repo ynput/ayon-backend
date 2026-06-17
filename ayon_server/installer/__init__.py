@@ -5,6 +5,10 @@ from ayon_server.background.background_worker import BackgroundWorker
 from ayon_server.events import EventStream
 from ayon_server.installer.addons import install_addon_from_url, unpack_addon
 from ayon_server.installer.dependency_packages import download_dependency_package
+from ayon_server.installer.hotreload import (
+    notify_clients_addon_reload,
+    trigger_hotreload,
+)
 from ayon_server.installer.installers import download_installer
 from ayon_server.lib.postgres import Postgres
 from ayon_server.logging import log_traceback, logger
@@ -23,11 +27,47 @@ class TooManyRetries(Exception):
     pass
 
 
-async def handle_need_restart(installer: "BackgroundInstaller") -> None:
+async def handle_need_restart(
+    installer: "BackgroundInstaller",
+    event_id: str | None = None,
+) -> None:
+    """
+    Handle post-installation restart/reload logic.
+
+    This function is called after an addon installation completes to
+    determine whether a hot-reload or full restart is needed.
+
+    Args:
+        installer: The background installer instance.
+        event_id: The event ID that triggered this action (passed explicitly
+            to avoid race conditions with concurrent events).
+    """
     await asyncio.sleep(1)
-    if installer.event_queue.empty() and installer.restart_needed:
+
+    if not installer.event_queue.empty() or not installer.restart_needed:
+        return
+
+    # Try hot-reload first
+    reload_success = await trigger_hotreload(
+        mode="addon",
+        event_id=event_id,
+    )
+
+    if reload_success:
+        # Hot-reload succeeded, notify clients
+        await notify_clients_addon_reload(event_id=event_id)
+        logger.info(
+            "Addon installed successfully with hot-reload",
+            event_id=event_id,
+        )
+    else:
+        # Hot-reload failed, fall back to requiring restart
         await require_server_restart(
             None, "Restart the server to apply the addon changes."
+        )
+        logger.warning(
+            "Hot-reload failed, server restart required",
+            event_id=event_id,
         )
 
 
@@ -35,12 +75,16 @@ class BackgroundInstaller(BackgroundWorker):
     def initialize(self) -> None:
         self.event_queue: asyncio.Queue[str] = asyncio.Queue()
         self.restart_needed: bool = False
+        # Note: current_event_id removed - event_id is now passed explicitly
+        # through the call chain to avoid race conditions
 
     async def enqueue(self, event_id: str) -> None:
         logger.debug("Background installer: enqueuing event", event_id=event_id)
         await self.event_queue.put(event_id)
 
     async def process_event(self, event_id: str) -> None:
+        # Note: event_id is now passed explicitly to handle_need_restart
+        # instead of storing it as instance state (avoids race conditions)
         res = await Postgres().fetch(
             " SELECT topic, status, summary, retries FROM events WHERE id = $1 ",
             event_id,
@@ -83,7 +127,8 @@ class BackgroundInstaller(BackgroundWorker):
             event_id=event_id,
         )
 
-        asyncio.create_task(handle_need_restart(self))
+        # Pass event_id explicitly to avoid race conditions
+        asyncio.create_task(handle_need_restart(self, event_id=event_id))
 
     async def run(self) -> None:
         # load past unprocessed events
