@@ -7,7 +7,10 @@ __all__ = [
     "dbimport",
 ]
 
-from fastapi import Response
+import asyncio
+from typing import Annotated
+
+from fastapi import Query, Response
 
 from ayon_server.api.dependencies import CurrentUser
 from ayon_server.api.system import clear_server_restart_required, require_server_restart
@@ -86,3 +89,28 @@ async def set_restart_required(
 
     if not user.is_admin:
         raise ForbiddenException("Only administrators can set server restart required")
+
+
+@router.get("/system/sleep", include_in_schema=False)
+async def debug_sleep(
+    user: CurrentUser,
+    duration: Annotated[
+        int,
+        Query(
+            ge=0,
+            le=60,
+            description="Duration in seconds",
+        ),
+    ] = 10,
+) -> dict[str, str]:
+    """
+    Debug endpoint to simulate a long-running request.
+    Only available for administrators.
+    """
+
+    if not user.is_admin:
+        raise ForbiddenException("Only administrators can use this endpoint")
+
+    logger.debug(f"Simulating a long-running request for {duration} seconds")
+    await asyncio.sleep(duration)
+    return {"message": f"Slept for {duration} seconds"}

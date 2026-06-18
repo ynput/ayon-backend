@@ -106,7 +106,7 @@ async def task_loader(keys: list[KeyType]) -> list[dict[str, Any] | None]:
     query = f"""
         SELECT
             tasks.*,
-            pf.attrib AS parent_folder_attrib,
+            pf.attrib AS inherited_attributes,
             hierarchy.path AS _folder_path
         FROM project_{project_name}.tasks as tasks
 

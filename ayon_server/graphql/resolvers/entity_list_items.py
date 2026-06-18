@@ -220,6 +220,62 @@ async def get_entity_list_items(
 
     allowed_parent_keys = []
 
+    #
+    # Common CTEs
+    #
+
+    if fields.any_endswith("latestComments"):
+        sql_cte.append(
+            f"""
+            comments AS (
+                SELECT
+                    entity_id,
+                    json_agg(
+                        json_build_object(
+                            'activity_id', activity_id,
+                            'body', body,
+                            'author', author,
+                            'created_at', created_at
+                        )
+                        ORDER BY created_at DESC
+                    ) AS comments
+                FROM (
+                    SELECT
+                        activity_id,
+                        entity_id,
+                        body,
+                        activity_data->>'author' AS author,
+                        created_at,
+                        row_number() OVER (
+                            PARTITION BY entity_id
+                            ORDER BY created_at DESC
+                        ) AS rn
+                    FROM project_{project_name}.activity_feed
+                    WHERE activity_type = 'comment'
+                    AND entity_type = '{entity_type}'
+                    AND reference_type = 'origin'
+                ) x
+                WHERE rn <= 5
+                GROUP BY entity_id
+            )
+            """
+        )
+        sql_columns.append(
+            """
+            c.comments AS _entity_latest_comments
+            """
+        )
+        sql_joins.append(
+            """
+            LEFT JOIN comments c
+            ON c.entity_id = e.id
+            """
+        )
+
+    #
+    # Per-entity type CTEs, joins and columns
+    #
+
     if entity_type == "task":
         if fields.any_endswith("hasReviewables"):
             sql_cte.append(
@@ -245,7 +301,7 @@ async def get_entity_list_items(
 
         # when querying tasks, we need the parent folder attributes
         # as well because of the inheritance
-        sql_columns.append("px.attrib as _entity_parent_folder_attrib")
+        sql_columns.append("px.attrib as _entity_inherited_attributes")
         sql_columns.append("pf.folder_type as _parent_folder_type")
         sql_columns.append("hierarchy.path AS _entity__folder_path")
         sql_joins.extend(
