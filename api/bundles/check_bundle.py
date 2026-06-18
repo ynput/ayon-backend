@@ -223,11 +223,9 @@ async def check_bundle(
             if not installer_list or not installer_list.installers:
                 continue
 
-            installer_python_version = None
-            for installer in installer_list.installers:
-                installer_manifest = get_installer_manifest(installer.filename)
-                installer_python_version = installer_manifest.python_version
-
+            installer = installer_list.installers[0]
+            installer_manifest = get_installer_manifest(installer.filename)
+            installer_python_version = installer_manifest.python_version
             if not installer_python_version:
                 continue
 
