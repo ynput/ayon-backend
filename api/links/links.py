@@ -294,8 +294,6 @@ async def create_entity_links_bulk(
     user: CurrentUser,
     project_name: ProjectName,
     post_data: CreateLinksRequestModel,
-    sender: Sender,
-    sender_type: SenderType,
 ) -> CreateLinksResponseModel:
     """Create multiple entity links in a single request.
 
@@ -380,11 +378,11 @@ async def create_entity_links_bulk(
             description=f"Created {len(parsed_links)} links.",
             project=project_name,
             user=user.name,
-            sender=sender,
-            sender_type=sender_type,
         )
 
-    logger.debug(f"Created {len(parsed_links)} links in bulk for project {project_name}.")
+    logger.debug(
+        f"Created {len(parsed_links)} links in bulk for project {project_name}."
+    )
 
     return CreateLinksResponseModel(
         created=[
