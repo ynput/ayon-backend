@@ -2,17 +2,15 @@ from typing import TYPE_CHECKING, Literal
 
 import semver
 
+from api.desktop.deps import get_manifest
+from api.desktop.installers import get_installers
+from api.desktop.installers import get_manifest as get_installer_manifest
 from ayon_server.addons.library import AddonLibrary
 from ayon_server.exceptions import NotFoundException
 from ayon_server.types import Field, OPModel
 from ayon_server.version import __version__ as ayon_version
 
 from .models import BundleModel, BundlePatchModel
-from api.desktop.deps import get_manifest
-from api.desktop.installers import (
-    get_manifest as get_installer_manifest,
-    get_installers
-)
 
 if TYPE_CHECKING:
     pass
