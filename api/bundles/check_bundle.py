@@ -212,7 +212,21 @@ async def check_bundle(
             if package_filename is None:
                 continue
 
-            manifest = get_manifest(package_filename)
+            try:
+                manifest = get_manifest(package_filename)
+            except Exception:
+                issues.append(
+                    BundleIssueModel(
+                        severity="error",
+                        addon=None,
+                        message=(
+                            f"Dependency package '{package_filename}' manifest could not be loaded."
+                        ),
+                        required_addon=None,
+                    )
+                )
+                continue
+
             package_python_version = manifest.python_version
             if not package_python_version:
                 continue
