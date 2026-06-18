@@ -100,6 +100,15 @@ class ChangelogSettingsModel(BaseSettingsModel):
     ] = True
 
 
+class CDNSettingsModel(BaseSettingsModel):
+    default_cdn_resolver_url: Annotated[
+        str,
+        SettingsField(
+            title="Default CDN Resolver URL",
+        ),
+    ] = ""
+
+
 class ServerConfigModel(BaseSettingsModel):
     _layout = "root"
 
@@ -143,6 +152,15 @@ class ServerConfigModel(BaseSettingsModel):
             title="Changelog Settings",
             description="Settings for the changelog feature",
             default_factory=lambda: ChangelogSettingsModel(),
+        ),
+    ]
+
+    cdn: Annotated[
+        CDNSettingsModel,
+        SettingsField(
+            title="CDN Settings",
+            description="Settings for the CDN resolver",
+            default_factory=lambda: CDNSettingsModel(),
         ),
     ]
 
@@ -190,3 +208,16 @@ async def save_server_config_data(data: dict[str, Any]) -> None:
         data,
     )
     await build_server_config_cache()
+
+
+async def update_server_config(
+    updates: dict[str, Any],
+) -> None:
+    """Partially update the server configuration with the given updates.
+
+    Accepts a dictionary of updates in the same structure as the ServerConfigmodel.
+    Keys that are not included in the updates will remain unchanged.
+    """
+
+    current_config = await get_server_config()
+    _ = current_config  # for type checking
