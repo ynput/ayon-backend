@@ -202,7 +202,7 @@ async def check_bundle(
 
     # Check for Python version installer compatibility with dependency packs
     if bundle.dependency_packages:
-        variant = (
+        variant: Literal["production", "staging"] | None = (
             "production" if bundle.is_production
             else "staging" if bundle.is_staging
             else None
