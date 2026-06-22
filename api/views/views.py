@@ -268,7 +268,7 @@ async def create_view(
     request: Request,
     current_user: CurrentUser,
     view_type: PViewType,
-    payload: ViewPostModel,
+    payload: Annotated[ViewPostModel, Body(title="Payload")],
     project_name: QProjectName = None,
 ) -> EntityIdResponse:
     """Create a new view for current user."""
