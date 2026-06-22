@@ -68,7 +68,6 @@ class TestRequestCoalescer:
         coalescer = RequestCoalescer()
         coalescer.current_futures.clear()
         coalescer.current_waiters.clear()
-        coalescer.unique_key_sequence = 0
         coalescer.max_waiters = 20
         return coalescer
 
