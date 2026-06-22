@@ -333,7 +333,7 @@ async def update_view(
     user: CurrentUser,
     view_type: PViewType,
     view_id: PViewId,
-    payload: ViewPatchModel,
+    payload: Annotated[ViewPatchModel, Body(title="Payload")],
     project_name: QProjectName = None,
 ) -> None:
     """Update a view in the database."""
